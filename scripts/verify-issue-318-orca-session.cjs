@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { chromium } = require('playwright');
@@ -10,9 +11,11 @@ const user = JSON.parse(process.env.ISSUE318_SCREEN_READER_USER || 'null');
 const outputDir = process.env.ISSUE318_SCREEN_READER_DIR || path.resolve('issue-318-browser-evidence');
 if (!url || !token || !user) throw new Error('Missing native screen-reader evidence inputs');
 fs.mkdirSync(outputDir, { recursive: true });
+
 const versionResult = spawnSync('orca', ['--version'], { encoding: 'utf8', env: process.env });
 if (versionResult.status !== 0) throw new Error(`Orca version probe failed: ${versionResult.stderr || versionResult.stdout}`);
 fs.writeFileSync(path.join(outputDir, 'native-orca-version.txt'), `${versionResult.stdout || ''}${versionResult.stderr || ''}`);
+
 const chromeProbe = spawnSync('bash', ['-lc', 'command -v google-chrome-stable || command -v google-chrome'], {
   encoding: 'utf8',
   env: process.env,
@@ -24,10 +27,24 @@ if (chromeProbe.status !== 0 || !chromeExecutable) {
 const chromeVersion = spawnSync(chromeExecutable, ['--version'], { encoding: 'utf8', env: process.env });
 if (chromeVersion.status !== 0) throw new Error(`Google Chrome version probe failed: ${chromeVersion.stderr || chromeVersion.stdout}`);
 fs.writeFileSync(path.join(outputDir, 'native-chrome-version.txt'), `${chromeVersion.stdout || ''}${chromeVersion.stderr || ''}`);
+
+const pyatspiProbe = spawnSync('python3', ['-c', 'import pyatspi; print("pyatspi available")'], {
+  encoding: 'utf8',
+  env: process.env,
+});
+if (pyatspiProbe.status !== 0) {
+  throw new Error(`python3-pyatspi is required for native AT-SPI evidence: ${pyatspiProbe.stderr || pyatspiProbe.stdout}`);
+}
+fs.writeFileSync(path.join(outputDir, 'native-pyatspi-version.txt'), `${pyatspiProbe.stdout || ''}${pyatspiProbe.stderr || ''}`);
+
 const origin = new URL(url).origin;
 const debugFile = path.join(outputDir, 'native-orca-debug.log');
-const stdoutFile = path.join(outputDir, 'native-orca-stdout.log');
-const stdout = fs.openSync(stdoutFile, 'w');
+const orcaStdoutFile = path.join(outputDir, 'native-orca-stdout.log');
+const chromeStdoutFile = path.join(outputDir, 'native-chrome-stdout.log');
+const atspiTranscriptFile = path.join(outputDir, 'native-atspi-transcript.txt');
+const orcaStdout = fs.openSync(orcaStdoutFile, 'w');
+const chromeStdout = fs.openSync(chromeStdoutFile, 'w');
+const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'issue-318-native-profile-'));
 
 function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
@@ -47,117 +64,184 @@ async function stopChild(child) {
   }
 }
 
-async function closeWithTimeout(closeFn) {
-  await Promise.race([
-    Promise.resolve().then(closeFn).catch(() => undefined),
-    delay(5000),
-  ]);
+async function prepareAuthenticatedProfile() {
+  const context = await chromium.launchPersistentContext(profileDir, {
+    executablePath: chromeExecutable,
+    headless: true,
+    args: ['--no-sandbox', '--disable-dev-shm-usage'],
+    viewport: { width: 1366, height: 768 },
+  });
+  try {
+    await context.addInitScript(({ expectedOrigin, authToken, authUser }) => {
+      if (window.location.origin === expectedOrigin) {
+        window.localStorage.setItem('token', authToken);
+        window.localStorage.setItem('user', JSON.stringify(authUser));
+      }
+    }, { expectedOrigin: origin, authToken: token, authUser: user });
+    const page = context.pages()[0] || await context.newPage();
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await page.getByText('Montagem Consolidada da Prescrição', { exact: true }).first().waitFor({ timeout: 20000 });
+    assert.equal(await page.evaluate(() => window.localStorage.getItem('token')), token);
+  } finally {
+    await context.close();
+  }
 }
 
-async function waitForApplicationDom(cdp, timeoutMs = 25000) {
-  const title = 'Montagem Consolidada da Prescrição';
-  const deadline = Date.now() + timeoutMs;
-  let lastError;
+function runNativeAtspiInteraction() {
+  const script = String.raw`
+import re
+import sys
+import time
+import pyatspi
 
-  while (Date.now() < deadline) {
-    try {
-      const result = await cdp.send('Runtime.evaluate', {
-        expression: `Boolean(document.body && document.body.innerText.includes(${JSON.stringify(title)}))`,
-        returnByValue: true,
-      });
-      if (result.result?.value === true) return;
-    } catch (error) {
-      // Runtime contexts are briefly unavailable while the main frame commits.
-      lastError = error;
-    }
-    await delay(250);
-  }
+TITLE = 'Montagem Consolidada da Prescrição'
+HISTORY = '8. Histórico de versões'
+out_path = sys.argv[1]
 
-  throw new Error(`Chrome did not render the Issue 318 application within ${timeoutMs}ms${lastError ? `: ${lastError.message}` : ''}`);
+def walk(root):
+    stack = [root]
+    while stack:
+        node = stack.pop()
+        yield node
+        try:
+            count = node.childCount
+        except Exception:
+            count = 0
+        for index in range(count - 1, -1, -1):
+            try:
+                stack.append(node.getChildAtIndex(index))
+            except Exception:
+                pass
+
+def node_name(node):
+    try:
+        return node.name or ''
+    except Exception:
+        return ''
+
+def find(predicate, timeout=20):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        desktop = pyatspi.Registry.getDesktop(0)
+        for node in walk(desktop):
+            try:
+                if predicate(node):
+                    return node
+            except Exception:
+                pass
+        time.sleep(0.25)
+    return None
+
+def invoke(node):
+    action = node.queryAction()
+    names = [action.getName(i) for i in range(action.nActions)]
+    preferred = ['click', 'press', 'activate', 'toggle']
+    index = next((i for i, name in enumerate(names) if (name or '').lower() in preferred), 0)
+    if action.nActions < 1 or not action.doAction(index):
+        raise RuntimeError(f'Could not invoke AT-SPI action on {node_name(node)!r}; actions={names!r}')
+    return names
+
+lines = []
+title = find(lambda node: TITLE in node_name(node), timeout=25)
+if title is None:
+    raise RuntimeError('AT-SPI did not expose the Issue 318 page title')
+lines.append(f'title={node_name(title)} role={title.getRoleName()}')
+
+history = find(lambda node: node_name(node).strip() == HISTORY, timeout=15)
+if history is None:
+    raise RuntimeError('AT-SPI did not expose the history accordion button')
+lines.append(f'history={node_name(history)} role={history.getRoleName()} actions={invoke(history)!r}')
+
+time.sleep(1)
+version = find(lambda node: re.search(r'Versão\s+\d+', node_name(node), re.I) is not None, timeout=10)
+if version is None:
+    raise RuntimeError('AT-SPI did not expose a history version after expanding the accordion')
+lines.append(f'version={node_name(version)} role={version.getRoleName()}')
+
+with open(out_path, 'w', encoding='utf-8') as handle:
+    handle.write('\n'.join(lines) + '\n')
+`;
+
+  return spawnSync('python3', ['-c', script, atspiTranscriptFile], {
+    encoding: 'utf8',
+    env: process.env,
+    timeout: 40000,
+  });
 }
 
 async function main() {
-  let browser;
-  let context;
+  let nativeChrome;
   let orca;
   try {
-    // Use the runner's system Chrome for the native AT-SPI session. Navigate via
-    // CDP instead of Playwright's lifecycle waiter: with renderer accessibility
-    // forced on Linux, Playwright page.goto() can time out while AT-SPI initializes
-    // even though Chrome itself can commit and render the document.
-    browser = await chromium.launch({
-      executablePath: chromeExecutable,
-      headless: false,
-      args: ['--force-renderer-accessibility', '--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage'],
-    });
-    context = await browser.newContext({
-      viewport: { width: 1366, height: 768 },
-      storageState: {
-        cookies: [],
-        origins: [{
-          origin,
-          localStorage: [
-            { name: 'token', value: token },
-            { name: 'user', value: JSON.stringify(user) },
-          ],
-        }],
-      },
-    });
-    const page = await context.newPage();
-    const cdp = await context.newCDPSession(page);
-    const navigation = await cdp.send('Page.navigate', { url });
-    if (navigation.errorText) throw new Error(`Chrome navigation failed: ${navigation.errorText}`);
-    await waitForApplicationDom(cdp);
+    // Seed authentication in a normal browser first. The native-accessibility Chrome
+    // then opens the target URL directly from its command line, so no Playwright/CDP
+    // navigation command can deadlock while the Linux AT-SPI bridge initializes.
+    await prepareAuthenticatedProfile();
+    await delay(1000);
+
+    nativeChrome = spawn(chromeExecutable, [
+      `--user-data-dir=${profileDir}`,
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--force-renderer-accessibility',
+      '--disable-gpu',
+      '--no-sandbox',
+      '--disable-dev-shm-usage',
+      url,
+    ], { stdio: ['ignore', chromeStdout, chromeStdout], env: process.env });
+    await delay(5000);
 
     orca = spawn('orca', [
       '--replace',
       '--disable=speech',
       '--debug',
       `--debug-file=${debugFile}`,
-    ], { stdio: ['ignore', stdout, stdout], env: process.env });
+    ], { stdio: ['ignore', orcaStdout, orcaStdout], env: process.env });
     await delay(3000);
 
-    const listed = spawnSync('orca', ['--list-apps'], { encoding: 'utf8', env: process.env });
+    const listed = spawnSync('orca', ['--list-apps'], { encoding: 'utf8', env: process.env, timeout: 10000 });
     const listedApps = `${listed.stdout || ''}\n${listed.stderr || ''}`;
     fs.writeFileSync(path.join(outputDir, 'native-orca-apps.txt'), listedApps);
     assert.equal(listed.status, 0, `Orca application enumeration failed: ${listedApps}`);
     assert.match(listedApps, /(chromium|chrome)/i, 'Orca did not enumerate Chrome as an AT-SPI application');
 
-    const history = page.locator('button', { hasText: '8. Histórico de versões' }).first();
-    await history.waitFor({ state: 'visible', timeout: 10000 });
-    await history.focus();
-    if ((await history.getAttribute('aria-expanded')) === 'false') await page.keyboard.press('Enter');
-    assert.equal(await history.getAttribute('aria-expanded'), 'true');
-
-    const summary = page.locator('summary').first();
-    await summary.waitFor({ state: 'visible', timeout: 10000 });
-    await summary.focus();
-    await page.keyboard.press('Enter');
-    await delay(2500);
-
-    // Stop Orca first so Chrome teardown cannot deadlock on AT-SPI callbacks.
-    await stopChild(orca);
-    orca = undefined;
-    await closeWithTimeout(() => context.close());
-    context = undefined;
-    await closeWithTimeout(() => browser.close());
-    browser = undefined;
+    const atspi = runNativeAtspiInteraction();
+    if (atspi.error) throw atspi.error;
+    if (atspi.status !== 0) {
+      throw new Error(`Native AT-SPI interaction failed: ${atspi.stderr || atspi.stdout}`);
+    }
+    await delay(2000);
   } finally {
     await stopChild(orca);
-    if (context) await closeWithTimeout(() => context.close());
-    if (browser) await closeWithTimeout(() => browser.close());
-    fs.closeSync(stdout);
+    await stopChild(nativeChrome);
+    fs.closeSync(orcaStdout);
+    fs.closeSync(chromeStdout);
+    fs.rmSync(profileDir, { recursive: true, force: true });
   }
 
   const debug = fs.readFileSync(debugFile, 'utf8');
   assert.match(debug, /(Montagem Consolidada|Histórico de versões|Versão [0-9])/i,
     'Orca debug log did not observe the Issue 318 accessible content');
+  const transcript = fs.readFileSync(atspiTranscriptFile, 'utf8');
+  assert.match(transcript, /Montagem Consolidada da Prescrição/);
+  assert.match(transcript, /8\. Histórico de versões/);
+  assert.match(transcript, /Versão\s+\d+/i);
+
   fs.writeFileSync(path.join(outputDir, 'native-orca-summary.json'), JSON.stringify({
     screenReader: 'Orca',
     transport: 'AT-SPI',
-    browser: 'system Google Chrome controlled by Playwright/CDP',
-    interaction: 'keyboard focus + Enter on accordion/history',
-    evidence: ['native-orca-version.txt', 'native-chrome-version.txt', 'native-orca-debug.log', 'native-orca-apps.txt', 'native-orca-stdout.log'],
+    browser: 'system Google Chrome launched natively with a pre-authenticated profile',
+    interaction: 'native AT-SPI discovery + action invocation on the history accordion',
+    evidence: [
+      'native-orca-version.txt',
+      'native-chrome-version.txt',
+      'native-pyatspi-version.txt',
+      'native-orca-debug.log',
+      'native-orca-apps.txt',
+      'native-orca-stdout.log',
+      'native-chrome-stdout.log',
+      'native-atspi-transcript.txt',
+    ],
   }, null, 2));
 }
 
