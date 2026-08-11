@@ -46,6 +46,8 @@ A interface usa os blocos do backend:
 
 Ocultar controles no frontend melhora a experiência, mas não é barreira de segurança. A API continua revalidando autenticação, `contractId`, `dataScope`, aluno acessível, estado, versão e bloco da operação.
 
+A tela também trata a autorização como condição mutável durante a sessão. Se uma chamada da própria Montagem Consolidada passar a responder `401`, `403` ou `404`, o frontend não mantém o conteúdo protegido anteriormente renderizado: invalida o contexto local da montagem, oculta os dados carregados e apresenta um estado de recurso indisponível com retorno para a Central do mesmo aluno. Erros de APIs não pertencentes ao fluxo consolidado não invalidam essa tela.
+
 ## Organização da tela
 
 A tela usa oito seções colapsáveis:
@@ -59,7 +61,17 @@ A tela usa oito seções colapsáveis:
 7. Revisão e validação final;
 8. Histórico de versões.
 
-O cabeçalho mantém visíveis aluno, professor responsável, versão corrente, estado, origem do acesso, situação das origens e datas de criação/atualização. A situação das origens apenas resume sinais já retornados pela API: erro parcial do workspace, candidatos inelegíveis ou conflito `critical`; o navegador não cria uma classificação técnica paralela.
+O contexto superior mantém visíveis aluno, professor responsável, versão corrente, estado, origem do acesso, situação das origens e datas de criação/atualização. Além disso, expõe explicitamente as capacidades selecionadas com seus números de versão, usando a versão persistida da montagem quando ela existe e, antes do primeiro rascunho, os candidatos que a API marcou como elegíveis.
+
+A situação das origens apenas resume sinais já retornados pela API; o navegador não cria uma classificação técnica paralela. Os rótulos de apresentação discriminam os contratos autoritativos já existentes:
+
+- `Dado ausente`: `missing_prescription` ou `missing_current_version` do workspace;
+- `Dado desatualizado`: conflito `capacity-version-ineligible:*`, cuja mensagem backend informa que a versão selecionada deixou de ser vigente e ativa;
+- `Origem incompatível`: `prescription_not_active` ou `version_not_active` do workspace;
+- warning e `critical`: severidade retornada pelo motor de conflitos;
+- conflito de versão/concorrência: HTTP `409`, tratado separadamente.
+
+Essas categorias são de apresentação e recuperação. Elas não substituem `eligible`, `reasonCode`, `reason`, `severity` ou qualquer regra clínica do backend.
 
 ## Capacidades e composição
 
@@ -73,7 +85,7 @@ O navegador não interpreta `status` para decidir elegibilidade. Para cada capac
 - `reason` já redigido pelo backend;
 - resumo profissional e origens técnicas.
 
-Somente candidato com `eligible=true` pode ser apresentado como opção de substituição. Quando `eligible=false`, a UI mostra o motivo recebido sem criar uma explicação técnica própria.
+Somente candidato com `eligible=true` pode ser apresentado como opção de substituição. Quando `eligible=false`, a UI mostra o motivo recebido sem criar uma explicação técnica própria. Os rótulos `Dado ausente` e `Origem incompatível` apenas agrupam `reasonCode` documentado; a decisão de elegibilidade continua sendo `eligible` do backend.
 
 Nesta fase a Montagem Consolidada recebe blocos de capacidade e não possui contrato de edição de exercícios individuais. Por isso:
 
@@ -104,6 +116,8 @@ A interface representa a severidade retornada pelo backend sem reclassificação
 - `critical`: impedimento para aprovação.
 
 Checagens ainda indisponíveis aparecem em `unavailableChecks`. Texto livre de observação, justificativa ou mensagem ao aluno não cria nem remove conflitos.
+
+Quando o motor retorna `capacity-version-ineligible:<capacidade>`, a UI pode apresentar o rótulo `Dado desatualizado` porque a própria mensagem canônica do conflito declara que a versão selecionada não é mais a versão vigente e ativa. O rótulo não altera severidade, não muda automaticamente a composição e não substitui a reavaliação no servidor.
 
 ## Workflow
 
@@ -147,13 +161,15 @@ Quando a API responde `409`:
 - recarregar do servidor é uma ação deliberada;
 - se houver edição local, a tela pede confirmação antes de substituí-la.
 
+Quando uma chamada da própria Montagem Consolidada passa a responder `401`, `403` ou `404`, a situação é diferente de uma falha transitória: o contexto protegido é invalidado e ocultado. O usuário recebe uma mensagem de indisponibilidade e um retorno para `/central-do-aluno/:alunoId`. A tela não continua exibindo uma montagem que o backend acabou de negar. Uma resposta `404` de outro domínio não dispara essa invalidação.
+
 ## Histórico
 
 As versões persistidas são apresentadas em modo somente leitura com número, estado, data, justificativa, observação e capacidades vinculadas. Nenhuma versão histórica pode ser editada pela tela. Ao criar revisão depois de `released`, a versão liberada anterior permanece visível e imutável no histórico.
 
 ## Acessibilidade e responsividade
 
-A implementação reutiliza `Button`, `Card` e `Accordion`. Controles de ordenação possuem nome acessível, estados de erro/sucesso usam regiões de anúncio, warning e blocker possuem rótulos textuais além da cor e a composição reorganiza ações para mobile.
+A implementação reutiliza `Button`, `Card` e `Accordion`. Controles de ordenação possuem nome acessível, estados de erro/sucesso usam regiões de anúncio, warning e blocker possuem rótulos textuais além da cor e a composição reorganiza ações para mobile. Os estados `Dado ausente`, `Dado desatualizado` e `Origem incompatível` também possuem rótulos textuais próprios, portanto não dependem apenas de cor.
 
 O gate automatizado da issue foi definido para cobrir duas camadas complementares. A camada isolada executa cenários determinísticos de UI para `1440x1000`, `1366x768` e `390x844`, teclado nos colapses e histórico, ausência de overflow horizontal, axe-core WCAG A/AA, snapshots ARIA do Chromium, texto ampliado a 200%, contraste de `text-primary` em dark mode, distinção visual de warning/critical, histórico somente leitura e recuperação de conflito HTTP `409` com preservação local.
 
