@@ -62,11 +62,26 @@ async function openAccordion(page, name) {
 }
 
 function ensureNativeOrcaInstalled() {
-  const available = spawnSync('bash', ['-lc', 'command -v orca'], { encoding: 'utf8' });
-  if (available.status === 0) return;
+  const orcaAvailable = spawnSync('bash', ['-lc', 'command -v orca'], { encoding: 'utf8' });
+  const pyatspiAvailable = spawnSync('python3', ['-c', 'import pyatspi'], { encoding: 'utf8' });
+  if (orcaAvailable.status === 0 && pyatspiAvailable.status === 0) return;
+
   const env = { ...process.env, DEBIAN_FRONTEND: 'noninteractive' };
+  const packages = ['dbus-x11', 'xvfb'];
+  if (orcaAvailable.status !== 0) packages.push('orca');
+  if (pyatspiAvailable.status !== 0) packages.push('python3-pyatspi');
+
   run('sudo', ['apt-get', 'update'], { env });
-  run('sudo', ['apt-get', 'install', '-y', 'orca', 'dbus-x11', 'xvfb'], { env });
+  run('sudo', ['apt-get', 'install', '-y', ...packages], { env });
+
+  const orcaAfter = spawnSync('bash', ['-lc', 'command -v orca'], { encoding: 'utf8', env });
+  if (orcaAfter.status !== 0) {
+    throw new Error(`Orca installation did not provide the orca command: ${orcaAfter.stderr || orcaAfter.stdout}`);
+  }
+  const pyatspiAfter = spawnSync('python3', ['-c', 'import pyatspi; print("pyatspi available")'], { encoding: 'utf8', env });
+  if (pyatspiAfter.status !== 0) {
+    throw new Error(`python3-pyatspi installation did not provide pyatspi: ${pyatspiAfter.stderr || pyatspiAfter.stdout}`);
+  }
 }
 
 async function verifyRealIssue318Evidence({ browser, baseUrl, outputDir }) {
