@@ -48,18 +48,57 @@ const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'issue-318-native-profi
 
 function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
-async function waitForListedApp(pattern, label, timeoutMs = 20000) {
+function listAtspiApplications() {
+  const script = String.raw`
+import pyatspi
+
+desktop = pyatspi.Registry.getDesktop(0)
+for index in range(desktop.childCount):
+    try:
+        app = desktop.getChildAtIndex(index)
+        name = app.name or ''
+        pid = app.get_process_id() if hasattr(app, 'get_process_id') else 0
+        print(f'{pid}\t{name}')
+    except Exception as exc:
+        print(f'error\t{exc}')
+`;
+  return spawnSync('python3', ['-c', script], {
+    encoding: 'utf8',
+    env: process.env,
+    timeout: 10000,
+  });
+}
+
+async function waitForAtspiApp(pattern, label, timeoutMs = 25000) {
   const deadline = Date.now() + timeoutMs;
-  let lastListedApps = '';
+  let lastOutput = '';
   let lastStatus = null;
   while (Date.now() < deadline) {
-    const listed = spawnSync('orca', ['--list-apps'], { encoding: 'utf8', env: process.env, timeout: 10000 });
+    const listed = listAtspiApplications();
     lastStatus = listed.status;
-    lastListedApps = `${listed.stdout || ''}\n${listed.stderr || ''}`;
-    if (listed.status === 0 && pattern.test(lastListedApps)) return lastListedApps;
+    lastOutput = `${listed.stdout || ''}\n${listed.stderr || ''}`;
+    if (listed.status === 0 && pattern.test(lastOutput)) return lastOutput;
     await delay(500);
   }
-  throw new Error(`${label} was not registered in AT-SPI (orca --list-apps status ${lastStatus}): ${lastListedApps}`);
+  throw new Error(`${label} was not registered in AT-SPI (pyatspi status ${lastStatus}): ${lastOutput}`);
+}
+
+async function waitForFilePattern(file, pattern, label, child, timeoutMs = 20000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastContent = '';
+  while (Date.now() < deadline) {
+    if (child && child.exitCode !== null) {
+      throw new Error(`${label} exited before becoming ready (exit ${child.exitCode})`);
+    }
+    try {
+      lastContent = fs.readFileSync(file, 'utf8');
+      if (pattern.test(lastContent)) return lastContent;
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    await delay(250);
+  }
+  throw new Error(`${label} did not become ready: ${lastContent.slice(-2000)}`);
 }
 
 async function stopChild(child) {
@@ -193,16 +232,20 @@ async function main() {
     await prepareAuthenticatedProfile();
     await delay(1000);
 
-    // Start Orca first so the AT-SPI registry exists before Chrome tries to register.
-    // The previous order launched Chrome before org.a11y.atspi.Registry was available,
-    // which left the browser absent from `orca --list-apps` for the whole session.
+    // Initialize AT-SPI without launching a second Orca process. Using
+    // `orca --list-apps` while the primary Orca is starting races with --replace.
+    const registryProbe = listAtspiApplications();
+    if (registryProbe.status !== 0) {
+      throw new Error(`AT-SPI registry probe failed: ${registryProbe.stderr || registryProbe.stdout}`);
+    }
+
     orca = spawn('orca', [
       '--replace',
       '--disable=speech',
       '--debug',
       `--debug-file=${debugFile}`,
     ], { stdio: ['ignore', orcaStdout, orcaStdout], env: process.env });
-    await waitForListedApp(/\borca\b/i, 'Orca', 15000);
+    await waitForFilePattern(debugFile, /EVENT MANAGER: Activated/, 'Orca', orca, 20000);
 
     nativeChrome = spawn(chromeExecutable, [
       `--user-data-dir=${profileDir}`,
@@ -218,7 +261,7 @@ async function main() {
       env: { ...process.env, NO_AT_BRIDGE: '0' },
     });
 
-    const listedApps = await waitForListedApp(/(chromium|chrome)/i, 'Chrome', 20000);
+    const listedApps = await waitForAtspiApp(/(chromium|chrome)/i, 'Chrome', 25000);
     fs.writeFileSync(path.join(outputDir, 'native-orca-apps.txt'), listedApps);
 
     const atspi = runNativeAtspiInteraction();
