@@ -3,7 +3,7 @@
 ## Status do documento
 
 - Fonte de verdade para estado funcional, prioridades e evolucao do produto.
-- Estado revisado em 2026-07-27 no contexto da PR #285, com base em `develop`.
+- Estado revisado em 2026-08-10 no contexto das issues #317 e #318, com base em `develop` e no candidato web da Montagem Consolidada.
 - Issues e PRs continuam sendo a fonte de execucao.
 - Codigo, migrations e testes definem o comportamento efetivamente entregue.
 - Documentos detalhados de produto e planos ativos complementam este roadmap; nao devem competir com ele como roadmap geral.
@@ -217,31 +217,47 @@ Entregue:
 - interface do professor em camadas separadas para as quatro capacidades;
 - selecao articular por checkbox, com angulo, deficit, prioridade e prescricao sugerida;
 - estados de vazio, carregamento, erro e falta de permissao;
-- bloqueio estrutural e contratual de publicacao direta de `Treino de hoje`.
+- bloqueio estrutural e contratual de publicacao direta de `Treino de hoje`;
+- consumo das quatro capacidades pela Montagem Consolidada, preservando IDs e versoes canônicas.
 
 Pendente:
 
 - validacao visual e manual completa por perfis e viewports;
 - nova auditoria independente do SHA final;
-- consumo pela Montagem Consolidada;
 - alertas de dados insuficientes ou avaliacao vencida;
 - exportacao para smartwatch, feedback pos-treino e decisao sugerida, pertencentes a fases posteriores.
 
 ### 7. Montagem Consolidada
 
-**Maturidade: Fundacao tecnica.**
+**Maturidade: Implementado ate a aprovacao; validacao visual/manual complementar pendente.**
+
+Entregue:
+
+- persistencia versionada e historico append-only por aluno/contrato;
+- API autenticada para criacao, edicao, consulta, conflitos, historico e workflow;
+- fluxo `draft -> ready_for_review -> approved`, com bloqueio estruturado, remediacao ainda bloqueada e desbloqueio explicito;
+- revalidacao de conflitos estruturados sem heuristica de texto livre;
+- concorrencia otimista por `expectedCurrentVersion`, row lock e CAS;
+- permissoes separadas `view`, `manage` e `approve`, combinadas com `dataScope` e isolamento por `contractId`;
+- auditoria derivada da cadeia imutavel de versoes;
+- integracao com as versoes persistidas de Resistido, Flexibilidade, Ciclico e Equilibrio;
+- interface contextual pela Central do Aluno, mantendo `alunoId` na rota;
+- tela em oito secoes colapsaveis para dados gerais, capacidades, origens, conflitos, composicao, mensagem ao aluno, revisao e historico;
+- apresentacao distinta de `info`, `warning` e `critical` sem depender apenas de cor;
+- correcao de composicao em estado `blocked`, reavaliacao no servidor e desbloqueio explicito somente quando o relatorio vigente retorna `canUnblock=true`;
+- aprovacao apenas apos confirmacao do backend e nova revisao explicita apos `approved`;
+- tratamento de `409` preservando edicao local e exigindo reconciliacao explicita;
+- historico de versoes em modo somente leitura;
+- bloqueio estrutural de publicacao direta do `Treino de hoje` nesta fase.
 
 Pendente:
 
-- persistencia e API;
-- interface de montagem;
-- integracao com capacidades persistidas;
-- integracao com biblioteca e Workout Builder;
-- geracao controlada do treino operacional;
-- rastreabilidade ate a execucao;
-- regras de seguranca e conflitos;
-- relatorio de excecoes antes da publicacao;
-- aplicacao em massa somente em estado revisavel.
+- validacao visual/manual em navegador real para desktop, mobile, teclado e leitor de tela;
+- auditoria independente do SHA final do candidato web;
+- `approved -> released` e geracao controlada do treino operacional, pertencentes ao fluxo posterior;
+- integracao operacional com biblioteca, Workout Builder e substituicoes rastreaveis;
+- rastreabilidade ate a execucao e comparacao planejado versus executado;
+- relatorio de excecoes antes da publicacao e aplicacao em massa somente quando houver fluxo revisavel proprio.
 
 ### 8. Execucao, feedback e decisao sugerida
 
@@ -374,7 +390,7 @@ A Montagem Consolidada deve detectar conflitos como:
 - dor ativa incompatível com exercicio ou volume;
 - aumento relevante de carga sem justificativa.
 
-O sistema sugere revisao ou reorganizacao, mas nao altera automaticamente a prescricao.
+O sistema sugere revisao ou reorganizacao, mas nao altera automaticamente a prescricao. Nesta fase, somente regras estruturadas e persistidas podem bloquear; correlacoes clinicas ainda nao formalizadas permanecem evolucao futura, sem inferencia por texto livre.
 
 ## Decisoes aproveitadas de benchmarks
 

@@ -12,8 +12,8 @@
     --popover: 0 0% 100%;
     --popover-foreground: 220 10% 12%;
 
-    --primary: 142 71% 45%; /* #22C55E */
-    --primary-hover: 142 76% 36%; /* #16A34A */
+    --primary: 142 71% 30%; /* #16833E */
+    --primary-hover: 142 76% 26%; /* #107535 */
     --primary-foreground: 0 0% 100%;
 
     --secondary: 220 16% 93%;
@@ -28,19 +28,19 @@
     --destructive-hover: 0 72% 42%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 71% 45%;
-    --success-hover: 142 76% 36%;
+    --success: 142 71% 30%;
+    --success-hover: 142 76% 26%;
     --warning: 38 92% 50%;
     --info: 221 83% 53%;
     --info-hover: 221 83% 47%;
 
     --muted: 220 12% 95%;
-    --muted-foreground: 220 6% 56%;
+    --muted-foreground: 220 6% 42%;
 
     --sidebar: 220 10% 12%;
     --sidebar-foreground: 0 0% 100%;
     --sidebar-muted: 220 8% 20%;
-    --sidebar-accent: 142 71% 45%;
+    --sidebar-accent: 142 71% 30%;
     --sidebar-accent-foreground: 0 0% 100%;
 
     --section-mobility: 266 43% 96%;
@@ -49,7 +49,7 @@
 
     --border: 220 14% 88%;
     --input: 220 14% 88%;
-    --ring: 142 71% 45%;
+    --ring: 142 71% 30%;
     --radius: 0.75rem;
     --radius-sm: 0.5rem;
     --radius-md: 0.75rem;
@@ -65,8 +65,8 @@
     --card-foreground: 210 40% 98%;
     --popover: 222 10% 16%;
     --popover-foreground: 210 40% 98%;
-    --primary: 142 71% 45%;
-    --primary-hover: 142 76% 36%;
+    --primary: 142 71% 30%;
+    --primary-hover: 142 76% 26%;
     --primary-foreground: 0 0% 100%;
     --secondary: 220 8% 22%;
     --secondary-hover: 220 8% 28%;
@@ -79,19 +79,19 @@
     --destructive: 0 70% 50%;
     --destructive-hover: 0 72% 42%;
     --destructive-foreground: 0 0% 100%;
-    --success: 142 71% 45%;
-    --success-hover: 142 76% 36%;
+    --success: 142 71% 30%;
+    --success-hover: 142 76% 26%;
     --warning: 38 92% 50%;
     --info: 221 83% 53%;
     --info-hover: 221 83% 47%;
     --sidebar: 220 10% 8%;
     --sidebar-foreground: 220 16% 96%;
     --sidebar-muted: 220 8% 16%;
-    --sidebar-accent: 142 71% 45%;
+    --sidebar-accent: 142 71% 30%;
     --sidebar-accent-foreground: 0 0% 100%;
     --border: 220 8% 28%;
     --input: 220 8% 28%;
-    --ring: 142 71% 45%;
+    --ring: 142 71% 30%;
   }
 }
 
