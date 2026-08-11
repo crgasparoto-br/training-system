@@ -177,7 +177,7 @@ type CapacityRequest = Request & { capacityActor?: CapacityActor };
 function requireCapacityBlock(blockKey: string) {
   return async (req: CapacityRequest, res: Response, next: NextFunction) => {
     try {
-      contractId = req.user?.contractId;
+      const contractId = req.user?.contractId;
       const professorId = req.user?.professorId;
       if (!contractId || !professorId) {
         return sendError(res, 'Não autenticado', 401);
