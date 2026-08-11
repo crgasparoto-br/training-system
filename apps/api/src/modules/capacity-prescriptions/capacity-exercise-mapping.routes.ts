@@ -2,7 +2,11 @@ import { PrismaClient } from '@prisma/client';
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
-import type { AccessDataScope, CapacityPrescriptionParameters } from '@corrida/types';
+import type {
+  AccessDataScope,
+  CapacityPrescriptionParameters,
+  CapacityPrescriptionStatus,
+} from '@corrida/types';
 import {
   canProfessorAccessBlock,
   getEffectiveDataScopeForProfessor,
@@ -13,6 +17,7 @@ import {
   capacityPrescriptionService,
 } from './capacity-prescription.service.js';
 import { validateResistedTechnicalExerciseRefs } from './capacity-exercise-mapping.service.js';
+import { serializeCapacityVersion } from './capacity-prescription-public.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();
@@ -91,7 +96,8 @@ router.patch(
         return sendError(res, 'A prescrição foi alterada; recarregue antes de continuar', 409);
       }
 
-      const previousParameters = prescription.latestVersion.parameters;
+      const latestVersion = serializeCapacityVersion(prescription.latestVersion);
+      const previousParameters = latestVersion.parameters as CapacityPrescriptionParameters | null;
       if (!previousParameters || previousParameters.type !== 'resisted') {
         return sendError(res, 'A prescrição resistida não possui parâmetros estruturados', 400);
       }
@@ -112,18 +118,18 @@ router.patch(
         },
         {
           capacity: 'resisted',
-          status: prescription.status,
+          status: prescription.status as CapacityPrescriptionStatus,
           expectedCurrentVersion: command.expectedCurrentVersion,
-          responsibleProfessorId: prescription.latestVersion.responsibleProfessorId,
-          sourceRefs: prescription.latestVersion.sourceRefs,
-          linkedProntuarioGoalIds: prescription.latestVersion.linkedProntuarioGoalIds,
-          technicalJustification: prescription.latestVersion.technicalJustification,
-          professorSummary: prescription.latestVersion.professorSummary,
-          studentMessage: prescription.latestVersion.studentMessage ?? null,
-          alerts: prescription.latestVersion.alerts,
+          responsibleProfessorId: latestVersion.responsibleProfessorId,
+          sourceRefs: latestVersion.sourceRefs,
+          linkedProntuarioGoalIds: latestVersion.linkedProntuarioGoalIds,
+          technicalJustification: latestVersion.technicalJustification,
+          professorSummary: latestVersion.professorSummary,
+          studentMessage: latestVersion.studentMessage ?? null,
+          alerts: latestVersion.alerts,
           parameters,
-          parameterSetIds: prescription.latestVersion.parameterSetIds,
-          methodologyVersion: prescription.latestVersion.methodologyVersion ?? null,
+          parameterSetIds: latestVersion.parameterSetIds,
+          methodologyVersion: latestVersion.methodologyVersion ?? null,
         }
       );
       return sendSuccess(res, updated, 'Referências técnicas de exercícios versionadas', 201);
