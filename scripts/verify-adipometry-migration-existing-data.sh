@@ -13,12 +13,14 @@ trap cleanup EXIT
 awk '
   /^    20260731173000_enforce_adipometry_approval_hash\)$/ {
     print "    20260731173000_enforce_adipometry_approval_hash|\\"
-    print "    20260804193000_invalidate_adipometry_capacity_confirmation)"
+    print "    20260804193000_invalidate_adipometry_capacity_confirmation|\\"
+    print "    20260811141500_disable_legacy_adipometry_draft_overloads)"
     next
   }
   /^  20260731173000_enforce_adipometry_approval_hash$/ {
     print "  20260731173000_enforce_adipometry_approval_hash \\"
-    print "  20260804193000_invalidate_adipometry_capacity_confirmation"
+    print "  20260804193000_invalidate_adipometry_capacity_confirmation \\"
+    print "  20260811141500_disable_legacy_adipometry_draft_overloads"
     next
   }
   { print }
