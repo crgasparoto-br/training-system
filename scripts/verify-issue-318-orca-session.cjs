@@ -13,6 +13,17 @@ fs.mkdirSync(outputDir, { recursive: true });
 const versionResult = spawnSync('orca', ['--version'], { encoding: 'utf8', env: process.env });
 if (versionResult.status !== 0) throw new Error(`Orca version probe failed: ${versionResult.stderr || versionResult.stdout}`);
 fs.writeFileSync(path.join(outputDir, 'native-orca-version.txt'), `${versionResult.stdout || ''}${versionResult.stderr || ''}`);
+const chromeProbe = spawnSync('bash', ['-lc', 'command -v google-chrome-stable || command -v google-chrome'], {
+  encoding: 'utf8',
+  env: process.env,
+});
+const chromeExecutable = (chromeProbe.stdout || '').trim().split('\n')[0];
+if (chromeProbe.status !== 0 || !chromeExecutable) {
+  throw new Error(`System Google Chrome is required for native Orca evidence: ${chromeProbe.stderr || chromeProbe.stdout}`);
+}
+const chromeVersion = spawnSync(chromeExecutable, ['--version'], { encoding: 'utf8', env: process.env });
+if (chromeVersion.status !== 0) throw new Error(`Google Chrome version probe failed: ${chromeVersion.stderr || chromeVersion.stdout}`);
+fs.writeFileSync(path.join(outputDir, 'native-chrome-version.txt'), `${chromeVersion.stdout || ''}${chromeVersion.stderr || ''}`);
 const origin = new URL(url).origin;
 const debugFile = path.join(outputDir, 'native-orca-debug.log');
 const stdoutFile = path.join(outputDir, 'native-orca-stdout.log');
@@ -48,9 +59,13 @@ async function main() {
   let context;
   let orca;
   try {
+    // Use the runner's system Chrome for the native AT-SPI session. The Playwright-
+    // bundled Chromium used by the other evidence scenarios stalls before the first
+    // navigation commit when renderer accessibility activates the Linux AT-SPI bridge.
     browser = await chromium.launch({
+      executablePath: chromeExecutable,
       headless: false,
-      args: ['--force-renderer-accessibility', '--disable-gpu', '--no-sandbox'],
+      args: ['--force-renderer-accessibility', '--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage'],
     });
     context = await browser.newContext({
       viewport: { width: 1366, height: 768 },
@@ -67,11 +82,7 @@ async function main() {
     });
     const page = await context.newPage();
 
-    // With renderer accessibility forced, Chromium can leave Playwright waiting for
-    // DOMContentLoaded while AT-SPI initializes in the GitHub runner. The response
-    // commit is enough to prove navigation succeeded; the rendered application text
-    // below is the real readiness criterion before Orca starts consuming the tree.
-    await page.goto(url, { waitUntil: 'commit', timeout: 15000 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
     await page.getByText('Montagem Consolidada da Prescrição', { exact: true }).first().waitFor({ timeout: 20000 });
 
     orca = spawn('orca', [
@@ -86,7 +97,7 @@ async function main() {
     const listedApps = `${listed.stdout || ''}\n${listed.stderr || ''}`;
     fs.writeFileSync(path.join(outputDir, 'native-orca-apps.txt'), listedApps);
     assert.equal(listed.status, 0, `Orca application enumeration failed: ${listedApps}`);
-    assert.match(listedApps, /(chromium|chrome)/i, 'Orca did not enumerate Chromium as an AT-SPI application');
+    assert.match(listedApps, /(chromium|chrome)/i, 'Orca did not enumerate Chrome as an AT-SPI application');
 
     const history = page.locator('button', { hasText: '8. Histórico de versões' }).first();
     await history.waitFor({ state: 'visible', timeout: 10000 });
@@ -100,7 +111,7 @@ async function main() {
     await page.keyboard.press('Enter');
     await delay(2500);
 
-    // Stop Orca first so Chromium teardown cannot deadlock on AT-SPI callbacks.
+    // Stop Orca first so Chrome teardown cannot deadlock on AT-SPI callbacks.
     await stopChild(orca);
     orca = undefined;
     await closeWithTimeout(() => context.close());
@@ -120,9 +131,9 @@ async function main() {
   fs.writeFileSync(path.join(outputDir, 'native-orca-summary.json'), JSON.stringify({
     screenReader: 'Orca',
     transport: 'AT-SPI',
-    browser: 'headed Chromium',
+    browser: 'system Google Chrome controlled by Playwright',
     interaction: 'keyboard focus + Enter on accordion/history',
-    evidence: ['native-orca-version.txt', 'native-orca-debug.log', 'native-orca-apps.txt', 'native-orca-stdout.log'],
+    evidence: ['native-orca-version.txt', 'native-chrome-version.txt', 'native-orca-debug.log', 'native-orca-apps.txt', 'native-orca-stdout.log'],
   }, null, 2));
 }
 
