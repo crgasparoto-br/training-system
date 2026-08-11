@@ -2,14 +2,17 @@ import { PrismaClient } from '@prisma/client';
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
-import type { AccessDataScope } from '@corrida/types';
+import type { AccessDataScope, ConsolidatedPrescriptionDataRefInput } from '@corrida/types';
 import {
   canProfessorAccessBlock,
   getEffectiveDataScopeForProfessor,
 } from '../access-control/access-control.service.js';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import { ConsolidatedPrescriptionDomainError } from './consolidated-prescription.service.js';
-import { consolidatedPrescriptionOperationalService } from './consolidated-prescription-operational.service.js';
+import {
+  consolidatedPrescriptionOperationalService,
+  mergeServerOwnedOperationalRefs,
+} from './consolidated-prescription-operational.service.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();
@@ -23,6 +26,30 @@ type OperationalActor = {
   dataScope: AccessDataScope;
 };
 type OperationalRequest = Request & { operationalActor?: OperationalActor };
+
+router.use(async (req: Request, res: Response, next: NextFunction) => {
+  const createMatch = req.method === 'POST' && /^\/alunos\/[^/]+$/.exec(req.path);
+  const updateMatch = req.method === 'PATCH' && /^\/alunos\/[^/]+\/composition$/.exec(req.path);
+  if (!createMatch && !updateMatch) return next();
+  try {
+    const contractId = req.user?.contractId;
+    const professorId = req.user?.professorId;
+    const alunoId = req.path.split('/')[2];
+    if (!contractId || !professorId || !alunoId) return next();
+    const incoming = Array.isArray(req.body?.dataRefs)
+      ? (req.body.dataRefs as ConsolidatedPrescriptionDataRefInput[])
+      : [];
+    const normalized = await mergeServerOwnedOperationalRefs(
+      { contractId, professorId: undefined, alunoId, actorProfessorId: professorId } as never,
+      { dataRefs: incoming }
+    );
+    req.body = { ...req.body, dataRefs: normalized.dataRefs };
+    return next();
+  } catch (error) {
+    console.error('Erro ao preservar referências operacionais internas:', error);
+    return sendError(res, 'Erro ao preservar rastreabilidade operacional da montagem', 500);
+  }
+});
 
 const mappingSchema = z
   .object({
