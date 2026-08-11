@@ -19,18 +19,19 @@ import {
   consolidatedPrescriptionService,
   type ConsolidatedPrescriptionContext,
 } from './consolidated-prescription.service.js';
+import {
+  CONSOLIDATED_EXERCISE_SUBSTITUTION_ORIGIN,
+  CONSOLIDATED_OPERATIONAL_PROJECTION_ORIGIN,
+  getOperationalSubstitutionCompatibilityIssue,
+  hasReservedOperationalOrigin,
+} from './consolidated-prescription-operational-integrity.js';
+
+export {
+  CONSOLIDATED_EXERCISE_SUBSTITUTION_ORIGIN,
+  CONSOLIDATED_OPERATIONAL_PROJECTION_ORIGIN,
+} from './consolidated-prescription-operational-integrity.js';
 
 const prisma = new PrismaClient();
-
-export const CONSOLIDATED_OPERATIONAL_PROJECTION_ORIGIN =
-  'consolidated_operational_projection_v1';
-export const CONSOLIDATED_EXERCISE_SUBSTITUTION_ORIGIN =
-  'consolidated_exercise_substitution_v1';
-
-const RESERVED_OPERATIONAL_ORIGINS = new Set([
-  CONSOLIDATED_OPERATIONAL_PROJECTION_ORIGIN,
-  CONSOLIDATED_EXERCISE_SUBSTITUTION_ORIGIN,
-]);
 
 type CapacityVersionRow = {
   id: string;
@@ -132,11 +133,7 @@ function exerciseSnapshot(exercise: {
 export function isReservedOperationalDataRef(
   ref: Pick<ConsolidatedPrescriptionDataRef, 'sourceType' | 'origin'> | ConsolidatedPrescriptionDataRefInput
 ) {
-  return (
-    ref.sourceType === 'manual_observation' &&
-    typeof ref.origin === 'string' &&
-    RESERVED_OPERATIONAL_ORIGINS.has(ref.origin)
-  );
+  return ref.sourceType === 'manual_observation' && hasReservedOperationalOrigin(ref);
 }
 
 function toDataRefInput(ref: ConsolidatedPrescriptionDataRef): ConsolidatedPrescriptionDataRefInput {
@@ -157,7 +154,7 @@ export async function mergeServerOwnedOperationalRefs<T extends { dataRefs?: Con
   context: ConsolidatedPrescriptionContext,
   payload: T
 ): Promise<T> {
-  const incoming = (payload.dataRefs ?? []).filter((ref) => !isReservedOperationalDataRef(ref));
+  const incoming = (payload.dataRefs ?? []).filter((ref) => !hasReservedOperationalOrigin(ref));
   const current = await consolidatedPrescriptionService.getCurrent(context);
   const internal = (current?.latestVersion.dataRefs ?? [])
     .filter(isReservedOperationalDataRef)
@@ -168,6 +165,7 @@ export async function mergeServerOwnedOperationalRefs<T extends { dataRefs?: Con
 function substitutionSnapshots(dataRefs: ConsolidatedPrescriptionDataRef[]) {
   const byTechnicalItem = new Map<string, SubstitutionSnapshot>();
   for (const ref of dataRefs) {
+    if (!isReservedOperationalDataRef(ref)) continue;
     if (ref.origin !== CONSOLIDATED_EXERCISE_SUBSTITUTION_ORIGIN) continue;
     const context = record(ref.context);
     if (context.kind !== 'exercise_substitution_v1') continue;
@@ -377,6 +375,7 @@ export function buildOperationalProjectionItems(
 }
 
 function projectionRefContext(ref: ConsolidatedPrescriptionDataRef) {
+  if (!isReservedOperationalDataRef(ref)) return null;
   if (ref.origin !== CONSOLIDATED_OPERATIONAL_PROJECTION_ORIGIN) return null;
   const context = record(ref.context);
   return context.kind === 'operational_projection_v1' ? context : null;
@@ -659,6 +658,19 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
       if (!original || !original.mappedExerciseLibraryId) {
         invalid('A substituição exige um exercício técnico com mapeamento operacional explícito');
       }
+      const originalMapping = await capacityExerciseMappingService.resolveMapping(
+        context.contractId,
+        command.originalTechnicalCatalogItemId
+      );
+      if (
+        !originalMapping?.operationalExerciseSnapshot ||
+        originalMapping.exerciseLibraryId !== original.mappedExerciseLibraryId
+      ) {
+        throw new ConsolidatedPrescriptionDomainError(
+          'CONFLICT',
+          'O mapeamento técnico foi alterado; recarregue antes de registrar a substituição'
+        );
+      }
       const restrictions = Array.isArray(original.sourceParameters?.restrictions)
         ? original.sourceParameters.restrictions
         : [];
@@ -675,6 +687,11 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
         where: { id: command.substituteExerciseLibraryId, contractId: context.contractId },
       });
       if (!substitute) invalid('Exercício substituto inexistente ou fora do contrato');
+      const compatibilityIssue = getOperationalSubstitutionCompatibilityIssue(
+        originalMapping.operationalExerciseSnapshot,
+        substitute
+      );
+      if (compatibilityIssue) invalid(compatibilityIssue);
       const recordedAt = now.toISOString();
       const nextVersion = assembly.currentVersion + 1;
       const substitutionRef: ConsolidatedPrescriptionDataRefInput = {
@@ -694,7 +711,7 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
           capacityPrescriptionVersionId: original.capacityPrescriptionVersionId,
           originalTechnicalCatalogItemId: command.originalTechnicalCatalogItemId,
           originalExerciseLibraryId: original.mappedExerciseLibraryId,
-          originalExerciseSnapshot: original.operationalExerciseSnapshot ?? null,
+          originalExerciseSnapshot: originalMapping.operationalExerciseSnapshot,
           substituteExerciseLibraryId: substitute.id,
           substituteExerciseSnapshot: exerciseSnapshot(substitute),
           reason: command.reason.trim(),

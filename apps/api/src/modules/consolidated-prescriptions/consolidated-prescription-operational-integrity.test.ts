@@ -3,6 +3,8 @@ import {
   hasReservedOperationalOrigin,
   OPERATIONAL_MAPPING_REQUIRED_BLOCKS,
 } from './consolidated-prescription-operational-integrity.js';
+import { mergeServerOwnedOperationalRefs } from './consolidated-prescription-operational.service.js';
+import { consolidatedPrescriptionService } from './consolidated-prescription.service.js';
 
 const descriptor = (overrides: Partial<{
   loadType: string | null;
@@ -20,19 +22,43 @@ const descriptor = (overrides: Partial<{
 });
 
 describe('operational integration integrity controls', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it.each([
     'consolidated_operational_projection_v1',
     'consolidated_exercise_substitution_v1',
   ])('treats reserved origin %s as server-owned regardless of client sourceType', (origin) => {
-    expect(
-      hasReservedOperationalOrigin({
-        origin,
-      })
-    ).toBe(true);
+    expect(hasReservedOperationalOrigin({ origin })).toBe(true);
   });
 
   it('does not reserve ordinary client origins', () => {
     expect(hasReservedOperationalOrigin({ origin: 'prontuario_goal' })).toBe(false);
+  });
+
+  it('drops a forged reserved origin even when the client uses an ordinary validated source type', async () => {
+    jest.spyOn(consolidatedPrescriptionService, 'getCurrent').mockResolvedValue(null);
+
+    const normalized = await mergeServerOwnedOperationalRefs(
+      { contractId: 'contract-a', alunoId: 'aluno-1', actorProfessorId: 'professor-1' },
+      {
+        dataRefs: [
+          {
+            role: 'routine',
+            sourceType: 'prontuario_goal',
+            sourceId: 'goal-1',
+            origin: 'consolidated_exercise_substitution_v1',
+            context: {
+              kind: 'exercise_substitution_v1',
+              substituteExerciseLibraryId: 'forged-library-id',
+            },
+          },
+        ],
+      }
+    );
+
+    expect(normalized.dataRefs).toEqual([]);
   });
 
   it('requires global catalog permission in addition to assembly management for mappings', () => {

@@ -39,9 +39,9 @@ const originalMapping = () => ({
     id: 'library-squat',
     name: 'Agachamento operacional',
     videoUrl: null,
-    loadType: null,
-    movementType: null,
-    countingType: null,
+    loadType: 'plates',
+    movementType: 'compound',
+    countingType: 'repetitions',
     category: 'resisted',
     muscleGroup: 'Quadríceps',
     notes: null,
@@ -142,6 +142,13 @@ describe('consolidated operational exercise substitution persistence', () => {
         recordedByProfessorId: 'professor-1',
         textMatchingUsed: false,
         writesOperationalWorkout: false,
+        originalExerciseSnapshot: {
+          id: 'library-squat',
+          name: 'Agachamento operacional',
+          loadType: 'plates',
+          movementType: 'compound',
+          countingType: 'repetitions',
+        },
         substituteExerciseSnapshot: {
           id: 'library-leg-press',
           name: 'Leg press',
@@ -165,6 +172,82 @@ describe('consolidated operational exercise substitution persistence', () => {
       substituteExerciseLibraryId: 'library-leg-press',
       writesOperationalWorkout: false,
     });
+  });
+
+  it('rejects a same-tenant substitute that conflicts with modeled structural attributes', async () => {
+    const currentAssembly = assembly();
+    const substitute = {
+      id: 'library-treadmill',
+      name: 'Esteira',
+      videoUrl: null,
+      loadType: 'bodyweight',
+      movementType: 'cyclic',
+      countingType: 'time',
+      category: 'cyclic',
+      muscleGroup: 'Cardiorrespiratório',
+      notes: null,
+      updatedAt: new Date('2026-08-11T12:00:00.000Z'),
+    };
+    jest.spyOn(consolidatedPrescriptionService, 'getCurrent').mockResolvedValue(currentAssembly as never);
+    const updateComposition = jest.spyOn(consolidatedPrescriptionService, 'updateComposition');
+    jest.spyOn(capacityExerciseMappingService, 'resolveMapping').mockResolvedValue(originalMapping());
+    const service = createConsolidatedPrescriptionOperationalService(clientFor(substitute) as never);
+
+    await expect(
+      service.createExerciseSubstitution(context, {
+        expectedCurrentVersion: 1,
+        originalTechnicalCatalogItemId: 'technical-squat',
+        substituteExerciseLibraryId: 'library-treadmill',
+        reason: 'Substituição manual',
+        origin: 'ajuste_professor',
+      })
+    ).rejects.toMatchObject({
+      code: 'INVALID_INPUT',
+      message: expect.stringContaining('tipo de carga'),
+    });
+    expect(updateComposition).not.toHaveBeenCalled();
+  });
+
+  it('rejects a substitution when the original snapshot has no structured compatibility attributes', async () => {
+    const currentAssembly = assembly();
+    const substitute = {
+      id: 'library-leg-press',
+      name: 'Leg press',
+      videoUrl: null,
+      loadType: 'plates',
+      movementType: 'compound',
+      countingType: 'repetitions',
+      category: 'resisted',
+      muscleGroup: 'Quadríceps',
+      notes: null,
+      updatedAt: new Date('2026-08-11T12:00:00.000Z'),
+    };
+    jest.spyOn(consolidatedPrescriptionService, 'getCurrent').mockResolvedValue(currentAssembly as never);
+    const updateComposition = jest.spyOn(consolidatedPrescriptionService, 'updateComposition');
+    jest.spyOn(capacityExerciseMappingService, 'resolveMapping').mockResolvedValue({
+      ...originalMapping(),
+      operationalExerciseSnapshot: {
+        ...originalMapping().operationalExerciseSnapshot,
+        loadType: null,
+        movementType: null,
+        countingType: null,
+      },
+    });
+    const service = createConsolidatedPrescriptionOperationalService(clientFor(substitute) as never);
+
+    await expect(
+      service.createExerciseSubstitution(context, {
+        expectedCurrentVersion: 1,
+        originalTechnicalCatalogItemId: 'technical-squat',
+        substituteExerciseLibraryId: 'library-leg-press',
+        reason: 'Substituição manual',
+        origin: 'ajuste_professor',
+      })
+    ).rejects.toMatchObject({
+      code: 'INVALID_INPUT',
+      message: expect.stringContaining('atributos estruturais suficientes'),
+    });
+    expect(updateComposition).not.toHaveBeenCalled();
   });
 
   it('rejects a cross-tenant substitute before creating a new assembly version', async () => {

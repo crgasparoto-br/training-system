@@ -8,14 +8,12 @@ import {
   getEffectiveDataScopeForProfessor,
 } from '../access-control/access-control.service.js';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
-import { capacityExerciseMappingService } from '../capacity-prescriptions/capacity-exercise-mapping.service.js';
 import { ConsolidatedPrescriptionDomainError } from './consolidated-prescription.service.js';
 import {
   consolidatedPrescriptionOperationalService,
   mergeServerOwnedOperationalRefs,
 } from './consolidated-prescription-operational.service.js';
 import {
-  getOperationalSubstitutionCompatibilityIssue,
   hasReservedOperationalOrigin,
   OPERATIONAL_MAPPING_REQUIRED_BLOCKS,
 } from './consolidated-prescription-operational-integrity.js';
@@ -259,54 +257,6 @@ router.post(
       if (!actor) return;
       const command = substitutionSchema.parse(req.body);
       const operationContext = contextFor(actor, req.params.alunoId);
-      const projection = await consolidatedPrescriptionOperationalService.getProjection(
-        operationContext
-      );
-      const original = projection.items.find(
-        (item) => item.technicalCatalogItemId === command.originalTechnicalCatalogItemId
-      );
-      if (!original?.mappedExerciseLibraryId) {
-        throw new ConsolidatedPrescriptionDomainError(
-          'INVALID_INPUT',
-          'A substituição exige um exercício técnico com mapeamento operacional explícito'
-        );
-      }
-      const mapping = await capacityExerciseMappingService.resolveMapping(
-        actor.contractId,
-        command.originalTechnicalCatalogItemId
-      );
-      if (
-        !mapping?.operationalExerciseSnapshot ||
-        mapping.exerciseLibraryId !== original.mappedExerciseLibraryId
-      ) {
-        throw new ConsolidatedPrescriptionDomainError(
-          'CONFLICT',
-          'O mapeamento técnico foi alterado; recarregue antes de registrar a substituição'
-        );
-      }
-      const substitute = await prisma.exerciseLibrary.findFirst({
-        where: { id: command.substituteExerciseLibraryId, contractId: actor.contractId },
-        select: {
-          loadType: true,
-          movementType: true,
-          countingType: true,
-          category: true,
-          muscleGroup: true,
-        },
-      });
-      if (!substitute) {
-        throw new ConsolidatedPrescriptionDomainError(
-          'INVALID_INPUT',
-          'Exercício substituto inexistente ou fora do contrato'
-        );
-      }
-      const compatibilityIssue = getOperationalSubstitutionCompatibilityIssue(
-        mapping.operationalExerciseSnapshot,
-        substitute
-      );
-      if (compatibilityIssue) {
-        throw new ConsolidatedPrescriptionDomainError('INVALID_INPUT', compatibilityIssue);
-      }
       const result = await consolidatedPrescriptionOperationalService.createExerciseSubstitution(
         operationContext,
         command

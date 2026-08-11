@@ -1,8 +1,9 @@
 import type { ConsolidatedPrescriptionDataRefInput } from '@corrida/types';
-import {
-  CONSOLIDATED_EXERCISE_SUBSTITUTION_ORIGIN,
-  CONSOLIDATED_OPERATIONAL_PROJECTION_ORIGIN,
-} from './consolidated-prescription-operational.service.js';
+
+export const CONSOLIDATED_OPERATIONAL_PROJECTION_ORIGIN =
+  'consolidated_operational_projection_v1';
+export const CONSOLIDATED_EXERCISE_SUBSTITUTION_ORIGIN =
+  'consolidated_exercise_substitution_v1';
 
 export const OPERATIONAL_MAPPING_REQUIRED_BLOCKS = [
   'plans.consolidatedPrescriptions.manage',
