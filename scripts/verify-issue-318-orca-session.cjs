@@ -67,11 +67,12 @@ async function main() {
     });
     const page = await context.newPage();
 
-    // Load the application before Orca starts consuming the Chromium AT-SPI tree.
-    // In CI, starting Orca first can stall Playwright navigation while the reader
-    // synchronously inspects the accessibility tree during initial document load.
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-    await page.getByRole('heading', { name: 'Montagem Consolidada da Prescrição' }).waitFor({ timeout: 15000 });
+    // With renderer accessibility forced, Chromium can leave Playwright waiting for
+    // DOMContentLoaded while AT-SPI initializes in the GitHub runner. The response
+    // commit is enough to prove navigation succeeded; the rendered application text
+    // below is the real readiness criterion before Orca starts consuming the tree.
+    await page.goto(url, { waitUntil: 'commit', timeout: 15000 });
+    await page.getByText('Montagem Consolidada da Prescrição', { exact: true }).first().waitFor({ timeout: 20000 });
 
     orca = spawn('orca', [
       '--replace',
@@ -87,7 +88,8 @@ async function main() {
     assert.equal(listed.status, 0, `Orca application enumeration failed: ${listedApps}`);
     assert.match(listedApps, /(chromium|chrome)/i, 'Orca did not enumerate Chromium as an AT-SPI application');
 
-    const history = page.getByRole('button', { name: '8. Histórico de versões' });
+    const history = page.locator('button', { hasText: '8. Histórico de versões' }).first();
+    await history.waitFor({ state: 'visible', timeout: 10000 });
     await history.focus();
     if ((await history.getAttribute('aria-expanded')) === 'false') await page.keyboard.press('Enter');
     assert.equal(await history.getAttribute('aria-expanded'), 'true');
