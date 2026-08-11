@@ -11,6 +11,7 @@ import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js'
 import { ConsolidatedPrescriptionDomainError } from './consolidated-prescription.service.js';
 import {
   consolidatedPrescriptionOperationalService,
+  isReservedOperationalDataRef,
   mergeServerOwnedOperationalRefs,
 } from './consolidated-prescription-operational.service.js';
 
@@ -39,13 +40,25 @@ router.use(async (req: Request, res: Response, next: NextFunction) => {
     const incoming = Array.isArray(req.body?.dataRefs)
       ? (req.body.dataRefs as ConsolidatedPrescriptionDataRefInput[])
       : [];
+
+    if (createMatch) {
+      req.body = {
+        ...req.body,
+        dataRefs: incoming.filter((ref) => !isReservedOperationalDataRef(ref)),
+      };
+      return next();
+    }
+
     const normalized = await mergeServerOwnedOperationalRefs(
-      { contractId, professorId: undefined, alunoId, actorProfessorId: professorId } as never,
+      { contractId, alunoId, actorProfessorId: professorId },
       { dataRefs: incoming }
     );
     req.body = { ...req.body, dataRefs: normalized.dataRefs };
     return next();
   } catch (error) {
+    if (error instanceof ConsolidatedPrescriptionDomainError && error.code === 'NOT_FOUND') {
+      return next();
+    }
     console.error('Erro ao preservar referências operacionais internas:', error);
     return sendError(res, 'Erro ao preservar rastreabilidade operacional da montagem', 500);
   }
