@@ -82,6 +82,14 @@ O workflow de producao executa primeiro o deploy normal das migrations. Somente
 se ele falhar, chama esse recuperador restrito; qualquer outra migration falha ou
 qualquer divergencia nas verificacoes continua bloqueando a publicacao.
 
+Quando `_prisma_migrations.logs` estiver vazio e o Prisma mostrar somente o erro
+secundario `current transaction is aborted`, execute manualmente o workflow
+`Diagnose Production Adipometry Migration`. Ele exige a tentativa falha ativa e
+o checksum conhecido, testa cada instrucao da migration separadamente e omite o
+`COMMIT` externo. A transacao de diagnostico sempre e revertida, inclusive quando
+todas as instrucoes passam, e o log do job identifica a primeira instrucao que o
+banco recusou. O workflow nao resolve nem reaplica migrations.
+
 ### Recuperacao de conexoes esgotadas
 
 Quando os logs mostrarem `too many connections`:
