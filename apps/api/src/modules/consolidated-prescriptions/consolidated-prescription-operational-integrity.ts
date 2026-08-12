@@ -18,7 +18,9 @@ const RESERVED_OPERATIONAL_ORIGINS = new Set([
 export function hasReservedOperationalOrigin(
   ref: Pick<ConsolidatedPrescriptionDataRefInput, 'origin'>
 ) {
-  return typeof ref.origin === 'string' && RESERVED_OPERATIONAL_ORIGINS.has(ref.origin);
+  return (
+    typeof ref.origin === 'string' && RESERVED_OPERATIONAL_ORIGINS.has(ref.origin.trim())
+  );
 }
 
 export type OperationalSubstitutionCompatibilityDescriptor = {
