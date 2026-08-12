@@ -275,7 +275,7 @@ async function main() {
     await stopChild(nativeChrome);
     fs.closeSync(orcaStdout);
     fs.closeSync(chromeStdout);
-    fs.rmSync(profileDir, { recursive: true, force: true });
+    fs.rmSync(profileDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 
   const debug = fs.readFileSync(debugFile, 'utf8');
