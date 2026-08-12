@@ -9,7 +9,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { parseDateOnly, toDateInputValue, toIsoDateAtNoonUTC } from '../utils/date';
-import { ArrowLeft, CalendarDays, CheckCircle2, CircleAlert, UserRound } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CalendarDays, CheckCircle2, UserRound } from 'lucide-react';
 
 const planSchema = z.object({
   alunoId: z.string().min(1, 'Selecione um aluno'),
@@ -247,7 +247,7 @@ export function PlanForm() {
                   )}
                   {alunosError && (
                     <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive" role="alert">
-                      <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                       <span>{alunosError}</span>
                     </div>
                   )}
@@ -367,7 +367,7 @@ export function PlanForm() {
 
         {submitError && (
           <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive" role="alert">
-            <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <span>{submitError}</span>
           </div>
         )}
