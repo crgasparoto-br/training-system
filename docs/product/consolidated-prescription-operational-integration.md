@@ -4,7 +4,7 @@
 
 Este documento define a ponte da issue #319 entre a prescrição técnica por capacidades, a Montagem Consolidada e os modelos operacionais já existentes de biblioteca e Workout Builder.
 
-A integração prepara, valida e registra uma projeção operacional. Ela **não** cria, altera, libera nem publica `TrainingPlan`, `WorkoutTemplate`, `WorkoutDay` ou `WorkoutExercise`. A mutação operacional definitiva pertence à issue #320.
+A #319 prepara, valida e registra a projeção operacional sem escrever no Workout Builder. No fluxo integrado atual, a #320 consome uma versão aprovada e preparada, revalida o gate e executa a mutação definitiva no grafo existente `TrainingPlan -> WorkoutTemplate -> WorkoutDay -> WorkoutExercise`, sem criar uma árvore paralela de `Treino de hoje`.
 
 ## Autoridades existentes
 
@@ -106,7 +106,29 @@ Zonas, limiar, princípio de reversibilidade, PSE esperado e qualquer texto sem 
 
 ### Flexibilidade e equilíbrio
 
-O modelo operacional atual não possui representação suficiente para transportar esses parâmetros sem perda de semântica. O adaptador preserva a capacidade e seus parâmetros no snapshot e retorna `operational_representation_unavailable`; não inventa `WorkoutExercise` nem converte texto em exercício.
+Flexibilidade e Equilíbrio possuem representação operacional estruturada quando os parâmetros mínimos necessários estão presentes. A projeção usa `WorkoutDayCapacityOperationalBlock`, relação aditiva ligada ao `WorkoutDay` e à `CapacityPrescriptionVersion` exata, com `contractVersion = 1` e snapshot integral em `parameters`.
+
+Para Flexibilidade, a capacidade é representável somente quando existe ao menos uma articulação e todas as articulações possuem `name` e `suggestedPrescription` não vazios. Para Equilíbrio, é obrigatório haver `focus` e pelo menos um apoio válido em `supports` ou uma `progressionNotes` válida; entradas vazias em `supports` tornam o bloco incompatível.
+
+Quando esses critérios são atendidos, a projeção retorna `compatibility = mapped` e alvo `WorkoutDay`. `WorkoutDay.detailNotes` para Flexibilidade e `WorkoutDay.complementNotes` para Equilíbrio são apresentação determinística derivada; não são a autoridade operacional nem fallback textual. A autoridade é o bloco relacional estruturado e versionado.
+
+Quando os parâmetros mínimos não permitem representação sem perda, a projeção permanece fail-closed com `compatibility = incompatible`, alvo `none` e `operational_representation_unavailable`. O sistema não inventa `WorkoutExercise`, exercício fictício nem tradução por texto.
+
+## Liberação operacional atual
+
+A mutação definitiva é um comando separado da aprovação:
+
+`POST /api/v1/consolidated-prescriptions/alunos/:alunoId/operational-release`
+
+O comando exige `plans.consolidatedPrescriptions.release`, deriva ator e timestamp da sessão e revalida no backend a versão aprovada vigente, conflitos críticos, capacidades, snapshots preparados, mapping revisions, substituições, biblioteca, `contractId`, aluno, plano e alvo operacional. A operação usa transação serializável e vínculo relacional idempotente; `WorkoutTemplate.released` só é marcado depois de conteúdo, versão `released` e registro de liberação terem sido persistidos na mesma transação.
+
+A saída continua no grafo existente. Não existe entidade paralela `TodayWorkout`: `TrainingPlan`, `WorkoutTemplate`, `WorkoutDay` e `WorkoutExercise` permanecem os artefatos operacionais, e Flexibilidade/Equilíbrio acrescentam apenas `WorkoutDayCapacityOperationalBlock` ao dia correspondente.
+
+A rastreabilidade operacional é consultável por ID persistente em:
+
+`GET /api/v1/consolidated-prescriptions/alunos/:alunoId/operational-traceability`
+
+A consulta aceita um único identificador operacional por vez (`workoutTemplateId`, `workoutDayId` ou `workoutExerciseId`) e percorre release, versão exata da Montagem Consolidada, versões das capacidades e referências de origem, incluindo os blocos estruturados de Flexibilidade/Equilíbrio.
 
 ## Snapshot, histórico e staleness
 
@@ -157,25 +179,34 @@ As substituições usam origem interna reservada `consolidated_exercise_substitu
 
 ## Concorrência, permissões e tenant
 
-- rotas de leitura exigem `plans.consolidatedPrescriptions.view`;
+- rotas de leitura e rastreabilidade exigem `plans.consolidatedPrescriptions.view`;
 - preparação e substituição exigem `plans.consolidatedPrescriptions.manage`;
+- liberação definitiva exige `plans.consolidatedPrescriptions.release`;
 - alteração do vínculo técnico-operacional exige `plans.consolidatedPrescriptions.manage` **e** `settings.parameters.capacityPrescriptions`, porque modifica configuração reutilizada no contrato inteiro;
 - o `dataScope` da tela `plans` é aplicado ao aluno, sem ampliar autoridade global de catálogo;
 - `contractId` e professor ator vêm da sessão;
 - IDs cross-tenant recebem erro sem promover associação;
 - versões usam `expectedCurrentVersion` e vínculos usam `expectedMappingRevision`;
-- a integração não chama `releaseTemplate` nem cria/edita dias ou exercícios do Workout Builder.
+- preparação/preview não chama `releaseTemplate` nem cria/edita dias ou exercícios do Workout Builder; somente o comando explícito de `operational-release` pode realizar a mutação definitiva.
 
-## Limites desta fase
+## Fronteiras de fase e estado integrado
 
-Permanecem fora da #319:
+A fronteira histórica da #319 permanece válida para seus comandos de preview, preparação, mapeamento e substituição: esses comandos não criam nem liberam o treino operacional por conta própria.
 
-- criação ou alteração definitiva de `WorkoutTemplate`, `WorkoutDay` e `WorkoutExercise`;
-- transição da Montagem Consolidada para `released`;
-- geração/publicação do Treino de hoje;
+Com a #320 integrada, a versão aprovada e preparada pode seguir pelo comando explícito de liberação para:
+
+- criar ou reconciliar um `WorkoutTemplate` futuro ainda não iniciado;
+- criar/atualizar `WorkoutDay` e `WorkoutExercise` somente nos campos representados pela projeção;
+- persistir `WorkoutDayCapacityOperationalBlock` para Flexibilidade/Equilíbrio quando representáveis;
+- criar a versão `released` e o vínculo relacional append-only da liberação;
+- manter idempotência, histórico e rastreabilidade por IDs;
+- recusar sobrescrita de treino iniciado/executado ou de alvo já liberado por outra origem.
+
+Continuam fora do fluxo integrado:
+
 - importação em massa e deduplicação de biblioteca;
-- matching por texto;
+- matching por nome/texto como contrato de integração;
 - sugestão automática de substituição;
-- criação de um modelo fictício de curadoria.
-
-A issue #320 deverá consumir a projeção preparada, revalidar versão, tenant, disponibilidade da biblioteca e incompatibilidades antes de qualquer mutação operacional.
+- criação de modelo fictício de curadoria;
+- criação de uma árvore paralela de `Treino de hoje`;
+- escolha automática de outra semana/período para contornar conflito.
