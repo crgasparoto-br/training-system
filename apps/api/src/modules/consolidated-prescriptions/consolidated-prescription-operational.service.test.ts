@@ -37,6 +37,7 @@ const mapping = (overrides: Partial<TechnicalExerciseOperationalMapping> = {}): 
 const substitution = (currentExerciseAvailable: boolean) => ({
   originalTechnicalCatalogItemId: 'technical-squat',
   originalExerciseLibraryId: 'library-squat',
+  originalMappingRevision: 3,
   substituteExerciseLibraryId: 'library-leg-press',
   substituteExerciseSnapshot: {
     id: 'library-leg-press',
@@ -277,6 +278,50 @@ describe('buildOperationalProjectionItems', () => {
       mappedExerciseLibraryId: 'library-squat',
     });
     expect(items[0].operationalExerciseSnapshot?.name).toBe('Leg press');
+  });
+
+  it('invalidates a recorded substitution after the technical item is remapped', () => {
+    const substitutions = new Map([['technical-squat', substitution(true)]]);
+    const remapped = mapping({
+      exerciseLibraryId: 'library-front-squat',
+      mappingRevision: 4,
+      operationalExerciseSnapshot: {
+        id: 'library-front-squat',
+        name: 'Agachamento frontal',
+        videoUrl: null,
+        loadType: null,
+        movementType: null,
+        countingType: null,
+        category: 'resisted',
+        muscleGroup: 'Quadríceps',
+        notes: null,
+        updatedAt: '2026-08-10T12:00:00.000Z',
+      },
+      currentExerciseUpdatedAt: '2026-08-10T12:00:00.000Z',
+    });
+    const items = buildOperationalProjectionItems(
+      [
+        {
+          id: 'capacity-resisted-v1',
+          capacity: 'resisted',
+          parameters: {
+            type: 'resisted',
+            resisted: { exerciseTechnicalCatalogItemIds: ['technical-squat'] },
+          },
+        },
+      ],
+      new Map([['technical-squat', remapped]]),
+      substitutions as never
+    );
+
+    expect(items[0]).toMatchObject({
+      compatibility: 'incompatible',
+      incompatibilityCode: 'exercise_substitution_stale',
+      substituted: false,
+      mappedExerciseLibraryId: 'library-front-squat',
+      effectiveExerciseLibraryId: 'library-front-squat',
+      mappingRevision: 4,
+    });
   });
 
   it('marks a removed recorded substitute as operationally unavailable', () => {

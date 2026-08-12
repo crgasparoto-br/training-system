@@ -135,6 +135,7 @@ registra uma substituição manual em nova versão da Montagem Consolidada. O re
 - ID operacional substituto;
 - snapshots original e substituto;
 - versão da capacidade de origem;
+- revisão do mapeamento técnico-operacional original;
 - motivo informado pelo professor;
 - origem/regra informada;
 - ator derivado da sessão;
@@ -145,6 +146,10 @@ registra uma substituição manual em nova versão da Montagem Consolidada. O re
 O substituto precisa existir no mesmo contrato e ser diferente do exercício original. Não há escolha automática de alternativa.
 
 Antes de registrar a substituição, o backend exige uma compatibilidade estrutural mínima baseada somente nos atributos realmente modelados no `ExerciseLibrary`. Pelo menos um dos campos estruturados `loadType`, `movementType` ou `countingType` precisa existir no snapshot do exercício original, e todo campo estruturado conhecido deve ser igual no substituto. Quando `category` ou `muscleGroup` estiverem presentes no original, eles também precisam coincidir como restrições adicionais; esses textos nunca são usados isoladamente para inferir compatibilidade clínica. Se não houver atributos estruturados suficientes, a substituição é recusada em vez de assumir equivalência.
+
+Antes desse cálculo de compatibilidade, o backend revalida que o `exerciseLibraryId`, a `mappingRevision`, a disponibilidade e o `updatedAt` atual do exercício operacional original ainda correspondem ao snapshot que fundamentou o vínculo. Se o registro original mudou ou ficou indisponível, a substituição é recusada com conflito e exige remapeamento explícito. Quando existe projeção preparada para a versão corrente da montagem, ela também precisa continuar coerente com a revisão e os metadados atuais; caso contrário, é necessário preparar novamente antes de registrar a substituição.
+
+A substituição persiste a revisão do mapeamento original. Na projeção corrente, uma substituição histórica só é aplicada enquanto `originalExerciseLibraryId`, `originalMappingRevision` e a atualidade do snapshot original continuarem correspondendo ao vínculo vigente. Remapeamento do item técnico ou alteração posterior do exercício original invalida a decisão anterior como `exercise_substitution_stale` e exige nova decisão explícita, sem reescrever a montagem histórica.
 
 Se a capacidade possui restrições estruturadas, mas o `ExerciseLibrary` não modela atributos suficientes para verificar essas restrições, a substituição também é recusada em vez de ser declarada compatível por inferência.
 

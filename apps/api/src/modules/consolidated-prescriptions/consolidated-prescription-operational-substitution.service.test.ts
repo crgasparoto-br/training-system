@@ -1,6 +1,7 @@
 import { capacityExerciseMappingService } from '../capacity-prescriptions/capacity-exercise-mapping.service.js';
 import {
   CONSOLIDATED_EXERCISE_SUBSTITUTION_ORIGIN,
+  CONSOLIDATED_OPERATIONAL_PROJECTION_ORIGIN,
   createConsolidatedPrescriptionOperationalService,
 } from './consolidated-prescription-operational.service.js';
 import { consolidatedPrescriptionService } from './consolidated-prescription.service.js';
@@ -135,6 +136,7 @@ describe('consolidated operational exercise substitution persistence', () => {
         capacityPrescriptionVersionId: 'capacity-v1',
         originalTechnicalCatalogItemId: 'technical-squat',
         originalExerciseLibraryId: 'library-squat',
+        originalMappingRevision: 3,
         substituteExerciseLibraryId: 'library-leg-press',
         reason: 'Dor no joelho no padrão original',
         origin: 'ajuste_professor',
@@ -172,6 +174,98 @@ describe('consolidated operational exercise substitution persistence', () => {
       substituteExerciseLibraryId: 'library-leg-press',
       writesOperationalWorkout: false,
     });
+  });
+
+  it('rejects substitution when the original library record changed after the mapping snapshot', async () => {
+    const currentAssembly = assembly();
+    const updateComposition = jest.spyOn(consolidatedPrescriptionService, 'updateComposition');
+    jest.spyOn(consolidatedPrescriptionService, 'getCurrent').mockResolvedValue(currentAssembly as never);
+    jest.spyOn(capacityExerciseMappingService, 'resolveMapping').mockResolvedValue({
+      ...originalMapping(),
+      currentExerciseUpdatedAt: '2026-08-11T11:00:00.000Z',
+    });
+    const client = clientFor({
+      id: 'library-leg-press',
+      name: 'Leg press',
+      videoUrl: null,
+      loadType: 'plates',
+      movementType: 'compound',
+      countingType: 'repetitions',
+      category: 'resisted',
+      muscleGroup: 'Quadríceps',
+      notes: null,
+      updatedAt: new Date('2026-08-11T12:00:00.000Z'),
+    });
+    const service = createConsolidatedPrescriptionOperationalService(client as never);
+
+    await expect(
+      service.createExerciseSubstitution(context, {
+        expectedCurrentVersion: 1,
+        originalTechnicalCatalogItemId: 'technical-squat',
+        substituteExerciseLibraryId: 'library-leg-press',
+        reason: 'Substituição manual',
+        origin: 'ajuste_professor',
+      })
+    ).rejects.toMatchObject({
+      code: 'CONFLICT',
+      message: expect.stringContaining('mudou ou ficou indisponível'),
+    });
+    expect(client.exerciseLibrary.findFirst).not.toHaveBeenCalled();
+    expect(updateComposition).not.toHaveBeenCalled();
+  });
+
+  it('rejects substitution when the prepared projection predates a mapping revision', async () => {
+    const currentAssembly = assembly();
+    currentAssembly.latestVersion.dataRefs = [
+      {
+        id: 'prepared-ref',
+        role: 'manual_observation',
+        sourceType: 'manual_observation',
+        sourceId: 'capacity-v1:technical-squat',
+        origin: CONSOLIDATED_OPERATIONAL_PROJECTION_ORIGIN,
+        context: {
+          kind: 'operational_projection_v1',
+          key: 'capacity-v1:technical-squat',
+          mappingRevision: 3,
+          operationalExerciseUpdatedAt: '2026-08-11T10:00:00.000Z',
+          preparedForAssemblyVersion: 1,
+        },
+      },
+    ] as never;
+    const updateComposition = jest.spyOn(consolidatedPrescriptionService, 'updateComposition');
+    jest.spyOn(consolidatedPrescriptionService, 'getCurrent').mockResolvedValue(currentAssembly as never);
+    jest.spyOn(capacityExerciseMappingService, 'resolveMapping').mockResolvedValue({
+      ...originalMapping(),
+      mappingRevision: 4,
+    });
+    const client = clientFor({
+      id: 'library-leg-press',
+      name: 'Leg press',
+      videoUrl: null,
+      loadType: 'plates',
+      movementType: 'compound',
+      countingType: 'repetitions',
+      category: 'resisted',
+      muscleGroup: 'Quadríceps',
+      notes: null,
+      updatedAt: new Date('2026-08-11T12:00:00.000Z'),
+    });
+    const service = createConsolidatedPrescriptionOperationalService(client as never);
+
+    await expect(
+      service.createExerciseSubstitution(context, {
+        expectedCurrentVersion: 1,
+        originalTechnicalCatalogItemId: 'technical-squat',
+        substituteExerciseLibraryId: 'library-leg-press',
+        reason: 'Substituição manual',
+        origin: 'ajuste_professor',
+      })
+    ).rejects.toMatchObject({
+      code: 'CONFLICT',
+      message: expect.stringContaining('projeção operacional preparada ficou desatualizada'),
+    });
+    expect(client.exerciseLibrary.findFirst).not.toHaveBeenCalled();
+    expect(updateComposition).not.toHaveBeenCalled();
   });
 
   it('rejects a same-tenant substitute that conflicts with modeled structural attributes', async () => {

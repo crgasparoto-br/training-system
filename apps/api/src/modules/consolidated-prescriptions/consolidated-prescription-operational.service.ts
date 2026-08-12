@@ -42,6 +42,7 @@ type CapacityVersionRow = {
 type SubstitutionSnapshot = {
   originalTechnicalCatalogItemId: string;
   originalExerciseLibraryId: string;
+  originalMappingRevision: number | null;
   substituteExerciseLibraryId: string;
   substituteExerciseSnapshot: OperationalExerciseSnapshot;
   recordedAt: string;
@@ -130,6 +131,16 @@ function exerciseSnapshot(exercise: {
   };
 }
 
+export function isOperationalMappingSnapshotFresh(
+  mapping: TechnicalExerciseOperationalMapping | null | undefined
+) {
+  return Boolean(
+    mapping?.operationalExerciseSnapshot &&
+      mapping.currentExerciseAvailable &&
+      mapping.currentExerciseUpdatedAt === mapping.operationalExerciseSnapshot.updatedAt
+  );
+}
+
 export function isReservedOperationalDataRef(
   ref: Pick<ConsolidatedPrescriptionDataRef, 'sourceType' | 'origin'> | ConsolidatedPrescriptionDataRefInput
 ) {
@@ -183,6 +194,8 @@ function substitutionSnapshots(dataRefs: ConsolidatedPrescriptionDataRef[]) {
     const candidate: SubstitutionSnapshot = {
       originalTechnicalCatalogItemId: context.originalTechnicalCatalogItemId,
       originalExerciseLibraryId: context.originalExerciseLibraryId,
+      originalMappingRevision:
+        typeof context.originalMappingRevision === 'number' ? context.originalMappingRevision : null,
       substituteExerciseLibraryId: context.substituteExerciseLibraryId,
       substituteExerciseSnapshot: substitute as unknown as OperationalExerciseSnapshot,
       recordedAt: context.recordedAt,
@@ -244,7 +257,16 @@ export function buildOperationalProjectionItems(
 
       for (const technicalId of technicalIds) {
         const mapping = mappings.get(technicalId) ?? null;
-        const substitution = substitutions.get(technicalId);
+        const recordedSubstitution = substitutions.get(technicalId);
+        const substitutionIsCurrent = Boolean(
+          recordedSubstitution &&
+            mapping?.exerciseLibraryId &&
+            recordedSubstitution.originalExerciseLibraryId === mapping.exerciseLibraryId &&
+            recordedSubstitution.originalMappingRevision === mapping.mappingRevision &&
+            isOperationalMappingSnapshotFresh(mapping)
+        );
+        const substitution = substitutionIsCurrent ? recordedSubstitution : undefined;
+        const staleSubstitution = Boolean(recordedSubstitution && !substitutionIsCurrent);
         const unsupported: string[] = [];
         const workoutTemplate: Record<string, unknown> = {};
         const workoutExercise: Record<string, unknown> = {};
@@ -276,9 +298,11 @@ export function buildOperationalProjectionItems(
           ? 'technical_exercise_unavailable'
           : !mapping.exerciseLibraryId
             ? 'exercise_mapping_missing'
-            : !available
-              ? 'operational_exercise_unavailable'
-              : null;
+            : staleSubstitution
+              ? 'exercise_substitution_stale'
+              : !available
+                ? 'operational_exercise_unavailable'
+                : null;
 
         items.push({
           key: `${version.id}:${technicalId}`,
@@ -292,9 +316,11 @@ export function buildOperationalProjectionItems(
               ? 'O item técnico referenciado não está disponível neste contrato.'
               : incompatibilityCode === 'exercise_mapping_missing'
                 ? 'O item técnico não possui vínculo explícito com a biblioteca operacional.'
-                : incompatibilityCode === 'operational_exercise_unavailable'
-                  ? 'O exercício operacional efetivo foi removido ou ficou inacessível.'
-                  : null,
+                : incompatibilityCode === 'exercise_substitution_stale'
+                  ? 'A substituição registrada não corresponde mais ao mapeamento operacional atual; registre uma nova decisão explícita.'
+                  : incompatibilityCode === 'operational_exercise_unavailable'
+                    ? 'O exercício operacional efetivo foi removido ou ficou inacessível.'
+                    : null,
           technicalCatalogItemId: technicalId,
           mappingRevision: mapping?.mappingRevision ?? 0,
           mappedExerciseLibraryId: mapping?.exerciseLibraryId ?? null,
@@ -664,12 +690,31 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
       );
       if (
         !originalMapping?.operationalExerciseSnapshot ||
-        originalMapping.exerciseLibraryId !== original.mappedExerciseLibraryId
+        originalMapping.exerciseLibraryId !== original.mappedExerciseLibraryId ||
+        originalMapping.mappingRevision !== original.mappingRevision
       ) {
         throw new ConsolidatedPrescriptionDomainError(
           'CONFLICT',
           'O mapeamento técnico foi alterado; recarregue antes de registrar a substituição'
         );
+      }
+      if (!isOperationalMappingSnapshotFresh(originalMapping)) {
+        throw new ConsolidatedPrescriptionDomainError(
+          'CONFLICT',
+          'O exercício operacional original mudou ou ficou indisponível na biblioteca; refaça o mapeamento antes de registrar a substituição'
+        );
+      }
+      const preparedSnapshotVersion = currentPreparedVersion(assembly.latestVersion.dataRefs);
+      if (preparedSnapshotVersion === assembly.currentVersion) {
+        const prepared = assembly.latestVersion.dataRefs
+          .map(projectionRefContext)
+          .find((candidate) => candidate?.key === original.key);
+        if (isPreparedOperationalSnapshotItemStale(original, prepared ?? undefined)) {
+          throw new ConsolidatedPrescriptionDomainError(
+            'CONFLICT',
+            'A projeção operacional preparada ficou desatualizada; prepare novamente antes de registrar a substituição'
+          );
+        }
       }
       const restrictions = Array.isArray(original.sourceParameters?.restrictions)
         ? original.sourceParameters.restrictions
@@ -711,6 +756,7 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
           capacityPrescriptionVersionId: original.capacityPrescriptionVersionId,
           originalTechnicalCatalogItemId: command.originalTechnicalCatalogItemId,
           originalExerciseLibraryId: original.mappedExerciseLibraryId,
+          originalMappingRevision: originalMapping.mappingRevision,
           originalExerciseSnapshot: originalMapping.operationalExerciseSnapshot,
           substituteExerciseLibraryId: substitute.id,
           substituteExerciseSnapshot: exerciseSnapshot(substitute),
