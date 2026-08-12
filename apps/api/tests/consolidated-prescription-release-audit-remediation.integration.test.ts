@@ -305,7 +305,7 @@ async function addSourceRef(
   fixture: Fixture,
   sourceType: string,
   sourceId: string,
-  label: string
+  label: string | null
 ) {
   await prisma.consolidatedPrescriptionDataRef.create({
     data: {
