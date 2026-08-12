@@ -13,10 +13,16 @@ import {
   getEffectiveDataScopeForProfessor,
 } from '../access-control/access-control.service.js';
 import { readPersistedExerciseMapping } from '../capacity-prescriptions/capacity-exercise-mapping.service.js';
+import { CapacitySourceIntegrityError } from '../capacity-prescriptions/capacity-prescription-source-integrity.service.js';
 import {
   FLEX_BALANCE_OPERATIONAL_CONTRACT_VERSION,
   type WorkoutDayCapacityOperationalBlock,
 } from './consolidated-prescription-flex-balance-operational.js';
+import {
+  assertConsolidatedReleaseSourceLiveness,
+  getExistingReleaseTargetTemporalIssue,
+  getReleaseTargetTemporalIssue,
+} from './consolidated-prescription-release-guards.js';
 import {
   CONSOLIDATED_EXERCISE_SUBSTITUTION_ORIGIN,
   CONSOLIDATED_OPERATIONAL_PROJECTION_ORIGIN,
@@ -531,7 +537,8 @@ async function applyOperationalProjection(
   tx: Prisma.TransactionClient,
   context: ReleaseContext,
   command: ReleaseConsolidatedOperationalWorkoutCommand,
-  items: PreparedProjectionItem[]
+  items: PreparedProjectionItem[],
+  now: Date
 ) {
   const plan = await tx.trainingPlan.findFirst({
     where: {
@@ -599,6 +606,7 @@ async function applyOperationalProjection(
   const extraPlacement = command.target.placements.find((placement) => !items.some((item) => item.key === placement.projectionKey.trim()));
   if (extraPlacement) fail('INVALID_INPUT', `O posicionamento ${extraPlacement.projectionKey} não pertence à projeção aprovada`);
 
+  const requestedWeekStartDate = parseDate(command.target.weekStartDate, 'Início da semana');
   const existing = await tx.workoutTemplate.findUnique({
     where: {
       planId_mesocycleNumber_weekNumber: {
@@ -614,6 +622,8 @@ async function applyOperationalProjection(
     },
   });
   if (existing) {
+    const temporalIssue = getExistingReleaseTargetTemporalIssue(existing, requestedWeekStartDate, now);
+    if (temporalIssue) fail('CONFLICT', temporalIssue);
     const started = existing.workoutDays.some(
       (day) =>
         day.status !== 'planned' ||
@@ -648,12 +658,11 @@ async function applyOperationalProjection(
     }
   }
 
-  const weekStartDate = parseDate(command.target.weekStartDate, 'Início da semana');
   const template = existing
     ? await tx.workoutTemplate.update({
         where: { id: existing.id },
         data: {
-          weekStartDate,
+          weekStartDate: requestedWeekStartDate,
           trainingMethod: (templateFields.trainingMethod as string | undefined) ?? null,
           trainingDivision: (templateFields.trainingDivision as string | undefined) ?? null,
           repReserve: (templateFields.repReserve as number | undefined) ?? null,
@@ -665,7 +674,7 @@ async function applyOperationalProjection(
           planId: plan.id,
           mesocycleNumber: command.target.mesocycleNumber,
           weekNumber: command.target.weekNumber,
-          weekStartDate,
+          weekStartDate: requestedWeekStartDate,
           trainingMethod: templateFields.trainingMethod as string | undefined,
           trainingDivision: templateFields.trainingDivision as string | undefined,
           repReserve: templateFields.repReserve as number | undefined,
@@ -796,6 +805,9 @@ export function createConsolidatedPrescriptionReleaseService(client: PrismaClien
               return releaseResult(priorRelease, true);
             }
 
+            const temporalIssue = getReleaseTargetTemporalIssue(command, now);
+            if (temporalIssue) fail('INVALID_INPUT', temporalIssue);
+
             if (assembly.currentVersion !== command.expectedCurrentVersion || assembly.currentStatus !== 'approved' || source.status !== 'approved') {
               fail('CONFLICT', 'Somente a versão aprovada e atualmente vigente pode ser liberada', {
                 expectedCurrentVersion: command.expectedCurrentVersion,
@@ -830,9 +842,25 @@ export function createConsolidatedPrescriptionReleaseService(client: PrismaClien
               WHERE "assemblyVersionId" = ${source.id}
               ORDER BY "createdAt" ASC, "id" ASC
             `;
+            try {
+              await assertConsolidatedReleaseSourceLiveness({
+                client: tx,
+                contractId: context.contractId,
+                alunoId: context.alunoId,
+                refs,
+              });
+            } catch (error) {
+              if (error instanceof CapacitySourceIntegrityError) {
+                fail(
+                  'CONFLICT',
+                  'Uma referência obrigatória deixou de ser válida ou acessível após a aprovação'
+                );
+              }
+              throw error;
+            }
             const conflicts = await revalidateCapacityBlocks(tx, context, source, blocks);
             const items = await revalidatePreparedProjection(tx, context, blocks, refs);
-            const workoutTemplateId = await applyOperationalProjection(tx, context, command, items);
+            const workoutTemplateId = await applyOperationalProjection(tx, context, command, items, now);
             const released = await createReleasedVersion(tx, context, assembly, source, blocks, refs, conflicts, now);
             const releaseId = randomUUID();
             await tx.$executeRaw`
