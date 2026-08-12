@@ -80,8 +80,8 @@ describe('capacity prescription source integrity', () => {
     ).rejects.toThrow(`Fonte técnica ${type} não encontrada`);
   });
 
-  it('aceita avaliação que pertence ao mesmo aluno e contrato', async () => {
-    const findFirst = jest.fn().mockResolvedValue({ id: 'assessment-1' });
+  it('aceita avaliação que pertence ao mesmo aluno, contrato e categoria', async () => {
+    const findFirst = jest.fn().mockResolvedValue({ assessmentCategory: 'adipometry' });
     await expect(
       assertCapacitySourceIntegrity({
         client: clientWith({ studentAssessmentRecord: { findFirst } }),
@@ -97,7 +97,7 @@ describe('capacity prescription source integrity', () => {
     ).resolves.toBeUndefined();
     expect(findFirst).toHaveBeenCalledWith({
       where: { id: 'assessment-1', contractId: base.contractId, alunoId: base.alunoId },
-      select: { id: true },
+      select: { assessmentCategory: true },
     });
   });
 
