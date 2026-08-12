@@ -22,6 +22,7 @@ const RESERVED_ORIGINS = [
   'consolidated_exercise_substitution_v1',
   'consolidated_operational_projection_v1',
 ] as const;
+const capacities = ['resisted', 'flexibility', 'cyclic', 'balance'] as const;
 
 function tokenFor(user: { id: string; email: string; type: UserType }) {
   return jwt.sign(
@@ -107,40 +108,44 @@ async function createContext() {
       status: StudentLifecycleStatus.ACTIVE_STUDENT,
     },
   });
-  const prescription = await prisma.capacityPrescription.create({
-    data: {
-      contractId,
-      alunoId,
-      capacity: 'resisted',
-      status: 'active',
-      currentVersion: 1,
-      createdByProfessorId: professor.id,
-      updatedByProfessorId: professor.id,
-      publishesTodayWorkout: false,
-    },
-  });
-  const version = await prisma.capacityPrescriptionVersion.create({
-    data: {
-      prescriptionId: prescription.id,
-      contractId,
-      alunoId,
-      responsibleProfessorId: professor.id,
-      capacity: 'resisted',
-      status: 'active',
-      version: 1,
-      technicalJustification: 'Justificativa resistida',
-      professorSummary: 'Resumo resistido',
-      studentMessage: null,
-      methodologyVersion: null,
-      parameterSetIds: [],
-      parameters: { type: 'resisted', resisted: { sets: 3 } },
-      publishesTodayWorkout: false,
-    },
-  });
+
+  const capacityBlocks: Array<{ capacityPrescriptionVersionId: string }> = [];
+  for (const capacity of capacities) {
+    const prescription = await prisma.capacityPrescription.create({
+      data: {
+        contractId,
+        alunoId,
+        capacity,
+        status: 'active',
+        currentVersion: 1,
+        createdByProfessorId: professor.id,
+        updatedByProfessorId: professor.id,
+        publishesTodayWorkout: false,
+      },
+    });
+    const version = await prisma.capacityPrescriptionVersion.create({
+      data: {
+        prescriptionId: prescription.id,
+        contractId,
+        alunoId,
+        responsibleProfessorId: professor.id,
+        capacity,
+        status: 'active',
+        version: 1,
+        technicalJustification: `Justificativa ${capacity}`,
+        professorSummary: `Resumo ${capacity}`,
+        studentMessage: null,
+        methodologyVersion: null,
+        parameterSetIds: [],
+        publishesTodayWorkout: false,
+      },
+    });
+    capacityBlocks.push({ capacityPrescriptionVersionId: version.id });
+  }
 
   return {
     token: tokenFor(user),
-    capacityBlocks: [{ capacityPrescriptionVersionId: version.id }],
+    capacityBlocks,
   };
 }
 
