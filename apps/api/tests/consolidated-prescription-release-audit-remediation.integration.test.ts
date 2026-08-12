@@ -310,7 +310,7 @@ async function addSourceRef(
   await prisma.consolidatedPrescriptionDataRef.create({
     data: {
       assemblyVersionId: fixture.sourceVersionId,
-      role: 'capacity_source',
+      role: 'assessment',
       sourceType,
       sourceId,
       label,
@@ -339,9 +339,6 @@ async function expectReleaseRejectedWithoutEffects(fixture: Fixture) {
 
 describeDatabase('issue 320 audit remediation - source liveness at release', () => {
   afterAll(async () => {
-    await prisma.companyContract.deleteMany({
-      where: { id: { startsWith: 'issue-320-audit-' } },
-    });
     await prisma.$disconnect();
   });
 
