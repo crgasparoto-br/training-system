@@ -8,7 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "pnpm test:unit && pnpm test:browser-evidence",
-    "test:unit": "vitest run --exclude src/pages/issue-309-browser-evidence.test.js --exclude src/pages/issue-313-browser-evidence.test.js",
+    "test:unit": "vitest run --exclude \"src/pages/issue-*-browser-evidence.test.js\"",
     "test:browser-evidence": "vitest run src/pages/issue-309-browser-evidence.test.js && vitest run src/pages/issue-313-browser-evidence.test.js",
     "test:watch": "vitest",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
@@ -17,7 +17,7 @@
   "dependencies": {
     "@hookform/resolvers": "^3.3.3",
     "@tanstack/react-query": "^5.14.2",
-    "@tanstack/react-table": "^8.11.2",
+    "@tanstack/react-table": "^5.14.2",
     "axios": "^1.6.2",
     "clsx": "^2.0.0",
     "date-fns": "^3.0.6",
