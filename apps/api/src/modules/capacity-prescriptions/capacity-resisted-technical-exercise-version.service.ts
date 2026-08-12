@@ -155,7 +155,7 @@ export function createCapacityResistedTechnicalExerciseVersionService(
                 professorSummary: previous.professorSummary,
                 studentMessage: previous.studentMessage,
                 methodologyVersion: previous.methodologyVersion,
-                parameterSetIds: parameterSetIds as Prisma.InputJsonValue,
+                parameterSetIds,
                 parameters: nextParameters as Prisma.InputJsonValue,
                 publishesTodayWorkout: false,
                 createdAt: now,
