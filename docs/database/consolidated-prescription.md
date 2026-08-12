@@ -1,6 +1,6 @@
 # Persistência da Montagem Consolidada
 
-Este documento descreve a persistência da Montagem Consolidada da Prescrição. A issue #316 criou o agregado versionado; a #317 acrescentou workflow backend, revalidação estruturada, autorização e auditoria derivada da cadeia imutável de versões.
+Este documento descreve a persistência da Montagem Consolidada da Prescrição. A issue #316 criou o agregado versionado; a #317 acrescentou workflow backend, revalidação estruturada, autorização e auditoria derivada da cadeia imutável de versões; a #320 acrescenta o vínculo relacional append-only entre uma versão aprovada e sua saída no Workout Builder.
 
 ## Tabelas do agregado
 
@@ -18,6 +18,8 @@ A chave `(assemblyId, version)` é única. Comandos normais nunca atualizam uma 
 
 Além de representar o histórico funcional, esta tabela é a fonte auditável canônica da montagem. Cada ação sensível materializa uma nova versão com ator backend e timestamp; por isso não existe uma segunda tabela de auditoria que possa divergir do estado. `auditEvents` é derivado na leitura a partir da própria cadeia de versões.
 
+Na liberação da #320, a versão `approved` permanece intacta e uma nova versão `released` é adicionada com `previousVersionId` apontando para a versão aprovada.
+
 ### `ConsolidatedPrescriptionCapacityBlock`
 
 Vínculo imutável entre uma versão consolidada e uma `CapacityPrescriptionVersion`. Preserva ID canônico, capacidade, versão, status e posição. A FK usa `ON DELETE RESTRICT`.
@@ -30,9 +32,29 @@ Na criação/edição, o service também exige exatamente `resisted`, `flexibili
 
 Rastreabilidade mínima das fontes. `capacity_source` é reservado ao backend e corresponde a `CapacityPrescriptionSource` das versões selecionadas. Referências adicionais são revalidadas por `contractId + alunoId` antes da persistência.
 
+A #319 também persiste snapshots server-owned de projeção/substituição nessas referências. A #320 os consome somente depois de revalidar capacidade, vínculo técnico, revisão do mapeamento e `ExerciseLibrary.updatedAt` atual.
+
+### `ConsolidatedPrescriptionOperationalRelease`
+
+Evidência relacional append-only da publicação operacional criada pela #320. Cada linha liga de forma explícita:
+
+- `assemblyId`;
+- versão `approved` de origem e seu número;
+- versão `released` criada pela transação e seu número;
+- `contractId` e `alunoId`;
+- `TrainingPlan` e `WorkoutTemplate` efetivamente publicados;
+- professor ator e `releasedAt`;
+- fingerprint canônico da requisição.
+
+`sourceAssemblyVersionId` possui índice único e funciona como chave natural de idempotência. `workoutTemplateId` também é único para impedir que um template já publicado seja silenciosamente reassociado a outra versão consolidada.
+
+O trigger de escopo confirma que as duas versões pertencem à mesma montagem/aluno/contrato, que a origem é `approved`, que a versão seguinte é `released` e aponta para a origem, e que plano/template/ator pertencem ao mesmo tenant. Outro trigger rejeita `UPDATE` e `DELETE`, preservando a evidência histórica.
+
+A aplicação usa SQL explícito para esse ledger relacional porque a tabela é append-only, possui invariantes PostgreSQL próprias e não participa de CRUD genérico. As entidades operacionais continuam acessadas pelo Prisma normalmente.
+
 ## Auditoria sem duplicação de persistência
 
-A auditoria é reconstruída deterministicamente de `ConsolidatedPrescriptionVersion`:
+A auditoria funcional da montagem continua reconstruída deterministicamente de `ConsolidatedPrescriptionVersion`:
 
 - primeira versão: `created`;
 - `draft -> ready_for_review`: `sent_for_review`;
@@ -41,13 +63,16 @@ A auditoria é reconstruída deterministicamente de `ConsolidatedPrescriptionVer
 - `blocked -> blocked` por correção de composição: `composition_updated`;
 - `blocked -> draft/ready_for_review`: `unblocked`;
 - `approved -> draft`: `revision_created`;
+- `approved -> released`: a cadeia de versões preserva `newStatus=released`; o `auditEvents.action` legado ainda deriva `composition_updated`, enquanto o ledger `ConsolidatedPrescriptionOperationalRelease` registra explicitamente a liberação material, o alvo, o ator e a data;
 - demais novas versões editáveis: `composition_updated`.
 
 O evento derivado usa `createdByProfessorId` da versão como ator da ação, `createdAt` como timestamp, `previousVersionId` para localizar versão/estado anterior e os campos específicos de revisão/aprovação/bloqueio para rastreabilidade adicional.
 
-Essa estratégia satisfaz atomicidade por construção: estado e trilha auditável são a mesma escrita append-only. Se a transação falha ao persistir a nova versão ou alguma de suas relações obrigatórias, nem a alteração funcional nem seu evento auditável passam a existir.
+A tabela `ConsolidatedPrescriptionOperationalRelease` não substitui essa auditoria de estado: ela prova a relação material entre a transição `released` e os IDs operacionais que receberam a publicação.
 
-## Concorrência otimista
+Essa estratégia satisfaz atomicidade por construção: estado, vínculo operacional e flag de liberação são escritos na mesma transação. Se qualquer etapa falha, nem a alteração funcional nem a evidência auditável passam a existir.
+
+## Concorrência otimista e idempotência
 
 O agregado usa `currentVersion` como CAS:
 
@@ -61,19 +86,21 @@ WHERE id = :id AND currentVersion = :expectedCurrentVersion
 
 O row lock elimina TOCTOU entre leitura da versão atual e avanço do agregado; o `WHERE currentVersion = expected` mantém proteção adicional contra escrita concorrente. A divergência retorna `CONFLICT`/HTTP `409` e não persiste versão parcial.
 
-## Revalidação de conflitos
+Na #320, uma liberação existente para `sourceAssemblyVersionId` é consultada depois do lock. Se o fingerprint do comando for igual, a resposta é idempotente e reutiliza o mesmo release. Se a mesma origem for reapresentada com outro destino, a operação falha com conflito. Corridas também são fechadas pelos índices únicos e pela transação serializável.
+
+## Revalidação de conflitos e saída operacional
 
 A revalidação lê novamente `CapacityPrescriptionVersion`, `CapacityPrescription` e alertas estruturados dentro da operação protegida. Ela considera crítica uma referência que deixou de ser a versão corrente/ativa ou um alerta persistido com severidade `critical`.
 
 Campos de texto livre da capacidade ou da montagem não participam da decisão autoritativa.
 
-Quando uma revalidação encontra `critical` em `draft`, `ready_for_review` ou `approved`, uma nova versão `blocked` é criada atomicamente. O motivo canônico diferencia no histórico um bloqueio derivado de conflito estruturado de um bloqueio manual.
+Na liberação, o backend também revalida os snapshots operacionais preparados: IDs técnicos, `mappingRevision`, exercício original, substituição explícita, exercício efetivo e `updatedAt` da biblioteca. Não existe matching textual ou geração automática de alternativa.
 
-Uma composição corretiva pode ser criada enquanto o agregado permanece `blocked`. O desbloqueio é outro comando: relê as fontes e somente cria a nova versão `draft` ou `ready_for_review` quando não existe conflito crítico.
+Um `WorkoutTemplate` já existente só pode ser usado quando nenhum dia saiu de `planned`, não existem `startedAt/finishedAt` e nenhum `WorkoutExercise` possui `WorkoutExecution`. Essa checagem ocorre antes de qualquer flag `released`.
 
 ## Isolamento multi-tenant e escopo de dados
 
-A rota valida `contractId` e `dataScope` antes de entrar no domínio. O service revalida `Aluno`, ator e responsável técnico dentro da transação. Relações persistidas continuam protegidas pelos triggers introduzidos na #316.
+As rotas normais validam `contractId` e `dataScope`. Para a liberação da #320, a autoridade final de `plans.consolidatedPrescriptions.release` e o `dataScope` de `plans` são revalidados com o mesmo `TransactionClient` que persiste a saída.
 
 Para `plans`:
 
@@ -81,16 +108,17 @@ Para `plans`:
 - `managed`: aluno do professor ou de professor cujo `responsibleManagerId` é o ator;
 - `contract`: qualquer aluno do contrato autenticado.
 
-Acesso fora do contrato/escopo não expõe a existência do registro.
+Acesso fora do contrato/escopo não expõe a existência do registro. O trigger de `ConsolidatedPrescriptionOperationalRelease` fecha combinações cross-tenant mesmo se houver uma chamada direta fora do service.
 
 ## Migrations
 
-A #317 não adiciona nova tabela à persistência da #316. A cadeia relevante continua:
+A cadeia relevante é:
 
 1. `20260808165000_issue_316_consolidated_prescription_persistence` — agregado, versões, blocos, refs, FKs e guards;
-2. `20260808220000_issue_316_capacity_source_authority_guard` — autoridade de `capacity_source`.
+2. `20260808220000_issue_316_capacity_source_authority_guard` — autoridade de `capacity_source`;
+3. `20260812143000_issue_320_consolidated_operational_release` — vínculo relacional de liberação, chaves de idempotência, guards de escopo e imutabilidade.
 
-O workflow da #317 reutiliza essas estruturas e mantém `schema.prisma` e histórico de migrations alinhados, sem introduzir uma tabela paralela de auditoria.
+A migration da #320 é aditiva: não remove nem reescreve plano, template, dia, exercício ou execução existente.
 
 ## Índices principais
 
@@ -98,24 +126,21 @@ O workflow da #317 reutiliza essas estruturas e mantém `schema.prisma` e histó
 - histórico por contrato/aluno/data e estado;
 - referência à versão anterior;
 - versão de capacidade referenciada;
-- origem dos dados-base.
+- origem dos dados-base;
+- release por versão aprovada de origem (único);
+- release por template operacional (único);
+- release por contrato/aluno/data e por plano.
 
 ## Validação executável
 
-`apps/api/src/modules/consolidated-prescriptions/consolidated-prescription.service.test.ts` cobre o motor estruturado, ausência de heurística textual, `info`/`warning`/`critical`, autoridade do backend, composição completa, capacidade não ativa e falha de persistência da versão auditável.
+Os testes existentes da #316/#317 continuam cobrindo versão, composição, concorrência e isolamento. A #320 acrescenta testes focados para:
 
-`apps/api/tests/consolidated-prescription-http.integration.test.ts`, quando `RUN_DATABASE_INTEGRATION_TESTS=true`, cobre PostgreSQL real e HTTP para:
+- permissão específica e revalidação transacional;
+- lock serializável e evidência de aprovação;
+- bloqueio de treino iniciado/executado;
+- fingerprint idempotente;
+- relação versionada -> plano/template;
+- índices únicos e imutabilidade do ledger;
+- ordem de escrita que só marca `WorkoutTemplate.released` depois da persistência do vínculo.
 
-- payload com campos de autoridade rejeitado;
-- isolamento cross-tenant e `dataScope`;
-- permissão específica de aprovação;
-- fluxo `draft -> ready_for_review -> approved`;
-- texto livre sem bloqueio;
-- alerta `critical` levando a `blocked`;
-- remediação ainda bloqueada e desbloqueio explícito;
-- nova revisão após aprovação;
-- histórico com eventos de auditoria derivados das versões;
-- `expectedCurrentVersion` obsoleto retornando `409` sem avanço parcial;
-- inexistência de endpoint `released` nesta fase.
-
-`apps/api/tests/consolidated-prescription-persistence.integration.test.ts` preserva os testes PostgreSQL da #316, incluindo duas escritas concorrentes na mesma `expectedCurrentVersion`, rollback transacional por guard de origem e imutabilidade das versões anteriores.
+Os cenários PostgreSQL de corrida, rollback e falha injetada permanecem gate obrigatório para fechamento integral da entrega crítica.

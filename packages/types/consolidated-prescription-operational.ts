@@ -108,3 +108,36 @@ export interface ConsolidatedExerciseSubstitutionResult {
   recordedByProfessorId: string;
   writesOperationalWorkout: false;
 }
+
+export interface ConsolidatedReleasePlacement {
+  projectionKey: string;
+  dayOfWeek: number;
+  workoutDate: string;
+  section?: string;
+  exerciseOrder?: number;
+}
+
+export interface ReleaseConsolidatedOperationalWorkoutCommand {
+  expectedCurrentVersion: number;
+  target: {
+    trainingPlanId: string;
+    mesocycleNumber: number;
+    weekNumber: number;
+    weekStartDate: string;
+    placements: ConsolidatedReleasePlacement[];
+  };
+}
+
+export interface ConsolidatedOperationalReleaseResult {
+  releaseId: string;
+  assemblyId: string;
+  sourceAssemblyVersionId: string;
+  sourceAssemblyVersion: number;
+  releasedAssemblyVersionId: string;
+  releasedAssemblyVersion: number;
+  trainingPlanId: string;
+  workoutTemplateId: string;
+  releasedByProfessorId: string;
+  releasedAt: string;
+  idempotent: boolean;
+}

@@ -29,21 +29,24 @@ A API fica em `apps/api`.
 
 O módulo autoritativo continua em `apps/api/src/modules/consolidated-prescriptions` e é montado em `/api/v1/consolidated-prescriptions`.
 
-A integração operacional da issue #319 adiciona somente preparação e rastreabilidade:
+A integração operacional da issue #319 adicionou preparação e rastreabilidade sem escrever no Workout Builder. A issue #320 adiciona o comando definitivo de liberação:
 
 - leitura da biblioteca e da projeção exige `plans.consolidatedPrescriptions.view`;
 - vínculo técnico, preparação e substituição exigem `plans.consolidatedPrescriptions.manage`;
-- todas as rotas aplicam o `dataScope` da tela `plans` e `contractId` da sessão;
-- o vínculo `CapacityTechnicalCatalogItem(category=exercise)` -> `ExerciseLibrary` é feito somente por IDs persistidos e revisão concorrente;
-- snapshots internos de projeção/substituição são server-owned e preservados nas versões da Montagem Consolidada;
-- a API não cria, altera nem libera `WorkoutTemplate`, `WorkoutDay` ou `WorkoutExercise` nesta fase;
-- a rota dedicada de capacidade versiona `exerciseTechnicalCatalogItemIds` sem usar nome/código como chave de integração.
+- liberação exige `plans.consolidatedPrescriptions.release` e `dataScope` efetivo de `plans`;
+- a autorização definitiva, o aluno, o contrato, a versão aprovada, as capacidades e o destino são revalidados dentro da transação serializável;
+- o vínculo `CapacityTechnicalCatalogItem(category=exercise)` -> `ExerciseLibrary` continua usando somente IDs persistidos e revisão concorrente;
+- snapshots internos de projeção/substituição permanecem server-owned e são revalidados antes da escrita operacional;
+- a saída usa os modelos existentes `TrainingPlan`, `WorkoutTemplate`, `WorkoutDay` e `WorkoutExercise`;
+- `WorkoutTemplate.released` só é marcado depois de conteúdo, nova versão `released` e vínculo relacional de auditoria terem sido persistidos na mesma transação;
+- treino iniciado/executado não pode ser sobrescrito, e retry da mesma versão/destino é idempotente;
+- flexibilidade/equilíbrio continuam fail-closed enquanto a ponte operacional não definir representação explícita sem perda semântica.
 
-O contrato permanente está em `docs/product/consolidated-prescription-operational-integration.md`. A mutação operacional e `released` pertencem à issue #320.
+Os contratos permanentes estão em `docs/product/consolidated-prescription-operational-integration.md` e `docs/product/consolidated-prescription-operational-release.md`.
 
 ## Adipometria (ADPT)
 
-O módulo autoritativo fica em `apps/api/src/modules/adipometry` e é montado em `/api/v1/adipometry`.
+O módulo `apps/api/src/modules/adipometry` é montado em `/api/v1/adipometry`.
 
 Regras de fronteira:
 

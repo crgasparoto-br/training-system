@@ -24,7 +24,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`architecture/api.md`](architecture/api.md): padroes da API.
 - [`architecture/web.md`](architecture/web.md): padroes do frontend web.
 - [`architecture/database.md`](architecture/database.md): banco, Prisma e multi-tenant.
-- [`database/consolidated-prescription.md`](database/consolidated-prescription.md): persistência, histórico, concorrência e isolamento da Montagem Consolidada.
+- [`database/consolidated-prescription.md`](database/consolidated-prescription.md): persistência, histórico, concorrência, isolamento e vínculo operacional da Montagem Consolidada.
 - [`architecture/auth-and-access-control.md`](architecture/auth-and-access-control.md): autenticacao, autorizacao e escopo de dados.
 - [`architecture/deployment.md`](architecture/deployment.md): deploy, ambientes e variaveis.
 - [`architecture/pre-registration-api.md`](architecture/pre-registration-api.md): fronteiras HTTP, autenticacao, erros, concorrencia e telemetria da pre-matricula.
@@ -40,6 +40,8 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`product/capacity-prescription-model.md`](product/capacity-prescription-model.md): persistência, API, versionamento e parâmetros da prescrição por capacidades.
 - [`product/consolidated-prescription-model.md`](product/consolidated-prescription-model.md): agregado, versionamento, estados, referências e contratos da Montagem Consolidada.
 - [`product/consolidated-prescription-operational-integration.md`](product/consolidated-prescription-operational-integration.md): ponte por ID entre capacidades, biblioteca e Workout Builder sem publicação operacional na #319.
+- [`product/consolidated-prescription-operational-release.md`](product/consolidated-prescription-operational-release.md): comando #320 de liberação no Workout Builder, autorização, idempotência e rastreabilidade relacional.
+- [`product/consolidated-prescription-operational-traceability.md`](product/consolidated-prescription-operational-traceability.md): consulta #320 por IDs do Workout Builder até release, montagem, capacidades e fontes.
 - [`product/student-centered-training-experience.md`](product/student-centered-training-experience.md): experiencia de corrida, musculacao e treino combinado centrada no aluno.
 - [`product/future-evolution-roadmap.md`](product/future-evolution-roadmap.md): recorte complementar da issue #139, subordinado ao roadmap canonico e preservado ate seus itens virarem issues especificas.
 - [`product/navigation-information-architecture.md`](product/navigation-information-architecture.md): navegacao por hubs, Aluno 360 e rollout.
@@ -93,6 +95,7 @@ Planos ativos relevantes:
 - [`execution-plans/active/2026-07-issue-274-enrollment-conversion.md`](execution-plans/active/2026-07-issue-274-enrollment-conversion.md)
 - [`execution-plans/active/2026-07-issue-275-pre-registration-qa-rollout.md`](execution-plans/active/2026-07-issue-275-pre-registration-qa-rollout.md)
 - [`execution-plans/active/2026-08-issue-319-consolidated-operational-integration.md`](execution-plans/active/2026-08-issue-319-consolidated-operational-integration.md)
+- [`execution-plans/active/2026-08-issue-320-consolidated-operational-release.md`](execution-plans/active/2026-08-issue-320-consolidated-operational-release.md)
 - [`execution-plans/issue-246-adipometry-foundation.md`](execution-plans/issue-246-adipometry-foundation.md) — fundação estrutural em validação; gate clínico ainda pendente.
 
 Registros concluidos preservados:
