@@ -52,6 +52,7 @@ const resistedParametersSchema = z
     resisted: z
       .object({
         muscleGroups: z.array(z.string().trim().min(1)).optional(),
+        exerciseTechnicalCatalogItemIds: z.array(z.string().trim().min(1)).optional(),
         method: z.string().trim().optional().nullable(),
         split: z.string().trim().optional().nullable(),
         sets: z.number().int().positive().optional().nullable(),

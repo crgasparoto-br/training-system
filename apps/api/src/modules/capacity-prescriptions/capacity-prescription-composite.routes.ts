@@ -4,6 +4,7 @@ import canonicalSourceRoutes from './capacity-prescription-canonical-source.rout
 import assessmentCompatibilityRoutes from './capacity-prescription-assessment-compatibility.routes.js';
 import assessmentParameterRoutes from './capacity-prescription-assessment-parameters.routes.js';
 import extensionRoutes from './capacity-prescription-extension.routes.js';
+import exerciseMappingRoutes from './capacity-exercise-mapping.routes.js';
 import goalConsistencyRoutes from './capacity-prescription-goal-consistency.routes.js';
 import goalPermissionRoutes from './capacity-prescription-goal-permission.routes.js';
 import planningValidationRoutes from './capacity-prescription-planning-validation.routes.js';
@@ -53,6 +54,7 @@ router.use(assessmentParameterRoutes);
 router.use(goalConsistencyRoutes);
 router.use(statusNormalizationRoutes);
 router.use(extensionRoutes);
+router.use(exerciseMappingRoutes);
 
 // Consultas atuais e históricas revalidam os blocos específicos das fontes
 // antes de chegar às rotas legadas, evitando exposição após revogação de acesso.
