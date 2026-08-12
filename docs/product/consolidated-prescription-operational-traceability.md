@@ -28,15 +28,26 @@ WorkoutTemplate / WorkoutDay / WorkoutExercise
   -> ConsolidatedPrescriptionDataRef/sourceRefs
 ```
 
+Para Flexibilidade/Equilíbrio existe ainda a ligação operacional direta:
+
+```text
+WorkoutDay
+  -> WorkoutDayCapacityOperationalBlock (contractVersion=1)
+  -> CapacityPrescriptionVersion exata
+```
+
 A resposta inclui:
 
 - IDs do plano, template e, quando usados como entrada, dia/exercício;
 - ID do release, ator e data;
 - montagem e IDs/números/status das versões de origem e released;
 - capacidades e respectivos `CapacityPrescriptionVersion.id`;
+- `operationalCapacityBlocks` com `workoutDayId`, capacidade, versão do contrato, FK da capacidade e parâmetros estruturados integrais de Flexibilidade/Equilíbrio;
 - referências de origem persistidas na versão aprovada.
 
-O endpoint não reconstrói a cadeia por nomes nem duplica snapshots do Workout Builder.
+Quando a consulta é por `workoutDayId` ou `workoutExerciseId`, `operationalCapacityBlocks` contém somente os blocos do dia resolvido. Quando a consulta é por `workoutTemplateId`, contém os blocos de todos os dias daquele template, ordenados por dia/capacidade.
+
+O endpoint não reconstrói a cadeia por nomes nem usa as notas formatadas como autoridade. `detailNotes`/`complementNotes` são apresentação derivada; o bloco estruturado é a representação operacional canônica dessas duas capacidades.
 
 ## Autorização e não enumeração
 
@@ -53,8 +64,10 @@ ID operacional inexistente, de outro aluno/tenant ou sem vínculo de liberação
 
 ## Papel do ledger
 
-`ConsolidatedPrescriptionOperationalRelease` continua sendo a evidência relacional autoritativa do release. A consulta não cria estado novo e não altera a montagem. O vínculo único por `sourceAssemblyVersionId` e `workoutTemplateId` garante que a cadeia consultada seja determinística para a versão publicada.
+`ConsolidatedPrescriptionOperationalRelease` continua sendo a evidência relacional autoritativa do release. `WorkoutDayCapacityOperationalBlock` complementa o ledger no nível da sessão, ligando o dia às versões imutáveis de Flexibilidade/Equilíbrio sem substituir a cadeia do release.
+
+A consulta não cria estado novo e não altera a montagem. O vínculo único por `sourceAssemblyVersionId` e `workoutTemplateId` garante que a cadeia consultada seja determinística para a versão publicada.
 
 ## Histórico
 
-A consulta parte da versão **aprovada de origem**, não da versão corrente da montagem. Portanto uma nova revisão posterior não muda a cadeia histórica de um treino já liberado. As capacidades e `sourceRefs` retornadas são as que pertencem à versão aprovada usada naquele release.
+A consulta parte da versão **aprovada de origem**, não da versão corrente da montagem. Portanto uma nova revisão posterior não muda a cadeia histórica de um treino já liberado. As capacidades, blocos estruturados e `sourceRefs` retornados são os que pertencem à saída materializada por aquele release.

@@ -10,6 +10,15 @@ type BalanceParameters = Extract<
   { type: 'balance' }
 >['balance'];
 
+export const FLEX_BALANCE_OPERATIONAL_CONTRACT_VERSION = 1 as const;
+
+export type WorkoutDayCapacityOperationalBlock = {
+  contractVersion: typeof FLEX_BALANCE_OPERATIONAL_CONTRACT_VERSION;
+  capacity: 'flexibility' | 'balance';
+  capacityPrescriptionVersionId: string;
+  parameters: Record<string, unknown>;
+};
+
 const PRIORITY_LABELS = {
   low: 'baixa',
   medium: 'média',
@@ -21,16 +30,54 @@ function text(value: string | null | undefined) {
   return normalized ? normalized : null;
 }
 
-export function formatFlexibilityWorkoutDayNote(parameters: FlexibilityParameters) {
+export function isFlexibilityOperationallyRepresentable(parameters: FlexibilityParameters) {
   const articulations = parameters.articulations ?? [];
-  if (!articulations.length) return null;
+  if (!articulations.length) return false;
+  return articulations.every(
+    (articulation) => Boolean(text(articulation.name) && text(articulation.suggestedPrescription))
+  );
+}
+
+export function isBalanceOperationallyRepresentable(parameters: BalanceParameters) {
+  const focus = text(parameters.focus);
+  const supports = parameters.supports ?? [];
+  if (supports.some((value) => !text(value))) return false;
+  return Boolean(focus && (supports.length > 0 || text(parameters.progressionNotes)));
+}
+
+export function buildFlexibilityWorkoutDayOperationalBlock(
+  capacityPrescriptionVersionId: string,
+  parameters: FlexibilityParameters
+): WorkoutDayCapacityOperationalBlock | null {
+  if (!isFlexibilityOperationallyRepresentable(parameters)) return null;
+  return {
+    contractVersion: FLEX_BALANCE_OPERATIONAL_CONTRACT_VERSION,
+    capacity: 'flexibility',
+    capacityPrescriptionVersionId,
+    parameters: parameters as unknown as Record<string, unknown>,
+  };
+}
+
+export function buildBalanceWorkoutDayOperationalBlock(
+  capacityPrescriptionVersionId: string,
+  parameters: BalanceParameters
+): WorkoutDayCapacityOperationalBlock | null {
+  if (!isBalanceOperationallyRepresentable(parameters)) return null;
+  return {
+    contractVersion: FLEX_BALANCE_OPERATIONAL_CONTRACT_VERSION,
+    capacity: 'balance',
+    capacityPrescriptionVersionId,
+    parameters: parameters as unknown as Record<string, unknown>,
+  };
+}
+
+export function formatFlexibilityWorkoutDayNote(parameters: FlexibilityParameters) {
+  if (!isFlexibilityOperationallyRepresentable(parameters)) return null;
 
   const rendered: string[] = [];
-  for (const articulation of articulations) {
-    const name = text(articulation.name);
-    const prescription = text(articulation.suggestedPrescription);
-    if (!name || !prescription) return null;
-
+  for (const articulation of parameters.articulations ?? []) {
+    const name = text(articulation.name)!;
+    const prescription = text(articulation.suggestedPrescription)!;
     const details = [`prescrição: ${prescription}`];
     if (typeof articulation.angle === 'number') details.push(`ângulo: ${articulation.angle}°`);
     const deficit = text(articulation.deficit);
@@ -49,13 +96,13 @@ export function formatFlexibilityWorkoutDayNote(parameters: FlexibilityParameter
 }
 
 export function formatBalanceWorkoutDayNote(parameters: BalanceParameters) {
-  const focus = text(parameters.focus);
-  const supports = (parameters.supports ?? []).map((value) => text(value));
-  if (supports.some((value) => !value)) return null;
-  const normalizedSupports = supports.filter(Boolean) as string[];
-  const progression = text(parameters.progressionNotes);
+  if (!isBalanceOperationallyRepresentable(parameters)) return null;
 
-  if (!focus || (!normalizedSupports.length && !progression)) return null;
+  const focus = text(parameters.focus)!;
+  const normalizedSupports = (parameters.supports ?? [])
+    .map((value) => text(value))
+    .filter(Boolean) as string[];
+  const progression = text(parameters.progressionNotes);
 
   const parts = [`Foco: ${focus}.`];
   if (normalizedSupports.length) parts.push(`Apoios: ${normalizedSupports.join(', ')}.`);

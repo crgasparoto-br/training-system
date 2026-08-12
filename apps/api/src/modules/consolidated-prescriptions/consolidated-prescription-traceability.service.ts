@@ -76,6 +76,16 @@ type DataRefTraceRow = {
   responsibleProfessorId: string | null;
 };
 
+type OperationalCapacityBlockTraceRow = {
+  id: string;
+  workoutDayId: string;
+  capacityPrescriptionVersionId: string;
+  capacity: string;
+  contractVersion: number;
+  parameters: unknown;
+  createdAt: Date;
+};
+
 function fail(code: ConsolidatedTraceabilityErrorCode, message: string): never {
   throw new ConsolidatedTraceabilityDomainError(code, message);
 }
@@ -194,6 +204,30 @@ async function resolveOperationalTarget(
   fail('INVALID_INPUT', 'Informe exatamente um ID operacional para rastreabilidade');
 }
 
+async function loadOperationalCapacityBlocks(
+  tx: Prisma.TransactionClient,
+  operational: OperationalTargetRow
+) {
+  if (operational.workoutDayId) {
+    return tx.$queryRaw<OperationalCapacityBlockTraceRow[]>`
+      SELECT "id", "workoutDayId", "capacityPrescriptionVersionId", "capacity",
+             "contractVersion", "parameters", "createdAt"
+      FROM "WorkoutDayCapacityOperationalBlock"
+      WHERE "workoutDayId" = ${operational.workoutDayId}
+      ORDER BY "capacity" ASC
+    `;
+  }
+
+  return tx.$queryRaw<OperationalCapacityBlockTraceRow[]>`
+    SELECT block."id", block."workoutDayId", block."capacityPrescriptionVersionId", block."capacity",
+           block."contractVersion", block."parameters", block."createdAt"
+    FROM "WorkoutDayCapacityOperationalBlock" block
+    JOIN "WorkoutDay" wd ON wd."id" = block."workoutDayId"
+    WHERE wd."templateId" = ${operational.workoutTemplateId}
+    ORDER BY wd."dayOfWeek" ASC, block."capacity" ASC
+  `;
+}
+
 export function createConsolidatedPrescriptionTraceabilityService(client: PrismaClient = prisma) {
   return {
     async getTraceability(context: TraceabilityContext, lookup: ConsolidatedTraceabilityLookup) {
@@ -253,6 +287,7 @@ export function createConsolidatedPrescriptionTraceabilityService(client: Prisma
           WHERE "assemblyVersionId" = ${release.sourceAssemblyVersionId}
           ORDER BY "createdAt" ASC, "id" ASC
         `;
+        const operationalCapacityBlocks = await loadOperationalCapacityBlocks(tx, operational);
 
         return {
           operational,
@@ -277,6 +312,10 @@ export function createConsolidatedPrescriptionTraceabilityService(client: Prisma
             },
           },
           capacities,
+          operationalCapacityBlocks: operationalCapacityBlocks.map((block) => ({
+            ...block,
+            createdAt: block.createdAt.toISOString(),
+          })),
           sourceRefs: sourceRefs.map((ref) => ({
             ...ref,
             assessedAt: ref.assessedAt?.toISOString() ?? null,

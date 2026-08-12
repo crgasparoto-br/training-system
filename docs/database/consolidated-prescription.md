@@ -1,6 +1,6 @@
 # Persistência da Montagem Consolidada
 
-Este documento descreve a persistência da Montagem Consolidada da Prescrição. A issue #316 criou o agregado versionado; a #317 acrescentou workflow backend, revalidação estruturada, autorização e auditoria derivada da cadeia imutável de versões; a #320 acrescenta o vínculo relacional append-only entre uma versão aprovada e sua saída no Workout Builder.
+Este documento descreve a persistência da Montagem Consolidada da Prescrição. A issue #316 criou o agregado versionado; a #317 acrescentou workflow backend, revalidação estruturada, autorização e auditoria derivada da cadeia imutável de versões; a #320 acrescenta o vínculo relacional append-only entre uma versão aprovada e sua saída no Workout Builder e o contrato operacional estruturado de Flexibilidade/Equilíbrio.
 
 ## Tabelas do agregado
 
@@ -34,6 +34,8 @@ Rastreabilidade mínima das fontes. `capacity_source` é reservado ao backend e 
 
 A #319 também persiste snapshots server-owned de projeção/substituição nessas referências. A #320 os consome somente depois de revalidar capacidade, vínculo técnico, revisão do mapeamento e `ExerciseLibrary.updatedAt` atual.
 
+Para Flexibilidade/Equilíbrio, o snapshot preparado contém também um `WorkoutDayCapacityOperationalBlock` explícito com `contractVersion=1`, `capacityPrescriptionVersionId` e parâmetros estruturados. O release rejeita snapshot ausente, divergente ou sem versão de contrato.
+
 ### `ConsolidatedPrescriptionOperationalRelease`
 
 Evidência relacional append-only da publicação operacional criada pela #320. Cada linha liga de forma explícita:
@@ -52,6 +54,25 @@ O trigger de escopo confirma que as duas versões pertencem à mesma montagem/al
 
 A aplicação usa SQL explícito para esse ledger relacional porque a tabela é append-only, possui invariantes PostgreSQL próprias e não participa de CRUD genérico. As entidades operacionais continuam acessadas pelo Prisma normalmente.
 
+### `WorkoutDayCapacityOperationalBlock`
+
+Representação operacional estruturada de Flexibilidade/Equilíbrio ligada ao `WorkoutDay` existente. Não é uma árvore paralela de treino.
+
+Cada linha contém:
+
+- `workoutDayId` com FK para a sessão operacional;
+- `capacityPrescriptionVersionId` com FK para a versão imutável da capacidade;
+- `capacity` restrita a `flexibility | balance`;
+- `contractVersion = 1`;
+- `parameters JSONB` com o objeto estruturado integral da capacidade;
+- timestamp de criação.
+
+A chave única `(workoutDayId, capacity)` impede dois snapshots da mesma capacidade na mesma sessão. O trigger de escopo sobe `WorkoutDay -> WorkoutTemplate -> TrainingPlan -> Aluno/Professor` e exige o mesmo tenant/aluno da `CapacityPrescriptionVersion`.
+
+O mesmo trigger compara `parameters` por igualdade JSONB com o ramo canônico da versão (`parameters.flexibility` ou `parameters.balance`) e exige que `parameters.type` corresponda à capacidade. Assim, texto formatado ou JSON parcial não pode ser usado como autoridade operacional.
+
+Outro trigger proíbe `UPDATE`/`DELETE`. As notas de `WorkoutDay` são somente apresentação derivada; a relação estruturada é a fonte operacional versionada e sem perda.
+
 ## Auditoria sem duplicação de persistência
 
 A auditoria funcional da montagem continua reconstruída deterministicamente de `ConsolidatedPrescriptionVersion`:
@@ -68,9 +89,9 @@ A auditoria funcional da montagem continua reconstruída deterministicamente de 
 
 O evento derivado usa `createdByProfessorId` da versão como ator da ação, `createdAt` como timestamp, `previousVersionId` para localizar versão/estado anterior e os campos específicos de revisão/aprovação/bloqueio para rastreabilidade adicional.
 
-A tabela `ConsolidatedPrescriptionOperationalRelease` não substitui essa auditoria de estado: ela prova a relação material entre a transição `released` e os IDs operacionais que receberam a publicação.
+A tabela `ConsolidatedPrescriptionOperationalRelease` não substitui essa auditoria de estado: ela prova a relação material entre a transição `released` e os IDs operacionais que receberam a publicação. `WorkoutDayCapacityOperationalBlock` complementa essa cadeia com o vínculo direto sessão -> versão da capacidade para Flexibilidade/Equilíbrio.
 
-Essa estratégia satisfaz atomicidade por construção: estado, vínculo operacional e flag de liberação são escritos na mesma transação. Se qualquer etapa falha, nem a alteração funcional nem a evidência auditável passam a existir.
+Essa estratégia satisfaz atomicidade por construção: estado, conteúdo operacional, blocos estruturados, vínculo e flag de liberação são escritos na mesma transação. Se qualquer etapa falha, nenhuma alteração parcial permanece.
 
 ## Concorrência otimista e idempotência
 
@@ -94,9 +115,11 @@ A revalidação lê novamente `CapacityPrescriptionVersion`, `CapacityPrescripti
 
 Campos de texto livre da capacidade ou da montagem não participam da decisão autoritativa.
 
-Na liberação, o backend também revalida os snapshots operacionais preparados: IDs técnicos, `mappingRevision`, exercício original, substituição explícita, exercício efetivo e `updatedAt` da biblioteca. Não existe matching textual ou geração automática de alternativa.
+Na liberação, o backend também revalida os snapshots operacionais preparados: IDs técnicos, `mappingRevision`, exercício original, substituição explícita, exercício efetivo e `updatedAt` da biblioteca. Para Flexibilidade/Equilíbrio, revalida também `contractVersion`, capacidade, FK de origem e igualdade entre o snapshot estruturado preparado e `sourceParameters`; o PostgreSQL fecha a igualdade final contra a versão canônica. Não existe matching textual ou geração automática de alternativa.
 
-Um `WorkoutTemplate` já existente só pode ser usado quando nenhum dia saiu de `planned`, não existem `startedAt/finishedAt` e nenhum `WorkoutExercise` possui `WorkoutExecution`. Essa checagem ocorre antes de qualquer flag `released`.
+Um `WorkoutTemplate` já existente só pode ser usado quando nenhum dia saiu de `planned`, não existem `startedAt/finishedAt` e nenhum `WorkoutExercise` possui `WorkoutExecution`. Essa checagem ocorre antes de qualquer reconciliação ou flag `released`.
+
+Quando esse target futuro é reutilizado, a montagem aprovada passa a ser o snapshot canônico do conteúdo gerenciado pela ponte: dias não posicionados e exercícios em slots não projetados são removidos; campos gerenciados de template/dia que deixaram de aparecer são definidos como `NULL`; os itens restantes são atualizados/criados. A mesma transação desfaz toda a reconciliação se o release falhar depois.
 
 ## Isolamento multi-tenant e escopo de dados
 
@@ -108,7 +131,7 @@ Para `plans`:
 - `managed`: aluno do professor ou de professor cujo `responsibleManagerId` é o ator;
 - `contract`: qualquer aluno do contrato autenticado.
 
-Acesso fora do contrato/escopo não expõe a existência do registro. O trigger de `ConsolidatedPrescriptionOperationalRelease` fecha combinações cross-tenant mesmo se houver uma chamada direta fora do service.
+Acesso fora do contrato/escopo não expõe a existência do registro. Os triggers do ledger e dos blocos operacionais estruturados fecham combinações cross-tenant mesmo se houver chamada direta fora do service.
 
 ## Migrations
 
@@ -116,9 +139,9 @@ A cadeia relevante é:
 
 1. `20260808165000_issue_316_consolidated_prescription_persistence` — agregado, versões, blocos, refs, FKs e guards;
 2. `20260808220000_issue_316_capacity_source_authority_guard` — autoridade de `capacity_source`;
-3. `20260812143000_issue_320_consolidated_operational_release` — vínculo relacional de liberação, chaves de idempotência, guards de escopo e imutabilidade.
+3. `20260812143000_issue_320_consolidated_operational_release` — vínculo relacional de liberação, chaves de idempotência, guards de escopo/imutabilidade e `WorkoutDayCapacityOperationalBlock` estruturado da #339.
 
-A migration da #320 é aditiva: não remove nem reescreve plano, template, dia, exercício ou execução existente.
+A migration da #320 é aditiva: não remove nem reescreve plano, template, dia, exercício ou execução existente durante a migração. A reconciliação de target planejado é comportamento transacional do comando de release, não efeito da migration.
 
 ## Índices principais
 
@@ -129,18 +152,22 @@ A migration da #320 é aditiva: não remove nem reescreve plano, template, dia, 
 - origem dos dados-base;
 - release por versão aprovada de origem (único);
 - release por template operacional (único);
-- release por contrato/aluno/data e por plano.
+- release por contrato/aluno/data e por plano;
+- bloco operacional por `(workoutDayId, capacity)` (único);
+- bloco operacional por `capacityPrescriptionVersionId`.
 
 ## Validação executável
 
-Os testes existentes da #316/#317 continuam cobrindo versão, composição, concorrência e isolamento. A #320 acrescenta testes focados para:
+Os testes existentes da #316/#317 continuam cobrindo versão, composição, concorrência e isolamento. A #320/#339 acrescenta testes focados para:
 
 - permissão específica e revalidação transacional;
 - lock serializável e evidência de aprovação;
 - bloqueio de treino iniciado/executado;
 - fingerprint idempotente;
 - relação versionada -> plano/template;
-- índices únicos e imutabilidade do ledger;
-- ordem de escrita que só marca `WorkoutTemplate.released` depois da persistência do vínculo.
+- snapshot estruturado de Flexibilidade/Equilíbrio com FK, `contractVersion=1` e parâmetros sem perda;
+- reconciliação exata de target futuro com dias/exercícios residuais;
+- índices únicos e imutabilidade do ledger/blocos estruturados;
+- ordem de escrita que só marca `WorkoutTemplate.released` depois da persistência do conteúdo, dos blocos e do vínculo.
 
 Os cenários PostgreSQL de corrida, rollback e falha injetada permanecem gate obrigatório para fechamento integral da entrega crítica.

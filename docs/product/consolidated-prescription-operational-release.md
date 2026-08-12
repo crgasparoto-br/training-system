@@ -8,6 +8,8 @@ A saída autoritativa continua sendo:
 
 `TrainingPlan -> WorkoutTemplate -> WorkoutDay -> WorkoutExercise -> ExerciseLibrary`.
 
+Para capacidades sem exercício, `WorkoutDayCapacityOperationalBlock` é uma relação aditiva do próprio `WorkoutDay`; não cria uma segunda árvore de treino.
+
 A liberação é um comando próprio e posterior à aprovação. Aprovar uma montagem não publica treino automaticamente.
 
 ## Comando HTTP
@@ -53,9 +55,10 @@ A transação só avança quando todas as condições abaixo continuam verdadeir
 5. as quatro versões de capacidade ainda pertencem ao aluno/contrato e permanecem correntes e `active`;
 6. existe projeção operacional preparada para cada capacidade da composição;
 7. nenhum item preparado está marcado como incompatível;
-8. vínculos técnicos, `mappingRevision`, substituições e exercícios da biblioteca continuam válidos e atuais;
-9. o `TrainingPlan` informado pertence ao mesmo aluno e contrato;
-10. o `WorkoutTemplate` alvo não foi iniciado, executado nem liberado por outra origem.
+8. Flexibilidade e Equilíbrio possuem `WorkoutDayCapacityOperationalBlock` preparado com `contractVersion=1`, FK da versão exata da capacidade e parâmetros idênticos ao snapshot estruturado;
+9. vínculos técnicos, `mappingRevision`, substituições e exercícios da biblioteca continuam válidos e atuais;
+10. o `TrainingPlan` informado pertence ao mesmo aluno e contrato;
+11. o `WorkoutTemplate` alvo não foi iniciado, executado nem liberado por outra origem.
 
 A resposta cross-tenant ou fora do `dataScope` não revela a existência do recurso.
 
@@ -65,22 +68,37 @@ A projeção pode escrever apenas os campos explicitamente suportados pela ponte
 
 - `WorkoutTemplate`: `trainingMethod`, `trainingDivision`, `repReserve`, `totalVolumeKm`;
 - `WorkoutDay`: `method`, `vo2maxPct`, `stimulusDurationMin`, `detailNotes`, `complementNotes`;
-- `WorkoutExercise`: `sets`, `reps`, além do `exerciseId` resolvido por vínculo persistido.
+- `WorkoutExercise`: `sets`, `reps`, além do `exerciseId` resolvido por vínculo persistido;
+- `WorkoutDayCapacityOperationalBlock`: somente o contrato estruturado versionado de Flexibilidade/Equilíbrio, ligado por FK à `CapacityPrescriptionVersion` exata.
 
 Qualquer outro campo presente no snapshot é recusado. IDs estruturais, status e `released` não podem ser injetados pela projeção.
 
 O posicionamento de dias/exercícios é explícito no comando. A liberação não cria semana alternativa automaticamente quando o alvo está ocupado e não procura exercício por nome.
 
-Um template planejado e ainda não executado pode ser atualizado. Dias iniciados (`status != planned`, `startedAt`, `finishedAt`) ou exercícios com `WorkoutExecution` bloqueiam toda a operação.
+Um template planejado e ainda não executado pode ser reutilizado, mas a versão aprovada passa a ser o snapshot canônico do conteúdo gerenciado pela ponte. Antes de liberar, o backend:
+
+- remove dias planejados do template que não aparecem nos posicionamentos aprovados;
+- remove exercícios planejados cujas posições `seção + ordem` não aparecem na projeção aprovada;
+- zera campos gerenciados de template/dia que deixaram de ser projetados;
+- atualiza/cria somente os dias e exercícios restantes da projeção.
+
+Essa reconciliação só ocorre depois de confirmar que nenhum dia saiu de `planned`, não há `startedAt/finishedAt` e nenhum exercício possui execução. Conteúdo iniciado/executado nunca é removido ou reescrito.
 
 ### Flexibilidade e Equilíbrio
 
-A representação operacional da #339 reutiliza campos já existentes de `WorkoutDay`, sem criar exercício fictício, entidade paralela ou matching textual:
+A representação operacional da #339 é estruturada e versionada dentro do grafo existente:
 
-- **Flexibilidade** chega a `WorkoutDay.detailNotes`. Cada articulação precisa ter `name` e `suggestedPrescription`; quando presentes, `angle`, `deficit`, `priority` e `expectedPse` também são materializados deterministicamente na instrução operacional.
-- **Equilíbrio** chega a `WorkoutDay.complementNotes`. É obrigatório existir `focus` e pelo menos `supports` ou `progressionNotes`; quando presentes, todos os apoios, progressão e `expectedPse` são materializados.
+- cada bloco publicado cria um `WorkoutDayCapacityOperationalBlock` com `contractVersion=1`;
+- o bloco referencia por FK a `CapacityPrescriptionVersion` exata;
+- `parameters` guarda integralmente o objeto estruturado da capacidade;
+- trigger PostgreSQL confirma que `capacity`, aluno, contrato e `parameters` são exatamente os da versão referenciada;
+- o bloco é imutável após persistido.
 
-Os parâmetros estruturados originais continuam preservados integralmente em `sourceParameters` do snapshot de projeção. A nota operacional é uma visão executável desses dados, não a fonte técnica. Parâmetros insuficientes permanecem `operational_representation_unavailable` e bloqueiam o release de forma fail-closed.
+**Flexibilidade** só é mapeável quando existe ao menos uma articulação e cada articulação possui `name` + `suggestedPrescription`. `angle`, `deficit`, `priority` e `expectedPse` permanecem no snapshot estruturado quando informados.
+
+**Equilíbrio** só é mapeável quando existe `focus` e pelo menos `supports` ou `progressionNotes`. Apoios, progressão e `expectedPse` permanecem no snapshot estruturado quando informados.
+
+`WorkoutDay.detailNotes` e `WorkoutDay.complementNotes` continuam sendo gerados deterministicamente para apresentação/instrução ao aluno, mas **não são a representação canônica nem fallback de integração**. A autoridade é o bloco relacional estruturado. Parâmetros insuficientes permanecem `operational_representation_unavailable` e bloqueiam o release de forma fail-closed.
 
 ## Rastreabilidade relacional e idempotência
 
@@ -93,9 +111,11 @@ A migration `20260812143000_issue_320_consolidated_operational_release` cria `Co
 - professor ator e timestamp;
 - fingerprint canônico da requisição.
 
+A mesma migration cria `WorkoutDayCapacityOperationalBlock`, permitindo navegar do dia operacional diretamente para a versão imutável de Flexibilidade/Equilíbrio e, pelo template, para o release consolidado.
+
 A chave única em `sourceAssemblyVersionId` é a chave natural de idempotência. Repetir o mesmo comando para a mesma versão devolve a liberação existente. Repetir a mesma versão com destino diferente retorna conflito. `workoutTemplateId` também é único para impedir reassociação silenciosa do mesmo treino a outra versão consolidada.
 
-Triggers verificam a cadeia de versões e o escopo relacional e proíbem `UPDATE`/`DELETE` das evidências de liberação.
+Triggers verificam a cadeia de versões e o escopo relacional e proíbem `UPDATE`/`DELETE` das evidências de liberação e dos blocos estruturados.
 
 ## Ordem atômica
 
@@ -103,13 +123,14 @@ Dentro de uma única transação serializável:
 
 1. autorização e escopo são revalidados;
 2. o agregado é bloqueado com `FOR UPDATE`;
-3. versão, capacidades, conflitos, projeção, mapeamentos e destino são revalidados;
-4. o conteúdo operacional é criado/atualizado ainda com `released = false`;
-5. uma nova `ConsolidatedPrescriptionVersion` em `released` é criada preservando a versão aprovada como histórica;
-6. o vínculo relacional de liberação é inserido;
-7. somente então o `WorkoutTemplate` recebe `released = true` e `releasedAt`.
+3. versão, capacidades, conflitos, projeção, contratos estruturados, mapeamentos e destino são revalidados;
+4. um target futuro reutilizado é reconciliado para coincidir exatamente com a projeção aprovada;
+5. o conteúdo operacional e os blocos estruturados são criados/atualizados ainda com `released = false`;
+6. uma nova `ConsolidatedPrescriptionVersion` em `released` é criada preservando a versão aprovada como histórica;
+7. o vínculo relacional de liberação é inserido;
+8. somente então o `WorkoutTemplate` recebe `released = true` e `releasedAt`.
 
-Qualquer falha desfaz conteúdo, versão, vínculo e flag de publicação juntos.
+Qualquer falha desfaz reconciliação, conteúdo, blocos estruturados, versão, vínculo e flag de publicação juntos.
 
 ## Revisão depois da liberação
 
@@ -120,7 +141,9 @@ A versão aprovada usada como origem e a versão `released` permanecem imutávei
 Os testes da #320/#339 cobrem:
 
 - contrato de permissão, transação/lock, evidência de aprovação, proteção de treino iniciado e idempotência por fingerprint;
-- projeção de Flexibilidade e Equilíbrio para os campos operacionais existentes, preservando `sourceParameters`;
-- liberação PostgreSQL de uma montagem com as quatro capacidades, persistindo as notas no mesmo `WorkoutDay` e mantendo rastreabilidade;
+- projeção de Flexibilidade e Equilíbrio para blocos estruturados versionados mais notas derivadas;
+- fail-closed quando o contrato estruturado não pode ser produzido;
+- liberação PostgreSQL de uma montagem com as quatro capacidades e verificação dos parâmetros relacionais sem perda;
+- reconciliação de target futuro previamente preenchido, removendo dia/exercício excedentes e limpando campos gerenciados residuais;
 - concorrência com duas conexões e rollback integral por falha injetada;
 - boundary HTTP para permissão de `release` revogada depois da emissão do token, cross-tenant e `dataScope=self`, com resposta de não enumeração.

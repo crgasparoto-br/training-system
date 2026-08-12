@@ -257,7 +257,15 @@ async function seedFixture(label: string): Promise<Fixture> {
       key: 'flexibility:release-test',
       capacity: 'flexibility',
       target: 'WorkoutDay',
-      proposedFields: { WorkoutDay: { detailNotes: FLEXIBILITY_NOTE } },
+      proposedFields: {
+        WorkoutDay: { detailNotes: FLEXIBILITY_NOTE },
+        WorkoutDayCapacityOperationalBlock: {
+          contractVersion: 1,
+          capacity: 'flexibility',
+          capacityPrescriptionVersionId: capacityVersionIds.flexibility,
+          parameters: FLEXIBILITY_PARAMETERS,
+        },
+      },
       sourceParameters: FLEXIBILITY_PARAMETERS,
     },
     {
@@ -271,7 +279,15 @@ async function seedFixture(label: string): Promise<Fixture> {
       key: 'balance:release-test',
       capacity: 'balance',
       target: 'WorkoutDay',
-      proposedFields: { WorkoutDay: { complementNotes: BALANCE_NOTE } },
+      proposedFields: {
+        WorkoutDay: { complementNotes: BALANCE_NOTE },
+        WorkoutDayCapacityOperationalBlock: {
+          contractVersion: 1,
+          capacity: 'balance',
+          capacityPrescriptionVersionId: capacityVersionIds.balance,
+          parameters: BALANCE_PARAMETERS,
+        },
+      },
       sourceParameters: BALANCE_PARAMETERS,
     },
   ] as const;
@@ -391,6 +407,37 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
 
     const dayId = template?.workoutDays[0]?.id;
     if (!dayId) throw new Error('WorkoutDay não criado no teste da issue 320');
+    const operationalBlocks = await prisma.$queryRaw<
+      Array<{
+        capacity: string;
+        contractVersion: number;
+        capacityPrescriptionVersionId: string;
+        parameters: unknown;
+      }>
+    >`
+      SELECT "capacity", "contractVersion", "capacityPrescriptionVersionId", "parameters"
+      FROM "WorkoutDayCapacityOperationalBlock"
+      WHERE "workoutDayId" = ${dayId}
+      ORDER BY "capacity" ASC
+    `;
+    expect(operationalBlocks).toHaveLength(2);
+    expect(operationalBlocks).toEqual(
+      expect.arrayContaining([
+        {
+          capacity: 'flexibility',
+          contractVersion: 1,
+          capacityPrescriptionVersionId: fixture.capacityVersionIds.flexibility,
+          parameters: FLEXIBILITY_PARAMETERS,
+        },
+        {
+          capacity: 'balance',
+          contractVersion: 1,
+          capacityPrescriptionVersionId: fixture.capacityVersionIds.balance,
+          parameters: BALANCE_PARAMETERS,
+        },
+      ])
+    );
+
     const trace = await traceabilityService.getTraceability(contextFor(fixture), {
       workoutDayId: dayId,
     });
@@ -420,6 +467,75 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
     });
     expect(templates).toHaveLength(1);
     expect(templates[0].released).toBe(true);
+  });
+
+  it('reconcilia exatamente target futuro planejado e remove dias/exercícios residuais', async () => {
+    const fixture = await seedFixture('reconcile');
+    const staleExercise = await prisma.exerciseLibrary.create({
+      data: {
+        contractId: fixture.contractId,
+        name: `Exercício residual ${randomUUID()}`,
+      },
+    });
+    const template = await prisma.workoutTemplate.create({
+      data: {
+        planId: fixture.planId,
+        mesocycleNumber: 1,
+        weekNumber: 1,
+        weekStartDate: new Date('2026-08-17T00:00:00.000Z'),
+        trainingDivision: 'legacy',
+        totalVolumeKm: 42,
+      },
+    });
+    const retainedDay = await prisma.workoutDay.create({
+      data: {
+        templateId: template.id,
+        dayOfWeek: 1,
+        workoutDate: new Date('2026-08-17T00:00:00.000Z'),
+        method: 'legacy',
+        stimulusDurationMin: 99,
+        vo2maxPct: 88,
+        detailNotes: 'flexibilidade residual',
+        complementNotes: 'equilíbrio residual',
+      },
+    });
+    await prisma.workoutExercise.create({
+      data: {
+        workoutDayId: retainedDay.id,
+        exerciseId: staleExercise.id,
+        section: 'principal',
+        exerciseOrder: 1,
+        sets: 5,
+        reps: 20,
+      },
+    });
+    await prisma.workoutDay.create({
+      data: {
+        templateId: template.id,
+        dayOfWeek: 2,
+        workoutDate: new Date('2026-08-18T00:00:00.000Z'),
+        detailNotes: 'dia residual',
+      },
+    });
+
+    const released = await service.release(contextFor(fixture), commandFor(fixture));
+    expect(released.workoutTemplateId).toBe(template.id);
+
+    const reconciled = await prisma.workoutTemplate.findUnique({
+      where: { id: template.id },
+      include: { workoutDays: { include: { exercises: true } } },
+    });
+    expect(reconciled?.trainingMethod).toBe('combined');
+    expect(reconciled?.trainingDivision).toBeNull();
+    expect(reconciled?.totalVolumeKm).toBeNull();
+    expect(reconciled?.workoutDays).toHaveLength(1);
+    expect(reconciled?.workoutDays[0]?.dayOfWeek).toBe(1);
+    expect(reconciled?.workoutDays[0]?.method).toBe('continuous');
+    expect(reconciled?.workoutDays[0]?.stimulusDurationMin).toBe(30);
+    expect(reconciled?.workoutDays[0]?.vo2maxPct).toBeNull();
+    expect(reconciled?.workoutDays[0]?.detailNotes).toBe(FLEXIBILITY_NOTE);
+    expect(reconciled?.workoutDays[0]?.complementNotes).toBe(BALANCE_NOTE);
+    expect(reconciled?.workoutDays[0]?.exercises).toHaveLength(0);
   });
 
   it('não sobrescreve target já iniciado e não cria estado parcial', async () => {

@@ -1,7 +1,7 @@
 import { buildOperationalProjectionItems } from './consolidated-prescription-operational.service.js';
 
 describe('flexibility and balance operational projection', () => {
-  it('maps complete flexibility parameters to WorkoutDay detailNotes and preserves the structured snapshot', () => {
+  it('maps complete flexibility parameters to a structured WorkoutDay block plus derived note', () => {
     const sourceParameters = {
       articulations: [
         {
@@ -36,12 +36,18 @@ describe('flexibility and balance operational projection', () => {
           detailNotes:
             'Flexibilidade — Ombro (prescrição: 3 x 30 s, ângulo: 120°, déficit: 10°, prioridade: alta). PSE esperada: 3.',
         },
+        WorkoutDayCapacityOperationalBlock: {
+          contractVersion: 1,
+          capacity: 'flexibility',
+          capacityPrescriptionVersionId: 'capacity-flexibility-v1',
+          parameters: sourceParameters,
+        },
       },
     });
     expect(item.sourceParameters).toEqual(sourceParameters);
   });
 
-  it('maps complete balance parameters to WorkoutDay complementNotes and preserves the structured snapshot', () => {
+  it('maps complete balance parameters to a structured WorkoutDay block plus derived note', () => {
     const sourceParameters = {
       focus: 'estabilidade unipodal',
       supports: ['bipodal', 'unipodal'],
@@ -70,8 +76,40 @@ describe('flexibility and balance operational projection', () => {
           complementNotes:
             'Equilíbrio — Foco: estabilidade unipodal. Apoios: bipodal, unipodal. Progressão: reduzir apoio progressivamente. PSE esperada: 2.',
         },
+        WorkoutDayCapacityOperationalBlock: {
+          contractVersion: 1,
+          capacity: 'balance',
+          capacityPrescriptionVersionId: 'capacity-balance-v1',
+          parameters: sourceParameters,
+        },
       },
     });
     expect(item.sourceParameters).toEqual(sourceParameters);
+  });
+
+  it('keeps incomplete flexibility fail-closed instead of falling back to text', () => {
+    const [item] = buildOperationalProjectionItems(
+      [
+        {
+          id: 'capacity-flexibility-incomplete',
+          capacity: 'flexibility',
+          parameters: {
+            type: 'flexibility',
+            flexibility: {
+              articulations: [{ name: 'Ombro', priority: 'high' as const }],
+              expectedPse: 3,
+            },
+          },
+        },
+      ],
+      new Map()
+    );
+
+    expect(item).toMatchObject({
+      compatibility: 'incompatible',
+      target: 'none',
+      incompatibilityCode: 'operational_representation_unavailable',
+      proposedFields: {},
+    });
   });
 });

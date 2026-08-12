@@ -14,6 +14,10 @@ import {
 } from '../access-control/access-control.service.js';
 import { readPersistedExerciseMapping } from '../capacity-prescriptions/capacity-exercise-mapping.service.js';
 import {
+  FLEX_BALANCE_OPERATIONAL_CONTRACT_VERSION,
+  type WorkoutDayCapacityOperationalBlock,
+} from './consolidated-prescription-flex-balance-operational.js';
+import {
   CONSOLIDATED_EXERCISE_SUBSTITUTION_ORIGIN,
   CONSOLIDATED_OPERATIONAL_PROJECTION_ORIGIN,
 } from './consolidated-prescription-operational-integrity.js';
@@ -128,6 +132,36 @@ function stableValue(value: unknown): unknown {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, nested]) => [key, stableValue(nested)])
   );
+}
+
+function stableJsonEquals(left: unknown, right: unknown) {
+  return JSON.stringify(stableValue(left)) === JSON.stringify(stableValue(right));
+}
+
+function preparedWorkoutDayCapacityBlock(
+  item: PreparedProjectionItem
+): WorkoutDayCapacityOperationalBlock | null {
+  if (item.capacity !== 'flexibility' && item.capacity !== 'balance') return null;
+  const candidate = record(record(item.proposedFields).WorkoutDayCapacityOperationalBlock);
+  const parameters = record(candidate.parameters);
+  if (
+    candidate.contractVersion !== FLEX_BALANCE_OPERATIONAL_CONTRACT_VERSION ||
+    candidate.capacity !== item.capacity ||
+    candidate.capacityPrescriptionVersionId !== item.capacityPrescriptionVersionId ||
+    !Object.keys(parameters).length ||
+    !stableJsonEquals(parameters, item.sourceParameters)
+  ) {
+    fail(
+      'CONFLICT',
+      `A capacidade ${item.capacity} não possui snapshot operacional estruturado, versionado e íntegro`
+    );
+  }
+  return {
+    contractVersion: FLEX_BALANCE_OPERATIONAL_CONTRACT_VERSION,
+    capacity: item.capacity,
+    capacityPrescriptionVersionId: item.capacityPrescriptionVersionId,
+    parameters,
+  };
 }
 
 export function releaseRequestFingerprint(command: ReleaseConsolidatedOperationalWorkoutCommand) {
@@ -327,6 +361,7 @@ async function revalidatePreparedProjection(
     .filter((item) => item.kind === 'exercise_substitution_v1');
 
   for (const item of items) {
+    preparedWorkoutDayCapacityBlock(item);
     if (!item.technicalCatalogItemId) continue;
     const technical = await tx.capacityTechnicalCatalogItem.findFirst({
       where: {
@@ -511,7 +546,16 @@ async function applyOperationalProjection(
 
   const templateFields: Record<string, unknown> = {};
   const dayFields = new Map<number, Record<string, unknown>>();
+  const capacityBlocksByDay = new Map<number, WorkoutDayCapacityOperationalBlock[]>();
   const placementByKey = new Map(command.target.placements.map((placement) => [placement.projectionKey.trim(), placement]));
+  const placementsByDay = new Map<number, ConsolidatedReleasePlacement[]>();
+  for (const placement of command.target.placements) {
+    const entries = placementsByDay.get(placement.dayOfWeek) ?? [];
+    entries.push(placement);
+    placementsByDay.set(placement.dayOfWeek, entries);
+  }
+
+  const desiredExerciseSlotsByDay = new Map<number, Set<string>>();
   for (const item of items) {
     mergeFields(
       templateFields,
@@ -531,9 +575,24 @@ async function applyOperationalProjection(
           ['method', 'vo2maxPct', 'stimulusDurationMin', 'detailNotes', 'complementNotes']
         );
         dayFields.set(placement.dayOfWeek, target);
+        const operationalBlock = preparedWorkoutDayCapacityBlock(item);
+        if (operationalBlock) {
+          const blocks = capacityBlocksByDay.get(placement.dayOfWeek) ?? [];
+          if (blocks.some((block) => block.capacity === operationalBlock.capacity)) {
+            fail('CONFLICT', `A capacidade ${operationalBlock.capacity} foi posicionada mais de uma vez no mesmo dia`);
+          }
+          blocks.push(operationalBlock);
+          capacityBlocksByDay.set(placement.dayOfWeek, blocks);
+        }
       }
-      if (item.target === 'WorkoutExercise' && placement.exerciseOrder === undefined) {
-        fail('INVALID_INPUT', `Defina seção e ordem para o exercício ${item.key}`);
+      if (item.target === 'WorkoutExercise') {
+        if (placement.exerciseOrder === undefined) {
+          fail('INVALID_INPUT', `Defina seção e ordem para o exercício ${item.key}`);
+        }
+        const section = placement.section?.trim() || 'principal';
+        const slots = desiredExerciseSlotsByDay.get(placement.dayOfWeek) ?? new Set<string>();
+        slots.add(`${section}:${placement.exerciseOrder}`);
+        desiredExerciseSlotsByDay.set(placement.dayOfWeek, slots);
       }
     }
   }
@@ -569,6 +628,24 @@ async function applyOperationalProjection(
       LIMIT 1
     `;
     if (linked.length) fail('CONFLICT', 'O treino alvo já está vinculado a outra versão consolidada');
+
+    const desiredDays = new Set(placementsByDay.keys());
+    for (const day of existing.workoutDays) {
+      if (!desiredDays.has(day.dayOfWeek)) {
+        if (day.exercises.length) {
+          await tx.workoutExercise.deleteMany({ where: { workoutDayId: day.id } });
+        }
+        await tx.workoutDay.delete({ where: { id: day.id } });
+        continue;
+      }
+      const desiredSlots = desiredExerciseSlotsByDay.get(day.dayOfWeek) ?? new Set<string>();
+      const staleExerciseIds = day.exercises
+        .filter((exercise) => !desiredSlots.has(`${exercise.section}:${exercise.exerciseOrder}`))
+        .map((exercise) => exercise.id);
+      if (staleExerciseIds.length) {
+        await tx.workoutExercise.deleteMany({ where: { id: { in: staleExerciseIds } } });
+      }
+    }
   }
 
   const weekStartDate = parseDate(command.target.weekStartDate, 'Início da semana');
@@ -577,10 +654,10 @@ async function applyOperationalProjection(
         where: { id: existing.id },
         data: {
           weekStartDate,
-          trainingMethod: templateFields.trainingMethod as string | undefined,
-          trainingDivision: templateFields.trainingDivision as string | undefined,
-          repReserve: templateFields.repReserve as number | undefined,
-          totalVolumeKm: templateFields.totalVolumeKm as number | undefined,
+          trainingMethod: (templateFields.trainingMethod as string | undefined) ?? null,
+          trainingDivision: (templateFields.trainingDivision as string | undefined) ?? null,
+          repReserve: (templateFields.repReserve as number | undefined) ?? null,
+          totalVolumeKm: (templateFields.totalVolumeKm as number | undefined) ?? null,
         },
       })
     : await tx.workoutTemplate.create({
@@ -599,12 +676,6 @@ async function applyOperationalProjection(
       });
 
   const dayIds = new Map<number, string>();
-  const placementsByDay = new Map<number, ConsolidatedReleasePlacement[]>();
-  for (const placement of command.target.placements) {
-    const entries = placementsByDay.get(placement.dayOfWeek) ?? [];
-    entries.push(placement);
-    placementsByDay.set(placement.dayOfWeek, entries);
-  }
   for (const [dayOfWeek, placements] of placementsByDay) {
     const workoutDate = parseDate(placements[0].workoutDate, 'Data do treino');
     const existingDay = existing?.workoutDays.find((day) => day.dayOfWeek === dayOfWeek) ?? null;
@@ -614,11 +685,11 @@ async function applyOperationalProjection(
           where: { id: existingDay.id },
           data: {
             workoutDate,
-            method: fields.method as string | undefined,
-            vo2maxPct: fields.vo2maxPct as number | undefined,
-            stimulusDurationMin: fields.stimulusDurationMin as number | undefined,
-            detailNotes: fields.detailNotes as string | undefined,
-            complementNotes: fields.complementNotes as string | undefined,
+            method: (fields.method as string | undefined) ?? null,
+            vo2maxPct: (fields.vo2maxPct as number | undefined) ?? null,
+            stimulusDurationMin: (fields.stimulusDurationMin as number | undefined) ?? null,
+            detailNotes: (fields.detailNotes as string | undefined) ?? null,
+            complementNotes: (fields.complementNotes as string | undefined) ?? null,
           },
         })
       : await tx.workoutDay.create({
@@ -634,6 +705,18 @@ async function applyOperationalProjection(
           },
         });
     dayIds.set(dayOfWeek, day.id);
+
+    for (const block of capacityBlocksByDay.get(dayOfWeek) ?? []) {
+      await tx.$executeRaw`
+        INSERT INTO "WorkoutDayCapacityOperationalBlock" (
+          "id", "workoutDayId", "capacityPrescriptionVersionId", "capacity",
+          "contractVersion", "parameters", "createdAt"
+        ) VALUES (
+          ${randomUUID()}, ${day.id}, ${block.capacityPrescriptionVersionId}, ${block.capacity},
+          ${block.contractVersion}, CAST(${JSON.stringify(block.parameters)} AS jsonb), CURRENT_TIMESTAMP
+        )
+      `;
+    }
   }
 
   for (const item of items.filter((candidate) => candidate.target === 'WorkoutExercise')) {
@@ -653,8 +736,8 @@ async function applyOperationalProjection(
     mergeFields(fields, record(item.proposedFields).WorkoutExercise, 'WorkoutExercise', ['sets', 'reps']);
     const exerciseData = {
       exerciseId,
-      sets: fields.sets as number | undefined,
-      reps: fields.reps as number | undefined,
+      sets: (fields.sets as number | undefined) ?? null,
+      reps: (fields.reps as number | undefined) ?? null,
     };
     if (matches[0]) {
       await tx.workoutExercise.update({
