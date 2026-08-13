@@ -1,0 +1,227 @@
+Parent: #315
+Depends on: #318, #319
+
+Specification version: 2
+
+## Objetivo
+
+Implementar a liberação controlada da saída operacional a partir de uma versão aprovada da Montagem Consolidada, garantindo rastreabilidade completa até o treino operacional existente e preservando planos, templates, dias, exercícios e execuções atuais.
+
+## Contexto e decisão de integração
+
+A `develop` já possui o grafo operacional:
+
+```text
+TrainingPlan
+  -> WorkoutTemplate
+      -> WorkoutDay
+          -> WorkoutExercise
+              -> ExerciseLibrary
+```
+
+`WorkoutTemplate` já possui os campos `released` e `releasedAt`. Portanto, esta issue **não deve criar uma nova entidade paralela `TodayWorkout`/`TreinoDeHoje`** se o fluxo atual puder representar a saída. O `Treino de hoje` deve continuar sendo uma visão/consulta da saída operacional existente por data e disponibilidade.
+
+A #319 entrega o adaptador capacidade/montagem -> estruturas operacionais. Esta issue executa a mutação final, registra a ligação persistente e realiza a transição `approved -> released` reservada pela #317.
+
+## Decisões obrigatórias
+
+### Autoridade da liberação
+
+- Liberação é comando backend separado da aprovação.
+- O ator e o timestamp de liberação são derivados da autenticação; não são aceitos como autoridade do payload.
+- A versão da montagem deve ser informada/observada de forma explícita e revalidada dentro da transação.
+- `plans.consolidatedPrescriptions.release` é a permissão específica de liberação, além dos filtros de escopo aplicáveis.
+- Nenhuma capacidade isolada e nenhum `WorkoutTemplate` pode ser marcado como liberado por este fluxo sem referência à versão aprovada da Montagem Consolidada.
+
+### Vínculo persistente
+
+Deve existir vínculo relacional persistente e consultável entre a **versão exata da Montagem Consolidada** e a saída operacional criada/atualizada.
+
+O vínculo pode usar entidade de release ou relação equivalente compatível com o schema, mas deve garantir:
+
+- ID da versão da montagem;
+- IDs dos artefatos operacionais produzidos/afetados, no mínimo `WorkoutTemplate` e, quando necessário à rastreabilidade, dias/exercícios;
+- ator e data da liberação;
+- chave/idempotência suficiente para impedir segunda liberação com efeitos duplicados;
+- histórico preservado após novas revisões.
+
+Não é suficiente guardar somente texto, JSON solto ou log sem integridade relacional como única ligação.
+
+## Escopo
+
+### 1. Gate de liberação
+
+Somente permitir liberação quando:
+
+- versão da montagem pertence ao mesmo `contractId` e aluno;
+- é a versão aprovada esperada para a operação;
+- aprovação foi realizada por ator autorizado e está persistida;
+- não existe conflito `critical` ativo após revalidação;
+- referências obrigatórias continuam acessíveis e válidas;
+- capacidades usadas continuam correspondendo às versões imutáveis registradas na montagem;
+- todos os blocos obrigatórios possuem tradução operacional resolvida pela #319;
+- o alvo operacional pertence ao aluno/contrato corretos;
+- a versão não foi substituída por revisão corrente incompatível segundo o workflow;
+- o usuário possui `plans.consolidatedPrescriptions.release` e escopo efetivo sobre o aluno.
+
+A API revalida o gate no momento da liberação; estado da UI nunca é autoridade.
+
+### 2. Geração/atualização operacional
+
+Usar o grafo operacional existente como destino:
+
+- `TrainingPlan` como plano do aluno;
+- `WorkoutTemplate` como estrutura semanal/mesociclo já existente;
+- `WorkoutDay` como sessão datada;
+- `WorkoutExercise` para itens que possuem `ExerciseLibrary` válido;
+- campos operacionais de `WorkoutDay` para conteúdo cíclico quando o adaptador da #319 suportar;
+- instruções práticas ao aluno nos campos existentes apropriados, sem copiar justificativa técnica sensível.
+
+Regras:
+
+- não duplicar uma segunda árvore de treino;
+- não usar nome/texto para resolver exercício ou alvo operacional;
+- não marcar `WorkoutTemplate.released = true` antes de concluir a persistência do conteúdo, vínculo e auditoria;
+- bloco obrigatório sem tradução operacional bloqueia a liberação com motivo verificável;
+- bloco não operacional/documental só pode ser omitido da saída se a #319 o classificar explicitamente como não necessário à execução e ele permanecer rastreável na montagem.
+
+### 3. Rastreabilidade
+
+Deve ser possível consultar a cadeia:
+
+```text
+WorkoutTemplate/WorkoutDay/WorkoutExercise
+  -> registro de liberação
+  -> ConsolidatedPrescriptionVersion
+  -> CapacityPrescriptionVersion(s)
+  -> sourceRefs/dados-base preservados nas capacidades/montagem
+```
+
+A consulta de rastreabilidade deve usar IDs persistentes e não depender de reconstrução por nomes ou timestamps aproximados.
+
+### 4. Idempotência e concorrência
+
+- Repetir exatamente a liberação da mesma versão não cria segundo conjunto de efeitos.
+- A operação deve retornar a saída já vinculada quando a mesma liberação válida for repetida, ou conflito estável conforme convenção local.
+- Duas liberações concorrentes da mesma versão não podem criar templates/dias/exercícios duplicados.
+- A chave de idempotência deve estar protegida por constraint/transaction, não somente por consulta prévia em memória.
+- Falha entre escrita operacional, vínculo, auditoria e mudança para `released` deve realizar rollback integral sempre que todos os artefatos estiverem no mesmo banco/transação.
+
+### 5. Alvo existente e preservação de execução
+
+Para um alvo operacional já existente:
+
+- **sem execução iniciada/registrada:** pode ser atualizado somente se corresponder ao mesmo aluno/plano/período e a operação preservar idempotência e histórico da origem;
+- **já iniciado ou com execução registrada:** não sobrescrever, remover ou reescrever conteúdo executado; retornar conflito/necessidade de nova revisão para um alvo futuro;
+- **já liberado pela mesma versão:** tratar como repetição idempotente;
+- **já liberado por outra versão:** não substituir silenciosamente; exigir nova revisão e regra explícita para alvo futuro.
+
+A implementação não deve inventar automaticamente outro período/semana para contornar conflito.
+
+### 6. Estados após liberação
+
+Após commit bem-sucedido:
+
+- a versão aprovada da montagem passa para `released` ou estado equivalente definido na #316/#317;
+- registrar ator e data da liberação no backend;
+- `WorkoutTemplate.released/releasedAt` ou mecanismo operacional equivalente fica consistente com a liberação;
+- vínculo persistente entre versão da montagem e saída operacional está gravado;
+- resumo/histórico aplicável do aluno é invalidado/atualizado conforme o padrão de cache atual;
+- versões anteriores permanecem históricas.
+
+Se qualquer parte falhar, a montagem não pode ficar `released` com saída parcial.
+
+### 7. Revisão posterior
+
+Quando uma montagem já liberada precisar mudar:
+
+- não editar a versão liberada;
+- criar nova revisão em `draft` via #317;
+- preservar treino e execuções históricos;
+- exigir nova aprovação e novo gate;
+- direcionar a nova liberação apenas para saída ainda não executada/futura explicitamente selecionada;
+- se houver conflito com saída já liberada/executada, retornar estado tratável em vez de sobrescrever.
+
+### 8. Permissões, isolamento e não enumeração
+
+- Exigir `plans.consolidatedPrescriptions.release`.
+- Revalidar `contractId`, aluno, plano, montagem, versão, template e exercícios no backend.
+- O alvo operacional deve pertencer ao mesmo aluno/contrato por relações persistidas, não por IDs aceitos sem validação.
+- Recurso inexistente ou cross-tenant deve responder de forma genérica conforme padrão de não enumeração do projeto.
+
+## Fora de escopo
+
+- feedback pós-treino;
+- decisão sugerida;
+- alteração automática da prescrição após execução;
+- integração com smartwatch;
+- aplicação em massa;
+- reescrita do motor de execução atual;
+- remoção de histórico de treino existente;
+- criação de uma nova árvore `Treino de hoje` paralela ao grafo operacional existente;
+- escolha automática de nova semana/período para contornar conflito.
+
+## Cenários obrigatórios
+
+- liberação válida pela primeira vez;
+- repetição idempotente da mesma versão;
+- duas liberações concorrentes sem duplicidade;
+- tentativa sem aprovação;
+- tentativa com `critical`;
+- tentativa sem permissão de release;
+- tentativa cross-tenant/cross-student;
+- bloco obrigatório sem tradução operacional;
+- `ExerciseLibrary`/mapeamento inválido após aprovação;
+- target futuro existente e ainda não executado;
+- target já liberado pela mesma versão;
+- target já liberado por outra versão;
+- treino/sessão já iniciada ou executada preservada;
+- falha entre persistência operacional, vínculo, auditoria e estado com rollback integral;
+- nova revisão após montagem liberada;
+- consulta da cadeia completa de rastreabilidade por IDs.
+
+## Critérios de aceite
+
+- [ ] Somente versão aprovada, atual para a operação e sem `critical` pode ser liberada.
+- [ ] Backend deriva ator/timestamp e exige `plans.consolidatedPrescriptions.release`.
+- [ ] Nenhuma capacidade publica treino diretamente.
+- [ ] Saída operacional usa `TrainingPlan -> WorkoutTemplate -> WorkoutDay -> WorkoutExercise` quando representável.
+- [ ] Não é criada entidade paralela de `Treino de hoje` sem necessidade arquitetural demonstrada.
+- [ ] Existe vínculo relacional persistente entre a versão exata da montagem e a saída operacional.
+- [ ] `WorkoutTemplate` liberado é rastreável até `ConsolidatedPrescriptionVersion` e capacidades/fontes.
+- [ ] Repetir a liberação não duplica templates, dias, exercícios ou efeitos.
+- [ ] Constraint/transação protege idempotência sob concorrência.
+- [ ] Bloco obrigatório sem representação operacional bloqueia a liberação.
+- [ ] Nova revisão não altera silenciosamente versão ou execução histórica.
+- [ ] Treino já iniciado/executado não é sobrescrito.
+- [ ] Falha transacional não deixa montagem `released` nem `WorkoutTemplate.released` em estado parcial.
+- [ ] Acesso cross-tenant/cross-student é bloqueado sem vazamento de existência.
+- [ ] Resumo/histórico aplicável do aluno é atualizado/invalida cache após sucesso.
+- [ ] Documentação do fluxo integrado, produto, API, banco e acesso é atualizada.
+
+## Testes e validação
+
+- gate de aprovação e revalidação de conflitos;
+- permissão específica de release;
+- idempotência e constraint concorrente em PostgreSQL;
+- rollback atômico;
+- cross-tenant/cross-student;
+- mapeamento para `WorkoutTemplate`, `WorkoutDay` e `WorkoutExercise`;
+- alvo futuro editável versus treino já executado;
+- vínculo relacional e rastreabilidade ponta a ponta;
+- regressão dos modelos e fluxos atuais de treino/execução.
+
+Executar checks aplicáveis, incluindo:
+
+```bash
+pnpm test
+pnpm type-check
+pnpm access:check
+pnpm arch:check
+pnpm docs:check
+pnpm validate
+```
+
+## Prontidão
+
+**Pronta após #318 e #319.** O encerramento deve demonstrar o fluxo completo `CapacityPrescriptionVersion -> ConsolidatedPrescriptionVersion aprovada -> release persistente -> WorkoutTemplate/WorkoutDay/WorkoutExercise`, sem incluir feedback pós-treino.
