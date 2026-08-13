@@ -143,6 +143,19 @@ Qualquer falha desfaz reconciliação, conteúdo, blocos estruturados, versão, 
 
 A versão aprovada usada como origem e a versão `released` permanecem imutáveis. Uma alteração posterior deve seguir o fluxo de nova revisão da #317, voltar a ser preparada/aprovada e executar um novo comando de liberação. Uma nova versão não substitui silenciosamente o template de uma liberação anterior.
 
+### Imutabilidade do conteúdo operacional liberado
+
+A presença de `ConsolidatedPrescriptionOperationalRelease` transforma o conteúdo de planejamento publicado em evidência histórica. A migration `20260813005500_issue_320_released_workout_immutability` aplica guards PostgreSQL diretamente ao grafo operacional para que writers legados, serviços futuros ou acesso Prisma direto não possam contornar essa invariável:
+
+- `WorkoutTemplate` vinculado não pode ser alterado ou removido; a única exceção é a transição atômica inicial `released=false/releasedAt=null -> released=true/releasedAt=<timestamp>` realizada pelo próprio release;
+- `WorkoutDay` vinculado não pode ser criado, removido, movido nem ter campos de planejamento alterados;
+- `WorkoutExercise` vinculado não pode ser criado, alterado, reordenado, movido ou removido;
+- `WorkoutDayCapacityOperationalBlock` e o próprio ledger continuam imutáveis pelos guards já existentes.
+
+O ciclo de execução continua funcionando sobre o snapshot publicado. Em `WorkoutDay`, somente `status`, `startedAt`, `finishedAt`, `psrResponse`, `pseResponse` e o `updatedAt` derivado podem mudar depois da liberação. Execuções de exercício permanecem registradas em `WorkoutExecution`, sem reescrever o planejamento que originou o treino.
+
+Quando o planejamento precisar mudar, o caminho suportado é nova revisão da Montagem Consolidada, nova aprovação e nova liberação para um alvo futuro explícito. Não existe edição in-place do snapshot histórico já publicado.
+
 ## Validação
 
 Os testes da #320/#339 cobrem:
@@ -155,4 +168,5 @@ Os testes da #320/#339 cobrem:
 - controles temporais para data fora da semana declarada, alvo passado, borda da data atual e target existente de período divergente;
 - reconciliação de target futuro previamente preenchido, removendo dia/exercício excedentes e limpando campos gerenciados residuais;
 - concorrência com duas conexões e rollback integral por falha injetada;
-- boundary HTTP para permissão de `release` revogada depois da emissão do token, cross-tenant e `dataScope=self`, com resposta de não enumeração.
+- boundary HTTP para permissão de `release` revogada depois da emissão do token, cross-tenant e `dataScope=self`, com resposta de não enumeração;
+- imutabilidade pós-release contra update/delete de template e dia, add/update/delete/reorder de exercícios e regressão positiva de status/feedback de execução.
