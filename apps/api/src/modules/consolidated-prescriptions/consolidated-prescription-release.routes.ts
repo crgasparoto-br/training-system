@@ -57,6 +57,7 @@ function handleError(res: Response, error: unknown) {
   });
   return res.status(500).json({
     success: false,
+    code: 'API_UNEXPECTED_ERROR',
     error: 'Erro ao liberar saída operacional da montagem consolidada',
     correlationId,
     timestamp: new Date().toISOString(),
