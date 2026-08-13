@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
@@ -48,8 +49,18 @@ function handleError(res: Response, error: unknown) {
     }
     return sendError(res, error.message, 400, error.details ? [error.details] : undefined);
   }
-  console.error('Erro ao liberar saída operacional da montagem consolidada:', error);
-  return sendError(res, 'Erro ao liberar saída operacional da montagem consolidada', 500);
+
+  const correlationId = randomUUID();
+  console.error('Erro ao liberar saída operacional da montagem consolidada:', {
+    correlationId,
+    error,
+  });
+  return res.status(500).json({
+    success: false,
+    error: 'Erro ao liberar saída operacional da montagem consolidada',
+    correlationId,
+    timestamp: new Date().toISOString(),
+  });
 }
 
 router.post('/alunos/:alunoId/operational-release', async (req: Request, res: Response) => {
