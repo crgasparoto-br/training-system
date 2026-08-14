@@ -25,6 +25,12 @@ import {
   getOperationalSubstitutionCompatibilityIssue,
   hasReservedOperationalOrigin,
 } from './consolidated-prescription-operational-integrity.js';
+import {
+  buildBalanceWorkoutDayOperationalBlock,
+  buildFlexibilityWorkoutDayOperationalBlock,
+  formatBalanceWorkoutDayNote,
+  formatFlexibilityWorkoutDayNote,
+} from './consolidated-prescription-flex-balance-operational.js';
 
 export {
   CONSOLIDATED_EXERCISE_SUBSTITUTION_ORIGIN,
@@ -380,20 +386,53 @@ export function buildOperationalProjectionItems(
       continue;
     }
 
-    const sourceParameters =
-      parameters.type === 'flexibility' ? parameters.flexibility : parameters.balance;
+    if (parameters.type === 'flexibility') {
+      const flexibility = parameters.flexibility;
+      const operationalBlock = buildFlexibilityWorkoutDayOperationalBlock(version.id, flexibility);
+      const detailNotes = operationalBlock ? formatFlexibilityWorkoutDayNote(flexibility) : null;
+      items.push({
+        key: `${version.id}:flexibility`,
+        capacity: 'flexibility',
+        capacityPrescriptionVersionId: version.id,
+        target: operationalBlock ? 'WorkoutDay' : 'none',
+        compatibility: operationalBlock ? 'mapped' : 'incompatible',
+        incompatibilityCode: operationalBlock ? null : 'operational_representation_unavailable',
+        incompatibilityMessage: operationalBlock
+          ? null
+          : 'A capacidade de flexibilidade precisa de articulações com prescrição sugerida explícita para chegar ao treino operacional.',
+        proposedFields: operationalBlock
+          ? {
+              WorkoutDay: { detailNotes },
+              WorkoutDayCapacityOperationalBlock: operationalBlock,
+            }
+          : {},
+        unsupportedParameters: operationalBlock ? [] : Object.keys(flexibility),
+        sourceParameters: flexibility as unknown as Record<string, unknown>,
+      });
+      continue;
+    }
+
+    const balance = parameters.balance;
+    const operationalBlock = buildBalanceWorkoutDayOperationalBlock(version.id, balance);
+    const complementNotes = operationalBlock ? formatBalanceWorkoutDayNote(balance) : null;
     items.push({
-      key: `${version.id}:${parameters.type}`,
-      capacity: parameters.type,
+      key: `${version.id}:balance`,
+      capacity: 'balance',
       capacityPrescriptionVersionId: version.id,
-      target: 'none',
-      compatibility: 'incompatible',
-      incompatibilityCode: 'operational_representation_unavailable',
-      incompatibilityMessage:
-        'A estrutura operacional atual não representa esta capacidade sem perder semântica técnica.',
-      proposedFields: {},
-      unsupportedParameters: Object.keys(sourceParameters),
-      sourceParameters: sourceParameters as unknown as Record<string, unknown>,
+      target: operationalBlock ? 'WorkoutDay' : 'none',
+      compatibility: operationalBlock ? 'mapped' : 'incompatible',
+      incompatibilityCode: operationalBlock ? null : 'operational_representation_unavailable',
+      incompatibilityMessage: operationalBlock
+        ? null
+        : 'A capacidade de equilíbrio precisa de foco e apoio ou progressão explícitos para chegar ao treino operacional.',
+      proposedFields: operationalBlock
+        ? {
+            WorkoutDay: { complementNotes },
+            WorkoutDayCapacityOperationalBlock: operationalBlock,
+          }
+        : {},
+      unsupportedParameters: operationalBlock ? [] : Object.keys(balance),
+      sourceParameters: balance as unknown as Record<string, unknown>,
     });
   }
 

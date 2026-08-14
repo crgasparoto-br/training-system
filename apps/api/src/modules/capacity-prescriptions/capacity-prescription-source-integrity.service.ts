@@ -1,14 +1,11 @@
-import type { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import type { CapacityPrescriptionSourceRef } from '@corrida/types';
+import {
+  isAssessmentCategoryCompatible,
+  isSpecificAssessmentSourceType,
+} from './capacity-prescription-assessment-category.js';
 
-const assessmentSourceTypes = new Set<CapacityPrescriptionSourceRef['type']>([
-  'physical_assessment',
-  'adipometry',
-  'bioimpedance',
-  'ultrasound',
-  'ventilometry',
-  'flexibility_assessment',
-]);
+type DbClient = Prisma.TransactionClient | PrismaClient;
 
 export class CapacitySourceIntegrityError extends Error {
   constructor(message: string) {
@@ -34,7 +31,7 @@ function assertSourceShape(source: unknown): asserts source is CapacityPrescript
 }
 
 async function prontuarioAlertExists(
-  client: PrismaClient,
+  client: DbClient,
   contractId: string,
   alunoId: string,
   sourceId: string
@@ -61,7 +58,7 @@ async function prontuarioAlertExists(
 }
 
 async function sourceExists(
-  client: PrismaClient,
+  client: DbClient,
   contractId: string,
   alunoId: string,
   source: CapacityPrescriptionSourceRef
@@ -97,12 +94,22 @@ async function sourceExists(
     );
   }
 
-  if (assessmentSourceTypes.has(source.type)) {
+  if (source.type === 'physical_assessment') {
     return Boolean(
       await client.studentAssessmentRecord.findFirst({
         where: { id: source.id, contractId, alunoId },
         select: { id: true },
       })
+    );
+  }
+
+  if (isSpecificAssessmentSourceType(source.type)) {
+    const assessment = await client.studentAssessmentRecord.findFirst({
+      where: { id: source.id, contractId, alunoId },
+      select: { assessmentCategory: true },
+    });
+    return Boolean(
+      assessment && isAssessmentCategoryCompatible(source.type, assessment.assessmentCategory)
     );
   }
 
@@ -127,7 +134,7 @@ export function capacitySourceRefsFromBody(body: unknown): unknown[] | null {
 }
 
 export async function assertCapacitySourceIntegrity(input: {
-  client: PrismaClient;
+  client: DbClient;
   contractId: string;
   alunoId: string;
   sourceRefs: unknown[];

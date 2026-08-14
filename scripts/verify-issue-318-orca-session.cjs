@@ -48,6 +48,28 @@ const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'issue-318-native-profi
 
 function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
+const TRANSIENT_PROFILE_CLEANUP_ERRORS = new Set(['EBUSY', 'ENOTEMPTY', 'EPERM']);
+
+async function removeTemporaryProfile(directory) {
+  const maxAttempts = 20;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      fs.rmSync(directory, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (!TRANSIENT_PROFILE_CLEANUP_ERRORS.has(error.code)) throw error;
+      if (attempt === maxAttempts) {
+        console.warn(
+          `Temporary Chrome profile cleanup remained busy after ${maxAttempts} attempts (${error.code}); ` +
+          'continuing because evidence collection is complete and the profile is runner-local.'
+        );
+        return;
+      }
+      await delay(250);
+    }
+  }
+}
+
 function listAtspiApplications() {
   const script = String.raw`
 import pyatspi
@@ -271,11 +293,13 @@ async function main() {
     }
     await delay(2000);
   } finally {
-    await stopChild(orca);
+    // Stop Chrome first so renderer/profile writers cannot race the temporary
+    // profile removal. Orca can then shut down after its client disappears.
     await stopChild(nativeChrome);
+    await stopChild(orca);
     fs.closeSync(orcaStdout);
     fs.closeSync(chromeStdout);
-    fs.rmSync(profileDir, { recursive: true, force: true });
+    await removeTemporaryProfile(profileDir);
   }
 
   const debug = fs.readFileSync(debugFile, 'utf8');
