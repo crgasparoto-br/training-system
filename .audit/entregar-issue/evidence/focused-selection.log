@@ -1,0 +1,10 @@
+PASS empty-oldest: exercise
+PASS exercise-priority: exercise
+PASS coverage: two
+PASS total: large
+PASS oldest: old
+PASS deterministic-id: a
+PASS no-exercises: coverage
+PASS default-precedence: default
+PASS empty-default-fallback: eligible
+PASS no-source: null

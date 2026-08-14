@@ -1,0 +1,1 @@
+Material candidate updates .env.example, docs/architecture/api.md and docs/architecture/deployment.md. DEFAULT_CONTRACT_ID is documented as optional/preferred only when eligible, with automatic fallback semantics. API docs record the deterministic ranking, empty-source rejection, 404 behavior, explicit-source/subset compatibility, and idempotent skipped behavior.

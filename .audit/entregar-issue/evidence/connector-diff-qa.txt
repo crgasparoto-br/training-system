@@ -1,0 +1,4 @@
+Material candidate: 406443ebb97effd7eb0653d1ddc6070469d64d01
+Base: 6878d1500dc07e39e2da0f29ab2a479e8b182782
+Connector compare result: ahead_by=1; changed paths are exactly .env.example, contract selection helper, contract route, contract service, focused API test, API docs and deployment docs.
+Final diff review confirmed sourceContractId explicit is preserved, full-screen ranking is gated by all three copy flags, subset calls keep legacy resolution, target/professor still come from authenticated context under masterMiddleware, cloneContractData is unchanged, and no-source full clone returns 404 before cloneContractData.

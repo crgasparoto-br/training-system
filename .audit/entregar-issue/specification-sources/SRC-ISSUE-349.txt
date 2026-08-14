@@ -1,0 +1,100 @@
+<!-- specification_version: 1 -->
+
+## Objetivo
+Corrigir o botão **Clonar dados** em `/settings/contract`, evitando que a clonagem automática conclua com sucesso sem encontrar dados de origem para as três categorias solicitadas pela tela.
+
+## Contexto
+A tela envia `POST /contracts/clone-data` com `copyParameters`, `copyExercises` e `copyAssessmentTypes` habilitados. Quando `sourceContractId` não é informado, a API atualmente resolve a origem por `DEFAULT_CONTRACT_ID` ou, na ausência dele, pelo primeiro contrato criado diferente do contrato alvo.
+
+O problema é que o primeiro contrato cronologicamente pode não possuir parâmetros, exercícios nem tipos de avaliação. Nesse caso a operação retorna sucesso com todos os contadores zerados e o usuário percebe que o botão não fez nada.
+
+A implementação atual já preserva idempotência na gravação: registros existentes no contrato alvo são contabilizados como `skipped` em vez de serem duplicados.
+
+## Escopo
+- Corrigir a seleção da **origem automática** usada pelo fluxo da tela `/settings/contract`.
+- Considerar, para esse fluxo, as três categorias clonáveis: parâmetros de treinamento, biblioteca de exercícios e tipos de avaliação.
+- Preservar o formato da resposta com contadores `created`/`skipped` consumidos pela tela.
+- Preservar autorização de professor master e o contrato alvo derivado da sessão autenticada.
+
+## Fora de escopo
+- Alterar a semântica de chamadas que informem `sourceContractId` explicitamente.
+- Redefinir o comportamento de chamadas técnicas que clonem apenas um subconjunto das três categorias.
+- Alterar regras de deduplicação ou o conteúdo efetivamente copiado por `cloneContractData`.
+
+## Requisitos funcionais
+1. Quando `sourceContractId` não for informado, resolver a origem nesta ordem:
+   1. `DEFAULT_CONTRACT_ID`, somente quando estiver configurado, for diferente do contrato alvo e possuir pelo menos um registro em uma das três categorias clonáveis do fluxo da tela;
+   2. seleção automática entre os demais contratos elegíveis.
+2. Um contrato é elegível para seleção automática quando:
+   - é diferente do contrato alvo; e
+   - possui ao menos um parâmetro de treinamento, exercício de biblioteca ou tipo de avaliação.
+3. `DEFAULT_CONTRACT_ID` elegível mantém precedência sobre qualquer candidato encontrado pelo ranking automático.
+4. Se `DEFAULT_CONTRACT_ID` estiver ausente, apontar para o contrato alvo ou estiver completamente vazio nas três categorias, ele não deve bloquear a seleção automática de outra origem elegível.
+5. A seleção automática deve aplicar a seguinte precedência, nesta ordem:
+   1. candidatos que possuam pelo menos um exercício de biblioteca;
+   2. maior quantidade de categorias cobertas entre parâmetros, exercícios e tipos de avaliação, considerando uma categoria coberta quando possuir pelo menos um registro;
+   3. maior quantidade total de registros somando as três categorias;
+   4. em empate remanescente, preservar a preferência cronológica existente pelo contrato mais antigo (`createdAt` ascendente), com desempate determinístico adicional se necessário.
+6. Se nenhum candidato possuir exercícios, aplicar os critérios de cobertura de categorias, total de registros e antiguidade aos contratos elegíveis restantes.
+7. A elegibilidade e o ranking devem considerar os registros existentes na **origem**, e não calcular previamente o delta contra o contrato alvo. A deduplicação continua sendo responsabilidade da clonagem.
+8. Se não houver `DEFAULT_CONTRACT_ID` elegível nem origem automática elegível, responder com erro explícito em vez de sucesso com todos os contadores zerados. Preservar o status HTTP `404` já usado para ausência de contrato de origem.
+9. Uma execução idempotente continua sendo sucesso quando a origem contém dados, mas todos já existem no alvo: nesse caso `created` pode ser zero, desde que os respectivos itens sejam refletidos em `skipped`.
+10. O contrato alvo deve continuar sendo exclusivamente o `contractId` do usuário autenticado; a chamada não deve permitir sobrescrever o alvo pelo body.
+11. A rota deve continuar restrita a professor master.
+
+## Cenários e casos extremos
+- **Primeiro contrato cronológico vazio, segundo com exercícios:** o vazio é ignorado e o contrato com exercícios é escolhido.
+- **Contrato sem exercícios com mais registros vs. contrato com exercícios:** o contrato com exercícios tem prioridade no fluxo da tela.
+- **Dois contratos com exercícios:** vence primeiro o que cobre mais categorias; persistindo empate, o que possui mais registros; persistindo empate, o mais antigo.
+- **Nenhum contrato com exercícios:** escolher entre contratos que tenham parâmetros e/ou tipos de avaliação usando cobertura, total de registros e antiguidade.
+- **`DEFAULT_CONTRACT_ID` elegível:** usar o contrato configurado sem aplicar o ranking automático.
+- **`DEFAULT_CONTRACT_ID` vazio ou igual ao alvo:** ignorar o default e tentar a seleção automática.
+- **Nenhuma origem com dados:** responder `404` com mensagem clara para a tela.
+- **Origem selecionada com todos os itens já presentes no alvo:** preservar sucesso idempotente com contadores `skipped` correspondentes.
+
+## Invariantes estruturais
+- **must_not_behave:** a seleção automática não pode escolher um contrato completamente vazio apenas por ser o mais antigo.
+  - Implementação errada plausível: filtrar apenas `id != target` e manter `findFirst(orderBy createdAt)`.
+  - Controle discriminante: teste com contrato mais antigo vazio e outro contrato com dados.
+- **precedence_invariants:** `DEFAULT_CONTRACT_ID` elegível deve vencer o ranking automático; dentro do ranking, `tem exercícios` > `cobertura de categorias` > `total de registros` > `antiguidade`.
+  - Implementação errada plausível: ordenar somente por quantidade total de registros, escolhendo uma origem sem exercícios que tenha muitos parâmetros.
+  - Controle discriminante: teste com origem sem exercícios de maior volume e origem com exercícios de menor volume.
+- **must_not_behave:** origem default vazia ou igual ao alvo não pode produzir sucesso vazio nem impedir a busca de outra origem automática elegível.
+  - Implementação errada plausível: resolver `DEFAULT_CONTRACT_ID` antes de verificar elegibilidade e chamar a clonagem diretamente.
+  - Controle discriminante: teste com default vazio e outro contrato elegível.
+- **must_behave:** idempotência deve ser avaliada na etapa de clonagem, sem transformar uma origem com dados já existentes no alvo em “origem vazia”.
+  - Implementação errada plausível: excluir candidatos cujo delta calculado contra o alvo seja zero.
+  - Controle discriminante: repetir a clonagem e verificar sucesso com `created = 0` e `skipped > 0`.
+
+## Critérios de aceite
+- [ ] Ao clicar em **Clonar dados** para um contrato vazio, sem `DEFAULT_CONTRACT_ID` elegível e existindo outra origem com biblioteca de exercícios, a biblioteca é criada no contrato atual.
+- [ ] Se o primeiro contrato cronologicamente estiver vazio, mas outro possuir dados clonáveis, o contrato vazio não é selecionado.
+- [ ] Havendo candidatos com e sem exercícios, um candidato com exercícios é selecionado antes de qualquer candidato sem exercícios.
+- [ ] Entre candidatos equivalentes quanto à presença de exercícios, a seleção respeita cobertura de categorias, depois total de registros e depois antiguidade.
+- [ ] `DEFAULT_CONTRACT_ID` elegível continua tendo precedência sobre o ranking automático.
+- [ ] `DEFAULT_CONTRACT_ID` vazio ou igual ao contrato alvo não impede a seleção de outra origem automática elegível.
+- [ ] Se nenhuma origem elegível possuir dados, a API responde `404` com erro explícito e não retorna sucesso com todos os contadores zerados.
+- [ ] A resposta de sucesso mantém os contadores `parametersCreated/Skipped`, `exercisesCreated/Skipped` e `assessmentTypesCreated/Skipped` usados pela tela.
+- [ ] Repetir a clonagem preserva idempotência: registros existentes não são duplicados e aparecem como `skipped`.
+- [ ] O alvo permanece o contrato autenticado e a rota continua exigindo professor master.
+
+## Considerações de testes
+- Cobrir a seleção automática com contrato mais antigo vazio e outro elegível.
+- Cobrir a prioridade de candidatos com exercícios sobre candidatos sem exercícios.
+- Cobrir os desempates por quantidade de categorias, total de registros e antiguidade.
+- Cobrir o cenário sem exercícios em nenhuma origem, mas com parâmetros e/ou tipos de avaliação disponíveis.
+- Cobrir `DEFAULT_CONTRACT_ID` elegível, vazio e igual ao contrato alvo.
+- Cobrir ausência total de origem elegível com resposta `404`.
+- Cobrir regressão de idempotência e manutenção do shape dos contadores retornados.
+- Executar as validações do repositório, incluindo `pnpm validate` antes da entrega.
+
+## Impacto na documentação
+- Atualizar `docs/architecture/api.md` com a regra estável de precedência e seleção automática de origem da clonagem de dados.
+- Como `DEFAULT_CONTRACT_ID` participa do contrato operacional da rota e já é lido pela API, documentar a variável e sua precedência em `.env.example` sem introduzir uma nova configuração.
+
+## Premissas
+- Para o fluxo desta issue, “dados clonáveis” significa existência de registros na origem em qualquer uma das três categorias solicitadas pela tela; não significa que o registro necessariamente será criado no alvo após deduplicação.
+- O comportamento de `sourceContractId` explícito permanece inalterado.
+
+## Perguntas em aberto
+Nenhuma decisão adicional é necessária para implementar o fluxo da tela descrito nesta issue.
