@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
+  post: vi.fn(),
 }));
 
 vi.mock('./api', () => ({
-  default: { get: mocks.get },
-  api: { get: mocks.get },
+  default: { get: mocks.get, post: mocks.post },
+  api: { get: mocks.get, post: mocks.post },
 }));
 
 import {
@@ -25,11 +26,15 @@ describe('studentSelfService', () => {
 
     await studentSelfService.getSummary('contract-1');
     await studentSelfService.getProfileReview('contract-1');
+    await studentSelfService.getProfile('contract-1');
 
     expect(mocks.get).toHaveBeenNthCalledWith(1, '/student/me/summary', {
       headers: { 'x-contract-id': 'contract-1' },
     });
     expect(mocks.get).toHaveBeenNthCalledWith(2, '/student/me/profile-review', {
+      headers: { 'x-contract-id': 'contract-1' },
+    });
+    expect(mocks.get).toHaveBeenNthCalledWith(3, '/student/me/profile', {
       headers: { 'x-contract-id': 'contract-1' },
     });
   });
@@ -43,6 +48,24 @@ describe('studentSelfService', () => {
       headers: { 'x-contract-id': 'contract-1' },
       params: { limit: 10 },
     });
+  });
+
+  it('conclui a revisão usando o endpoint atual e o mesmo contexto de vínculo', async () => {
+    mocks.post.mockResolvedValue({
+      data: { data: { id: 'review-1', status: 'completed_no_changes' } },
+    });
+
+    await studentSelfService.completeProfileReview(
+      'review-1',
+      { noChanges: true },
+      'contract-1'
+    );
+
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/student/me/profile-reviews/review-1/complete',
+      { noChanges: true },
+      { headers: { 'x-contract-id': 'contract-1' } }
+    );
   });
 
   it('mantém contractId somente em rotas locais controladas pelo fluxo', () => {
