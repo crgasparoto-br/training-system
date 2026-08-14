@@ -1,7 +1,0 @@
-Material candidate: e02e2bb18f92440bf59b3f8c91d160bce17fca2d
-Parent material baseline: 3a9b6ba03af4348c3c23ee029e0d6a1f4576dcd4
-Observed diff: exactly one product-repository path changed, apps/api/src/modules/consolidated-prescriptions/consolidated-prescription-flex-balance-operational.service.test.ts, with 83 additions and 0 deletions.
-No production source, migration, schema, documentation, authorization, tenant, release, or persistence path changed in the remediation delta.
-Baseline Validate PR run 31757485465 was completed/success on 3a9b6ba03af4348c3c23ee029e0d6a1f4576dcd4.
-Exact-head remediation controls were executed locally against helper blob 61212dcf21d161d33b2b25717b1cb2e57ecb934e; see focused-balance-negative.log.
-Exact-head remote Validate PR run 31761208562 was observed in_progress; no polling or rerun was performed.

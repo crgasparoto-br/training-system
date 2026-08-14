@@ -1,0 +1,67 @@
+# [aluno][revisão cadastral] Expor pendência e notificações acionáveis na experiência web do aluno
+
+## Issue pai
+
+- #341
+
+## Objetivo
+
+Fazer a experiência web autenticada do aluno informar de forma clara quando existe revisão cadastral pendente e oferecer uma ação válida para abrir essa pendência, sem depender de app mobile.
+
+## Contexto
+
+A API já expõe resumo e notificações do aluno em `/api/v1/student/me/...`, incluindo `hasPendingProfileReview`, revisão pendente e notificações recentes. O web atual possui `/inicio` para aluno, porém a pendência de revisão ainda não forma um fluxo acionável completo.
+
+## Escopo
+
+- Consumir no web os dados já disponíveis no resumo/notificações do aluno.
+- Exibir na `/inicio` um card/alerta de revisão cadastral pendente quando aplicável.
+- Criar ou consolidar uma rota web autenticada para revisão cadastral do aluno, a ser preenchida funcionalmente na issue seguinte.
+- Garantir que notificações `profile_review_requested`, `profile_review_reminder` e `profile_review_overdue` naveguem para uma rota web válida.
+- Preservar o contexto de vínculo/`contractId` atualmente exigido para aluno com mais de um vínculo.
+- Definir comportamento para ausência de revisão, erro, carregamento e acesso inválido.
+
+## Fora de escopo
+
+- implementar o formulário completo de edição/conclusão da revisão;
+- envio por SendGrid/Twilio;
+- criar app mobile;
+- alterar regras de aprovação de campos sensíveis.
+
+## Requisitos funcionais
+
+- Aluno autenticado com revisão pendente vê a pendência na `/inicio`.
+- O CTA deve levar a uma rota web autenticada de revisão cadastral.
+- Aluno sem revisão pendente não deve receber CTA falso ou estado de erro.
+- Notificação acionável deve usar o destino web funcional como caminho principal no browser.
+- Se o backend continuar enviando `deepLink` mobile como metadado, o web não deve depender dele.
+- A UI deve funcionar em viewport mobile e desktop.
+
+## Estados obrigatórios
+
+- carregando;
+- revisão pendente;
+- nenhuma revisão pendente;
+- falha ao carregar;
+- contexto de contrato necessário/ambíguo;
+- acesso negado ou sessão inválida.
+
+## Critérios de aceite
+
+- [ ] `/inicio` mostra revisão pendente somente quando a API indicar pendência real.
+- [ ] CTA abre uma rota web autenticada e válida para revisão cadastral.
+- [ ] Notificações de revisão possuem navegação web coerente.
+- [ ] Ausência de revisão não gera erro nem CTA inválido.
+- [ ] Contexto de `contractId` é preservado.
+- [ ] Fluxo é responsivo em viewport mobile e desktop.
+- [ ] Há testes de comportamento cobrindo pendência, vazio e erro.
+- [ ] Nenhuma regra de segurança existente do aluno é relaxada.
+
+## Dependências
+
+- Reutilizar `/api/v1/student/me/summary`, `/api/v1/student/me/notifications` e `/api/v1/student/me/profile-review`.
+- Reutilizar a experiência atual do aluno em `/inicio`.
+
+## Validação esperada
+
+Executar testes web relevantes e os gates aplicáveis definidos pelo repositório.
