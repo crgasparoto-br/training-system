@@ -1,0 +1,10 @@
+[PASS] entregar-issue/tests/test_composition_contract.py (5s)
+[PASS] entregar-issue/tests/test_controller_context.py (6s)
+[PASS] entregar-issue/tests/test_deterministic_planning.py (1s)
+[PASS] entregar-issue/tests/test_ecosystem_contracts.py (3s)
+[PASS] entregar-issue/tests/test_internal_delegation_ownership.py (1s)
+[PASS] entregar-issue/tests/test_single_invocation_controller.py (2s)
+[PASS] entregar-issue/tests/test_state_and_packet.py (2s)
+[PASS] entregar-issue/tests/test_throughput_quality_contract.py (1s)
+report=/mnt/data/issue343-skill-fast-ecosystem.json
+summary: profile=fast passed=8 failed=0 files=8 elapsed=21s

@@ -1,1 +1,47 @@
-{"schema_version":1,"repository":"crgasparoto-br/training-system","issue":343,"material_head_sha":"e0a25a24869ca2734f91c37160e9b791e3c213cd","workflow_run_id":31815259659,"workflow":"Validate PR","job_id":94815276116,"status":"completed","conclusion":"success","observation_mode":"read-only","green_steps":["Type check","Lint","Test","Build","Architecture checks","Access catalog checks","Documentation checks"]}
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/training-system",
+  "issue": 343,
+  "pr": 352,
+  "material_head_sha": "598ab53489bf22db84c2d41014a82279e0217332",
+  "base_sha": "f822974ec3395000d23652afa3664e1273c5fe26",
+  "merge_preview_sha": "da0398d5b47838ca12f73a151fb721d58cefd15b",
+  "observation_mode": "read-only",
+  "workflows": [
+    {
+      "name": "Validate PR",
+      "run_id": 31839138895,
+      "job_id": 94892015298,
+      "status": "completed",
+      "conclusion": "success",
+      "green_steps": [
+        "Type check",
+        "Lint",
+        "Test",
+        "Build",
+        "Architecture checks",
+        "Access catalog checks",
+        "Documentation checks"
+      ]
+    },
+    {
+      "name": "Issue 343 Browser Evidence",
+      "run_id": 31839141246,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Issue 342 Browser Evidence",
+      "run_id": 31839141593,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Issue 318 Browser Evidence",
+      "run_id": 31839138868,
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "all_required_remote_gates_green": true
+}
