@@ -5,6 +5,7 @@ const request = require('supertest');
 const mockGetAutomaticCloneSourceContract = jest.fn();
 const mockGetFirstSourceContract = jest.fn();
 const mockCloneContractData = jest.fn();
+let mockCurrentProfessorRole: 'master' | 'professor' = 'master';
 
 jest.mock('../src/modules/contracts/contract.service', () => ({
   contractService: {
@@ -36,8 +37,8 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
   ) => {
     (req as any).user = {
       userId: 'user-1',
-      professorId: 'master-1',
-      professorRole: 'master',
+      professorId: mockCurrentProfessorRole === 'master' ? 'master-1' : 'professor-1',
+      professorRole: mockCurrentProfessorRole,
       contractId: 'target-contract',
       type: 'professor',
     };
@@ -49,10 +50,18 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
     next: express.NextFunction
   ) => next(),
   masterMiddleware: (
-    _req: express.Request,
-    _res: express.Response,
+    req: express.Request,
+    res: express.Response,
     next: express.NextFunction
-  ) => next(),
+  ) => {
+    if ((req as any).user?.professorRole !== 'master') {
+      return res.status(403).json({
+        success: false,
+        error: 'Apenas professor master pode acessar este recurso',
+      });
+    }
+    next();
+  },
 }));
 
 jest.mock('../src/modules/access-control/access-control.middleware', () => ({
@@ -99,6 +108,7 @@ describe('POST /contracts/clone-data', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockCurrentProfessorRole = 'master';
     delete process.env.DEFAULT_CONTRACT_ID;
   });
 
@@ -154,28 +164,118 @@ describe('POST /contracts/clone-data', () => {
     });
   });
 
-  it('mantem sucesso idempotente quando todos os itens existentes sao retornados como skipped', async () => {
-    const idempotentResult = {
-      parametersCreated: 0,
-      parametersSkipped: 2,
-      exercisesCreated: 0,
-      exercisesSkipped: 5,
-      assessmentTypesCreated: 0,
-      assessmentTypesSkipped: 1,
-    };
+  it('ignora targetContractId e contractId enviados no body e usa o contrato autenticado', async () => {
     mockGetAutomaticCloneSourceContract.mockResolvedValue({ id: 'source-contract' });
-    mockCloneContractData.mockResolvedValue(idempotentResult);
+    mockCloneContractData.mockResolvedValue(responseCounters);
+
+    const response = await request(app).post('/contracts/clone-data').send({
+      targetContractId: 'attacker-contract',
+      contractId: 'attacker-contract',
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockGetAutomaticCloneSourceContract).toHaveBeenCalledWith(
+      'target-contract',
+      undefined
+    );
+    expect(mockCloneContractData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetContractId: 'target-contract',
+        professorId: 'master-1',
+      })
+    );
+  });
+
+  it('nega professor nao-master antes de resolver origem ou clonar dados', async () => {
+    mockCurrentProfessorRole = 'professor';
 
     const response = await request(app).post('/contracts/clone-data').send({});
 
+    expect(response.status).toBe(403);
+    expect(response.body).toEqual({
+      success: false,
+      error: 'Apenas professor master pode acessar este recurso',
+    });
+    expect(mockGetAutomaticCloneSourceContract).not.toHaveBeenCalled();
+    expect(mockGetFirstSourceContract).not.toHaveBeenCalled();
+    expect(mockCloneContractData).not.toHaveBeenCalled();
+  });
+
+  it('preserva sourceContractId explicito e nao executa selecao automatica', async () => {
+    mockCloneContractData.mockResolvedValue(responseCounters);
+
+    const response = await request(app).post('/contracts/clone-data').send({
+      sourceContractId: 'explicit-source',
+    });
+
     expect(response.status).toBe(200);
-    expect(response.body.success).toBe(true);
-    expect(response.body.data).toEqual(idempotentResult);
-    expect(response.body.data.parametersCreated).toBe(0);
-    expect(response.body.data.exercisesCreated).toBe(0);
-    expect(response.body.data.assessmentTypesCreated).toBe(0);
-    expect(response.body.data.parametersSkipped).toBeGreaterThan(0);
-    expect(response.body.data.exercisesSkipped).toBeGreaterThan(0);
-    expect(response.body.data.assessmentTypesSkipped).toBeGreaterThan(0);
+    expect(mockGetAutomaticCloneSourceContract).not.toHaveBeenCalled();
+    expect(mockGetFirstSourceContract).not.toHaveBeenCalled();
+    expect(mockCloneContractData).toHaveBeenCalledWith({
+      sourceContractId: 'explicit-source',
+      targetContractId: 'target-contract',
+      professorId: 'master-1',
+      copyParameters: true,
+      copyExercises: true,
+      copyAssessmentTypes: true,
+    });
+  });
+
+  it('mantem rejeicao quando sourceContractId explicito aponta para o contrato autenticado', async () => {
+    const response = await request(app).post('/contracts/clone-data').send({
+      sourceContractId: 'target-contract',
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: 'Contrato de origem deve ser diferente do contrato atual',
+      })
+    );
+    expect(mockGetAutomaticCloneSourceContract).not.toHaveBeenCalled();
+    expect(mockCloneContractData).not.toHaveBeenCalled();
+  });
+
+  it('preserva DEFAULT_CONTRACT_ID no fallback legado de clonagem parcial', async () => {
+    process.env.DEFAULT_CONTRACT_ID = 'configured-default';
+    mockCloneContractData.mockResolvedValue(responseCounters);
+
+    const response = await request(app).post('/contracts/clone-data').send({
+      copyExercises: false,
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockGetAutomaticCloneSourceContract).not.toHaveBeenCalled();
+    expect(mockGetFirstSourceContract).not.toHaveBeenCalled();
+    expect(mockCloneContractData).toHaveBeenCalledWith({
+      sourceContractId: 'configured-default',
+      targetContractId: 'target-contract',
+      professorId: 'master-1',
+      copyParameters: true,
+      copyExercises: false,
+      copyAssessmentTypes: true,
+    });
+  });
+
+  it('preserva contrato mais antigo no fallback legado parcial quando nao ha default', async () => {
+    mockGetFirstSourceContract.mockResolvedValue({ id: 'legacy-oldest-source' });
+    mockCloneContractData.mockResolvedValue(responseCounters);
+
+    const response = await request(app).post('/contracts/clone-data').send({
+      copyAssessmentTypes: false,
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockGetAutomaticCloneSourceContract).not.toHaveBeenCalled();
+    expect(mockGetFirstSourceContract).toHaveBeenCalledWith('target-contract');
+    expect(mockCloneContractData).toHaveBeenCalledWith({
+      sourceContractId: 'legacy-oldest-source',
+      targetContractId: 'target-contract',
+      professorId: 'master-1',
+      copyParameters: true,
+      copyExercises: true,
+      copyAssessmentTypes: false,
+    });
   });
 });
