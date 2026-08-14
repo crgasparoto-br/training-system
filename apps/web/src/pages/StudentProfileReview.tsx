@@ -117,7 +117,7 @@ export function StudentProfileReview() {
           <p className="text-sm font-medium text-muted-foreground">Aluno</p>
           <h1 className="text-2xl font-bold text-foreground">Revisão cadastral</h1>
           <p className="text-sm text-muted-foreground">
-            Consulte a solicitação de conferência dos seus dados. A edição e a conclusão da revisão serão disponibilizadas na próxima etapa deste fluxo.
+            Acompanhe a solicitação e o prazo da sua revisão cadastral. A conferência dos campos será feita por esta mesma página quando estiver disponível.
           </p>
         </div>
       </div>

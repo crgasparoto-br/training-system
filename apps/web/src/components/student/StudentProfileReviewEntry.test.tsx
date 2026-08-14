@@ -81,7 +81,7 @@ describe('StudentProfileReviewEntry', () => {
     expect(mocks.getNotifications).not.toHaveBeenCalled();
   });
 
-  it('transforma notificações de revisão do vínculo atual em navegação web e ignora outro vínculo', async () => {
+  it('transforma notificações da revisão atual em navegação web e rejeita aviso de revisão anterior', async () => {
     mocks.getSummary.mockResolvedValue({
       name: 'Aluno',
       nextProfileReviewAt: '2026-08-20T12:00:00.000Z',
@@ -101,9 +101,9 @@ describe('StudentProfileReviewEntry', () => {
       {
         id: 'n2',
         type: 'profile_review_overdue',
-        title: 'Outra revisão vencida',
-        message: 'Outro vínculo.',
-        data: { alunoId: 'aluno-2', reviewId: 'review-2' },
+        title: 'Revisão anterior vencida',
+        message: 'Aviso antigo da mesma matrícula.',
+        data: { alunoId: 'aluno-1', reviewId: 'review-2' },
         createdAt: '2026-08-09T12:00:00.000Z',
       },
       {
@@ -119,7 +119,7 @@ describe('StudentProfileReviewEntry', () => {
     renderEntry('contract-1');
 
     expect(await screen.findByText('Revisão solicitada')).toBeInTheDocument();
-    expect(screen.queryByText('Outra revisão vencida')).not.toBeInTheDocument();
+    expect(screen.queryByText('Revisão anterior vencida')).not.toBeInTheDocument();
     expect(screen.queryByText('Treino disponível')).not.toBeInTheDocument();
 
     const links = screen.getAllByRole('link', { name: /Abrir revisão/ });

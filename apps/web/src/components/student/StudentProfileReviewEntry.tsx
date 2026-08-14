@@ -40,8 +40,10 @@ function notificationBelongsToReview(
   if (!data || typeof data !== 'object') return false;
 
   const reviewId = typeof data.reviewId === 'string' ? data.reviewId : null;
+  if (reviewId) return reviewId === review.id;
+
   const alunoId = typeof data.alunoId === 'string' ? data.alunoId : null;
-  return reviewId === review.id || alunoId === review.alunoId;
+  return alunoId === review.alunoId;
 }
 
 function FailureCard({ kind, onRetry }: { kind: StudentSelfServiceErrorKind; onRetry: () => void }) {
