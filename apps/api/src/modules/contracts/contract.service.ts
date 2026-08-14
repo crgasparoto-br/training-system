@@ -43,11 +43,21 @@ function cloneSourceTotal(candidate: CloneSourceCandidate) {
   );
 }
 
-export function selectBestCloneSourceContract(candidates: CloneSourceCandidate[]) {
+export function selectBestCloneSourceContract(
+  candidates: CloneSourceCandidate[],
+  preferredSourceId?: string | null
+) {
   const eligible = candidates.filter((candidate) => cloneSourceTotal(candidate) > 0);
 
   if (eligible.length === 0) {
     return null;
+  }
+
+  if (preferredSourceId) {
+    const preferred = eligible.find((candidate) => candidate.id === preferredSourceId);
+    if (preferred) {
+      return preferred;
+    }
   }
 
   const withExercises = eligible.filter((candidate) => candidate._count.exerciseLibrary > 0);
@@ -64,7 +74,12 @@ export function selectBestCloneSourceContract(candidates: CloneSourceCandidate[]
       return totalDifference;
     }
 
-    return left.createdAt.getTime() - right.createdAt.getTime();
+    const createdAtDifference = left.createdAt.getTime() - right.createdAt.getTime();
+    if (createdAtDifference !== 0) {
+      return createdAtDifference;
+    }
+
+    return left.id.localeCompare(right.id);
   })[0];
 }
 
@@ -75,7 +90,7 @@ export const contractService = {
     });
   },
 
-  async getFirstSourceContract(excludeId: string) {
+  async getFirstSourceContract(excludeId: string, preferredSourceId?: string | null) {
     const candidates = await prisma.companyContract.findMany({
       where: { id: { not: excludeId } },
       select: {
@@ -91,7 +106,7 @@ export const contractService = {
       },
     });
 
-    return selectBestCloneSourceContract(candidates);
+    return selectBestCloneSourceContract(candidates, preferredSourceId);
   },
 
   async update(contractId: string, data: UpdateContractDTO) {
