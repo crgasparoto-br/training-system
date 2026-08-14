@@ -7,6 +7,7 @@ import { Login } from './pages/Login';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { Register } from './pages/Register';
 import { Home } from './pages/Home';
+import { StudentProfileReview } from './pages/StudentProfileReview';
 import { CollaboratorsList } from './pages/CollaboratorsList';
 import { CollaboratorDetails } from './pages/CollaboratorDetails';
 import { CollaboratorFormPage } from './pages/CollaboratorFormPage';
@@ -82,6 +83,12 @@ function DefaultAuthorizedRoute() {
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <Navigate to="/inicio" replace />;
 }
+function StudentProfileReviewRoute() {
+  const { isAuthenticated, user } = useAuthStore();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.type !== 'aluno') return <Navigate to="/inicio" replace />;
+  return <StudentProfileReview />;
+}
 function StudentsRoute() {
   const { isAuthenticated, user } = useAuthStore();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
@@ -112,6 +119,7 @@ function App() {
           <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
             <Route index element={<DefaultAuthorizedRoute />} />
             <Route path="inicio" element={<Home />} />
+            <Route path="student/profile-review" element={<StudentProfileReviewRoute />} />
             <Route path="professores" element={<Navigate to="/professores/new" replace />} />
             <Route path="professores/new" element={withAccess('collaborators.registration', <CollaboratorFormPage mode="create" />)} />
             <Route path="alunos" element={<StudentsRoute />} />

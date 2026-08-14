@@ -2,9 +2,11 @@ import type { AuthResponse } from '@corrida/types';
 import { Link, useLocation } from 'react-router-dom';
 import { canAccessScreen } from '../access/access-control';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
+import { StudentProfileReviewEntry } from '../components/student/StudentProfileReviewEntry';
 import { useAuthStore } from '../stores/useAuthStore';
 import { PRE_REGISTRATION_UI_ENABLED } from '../config/pre-registration-rollout';
 import { useLeadOnboardingSummary } from '../hooks/useLeadOnboardingSummary';
+import { getStudentContractId } from '../services/student-self.service';
 import { isGenericHomeFallback, LeadOnboardingHome } from './LeadOnboardingHome';
 
 type CurrentUser = AuthResponse['user'] | null | undefined;
@@ -140,6 +142,7 @@ export function Home() {
   const location = useLocation();
   const preferredAlunoId = (location.state as { preferredAlunoId?: string } | null)?.preferredAlunoId;
   const isAluno = user?.type === 'aluno';
+  const contractId = getStudentContractId(location.search);
   const { state, retry } = useLeadOnboardingSummary(
     isAluno && PRE_REGISTRATION_UI_ENABLED,
     preferredAlunoId
@@ -157,7 +160,27 @@ export function Home() {
     );
   }
 
+  if (isAluno) {
+    return <StudentHome contractId={contractId} />;
+  }
+
   return <GenericHome user={user} />;
+}
+
+function StudentHome({ contractId }: { contractId?: string }) {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <p className="text-sm font-medium text-muted-foreground">Aluno</p>
+        <h1 className="text-2xl font-bold text-foreground">Inicio</h1>
+        <p className="max-w-3xl text-sm text-muted-foreground">
+          Acompanhe aqui as ações que precisam da sua atenção no Sistema ACESSO.
+        </p>
+      </div>
+
+      <StudentProfileReviewEntry contractId={contractId} />
+    </div>
+  );
 }
 
 function GenericHome({ user }: { user: CurrentUser }) {

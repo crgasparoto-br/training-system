@@ -1,0 +1,79 @@
+name: Issue 342 Browser Evidence
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'apps/web/**'
+      - 'packages/types/**'
+      - 'packages/utils/**'
+      - 'scripts/verify-issue-342-browser-evidence.cjs'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/issue-342-browser-evidence.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  browser-evidence:
+    name: Chromium mobile and desktop evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install repository dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web application
+        env:
+          VITE_PRE_REGISTRATION_ENABLED: 'true'
+        run: pnpm --filter @corrida/web build
+
+      - name: Install isolated Chromium runtime
+        run: |
+          mkdir -p .tmp/issue-342-browser
+          npm install \
+            --prefix .tmp/issue-342-browser \
+            --no-package-lock \
+            --no-save \
+            playwright@1.55.0
+          .tmp/issue-342-browser/node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Verify Issue 342 in real Chromium
+        env:
+          NODE_PATH: ${{ github.workspace }}/.tmp/issue-342-browser/node_modules
+          ISSUE342_BASE_URL: http://127.0.0.1:4173
+          ISSUE342_EVIDENCE_DIR: ${{ github.workspace }}/issue-342-browser-evidence
+          ISSUE342_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          pnpm --filter @corrida/web preview -- --host 127.0.0.1 --port 4173 > issue-342-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          node scripts/verify-issue-342-browser-evidence.cjs
+
+      - name: Upload Issue 342 browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-342-browser-evidence-${{ github.run_id }}
+          path: |
+            issue-342-browser-evidence/
+            issue-342-preview.log
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,13 +1,13 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-14T01:56:28.024804+00:00",
+  "created_at": "2026-08-14T13:47:31.591703+00:00",
   "identity": {
-    "head_sha": "e02e2bb18f92440bf59b3f8c91d160bce17fca2d",
-    "material_head_sha": "e02e2bb18f92440bf59b3f8c91d160bce17fca2d",
-    "base_sha": "3a9b6ba03af4348c3c23ee029e0d6a1f4576dcd4",
-    "merge_preview_sha": "f443153880f299bec238fdb514b3da58979fa390",
-    "material_merge_preview_sha": "f443153880f299bec238fdb514b3da58979fa390"
+    "head_sha": "8915f9d4995c29d0fad4f719e81e66a58ac91f33",
+    "material_head_sha": "8915f9d4995c29d0fad4f719e81e66a58ac91f33",
+    "base_sha": "6878d1500dc07e39e2da0f29ab2a479e8b182782",
+    "merge_preview_sha": "6e6d41d45f15f8e79a589ed0d832189780609794",
+    "material_merge_preview_sha": "6e6d41d45f15f8e79a589ed0d832189780609794"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
@@ -15,10 +15,7 @@
       ".audit/entregar-issue/audit-escape-closure.json",
       ".audit/entregar-issue/audit-escape-pattern-catalog.json",
       ".audit/entregar-issue/documentation-impact.json",
-      ".audit/entregar-issue/evidence/focused-balance-negative.log",
-      ".audit/entregar-issue/evidence/reused-controls.log",
-      ".audit/entregar-issue/evidence/skill-ecosystem.json",
-      ".audit/entregar-issue/evidence/skill-hardening.log",
+      ".audit/entregar-issue/evidence/a342003-remediation.json",
       ".audit/entregar-issue/handoff-ready.json",
       ".audit/entregar-issue/inherited-controls.json",
       ".audit/entregar-issue/learning-closure.json",
@@ -26,51 +23,50 @@
       ".audit/entregar-issue/requirement-closure.json",
       ".audit/entregar-issue/risk-saturation.json",
       ".audit/entregar-issue/specification-snapshot.json",
-      ".audit/entregar-issue/specification-sources/SRC-ISSUE-320.txt",
-      ".audit/entregar-issue/specification-sources/SRC-ISSUE-339.txt"
+      ".audit/entregar-issue/specification-sources/SRC-ISSUE-342.txt"
     ]
   },
   "contract_version": "2026-08-06.2",
   "producer": {
     "skill": "entregar-issue",
-    "skill_sha256": "4cf242451d4ce3a03179c590434f42c2269cd3af8bd6b87f2aacd76188d40367"
+    "skill_sha256": "cb6592371252f42d11ba40096ebad0be4c5fd05e8ec9823db86b65c7079e5f85"
   },
   "validators": {
     "validate_specification_coverage.py": "a9e0510ae5dae3efd1d1bd84d5a8cfd6e6edce801db717e92126fdf4666e9b20",
     "validate_handoff_readiness.py": "dd5db6e1a88a16ed97e8a73535ce2e444e73638e4e7836f87b54949eeb978e83",
-    "validate_requirement_attack_matrix.py": "7e355bd90be501bfa93ef8f4ecef8cf94d7fe29e76f99fe0fd9afe733d1b24da",
-    "validate_risk_saturation.py": "c8228c28f93d8b7a3699e2489d2cc8011147816fbd9d4b1d543d4f10ec5a1b31",
+    "validate_requirement_attack_matrix.py": "18e6d6f24db37cd23dbe93a513141ae72a4356772f4d86e10aed8049c865e5ec",
+    "validate_risk_saturation.py": "bf6f897f051d826ec1c61f4c520b633314978ef949d76e1bcd7bb963069435df",
     "validate_inherited_controls.py": "614572eef445e4dff24dc0dd8753203603896521a499c4c1788f89bb668d8685",
     "validate_learning_closure.py": "38e91c2fab18aeba5545aa67a9ab118b3961e742867b670ccca7de7e1ca4ba94"
   },
   "artifacts": {
     "specification_snapshot": {
       "name": "specification-snapshot.json",
-      "sha256": "c5e19d3711dca45225ac774f7cfadfb3e1de63002443b7d4f67eb6caafa078ca"
+      "sha256": "1b8f6805ba056d989aec4a7ed7196328cf97b45d8a1fa8a2fa1c7685016bab1a"
     },
     "requirement_closure": {
       "name": "requirement-closure.json",
-      "sha256": "587a4c3d6c3ffce29123761b0ae5b67d32a987cdcea40a5ffde19723325f09b3"
+      "sha256": "0f4752717587dab9287e5e2884d28c625377b6724c949ba815b7758c5ae4ab2f"
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "4bf3a35a54202ad43b52e93bdecf80e58321f3ac0165c722a3e97dc0d4c66206"
+      "sha256": "3ab7987ab0585451ce00e48696e302abd8d7f9813ea7fc7b0c1a5ddb6e68e25b"
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "41e8da90619dd52d82952259f2dea30d241475ac157e545efb1a06dad1f3f02e"
+      "sha256": "e7f912a6580d499c75c22f75f0d5330719d8c6f19f581534d8c28e31e1625c8b"
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "4dfebce5721c921b01df7e1c12b8ae18675a9f9a839128aa31c2cc44bb39ee6a"
+      "sha256": "56772f8705fe260f78e3f5e3d5bc9455efe48ef6b8db766ab4f5f6c5ee7b9c08"
     },
     "audit_escape_closure": {
       "name": "audit-escape-closure.json",
-      "sha256": "c0eeb56b19c6ab43fdf03c4034d53268c37299e4a9a8a3e2ad5cb9e66bc0d593"
+      "sha256": "82e4cea5ef950399a5b213a90f6d5bbaa0ee9124d8bc51724ecf441dedbe195e"
     },
     "learning_closure": {
       "name": "learning-closure.json",
-      "sha256": "157512e4bd0c482d66c22de53a335531996c27f207c3d317373acacfe0f4bdcd"
+      "sha256": "c81621289428386f58684ad5c889b2d12c7fee374e6f0b75fed53dde6b93b502"
     }
   },
   "previous_independent_rejection": true
