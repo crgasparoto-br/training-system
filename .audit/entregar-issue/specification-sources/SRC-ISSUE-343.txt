@@ -1,0 +1,87 @@
+[aluno][revisão cadastral] Implementar tela web responsiva para conferir e concluir a revisão
+
+## Issue pai
+
+- #341
+
+## Dependência recomendada
+
+- #342
+
+## Objetivo
+
+Implementar no frontend web do aluno a tela funcional de revisão cadastral pendente, permitindo conferir os dados solicitados, concluir sem alterações ou enviar alterações permitidas pelo contrato atual.
+
+## Contexto
+
+O backend já possui `GET /api/v1/student/me/profile-review` e `POST /api/v1/student/me/profile-reviews/:reviewId/complete`, além das regras atuais para aplicar alterações não sensíveis e encaminhar campos sensíveis para aprovação do professor/gestor.
+
+A implementação deve reutilizar esses contratos e não duplicar regras críticas de sensibilidade no frontend.
+
+## Escopo
+
+- Criar a experiência completa da rota web de revisão cadastral do aluno.
+- Carregar a revisão pendente e os dados necessários para conferência.
+- Apresentar as seções solicitadas com linguagem adequada ao aluno.
+- Permitir confirmar que não há alterações.
+- Permitir enviar alterações suportadas pelo endpoint atual.
+- Informar ao aluno quando alguma alteração depender de aprovação.
+- Tratar conclusão, erro, revisão expirada/inexistente e tentativa de reenvio.
+- Preservar navegação de volta à experiência do aluno após conclusão.
+
+## Fora de escopo
+
+- mudar quais campos são sensíveis sem necessidade técnica comprovada;
+- aplicar diretamente campos que o backend exige aprovação;
+- implementar entrega externa por e-mail/WhatsApp;
+- criar app mobile.
+
+## Requisitos funcionais
+
+- A tela só pode operar sobre a revisão do aluno autenticado no vínculo/contrato ativo.
+- `sectionsRequested` deve orientar o que é apresentado, respeitando os dados que a API realmente suporta.
+- O aluno pode escolher concluir sem alterações.
+- Alterações não sensíveis devem seguir o comportamento atual da API.
+- Alterações sensíveis devem resultar em pendência de aprovação quando aplicável.
+- O frontend deve apresentar sucesso somente após confirmação da API.
+- Reenvio de revisão já concluída deve resultar em estado seguro e compreensível.
+- Falhas parciais não podem induzir o aluno a acreditar que a revisão foi concluída.
+
+## Requisitos de interface
+
+- Layout mobile-first e utilizável também em desktop.
+- Identificar claramente prazo, quando existir.
+- Diferenciar dados para conferência de dados efetivamente editáveis.
+- Indicar de forma simples quando uma alteração será analisada pelo profissional.
+- Evitar termos como payload, endpoint, aprovação sensível ou outros detalhes técnicos.
+- Garantir foco, labels e mensagens de erro acessíveis.
+
+## Estados obrigatórios
+
+- carregando;
+- revisão pendente;
+- nenhuma revisão disponível;
+- revisão vencida, quando o contrato atual a tratar como vencida;
+- erro de validação;
+- erro de rede/API;
+- envio em andamento;
+- conclusão com sucesso;
+- conclusão com alterações aguardando análise;
+- revisão já concluída ou não mais disponível.
+
+## Critérios de aceite
+
+- [ ] Aluno consegue abrir a revisão a partir da rota criada/integrada em #342.
+- [ ] Aluno consegue concluir uma revisão sem alterações.
+- [ ] Aluno consegue enviar alteração não sensível suportada pela API.
+- [ ] Alteração sensível não é aplicada diretamente quando exigir aprovação.
+- [ ] UI informa de modo claro quando houver análise posterior pelo profissional.
+- [ ] Tentativa de concluir revisão inexistente ou já concluída não causa estado inconsistente.
+- [ ] Erro de API não mostra sucesso falso.
+- [ ] Formulário e mensagens são utilizáveis em viewport mobile.
+- [ ] Testes cobrem sem alterações, alteração direta, alteração com aprovação e erro.
+- [ ] Regras críticas permanecem no backend e não são duplicadas como fonte de verdade no frontend.
+
+## Validação esperada
+
+Executar testes web/API relevantes e gates aplicáveis do repositório.
