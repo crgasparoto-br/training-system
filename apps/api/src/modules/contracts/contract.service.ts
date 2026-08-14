@@ -90,7 +90,17 @@ export const contractService = {
     });
   },
 
-  async getFirstSourceContract(excludeId: string, preferredSourceId?: string | null) {
+  async getFirstSourceContract(excludeId: string) {
+    return prisma.companyContract.findFirst({
+      where: { id: { not: excludeId } },
+      orderBy: { createdAt: 'asc' },
+    });
+  },
+
+  async getAutomaticCloneSourceContract(
+    excludeId: string,
+    preferredSourceId?: string | null
+  ) {
     const candidates = await prisma.companyContract.findMany({
       where: { id: { not: excludeId } },
       select: {
