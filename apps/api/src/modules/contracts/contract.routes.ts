@@ -637,18 +637,38 @@ router.post('/clone-data', async (req: Request, res: Response) => {
       copyAssessmentTypes?: boolean;
     };
 
-    let resolvedSourceId = sourceContractId || process.env.DEFAULT_CONTRACT_ID;
+    const isFullScreenClone = copyParameters && copyExercises && copyAssessmentTypes;
+    let resolvedSourceId = sourceContractId;
 
-    if (!resolvedSourceId) {
-      const firstSource = await contractService.getFirstSourceContract(contractId);
-      if (!firstSource) {
+    if (!resolvedSourceId && isFullScreenClone) {
+      const source = await contractService.getBestCloneSourceContract(
+        contractId,
+        process.env.DEFAULT_CONTRACT_ID
+      );
+      if (!source) {
         return sendError(
           res,
-          'Nenhum contrato de origem disponÃ­vel para clonagem',
+          'Nenhum contrato de origem com dados clonáveis está disponível',
           404
         );
       }
-      resolvedSourceId = firstSource.id;
+      resolvedSourceId = source.id;
+    }
+
+    if (!resolvedSourceId) {
+      resolvedSourceId = process.env.DEFAULT_CONTRACT_ID;
+
+      if (!resolvedSourceId) {
+        const firstSource = await contractService.getFirstSourceContract(contractId);
+        if (!firstSource) {
+          return sendError(
+            res,
+            'Nenhum contrato de origem disponÃ­vel para clonagem',
+            404
+          );
+        }
+        resolvedSourceId = firstSource.id;
+      }
     }
 
     if (resolvedSourceId === contractId) {
@@ -677,4 +697,3 @@ router.post('/clone-data', async (req: Request, res: Response) => {
 });
 
 export default router;
-

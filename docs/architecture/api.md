@@ -71,6 +71,22 @@ O módulo `apps/api/src/modules/professor-manual` é montado em `/api/v1/profess
 - os painéis contextuais da Central do Aluno consomem essa rota, inclusive na área de avaliações físicas;
 - a rota deve permanecer registrada no bootstrap da API sempre que os componentes web do Manual do Professor estiverem ativos, evitando que uma capacidade existente seja apresentada como erro 404.
 
+## Clonagem de dados do contrato
+
+A rota `POST /api/v1/contracts/clone-data` continua restrita a professor master e deriva o contrato alvo exclusivamente da sessão autenticada.
+
+Quando a chamada não informa `sourceContractId` e solicita as três categorias usadas pela tela Empresa / prestador (parâmetros, exercícios e tipos de avaliação), a origem automática segue esta precedência:
+
+1. `DEFAULT_CONTRACT_ID`, se estiver configurado, for diferente do alvo e possuir ao menos um registro clonável;
+2. candidatos com ao menos um exercício de biblioteca;
+3. maior quantidade de categorias com dados;
+4. maior quantidade total de registros nas três categorias;
+5. contrato mais antigo por `createdAt`, com `id` como desempate determinístico.
+
+Contratos completamente vazios não são elegíveis. Se o default estiver vazio ou apontar para o alvo, ele é ignorado e o ranking automático continua. Se nenhuma origem elegível existir, a rota responde `404`. A elegibilidade considera os dados existentes na origem, sem calcular delta contra o alvo; a deduplicação permanece em `cloneContractData`, portanto repetições idempotentes continuam retornando sucesso com itens em `skipped`.
+
+Chamadas com `sourceContractId` explícito e chamadas técnicas que clonam apenas um subconjunto das categorias preservam a resolução anterior.
+
 ## Validacoes relacionadas
 
 - `pnpm type-check`
