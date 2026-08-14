@@ -637,10 +637,13 @@ router.post('/clone-data', async (req: Request, res: Response) => {
       copyAssessmentTypes?: boolean;
     };
 
-    let resolvedSourceId = sourceContractId || process.env.DEFAULT_CONTRACT_ID;
+    let resolvedSourceId = sourceContractId;
 
     if (!resolvedSourceId) {
-      const firstSource = await contractService.getFirstSourceContract(contractId);
+      const firstSource = await contractService.getFirstSourceContract(
+        contractId,
+        process.env.DEFAULT_CONTRACT_ID
+      );
       if (!firstSource) {
         return sendError(
           res,
