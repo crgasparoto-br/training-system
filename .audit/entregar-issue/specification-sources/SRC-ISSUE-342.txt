@@ -1,5 +1,3 @@
-# [aluno][revisão cadastral] Expor pendência e notificações acionáveis na experiência web do aluno
-
 ## Issue pai
 
 - #341
