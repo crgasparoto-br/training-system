@@ -165,7 +165,7 @@ export function getStudentSelfServiceErrorKind(error: unknown): StudentSelfServi
 
 export const isProfileReviewNotification = (
   notification: StudentNotification
-): notification is StudentNotifileReviewNotificationType & { type: StudentProfileReviewNotificationType } =>
+): notification is StudentNotification & { type: StudentProfileReviewNotificationType } =>
   notification.type === 'profile_review_requested' ||
   notification.type === 'profile_review_reminder' ||
   notification.type === 'profile_review_overdue';
