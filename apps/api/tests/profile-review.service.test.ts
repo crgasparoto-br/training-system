@@ -94,6 +94,7 @@ function makeAlunoRecord(overrides: Record<string, unknown> = {}) {
     id: ALUNO_ID,
     contractId: CONTRACT_ID,
     userId: ALUNO_USER_ID,
+    status: 'ACTIVE_STUDENT',
     leadName: null,
     leadEmail: null,
     leadEmailNormalized: null,
@@ -163,6 +164,7 @@ function makePendingReview(overrides: Record<string, unknown> = {}) {
     sectionsRequested: null,
     aluno: {
       id: ALUNO_ID,
+      contractId: CONTRACT_ID,
       user: { id: ALUNO_USER_ID },
       professor: { contractId: CONTRACT_ID },
       currentStudentContract: null,
@@ -276,23 +278,87 @@ describe('profileReviewService', () => {
       db.alunoProfileReviewSettings.upsert.mockResolvedValue({});
     }
 
+    const scopedInput = {
+      reviewId: REVIEW_ID,
+      alunoUserId: ALUNO_USER_ID,
+      alunoId: ALUNO_ID,
+      contractId: CONTRACT_ID,
+    };
+
     it('conclui revisão sem alteração', async () => {
       setupCompleteBase();
       const updatedReview = { ...makePendingReview(), status: 'completed_no_changes', completedAt: new Date() };
       db.studentProfileReview.update.mockResolvedValue(updatedReview);
 
       const result = await profileReviewService.completeByStudent({
-        reviewId: REVIEW_ID,
-        alunoUserId: ALUNO_USER_ID,
+        ...scopedInput,
         noChanges: true,
       });
 
+      expect(db.aluno.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: ALUNO_ID,
+          userId: ALUNO_USER_ID,
+          contractId: CONTRACT_ID,
+          status: 'ACTIVE_STUDENT',
+        },
+        select: { id: true },
+      });
       expect(db.studentProfileReview.update).toHaveBeenCalledWith(
         expect.objectContaining({
+          where: {
+            id: REVIEW_ID,
+            alunoId: ALUNO_ID,
+            status: 'pending',
+          },
           data: expect.objectContaining({ status: 'completed_no_changes' }),
         }),
       );
       expect(result.status).toBe('completed_no_changes');
+    });
+
+    it('rejeita revisão que pertence a outro contrato do mesmo usuário', async () => {
+      setupCompleteBase();
+      db.studentProfileReview.findUnique.mockResolvedValue(
+        makePendingReview({
+          aluno: {
+            id: ALUNO_ID,
+            contractId: 'contract-2',
+            user: { id: ALUNO_USER_ID },
+            professor: { contractId: 'contract-2' },
+            currentStudentContract: null,
+          },
+        })
+      );
+
+      await expect(
+        profileReviewService.completeByStudent({ ...scopedInput, noChanges: true })
+      ).rejects.toThrow('Revisão cadastral não encontrada');
+
+      expect(db.$transaction).not.toHaveBeenCalled();
+      expect(db.studentProfileReview.update).not.toHaveBeenCalled();
+    });
+
+    it('revalida o vínculo ativo dentro da transação antes de concluir', async () => {
+      setupCompleteBase();
+      db.aluno.findFirst.mockResolvedValue(null);
+
+      await expect(
+        profileReviewService.completeByStudent({ ...scopedInput, noChanges: true })
+      ).rejects.toThrow('Revisão cadastral não encontrada');
+
+      expect(db.studentProfileReview.update).not.toHaveBeenCalled();
+    });
+
+    it('rejeita reenvio concorrente quando a revisão deixa de estar pendente antes da gravação', async () => {
+      setupCompleteBase();
+      db.studentProfileReview.update.mockRejectedValue(
+        Object.assign(new Error('Record not found'), { code: 'P2025' })
+      );
+
+      await expect(
+        profileReviewService.completeByStudent({ ...scopedInput, noChanges: true })
+      ).rejects.toThrow('A revisão cadastral não está pendente');
     });
 
     it('conclui com alteração direta (campo não-sensível aplicado imediatamente)', async () => {
@@ -302,8 +368,7 @@ describe('profileReviewService', () => {
       db.profile.update.mockResolvedValue({});
 
       const result = await profileReviewService.completeByStudent({
-        reviewId: REVIEW_ID,
-        alunoUserId: ALUNO_USER_ID,
+        ...scopedInput,
         changes: {
           profile: { name: 'João Novo' }, // non-sensitive field
         },
@@ -333,8 +398,7 @@ describe('profileReviewService', () => {
       db.profile.update.mockResolvedValue({});
 
       const result = await profileReviewService.completeByStudent({
-        reviewId: REVIEW_ID,
-        alunoUserId: ALUNO_USER_ID,
+        ...scopedInput,
         changes: {
           profile: { cpf: '123.456.789-00' }, // sensitive field
         },
@@ -362,6 +426,7 @@ describe('profileReviewService', () => {
       const pendingReview = makePendingReview({
         aluno: {
           id: ALUNO_ID,
+          contractId: CONTRACT_ID,
           user: { id: ALUNO_USER_ID },
           professor: { contractId: CONTRACT_ID },
           currentStudentContract: {
@@ -385,8 +450,7 @@ describe('profileReviewService', () => {
       db.studentProfileReview.update.mockResolvedValue(updatedReview);
 
       await profileReviewService.completeByStudent({
-        reviewId: REVIEW_ID,
-        alunoUserId: ALUNO_USER_ID,
+        ...scopedInput,
         changes: {
           intakeForm: {
             parqResponses: {
