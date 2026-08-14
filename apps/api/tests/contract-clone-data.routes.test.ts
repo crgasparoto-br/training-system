@@ -21,10 +21,6 @@ jest.mock('../src/modules/contracts/contract-document.service', () => ({
   contractDocumentService: {},
 }));
 
-jest.mock('../src/modules/contracts/contract-document.template.service', () => ({
-  contractDocumentTemplateService: {},
-}));
-
 jest.mock('../src/modules/adipometry/adipometry-governance.service', () => ({
   adipometryGovernanceService: {},
   AdipometryGovernanceError: class AdipometryGovernanceError extends Error {
