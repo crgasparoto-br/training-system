@@ -1,1 +1,24 @@
-{"schema_version":1,"repository":"crgasparoto-br/training-system","pull_request":338,"issue":320,"head_sha":"292b62bd587034fb3879ba34c27a6e15813d0b65","previous_independent_rejection":true,"status":"ready","controls":[{"id":"REF-LIVE-001","status":"passed","head_sha":"292b62bd587034fb3879ba34c27a6e15813d0b65","evidence":"Reference liveness controls reused; docs-only delta does not alter runtime."},{"id":"TEMP-PERIOD-001","status":"passed","head_sha":"292b62bd587034fb3879ba34c27a6e15813d0b65","evidence":"Temporal destination controls reused; docs-only delta does not alter runtime."},{"id":"HIST-IMMUTABILITY-001","status":"passed","head_sha":"292b62bd587034fb3879ba34c27a6e15813d0b65","evidence":"Historical template/day controls reused; docs-only delta does not alter runtime."},{"id":"HIST-IMMUTABILITY-002","status":"passed","head_sha":"292b62bd587034fb3879ba34c27a6e15813d0b65","evidence":"Historical exercise controls reused; docs-only delta does not alter runtime."},{"id":"PUBLIC-BOUNDARY-ERR-001","status":"passed","head_sha":"292b62bd587034fb3879ba34c27a6e15813d0b65","evidence":"Public non-enumeration/error controls reused; docs-only delta does not alter runtime."},{"id":"HIST-CAP-BLOCK-001","status":"passed","head_sha":"292b62bd587034fb3879ba34c27a6e15813d0b65","evidence":"Late structured block insertion remains protected; docs-only delta does not alter runtime."},{"id":"HANDOFF-READINESS-002","status":"passed","head_sha":"292b62bd587034fb3879ba34c27a6e15813d0b65","evidence":"New material documentation commit invalidated prior handoff and requires rebuilt readiness."},{"id":"HANDOFF-CERT-002","status":"passed","head_sha":"292b62bd587034fb3879ba34c27a6e15813d0b65","evidence":"Certificate will be rebound to the new material identity."},{"id":"HANDOFF-MATERIAL-DRIFT-003","status":"passed","head_sha":"292b62bd587034fb3879ba34c27a6e15813d0b65","evidence":"Material descendant after prior handoff correctly forced refreeze."},{"id":"HANDOFF-CERT-003","status":"passed","head_sha":"292b62bd587034fb3879ba34c27a6e15813d0b65","evidence":"Only result-only audit paths are allowed after the new freeze."},{"id":"HANDOFF-MATERIAL-DRIFT-004","status":"passed","head_sha":"292b62bd587034fb3879ba34c27a6e15813d0b65","evidence":"Prior A-007 material refreeze rule remains inherited."},{"id":"DOC-STATE-DRIFT-001","status":"passed","head_sha":"292b62bd587034fb3879ba34c27a6e15813d0b65","evidence":"Exact-head roadmap verification at 292b62bd plus contradiction scan against the current consolidated model and the historical issue-318 execution plan."}],"unresolved_controls":[]}
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/training-system",
+  "issue": 339,
+  "head_sha": "e02e2bb18f92440bf59b3f8c91d160bce17fca2d",
+  "previous_independent_rejection": true,
+  "source_audits": [
+    {
+      "finding_id": "AUD-339-001",
+      "material_head_sha": "3a9b6ba03af4348c3c23ee029e0d6a1f4576dcd4",
+      "verdict": "delivery-not-saturated"
+    }
+  ],
+  "controls": [
+    {
+      "id": "SIBLING-EVIDENCE-001",
+      "origin_finding": "AUD-339-001",
+      "status": "passed",
+      "head_sha": "e02e2bb18f92440bf59b3f8c91d160bce17fca2d",
+      "evidence": "Quatro cenários adversariais focados foram executados no helper exato do material head; evidence/focused-balance-negative.log sha256=6cc56a17715981666674aaf055f4d191fb4293d2ebe615d20aec36b4238107f1"
+    }
+  ],
+  "unresolved_controls": []
+}

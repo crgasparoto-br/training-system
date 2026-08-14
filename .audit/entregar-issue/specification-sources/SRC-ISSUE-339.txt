@@ -1,0 +1,60 @@
+Parent: #315
+Blocks completion of: #320
+Derived from: #319
+
+## Objetivo
+
+Definir e implementar uma representação operacional explícita, versionada e sem perda semântica para os blocos de **Flexibilidade** e **Equilíbrio** da Prescrição por capacidades dentro do grafo existente `TrainingPlan -> WorkoutTemplate -> WorkoutDay -> WorkoutExercise`, permitindo que a liberação fail-closed da #320 consiga publicar uma Montagem Consolidada completa com as quatro capacidades.
+
+## Contexto
+
+A #319 deliberadamente preserva Flexibilidade e Equilíbrio como itens rastreáveis com `compatibility=incompatible` e `operational_representation_unavailable`, porque os campos atuais do Workout Builder não oferecem contrato suficiente para traduzi-los com segurança.
+
+A #320 exige as quatro capacidades e recusa qualquer item incompatível. Portanto a infraestrutura de liberação pode ser implementada e validada, mas o fluxo end-to-end permanece bloqueado enquanto essas duas capacidades não tiverem representação operacional explícita.
+
+## Escopo
+
+- revisar os dados estruturados persistidos para Flexibilidade e Equilíbrio nas `CapacityPrescriptionVersion` atuais;
+- identificar quais conceitos precisam chegar à sessão/treino operacional sem perda de significado;
+- decidir se a representação correta reutiliza campos existentes ou exige evolução aditiva de `WorkoutTemplate`, `WorkoutDay`, `WorkoutExercise` ou entidade operacional relacional equivalente;
+- manter `ExerciseLibrary` como autoridade de qualquer `WorkoutExercise.exerciseId` quando exercício for realmente parte da representação;
+- implementar tradução por IDs/contratos estruturados, nunca por nome, label ou texto livre;
+- atualizar a projeção da #319 para emitir `compatibility=mapped` somente quando o contrato estiver integralmente representável;
+- preservar versionamento, tenant, rastreabilidade e revalidação usados pela #320;
+- cobrir leitura, criação/atualização, histórico e regressão do Workout Builder.
+
+## Fora de escopo
+
+- criar exercício fictício para representar uma capacidade;
+- converter texto livre em regra operacional;
+- matching por nome;
+- relaxar o gate da #320 para ignorar blocos incompatíveis;
+- criar um modelo paralelo de `Treino de hoje`;
+- decidir automaticamente substituições clínicas.
+
+## Cenários obrigatórios
+
+- Flexibilidade com todos os parâmetros estruturados suportados gera projeção operacional mapeada e rastreável;
+- Equilíbrio com todos os parâmetros estruturados suportados gera projeção operacional mapeada e rastreável;
+- parâmetro ainda sem representação mantém incompatibilidade explícita e bloqueia release;
+- mudança posterior do contrato/mapeamento não altera snapshot histórico;
+- cross-tenant é rejeitado;
+- regressão garante que Resistido/Cíclico continuam usando o contrato atual;
+- uma Montagem Consolidada completa com as quatro capacidades passa pela preparação e chega ao comando de liberação da #320 sem `operational_representation_unavailable`.
+
+## Critérios de aceite
+
+- [ ] Existe contrato operacional documentado para Flexibilidade.
+- [ ] Existe contrato operacional documentado para Equilíbrio.
+- [ ] A persistência necessária é aditiva e não substitui destrutivamente o Workout Builder atual.
+- [ ] A projeção da #319 usa somente campos/entidades realmente modelados e IDs estáveis.
+- [ ] Nenhum fallback textual ou exercício fictício é criado.
+- [ ] Snapshots antigos permanecem imutáveis/rastreáveis após evolução do mapeamento.
+- [ ] A #320 consegue liberar uma montagem completa das quatro capacidades quando todos os demais gates estiverem válidos.
+- [ ] Testes cobrem sucesso, incompatibilidade residual, tenant e regressão.
+- [ ] `pnpm validate`, `pnpm access:check`, `pnpm arch:check` e `pnpm docs:check` passam.
+
+## Dependências
+
+- #319 — contrato de preparação/mapeamento existente.
+- #320 — consumidor fail-closed da projeção operacional.

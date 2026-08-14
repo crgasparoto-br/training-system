@@ -1,1 +1,58 @@
-{"schema_version":1,"escapes":[{"escape_id":"A-001","escape_class":"stale-reference-after-approval","source_audit":{"head_sha":"prior-material-candidate","finding_id":"A-001"},"status":"passed","plausible_wrong_implementation":"Use approval-time reference state without rechecking it at the final release operation.","literal_case":{"status":"passed","evidence":"reference changed after approval is rejected"},"sibling_cases":[{"id":"A-001-S1","status":"passed","evidence":"reference becomes ineligible"},{"id":"A-001-S2","status":"passed","evidence":"reference is removed"}],"prevention_change":{"evidence":"final-operation reference check"},"detection_change":{"evidence":"REF-LIVE-001 reused"}},{"escape_id":"A-002","escape_class":"temporal-destination-drift","source_audit":{"head_sha":"prior-material-candidate","finding_id":"A-002"},"status":"passed","plausible_wrong_implementation":"Treat destination date and selected period as independent values during final publication.","literal_case":{"status":"passed","evidence":"inconsistent date and period rejected"},"sibling_cases":[{"id":"A-002-S1","status":"passed","evidence":"non-future date rejected"},{"id":"A-002-S2","status":"passed","evidence":"different target period rejected"}],"prevention_change":{"evidence":"destination coherence checks"},"detection_change":{"evidence":"TEMP-PERIOD-001 reused"}},{"escape_id":"A-003","escape_class":"released-history-writable-by-legacy-writers","source_audit":{"head_sha":"prior-material-candidate","finding_id":"A-003"},"status":"passed","plausible_wrong_implementation":"Protect the primary release path while another supported write path can alter released planning.","literal_case":{"status":"passed","evidence":"released planning change rejected"},"sibling_cases":[{"id":"A-003-S1","status":"passed","evidence":"day structure change rejected"},{"id":"A-003-S2","status":"passed","evidence":"exercise structure change rejected"}],"prevention_change":{"evidence":"persistent history protection"},"detection_change":{"evidence":"historical controls reused"}},{"escape_id":"A-004","escape_class":"stale-handoff-after-material-remediation","source_audit":{"head_sha":"prior-material-candidate","finding_id":"A-004"},"status":"passed","plausible_wrong_implementation":"Reuse a readiness certificate created before a later material change to the candidate.","literal_case":{"status":"passed","evidence":"older certificate rejected"},"sibling_cases":[{"id":"A-004-S1","status":"passed","evidence":"application change requires refreeze"},{"id":"A-004-S2","status":"passed","evidence":"test change requires refreeze"}],"prevention_change":{"evidence":"certificate follows final material freeze"},"detection_change":{"evidence":"identity drift control"}},{"escape_id":"A-006","escape_class":"stale-handoff-after-material-remediation","source_audit":{"head_sha":"prior-material-candidate","finding_id":"A-006"},"status":"passed","plausible_wrong_implementation":"Classify a later contract or regression change as result-only and preserve an older material identity.","literal_case":{"status":"passed","evidence":"material descendant detected"},"sibling_cases":[{"id":"A-006-S1","status":"passed","evidence":"contract change classified material"},{"id":"A-006-S2","status":"passed","evidence":"regression change classified material"}],"prevention_change":{"evidence":"material identity binding"},"detection_change":{"evidence":"changed-path control"}},{"escape_id":"A-007","escape_class":"released-history-accepts-late-structured-child-inserts","source_audit":{"head_sha":"prior-material-candidate","finding_id":"A-007"},"status":"passed","plausible_wrong_implementation":"Protect existing released records but still allow a new structured child record after publication.","literal_case":{"status":"passed","evidence":"late flexibility block rejected"},"sibling_cases":[{"id":"A-007-S1","status":"passed","evidence":"late balance block rejected"},{"id":"A-007-S2","status":"passed","evidence":"pre-release block accepted"}],"prevention_change":{"evidence":"insert protection"},"detection_change":{"evidence":"HIST-CAP-BLOCK-001 reused"}},{"escape_id":"A-008","escape_class":"stale-handoff-after-material-remediation","source_audit":{"head_sha":"prior-material-candidate","finding_id":"A-008"},"status":"passed","plausible_wrong_implementation":"Keep an older material certificate after a later remediation changes persistence or regression evidence.","literal_case":{"status":"passed","evidence":"prior material certificate invalidated"},"sibling_cases":[{"id":"A-008-S1","status":"passed","evidence":"later persistence change requires refreeze"},{"id":"A-008-S2","status":"passed","evidence":"later regression change requires refreeze"}],"prevention_change":{"evidence":"material refreeze"},"detection_change":{"evidence":"HANDOFF-MATERIAL-DRIFT-004"}},{"escape_id":"A-009","escape_class":"documentation-claim-drift","source_audit":{"head_sha":"1089f44a17665e7f6a09a60bbd151a49f28c428b","finding_id":"A-009"},"status":"passed","plausible_wrong_implementation":"Update specialized release documentation while leaving the canonical current-state roadmap describing the capability as future.","literal_case":{"status":"passed","evidence":"At 292b62bd, the canonical roadmap now says the consolidated assembly is implemented through controlled operational release instead of only through approval."},"sibling_cases":[{"id":"DOC-STATE-DRIFT-001-S1","dimension":"adjacent current-state section","status":"passed","evidence":"Training-operational maturity now records controlled publication as implemented while keeping the daily experience partial."},{"id":"DOC-STATE-DRIFT-001-S2","dimension":"historical scope document","status":"passed","evidence":"The issue-318 execution plan retains approved->released as out of scope for issue 318 and is classified as historical rather than rewritten."}],"prevention_change":{"skill_or_code":"canonical documentation update plus documentation-impact closure","evidence":"docs/product/roadmap.md commit 292b62bd and unresolved_contradictions=[] in documentation-impact.json"},"detection_change":{"skill_or_gate":"repository documentation contradiction scan","control_id":"DOC-STATE-DRIFT-001","evidence":"Exact-head roadmap verification at 292b62bd plus contradiction scan against the current consolidated model and the historical issue-318 execution plan."},"trigger_terms":["current state","future","pending","implemented","released","operational"],"required_risk_families":["documentation","structural-contract"]}]}
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "AUD-339-001",
+      "escape_class": "declared-sibling-evidence-without-execution",
+      "source_audit": {
+        "head_sha": "3a9b6ba03af4348c3c23ee029e0d6a1f4576dcd4",
+        "finding_id": "AUD-339-001"
+      },
+      "status": "passed",
+      "plausible_wrong_implementation": "Registrar um caso irmão como passed na matriz adversarial sem existir teste executável ou artefato verificável que exerça aquele caso.",
+      "literal_case": {
+        "procedure": "Executar Equilíbrio com focus válido, supports contendo string em branco e sem progressionNotes contra o helper exato do material head.",
+        "status": "passed",
+        "evidence": "literal-blank-support: PASS em evidence/focused-balance-negative.log, sha256=6cc56a17715981666674aaf055f4d191fb4293d2ebe615d20aec36b4238107f1"
+      },
+      "sibling_cases": [
+        {
+          "id": "S1",
+          "dimension": "required-focus",
+          "status": "passed",
+          "evidence": "sibling-missing-focus: PASS no mesmo artefato."
+        },
+        {
+          "id": "S2",
+          "dimension": "support-or-progression",
+          "status": "passed",
+          "evidence": "sibling-missing-support-and-progression: PASS no mesmo artefato."
+        },
+        {
+          "id": "S3",
+          "dimension": "parallel-capability",
+          "status": "passed",
+          "evidence": "sibling-incomplete-flexibility: PASS no mesmo artefato."
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "references/controller-adversarial-evidence.md",
+        "evidence": "Regra permanente agora exige procedure, observed, evidence_path, evidence_sha256 e head_sha em cada sibling case obrigatório."
+      },
+      "detection_change": {
+        "skill_or_gate": "scripts/validate_requirement_attack_matrix.py",
+        "control_id": "SIBLING-EVIDENCE-001",
+        "evidence": "Validador agora rejeita sibling declarativo, verifica existência e SHA-256 do artefato; testes focados e ecossistema passaram."
+      },
+      "trigger_terms": [
+        "sibling_cases",
+        "negative control",
+        "passed",
+        "adversarial evidence"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ]
+    }
+  ]
+}

@@ -112,4 +112,87 @@ describe('flexibility and balance operational projection', () => {
       proposedFields: {},
     });
   });
+
+  it('keeps balance with a blank support fail-closed instead of falling back to text', () => {
+    const [item] = buildOperationalProjectionItems(
+      [
+        {
+          id: 'capacity-balance-blank-support',
+          capacity: 'balance',
+          parameters: {
+            type: 'balance',
+            balance: {
+              focus: 'estabilidade unipodal',
+              supports: [''],
+              expectedPse: 2,
+            },
+          },
+        },
+      ],
+      new Map()
+    );
+
+    expect(item).toMatchObject({
+      capacity: 'balance',
+      compatibility: 'incompatible',
+      target: 'none',
+      incompatibilityCode: 'operational_representation_unavailable',
+      proposedFields: {},
+    });
+  });
+
+  it('keeps balance without focus fail-closed even when a support is present', () => {
+    const [item] = buildOperationalProjectionItems(
+      [
+        {
+          id: 'capacity-balance-missing-focus',
+          capacity: 'balance',
+          parameters: {
+            type: 'balance',
+            balance: {
+              supports: ['unipodal'],
+              expectedPse: 2,
+            },
+          },
+        },
+      ],
+      new Map()
+    );
+
+    expect(item).toMatchObject({
+      capacity: 'balance',
+      compatibility: 'incompatible',
+      target: 'none',
+      incompatibilityCode: 'operational_representation_unavailable',
+      proposedFields: {},
+    });
+  });
+
+  it('keeps balance without support or progression fail-closed even when focus is present', () => {
+    const [item] = buildOperationalProjectionItems(
+      [
+        {
+          id: 'capacity-balance-missing-support-and-progression',
+          capacity: 'balance',
+          parameters: {
+            type: 'balance',
+            balance: {
+              focus: 'estabilidade unipodal',
+              supports: [],
+              expectedPse: 2,
+            },
+          },
+        },
+      ],
+      new Map()
+    );
+
+    expect(item).toMatchObject({
+      capacity: 'balance',
+      compatibility: 'incompatible',
+      target: 'none',
+      incompatibilityCode: 'operational_representation_unavailable',
+      proposedFields: {},
+    });
+  });
 });

@@ -1,1 +1,105 @@
-{"schema_version":1,"head_sha":"292b62bd587034fb3879ba34c27a6e15813d0b65","families":[{"family":"authorization","applicable":true,"status":"passed","control_ids":["NEG-002","NEG-003","NEG-014"],"reason":"Applicable from grouped atomic obligations and closed by the listed adversarial controls."},{"family":"tenant-isolation","applicable":true,"status":"passed","control_ids":["NEG-014"],"reason":"Applicable from grouped atomic obligations and closed by the listed adversarial controls."},{"family":"public-boundary","applicable":true,"status":"passed","control_ids":["NEG-003","NEG-014"],"reason":"Applicable from grouped atomic obligations and closed by the listed adversarial controls."},{"family":"reference-liveness","applicable":true,"status":"passed","control_ids":["NEG-004","NEG-005","NEG-006"],"reason":"Applicable from grouped atomic obligations and closed by the listed adversarial controls."},{"family":"temporal-consistency","applicable":true,"status":"passed","control_ids":["NEG-015"],"reason":"Applicable from grouped atomic obligations and closed by the listed adversarial controls."},{"family":"temporal-destination","applicable":true,"status":"passed","control_ids":["NEG-013","NEG-015"],"reason":"Applicable from grouped atomic obligations and closed by the listed adversarial controls."},{"family":"concurrency-atomicity","applicable":true,"status":"passed","control_ids":["NEG-004","NEG-011","NEG-012"],"reason":"Applicable from grouped atomic obligations and closed by the listed adversarial controls."},{"family":"idempotency","applicable":true,"status":"passed","control_ids":["NEG-010","NEG-011"],"reason":"Applicable from grouped atomic obligations and closed by the listed adversarial controls."},{"family":"rollback","applicable":true,"status":"passed","control_ids":["NEG-012"],"reason":"Applicable from grouped atomic obligations and closed by the listed adversarial controls."},{"family":"historical-immutability","applicable":true,"status":"passed","control_ids":["NEG-008","NEG-013","NEG-015"],"reason":"Applicable from grouped atomic obligations and closed by the listed adversarial controls."},{"family":"structural-contract","applicable":true,"status":"passed","control_ids":["DOC-STATE-DRIFT-001","NEG-001","NEG-005","NEG-006","NEG-007","NEG-008","NEG-009"],"reason":"Applicable from grouped atomic obligations and closed by the listed adversarial controls."},{"family":"documentation","applicable":true,"status":"passed","control_ids":["DOC-STATE-DRIFT-001"],"reason":"Applicable from grouped atomic obligations and closed by the listed adversarial controls."}],"material_families_missing_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "e02e2bb18f92440bf59b3f8c91d160bce17fca2d",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": false,
+      "reason": "A especificação e o delta material atual não ativam esta família como risco independente.",
+      "control_ids": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": true,
+      "reason": "Aplicável pelo contrato da Issue #339 e fechado por controle discriminante no SHA material atual.",
+      "control_ids": [
+        "NC-339-005"
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "A especificação e o delta material atual não ativam esta família como risco independente.",
+      "control_ids": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Aplicável pelo contrato da Issue #339 e fechado por controle discriminante no SHA material atual.",
+      "control_ids": [
+        "NC-339-005"
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": false,
+      "reason": "A especificação e o delta material atual não ativam esta família como risco independente.",
+      "control_ids": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "A especificação e o delta material atual não ativam esta família como risco independente.",
+      "control_ids": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "A especificação e o delta material atual não ativam esta família como risco independente.",
+      "control_ids": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": false,
+      "reason": "A especificação e o delta material atual não ativam esta família como risco independente.",
+      "control_ids": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "A especificação e o delta material atual não ativam esta família como risco independente.",
+      "control_ids": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": true,
+      "reason": "Aplicável pelo contrato da Issue #339 e fechado por controle discriminante no SHA material atual.",
+      "control_ids": [
+        "NC-339-004"
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Aplicável pelo contrato da Issue #339 e fechado por controle discriminante no SHA material atual.",
+      "control_ids": [
+        "NC-339-001",
+        "NC-339-002",
+        "NC-339-003",
+        "NC-339-006",
+        "NC-339-007"
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Aplicável pelo contrato da Issue #339 e fechado por controle discriminante no SHA material atual.",
+      "control_ids": [
+        "NC-339-008"
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}
