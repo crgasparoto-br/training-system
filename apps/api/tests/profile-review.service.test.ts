@@ -341,7 +341,9 @@ describe('profileReviewService', () => {
 
     it('revalida o vínculo ativo dentro da transação antes de concluir', async () => {
       setupCompleteBase();
-      db.aluno.findFirst.mockResolvedValue(null);
+      db.aluno.findFirst
+        .mockResolvedValueOnce(makeAlunoRecord())
+        .mockResolvedValueOnce(null);
 
       await expect(
         profileReviewService.completeByStudent({ ...scopedInput, noChanges: true })
