@@ -20,62 +20,34 @@ const env = {
 describe('notification delivery adapters', () => {
   it('registra sucesso quando e-mail e WhatsApp são aceitos pelos provedores', async () => {
     const fetchImpl = jest.fn().mockResolvedValue({ ok: true, status: 202 });
-
-    const delivery = await deliverExternalNotification(baseInput, {
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-      env,
-    });
-
+    const delivery = await deliverExternalNotification(baseInput, { fetchImpl: fetchImpl as unknown as typeof fetch, env });
     expect(delivery.email).toEqual({ channel: 'email', status: 'sent', error: null });
     expect(delivery.whatsapp).toEqual({ channel: 'whatsapp', status: 'sent', error: null });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
-
     const twilioCall = fetchImpl.mock.calls.find(([url]) => String(url).includes('twilio.com'));
     expect(String(twilioCall?.[1]?.body)).toContain('To=whatsapp%3A%2B5511999999999');
   });
 
   it('mantém resultado parcial quando apenas o WhatsApp falha', async () => {
-    const fetchImpl = jest.fn().mockImplementation(async (url: string) => ({
-      ok: url.includes('sendgrid.com'),
-      status: url.includes('sendgrid.com') ? 202 : 503,
-    }));
-
-    const delivery = await deliverExternalNotification(baseInput, {
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-      env,
-    });
-
+    const fetchImpl = jest.fn().mockImplementation(async (url: string) => ({ ok: url.includes('sendgrid.com'), status: url.includes('sendgrid.com') ? 202 : 503 }));
+    const delivery = await deliverExternalNotification(baseInput, { fetchImpl: fetchImpl as unknown as typeof fetch, env });
     expect(delivery.email.status).toBe('sent');
-    expect(delivery.whatsapp).toEqual({
-      channel: 'whatsapp',
-      status: 'failed',
-      error: 'Twilio retornou HTTP 503',
-    });
+    expect(delivery.whatsapp).toEqual({ channel: 'whatsapp', status: 'failed', error: 'Twilio retornou HTTP 503' });
   });
 
   it('não chama provedores para canais desabilitados pelas preferências', async () => {
     const fetchImpl = jest.fn();
-
-    const delivery = await deliverExternalNotification(
-      { ...baseInput, emailEnabled: false, whatsappEnabled: false },
-      { fetchImpl: fetchImpl as unknown as typeof fetch, env }
-    );
-
+    const delivery = await deliverExternalNotification({ ...baseInput, emailEnabled: false, whatsappEnabled: false }, { fetchImpl: fetchImpl as unknown as typeof fetch, env });
     expect(delivery.email.status).toBe('skipped');
     expect(delivery.whatsapp.status).toBe('skipped');
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('converte configuração ausente em falha de entrega sem lançar exceção', async () => {
+  it('distingue provedor não configurado de falha de entrega', async () => {
     const fetchImpl = jest.fn();
-
-    const delivery = await deliverExternalNotification(baseInput, {
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-      env: {},
-    });
-
-    expect(delivery.email.status).toBe('failed');
-    expect(delivery.whatsapp.status).toBe('failed');
+    const delivery = await deliverExternalNotification(baseInput, { fetchImpl: fetchImpl as unknown as typeof fetch, env: {} });
+    expect(delivery.email.status).toBe('not_configured');
+    expect(delivery.whatsapp.status).toBe('not_configured');
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
