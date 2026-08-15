@@ -1,7 +1,11 @@
 {
   "schema_version": 1,
   "issue": 344,
-  "material_head_sha": "4377c7351594871df9e0c27a5c1af73e4dc64f03",
-  "status": "no-material-product-doc-change",
-  "reason": "Remediation changes only the audit handoff package. Product documentation at the frozen material head was rechecked and remains consistent with implementation."
+  "material_head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
+  "status": "updated",
+  "paths": [
+    "docs/profile-review-notification-delivery.md",
+    ".env.example"
+  ],
+  "reason": "Delivery lifecycle and provider callback configuration changed materially and are documented."
 }

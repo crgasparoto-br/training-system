@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "issue": 344,
+  "material_head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
+  "controls": [
+    {
+      "id": "PROVIDER-DELIVERY-CONFIRMATION-001",
+      "status": "passed"
+    },
+    {
+      "id": "NOTIFICATION-DEDUPE-SERIALIZABLE-001",
+      "status": "passed"
+    },
+    {
+      "id": "POST-OUTBOUND-STATE-TRUTH-001",
+      "status": "passed"
+    },
+    {
+      "id": "CALLBACK-AUTH-001",
+      "status": "passed"
+    },
+    {
+      "id": "OUTBOUND-COUNT-001",
+      "status": "passed"
+    }
+  ],
+  "focused_typecheck": {
+    "status": "passed",
+    "path": "evidence/issue-344-focused-typecheck.log"
+  },
+  "local_files": {
+    "apps/api/src/modules/notifications/index.ts": "0d34c5c5241f9f3a77899b2db0adc58437b57d83f3ef0e3974df1a93a64ad0c0",
+    "apps/api/src/modules/notifications/notification-delivery-status.service.test.ts": "9b63753e1d6c8e1dd1568226799ef2fa8660d1cec3e49534977b302ceb0a9c29",
+    "apps/api/src/modules/notifications/notification-delivery-status.service.ts": "c1cd0653f007249e38023071f9259bcb4e993f3cab7a5230b08e59cf36caaaaa",
+    "apps/api/src/modules/notifications/notification-delivery.routes.test.ts": "7e16e874befa0ada0685f9739f065f3afe01b1251a07fd99ad630f23f5752447",
+    "apps/api/src/modules/notifications/notification-delivery.routes.ts": "ac3f367ae914ba5e03176f58e7fade650011d352df6452c692ed75545713af7b",
+    "apps/api/src/modules/notifications/notification-delivery.service.test.ts": "cd0d0385364c96520e1bb78f3dbd40a16ecc1042fbc9344fdfd90d6ae708f90f",
+    "apps/api/src/modules/notifications/notification-delivery.service.ts": "412b4f6a6471c0e420fb0249890a07fa189f19e3441c92f7ce128821614ca540",
+    "apps/api/src/modules/notifications/notification.service.test.ts": "c4b1407bd660c3590bf3c3cddfeca9b8f9a7ebaa901e5d1697de97985cdc7599",
+    "apps/api/src/modules/notifications/notification.service.ts": "5e095845a69849e6d0a94b6c9d7cc62ab4855201f849f256082dfe1dd5878741"
+  },
+  "limitations": [
+    "Repository dependencies were unavailable locally in connector-only runtime; canonical remote CI had no run at the single observation point for the new material SHA."
+  ],
+  "source_integrity": {
+    "control_id": "SPEC-SOURCE-INTEGRITY-001",
+    "status": "passed",
+    "sha256": "763df646add3b4dbaba02ce33b44ddd856a599ca9f156a01048a96fd77d6e9cb",
+    "line_count": 92,
+    "canonical_body_complete": true
+  }
+}

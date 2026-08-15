@@ -4,13 +4,16 @@
   "source_event": {
     "repository": "crgasparoto-br/training-system",
     "issue": 344,
-    "finding_id": "A-344-001",
-    "material_head_sha": "4377c7351594871df9e0c27a5c1af73e4dc64f03",
-    "published_head_sha": "aa719262a1cb9be819ffd8ac50dee227c67fba39",
-    "category": "delivery-not-saturated"
+    "material_head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
+    "findings": [
+      "A-344-002",
+      "A-344-003",
+      "A-344-004"
+    ],
+    "summary": "Independent audit found local delivery-state, deduplication and post-outbound state-truth gaps."
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The governing entregar-issue skill already requires the primary source to be the canonical issue body, validates full specification coverage, and prohibits handoff with uncovered requirements. The failure was local packet assembly that substituted a derived summary despite those existing rules; this remediation restores compliance and adds a local inherited source-integrity control for the re-audit."
+    "reason": "The governing provider-call and conversational-flow skills already require outbound-attempt truth, authenticated callback correlation, persisted state, idempotency and concurrency controls. The escaped defects were local implementation/control-execution omissions; this remediation applies the existing generic rules and records inherited controls rather than introducing issue-specific skill rules."
   }
 }

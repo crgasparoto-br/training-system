@@ -1,55 +1,61 @@
 {
   "schema_version": 1,
-  "head_sha": "4377c7351594871df9e0c27a5c1af73e4dc64f03",
+  "head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
   "families": [
     {
       "family": "authorization",
       "applicable": false,
-      "reason": "No canonical issue 344 requirement or material implementation signal requires this risk family.",
+      "reason": "No canonical issue/remediation signal requires this family for the changed notification delivery contract.",
       "control_ids": [],
       "status": "not-applicable"
     },
     {
       "family": "tenant-isolation",
       "applicable": false,
-      "reason": "No canonical issue 344 requirement or material implementation signal requires this risk family.",
+      "reason": "No canonical issue/remediation signal requires this family for the changed notification delivery contract.",
       "control_ids": [],
       "status": "not-applicable"
     },
     {
       "family": "public-boundary",
       "applicable": true,
-      "reason": "Material to issue 344 requirements and represented by executed controls: COPY-NEG.",
+      "reason": "Required by issue/remediation semantics and covered by discriminant controls.",
       "control_ids": [
-        "COPY-NEG"
+        "COPY-NEG",
+        "EMAIL-NEG",
+        "WA-NEG"
       ],
       "status": "passed"
     },
     {
       "family": "reference-liveness",
-      "applicable": false,
-      "reason": "No canonical issue 344 requirement or material implementation signal requires this risk family.",
-      "control_ids": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Required by issue/remediation semantics and covered by discriminant controls.",
+      "control_ids": [
+        "EMAIL-NEG",
+        "STATUS-NEG",
+        "WA-NEG"
+      ],
+      "status": "passed"
     },
     {
       "family": "temporal-consistency",
       "applicable": false,
-      "reason": "No canonical issue 344 requirement or material implementation signal requires this risk family.",
+      "reason": "No canonical issue/remediation signal requires this family for the changed notification delivery contract.",
       "control_ids": [],
       "status": "not-applicable"
     },
     {
       "family": "temporal-destination",
       "applicable": false,
-      "reason": "No canonical issue 344 requirement or material implementation signal requires this risk family.",
+      "reason": "No canonical issue/remediation signal requires this family for the changed notification delivery contract.",
       "control_ids": [],
       "status": "not-applicable"
     },
     {
       "family": "concurrency-atomicity",
       "applicable": true,
-      "reason": "Material to issue 344 requirements and represented by executed controls: REPEAT-NEG.",
+      "reason": "Required by issue/remediation semantics and covered by discriminant controls.",
       "control_ids": [
         "REPEAT-NEG"
       ],
@@ -58,7 +64,7 @@
     {
       "family": "idempotency",
       "applicable": true,
-      "reason": "Material to issue 344 requirements and represented by executed controls: REPEAT-NEG.",
+      "reason": "Required by issue/remediation semantics and covered by discriminant controls.",
       "control_ids": [
         "REPEAT-NEG"
       ],
@@ -67,7 +73,7 @@
     {
       "family": "rollback",
       "applicable": true,
-      "reason": "Material to issue 344 requirements and represented by executed controls: FALLBACK-NEG.",
+      "reason": "Required by issue/remediation semantics and covered by discriminant controls.",
       "control_ids": [
         "FALLBACK-NEG"
       ],
@@ -76,14 +82,14 @@
     {
       "family": "historical-immutability",
       "applicable": false,
-      "reason": "No canonical issue 344 requirement or material implementation signal requires this risk family.",
+      "reason": "No canonical issue/remediation signal requires this family for the changed notification delivery contract.",
       "control_ids": [],
       "status": "not-applicable"
     },
     {
       "family": "structural-contract",
       "applicable": true,
-      "reason": "Material to issue 344 requirements and represented by executed controls: ARCH-NEG, EMAIL-NEG, FALLBACK-NEG, OBS-NEG, STATUS-NEG, WA-NEG.",
+      "reason": "Required by issue/remediation semantics and covered by discriminant controls.",
       "control_ids": [
         "ARCH-NEG",
         "EMAIL-NEG",
@@ -97,7 +103,7 @@
     {
       "family": "documentation",
       "applicable": true,
-      "reason": "Material to issue 344 requirements and represented by executed controls: COPY-NEG, DOCS-NEG, OBS-NEG, TESTS-NEG.",
+      "reason": "Required by issue/remediation semantics and covered by discriminant controls.",
       "control_ids": [
         "COPY-NEG",
         "DOCS-NEG",

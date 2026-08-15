@@ -1,24 +1,31 @@
 {
   "schema_version": 1,
   "repository": "crgasparoto-br/training-system",
-  "issue": 344,
-  "head_sha": "4377c7351594871df9e0c27a5c1af73e4dc64f03",
-  "previous_independent_rejection": true,
-  "source_audits": [
-    {
-      "finding_id": "A-344-001",
-      "verdict": "reprovada",
-      "published_head_sha": "aa719262a1cb9be819ffd8ac50dee227c67fba39",
-      "material_head_sha": "4377c7351594871df9e0c27a5c1af73e4dc64f03"
-    }
-  ],
+  "head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
   "controls": [
     {
       "id": "SPEC-SOURCE-INTEGRITY-001",
-      "origin_finding": "A-344-001",
       "status": "passed",
-      "head_sha": "4377c7351594871df9e0c27a5c1af73e4dc64f03",
-      "evidence": "evidence/issue-344-source-integrity.json"
+      "head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
+      "evidence": "evidence/issue-344-remediation.json"
+    },
+    {
+      "id": "PROVIDER-DELIVERY-CONFIRMATION-001",
+      "status": "passed",
+      "head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
+      "evidence": "evidence/issue-344-remediation.json"
+    },
+    {
+      "id": "NOTIFICATION-DEDUPE-SERIALIZABLE-001",
+      "status": "passed",
+      "head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
+      "evidence": "evidence/issue-344-remediation.json"
+    },
+    {
+      "id": "POST-OUTBOUND-STATE-TRUTH-001",
+      "status": "passed",
+      "head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
+      "evidence": "evidence/issue-344-remediation.json"
     }
   ],
   "unresolved_controls": []

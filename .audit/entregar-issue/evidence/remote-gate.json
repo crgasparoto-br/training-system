@@ -1,8 +1,8 @@
 {
+  "schema_version": 1,
+  "head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
   "workflow": "Validate PR",
-  "run_id": 31896371038,
-  "run_number": 7000,
-  "status": "completed",
-  "conclusion": "success",
-  "head_sha": "4377c7351594871df9e0c27a5c1af73e4dc64f03"
+  "status": "pending-no-run",
+  "conclusion": null,
+  "observation": "Single observe-only query found no workflow run for the new material SHA."
 }
