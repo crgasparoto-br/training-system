@@ -1,16 +1,48 @@
 import express from 'express';
 
 const request = require('supertest');
-const mockCompleteByStudent = jest.fn();
-const mockResolveActiveStudentMembership = jest.fn();
-const mockAlunoFindFirst = jest.fn();
 
-jest.mock('@prisma/client', () => ({
-  PrismaClient: jest.fn(() => ({
-    aluno: { findFirst: mockAlunoFindFirst },
-    studentContract: { findMany: jest.fn() },
-  })),
-}));
+jest.mock('@prisma/client', () => {
+  const aluno = {
+    findFirst: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  };
+  const studentProfileReview = {
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  };
+  const alunoProfileReviewSettings = {
+    findUnique: jest.fn(),
+    upsert: jest.fn(),
+  };
+  const profileReviewPolicy = { findFirst: jest.fn() };
+  const studentContract = { findMany: jest.fn() };
+
+  const instance: Record<string, unknown> = {
+    aluno,
+    studentProfileReview,
+    alunoProfileReviewSettings,
+    profileReviewPolicy,
+    studentContract,
+    $transaction: jest.fn(),
+  };
+
+  (instance.$transaction as jest.Mock).mockImplementation(async (callback: (tx: unknown) => unknown) =>
+    callback(instance)
+  );
+
+  return {
+    PrismaClient: jest.fn(() => instance),
+    StudentProfileReviewStatus: {
+      pending: 'pending',
+      completed_no_changes: 'completed_no_changes',
+      completed_with_changes: 'completed_with_changes',
+    },
+    Prisma: { JsonNull: null },
+    _db: instance,
+  };
+});
 
 jest.mock('../src/modules/auth/auth.middleware', () => ({
   authMiddleware: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
@@ -24,15 +56,12 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
   alunoMiddleware: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
-jest.mock('../src/modules/alunos/profile-review.service', () => ({
-  profileReviewService: {
-    getPendingReviewForStudent: jest.fn(),
-    completeByStudent: mockCompleteByStudent,
-  },
+jest.mock('../src/modules/notifications/notification.service', () => ({
+  notificationService: { create: jest.fn().mockResolvedValue(true) },
 }));
 
 jest.mock('../src/modules/alunos/profile-audit.service', () => ({
-  profileAuditService: { log: jest.fn() },
+  profileAuditService: { log: jest.fn().mockResolvedValue(undefined) },
 }));
 
 jest.mock('../src/modules/assessments/assessment.service', () => ({
@@ -43,6 +72,7 @@ jest.mock('../src/modules/alunos/aluno-assessment-plan.service', () => ({
   alunoAssessmentPlanService: {},
 }));
 
+const mockResolveActiveStudentMembership = jest.fn();
 jest.mock('../src/modules/alunos/student-account-context.service', () => {
   class StudentAccountContextError extends Error {
     constructor(
@@ -66,7 +96,23 @@ jest.mock('../src/modules/alunos/student-account-context.service', () => {
 });
 
 jest.mock('../src/modules/alunos/student-identity.service', () => ({
-  loadStudentIdentity: jest.fn(),
+  loadStudentIdentity: jest.fn().mockResolvedValue({
+    name: 'Aluno Teste',
+    phone: null,
+    birthDate: null,
+    gender: null,
+    cpf: null,
+    rg: null,
+    maritalStatus: null,
+    addressStreet: null,
+    addressNumber: null,
+    addressComplement: null,
+    addressNeighborhood: null,
+    addressCity: null,
+    addressState: null,
+    addressZipCode: null,
+    instagramHandle: null,
+  }),
   upsertStudentIdentity: jest.fn(),
 }));
 
@@ -78,6 +124,66 @@ jest.mock('../src/modules/alunos/student-health-intake-write.service', () => ({
 const router = require('../src/routes/student.routes').default;
 const { StudentAccountContextError } = require('../src/modules/alunos/student-account-context.service');
 
+type DbMock = {
+  aluno: { findFirst: jest.Mock; findUnique: jest.Mock; update: jest.Mock };
+  studentProfileReview: { findUnique: jest.Mock; update: jest.Mock };
+  alunoProfileReviewSettings: { findUnique: jest.Mock; upsert: jest.Mock };
+  profileReviewPolicy: { findFirst: jest.Mock };
+  studentContract: { findMany: jest.Mock };
+  $transaction: jest.Mock;
+};
+
+const db = (jest.requireMock('@prisma/client') as { _db: DbMock })._db;
+
+const makeRouteAluno = (id: string, contractId: string) => ({
+  id,
+  contractId,
+  userId: 'user-1',
+  status: 'ACTIVE_STUDENT',
+  age: 30,
+  weight: 75,
+  height: 175,
+  bodyFatPercentage: null,
+  vo2Max: null,
+  anaerobicThreshold: null,
+  maxHeartRate: null,
+  restingHeartRate: null,
+  systolicPressure: null,
+  diastolicPressure: null,
+  user: { id: 'user-1', email: 'aluno@example.com', profile: {} },
+  studentProfile: null,
+  studentHealthIntake: null,
+  professor: { contractId },
+  intakeForm: null,
+  profileReviewSettings: null,
+});
+
+const makeReview = (contractId = 'contract-1') => ({
+  id: 'review-contract-1',
+  alunoId: 'aluno-1',
+  requestedAt: new Date('2026-08-01T00:00:00Z'),
+  dueAt: null,
+  completedAt: null,
+  status: 'pending',
+  requiresApproval: false,
+  approvedAt: null,
+  approvedByUserId: null,
+  rejectedAt: null,
+  rejectedByUserId: null,
+  rejectionReason: null,
+  changedFields: null,
+  snapshotBefore: null,
+  snapshotAfter: null,
+  nextReviewAt: null,
+  sectionsRequested: null,
+  aluno: {
+    id: 'aluno-1',
+    contractId,
+    user: { id: 'user-1' },
+    professor: { contractId },
+  },
+});
+
 describe('student profile review public boundary', () => {
   const app = express();
   app.use(express.json());
@@ -85,6 +191,11 @@ describe('student profile review public boundary', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    db.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => callback(db));
+    db.alunoProfileReviewSettings.findUnique.mockResolvedValue(null);
+    db.alunoProfileReviewSettings.upsert.mockResolvedValue({});
+    db.profileReviewPolicy.findFirst.mockResolvedValue(null);
 
     mockResolveActiveStudentMembership.mockImplementation(
       async (_userId: string, requestedContractId?: string) => {
@@ -107,26 +218,29 @@ describe('student profile review public boundary', () => {
       }
     );
 
-    mockAlunoFindFirst.mockImplementation(async ({ where }: { where: { id: string; contractId: string } }) => ({
-      id: where.id,
-      contractId: where.contractId,
-      user: { id: 'user-1', email: 'aluno@example.com', profile: {} },
-      studentProfile: null,
-      studentHealthIntake: null,
-      professor: { contractId: where.contractId },
-      intakeForm: null,
-      profileReviewSettings: null,
-    }));
-
-    mockCompleteByStudent.mockImplementation(async (input: { reviewId: string; contractId: string }) => {
-      if (input.reviewId === 'review-contract-1' && input.contractId !== 'contract-1') {
-        throw Object.assign(new Error('Revisão cadastral não encontrada'), { statusCode: 404 });
+    db.aluno.findFirst.mockImplementation(
+      async ({ where }: { where: { id: string; contractId: string } }) => {
+        if (where.id === 'aluno-1' && where.contractId === 'contract-1') {
+          return makeRouteAluno('aluno-1', 'contract-1');
+        }
+        if (where.id === 'aluno-2' && where.contractId === 'contract-2') {
+          return makeRouteAluno('aluno-2', 'contract-2');
+        }
+        return null;
       }
-      return {
-        id: input.reviewId,
-        status: 'completed_no_changes',
-        approval: { requiresApproval: false, hasPendingApproval: false },
-      };
+    );
+
+    db.aluno.findUnique.mockImplementation(
+      async ({ where }: { where: { id: string } }) =>
+        where.id === 'aluno-1' ? makeRouteAluno('aluno-1', 'contract-1') : null
+    );
+
+    db.studentProfileReview.findUnique.mockResolvedValue(makeReview());
+    db.studentProfileReview.update.mockResolvedValue({
+      ...makeReview(),
+      status: 'completed_no_changes',
+      completedAt: new Date('2026-08-15T00:00:00Z'),
+      changedFields: [],
     });
   });
 
@@ -138,19 +252,16 @@ describe('student profile review public boundary', () => {
 
     expect(response.status).toBe(200);
     expect(mockResolveActiveStudentMembership).toHaveBeenCalledWith('user-1', 'contract-1');
-    expect(mockAlunoFindFirst).toHaveBeenCalledWith(
+    expect(db.aluno.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'aluno-1', contractId: 'contract-1' },
       })
     );
-    expect(mockCompleteByStudent).toHaveBeenCalledWith({
-      reviewId: 'review-contract-1',
-      alunoUserId: 'user-1',
-      alunoId: 'aluno-1',
-      contractId: 'contract-1',
-      noChanges: true,
-      changes: undefined,
-    });
+    expect(db.studentProfileReview.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'review-contract-1', alunoId: 'aluno-1', status: 'pending' },
+      })
+    );
   });
 
   it('não permite concluir revisão de outro contrato da mesma conta', async () => {
@@ -161,23 +272,22 @@ describe('student profile review public boundary', () => {
 
     expect(response.status).toBe(404);
     expect(mockResolveActiveStudentMembership).toHaveBeenCalledWith('user-1', 'contract-2');
-    expect(mockCompleteByStudent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        reviewId: 'review-contract-1',
-        alunoId: 'aluno-2',
-        contractId: 'contract-2',
-      })
+    expect(db.studentProfileReview.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'review-contract-1' } })
     );
+    expect(db.$transaction).not.toHaveBeenCalled();
+    expect(db.studentProfileReview.update).not.toHaveBeenCalled();
   });
 
-  it('rejeita vínculo revogado ou inativo antes de chamar a conclusão', async () => {
+  it('rejeita vínculo revogado ou inativo antes de consultar ou concluir a revisão', async () => {
     const response = await request(app)
       .post('/student/me/profile-reviews/review-contract-1/complete')
       .set('x-contract-id', 'revoked-contract')
       .send({ noChanges: true });
 
     expect(response.status).toBe(404);
-    expect(mockCompleteByStudent).not.toHaveBeenCalled();
+    expect(db.studentProfileReview.findUnique).not.toHaveBeenCalled();
+    expect(db.studentProfileReview.update).not.toHaveBeenCalled();
   });
 
   it('exige seleção explícita quando o contexto contratual é ambíguo', async () => {
@@ -186,6 +296,7 @@ describe('student profile review public boundary', () => {
       .send({ noChanges: true });
 
     expect(response.status).toBe(409);
-    expect(mockCompleteByStudent).not.toHaveBeenCalled();
+    expect(db.studentProfileReview.findUnique).not.toHaveBeenCalled();
+    expect(db.studentProfileReview.update).not.toHaveBeenCalled();
   });
 });
