@@ -15,32 +15,24 @@ A solicitação manual mantém a revisão cadastral como operação principal. F
 
 ## Conteúdo externo
 
-E-mail e WhatsApp usam uma mensagem mínima que:
-
-- identifica o Sistema ACESSO;
-- informa que há uma revisão cadastral pendente;
-- orienta o aluno a entrar na conta para acessar a revisão;
-- não inclui respostas clínicas, campos alterados ou dados pessoais da revisão;
-- só inclui link web quando `FRONTEND_URL` é uma origem HTTPS válida; o caminho usado não contém token persistente.
+E-mail e WhatsApp usam uma mensagem mínima que identifica o Sistema ACESSO, informa que há revisão pendente e orienta o aluno a entrar na conta. O conteúdo não inclui respostas clínicas, campos alterados ou dados pessoais da revisão. Um link só é incluído quando `FRONTEND_URL` é HTTPS válida; busca e fragmento são removidos e nenhum token persistente é anexado.
 
 ## Variáveis de ambiente
 
 As variáveis já presentes em `.env.example` são obrigatórias apenas para os canais habilitados:
 
-- `SENDGRID_API_KEY`: chave da API do SendGrid.
-- `SENDGRID_FROM_EMAIL`: remetente validado no SendGrid.
-- `TWILIO_ACCOUNT_SID`: Account SID do Twilio.
-- `TWILIO_AUTH_TOKEN`: token de autenticação do Twilio.
-- `TWILIO_WHATSAPP_NUMBER`: remetente habilitado para WhatsApp.
-- `FRONTEND_URL`: origem web; só é adicionada à mensagem externa quando usa HTTPS.
-
-Quando um canal está habilitado, mas o destinatário ou a configuração necessária não está disponível, a revisão permanece utilizável e o canal é registrado como falha de entrega.
+- `SENDGRID_API_KEY` e `SENDGRID_FROM_EMAIL` para e-mail;
+- `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` e `TWILIO_WHATSAPP_NUMBER` para WhatsApp;
+- `FRONTEND_URL` para o link web opcional HTTPS.
 
 ## Estados retornados por canal
 
-- `sent`: o provedor aceitou o envio.
-- `failed`: houve erro de configuração, destinatário ou comunicação com o provedor.
+- `sent`: o provedor aceitou o envio;
+- `failed`: houve falha de destinatário, comunicação ou resposta do provedor;
+- `not_configured`: o canal está habilitado, mas a configuração do provedor está ausente;
 - `skipped`: o canal está desabilitado nas preferências do usuário.
+
+A revisão permanece utilizável em todos os estados de entrega externa. Diagnósticos persistidos são técnicos e não incluem conteúdo clínico ou dados pessoais do aluno.
 
 ## Repetição da solicitação
 
@@ -48,5 +40,5 @@ Se já existe revisão `pending`, o serviço reutiliza a revisão existente. A n
 
 ## Validação
 
-- `notification-delivery.service.test.ts`: sucesso de e-mail/WhatsApp, falha parcial, canais desabilitados e configuração ausente.
+- `notification-delivery.service.test.ts`: sucesso de e-mail/WhatsApp, falha parcial, canais desabilitados e provedor não configurado;
 - `profile-review-request.service.test.ts`: criação sem pendência, reutilização da pendência e recuperação de conflito serializável concorrente.
