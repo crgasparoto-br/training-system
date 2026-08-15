@@ -1,15 +1,9 @@
 {
   "schema_version": 1,
-  "repository": "crgasparoto-br/training-system",
-  "issue": 343,
-  "pr": 352,
-  "material_head_sha": "e718c30cc2659fbfcc27479fb0518e835ee2055f",
-  "base_sha": "f822974ec3395000d23652afa3664e1273c5fe26",
-  "merge_preview_sha": null,
-  "observation_mode": "read-only",
-  "remote_gate": "pending-no-run",
-  "workflows": [],
-  "combined_statuses": [],
-  "all_required_remote_gates_green": false,
-  "note": "No pull-request workflow run or commit status was present for the refrozen material head at the single allowed observation."
+  "head_sha": "75dd060c4d69070627eae7454e2f49beb416ee39",
+  "workflow": "Validate PR",
+  "run_id": 31859563236,
+  "status": "in_progress",
+  "conclusion": null,
+  "observation_mode": "read-only"
 }

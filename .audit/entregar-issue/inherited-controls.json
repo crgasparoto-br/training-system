@@ -1,1 +1,79 @@
-{"schema_version":1,"repository":"crgasparoto-br/training-system","issue":343,"head_sha":"ddeab5e8a754115a1b3e523bb486ba5102b84e52","previous_independent_rejection":true,"source_audits":[{"finding_id":"A-342-001","material_head_sha":"2bc9e2216a52e55fff987e24859b8556eed6baf6","verdict":"reprovada"},{"finding_id":"A-342-002","material_head_sha":"2bc9e2216a52e55fff987e24859b8556eed6baf6","verdict":"reprovada"},{"finding_id":"A-342-003","material_head_sha":"2bc9e2216a52e55fff987e24859b8556eed6baf6","verdict":"reprovada"},{"finding_id":"A-343-001","published_head_sha":"e0a25a24869ca2734f91c37160e9b791e3c213cd","material_head_sha":"c164285944a03739774db83c02ca02dabc7fcb42","verdict":"reprovada"},{"finding_id":"A-343-002","published_head_sha":"e0a25a24869ca2734f91c37160e9b791e3c213cd","material_head_sha":"c164285944a03739774db83c02ca02dabc7fcb42","verdict":"reprovada"},{"finding_id":"A-343-003","published_head_sha":"5d680899de89ef529caf71e49640c1b7f1e9c8e5","material_head_sha":"e0a25a24869ca2734f91c37160e9b791e3c213cd","verdict":"reprovada"},{"finding_id":"A-343-004","published_head_sha":"ddeab5e8a754115a1b3e523bb486ba5102b84e52","material_head_sha":"e718c30cc2659fbfcc27479fb0518e835ee2055f","verdict":"reprovada"}],"controls":[{"id":"SIBLING-EVIDENCE-001","origin_finding":"A-342-002","status":"passed","head_sha":"ddeab5e8a754115a1b3e523bb486ba5102b84e52","evidence":"The current attack matrix preserves sibling cases for every negative control and binds them to the current material head."},{"id":"SEMANTIC-CLOSURE-READY-001","origin_finding":"A-342-001","status":"passed","head_sha":"ddeab5e8a754115a1b3e523bb486ba5102b84e52","evidence":"The canonical Issue 343 source now yields all 31 obligations and every candidate is dispositioned before certification."},{"id":"VISUAL-RUNTIME-001","origin_finding":"A-342-003","status":"passed","head_sha":"ddeab5e8a754115a1b3e523bb486ba5102b84e52","evidence":"Real Chromium evidence on the previously exercised head remains reusable because immutable comparison shows no apps/web or browser-harness changes."},{"id":"ADVERSARIAL-EVIDENCE-STRUCTURED-001","origin_finding":"A-343-001","status":"passed","head_sha":"ddeab5e8a754115a1b3e523bb486ba5102b84e52","evidence":"The current matrix records wrong implementations, positive/negative/regression controls, sibling cases and head-bound evidence."},{"id":"CONTRACT-RISK-DERIVATION-001","origin_finding":"A-343-002","status":"passed","head_sha":"ddeab5e8a754115a1b3e523bb486ba5102b84e52","evidence":"The restrictive authenticated selected-scope sentence is now canonical OBL-010 with authorization and isolation flags and maps directly to REQ-009."},{"id":"SELECTED-SCOPE-MUTATION-001","origin_finding":"A-343-003","status":"passed","head_sha":"ddeab5e8a754115a1b3e523bb486ba5102b84e52","evidence":"The server-side selected-scope enforcement remains unchanged and the full Validate PR gate is green on the current material head."},{"id":"RESTRICTIVE-SCOPE-CANONICAL-001","origin_finding":"A-343-004","status":"passed","head_sha":"ddeab5e8a754115a1b3e523bb486ba5102b84e52","evidence":"The parser recognizes restrictive only-may clauses, derives authorization/isolation, and the matrix validator rejects orphan manual requirements or mismatched obligation_ids."}],"unresolved_controls":[]}
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/training-system",
+  "issue": 343,
+  "head_sha": "75dd060c4d69070627eae7454e2f49beb416ee39",
+  "previous_independent_rejection": true,
+  "source_audits": [
+    {
+      "finding_id": "A-343-001",
+      "verdict": "reprovada"
+    },
+    {
+      "finding_id": "A-343-002",
+      "verdict": "reprovada"
+    },
+    {
+      "finding_id": "A-343-003",
+      "verdict": "reprovada"
+    },
+    {
+      "finding_id": "A-343-004",
+      "published_head_sha": "ddeab5e8a754115a1b3e523bb486ba5102b84e52",
+      "material_head_sha": "e718c30cc2659fbfcc27479fb0518e835ee2055f",
+      "verdict": "reprovada"
+    }
+  ],
+  "controls": [
+    {
+      "id": "SIBLING-EVIDENCE-001",
+      "origin_finding": "A-342-002",
+      "status": "passed",
+      "head_sha": "75dd060c4d69070627eae7454e2f49beb416ee39",
+      "evidence": "evidence/issue-343-base-drift-remediation.json"
+    },
+    {
+      "id": "SEMANTIC-CLOSURE-READY-001",
+      "origin_finding": "A-342-001",
+      "status": "passed",
+      "head_sha": "75dd060c4d69070627eae7454e2f49beb416ee39",
+      "evidence": "evidence/issue-343-base-drift-remediation.json"
+    },
+    {
+      "id": "VISUAL-RUNTIME-001",
+      "origin_finding": "A-342-003",
+      "status": "passed",
+      "head_sha": "75dd060c4d69070627eae7454e2f49beb416ee39",
+      "evidence": "evidence/issue-343-base-drift-remediation.json"
+    },
+    {
+      "id": "ADVERSARIAL-EVIDENCE-STRUCTURED-001",
+      "origin_finding": "A-343-001",
+      "status": "passed",
+      "head_sha": "75dd060c4d69070627eae7454e2f49beb416ee39",
+      "evidence": "evidence/issue-343-base-drift-remediation.json"
+    },
+    {
+      "id": "CONTRACT-RISK-DERIVATION-001",
+      "origin_finding": "A-343-002",
+      "status": "passed",
+      "head_sha": "75dd060c4d69070627eae7454e2f49beb416ee39",
+      "evidence": "evidence/issue-343-base-drift-remediation.json"
+    },
+    {
+      "id": "SELECTED-SCOPE-MUTATION-001",
+      "origin_finding": "A-343-003",
+      "status": "passed",
+      "head_sha": "75dd060c4d69070627eae7454e2f49beb416ee39",
+      "evidence": "evidence/issue-343-base-drift-remediation.json"
+    },
+    {
+      "id": "RESTRICTIVE-SCOPE-CANONICAL-001",
+      "origin_finding": "A-343-004",
+      "status": "passed",
+      "head_sha": "75dd060c4d69070627eae7454e2f49beb416ee39",
+      "evidence": "evidence/issue-343-base-drift-remediation.json"
+    }
+  ],
+  "unresolved_controls": []
+}
