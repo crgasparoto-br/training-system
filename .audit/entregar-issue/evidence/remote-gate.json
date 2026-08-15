@@ -1,9 +1,10 @@
 {
   "schema_version": 1,
-  "head_sha": "75dd060c4d69070627eae7454e2f49beb416ee39",
+  "head_sha": "d5a757594412a3a7d169e7f29bb691fa10a04038",
   "workflow": "Validate PR",
-  "run_id": 31859563236,
-  "status": "in_progress",
-  "conclusion": null,
-  "observation_mode": "read-only"
+  "run_id": 31863294319,
+  "run_attempt": 2,
+  "status": "completed",
+  "conclusion": "success",
+  "observation_mode": "corrigir-ci exact-head observation"
 }
