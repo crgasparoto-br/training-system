@@ -1,7 +1,9 @@
 import { assertNoLegacyParqWrite } from './student-parq-legacy-cutover.js';
 import { Prisma, PrismaClient, StudentProfileReviewStatus } from '@prisma/client';
 import { notificationService } from '../notifications/notification.service.js';
+import type { ExternalNotificationDeliveryResult } from '../notifications/notification-delivery.service.js';
 import { profileAuditService } from './profile-audit.service.js';
+import { createOrReusePendingProfileReview } from './profile-review-request.service.js';
 import { loadStudentIdentity, upsertStudentIdentity } from './student-identity.service.js';
 import {
   hasCanonicalHealthIntakeMutation,
@@ -709,26 +711,27 @@ export const profileReviewService = {
       this.getAlunoSnapshot(input.alunoId),
       this.getEffectiveSettings(input.alunoId),
     ]);
-
-    const review = await prisma.studentProfileReview.create({
-      data: {
-        alunoId: input.alunoId,
-        requestedByUserId: input.requestedByUserId ?? null,
-        dueAt: input.dueAt,
-        sectionsRequested: castJson(input.sectionsRequested ?? settingsData.effective.sectionsRequested),
-        snapshotBefore: castJson(snapshotBefore),
-      },
+    const requestedSections = input.sectionsRequested ?? settingsData.effective.sectionsRequested;
+    const { review, reviewCreated } = await createOrReusePendingProfileReview(prisma, {
+      alunoId: input.alunoId,
+      requestedByUserId: input.requestedByUserId ?? null,
+      dueAt: input.dueAt,
+      sectionsRequested: castJson(requestedSections),
+      snapshotBefore: castJson(snapshotBefore),
     });
+    const effectiveDueAt = review.dueAt ?? null;
+    const effectiveSections = normalizeSections(review.sectionsRequested);
 
-    let notification = {
+    let notification: {
+      persisted: boolean;
+      deduplicated: boolean;
+      delivery: ExternalNotificationDeliveryResult | null;
+      error: string | null;
+    } = {
       persisted: false,
       deduplicated: false,
-      delivery: null as Awaited<ReturnType<typeof notificationService.create>> extends infer T
-        ? T extends { delivery: infer D }
-          ? D | null
-          : null
-        : null,
-      error: null as string | null,
+      delivery: null,
+      error: null,
     };
 
     try {
@@ -738,20 +741,20 @@ export const profileReviewService = {
         title: 'Revisão cadastral solicitada',
         message:
           input.requestedByUserId
-            ? input.dueAt
-              ? `Seu professor solicitou revisão cadastral. Prazo: ${input.dueAt.toISOString()}.`
+            ? effectiveDueAt
+              ? `Seu professor solicitou revisão cadastral. Prazo: ${effectiveDueAt.toISOString()}.`
               : 'Seu professor solicitou revisão cadastral.'
-            : input.dueAt
-              ? `Uma revisão cadastral está disponível para você. Prazo: ${input.dueAt.toISOString()}.`
+            : effectiveDueAt
+              ? `Uma revisão cadastral está disponível para você. Prazo: ${effectiveDueAt.toISOString()}.`
               : 'Uma revisão cadastral está disponível para você.',
         payload: {
           alunoId: input.alunoId,
           reviewId: review.id,
           event: 'profile_review_requested',
-          dueAt: input.dueAt?.toISOString() ?? null,
+          dueAt: effectiveDueAt?.toISOString() ?? null,
           path: '/student/profile-review',
           deepLink: 'acesso://student/profile-review',
-          sectionsRequested: input.sectionsRequested ?? settingsData.effective.sectionsRequested,
+          sectionsRequested: effectiveSections,
         },
         dedupeWindowMinutes: 30,
         dispatchExternal: true,
@@ -770,8 +773,8 @@ export const profileReviewService = {
             delivery: null,
             error: null,
           };
-    } catch (error) {
-      console.error('Erro ao registrar ou entregar notificação da revisão cadastral:', error);
+    } catch {
+      console.error('Falha ao registrar a notificação da revisão cadastral');
       notification = {
         persisted: false,
         deduplicated: false,
@@ -785,11 +788,26 @@ export const profileReviewService = {
       changedByUserId: input.requestedByUserId ?? null,
       source: input.requestedByUserId ? 'web_admin' : 'system_review',
       action: 'request_review',
-      afterData: { reviewId: review.id, dueAt: input.dueAt?.toISOString() ?? null },
+      afterData: {
+        reviewId: review.id,
+        dueAt: effectiveDueAt?.toISOString() ?? null,
+        reviewCreated,
+        notificationDeduplicated: notification.deduplicated,
+      },
     });
+
+    const requestAction = reviewCreated
+      ? 'created'
+      : !notification.persisted
+        ? 'existing_pending_notification_failed'
+        : notification.deduplicated
+          ? 'existing_pending'
+          : 'existing_pending_notified';
 
     return {
       ...review,
+      reviewCreated,
+      requestAction,
       notification,
     };
   },
