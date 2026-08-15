@@ -1,6 +1,7 @@
 const mockDb = {
   notification: {
     findMany: jest.fn(),
+    findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
   },
@@ -75,6 +76,7 @@ describe('notificationService.create', () => {
       callback(mockDb)
     );
     mockDb.notification.findMany.mockResolvedValue([]);
+    mockDb.notification.findUnique.mockResolvedValue(notification);
     mockDb.notification.create.mockResolvedValue(notification);
     mockDb.notification.update.mockResolvedValue(notification);
     mockDb.notificationPreferences.findUnique.mockResolvedValue({
@@ -124,5 +126,86 @@ describe('notificationService.create', () => {
     expect(result?.notification).toBe(notification);
     expect(result?.delivery).toBeNull();
     expect(deliverExternalNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserva confirmações sent que chegam por callback antes da persistência do accepted', async () => {
+    const callbackSentAt = new Date();
+    const callbackConfirmed = {
+      ...notification,
+      data: {
+        ...notification.data,
+        externalDelivery: {
+          email: {
+            channel: 'email',
+            status: 'sent',
+            error: null,
+            providerMessageId: 'sg-1',
+            providerStatus: 'delivered',
+          },
+          whatsapp: {
+            channel: 'whatsapp',
+            status: 'sent',
+            error: null,
+            providerMessageId: 'SM1',
+            providerStatus: 'read',
+          },
+        },
+      },
+      emailSent: true,
+      whatsappSent: true,
+      sentAt: callbackSentAt,
+    };
+
+    deliverExternalNotification.mockImplementationOnce(async () => {
+      mockDb.notification.findUnique.mockResolvedValue(callbackConfirmed);
+      return acceptedDelivery;
+    });
+
+    const result = await notificationService.create(input);
+
+    expect(mockDb.notification.update).not.toHaveBeenCalled();
+    expect(result?.notification).toBe(callbackConfirmed);
+    expect(result?.delivery?.email.status).toBe('sent');
+    expect(result?.delivery?.whatsapp.status).toBe('sent');
+    expect(result?.notification.sentAt).toBe(callbackSentAt);
+  });
+
+  it('preserva falhas terminais que chegam por callback antes da persistência do accepted', async () => {
+    const callbackFailed = {
+      ...notification,
+      data: {
+        ...notification.data,
+        externalDelivery: {
+          email: {
+            channel: 'email',
+            status: 'failed',
+            error: 'SendGrid informou bounce',
+            providerMessageId: 'sg-1',
+            providerStatus: 'bounce',
+          },
+          whatsapp: {
+            channel: 'whatsapp',
+            status: 'failed',
+            error: 'Twilio informou undelivered',
+            providerMessageId: 'SM1',
+            providerStatus: 'undelivered',
+          },
+        },
+      },
+      emailError: 'SendGrid informou bounce',
+      whatsappError: 'Twilio informou undelivered',
+    };
+
+    deliverExternalNotification.mockImplementationOnce(async () => {
+      mockDb.notification.findUnique.mockResolvedValue(callbackFailed);
+      return acceptedDelivery;
+    });
+
+    const result = await notificationService.create(input);
+
+    expect(mockDb.notification.update).not.toHaveBeenCalled();
+    expect(result?.notification).toBe(callbackFailed);
+    expect(result?.delivery?.email.status).toBe('failed');
+    expect(result?.delivery?.whatsapp.status).toBe('failed');
   });
 });

@@ -1,8 +1,10 @@
 import { Prisma, PrismaClient, type Notification, type NotificationType } from '@prisma/client';
 import {
   deliverExternalNotification,
+  type ExternalChannelDeliveryResult,
   type ExternalNotificationDeliveryResult,
 } from './notification-delivery.service.js';
+import { notificationDeliveryStatusService } from './notification-delivery-status.service.js';
 
 const prisma = new PrismaClient();
 
@@ -134,9 +136,6 @@ const buildExternalContent = (type: NotificationType) => {
   }
 };
 
-const deliveryDiagnostic = (status: string, error: string | null) =>
-  status === 'failed' || status === 'not_configured' ? error : null;
-
 const hasConfirmedDelivery = (delivery: ExternalNotificationDeliveryResult) =>
   delivery.email.status === 'sent' || delivery.whatsapp.status === 'sent';
 
@@ -146,6 +145,62 @@ const shouldExposeImmediateDelivery = (delivery: ExternalNotificationDeliveryRes
   delivery.email.status === 'not_configured' ||
   delivery.whatsapp.status === 'failed' ||
   delivery.whatsapp.status === 'not_configured';
+
+const DELIVERY_STATUSES = new Set([
+  'accepted',
+  'sent',
+  'failed',
+  'skipped',
+  'not_configured',
+]);
+
+const readStoredDeliveryChannel = (
+  notification: Notification,
+  channel: 'email' | 'whatsapp',
+  fallback: ExternalChannelDeliveryResult
+): ExternalChannelDeliveryResult => {
+  const data = isJsonRecord(notification.data) ? notification.data : {};
+  const externalDelivery = isJsonRecord(data.externalDelivery) ? data.externalDelivery : {};
+  const stored = isJsonRecord(externalDelivery[channel]) ? externalDelivery[channel] : null;
+  const status = stored?.status;
+
+  if (typeof status !== 'string' || !DELIVERY_STATUSES.has(status)) {
+    return fallback;
+  }
+
+  return {
+    channel,
+    status: status as ExternalChannelDeliveryResult['status'],
+    error: typeof stored.error === 'string' ? stored.error : null,
+    providerMessageId:
+      typeof stored.providerMessageId === 'string' ? stored.providerMessageId : null,
+    providerStatus: typeof stored.providerStatus === 'string' ? stored.providerStatus : null,
+  };
+};
+
+const readPersistedDelivery = (
+  notification: Notification,
+  fallback: ExternalNotificationDeliveryResult
+): ExternalNotificationDeliveryResult => ({
+  email: readStoredDeliveryChannel(notification, 'email', fallback.email),
+  whatsapp: readStoredDeliveryChannel(notification, 'whatsapp', fallback.whatsapp),
+});
+
+const persistDispatchResult = async (
+  notificationId: string,
+  delivery: ExternalNotificationDeliveryResult
+) => {
+  for (const channelResult of [delivery.email, delivery.whatsapp]) {
+    await notificationDeliveryStatusService.apply({
+      notificationId,
+      channel: channelResult.channel,
+      status: channelResult.status,
+      providerStatus: channelResult.providerStatus ?? channelResult.status,
+      providerMessageId: channelResult.providerMessageId,
+      error: channelResult.error,
+    });
+  }
+};
 
 export const notificationService = {
   async create(input: CreateNotificationInput): Promise<CreateNotificationResult | null> {
@@ -173,34 +228,15 @@ export const notificationService = {
       message: externalContent.message,
     });
 
-    const emailDelivered = dispatchResult.email.status === 'sent';
-    const whatsappDelivered = dispatchResult.whatsapp.status === 'sent';
-    const currentData = isJsonRecord(notification.data) ? notification.data : {};
-
     try {
-      const updatedNotification = await prisma.notification.update({
-        where: { id: notification.id },
-        data: {
-          data: {
-            ...currentData,
-            externalDelivery: {
-              email: dispatchResult.email,
-              whatsapp: dispatchResult.whatsapp,
-            },
-          } as unknown as Prisma.InputJsonValue,
-          emailSent: emailDelivered,
-          whatsappSent: whatsappDelivered,
-          emailError: deliveryDiagnostic(dispatchResult.email.status, dispatchResult.email.error),
-          whatsappError: deliveryDiagnostic(
-            dispatchResult.whatsapp.status,
-            dispatchResult.whatsapp.error
-          ),
-          sentAt: emailDelivered || whatsappDelivered ? new Date() : null,
-        },
-      });
+      await persistDispatchResult(notification.id, dispatchResult);
+      const updatedNotification =
+        (await prisma.notification.findUnique({ where: { id: notification.id } })) ?? notification;
+      const persistedDelivery = readPersistedDelivery(updatedNotification, dispatchResult);
+
       return {
         notification: updatedNotification,
-        delivery: shouldExposeImmediateDelivery(dispatchResult) ? dispatchResult : null,
+        delivery: shouldExposeImmediateDelivery(persistedDelivery) ? persistedDelivery : null,
       };
     } catch {
       console.error('Falha ao persistir estado da entrega externa da notificação');

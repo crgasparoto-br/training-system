@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 export interface ExternalDeliveryEvent {
   notificationId: string;
   channel: ExternalNotificationChannel;
-  status: Extract<ExternalDeliveryStatus, 'accepted' | 'sent' | 'failed'>;
+  status: ExternalDeliveryStatus;
   providerStatus: string;
   providerMessageId?: string | null;
   error?: string | null;
@@ -38,13 +38,27 @@ const asStoredChannelState = (value: unknown): StoredChannelState => asRecord(va
 const isTerminal = (status: ExternalDeliveryStatus | undefined) =>
   status === 'sent' || status === 'failed';
 
+const isWeakerThanAccepted = (status: ExternalDeliveryStatus) =>
+  status === 'skipped' || status === 'not_configured';
+
 export const resolveDeliveryTransition = (
   currentStatus: ExternalDeliveryStatus | undefined,
-  nextStatus: ExternalDeliveryEvent['status']
+  nextStatus: ExternalDeliveryStatus
 ): 'apply' | 'duplicate' | 'ignore' => {
   if (currentStatus === nextStatus) return 'duplicate';
   if (isTerminal(currentStatus)) return 'ignore';
+  if (currentStatus === 'accepted' && isWeakerThanAccepted(nextStatus)) return 'ignore';
   return 'apply';
+};
+
+const resolveDeliveryError = (event: ExternalDeliveryEvent) => {
+  if (event.status === 'failed') {
+    return event.error ?? 'Falha de entrega externa';
+  }
+  if (event.status === 'not_configured') {
+    return event.error ?? 'Canal externo não configurado';
+  }
+  return null;
 };
 
 const buildUpdatedData = (notification: Notification, event: ExternalDeliveryEvent) => {
@@ -63,7 +77,7 @@ const buildUpdatedData = (notification: Notification, event: ExternalDeliveryEve
         [event.channel]: {
           ...current,
           status: event.status,
-          error: event.status === 'failed' ? event.error ?? 'Falha de entrega externa' : null,
+          error: resolveDeliveryError(event),
           providerMessageId: event.providerMessageId ?? current.providerMessageId ?? null,
           providerStatus: event.providerStatus,
           updatedAt: new Date().toISOString(),
@@ -89,6 +103,7 @@ const applyEventOnce = async (event: ExternalDeliveryEvent): Promise<ExternalDel
       if (transition === 'ignore') return { status: 'ignored' as const };
 
       const delivered = event.status === 'sent';
+      const deliveryError = resolveDeliveryError(event);
       await tx.notification.update({
         where: { id: notification.id },
         data: {
@@ -96,21 +111,11 @@ const applyEventOnce = async (event: ExternalDeliveryEvent): Promise<ExternalDel
           ...(event.channel === 'email'
             ? {
                 emailSent: delivered || notification.emailSent,
-                emailError:
-                  event.status === 'failed'
-                    ? event.error ?? 'Falha de entrega externa'
-                    : delivered
-                      ? null
-                      : notification.emailError,
+                emailError: deliveryError,
               }
             : {
                 whatsappSent: delivered || notification.whatsappSent,
-                whatsappError:
-                  event.status === 'failed'
-                    ? event.error ?? 'Falha de entrega externa'
-                    : delivered
-                      ? null
-                      : notification.whatsappError,
+                whatsappError: deliveryError,
               }),
           sentAt: delivered ? notification.sentAt ?? new Date() : notification.sentAt,
         },

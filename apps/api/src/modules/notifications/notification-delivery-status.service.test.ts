@@ -9,4 +9,18 @@ describe('notification delivery state machine', () => {
     expect(resolveDeliveryTransition('sent', 'failed')).toBe('ignore');
     expect(resolveDeliveryTransition('failed', 'accepted')).toBe('ignore');
   });
+
+  it('não permite que persistência inicial atrasada regrida confirmação terminal do callback', () => {
+    expect(resolveDeliveryTransition('sent', 'accepted')).toBe('ignore');
+    expect(resolveDeliveryTransition('failed', 'accepted')).toBe('ignore');
+    expect(resolveDeliveryTransition('sent', 'not_configured')).toBe('ignore');
+    expect(resolveDeliveryTransition('failed', 'skipped')).toBe('ignore');
+  });
+
+  it('não permite degradar uma tentativa já aceita para estados locais mais fracos', () => {
+    expect(resolveDeliveryTransition('accepted', 'not_configured')).toBe('ignore');
+    expect(resolveDeliveryTransition('accepted', 'skipped')).toBe('ignore');
+    expect(resolveDeliveryTransition('not_configured', 'accepted')).toBe('apply');
+    expect(resolveDeliveryTransition('skipped', 'accepted')).toBe('apply');
+  });
 });
