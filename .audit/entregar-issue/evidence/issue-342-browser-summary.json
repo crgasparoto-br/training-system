@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "issue": 342,
+  "candidateSha": "e0a25a24869ca2734f91c37160e9b791e3c213cd",
+  "scenarios": [
+    {
+      "label": "desktop-pending",
+      "viewport": {
+        "width": 1366,
+        "height": 768
+      },
+      "metrics": {
+        "viewportWidth": 1366,
+        "documentScrollWidth": 1366,
+        "bodyScrollWidth": 1366
+      },
+      "keyboardNavigation": false,
+      "result": "passed"
+    },
+    {
+      "label": "mobile-pending",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "metrics": {
+        "viewportWidth": 390,
+        "documentScrollWidth": 390,
+        "bodyScrollWidth": 390
+      },
+      "keyboardNavigation": true,
+      "result": "passed"
+    },
+    {
+      "label": "mobile-retry-error",
+      "summaryAttempts": 2,
+      "result": "passed"
+    }
+  ],
+  "result": "passed",
+  "limitations": [
+    "API responses use isolated fixtures; this proves real Chromium rendering and interaction."
+  ]
+}

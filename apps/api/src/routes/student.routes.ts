@@ -387,9 +387,12 @@ router.post('/me/profile-reviews/:reviewId/complete', async (req: Request, res: 
     const validated = completeProfileReviewSchema.parse(req.body);
 
     const alunoUserId = (req as any).user.userId as string;
+    const aluno = await requireAlunoByUserId(req, alunoUserId);
     const completed = await profileReviewService.completeByStudent({
       reviewId,
       alunoUserId,
+      alunoId: aluno.id,
+      contractId: aluno.contractId,
       noChanges: validated.noChanges,
       changes: validated.changes,
     });
@@ -398,6 +401,10 @@ router.post('/me/profile-reviews/:reviewId/complete', async (req: Request, res: 
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       return sendError(res, 'Dados inválidos', 400, error.errors);
+    }
+    if (error instanceof StudentAccountContextError) {
+      const status = error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404;
+      return sendError(res, error.message, status);
     }
     if (typeof error?.statusCode === 'number') {
       return sendError(res, error.message, error.statusCode, { code: error.code });

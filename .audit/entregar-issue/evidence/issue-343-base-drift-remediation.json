@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "issue": 343,
+  "material_head_sha": "75dd060c4d69070627eae7454e2f49beb416ee39",
+  "base_sha": "d2d62716b1fcb0aa940ea145d48cbb8d195118fe",
+  "previous_verified_material_head_sha": "ddeab5e8a754115a1b3e523bb486ba5102b84e52",
+  "reason": "Independent audit rejected the prior handoff only because develop advanced and the PR became dirty.",
+  "integration": {
+    "merge_commit_sha": "75dd060c4d69070627eae7454e2f49beb416ee39",
+    "first_parent": "defc1b08c16f8d24e5fdf6457c53f209e3c17a9f",
+    "second_parent": "d2d62716b1fcb0aa940ea145d48cbb8d195118fe",
+    "strategy": "Preserve Issue 343 branch tree and overlay the seven non-audit files introduced by current develop; replace stale audit package in the terminal handoff.",
+    "develop_product_paths_integrated": [
+      ".env.example",
+      "apps/api/src/modules/contracts/contract.routes.ts",
+      "apps/api/src/modules/contracts/contract.service.test.ts",
+      "apps/api/src/modules/contracts/contract.service.ts",
+      "apps/api/tests/contract-clone-data.routes.test.ts",
+      "apps/api/tests/contract-data.service.test.ts",
+      "docs/architecture/api.md"
+    ]
+  },
+  "immutable_equivalence": {
+    "source_material_head_sha": "ddeab5e8a754115a1b3e523bb486ba5102b84e52",
+    "issue343_product_paths_changed_since_source": false,
+    "issue343_product_tests_changed_since_source": false,
+    "issue343_browser_harness_changed_since_source": false,
+    "observed_changed_scope": [
+      ".audit/entregar-issue/*",
+      ".env.example",
+      "apps/api/src/modules/contracts/*",
+      "apps/api/tests/contract-clone-data.routes.test.ts",
+      "apps/api/tests/contract-data.service.test.ts",
+      "docs/architecture/api.md"
+    ],
+    "observation": "GitHub immutable compare OLD..NEW contains no Issue 343 product, product-test, or browser-harness paths."
+  },
+  "reused_green_evidence": {
+    "source_material_head_sha": "ddeab5e8a754115a1b3e523bb486ba5102b84e52",
+    "validate_pr_run_id": 31845937763,
+    "browser_run_id": 31839141246,
+    "scope": "Issue 343 product behavior and browser harness only; new aggregate gate is observed separately."
+  },
+  "current_remote_gate": {
+    "workflow": "Validate PR",
+    "run_id": 31859563236,
+    "state": "in_progress",
+    "conclusion": null,
+    "observation_mode": "read-only"
+  },
+  "controls": {
+    "BACKEND-AUTHORITY-001": "passed-by-immutable-issue343-product-equivalence",
+    "SELECTED-SCOPE-MUTATION-001": "passed-by-immutable-issue343-product-equivalence",
+    "RESTRICTIVE-SCOPE-CANONICAL-001": "passed-by-current-31-obligation-rederivation-with-restored-generic-extractor-rule",
+    "VISUAL-RUNTIME-001": "passed-by-prior-real-browser-plus-immutable-issue343-web-and-harness-equivalence",
+    "CONCURRENT-RETRY-001": "passed-by-immutable-issue343-product-equivalence"
+  },
+  "status": "passed",
+  "limitations": [
+    "Aggregate Validate PR for the refrozen material was still in progress at certificate preparation; this is recorded as remote gate state and does not substitute for readiness controls."
+  ]
+}

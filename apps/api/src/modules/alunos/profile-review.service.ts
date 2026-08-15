@@ -96,6 +96,8 @@ export interface ProfileReviewCompleteChangesInput {
 export interface ProfileReviewCompleteInput {
   reviewId: string;
   alunoUserId: string;
+  alunoId: string;
+  contractId: string;
   noChanges?: boolean;
   changes?: ProfileReviewCompleteChangesInput;
 }
@@ -387,6 +389,48 @@ const parseChangedFields = (value: Prisma.JsonValue | null | undefined): Changed
 
 const castJson = (value: unknown): Prisma.InputJsonValue =>
   normalizeSnapshotValue(value) as Prisma.InputJsonValue;
+
+const assertActiveReviewScope = async (
+  tx: Prisma.TransactionClient,
+  input: Pick<ProfileReviewCompleteInput, 'reviewId' | 'alunoUserId' | 'alunoId' | 'contractId'>
+) => {
+  const activeAluno = await tx.aluno.findFirst({
+    where: {
+      id: input.alunoId,
+      userId: input.alunoUserId,
+      contractId: input.contractId,
+      status: 'ACTIVE_STUDENT',
+    },
+    select: { id: true },
+  });
+
+  if (!activeAluno) {
+    throw new Error('Revisão cadastral não encontrada');
+  }
+};
+
+const updatePendingProfileReview = async (
+  tx: Prisma.TransactionClient,
+  reviewId: string,
+  alunoId: string,
+  data: Prisma.StudentProfileReviewUpdateInput
+) => {
+  try {
+    return await tx.studentProfileReview.update({
+      where: {
+        id: reviewId,
+        alunoId,
+        status: StudentProfileReviewStatus.pending,
+      },
+      data,
+    });
+  } catch (error: any) {
+    if (error?.code === 'P2025') {
+      throw new Error('A revisão cadastral não está pendente');
+    }
+    throw error;
+  }
+};
 
 const applyAlunoPatch = async (
   tx: Prisma.TransactionClient,
@@ -746,6 +790,10 @@ export const profileReviewService = {
       throw new Error('Revisão cadastral não encontrada');
     }
 
+    if (review.alunoId !== input.alunoId || review.aluno.contractId !== input.contractId) {
+      throw new Error('Revisão cadastral não encontrada');
+    }
+
     if (review.aluno.user.id !== input.alunoUserId) {
       throw new Error('Você não tem permissão para concluir esta revisão');
     }
@@ -777,6 +825,17 @@ export const profileReviewService = {
 
     if (input.noChanges || !hasChanges) {
       const updated = await prisma.$transaction(async (tx) => {
+        await assertActiveReviewScope(tx, input);
+        const updatedReview = await updatePendingProfileReview(tx, review.id, input.alunoId, {
+          status: StudentProfileReviewStatus.completed_no_changes,
+          completedAt: now,
+          requiresApproval: false,
+          changedFields: castJson([]),
+          snapshotBefore: review.snapshotBefore ?? castJson(freshSnapshot),
+          snapshotAfter: castJson(freshSnapshot),
+          nextReviewAt,
+        });
+
         await tx.alunoProfileReviewSettings.upsert({
           where: { alunoId: review.alunoId },
           create: {
@@ -790,18 +849,8 @@ export const profileReviewService = {
           },
         });
 
-        return tx.studentProfileReview.update({
-          where: { id: review.id },
-          data: {
-            status: StudentProfileReviewStatus.completed_no_changes,
-            completedAt: now,
-            requiresApproval: false,
-            changedFields: castJson([]),
-            snapshotBefore: review.snapshotBefore ?? castJson(freshSnapshot),
-            snapshotAfter: castJson(freshSnapshot),
-            nextReviewAt,
-          },
-        });
+        await assertActiveReviewScope(tx, input);
+        return updatedReview;
       });
 
       await profileAuditService.log({
@@ -824,6 +873,17 @@ export const profileReviewService = {
 
     if (changedFields.length === 0) {
       const updated = await prisma.$transaction(async (tx) => {
+        await assertActiveReviewScope(tx, input);
+        const updatedReview = await updatePendingProfileReview(tx, review.id, input.alunoId, {
+          status: StudentProfileReviewStatus.completed_no_changes,
+          completedAt: now,
+          requiresApproval: false,
+          changedFields: castJson([]),
+          snapshotBefore: castJson(beforeSnapshot),
+          snapshotAfter: castJson(beforeSnapshot),
+          nextReviewAt,
+        });
+
         await tx.alunoProfileReviewSettings.upsert({
           where: { alunoId: review.alunoId },
           create: {
@@ -837,18 +897,8 @@ export const profileReviewService = {
           },
         });
 
-        return tx.studentProfileReview.update({
-          where: { id: review.id },
-          data: {
-            status: StudentProfileReviewStatus.completed_no_changes,
-            completedAt: now,
-            requiresApproval: false,
-            changedFields: castJson([]),
-            snapshotBefore: castJson(beforeSnapshot),
-            snapshotAfter: castJson(beforeSnapshot),
-            nextReviewAt,
-          },
-        });
+        await assertActiveReviewScope(tx, input);
+        return updatedReview;
       });
 
       await profileAuditService.log({
@@ -866,6 +916,17 @@ export const profileReviewService = {
     const hasSensitiveChanges = changedFields.some((field) => field.requiresApproval);
 
     const updated = await prisma.$transaction(async (tx) => {
+      await assertActiveReviewScope(tx, input);
+      const updatedReview = await updatePendingProfileReview(tx, review.id, input.alunoId, {
+        status: StudentProfileReviewStatus.completed_with_changes,
+        completedAt: now,
+        requiresApproval: hasSensitiveChanges,
+        changedFields: castJson(changedFields),
+        snapshotBefore: castJson(beforeSnapshot),
+        snapshotAfter: castJson(mergedAfterSnapshot),
+        nextReviewAt,
+      });
+
       await applyAlunoPatch(tx, review.alunoId, review.aluno.user!.id, directPatch);
 
       await tx.alunoProfileReviewSettings.upsert({
@@ -881,18 +942,8 @@ export const profileReviewService = {
         },
       });
 
-      return tx.studentProfileReview.update({
-        where: { id: review.id },
-        data: {
-          status: StudentProfileReviewStatus.completed_with_changes,
-          completedAt: now,
-          requiresApproval: hasSensitiveChanges,
-          changedFields: castJson(changedFields),
-          snapshotBefore: castJson(beforeSnapshot),
-          snapshotAfter: castJson(mergedAfterSnapshot),
-          nextReviewAt,
-        },
-      });
+      await assertActiveReviewScope(tx, input);
+      return updatedReview;
     });
 
     await profileAuditService.log({
