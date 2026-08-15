@@ -1,12 +1,12 @@
 import { createPublicKey, verify } from 'node:crypto';
-import express from 'express';
+import express, { type Router } from 'express';
 import twilio from 'twilio';
 import {
   notificationDeliveryStatusService,
   type ExternalDeliveryEvent,
 } from './notification-delivery-status.service.js';
 
-const router = express.Router();
+const router: Router = express.Router();
 const MAX_SENDGRID_CLOCK_SKEW_SECONDS = 300;
 const NOTIFICATION_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
