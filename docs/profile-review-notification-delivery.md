@@ -10,8 +10,8 @@ A solicitação manual mantém a revisão cadastral como operação principal. F
 4. Para `profile_review_requested`, a entrega externa é habilitada explicitamente.
 5. As preferências `emailEnabled` e `whatsappEnabled` determinam quais canais serão tentados.
 6. A aceitação inicial do provider é registrada como `accepted`; ela não é tratada como entrega ao destinatário.
-7. SendGrid Event Webhook e Twilio Status Callback confirmam posteriormente `delivered` ou `failed` de forma autenticada e idempotente.
-8. Somente `delivered` grava `Notification.emailSent`/`Notification.whatsappSent` e `sentAt`.
+7. SendGrid Event Webhook e Twilio Status Callback confirmam posteriormente `sent` ou `failed` de forma autenticada e idempotente.
+8. Somente `sent` (após confirmação de entrega) grava `Notification.emailSent`/`Notification.whatsappSent` e `sentAt`.
 9. A API devolve `reviewCreated`, `requestAction`, `notification.persisted`, `notification.deduplicated` e apenas resultados terminais de entrega quando já conhecidos. Aceitação ainda pendente de confirmação não produz mensagem de “enviado” ao professor.
 
 ## Conteúdo externo
@@ -21,7 +21,7 @@ E-mail e WhatsApp usam uma mensagem mínima que identifica o Sistema ACESSO, inf
 ## Estados por canal
 
 - `accepted`: o provider aceitou/enfileirou a tentativa; **não comprova entrega ao destinatário**;
-- `delivered`: callback autenticado confirmou entrega (ou leitura, quando o provider usa esse estado como sucessor de entrega);
+- `sent`: callback autenticado confirmou entrega (ou leitura, quando o provider usa esse estado como sucessor de entrega); provider `accepted`/`queued`/`sent` sem confirmação final permanece `accepted`;
 - `failed`: falha síncrona ou callback terminal `bounce`/`dropped`/`failed`/`undelivered`;
 - `not_configured`: canal habilitado, mas provider ou confirmação segura de entrega não está configurada;
 - `skipped`: canal desabilitado nas preferências do usuário.
@@ -50,7 +50,7 @@ Callbacks repetidos são idempotentes. Estados terminais não retrocedem quando 
 
 ## Falha depois do outbound
 
-A criação da notificação interna acontece antes do provider. Se a chamada externa produzir um resultado e a atualização posterior da notificação falhar, o serviço não converte esse efeito conhecido em `persisted: false`: ele retorna o resultado real do provider com `trackingPersisted=false`, registra erro técnico sem PII e permite que callback posterior reconcilie o estado pelo `notificationId`.
+A criação da notificação interna acontece antes do provider. Se a chamada externa produzir um resultado e a atualização posterior da notificação falhar, o serviço não converte esse efeito conhecido em `persisted: false`: ele preserva a notificação interna, não converte aceitação em entrega e permite que callback posterior reconcilie o estado pelo `notificationId`; resultados terminais já conhecidos continuam disponíveis ao professor.
 
 ## Repetição e concorrência
 

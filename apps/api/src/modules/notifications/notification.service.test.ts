@@ -122,11 +122,7 @@ describe('notificationService.create', () => {
     const result = await notificationService.create(input);
 
     expect(result?.notification).toBe(notification);
-    expect(result?.delivery).toEqual({
-      ...acceptedDelivery,
-      trackingPersisted: false,
-      trackingError: 'Não foi possível registrar o estado da entrega externa',
-    });
+    expect(result?.delivery).toBeNull();
     expect(deliverExternalNotification).toHaveBeenCalledTimes(1);
   });
 });

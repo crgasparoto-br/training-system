@@ -61,7 +61,7 @@ export const mapSendGridEventStatus = (
   eventName: string
 ): ExternalDeliveryEvent['status'] | null => {
   const normalized = eventName.trim().toLowerCase();
-  if (normalized === 'delivered') return 'delivered';
+  if (normalized === 'delivered') return 'sent';
   if (normalized === 'bounce' || normalized === 'dropped') return 'failed';
   if (normalized === 'processed' || normalized === 'deferred') return 'accepted';
   return null;
@@ -71,7 +71,7 @@ export const mapTwilioMessageStatus = (
   providerStatus: string
 ): ExternalDeliveryEvent['status'] | null => {
   const normalized = providerStatus.trim().toLowerCase();
-  if (normalized === 'delivered' || normalized === 'read') return 'delivered';
+  if (normalized === 'delivered' || normalized === 'read') return 'sent';
   if (normalized === 'failed' || normalized === 'undelivered') return 'failed';
   if (
     normalized === 'accepted' ||

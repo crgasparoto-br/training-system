@@ -1,7 +1,7 @@
 export type ExternalNotificationChannel = 'email' | 'whatsapp';
 export type ExternalDeliveryStatus =
   | 'accepted'
-  | 'delivered'
+  | 'sent'
   | 'failed'
   | 'skipped'
   | 'not_configured';
@@ -17,8 +17,6 @@ export interface ExternalChannelDeliveryResult {
 export interface ExternalNotificationDeliveryResult {
   email: ExternalChannelDeliveryResult;
   whatsapp: ExternalChannelDeliveryResult;
-  trackingPersisted?: boolean;
-  trackingError?: string | null;
 }
 
 export interface DeliverExternalNotificationInput {
@@ -158,7 +156,7 @@ const toWhatsAppAddress = (phone: string) =>
   phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`;
 
 const mapTwilioImmediateStatus = (providerStatus: string | null): ExternalDeliveryStatus => {
-  if (providerStatus === 'delivered' || providerStatus === 'read') return 'delivered';
+  if (providerStatus === 'delivered' || providerStatus === 'read') return 'sent';
   if (providerStatus === 'failed' || providerStatus === 'undelivered') return 'failed';
   return 'accepted';
 };

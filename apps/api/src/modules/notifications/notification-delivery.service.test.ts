@@ -88,7 +88,7 @@ describe('notification delivery adapters', () => {
     });
 
     expect(delivery.email.status).toBe('accepted');
-    expect(delivery.whatsapp.status).toBe('delivered');
+    expect(delivery.whatsapp.status).toBe('sent');
   });
 
   it('mantém resultado parcial quando apenas o WhatsApp falha', async () => {

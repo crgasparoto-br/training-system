@@ -138,7 +138,7 @@ const deliveryDiagnostic = (status: string, error: string | null) =>
   status === 'failed' || status === 'not_configured' ? error : null;
 
 const hasConfirmedDelivery = (delivery: ExternalNotificationDeliveryResult) =>
-  delivery.email.status === 'delivered' || delivery.whatsapp.status === 'delivered';
+  delivery.email.status === 'sent' || delivery.whatsapp.status === 'sent';
 
 const shouldExposeImmediateDelivery = (delivery: ExternalNotificationDeliveryResult) =>
   hasConfirmedDelivery(delivery) ||
@@ -173,14 +173,9 @@ export const notificationService = {
       message: externalContent.message,
     });
 
-    const emailDelivered = dispatchResult.email.status === 'delivered';
-    const whatsappDelivered = dispatchResult.whatsapp.status === 'delivered';
+    const emailDelivered = dispatchResult.email.status === 'sent';
+    const whatsappDelivered = dispatchResult.whatsapp.status === 'sent';
     const currentData = isJsonRecord(notification.data) ? notification.data : {};
-    const deliveryForStorage: ExternalNotificationDeliveryResult = {
-      ...dispatchResult,
-      trackingPersisted: true,
-      trackingError: null,
-    };
 
     try {
       const updatedNotification = await prisma.notification.update({
@@ -205,18 +200,13 @@ export const notificationService = {
       });
       return {
         notification: updatedNotification,
-        delivery: shouldExposeImmediateDelivery(deliveryForStorage) ? deliveryForStorage : null,
+        delivery: shouldExposeImmediateDelivery(dispatchResult) ? dispatchResult : null,
       };
     } catch {
       console.error('Falha ao persistir estado da entrega externa da notificação');
-      const deliveryWithTrackingFailure: ExternalNotificationDeliveryResult = {
-        ...dispatchResult,
-        trackingPersisted: false,
-        trackingError: 'Não foi possível registrar o estado da entrega externa',
-      };
       return {
         notification,
-        delivery: deliveryWithTrackingFailure,
+        delivery: shouldExposeImmediateDelivery(dispatchResult) ? dispatchResult : null,
       };
     }
   },

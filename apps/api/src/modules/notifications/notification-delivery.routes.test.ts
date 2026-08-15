@@ -41,13 +41,13 @@ describe('notification delivery webhook controls', () => {
   it('mapeia estados intermediários e terminais sem tratar aceitação como entrega', () => {
     expect(mapSendGridEventStatus('processed')).toBe('accepted');
     expect(mapSendGridEventStatus('deferred')).toBe('accepted');
-    expect(mapSendGridEventStatus('delivered')).toBe('delivered');
+    expect(mapSendGridEventStatus('delivered')).toBe('sent');
     expect(mapSendGridEventStatus('bounce')).toBe('failed');
 
     expect(mapTwilioMessageStatus('queued')).toBe('accepted');
     expect(mapTwilioMessageStatus('sent')).toBe('accepted');
-    expect(mapTwilioMessageStatus('delivered')).toBe('delivered');
-    expect(mapTwilioMessageStatus('read')).toBe('delivered');
+    expect(mapTwilioMessageStatus('delivered')).toBe('sent');
+    expect(mapTwilioMessageStatus('read')).toBe('sent');
     expect(mapTwilioMessageStatus('undelivered')).toBe('failed');
   });
 });

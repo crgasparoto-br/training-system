@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 export interface ExternalDeliveryEvent {
   notificationId: string;
   channel: ExternalNotificationChannel;
-  status: Extract<ExternalDeliveryStatus, 'accepted' | 'delivered' | 'failed'>;
+  status: Extract<ExternalDeliveryStatus, 'accepted' | 'sent' | 'failed'>;
   providerStatus: string;
   providerMessageId?: string | null;
   error?: string | null;
@@ -36,7 +36,7 @@ const asRecord = (value: unknown): JsonRecord =>
 const asStoredChannelState = (value: unknown): StoredChannelState => asRecord(value);
 
 const isTerminal = (status: ExternalDeliveryStatus | undefined) =>
-  status === 'delivered' || status === 'failed';
+  status === 'sent' || status === 'failed';
 
 export const resolveDeliveryTransition = (
   currentStatus: ExternalDeliveryStatus | undefined,
@@ -88,7 +88,7 @@ const applyEventOnce = async (event: ExternalDeliveryEvent): Promise<ExternalDel
       if (transition === 'duplicate') return { status: 'duplicate' as const };
       if (transition === 'ignore') return { status: 'ignored' as const };
 
-      const delivered = event.status === 'delivered';
+      const delivered = event.status === 'sent';
       await tx.notification.update({
         where: { id: notification.id },
         data: {
