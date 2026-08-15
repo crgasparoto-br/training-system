@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "issue": 343,
-  "head_sha": "598ab53489bf22db84c2d41014a82279e0217332",
-  "status": "no-update-required",
-  "reason": "The endpoint paths and public request payload are unchanged; the material change enforces the already specified active selected contract boundary on the server."
+  "issue": 344,
+  "material_head_sha": "4377c7351594871df9e0c27a5c1af73e4dc64f03",
+  "status": "no-material-product-doc-change",
+  "reason": "Remediation changes only the audit handoff package. Product documentation at the frozen material head was rechecked and remains consistent with implementation."
 }

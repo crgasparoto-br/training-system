@@ -1,10 +1,8 @@
 {
-  "schema_version": 1,
-  "head_sha": "d5a757594412a3a7d169e7f29bb691fa10a04038",
   "workflow": "Validate PR",
-  "run_id": 31863294319,
-  "run_attempt": 2,
+  "run_id": 31896371038,
+  "run_number": 7000,
   "status": "completed",
   "conclusion": "success",
-  "observation_mode": "corrigir-ci exact-head observation"
+  "head_sha": "4377c7351594871df9e0c27a5c1af73e4dc64f03"
 }

@@ -1,1 +1,25 @@
-{"schema_version":1,"head_sha":"8b4292d1827d1628544b4cebc1a7eae50806fc42","controls":[],"unresolved_controls":[]}
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/training-system",
+  "issue": 344,
+  "head_sha": "4377c7351594871df9e0c27a5c1af73e4dc64f03",
+  "previous_independent_rejection": true,
+  "source_audits": [
+    {
+      "finding_id": "A-344-001",
+      "verdict": "reprovada",
+      "published_head_sha": "aa719262a1cb9be819ffd8ac50dee227c67fba39",
+      "material_head_sha": "4377c7351594871df9e0c27a5c1af73e4dc64f03"
+    }
+  ],
+  "controls": [
+    {
+      "id": "SPEC-SOURCE-INTEGRITY-001",
+      "origin_finding": "A-344-001",
+      "status": "passed",
+      "head_sha": "4377c7351594871df9e0c27a5c1af73e4dc64f03",
+      "evidence": "evidence/issue-344-source-integrity.json"
+    }
+  ],
+  "unresolved_controls": []
+}

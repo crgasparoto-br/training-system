@@ -1,1 +1,111 @@
-{"schema_version":1,"head_sha":"8b4292d1827d1628544b4cebc1a7eae50806fc42","families":[{"family":"authorization","applicable":false,"reason":"No issue 344 contract or frozen diff signal requires this family.","control_ids":[],"status":"not-applicable"},{"family":"tenant-isolation","applicable":false,"reason":"No issue 344 contract or frozen diff signal requires this family.","control_ids":[],"status":"not-applicable"},{"family":"public-boundary","applicable":true,"reason":"Material to issue 344 delivery semantics and frozen diff.","control_ids":["COPY-NEG"],"status":"passed"},{"family":"reference-liveness","applicable":false,"reason":"No issue 344 contract or frozen diff signal requires this family.","control_ids":[],"status":"not-applicable"},{"family":"temporal-consistency","applicable":false,"reason":"No issue 344 contract or frozen diff signal requires this family.","control_ids":[],"status":"not-applicable"},{"family":"temporal-destination","applicable":false,"reason":"No issue 344 contract or frozen diff signal requires this family.","control_ids":[],"status":"not-applicable"},{"family":"concurrency-atomicity","applicable":true,"reason":"Material to issue 344 delivery semantics and frozen diff.","control_ids":["FALLBACK-NEG"],"status":"passed"},{"family":"idempotency","applicable":true,"reason":"Material to issue 344 delivery semantics and frozen diff.","control_ids":["FALLBACK-NEG"],"status":"passed"},{"family":"rollback","applicable":true,"reason":"Material to issue 344 delivery semantics and frozen diff.","control_ids":["FALLBACK-NEG"],"status":"passed"},{"family":"historical-immutability","applicable":false,"reason":"No issue 344 contract or frozen diff signal requires this family.","control_ids":[],"status":"not-applicable"},{"family":"structural-contract","applicable":true,"reason":"Material to issue 344 delivery semantics and frozen diff.","control_ids":["EMAIL-NEG","WA-NEG","COPY-NEG"],"status":"passed"},{"family":"documentation","applicable":true,"reason":"Material to issue 344 delivery semantics and frozen diff.","control_ids":["COPY-NEG"],"status":"passed"}],"material_families_missing_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "4377c7351594871df9e0c27a5c1af73e4dc64f03",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": false,
+      "reason": "No canonical issue 344 requirement or material implementation signal requires this risk family.",
+      "control_ids": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "reason": "No canonical issue 344 requirement or material implementation signal requires this risk family.",
+      "control_ids": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": true,
+      "reason": "Material to issue 344 requirements and represented by executed controls: COPY-NEG.",
+      "control_ids": [
+        "COPY-NEG"
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": false,
+      "reason": "No canonical issue 344 requirement or material implementation signal requires this risk family.",
+      "control_ids": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": false,
+      "reason": "No canonical issue 344 requirement or material implementation signal requires this risk family.",
+      "control_ids": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No canonical issue 344 requirement or material implementation signal requires this risk family.",
+      "control_ids": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": true,
+      "reason": "Material to issue 344 requirements and represented by executed controls: REPEAT-NEG.",
+      "control_ids": [
+        "REPEAT-NEG"
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "reason": "Material to issue 344 requirements and represented by executed controls: REPEAT-NEG.",
+      "control_ids": [
+        "REPEAT-NEG"
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "rollback",
+      "applicable": true,
+      "reason": "Material to issue 344 requirements and represented by executed controls: FALLBACK-NEG.",
+      "control_ids": [
+        "FALLBACK-NEG"
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No canonical issue 344 requirement or material implementation signal requires this risk family.",
+      "control_ids": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Material to issue 344 requirements and represented by executed controls: ARCH-NEG, EMAIL-NEG, FALLBACK-NEG, OBS-NEG, STATUS-NEG, WA-NEG.",
+      "control_ids": [
+        "ARCH-NEG",
+        "EMAIL-NEG",
+        "FALLBACK-NEG",
+        "OBS-NEG",
+        "STATUS-NEG",
+        "WA-NEG"
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Material to issue 344 requirements and represented by executed controls: COPY-NEG, DOCS-NEG, OBS-NEG, TESTS-NEG.",
+      "control_ids": [
+        "COPY-NEG",
+        "DOCS-NEG",
+        "OBS-NEG",
+        "TESTS-NEG"
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}

@@ -1,1 +1,16 @@
-{"schema_version":1,"classification":"systemic-escape","source_event":{"repository":"crgasparoto-br/training-system","issue":343,"material_head_sha":"d5a757594412a3a7d169e7f29bb691fa10a04038","findings":["A-343-005"],"summary":"Independent audit found a canonical HTTP entrypoint omitted from public-boundary classification while attack matrix and saturation agreed on the omission."},"generalized_learning":{"escape_class":"canonical-risk-signal-dropped-before-saturation","generalized_failure_pattern":"A canonical specification can contain a material HTTP entrypoint while downstream attack and saturation artifacts both omit the corresponding public-boundary family, allowing mutually consistent artifacts to certify an incomplete risk model.","plausible_wrong_implementation":"Derive risk saturation only from the already-authored attack matrix, so the same missing risk family disappears from both artifacts without any gate disagreement.","trigger_signals":["explicit HTTP method plus route","public API entrypoint","callback entrypoint","downstream-only risk derivation"],"risk_families":["public-boundary","structural-contract"],"reusable_control":"PUBLIC-BOUNDARY-SATURATION-001","prevention_rule":"Rederive canonical risk signals directly from required textual specification sources; an explicit HTTP method plus route activates public-boundary independently of the attack matrix.","detection_rule":"Block handoff when a canonical HTTP entrypoint signal is absent from attack-matrix risk families, even if risk saturation mirrors the same omission.","transfer_cases":[{"surface":"public API entrypoint","scenario":"A synthetic GET route in a required canonical specification must activate public-boundary.","status":"passed"},{"surface":"callback entrypoint","scenario":"A synthetic POST callback route in a required canonical specification must activate public-boundary.","status":"passed"}],"promotion_status":"promoted"},"skill_changes":[{"role":"prevention","status":"passed","paths":["references/risk-saturation-gate.md","scripts/orchestrator_gate/specification.py","scripts/init_requirement_attack_matrix.py"],"evidence":"Canonical-source risk derivation and previously promoted restrictive selected-scope extraction are present; genericity gate passes."},{"role":"detection","status":"passed","paths":["scripts/validate_risk_saturation.py","scripts/validate_handoff_readiness.py","scripts/build_handoff_certificate.py","scripts/validate_requirement_attack_matrix.py","tests/test_requirement_attack_saturation.py"],"evidence":"Seven focused generic tests pass, including two public-boundary transfer surfaces and canonical obligation-drift rejection."}]}
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "repository": "crgasparoto-br/training-system",
+    "issue": 344,
+    "finding_id": "A-344-001",
+    "material_head_sha": "4377c7351594871df9e0c27a5c1af73e4dc64f03",
+    "published_head_sha": "aa719262a1cb9be819ffd8ac50dee227c67fba39",
+    "category": "delivery-not-saturated"
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "The governing entregar-issue skill already requires the primary source to be the canonical issue body, validates full specification coverage, and prohibits handoff with uncovered requirements. The failure was local packet assembly that substituted a derived summary despite those existing rules; this remediation restores compliance and adds a local inherited source-integrity control for the re-audit."
+  }
+}
