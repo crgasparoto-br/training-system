@@ -1,7 +1,7 @@
 import {
-  Prisma,
   PrismaClient,
   StudentProfileReviewStatus,
+  type Prisma,
   type StudentProfileReview,
 } from '@prisma/client';
 
@@ -55,7 +55,7 @@ export const createOrReusePendingProfileReview = async (
 
         return { review, reviewCreated: true };
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      { isolationLevel: 'Serializable' }
     );
   } catch (error: any) {
     if (error?.code !== 'P2034') {
