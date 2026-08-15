@@ -1,4 +1,4 @@
-export type ExternalNotificationChannel = 'email' | 'sms';
+export type ExternalNotificationChannel = 'email' | 'whatsapp';
 export type ExternalDeliveryStatus = 'sent' | 'failed' | 'skipped';
 
 export interface ExternalChannelDeliveryResult {
@@ -9,12 +9,12 @@ export interface ExternalChannelDeliveryResult {
 
 export interface ExternalNotificationDeliveryResult {
   email: ExternalChannelDeliveryResult;
-  sms: ExternalChannelDeliveryResult;
+  whatsapp: ExternalChannelDeliveryResult;
 }
 
 export interface DeliverExternalNotificationInput {
   emailEnabled: boolean;
-  smsEnabled: boolean;
+  whatsappEnabled: boolean;
   recipientEmail: string | null;
   recipientPhone: string | null;
   title: string;
@@ -76,29 +76,32 @@ const deliverEmail = async (
   }
 };
 
-const deliverSms = async (
+const toWhatsAppAddress = (phone: string) =>
+  phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`;
+
+const deliverWhatsApp = async (
   input: DeliverExternalNotificationInput,
   fetchImpl: typeof fetch,
   env: NodeJS.ProcessEnv
 ): Promise<ExternalChannelDeliveryResult> => {
-  if (!input.smsEnabled) {
-    return result('sms', 'skipped');
+  if (!input.whatsappEnabled) {
+    return result('whatsapp', 'skipped');
   }
 
   if (!input.recipientPhone) {
-    return result('sms', 'failed', 'Telefone do aluno não cadastrado');
+    return result('whatsapp', 'failed', 'Telefone do aluno não cadastrado');
   }
 
   const accountSid = env.TWILIO_ACCOUNT_SID?.trim();
   const authToken = env.TWILIO_AUTH_TOKEN?.trim();
-  const fromPhone = env.TWILIO_PHONE_NUMBER?.trim();
-  if (!accountSid || !authToken || !fromPhone) {
-    return result('sms', 'failed', 'Configuração do Twilio ausente');
+  const fromWhatsApp = env.TWILIO_WHATSAPP_NUMBER?.trim();
+  if (!accountSid || !authToken || !fromWhatsApp) {
+    return result('whatsapp', 'failed', 'Configuração do WhatsApp/Twilio ausente');
   }
 
   const body = new URLSearchParams({
-    To: input.recipientPhone,
-    From: fromPhone,
+    To: toWhatsAppAddress(input.recipientPhone),
+    From: toWhatsAppAddress(fromWhatsApp),
     Body: input.message,
   });
 
@@ -116,12 +119,12 @@ const deliverSms = async (
     );
 
     if (!response.ok) {
-      return result('sms', 'failed', `Twilio retornou HTTP ${response.status}`);
+      return result('whatsapp', 'failed', `Twilio retornou HTTP ${response.status}`);
     }
 
-    return result('sms', 'sent');
+    return result('whatsapp', 'sent');
   } catch {
-    return result('sms', 'failed', 'Falha de comunicação com o Twilio');
+    return result('whatsapp', 'failed', 'Falha de comunicação com o Twilio');
   }
 };
 
@@ -131,10 +134,10 @@ export const deliverExternalNotification = async (
 ): Promise<ExternalNotificationDeliveryResult> => {
   const fetchImpl = dependencies.fetchImpl ?? fetch;
   const env = dependencies.env ?? process.env;
-  const [email, sms] = await Promise.all([
+  const [email, whatsapp] = await Promise.all([
     deliverEmail(input, fetchImpl, env),
-    deliverSms(input, fetchImpl, env),
+    deliverWhatsApp(input, fetchImpl, env),
   ]);
 
-  return { email, sms };
+  return { email, whatsapp };
 };
