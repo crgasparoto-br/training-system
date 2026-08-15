@@ -1,4 +1,8 @@
 import { PrismaClient, type NotificationType } from '@prisma/client';
+import {
+  deliverExternalNotification,
+  type ExternalNotificationDeliveryResult,
+} from './notification-delivery.service.js';
 
 const prisma = new PrismaClient();
 
@@ -19,6 +23,12 @@ export interface CreateNotificationInput {
   message: string;
   payload: NotificationPayload;
   dedupeWindowMinutes?: number;
+  dispatchExternal?: boolean;
+}
+
+export interface CreateNotificationResult {
+  notification: Awaited<ReturnType<typeof prisma.notification.create>>;
+  delivery: ExternalNotificationDeliveryResult | null;
 }
 
 const DEFAULT_DEDUPE_WINDOW_MINUTES = 120;
@@ -67,7 +77,7 @@ const resolveDeliveryChannels = async (userId: string) => {
 };
 
 export const notificationService = {
-  async create(input: CreateNotificationInput) {
+  async create(input: CreateNotificationInput): Promise<CreateNotificationResult | null> {
     const now = new Date();
     const dedupeWindowMinutes = input.dedupeWindowMinutes ?? DEFAULT_DEDUPE_WINDOW_MINUTES;
     const dedupeStart = new Date(now.getTime() - dedupeWindowMinutes * 60 * 1000);
@@ -104,7 +114,7 @@ export const notificationService = {
 
     const channels = await resolveDeliveryChannels(input.userId);
 
-    return prisma.notification.create({
+    const notification = await prisma.notification.create({
       data: {
         userId: input.userId,
         type: input.type,
@@ -116,5 +126,48 @@ export const notificationService = {
         },
       },
     });
+
+    if (!input.dispatchExternal) {
+      return { notification, delivery: null };
+    }
+
+    const recipient = await prisma.user.findUnique({
+      where: { id: input.userId },
+      select: {
+        email: true,
+        profile: {
+          select: {
+            phone: true,
+          },
+        },
+      },
+    });
+
+    const delivery = await deliverExternalNotification({
+      emailEnabled: channels.emailEnabled,
+      smsEnabled: channels.smsEnabled,
+      recipientEmail: recipient?.email ?? null,
+      recipientPhone: recipient?.profile?.phone ?? null,
+      title: input.title,
+      message: input.message,
+    });
+
+    const emailSent = delivery.email.status === 'sent';
+    const smsSent = delivery.sms.status === 'sent';
+    const updatedNotification = await prisma.notification.update({
+      where: { id: notification.id },
+      data: {
+        emailSent,
+        smsSent,
+        emailError: delivery.email.status === 'failed' ? delivery.email.error : null,
+        smsError: delivery.sms.status === 'failed' ? delivery.sms.error : null,
+        sentAt: emailSent || smsSent ? new Date() : null,
+      },
+    });
+
+    return {
+      notification: updatedNotification,
+      delivery,
+    };
   },
 };
