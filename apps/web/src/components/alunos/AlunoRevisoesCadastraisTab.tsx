@@ -19,6 +19,24 @@ type AlunoRevisoesCadastraisTabProps = {
 
 type CurrentStatus = 'em-dia' | 'pendente' | 'vencida';
 
+type DeliveryChannelResult = {
+  channel: 'email' | 'sms';
+  status: 'sent' | 'failed' | 'skipped';
+  error?: string | null;
+};
+
+type ReviewRequestResult = AlunoProfileReview & {
+  notification?: {
+    persisted: boolean;
+    deduplicated: boolean;
+    delivery: {
+      email: DeliveryChannelResult;
+      sms: DeliveryChannelResult;
+    } | null;
+    error?: string | null;
+  };
+};
+
 const statusPillClass: Record<CurrentStatus, string> = {
   'em-dia': 'bg-success/10 text-success',
   pendente: 'bg-warning/10 text-warning',
@@ -116,6 +134,57 @@ const getCurrentStatus = (
 
 const getChangedFieldLabel = (path: string) => changedFieldLabelMap[path] || path;
 
+const getRequestFeedback = (result: ReviewRequestResult): { message: string; type: ToastType } => {
+  const notification = result.notification;
+  if (!notification?.persisted) {
+    return {
+      message: 'Revisão criada, mas não foi possível registrar a notificação do aluno.',
+      type: 'error',
+    };
+  }
+
+  if (notification.deduplicated) {
+    return {
+      message: 'Revisão criada. A notificação já havia sido registrada recentemente.',
+      type: 'success',
+    };
+  }
+
+  if (!notification.delivery) {
+    return {
+      message: 'Revisão criada e notificação registrada.',
+      type: 'success',
+    };
+  }
+
+  const channels = [notification.delivery.email, notification.delivery.sms];
+  const sent = channels.filter((channel) => channel.status === 'sent').map((channel) => channel.channel);
+  const failed = channels.filter((channel) => channel.status === 'failed').map((channel) => channel.channel);
+
+  const label = (channel: 'email' | 'sms') => (channel === 'email' ? 'e-mail' : 'SMS');
+  const joinChannels = (items: Array<'email' | 'sms'>) => items.map(label).join(' e ');
+
+  if (failed.length > 0) {
+    const sentText = sent.length > 0 ? ` A notificação foi enviada por ${joinChannels(sent)}.` : '';
+    return {
+      message: `Revisão criada, mas o envio por ${joinChannels(failed)} falhou.${sentText}`,
+      type: 'error',
+    };
+  }
+
+  if (sent.length > 0) {
+    return {
+      message: `Revisão criada e notificação enviada por ${joinChannels(sent)}.`,
+      type: 'success',
+    };
+  }
+
+  return {
+    message: 'Revisão criada. Nenhum canal externo de notificação está habilitado para o aluno.',
+    type: 'success',
+  };
+};
+
 export function AlunoRevisoesCadastraisTab({
   alunoId,
   onToast,
@@ -197,8 +266,9 @@ export function AlunoRevisoesCadastraisTab({
   const handleRequestNow = async () => {
     setRequestingNow(true);
     try {
-      await alunoService.requestProfileReview(alunoId);
-      onToast('Solicitação de revisão criada com sucesso', 'success');
+      const result = (await alunoService.requestProfileReview(alunoId)) as ReviewRequestResult;
+      const feedback = getRequestFeedback(result);
+      onToast(feedback.message, feedback.type);
       await loadData();
     } catch (error: any) {
       onToast(error?.response?.data?.error || 'Erro ao solicitar revisão cadastral', 'error');
