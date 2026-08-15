@@ -1,4 +1,9 @@
-import { Prisma, PrismaClient, StudentProfileReviewStatus } from '@prisma/client';
+import {
+  Prisma,
+  PrismaClient,
+  StudentProfileReviewStatus,
+  type StudentProfileReview,
+} from '@prisma/client';
 
 type ReviewRequestClient = Pick<PrismaClient, '$transaction' | 'studentProfileReview'>;
 
@@ -11,7 +16,7 @@ export interface CreateOrReusePendingReviewInput {
 }
 
 export interface CreateOrReusePendingReviewResult {
-  review: Awaited<ReturnType<Prisma.TransactionClient['studentProfileReview']['create']>>;
+  review: StudentProfileReview;
   reviewCreated: boolean;
 }
 
