@@ -21,7 +21,7 @@ type CurrentStatus = 'em-dia' | 'pendente' | 'vencida';
 
 type DeliveryChannelResult = {
   channel: 'email' | 'whatsapp';
-  status: 'sent' | 'failed' | 'skipped';
+  status: 'sent' | 'failed' | 'skipped' | 'not_configured';
   error?: string | null;
 };
 
@@ -174,6 +174,9 @@ const getRequestFeedback = (result: ReviewRequestResult): { message: string; typ
   const channels = [notification.delivery.email, notification.delivery.whatsapp];
   const sent = channels.filter((channel) => channel.status === 'sent').map((channel) => channel.channel);
   const failed = channels.filter((channel) => channel.status === 'failed').map((channel) => channel.channel);
+  const notConfigured = channels
+    .filter((channel) => channel.status === 'not_configured')
+    .map((channel) => channel.channel);
 
   const label = (channel: 'email' | 'whatsapp') =>
     channel === 'email' ? 'e-mail' : 'WhatsApp';
@@ -181,9 +184,20 @@ const getRequestFeedback = (result: ReviewRequestResult): { message: string; typ
 
   if (failed.length > 0) {
     const sentText = sent.length > 0 ? ` A notificação foi enviada por ${joinChannels(sent)}.` : '';
+    const configText = notConfigured.length > 0
+      ? ` ${joinChannels(notConfigured)} não está configurado para envio.`
+      : '';
     return {
-      message: `${prefix} O envio por ${joinChannels(failed)} falhou.${sentText}`,
+      message: `${prefix} O envio por ${joinChannels(failed)} falhou.${sentText}${configText}`,
       type: 'error',
+    };
+  }
+
+  if (notConfigured.length > 0) {
+    const sentText = sent.length > 0 ? ` A notificação foi enviada por ${joinChannels(sent)}.` : '';
+    return {
+      message: `${prefix} ${joinChannels(notConfigured)} não está configurado para envio.${sentText}`,
+      type: 'success',
     };
   }
 
