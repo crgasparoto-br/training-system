@@ -1,13 +1,13 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-15T20:14:38.091080+00:00",
+  "created_at": "2026-08-15T20:26:56.603228+00:00",
   "identity": {
-    "head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
-    "material_head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
+    "head_sha": "861fb0b70bcd2123ed76afaa036e1176dd383966",
+    "material_head_sha": "861fb0b70bcd2123ed76afaa036e1176dd383966",
     "base_sha": "f68c490309c773970cb7ff75f7532282455f66fb",
-    "merge_preview_sha": "4fa40941cda2cb825245aec46342fbb357068db5",
-    "material_merge_preview_sha": "4fa40941cda2cb825245aec46342fbb357068db5"
+    "merge_preview_sha": "ca7bc0dfa2517b99b8ef51cef5df87b3477ddfaa",
+    "material_merge_preview_sha": "ca7bc0dfa2517b99b8ef51cef5df87b3477ddfaa"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
@@ -51,15 +51,15 @@
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "1c1b0c896a2466ccaaaef9238c2f7b119b39825f53d2d47e5942e8d90230333b"
+      "sha256": "6abf9ad71eacc558b2a603deced8119ed7cbaa092664fa3aa2ff2bfe426398d5"
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "76787330ef1190d481e5542c913e9decf7a1831865ced54dffebff339c07d791"
+      "sha256": "ab44347801944a9350cd1dc984c76d9c24e933ea4acb8921f6b6c080821c808e"
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "cbd65c88611941beca34463ccffdc553502682846b5f960df5142622cbed687b"
+      "sha256": "5a148a06755cd1aabd4a4c6e72c4b2257cb2d24b5c3982ebb70f74c66ad1e87f"
     },
     "audit_escape_closure": {
       "name": "audit-escape-closure.json",
@@ -67,7 +67,7 @@
     },
     "learning_closure": {
       "name": "learning-closure.json",
-      "sha256": "dfa82fafeec396d4cb4d439114757a7539539ec9923c0ef99594a28d7274d8ba"
+      "sha256": "3e390b805499353f530651eede66a8c1f1b439c2bf19baca9d1b1d37435f2abe"
     }
   },
   "previous_independent_rejection": true

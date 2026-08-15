@@ -1,8 +1,10 @@
 {
   "schema_version": 1,
-  "head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
+  "head_sha": "861fb0b70bcd2123ed76afaa036e1176dd383966",
   "workflow": "Validate PR",
-  "status": "pending-no-run",
+  "run_id": 31906665531,
+  "run_number": 7006,
+  "status": "in_progress",
   "conclusion": null,
-  "observation": "Single observe-only query found no workflow run for the new material SHA."
+  "observation": "Single observe-only query found Validate PR in progress for the frozen material SHA; no rerun, dispatch or polling was performed."
 }

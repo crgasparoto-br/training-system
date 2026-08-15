@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "issue": 344,
-  "material_head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
+  "material_head_sha": "861fb0b70bcd2123ed76afaa036e1176dd383966",
   "controls": [
     {
       "id": "PROVIDER-DELIVERY-CONFIRMATION-001",
@@ -30,17 +30,17 @@
   },
   "local_files": {
     "apps/api/src/modules/notifications/index.ts": "0d34c5c5241f9f3a77899b2db0adc58437b57d83f3ef0e3974df1a93a64ad0c0",
-    "apps/api/src/modules/notifications/notification-delivery-status.service.test.ts": "9b63753e1d6c8e1dd1568226799ef2fa8660d1cec3e49534977b302ceb0a9c29",
-    "apps/api/src/modules/notifications/notification-delivery-status.service.ts": "c1cd0653f007249e38023071f9259bcb4e993f3cab7a5230b08e59cf36caaaaa",
-    "apps/api/src/modules/notifications/notification-delivery.routes.test.ts": "7e16e874befa0ada0685f9739f065f3afe01b1251a07fd99ad630f23f5752447",
-    "apps/api/src/modules/notifications/notification-delivery.routes.ts": "ac3f367ae914ba5e03176f58e7fade650011d352df6452c692ed75545713af7b",
-    "apps/api/src/modules/notifications/notification-delivery.service.test.ts": "cd0d0385364c96520e1bb78f3dbd40a16ecc1042fbc9344fdfd90d6ae708f90f",
-    "apps/api/src/modules/notifications/notification-delivery.service.ts": "412b4f6a6471c0e420fb0249890a07fa189f19e3441c92f7ce128821614ca540",
-    "apps/api/src/modules/notifications/notification.service.test.ts": "c4b1407bd660c3590bf3c3cddfeca9b8f9a7ebaa901e5d1697de97985cdc7599",
-    "apps/api/src/modules/notifications/notification.service.ts": "5e095845a69849e6d0a94b6c9d7cc62ab4855201f849f256082dfe1dd5878741"
+    "apps/api/src/modules/notifications/notification-delivery-status.service.test.ts": "4af19197625d611b0bde0ece228be8248cd2b5069cfc7426037fa3c73271cfb1",
+    "apps/api/src/modules/notifications/notification-delivery-status.service.ts": "587adfd71a8c77cea89f71fcd64b11ffaa77db1ec88273dd310de57e36a51750",
+    "apps/api/src/modules/notifications/notification-delivery.routes.test.ts": "d95a1d67379807ae6427880f4a804bdc1dacbb29edfd497b4e584a29d09a2c94",
+    "apps/api/src/modules/notifications/notification-delivery.routes.ts": "923ae0a3bb75d07fc8986c723ca85e618aaa33ff4a23ea61482a778ecd4a906c",
+    "apps/api/src/modules/notifications/notification-delivery.service.test.ts": "e349e722dcc1d2e3b84f988a7c4f67e3d625e8ba05229c687e88d5faa945767c",
+    "apps/api/src/modules/notifications/notification-delivery.service.ts": "855865daf218f3f3ebb0536d6b10607a17242fcba13793d7cb9f0b7810a99e06",
+    "apps/api/src/modules/notifications/notification.service.test.ts": "36adef1d765df077757002184c4bcc714d2653f67b5c329c207d5d031dfd66f3",
+    "apps/api/src/modules/notifications/notification.service.ts": "20b47677600d65da7e14695305c53d4b137d379e84ec16a737b9ffc23a2fec47"
   },
   "limitations": [
-    "Repository dependencies were unavailable locally in connector-only runtime; canonical remote CI had no run at the single observation point for the new material SHA."
+    "Repository dependencies were unavailable locally in connector-only runtime; focused TypeScript syntax/type-shape compilation passed and the canonical remote Validate PR run was in progress at the single observation point for the frozen material SHA."
   ],
   "source_integrity": {
     "control_id": "SPEC-SOURCE-INTEGRITY-001",

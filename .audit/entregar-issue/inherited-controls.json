@@ -1,30 +1,30 @@
 {
   "schema_version": 1,
   "repository": "crgasparoto-br/training-system",
-  "head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
+  "head_sha": "861fb0b70bcd2123ed76afaa036e1176dd383966",
   "controls": [
     {
       "id": "SPEC-SOURCE-INTEGRITY-001",
       "status": "passed",
-      "head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
+      "head_sha": "861fb0b70bcd2123ed76afaa036e1176dd383966",
       "evidence": "evidence/issue-344-remediation.json"
     },
     {
       "id": "PROVIDER-DELIVERY-CONFIRMATION-001",
       "status": "passed",
-      "head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
+      "head_sha": "861fb0b70bcd2123ed76afaa036e1176dd383966",
       "evidence": "evidence/issue-344-remediation.json"
     },
     {
       "id": "NOTIFICATION-DEDUPE-SERIALIZABLE-001",
       "status": "passed",
-      "head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
+      "head_sha": "861fb0b70bcd2123ed76afaa036e1176dd383966",
       "evidence": "evidence/issue-344-remediation.json"
     },
     {
       "id": "POST-OUTBOUND-STATE-TRUTH-001",
       "status": "passed",
-      "head_sha": "e55236207885c5e2003d2c731af5d91683adbda3",
+      "head_sha": "861fb0b70bcd2123ed76afaa036e1176dd383966",
       "evidence": "evidence/issue-344-remediation.json"
     }
   ],
