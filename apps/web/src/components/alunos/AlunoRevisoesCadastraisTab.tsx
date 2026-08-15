@@ -20,18 +20,24 @@ type AlunoRevisoesCadastraisTabProps = {
 type CurrentStatus = 'em-dia' | 'pendente' | 'vencida';
 
 type DeliveryChannelResult = {
-  channel: 'email' | 'sms';
+  channel: 'email' | 'whatsapp';
   status: 'sent' | 'failed' | 'skipped';
   error?: string | null;
 };
 
 type ReviewRequestResult = AlunoProfileReview & {
+  reviewCreated?: boolean;
+  requestAction?:
+    | 'created'
+    | 'existing_pending'
+    | 'existing_pending_notified'
+    | 'existing_pending_notification_failed';
   notification?: {
     persisted: boolean;
     deduplicated: boolean;
     delivery: {
       email: DeliveryChannelResult;
-      sms: DeliveryChannelResult;
+      whatsapp: DeliveryChannelResult;
     } | null;
     error?: string | null;
   };
@@ -136,51 +142,60 @@ const getChangedFieldLabel = (path: string) => changedFieldLabelMap[path] || pat
 
 const getRequestFeedback = (result: ReviewRequestResult): { message: string; type: ToastType } => {
   const notification = result.notification;
+  const prefix =
+    result.reviewCreated === false
+      ? 'Já existe revisão pendente; nenhuma nova revisão foi criada.'
+      : 'Revisão criada.';
+
   if (!notification?.persisted) {
     return {
-      message: 'Revisão criada, mas não foi possível registrar a notificação do aluno.',
+      message: `${prefix} Não foi possível registrar a notificação do aluno.`,
       type: 'error',
     };
   }
 
   if (notification.deduplicated) {
     return {
-      message: 'Revisão criada. A notificação já havia sido registrada recentemente.',
+      message:
+        result.reviewCreated === false
+          ? prefix
+          : `${prefix} A notificação já havia sido registrada recentemente.`,
       type: 'success',
     };
   }
 
   if (!notification.delivery) {
     return {
-      message: 'Revisão criada e notificação registrada.',
+      message: `${prefix} Notificação registrada no sistema.`,
       type: 'success',
     };
   }
 
-  const channels = [notification.delivery.email, notification.delivery.sms];
+  const channels = [notification.delivery.email, notification.delivery.whatsapp];
   const sent = channels.filter((channel) => channel.status === 'sent').map((channel) => channel.channel);
   const failed = channels.filter((channel) => channel.status === 'failed').map((channel) => channel.channel);
 
-  const label = (channel: 'email' | 'sms') => (channel === 'email' ? 'e-mail' : 'SMS');
-  const joinChannels = (items: Array<'email' | 'sms'>) => items.map(label).join(' e ');
+  const label = (channel: 'email' | 'whatsapp') =>
+    channel === 'email' ? 'e-mail' : 'WhatsApp';
+  const joinChannels = (items: Array<'email' | 'whatsapp'>) => items.map(label).join(' e ');
 
   if (failed.length > 0) {
     const sentText = sent.length > 0 ? ` A notificação foi enviada por ${joinChannels(sent)}.` : '';
     return {
-      message: `Revisão criada, mas o envio por ${joinChannels(failed)} falhou.${sentText}`,
+      message: `${prefix} O envio por ${joinChannels(failed)} falhou.${sentText}`,
       type: 'error',
     };
   }
 
   if (sent.length > 0) {
     return {
-      message: `Revisão criada e notificação enviada por ${joinChannels(sent)}.`,
+      message: `${prefix} Notificação enviada por ${joinChannels(sent)}.`,
       type: 'success',
     };
   }
 
   return {
-    message: 'Revisão criada. Nenhum canal externo de notificação está habilitado para o aluno.',
+    message: `${prefix} A notificação está disponível no sistema; nenhum canal externo está habilitado.`,
     type: 'success',
   };
 };
