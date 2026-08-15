@@ -107,7 +107,7 @@ const applyEventOnce = async (event: ExternalDeliveryEvent): Promise<ExternalDel
       await tx.notification.update({
         where: { id: notification.id },
         data: {
-          data: data as Prisma.InputJsonValue,
+          data: data as unknown as Prisma.InputJsonValue,
           ...(event.channel === 'email'
             ? {
                 emailSent: delivered || notification.emailSent,
