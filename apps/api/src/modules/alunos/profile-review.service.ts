@@ -720,28 +720,65 @@ export const profileReviewService = {
       },
     });
 
-    await notificationService.create({
-      userId: aluno.user.id,
-      type: 'profile_review_requested',
-      title: 'Revisão cadastral solicitada',
-      message:
-        input.requestedByUserId
-          ? input.dueAt
-            ? `Seu professor solicitou revisão cadastral. Prazo: ${input.dueAt.toISOString()}.`
-            : 'Seu professor solicitou revisão cadastral.'
-          : input.dueAt
-            ? `Uma revisão cadastral está disponível para você. Prazo: ${input.dueAt.toISOString()}.`
-            : 'Uma revisão cadastral está disponível para você.',
-      payload: {
-        alunoId: input.alunoId,
-        reviewId: review.id,
-        dueAt: input.dueAt?.toISOString() ?? null,
-        path: '/student/profile-review',
-        deepLink: 'acesso://student/profile-review',
-        sectionsRequested: input.sectionsRequested ?? settingsData.effective.sectionsRequested,
-      },
-      dedupeWindowMinutes: 30,
-    });
+    let notification = {
+      persisted: false,
+      deduplicated: false,
+      delivery: null as Awaited<ReturnType<typeof notificationService.create>> extends infer T
+        ? T extends { delivery: infer D }
+          ? D | null
+          : null
+        : null,
+      error: null as string | null,
+    };
+
+    try {
+      const createdNotification = await notificationService.create({
+        userId: aluno.user.id,
+        type: 'profile_review_requested',
+        title: 'Revisão cadastral solicitada',
+        message:
+          input.requestedByUserId
+            ? input.dueAt
+              ? `Seu professor solicitou revisão cadastral. Prazo: ${input.dueAt.toISOString()}.`
+              : 'Seu professor solicitou revisão cadastral.'
+            : input.dueAt
+              ? `Uma revisão cadastral está disponível para você. Prazo: ${input.dueAt.toISOString()}.`
+              : 'Uma revisão cadastral está disponível para você.',
+        payload: {
+          alunoId: input.alunoId,
+          reviewId: review.id,
+          event: 'profile_review_requested',
+          dueAt: input.dueAt?.toISOString() ?? null,
+          path: '/student/profile-review',
+          deepLink: 'acesso://student/profile-review',
+          sectionsRequested: input.sectionsRequested ?? settingsData.effective.sectionsRequested,
+        },
+        dedupeWindowMinutes: 30,
+        dispatchExternal: true,
+      });
+
+      notification = createdNotification
+        ? {
+            persisted: true,
+            deduplicated: false,
+            delivery: createdNotification.delivery,
+            error: null,
+          }
+        : {
+            persisted: true,
+            deduplicated: true,
+            delivery: null,
+            error: null,
+          };
+    } catch (error) {
+      console.error('Erro ao registrar ou entregar notificação da revisão cadastral:', error);
+      notification = {
+        persisted: false,
+        deduplicated: false,
+        delivery: null,
+        error: 'Não foi possível registrar a notificação da revisão cadastral',
+      };
+    }
 
     await profileAuditService.log({
       alunoId: input.alunoId,
@@ -751,7 +788,10 @@ export const profileReviewService = {
       afterData: { reviewId: review.id, dueAt: input.dueAt?.toISOString() ?? null },
     });
 
-    return review;
+    return {
+      ...review,
+      notification,
+    };
   },
 
   async listByAluno(alunoId: string) {
