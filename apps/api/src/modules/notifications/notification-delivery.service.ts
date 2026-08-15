@@ -1,5 +1,5 @@
 export type ExternalNotificationChannel = 'email' | 'whatsapp';
-export type ExternalDeliveryStatus = 'sent' | 'failed' | 'skipped';
+export type ExternalDeliveryStatus = 'sent' | 'failed' | 'skipped' | 'not_configured';
 
 export interface ExternalChannelDeliveryResult {
   channel: ExternalNotificationChannel;
@@ -48,7 +48,7 @@ const deliverEmail = async (
   const apiKey = env.SENDGRID_API_KEY?.trim();
   const fromEmail = env.SENDGRID_FROM_EMAIL?.trim();
   if (!apiKey || !fromEmail) {
-    return result('email', 'failed', 'Configuração do SendGrid ausente');
+    return result('email', 'not_configured', 'Configuração do SendGrid ausente');
   }
 
   try {
@@ -96,7 +96,7 @@ const deliverWhatsApp = async (
   const authToken = env.TWILIO_AUTH_TOKEN?.trim();
   const fromWhatsApp = env.TWILIO_WHATSAPP_NUMBER?.trim();
   if (!accountSid || !authToken || !fromWhatsApp) {
-    return result('whatsapp', 'failed', 'Configuração do WhatsApp/Twilio ausente');
+    return result('whatsapp', 'not_configured', 'Configuração do WhatsApp/Twilio ausente');
   }
 
   const body = new URLSearchParams({
