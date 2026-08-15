@@ -1,3 +1,9 @@
-core-tsc
-test-tsc
-PASS
+
+> training_system@0.1.0 type-check /home/runner/work/training-system/training-system
+> pnpm -r run type-check
+
+Scope: 4 of 5 workspace projects
+apps/web type-check$ tsc --noEmit
+apps/web type-check: Done
+apps/api type-check$ tsc --noEmit
+apps/api type-check: Done

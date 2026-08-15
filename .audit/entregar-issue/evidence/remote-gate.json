@@ -1,10 +1,1 @@
-{
-  "schema_version": 1,
-  "head_sha": "861fb0b70bcd2123ed76afaa036e1176dd383966",
-  "workflow": "Validate PR",
-  "run_id": 31906665531,
-  "run_number": 7006,
-  "status": "in_progress",
-  "conclusion": null,
-  "observation": "Single observe-only query found Validate PR in progress for the frozen material SHA; no rerun, dispatch or polling was performed."
-}
+{"schema_version":1,"head_sha":"818aba998835a3da93fef6abd84fc4c852976a16","workflow":"Validate PR","run_id":31909741954,"run_number":7009,"status":"completed","conclusion":"success","observation":"Exact-head GitHub Actions run completed successfully after CI remediation; no manual rerun, dispatch, cancellation or approval was used."}
