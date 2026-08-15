@@ -1,4 +1,4 @@
-import { PrismaClient, type NotificationType } from '@prisma/client';
+import { PrismaClient, type Notification, type NotificationType } from '@prisma/client';
 import {
   deliverExternalNotification,
   type ExternalNotificationDeliveryResult,
@@ -27,7 +27,7 @@ export interface CreateNotificationInput {
 }
 
 export interface CreateNotificationResult {
-  notification: Awaited<ReturnType<typeof prisma.notification.create>>;
+  notification: Notification;
   delivery: ExternalNotificationDeliveryResult | null;
 }
 
@@ -74,6 +74,35 @@ const resolveDeliveryChannels = async (userId: string) => {
     smsEnabled: preferences?.smsEnabled ?? true,
     whatsappEnabled: preferences?.whatsappEnabled ?? true,
   };
+};
+
+const buildExternalContent = (type: NotificationType) => {
+  if (type !== 'profile_review_requested') {
+    return null;
+  }
+
+  const title = 'Revisão cadastral pendente no Sistema ACESSO';
+  const baseMessage =
+    'Você tem uma revisão cadastral pendente no Sistema ACESSO. Entre na sua conta para acessar e concluir a revisão.';
+  const frontendUrl = process.env.FRONTEND_URL?.trim();
+
+  if (!frontendUrl) {
+    return { title, message: baseMessage };
+  }
+
+  try {
+    const url = new URL(frontendUrl);
+    if (url.protocol !== 'https:') {
+      return { title, message: baseMessage };
+    }
+
+    url.pathname = '/student/profile-review';
+    url.search = '';
+    url.hash = '';
+    return { title, message: `${baseMessage} Acesse: ${url.toString()}` };
+  } catch {
+    return { title, message: baseMessage };
+  }
 };
 
 export const notificationService = {
@@ -142,26 +171,30 @@ export const notificationService = {
         },
       },
     });
+    const externalContent = buildExternalContent(input.type) ?? {
+      title: input.title,
+      message: input.message,
+    };
 
     const delivery = await deliverExternalNotification({
       emailEnabled: channels.emailEnabled,
-      smsEnabled: channels.smsEnabled,
+      whatsappEnabled: channels.whatsappEnabled,
       recipientEmail: recipient?.email ?? null,
       recipientPhone: recipient?.profile?.phone ?? null,
-      title: input.title,
-      message: input.message,
+      title: externalContent.title,
+      message: externalContent.message,
     });
 
     const emailSent = delivery.email.status === 'sent';
-    const smsSent = delivery.sms.status === 'sent';
+    const whatsappSent = delivery.whatsapp.status === 'sent';
     const updatedNotification = await prisma.notification.update({
       where: { id: notification.id },
       data: {
         emailSent,
-        smsSent,
+        whatsappSent,
         emailError: delivery.email.status === 'failed' ? delivery.email.error : null,
-        smsError: delivery.sms.status === 'failed' ? delivery.sms.error : null,
-        sentAt: emailSent || smsSent ? new Date() : null,
+        whatsappError: delivery.whatsapp.status === 'failed' ? delivery.whatsapp.error : null,
+        sentAt: emailSent || whatsappSent ? new Date() : null,
       },
     });
 
