@@ -187,7 +187,7 @@ export const notificationService = {
               email: dispatchResult.email,
               whatsapp: dispatchResult.whatsapp,
             },
-          } as Prisma.InputJsonValue,
+          } as unknown as Prisma.InputJsonValue,
           emailSent: emailDelivered,
           whatsappSent: whatsappDelivered,
           emailError: deliveryDiagnostic(dispatchResult.email.status, dispatchResult.email.error),
