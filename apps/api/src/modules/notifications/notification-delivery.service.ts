@@ -1,18 +1,28 @@
 export type ExternalNotificationChannel = 'email' | 'whatsapp';
-export type ExternalDeliveryStatus = 'sent' | 'failed' | 'skipped' | 'not_configured';
+export type ExternalDeliveryStatus =
+  | 'accepted'
+  | 'delivered'
+  | 'failed'
+  | 'skipped'
+  | 'not_configured';
 
 export interface ExternalChannelDeliveryResult {
   channel: ExternalNotificationChannel;
   status: ExternalDeliveryStatus;
   error: string | null;
+  providerMessageId: string | null;
+  providerStatus: string | null;
 }
 
 export interface ExternalNotificationDeliveryResult {
   email: ExternalChannelDeliveryResult;
   whatsapp: ExternalChannelDeliveryResult;
+  trackingPersisted?: boolean;
+  trackingError?: string | null;
 }
 
 export interface DeliverExternalNotificationInput {
+  notificationId: string;
   emailEnabled: boolean;
   whatsappEnabled: boolean;
   recipientEmail: string | null;
@@ -29,8 +39,59 @@ export interface NotificationDeliveryDependencies {
 const result = (
   channel: ExternalNotificationChannel,
   status: ExternalDeliveryStatus,
-  error: string | null = null
-): ExternalChannelDeliveryResult => ({ channel, status, error });
+  error: string | null = null,
+  providerMessageId: string | null = null,
+  providerStatus: string | null = null
+): ExternalChannelDeliveryResult => ({
+  channel,
+  status,
+  error,
+  providerMessageId,
+  providerStatus,
+});
+
+const resolveCallbackBaseUrl = (env: NodeJS.ProcessEnv): URL | null => {
+  const raw = env.NOTIFICATION_CALLBACK_BASE_URL?.trim();
+  if (!raw) return null;
+
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'https:') return null;
+    return url;
+  } catch {
+    return null;
+  }
+};
+
+const buildTwilioStatusCallbackUrl = (
+  notificationId: string,
+  env: NodeJS.ProcessEnv
+): string | null => {
+  const base = resolveCallbackBaseUrl(env);
+  if (!base) return null;
+  const url = new URL('/api/v1/notification-delivery/twilio-status', base);
+  url.searchParams.set('notificationId', notificationId);
+  return url.toString();
+};
+
+const safeJson = async (response: Response): Promise<Record<string, unknown>> => {
+  try {
+    const value = await response.json();
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+};
+
+const readHeader = (response: Response, name: string) => {
+  try {
+    return response.headers?.get(name) ?? null;
+  } catch {
+    return null;
+  }
+};
 
 const deliverEmail = async (
   input: DeliverExternalNotificationInput,
@@ -47,8 +108,14 @@ const deliverEmail = async (
 
   const apiKey = env.SENDGRID_API_KEY?.trim();
   const fromEmail = env.SENDGRID_FROM_EMAIL?.trim();
-  if (!apiKey || !fromEmail) {
-    return result('email', 'not_configured', 'Configuração do SendGrid ausente');
+  const webhookPublicKey = env.SENDGRID_EVENT_WEBHOOK_PUBLIC_KEY?.trim();
+  const callbackBase = resolveCallbackBaseUrl(env);
+  if (!apiKey || !fromEmail || !webhookPublicKey || !callbackBase) {
+    return result(
+      'email',
+      'not_configured',
+      'Configuração do SendGrid ou confirmação de entrega ausente'
+    );
   }
 
   try {
@@ -59,7 +126,12 @@ const deliverEmail = async (
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        personalizations: [{ to: [{ email: input.recipientEmail }] }],
+        personalizations: [
+          {
+            to: [{ email: input.recipientEmail }],
+            custom_args: { notificationId: input.notificationId },
+          },
+        ],
         from: { email: fromEmail },
         subject: input.title,
         content: [{ type: 'text/plain', value: input.message }],
@@ -70,7 +142,13 @@ const deliverEmail = async (
       return result('email', 'failed', `SendGrid retornou HTTP ${response.status}`);
     }
 
-    return result('email', 'sent');
+    return result(
+      'email',
+      'accepted',
+      null,
+      readHeader(response, 'x-message-id'),
+      'accepted'
+    );
   } catch {
     return result('email', 'failed', 'Falha de comunicação com o SendGrid');
   }
@@ -78,6 +156,12 @@ const deliverEmail = async (
 
 const toWhatsAppAddress = (phone: string) =>
   phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`;
+
+const mapTwilioImmediateStatus = (providerStatus: string | null): ExternalDeliveryStatus => {
+  if (providerStatus === 'delivered' || providerStatus === 'read') return 'delivered';
+  if (providerStatus === 'failed' || providerStatus === 'undelivered') return 'failed';
+  return 'accepted';
+};
 
 const deliverWhatsApp = async (
   input: DeliverExternalNotificationInput,
@@ -95,14 +179,20 @@ const deliverWhatsApp = async (
   const accountSid = env.TWILIO_ACCOUNT_SID?.trim();
   const authToken = env.TWILIO_AUTH_TOKEN?.trim();
   const fromWhatsApp = env.TWILIO_WHATSAPP_NUMBER?.trim();
-  if (!accountSid || !authToken || !fromWhatsApp) {
-    return result('whatsapp', 'not_configured', 'Configuração do WhatsApp/Twilio ausente');
+  const statusCallback = buildTwilioStatusCallbackUrl(input.notificationId, env);
+  if (!accountSid || !authToken || !fromWhatsApp || !statusCallback) {
+    return result(
+      'whatsapp',
+      'not_configured',
+      'Configuração do WhatsApp/Twilio ou callback de status ausente'
+    );
   }
 
   const body = new URLSearchParams({
     To: toWhatsAppAddress(input.recipientPhone),
     From: toWhatsAppAddress(fromWhatsApp),
     Body: input.message,
+    StatusCallback: statusCallback,
   });
 
   try {
@@ -122,7 +212,13 @@ const deliverWhatsApp = async (
       return result('whatsapp', 'failed', `Twilio retornou HTTP ${response.status}`);
     }
 
-    return result('whatsapp', 'sent');
+    const payload = await safeJson(response);
+    const providerMessageId = typeof payload.sid === 'string' ? payload.sid : null;
+    const providerStatus =
+      typeof payload.status === 'string' ? payload.status.trim().toLowerCase() : null;
+    const status = mapTwilioImmediateStatus(providerStatus);
+    const error = status === 'failed' ? `Twilio informou status ${providerStatus}` : null;
+    return result('whatsapp', status, error, providerMessageId, providerStatus);
   } catch {
     return result('whatsapp', 'failed', 'Falha de comunicação com o Twilio');
   }
