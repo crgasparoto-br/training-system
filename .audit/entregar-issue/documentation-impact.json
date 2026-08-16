@@ -1,8 +1,1 @@
-{
-  "schema_version": 1,
-  "issue": 344,
-  "material_head_sha": "b52c0efda4d53465fad6a74ec75b25d0e686405a",
-  "status": "no-change-required",
-  "paths": [],
-  "reason": "This remediation only changes response exposure and tests for an existing accepted status; provider configuration, callback setup, and operational deployment variables are unchanged."
-}
+{"schema_version":1,"issue":344,"material_head_sha":"104d3677bcf6f2fb435f647f12bd37f37db4abc1","status":"changed","paths":["docs/profile-review-notification-delivery.md"],"reason":"Corrected the public-state documentation to expose accepted without calling it delivered and documented preservation of internal persistence across downstream preparation failures."}
