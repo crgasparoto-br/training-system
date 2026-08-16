@@ -136,13 +136,13 @@ const buildExternalContent = (type: NotificationType) => {
   }
 };
 
-const hasConfirmedDelivery = (delivery: ExternalNotificationDeliveryResult) =>
-  delivery.email.status === 'sent' || delivery.whatsapp.status === 'sent';
-
 const shouldExposeImmediateDelivery = (delivery: ExternalNotificationDeliveryResult) =>
-  hasConfirmedDelivery(delivery) ||
+  delivery.email.status === 'accepted' ||
+  delivery.email.status === 'sent' ||
   delivery.email.status === 'failed' ||
   delivery.email.status === 'not_configured' ||
+  delivery.whatsapp.status === 'accepted' ||
+  delivery.whatsapp.status === 'sent' ||
   delivery.whatsapp.status === 'failed' ||
   delivery.whatsapp.status === 'not_configured';
 

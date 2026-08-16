@@ -69,6 +69,14 @@ const acceptedDelivery = {
   },
 };
 
+const skippedChannel = {
+  channel: 'whatsapp',
+  status: 'skipped',
+  error: null,
+  providerMessageId: null,
+  providerStatus: null,
+};
+
 describe('notificationService.create', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -91,7 +99,7 @@ describe('notificationService.create', () => {
     deliverExternalNotification.mockResolvedValue(acceptedDelivery);
   });
 
-  it('usa transação serializável para deduplicação e não expõe aceitação como entrega', async () => {
+  it('usa transação serializável e expõe accepted sem tratá-lo como entrega confirmada', async () => {
     const result = await notificationService.create(input);
 
     expect(mockDb.$transaction).toHaveBeenCalledWith(expect.any(Function), {
@@ -101,6 +109,34 @@ describe('notificationService.create', () => {
     expect(deliverExternalNotification).toHaveBeenCalledWith(
       expect.objectContaining({ notificationId: 'notification-1' })
     );
+    expect(result?.delivery?.email.status).toBe('accepted');
+    expect(result?.delivery?.whatsapp.status).toBe('accepted');
+    expect(result?.notification.emailSent).toBe(false);
+    expect(result?.notification.whatsappSent).toBe(false);
+    expect(result?.notification.sentAt).toBeNull();
+  });
+
+  it('expõe accepted quando o outro canal foi pulado', async () => {
+    deliverExternalNotification.mockResolvedValueOnce({
+      email: acceptedDelivery.email,
+      whatsapp: skippedChannel,
+    });
+
+    const result = await notificationService.create(input);
+
+    expect(result?.delivery?.email.status).toBe('accepted');
+    expect(result?.delivery?.whatsapp.status).toBe('skipped');
+    expect(result?.notification.emailSent).toBe(false);
+  });
+
+  it('mantém delivery nulo quando nenhum canal produziu efeito externo', async () => {
+    deliverExternalNotification.mockResolvedValueOnce({
+      email: { ...skippedChannel, channel: 'email' },
+      whatsapp: skippedChannel,
+    });
+
+    const result = await notificationService.create(input);
+
     expect(result?.delivery).toBeNull();
   });
 
@@ -118,13 +154,16 @@ describe('notificationService.create', () => {
     expect(deliverExternalNotification).not.toHaveBeenCalled();
   });
 
-  it('preserva o efeito conhecido do provider quando a persistência posterior falha', async () => {
+  it('preserva accepted conhecido do provider quando a persistência posterior falha', async () => {
     mockDb.notification.update.mockRejectedValueOnce(new Error('database unavailable'));
 
     const result = await notificationService.create(input);
 
     expect(result?.notification).toBe(notification);
-    expect(result?.delivery).toBeNull();
+    expect(result?.delivery?.email.status).toBe('accepted');
+    expect(result?.delivery?.whatsapp.status).toBe('accepted');
+    expect(result?.notification.emailSent).toBe(false);
+    expect(result?.notification.whatsappSent).toBe(false);
     expect(deliverExternalNotification).toHaveBeenCalledTimes(1);
   });
 
