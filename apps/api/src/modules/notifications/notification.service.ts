@@ -164,7 +164,7 @@ const readStoredDeliveryChannel = (
   const stored = isJsonRecord(externalDelivery[channel]) ? externalDelivery[channel] : null;
   const status = stored?.status;
 
-  if (typeof status !== 'string' || !DELIVERY_STATUSES.has(status)) {
+  if (!stored || typeof status !== 'string' || !DELIVERY_STATUSES.has(status)) {
     return fallback;
   }
 
