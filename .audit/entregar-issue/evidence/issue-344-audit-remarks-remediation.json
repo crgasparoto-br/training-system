@@ -1,43 +1,84 @@
 {
   "schema_version": 1,
   "issue": 344,
-  "material_head_sha": "a9143a78f4735a8b440c93af0b07413fd36f58c9",
-  "prior_certified_material_head_sha": "26366312e56ade7453449d9404fe4bfce23f2058",
+  "material_head_sha": "b52c0efda4d53465fad6a74ec75b25d0e686405a",
+  "prior_rejected_material_head_sha": "a9143a78f4735a8b440c93af0b07413fd36f58c9",
   "remediation_scope": [
-    "frontend response contract now models accepted/sent/failed/skipped/not_configured and removes the local narrowing cast",
-    "professor feedback states accepted as provider acceptance awaiting delivery confirmation",
-    "manual-review endpoint returns 201 only for a newly created review and 200 with reuse-specific message for an existing pending review"
+    "Expose accepted as a known external provider effect without promoting it to sent.",
+    "Preserve accepted in the response when post-outbound tracking persistence fails.",
+    "Keep delivery null for skipped+skipped so no-effect remains distinguishable.",
+    "Exercise the professor-facing accepted/awaiting-confirmation copy."
   ],
-  "controls": [
+  "focused_controls": [
     {
-      "id": "AUDIT-REMARK-FRONTEND-CONTRACT",
+      "id": "ACCEPTED-BOTH-VISIBLE",
       "status": "passed",
-      "method": "exact-SHA diff/static contract review",
-      "positive": "accepted is a first-class delivery status in the web service contract",
-      "negative": "accepted is not classified or worded as sent/delivered",
-      "regression": "sent/failed/not_configured branches remain explicit"
+      "method": "exact-SHA code/test inspection + six-case decision harness",
+      "positive": "accepted+accepted returns delivery with both accepted",
+      "negative": "emailSent/whatsappSent remain false and sentAt remains null",
+      "evidence_paths": [
+        "apps/api/src/modules/notifications/notification.service.ts",
+        "apps/api/src/modules/notifications/notification.service.test.ts"
+      ]
     },
     {
-      "id": "AUDIT-REMARK-REUSE-HTTP",
+      "id": "ACCEPTED-SIBLING-VISIBLE",
       "status": "passed",
-      "method": "exact-SHA route/static branch review",
-      "positive": "reviewCreated=true maps to HTTP 201 and creation message",
-      "negative": "reviewCreated=false maps to HTTP 200 and reuse message",
-      "regression": "response payload remains the createManualReview result"
+      "method": "exact-SHA test inspection + harness",
+      "positive": "accepted+skipped exposes accepted and skipped",
+      "negative": "skipped+skipped remains delivery null",
+      "evidence_paths": [
+        "apps/api/src/modules/notifications/notification.service.test.ts"
+      ]
     },
     {
-      "id": "INHERITED-CORE-NO-REOPEN",
+      "id": "POST-OUTBOUND-STATE-TRUTH-001",
       "status": "passed",
-      "method": "delta isolation against prior certified material",
-      "detail": "The material delta is limited to aluno.routes.ts, aluno.service.ts and AlunoRevisoesCadastraisTab.tsx; provider adapters, callback authentication, Serializable dedupe, monotonic delivery state machine and their focused tests are unchanged from the previously certified material."
+      "method": "exact-SHA failure-path test inspection",
+      "positive": "accepted remains in response after tracking persistence failure",
+      "negative": "known provider effect is not erased to null and is not promoted to sent",
+      "evidence_paths": [
+        "apps/api/src/modules/notifications/notification.service.test.ts"
+      ]
+    },
+    {
+      "id": "PROFESSOR-ACCEPTED-COPY",
+      "status": "passed",
+      "method": "exact-SHA component test inspection",
+      "positive": "toast states provider accepted and awaits delivery confirmation",
+      "negative": "toast does not say notification was sent",
+      "evidence_paths": [
+        "apps/web/src/components/alunos/AlunoRevisoesCadastraisTab.delivery-feedback.test.tsx"
+      ]
+    },
+    {
+      "id": "FOCUSED-DECISION-HARNESS",
+      "status": "passed",
+      "method": "local standalone hermetic harness",
+      "cases": 6,
+      "detail": "accepted+accepted, accepted+skipped, skipped+skipped, sent+skipped, failed+skipped, not_configured+skipped all matched expected exposure semantics."
+    },
+    {
+      "id": "TYPESCRIPT-PARSER",
+      "status": "passed",
+      "method": "npx tsc --noEmit --noResolve parser check",
+      "detail": "No TS1xxx syntax diagnostics in the three modified/new TypeScript files; dependency resolution is unavailable in connector-only workspace."
     }
   ],
   "remote_observation": {
-    "status": "not-observed",
-    "workflow_runs": [],
-    "policy": "single observation performed immediately after publishing the material SHA; no polling/rerun/dispatch"
+    "status": "in_progress",
+    "workflow_runs": [
+      {
+        "id": 31931539787,
+        "name": "Validate PR",
+        "status": "in_progress",
+        "conclusion": null,
+        "head_sha": "b52c0efda4d53465fad6a74ec75b25d0e686405a"
+      }
+    ],
+    "policy": "single read-only observation after material freeze; no polling, rerun, dispatch, cancel, or approval"
   },
   "limitations": [
-    "connector-only runtime prevented local repository test execution; exact-SHA static controls and unchanged inherited runtime controls were used, with remote CI left to its normal trigger"
+    "Connector-only runtime has no repository checkout/dependency graph, so full Jest/Vitest execution was not available locally. The normal GitHub Validate PR run was observed exactly once and was in_progress."
   ]
 }

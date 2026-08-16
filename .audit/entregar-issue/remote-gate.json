@@ -1,10 +1,21 @@
 {
   "schema_version": 1,
   "repository": "crgasparoto-br/training-system",
-  "head_sha": "a9143a78f4735a8b440c93af0b07413fd36f58c9",
-  "observation": "workflow_runs_empty_on_single_allowed_read",
-  "workflow_runs": [],
-  "rerun": false,
-  "dispatch": false,
-  "polling": false
+  "issue": 344,
+  "pull_request": 353,
+  "head_sha": "b52c0efda4d53465fad6a74ec75b25d0e686405a",
+  "base_ref": "develop",
+  "observation_mode": "observe-only",
+  "observed_once": true,
+  "workflow_runs": [
+    {
+      "id": 31931539787,
+      "name": "Validate PR",
+      "status": "in_progress",
+      "conclusion": null,
+      "run_number": 7018
+    }
+  ],
+  "status": "pending",
+  "note": "CI was in progress at the single permitted post-freeze observation; no polling or remote action was performed."
 }

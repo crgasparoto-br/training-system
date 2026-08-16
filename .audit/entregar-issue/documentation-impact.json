@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "issue": 344,
-  "material_head_sha": "a9143a78f4735a8b440c93af0b07413fd36f58c9",
+  "material_head_sha": "b52c0efda4d53465fad6a74ec75b25d0e686405a",
   "status": "no-change-required",
   "paths": [],
-  "reason": "Audit-remark remediation changes typing, user feedback semantics and HTTP response semantics without changing deployment or operational configuration."
+  "reason": "This remediation only changes response exposure and tests for an existing accepted status; provider configuration, callback setup, and operational deployment variables are unchanged."
 }
