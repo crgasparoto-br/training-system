@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "issue": 344,
+  "material_head_sha": "a9143a78f4735a8b440c93af0b07413fd36f58c9",
+  "prior_certified_material_head_sha": "26366312e56ade7453449d9404fe4bfce23f2058",
+  "remediation_scope": [
+    "frontend response contract now models accepted/sent/failed/skipped/not_configured and removes the local narrowing cast",
+    "professor feedback states accepted as provider acceptance awaiting delivery confirmation",
+    "manual-review endpoint returns 201 only for a newly created review and 200 with reuse-specific message for an existing pending review"
+  ],
+  "controls": [
+    {
+      "id": "AUDIT-REMARK-FRONTEND-CONTRACT",
+      "status": "passed",
+      "method": "exact-SHA diff/static contract review",
+      "positive": "accepted is a first-class delivery status in the web service contract",
+      "negative": "accepted is not classified or worded as sent/delivered",
+      "regression": "sent/failed/not_configured branches remain explicit"
+    },
+    {
+      "id": "AUDIT-REMARK-REUSE-HTTP",
+      "status": "passed",
+      "method": "exact-SHA route/static branch review",
+      "positive": "reviewCreated=true maps to HTTP 201 and creation message",
+      "negative": "reviewCreated=false maps to HTTP 200 and reuse message",
+      "regression": "response payload remains the createManualReview result"
+    },
+    {
+      "id": "INHERITED-CORE-NO-REOPEN",
+      "status": "passed",
+      "method": "delta isolation against prior certified material",
+      "detail": "The material delta is limited to aluno.routes.ts, aluno.service.ts and AlunoRevisoesCadastraisTab.tsx; provider adapters, callback authentication, Serializable dedupe, monotonic delivery state machine and their focused tests are unchanged from the previously certified material."
+    }
+  ],
+  "remote_observation": {
+    "status": "not-observed",
+    "workflow_runs": [],
+    "policy": "single observation performed immediately after publishing the material SHA; no polling/rerun/dispatch"
+  },
+  "limitations": [
+    "connector-only runtime prevented local repository test execution; exact-SHA static controls and unchanged inherited runtime controls were used, with remote CI left to its normal trigger"
+  ]
+}

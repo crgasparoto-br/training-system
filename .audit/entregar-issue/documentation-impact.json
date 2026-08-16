@@ -1,1 +1,8 @@
-{"schema_version":1,"issue":344,"material_head_sha":"26366312e56ade7453449d9404fe4bfce23f2058","status":"no-change-required","paths":[],"reason":"The post-CI remediation only adds an explicit null guard for TypeScript narrowing; provider configuration and operational documentation are unchanged."}
+{
+  "schema_version": 1,
+  "issue": 344,
+  "material_head_sha": "a9143a78f4735a8b440c93af0b07413fd36f58c9",
+  "status": "no-change-required",
+  "paths": [],
+  "reason": "Audit-remark remediation changes typing, user feedback semantics and HTTP response semantics without changing deployment or operational configuration."
+}

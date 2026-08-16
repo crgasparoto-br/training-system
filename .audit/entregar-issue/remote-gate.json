@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/training-system",
+  "head_sha": "a9143a78f4735a8b440c93af0b07413fd36f58c9",
+  "observation": "workflow_runs_empty_on_single_allowed_read",
+  "workflow_runs": [],
+  "rerun": false,
+  "dispatch": false,
+  "polling": false
+}
