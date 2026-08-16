@@ -167,4 +167,20 @@ describe('notification delivery adapters', () => {
     expect(delivery.whatsapp.status).toBe('not_configured');
     expect(fetchImpl).not.toHaveBeenCalled();
   });
+
+  it('rejeita callback HTTPS com credenciais embutidas e faz zero outbound', async () => {
+    const fetchImpl = jest.fn();
+    const delivery = await deliverExternalNotification(baseInput, {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      env: {
+        ...env,
+        NOTIFICATION_CALLBACK_BASE_URL:
+          'https://svc-user:persistent-secret@api.example.com/base?token=abc#frag',
+      },
+    });
+
+    expect(delivery.email.status).toBe('not_configured');
+    expect(delivery.whatsapp.status).toBe('not_configured');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
 });

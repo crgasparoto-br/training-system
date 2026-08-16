@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient, type Notification, type NotificationType } from '@prisma/client';
+import { parseSafeExternalHttpsUrl } from '../../common/safe-external-url.js';
 import {
   deliverExternalNotification,
   type ExternalChannelDeliveryResult,
@@ -123,18 +124,12 @@ const buildExternalContent = (type: NotificationType) => {
   const title = 'Revisão cadastral pendente no Sistema ACESSO';
   const baseMessage =
     'Você tem uma revisão cadastral pendente no Sistema ACESSO. Entre na sua conta para acessar e concluir a revisão.';
-  const frontendUrl = process.env.FRONTEND_URL?.trim();
-  if (!frontendUrl) return { title, message: baseMessage };
-  try {
-    const url = new URL(frontendUrl);
-    if (url.protocol !== 'https:') return { title, message: baseMessage };
-    url.pathname = '/student/profile-review';
-    url.search = '';
-    url.hash = '';
-    return { title, message: `${baseMessage} Acesse: ${url.toString()}` };
-  } catch {
-    return { title, message: baseMessage };
-  }
+  const url = parseSafeExternalHttpsUrl(process.env.FRONTEND_URL);
+  if (!url) return { title, message: baseMessage };
+  url.pathname = '/student/profile-review';
+  url.search = '';
+  url.hash = '';
+  return { title, message: `${baseMessage} Acesse: ${url.toString()}` };
 };
 
 const shouldExposeImmediateDelivery = (delivery: ExternalNotificationDeliveryResult) =>

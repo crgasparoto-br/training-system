@@ -1,3 +1,5 @@
+import { parseSafeExternalHttpsUrl } from '../../common/safe-external-url.js';
+
 export type ExternalNotificationChannel = 'email' | 'whatsapp';
 export type ExternalDeliveryStatus =
   | 'accepted'
@@ -50,18 +52,8 @@ const result = (
   providerStatus,
 });
 
-const resolveCallbackBaseUrl = (env: NodeJS.ProcessEnv): URL | null => {
-  const raw = env.NOTIFICATION_CALLBACK_BASE_URL?.trim();
-  if (!raw) return null;
-
-  try {
-    const url = new URL(raw);
-    if (url.protocol !== 'https:') return null;
-    return url;
-  } catch {
-    return null;
-  }
-};
+const resolveCallbackBaseUrl = (env: NodeJS.ProcessEnv): URL | null =>
+  parseSafeExternalHttpsUrl(env.NOTIFICATION_CALLBACK_BASE_URL);
 
 const buildTwilioStatusCallbackUrl = (
   notificationId: string,

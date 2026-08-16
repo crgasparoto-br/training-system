@@ -287,4 +287,24 @@ describe('notificationService.create', () => {
     expect(result?.delivery?.email.status).toBe('failed');
     expect(result?.delivery?.whatsapp.status).toBe('failed');
   });
+
+  it('não inclui FRONTEND_URL com credenciais no corpo enviado ao aluno', async () => {
+    const previousFrontendUrl = process.env.FRONTEND_URL;
+    process.env.FRONTEND_URL =
+      'https://svc-user:persistent-secret@example.com/base?token=abc#frag';
+
+    try {
+      await notificationService.create(input);
+
+      const outbound = deliverExternalNotification.mock.calls[0]?.[0];
+      expect(outbound.message).toBe(
+        'Você tem uma revisão cadastral pendente no Sistema ACESSO. Entre na sua conta para acessar e concluir a revisão.'
+      );
+      expect(outbound.message).not.toContain('persistent-secret');
+      expect(outbound.message).not.toContain('svc-user');
+    } finally {
+      if (previousFrontendUrl === undefined) delete process.env.FRONTEND_URL;
+      else process.env.FRONTEND_URL = previousFrontendUrl;
+    }
+  });
 });
