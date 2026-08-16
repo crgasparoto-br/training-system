@@ -16,14 +16,16 @@ A solicitação manual mantém a revisão cadastral como operação principal. F
 
 ## Conteúdo externo
 
-E-mail e WhatsApp usam uma mensagem mínima que identifica o Sistema ACESSO, informa que há revisão pendente e orienta o aluno a entrar na conta. O conteúdo não inclui respostas clínicas, campos alterados ou dados pessoais da revisão. Um link só é incluído quando `FRONTEND_URL` é HTTPS válida; busca e fragmento são removidos e nenhum token persistente é anexado.
+O e-mail usa uma mensagem mínima que identifica o Sistema ACESSO, informa que há revisão pendente e orienta o aluno a entrar na conta. O conteúdo não inclui respostas clínicas, campos alterados ou dados pessoais da revisão. Um link só é incluído quando `FRONTEND_URL` é HTTPS válida; busca e fragmento são removidos e nenhum token persistente é anexado.
+
+O WhatsApp usa exclusivamente um template Utility aprovado no WhatsApp/Twilio, identificado por `TWILIO_WHATSAPP_PROFILE_REVIEW_CONTENT_SID`. A solicitação de revisão é uma mensagem iniciada pela empresa e precisa funcionar também fora da janela de atendimento de 24 horas; por isso o backend envia `ContentSid` e não faz fallback silencioso para `Body`/texto livre. O template configurado deve reproduzir somente a mensagem mínima segura da revisão, sem dados clínicos, dados pessoais, tokens persistentes ou variáveis dinâmicas sensíveis.
 
 ## Estados por canal
 
 - `accepted`: o provider aceitou/enfileirou a tentativa; **não comprova entrega ao destinatário**;
 - `sent`: callback autenticado confirmou entrega (ou leitura, quando o provider usa esse estado como sucessor de entrega); provider `accepted`/`queued`/`sent` sem confirmação final permanece `accepted`;
 - `failed`: falha síncrona, falha segura de preparação da tentativa externa ou callback terminal `bounce`/`dropped`/`failed`/`undelivered`;
-- `not_configured`: canal habilitado, mas provider ou confirmação segura de entrega não está configurada;
+- `not_configured`: canal habilitado, mas provider, template proativo aprovado ou confirmação segura de entrega não está configurada;
 - `skipped`: canal desabilitado nas preferências do usuário.
 
 A revisão permanece utilizável em todos os estados de entrega externa. Diagnósticos persistidos são técnicos e não incluem conteúdo clínico, corpo da mensagem, e-mail, telefone ou credenciais.
@@ -40,7 +42,9 @@ A API valida os headers de assinatura do Event Webhook usando `SENDGRID_EVENT_WE
 
 ### Twilio WhatsApp
 
-Cada mensagem inclui um `StatusCallback` derivado de `NOTIFICATION_CALLBACK_BASE_URL`:
+Crie no Twilio Content Template Builder/Content API um template Utility para a revisão cadastral, submeta-o para aprovação do WhatsApp e configure o respectivo Content SID `HX...` em `TWILIO_WHATSAPP_PROFILE_REVIEW_CONTENT_SID`. O backend considera o canal `not_configured` quando o SID está ausente ou malformado e não tenta texto livre como fallback.
+
+Cada mensagem proativa usa `ContentSid`, `To`, `From` e um `StatusCallback` derivado de `NOTIFICATION_CALLBACK_BASE_URL`; `Body` e `ContentVariables` não são enviados. O callback é:
 
 `POST /api/v1/notification-delivery/twilio-status?notificationId=<id>`
 
@@ -67,14 +71,15 @@ Os canais só são considerados prontos para entrega rastreável quando a config
 - `SENDGRID_API_KEY` e `SENDGRID_FROM_EMAIL` para e-mail;
 - `SENDGRID_EVENT_WEBHOOK_PUBLIC_KEY` para validar confirmação do SendGrid;
 - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` e `TWILIO_WHATSAPP_NUMBER` para WhatsApp;
+- `TWILIO_WHATSAPP_PROFILE_REVIEW_CONTENT_SID` com Content SID `HX...` de template Utility aprovado no WhatsApp para a revisão cadastral;
 - `NOTIFICATION_CALLBACK_BASE_URL` com URL HTTPS pública da API para callbacks;
-- `FRONTEND_URL` para o link web opcional HTTPS enviado ao aluno.
+- `FRONTEND_URL` para o link web opcional HTTPS enviado por e-mail ao aluno.
 
-Nenhum segredo deve ser exposto no frontend ou no corpo das notificações.
+Nenhum segredo deve ser exposto no frontend ou no corpo das notificações. O Content SID não é tratado como conteúdo livre: o template associado deve ser controlado operacionalmente e manter a cópia mínima segura descrita acima.
 
 ## Validação
 
-- `notification-delivery.service.test.ts`: aceitação versus entrega, correlação, callback, falha parcial, preferências e configuração incompleta;
+- `notification-delivery.service.test.ts`: template `ContentSid` sem `Body`, aceitação versus entrega, correlação, callback, falha parcial, preferências, configuração incompleta e ausência/má-formação do template sem outbound Twilio;
 - `notification-delivery.routes.test.ts`: assinatura SendGrid, anti-replay e mapeamento de estados SendGrid/Twilio;
 - `notification-delivery-status.service.test.ts`: transições idempotentes e proteção contra regressão de estado;
 - `notification.service.test.ts`: deduplicação serializável, conflito concorrente sem novo outbound, preservação da notificação após falha de preparação externa e falha de persistência depois do provider;

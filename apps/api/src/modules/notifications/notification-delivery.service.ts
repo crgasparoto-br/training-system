@@ -34,6 +34,8 @@ export interface NotificationDeliveryDependencies {
   env?: NodeJS.ProcessEnv;
 }
 
+const TWILIO_CONTENT_SID_PATTERN = /^HX[0-9a-fA-F]{32}$/;
+
 const result = (
   channel: ExternalNotificationChannel,
   status: ExternalDeliveryStatus,
@@ -177,19 +179,30 @@ const deliverWhatsApp = async (
   const accountSid = env.TWILIO_ACCOUNT_SID?.trim();
   const authToken = env.TWILIO_AUTH_TOKEN?.trim();
   const fromWhatsApp = env.TWILIO_WHATSAPP_NUMBER?.trim();
+  const contentSid = env.TWILIO_WHATSAPP_PROFILE_REVIEW_CONTENT_SID?.trim();
   const statusCallback = buildTwilioStatusCallbackUrl(input.notificationId, env);
-  if (!accountSid || !authToken || !fromWhatsApp || !statusCallback) {
+  if (
+    !accountSid ||
+    !authToken ||
+    !fromWhatsApp ||
+    !contentSid ||
+    !TWILIO_CONTENT_SID_PATTERN.test(contentSid) ||
+    !statusCallback
+  ) {
     return result(
       'whatsapp',
       'not_configured',
-      'Configuração do WhatsApp/Twilio ou callback de status ausente'
+      'Configuração do WhatsApp/Twilio, template aprovado ou callback de status ausente'
     );
   }
 
+  // Solicitações de revisão são notificações iniciadas pela empresa. Use sempre
+  // ContentSid aprovado para que o envio continue válido fora da janela de 24h;
+  // nunca faça fallback silencioso para Body/free-form.
   const body = new URLSearchParams({
     To: toWhatsAppAddress(input.recipientPhone),
     From: toWhatsAppAddress(fromWhatsApp),
-    Body: input.message,
+    ContentSid: contentSid,
     StatusCallback: statusCallback,
   });
 
