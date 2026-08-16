@@ -1,1 +1,0 @@
-{"schema_version":1,"head_sha":"69a9493855d1139036e43e52b648a51753e806fe","risk_level":"high","signals":["authorization","tenant-isolation","public-boundary","provider-failure","concurrency-idempotency","migration-compatibility","documentation"]}
