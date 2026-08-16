@@ -154,6 +154,46 @@ describe('notificationService.create', () => {
     expect(deliverExternalNotification).not.toHaveBeenCalled();
   });
 
+  it('preserva a notificação interna quando a leitura do destinatário falha após a persistência', async () => {
+    mockDb.user.findUnique.mockRejectedValueOnce(new Error('database unavailable'));
+
+    const result = await notificationService.create(input);
+
+    expect(mockDb.notification.create).toHaveBeenCalledTimes(1);
+    expect(result?.notification).toBe(notification);
+    expect(result?.delivery?.email.status).toBe('failed');
+    expect(result?.delivery?.whatsapp.status).toBe('failed');
+    expect(result?.delivery?.email.error).toBe('Não foi possível preparar a entrega externa');
+    expect(deliverExternalNotification).not.toHaveBeenCalled();
+  });
+
+  it('preserva a notificação interna quando o dispatcher externo falha inesperadamente', async () => {
+    deliverExternalNotification.mockRejectedValueOnce(new Error('unexpected adapter failure'));
+
+    const result = await notificationService.create(input);
+
+    expect(mockDb.notification.create).toHaveBeenCalledTimes(1);
+    expect(result?.notification).toBe(notification);
+    expect(result?.delivery?.email.status).toBe('failed');
+    expect(result?.delivery?.whatsapp.status).toBe('failed');
+    expect(deliverExternalNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it('não consulta destinatário nem dispara provider quando ambos os canais externos estão desabilitados', async () => {
+    mockDb.notificationPreferences.findUnique.mockResolvedValueOnce({
+      emailEnabled: false,
+      smsEnabled: true,
+      whatsappEnabled: false,
+    });
+
+    const result = await notificationService.create(input);
+
+    expect(result?.notification).toBe(notification);
+    expect(result?.delivery).toBeNull();
+    expect(mockDb.user.findUnique).not.toHaveBeenCalled();
+    expect(deliverExternalNotification).not.toHaveBeenCalled();
+  });
+
   it('preserva accepted conhecido do provider quando a persistência posterior falha', async () => {
     mockDb.notification.update.mockRejectedValueOnce(new Error('database unavailable'));
 

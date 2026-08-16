@@ -12,7 +12,7 @@ A solicitação manual mantém a revisão cadastral como operação principal. F
 6. A aceitação inicial do provider é registrada como `accepted`; ela não é tratada como entrega ao destinatário.
 7. SendGrid Event Webhook e Twilio Status Callback confirmam posteriormente `sent` ou `failed` de forma autenticada e idempotente.
 8. Somente `sent` (após confirmação de entrega) grava `Notification.emailSent`/`Notification.whatsappSent` e `sentAt`.
-9. A API devolve `reviewCreated`, `requestAction`, `notification.persisted`, `notification.deduplicated` e apenas resultados terminais de entrega quando já conhecidos. Aceitação ainda pendente de confirmação não produz mensagem de “enviado” ao professor.
+9. A API devolve `reviewCreated`, `requestAction`, `notification.persisted`, `notification.deduplicated` e o estado externo conhecido quando ele existe, incluindo `accepted`, `sent`, `failed` e `not_configured`. `accepted` informa somente aceitação pelo provider e nunca produz mensagem de “enviado” ao professor.
 
 ## Conteúdo externo
 
@@ -22,7 +22,7 @@ E-mail e WhatsApp usam uma mensagem mínima que identifica o Sistema ACESSO, inf
 
 - `accepted`: o provider aceitou/enfileirou a tentativa; **não comprova entrega ao destinatário**;
 - `sent`: callback autenticado confirmou entrega (ou leitura, quando o provider usa esse estado como sucessor de entrega); provider `accepted`/`queued`/`sent` sem confirmação final permanece `accepted`;
-- `failed`: falha síncrona ou callback terminal `bounce`/`dropped`/`failed`/`undelivered`;
+- `failed`: falha síncrona, falha segura de preparação da tentativa externa ou callback terminal `bounce`/`dropped`/`failed`/`undelivered`;
 - `not_configured`: canal habilitado, mas provider ou confirmação segura de entrega não está configurada;
 - `skipped`: canal desabilitado nas preferências do usuário.
 
@@ -47,6 +47,10 @@ Cada mensagem inclui um `StatusCallback` derivado de `NOTIFICATION_CALLBACK_BASE
 A API valida `X-Twilio-Signature` com `TWILIO_AUTH_TOKEN`. `queued`, `sending` e `sent` continuam como `accepted`; apenas `delivered`/`read` confirmam entrega, enquanto `failed`/`undelivered` encerram a tentativa como falha.
 
 Callbacks repetidos são idempotentes. Estados terminais não retrocedem quando um evento atrasado chega fora de ordem.
+
+## Falha depois da persistência interna
+
+A persistência da notificação in-app estabelece um fato durável que não pode ser apagado por etapas externas posteriores. Se a leitura do destinatário ou a preparação/execução do dispatcher externo falhar depois que a notificação foi criada, o serviço preserva a notificação interna no resultado e representa os canais habilitados como `failed`, sem afirmar que o registro interno falhou e sem realizar uma segunda tentativa oculta. Canais desabilitados continuam `skipped`; quando ambos estão desabilitados, não há consulta de destinatário nem outbound.
 
 ## Falha depois do outbound
 
@@ -73,5 +77,5 @@ Nenhum segredo deve ser exposto no frontend ou no corpo das notificações.
 - `notification-delivery.service.test.ts`: aceitação versus entrega, correlação, callback, falha parcial, preferências e configuração incompleta;
 - `notification-delivery.routes.test.ts`: assinatura SendGrid, anti-replay e mapeamento de estados SendGrid/Twilio;
 - `notification-delivery-status.service.test.ts`: transições idempotentes e proteção contra regressão de estado;
-- `notification.service.test.ts`: deduplicação serializável, conflito concorrente sem novo outbound e falha de persistência depois do provider;
+- `notification.service.test.ts`: deduplicação serializável, conflito concorrente sem novo outbound, preservação da notificação após falha de preparação externa e falha de persistência depois do provider;
 - `profile-review-request.service.test.ts`: criação sem pendência, reutilização da pendência e recuperação de conflito serializável concorrente.

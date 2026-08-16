@@ -34,6 +34,7 @@ export interface CreateNotificationResult {
 }
 
 const DEFAULT_DEDUPE_WINDOW_MINUTES = 120;
+const EXTERNAL_PREPARATION_ERROR = 'Não foi possível preparar a entrega externa';
 
 const normalizeIsoDate = (value: string | null | undefined) => {
   if (!value) return null;
@@ -146,6 +147,27 @@ const shouldExposeImmediateDelivery = (delivery: ExternalNotificationDeliveryRes
   delivery.whatsapp.status === 'failed' ||
   delivery.whatsapp.status === 'not_configured';
 
+const buildExternalPreparationFailure = (channels: {
+  emailEnabled: boolean;
+  whatsappEnabled: boolean;
+}): ExternalNotificationDeliveryResult => {
+  const channelResult = (
+    channel: 'email' | 'whatsapp',
+    enabled: boolean
+  ): ExternalChannelDeliveryResult => ({
+    channel,
+    status: enabled ? 'failed' : 'skipped',
+    error: enabled ? EXTERNAL_PREPARATION_ERROR : null,
+    providerMessageId: null,
+    providerStatus: null,
+  });
+
+  return {
+    email: channelResult('email', channels.emailEnabled),
+    whatsapp: channelResult('whatsapp', channels.whatsappEnabled),
+  };
+};
+
 const DELIVERY_STATUSES = new Set([
   'accepted',
   'sent',
@@ -211,22 +233,35 @@ export const notificationService = {
     const notification = await createInternalNotification(input, channels, dedupeStart);
     if (!notification) return null;
     if (!input.dispatchExternal) return { notification, delivery: null };
+    if (!channels.emailEnabled && !channels.whatsappEnabled) {
+      return { notification, delivery: null };
+    }
 
-    const recipient = await prisma.user.findUnique({
-      where: { id: input.userId },
-      select: { email: true, profile: { select: { phone: true } } },
-    });
-    const externalContent =
-      buildExternalContent(input.type) ?? { title: input.title, message: input.message };
-    const dispatchResult = await deliverExternalNotification({
-      notificationId: notification.id,
-      emailEnabled: channels.emailEnabled,
-      whatsappEnabled: channels.whatsappEnabled,
-      recipientEmail: recipient?.email ?? null,
-      recipientPhone: recipient?.profile?.phone ?? null,
-      title: externalContent.title,
-      message: externalContent.message,
-    });
+    let dispatchResult: ExternalNotificationDeliveryResult;
+    try {
+      const recipient = await prisma.user.findUnique({
+        where: { id: input.userId },
+        select: { email: true, profile: { select: { phone: true } } },
+      });
+      const externalContent =
+        buildExternalContent(input.type) ?? { title: input.title, message: input.message };
+      dispatchResult = await deliverExternalNotification({
+        notificationId: notification.id,
+        emailEnabled: channels.emailEnabled,
+        whatsappEnabled: channels.whatsappEnabled,
+        recipientEmail: recipient?.email ?? null,
+        recipientPhone: recipient?.profile?.phone ?? null,
+        title: externalContent.title,
+        message: externalContent.message,
+      });
+    } catch {
+      console.error('Falha ao preparar ou executar a entrega externa da notificação');
+      const failureDelivery = buildExternalPreparationFailure(channels);
+      return {
+        notification,
+        delivery: shouldExposeImmediateDelivery(failureDelivery) ? failureDelivery : null,
+      };
+    }
 
     try {
       await persistDispatchResult(notification.id, dispatchResult);
