@@ -1,10 +1,1 @@
-{
-  "schema_version": 1,
-  "head_sha": "d5a757594412a3a7d169e7f29bb691fa10a04038",
-  "workflow": "Validate PR",
-  "run_id": 31863294319,
-  "run_attempt": 2,
-  "status": "completed",
-  "conclusion": "success",
-  "observation_mode": "corrigir-ci exact-head observation"
-}
+{"schema_version":1,"head_sha":"26366312e56ade7453449d9404fe4bfce23f2058","workflow":"Validate PR","run_id":31919454432,"run_number":7014,"status":"completed","conclusion":"success","observation_policy":"imported-exact-head-ci-from-corrigir-ci-post-ci-refreeze","observed_after_local_readiness":false}

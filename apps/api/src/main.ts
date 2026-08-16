@@ -20,6 +20,7 @@ import contractLifecycleRoutes from './modules/contracts/contract-lifecycle.rout
 import contractRejectionRoutes from './modules/contracts/contract-rejection.routes.js';
 import { contractRoutes } from './modules/contracts/index.js';
 import { hourlyRateLevelRoutes } from './modules/hourly-rate-levels/index.js';
+import { notificationDeliveryWebhookRoutes } from './modules/notifications/notification-delivery.routes.js';
 import { planRoutes } from './modules/plans/index.js';
 import { professorRoutes } from './modules/professores/index.js';
 import { legacyCollaboratorContractMiddleware } from './modules/professores/legacy-collaborator-contract.middleware.js';
@@ -117,6 +118,10 @@ app.use(
 app.get('/api/v1/pre-registration/availability', (_req, res) => {
   res.status(204).end();
 });
+
+// Provider callbacks need their own parsers so SendGrid signature verification
+// receives the exact raw request body. Keep this mount before the global parsers.
+app.use('/api/v1/notification-delivery', notificationDeliveryWebhookRoutes);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));

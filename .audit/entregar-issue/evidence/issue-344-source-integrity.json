@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "control_id": "SPEC-SOURCE-INTEGRITY-001",
+  "material_head_sha": "4377c7351594871df9e0c27a5c1af73e4dc64f03",
+  "source_event": {
+    "issue": 344,
+    "observed_via": "GitHub connector",
+    "canonical_body_capture_sha256": "763df646add3b4dbaba02ce33b44ddd856a599ca9f156a01048a96fd77d6e9cb"
+  },
+  "literal_case": {
+    "status": "passed",
+    "expected_sha256": "763df646add3b4dbaba02ce33b44ddd856a599ca9f156a01048a96fd77d6e9cb",
+    "observed_sha256": "763df646add3b4dbaba02ce33b44ddd856a599ca9f156a01048a96fd77d6e9cb",
+    "line_count": 92,
+    "canonical_candidate_count": 24,
+    "assertion": "The primary issue-body artifact is the complete captured issue body, not a derived summary."
+  },
+  "sibling_cases": [
+    {
+      "id": "SPEC-SOURCE-SIBLING-001",
+      "dimension": "derived-summary-substitution",
+      "status": "passed",
+      "candidate_source_sha256": "1de0efb74823e479b8bd0430587ee0d03d754414629b9005bc087653e1a30724",
+      "rejected_because": "sha256 differs from canonical issue-body capture and omits acceptance-criteria candidates"
+    },
+    {
+      "id": "SPEC-SOURCE-SIBLING-002",
+      "dimension": "acceptance-section-truncation",
+      "status": "passed",
+      "candidate_source_sha256": "5062c1863fc1d9c1198e6c63567d1891a0a361bdfcbfc155f640cd0d666660a6",
+      "rejected_because": "sha256 differs from canonical capture and truncates all acceptance criteria"
+    }
+  ],
+  "remote_gate": {
+    "workflow": "Validate PR",
+    "run_id": 31896371038,
+    "run_number": 7000,
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "4377c7351594871df9e0c27a5c1af73e4dc64f03"
+  }
+}

@@ -1,7 +1,1 @@
-{
-  "schema_version": 1,
-  "issue": 343,
-  "head_sha": "598ab53489bf22db84c2d41014a82279e0217332",
-  "status": "no-update-required",
-  "reason": "The endpoint paths and public request payload are unchanged; the material change enforces the already specified active selected contract boundary on the server."
-}
+{"schema_version":1,"head_sha":"42551d53a0e17112024ccecd34e177a6e292c1f6","status":"passed","changed":true,"paths":["docs/profile-review-notification-delivery.md"],"summary":"Documents userinfo-free HTTPS requirements for recipient links and provider callback bases and the safe degradation behavior."}
