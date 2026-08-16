@@ -14,6 +14,7 @@ const isolatedDatabaseTests = [
   'src/modules/adipometry/adipometry-responsible-lifecycle.integration.test.ts',
   'src/modules/pre-registration-invites/pre-registration-invite-concurrency.integration.test.ts',
   'src/modules/pre-registration-invites/pre-registration-invite-temporal-consistency.integration.test.ts',
+  'tests/profile-review-fullstack-http-browser.integration.test.ts',
 ];
 const generalIgnorePattern = [extendedAuthorizationMatrix, ...isolatedDatabaseTests].join('|');
 
@@ -83,7 +84,8 @@ if (testFiles.length === 0) {
 // Reiniciar o processo entre lotes libera essas conexões sem pular testes nem
 // aumentar max_connections do PostgreSQL efêmero do CI. A matriz estendida da
 // Issue 275 permanece no workflow dedicado, que constrói os pacotes compartilhados
-// e valida a API real; concorrência e consistência temporal rodam isoladamente aqui.
+// e valida a API real; concorrência, consistência temporal e o browser full-stack
+// da revisão cadastral rodam isoladamente aqui.
 const batchSize = Number.parseInt(process.env.JEST_DATABASE_BATCH_SIZE ?? '10', 10);
 if (!Number.isInteger(batchSize) || batchSize < 1) {
   console.error('JEST_DATABASE_BATCH_SIZE deve ser um inteiro positivo.');

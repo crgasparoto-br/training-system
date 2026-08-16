@@ -6,9 +6,10 @@ Registrar a evidência executável da issue #345 para o fluxo integrado de revis
 
 A validação é composta por camadas porque cada risco precisa ser provado na fronteira adequada:
 
-- navegador real para UX, responsividade, teclado, estados e propagação de `contractId`;
-- PostgreSQL real para persistência e transições de domínio;
-- HTTP/rotas para autenticação, isolamento e autorização;
+- navegador real com API real e PostgreSQL real para o contrato interno web -> HTTP/API -> domínio -> persistência;
+- navegador com fixture isolada somente para ampliar a matriz de UX, responsividade, teclado e estados visuais determinísticos;
+- PostgreSQL real para regressões focadas de persistência e transições de domínio;
+- HTTP/rotas reais para autenticação, isolamento e autorização;
 - adapters de SendGrid/Twilio com `fetch` simulado apenas na fronteira externa;
 - suíte agregada do repositório para regressão de Central do Aluno, arquitetura, acesso e documentação.
 
@@ -28,16 +29,16 @@ Nenhum cenário desta matriz exige credenciais ou chamadas reais a SendGrid/Twil
 
 | Cenário | Evidência executável | O que prova |
 | --- | --- | --- |
-| Solicitação manual + notificação in-app + repetição enquanto pendente | `apps/api/tests/profile-review-flow.integration.test.ts` e `apps/api/src/modules/alunos/profile-review-request.service.test.ts` | criação/reuso com PostgreSQL real, uma pendência por aluno e recuperação de conflito serializável |
-| Pendência e abertura no web responsivo | `apps/web/src/pages/StudentProfileReview.test.tsx` e `scripts/verify-issue-343-browser-evidence.cjs` | renderização, carregamento, formulário e contexto `x-contract-id` |
-| Concluir sem alterações | `apps/api/tests/profile-review-flow.integration.test.ts` + evidência de navegador da #343 | transição `completed_no_changes`, próxima revisão e UX mobile |
-| Alteração não sensível | `apps/api/tests/profile-review-flow.integration.test.ts` + evidência de navegador da #343 | aplicação direta em `StudentProfile.identificationData` e payload do web |
-| Alteração sensível + aprovação | `apps/api/tests/profile-review-flow.integration.test.ts` | não aplica antes da aprovação; aplica somente depois do professor/gestor |
-| Alteração sensível + rejeição | `apps/api/tests/profile-review-flow.integration.test.ts` | rejeição mantém dado canônico intacto e registra motivo/status |
-| Sem provider externo configurado | `apps/api/src/modules/notifications/notification-delivery.service.test.ts` | `not_configured` sem outbound quando confirmação segura não está configurada |
+| Solicitação manual + notificação in-app + repetição enquanto pendente | `apps/api/tests/profile-review-fullstack-http-browser.integration.test.ts`, `apps/api/tests/profile-review-flow.integration.test.ts` e `apps/api/src/modules/alunos/profile-review-request.service.test.ts` | criação/reuso pelas rotas autenticadas reais, persistência em PostgreSQL real, uma pendência por aluno e recuperação de conflito serializável |
+| Pendência e abertura no web responsivo | `apps/api/tests/profile-review-fullstack-http-browser.integration.test.ts`, `apps/web/src/pages/StudentProfileReview.test.tsx` e `scripts/verify-issue-343-browser-evidence.cjs` | navegador real chegando à API real e ao banco, mais cobertura determinística de renderização, formulário e contexto `x-contract-id` |
+| Concluir sem alterações | `apps/api/tests/profile-review-fullstack-http-browser.integration.test.ts`, `apps/api/tests/profile-review-flow.integration.test.ts` + evidência visual da #343 | transição `completed_no_changes`, remoção da pendência e UX mobile |
+| Alteração não sensível | `apps/api/tests/profile-review-fullstack-http-browser.integration.test.ts`, `apps/api/tests/profile-review-flow.integration.test.ts` + evidência visual da #343 | payload produzido pelo web atravessa HTTP real e é aplicado em `StudentProfile.identificationData` |
+| Alteração sensível + aprovação | `apps/api/tests/profile-review-fullstack-http-browser.integration.test.ts` e `apps/api/tests/profile-review-flow.integration.test.ts` | dado enviado pelo web não é aplicado antes da aprovação; a rota profissional real aplica somente depois |
+| Alteração sensível + rejeição | `apps/api/tests/profile-review-fullstack-http-browser.integration.test.ts` e `apps/api/tests/profile-review-flow.integration.test.ts` | rejeição pela rota profissional real mantém dado canônico intacto e registra motivo/status |
+| Sem provider externo configurado | fluxo full-stack + `apps/api/src/modules/notifications/notification-delivery.service.test.ts` | revisão e contrato interno permanecem funcionais sem outbound obrigatório; adapters retornam `not_configured` quando confirmação segura não está configurada |
 | Provider configurado | `apps/api/src/modules/notifications/notification-delivery.service.test.ts` | SendGrid/Twilio recebem payload correlacionado; WhatsApp usa template aprovado |
 | Falha simulada de provider | `apps/api/src/modules/notifications/notification-delivery.service.test.ts` e testes de feedback em `AlunoRevisoesCadastraisTab` | falha parcial permanece explícita e não desfaz a revisão persistida |
-| Mesmo usuário em dois contratos | `apps/api/tests/profile-review-flow.integration.test.ts` e `apps/api/tests/student-profile-review-boundary.routes.test.ts` | revisão do contrato A não pode ser concluída no contrato B |
+| Mesmo usuário em dois contratos | `apps/api/tests/profile-review-fullstack-http-browser.integration.test.ts`, `apps/api/tests/profile-review-flow.integration.test.ts` e `apps/api/tests/student-profile-review-boundary.routes.test.ts` | o `contractId` emitido pelo web chega à rota real e revisão do contrato A não aparece nem pode ser concluída no contrato B |
 | Contrato revogado/ambíguo | `apps/api/tests/student-profile-review-boundary.routes.test.ts` | rejeição antes de consultar/aplicar revisão e exigência de seleção explícita |
 | Professor fora do escopo/permissão | testes de rotas/segurança do módulo de alunos e `pnpm access:check` | API continua autoridade; ocultação do frontend não é usada como segurança |
 | Erro de submissão | `scripts/verify-issue-343-browser-evidence.cjs` | erro recuperável sem mensagem de conclusão falsa |
@@ -45,11 +46,13 @@ Nenhum cenário desta matriz exige credenciais ou chamadas reais a SendGrid/Twil
 
 ## Uso de mocks e fixtures
 
-A evidência de navegador da #343 intercepta a API para tornar os cenários visuais determinísticos. Ela **não** é usada como prova de persistência. A persistência e as regras de domínio são exercitadas separadamente contra PostgreSQL real em `profile-review-flow.integration.test.ts`.
+`apps/api/tests/profile-review-fullstack-http-browser.integration.test.ts` é a prova discriminante dos contratos internos. Ele inicia o web Vite real e um servidor Express que monta as mesmas rotas de autenticação, professor e aluno usadas pela aplicação; o navegador não intercepta `/api/v1/**`. JWT, middlewares, schemas, serviços e clientes Prisma são reais, e as transições são verificadas no PostgreSQL efêmero do CI.
 
-Nos testes de notificação, o único mock de integração é o transporte HTTP de SendGrid/Twilio. O código dos adapters, validação de configuração, correlação, template, status e tratamento de erro permanece real.
+A evidência de navegador herdada da #343 continua interceptando a API para tornar cenários estritamente visuais determinísticos. Ela comprova UX, responsividade e estados do componente, mas não é usada como prova do contrato web -> API ou da persistência.
 
-Essa separação evita dois falsos positivos comuns: um teste de UI que “prova” backend por fixture e um teste de provider que depende de serviço externo instável.
+Nos testes de notificação, o único mock de integração é o transporte HTTP de SendGrid/Twilio. O código dos adapters, validação de configuração, correlação, template, status e tratamento de erro permanece real. O fluxo full-stack roda com configuração externa ausente para provar que provider não é pré-requisito da revisão.
+
+Essa separação evita três falsos positivos: um teste de UI que “prova” backend por fixture, um teste direto de serviço que não atravessa a rota usada pelo cliente e um teste de provider que depende de serviço externo instável.
 
 ## Estados de interface que devem permanecer cobertos
 
@@ -74,7 +77,7 @@ O gate canônico do repositório continua sendo:
 pnpm validate
 ```
 
-No workflow `Validate PR`, a suíte de API roda com `RUN_DATABASE_INTEGRATION_TESTS=true` e PostgreSQL efêmero após `prisma migrate deploy`, portanto `profile-review-flow.integration.test.ts` participa do gate remoto com persistência real.
+No workflow `Validate PR`, a suíte de API roda com `RUN_DATABASE_INTEGRATION_TESTS=true` e PostgreSQL efêmero após `prisma migrate deploy`. `apps/api/scripts/run-jest-tests.mjs` executa `profile-review-fullstack-http-browser.integration.test.ts` isoladamente para que o servidor Vite, o navegador e os clientes Prisma não compartilhem processo com outros testes de banco. Assim o caminho navegador -> HTTP real -> PostgreSQL participa do gate remoto.
 
 O workflow também executa build e checks adicionais de arquitetura, acesso e documentação. O resultado do SHA candidato deve ser registrado no handoff de entrega; evidência de um SHA anterior não vale para o candidato final.
 
