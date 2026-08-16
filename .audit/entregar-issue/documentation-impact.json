@@ -1,1 +1,1 @@
-{"schema_version":1,"issue":344,"material_head_sha":"51777d9d5850867b67969adf9d7133d9b1a28796","status":"no-change-required","paths":[],"reason":"The remediation changes internal state transition ordering only; provider configuration and operational documentation remain accurate."}
+{"schema_version":1,"issue":344,"material_head_sha":"26366312e56ade7453449d9404fe4bfce23f2058","status":"no-change-required","paths":[],"reason":"The post-CI remediation only adds an explicit null guard for TypeScript narrowing; provider configuration and operational documentation are unchanged."}

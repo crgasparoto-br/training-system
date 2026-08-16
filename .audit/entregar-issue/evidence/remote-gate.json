@@ -1,1 +1,1 @@
-{"schema_version":1,"head_sha":"51777d9d5850867b67969adf9d7133d9b1a28796","workflow":"Validate PR","run_id":31915802810,"run_number":7012,"status":"in_progress","conclusion":null,"observation_policy":"single-read-no-rerun-no-polling","observed_after_local_readiness":true}
+{"schema_version":1,"head_sha":"26366312e56ade7453449d9404fe4bfce23f2058","workflow":"Validate PR","run_id":31919454432,"run_number":7014,"status":"completed","conclusion":"success","observation_policy":"imported-exact-head-ci-from-corrigir-ci-post-ci-refreeze","observed_after_local_readiness":false}
