@@ -1,1 +1,1 @@
-{"schema_version":5,"controller_cycle":1,"controller_cycle_limit":10,"state":"internally-ready","material_head_sha":"42551d53a0e17112024ccecd34e177a6e292c1f6","base_sha":"f68c490309c773970cb7ff75f7532282455f66fb","open_blockers":[],"remote_gate":"queued","next_gate":"independent-audit"}
+{"schema_version":1,"issue":345,"material_head_sha":"69a9493855d1139036e43e52b648a51753e806fe","phase":"freeze","status":"ready-for-handoff","current_run_id":31959691742,"remote_gate":"passed","merge_preview_sha":"bd0ce367053a0226a3d6dac1c4a98fee09ccc627"}

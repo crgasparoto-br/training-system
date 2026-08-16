@@ -1,17 +1,1 @@
-{
-  "schema_version": 1,
-  "repository": "crgasparoto-br/training-system",
-  "issue": 344,
-  "primary_source_id": "SRC-ISSUE-344",
-  "sources": [
-    {
-      "id": "SRC-ISSUE-344",
-      "kind": "issue-body",
-      "path": "sources/issue-344.md",
-      "sha256": "763df646add3b4dbaba02ce33b44ddd856a599ca9f156a01048a96fd77d6e9cb",
-      "textual": true
-    }
-  ],
-  "source_count": 1,
-  "unresolved_sources": []
-}
+{"schema_version":1,"repository":"crgasparoto-br/training-system","issue":345,"head_sha":"69a9493855d1139036e43e52b648a51753e806fe","sources":[{"id":"SRC-ISSUE-345","kind":"issue-body","path":"specification-sources/SRC-ISSUE-345.txt"},{"id":"SRC-ISSUE-344","kind":"subissue","path":"specification-sources/SRC-ISSUE-344.txt"}]}
