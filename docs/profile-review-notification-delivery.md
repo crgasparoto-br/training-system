@@ -79,7 +79,7 @@ Nenhum segredo deve ser exposto no frontend ou no corpo das notificações. O Co
 
 ## Validação
 
-- `safe-external-url.test.ts`: rejeição de `userinfo` em URLs HTTPS, incluindo credenciais codificadgs, e aceitação de HTTPS legítima sem credenciais;
+- `safe-external-url.test.ts`: rejeição de `userinfo` em URLs HTTPS, incluindo credenciais codificadas, e aceitação de HTTPS legítima sem credenciais;
 - `notification-delivery.service.test.ts`: template `ContentSid` sem `Body`, aceitação versus entrega, correlação, callback, falha parcial, preferências, configuração incompleta, ausência/má-formação do template e callback com credenciais sem outbound;
 - `notification-delivery.routes.test.ts`: assinatura SendGrid, anti-replay e mapeamento de estados SendGrid/Twilio;
 - `notification-delivery-status.service.test.ts`: transições idempotentes e proteção contra regressão de estado;
