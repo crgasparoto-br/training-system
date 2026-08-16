@@ -1,4 +1,4 @@
-﻿import api from './api';
+import api from './api';
 import type { FixedScheduleSlotInput } from './agenda.service';
 import type { ParqAdministrativeSummaryDTO } from '@corrida/types';
 
@@ -251,6 +251,40 @@ export interface AlunoProfileReview {
   completedAt?: string | null;
   changedFields: ProfileReviewChangedField[];
   approval: ProfileReviewApproval;
+}
+
+export type ProfileReviewDeliveryChannel = 'email' | 'whatsapp';
+export type ProfileReviewDeliveryStatus =
+  | 'accepted'
+  | 'sent'
+  | 'failed'
+  | 'skipped'
+  | 'not_configured';
+
+export interface ProfileReviewDeliveryChannelResult {
+  channel: ProfileReviewDeliveryChannel;
+  status: ProfileReviewDeliveryStatus;
+  error: string | null;
+  providerMessageId: string | null;
+  providerStatus: string | null;
+}
+
+export interface AlunoProfileReviewRequestResult extends AlunoProfileReview {
+  reviewCreated: boolean;
+  requestAction:
+    | 'created'
+    | 'existing_pending'
+    | 'existing_pending_notified'
+    | 'existing_pending_notification_failed';
+  notification: {
+    persisted: boolean;
+    deduplicated: boolean;
+    delivery: {
+      email: ProfileReviewDeliveryChannelResult;
+      whatsapp: ProfileReviewDeliveryChannelResult;
+    } | null;
+    error: string | null;
+  };
 }
 
 export interface AlunoProfileReviewSettings {
@@ -777,8 +811,11 @@ export const alunoService = {
     return response.data.data;
   },
 
-  async requestProfileReview(alunoId: string, data: CreateProfileReviewDTO = {}): Promise<AlunoProfileReview> {
-    const response = await api.post<{ success: boolean; data: AlunoProfileReview }>(
+  async requestProfileReview(
+    alunoId: string,
+    data: CreateProfileReviewDTO = {}
+  ): Promise<AlunoProfileReviewRequestResult> {
+    const response = await api.post<{ success: boolean; data: AlunoProfileReviewRequestResult }>(
       `/alunos/${alunoId}/profile-reviews`,
       data
     );

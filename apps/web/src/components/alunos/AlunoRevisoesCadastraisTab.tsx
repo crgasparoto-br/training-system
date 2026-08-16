@@ -5,6 +5,7 @@ import { Input } from '../ui/Input';
 import {
   alunoService,
   type AlunoProfileReview,
+  type AlunoProfileReviewRequestResult,
   type AlunoProfileReviewSettingsResponse,
 } from '../../services/aluno.service';
 import { formatDateBR, toDateInputValue, toIsoDateAtNoonUTC } from '../../utils/date';
@@ -18,30 +19,6 @@ type AlunoRevisoesCadastraisTabProps = {
 };
 
 type CurrentStatus = 'em-dia' | 'pendente' | 'vencida';
-
-type DeliveryChannelResult = {
-  channel: 'email' | 'whatsapp';
-  status: 'sent' | 'failed' | 'skipped' | 'not_configured';
-  error?: string | null;
-};
-
-type ReviewRequestResult = AlunoProfileReview & {
-  reviewCreated?: boolean;
-  requestAction?:
-    | 'created'
-    | 'existing_pending'
-    | 'existing_pending_notified'
-    | 'existing_pending_notification_failed';
-  notification?: {
-    persisted: boolean;
-    deduplicated: boolean;
-    delivery: {
-      email: DeliveryChannelResult;
-      whatsapp: DeliveryChannelResult;
-    } | null;
-    error?: string | null;
-  };
-};
 
 const statusPillClass: Record<CurrentStatus, string> = {
   'em-dia': 'bg-success/10 text-success',
@@ -140,7 +117,9 @@ const getCurrentStatus = (
 
 const getChangedFieldLabel = (path: string) => changedFieldLabelMap[path] || path;
 
-const getRequestFeedback = (result: ReviewRequestResult): { message: string; type: ToastType } => {
+const getRequestFeedback = (
+  result: AlunoProfileReviewRequestResult
+): { message: string; type: ToastType } => {
   const notification = result.notification;
   const prefix =
     result.reviewCreated === false
@@ -172,6 +151,9 @@ const getRequestFeedback = (result: ReviewRequestResult): { message: string; typ
   }
 
   const channels = [notification.delivery.email, notification.delivery.whatsapp];
+  const accepted = channels
+    .filter((channel) => channel.status === 'accepted')
+    .map((channel) => channel.channel);
   const sent = channels.filter((channel) => channel.status === 'sent').map((channel) => channel.channel);
   const failed = channels.filter((channel) => channel.status === 'failed').map((channel) => channel.channel);
   const notConfigured = channels
@@ -181,6 +163,10 @@ const getRequestFeedback = (result: ReviewRequestResult): { message: string; typ
   const label = (channel: 'email' | 'whatsapp') =>
     channel === 'email' ? 'e-mail' : 'WhatsApp';
   const joinChannels = (items: Array<'email' | 'whatsapp'>) => items.map(label).join(' e ');
+  const acceptedText =
+    accepted.length > 0
+      ? ` O envio por ${joinChannels(accepted)} foi aceito pelo provedor e aguarda confirmação de entrega.`
+      : '';
 
   if (failed.length > 0) {
     const sentText = sent.length > 0 ? ` A notificação foi enviada por ${joinChannels(sent)}.` : '';
@@ -188,7 +174,7 @@ const getRequestFeedback = (result: ReviewRequestResult): { message: string; typ
       ? ` ${joinChannels(notConfigured)} não está configurado para envio.`
       : '';
     return {
-      message: `${prefix} O envio por ${joinChannels(failed)} falhou.${sentText}${configText}`,
+      message: `${prefix} O envio por ${joinChannels(failed)} falhou.${sentText}${acceptedText}${configText}`,
       type: 'error',
     };
   }
@@ -196,7 +182,15 @@ const getRequestFeedback = (result: ReviewRequestResult): { message: string; typ
   if (notConfigured.length > 0) {
     const sentText = sent.length > 0 ? ` A notificação foi enviada por ${joinChannels(sent)}.` : '';
     return {
-      message: `${prefix} ${joinChannels(notConfigured)} não está configurado para envio.${sentText}`,
+      message: `${prefix} ${joinChannels(notConfigured)} não está configurado para envio.${sentText}${acceptedText}`,
+      type: 'success',
+    };
+  }
+
+  if (accepted.length > 0) {
+    const sentText = sent.length > 0 ? ` A notificação foi enviada por ${joinChannels(sent)}.` : '';
+    return {
+      message: `${prefix}${acceptedText}${sentText}`,
       type: 'success',
     };
   }
@@ -295,7 +289,7 @@ export function AlunoRevisoesCadastraisTab({
   const handleRequestNow = async () => {
     setRequestingNow(true);
     try {
-      const result = (await alunoService.requestProfileReview(alunoId)) as ReviewRequestResult;
+      const result = await alunoService.requestProfileReview(alunoId);
       const feedback = getRequestFeedback(result);
       onToast(feedback.message, feedback.type);
       await loadData();
