@@ -3,7 +3,7 @@
 ## Status do documento
 
 - Fonte de verdade para estado funcional, prioridades e evolucao do produto.
-- Estado revisado em 2026-08-13 no contexto das issues #317 a #320 e #339, com base no candidato de liberacao operacional da Montagem Consolidada.
+- Estado revisado em 2026-08-16 no contexto das issues #341 a #345, consolidando o fluxo web de revisao cadastral e a entrega externa opcional de notificacoes, alem do candidato de liberacao operacional da Montagem Consolidada.
 - Issues e PRs continuam sendo a fonte de execucao.
 - Codigo, migrations e testes definem o comportamento efetivamente entregue.
 - Documentos detalhados de produto e planos ativos complementam este roadmap; nao devem competir com ele como roadmap geral.
@@ -90,7 +90,8 @@ Entregue:
 - historico unificado;
 - acoes contextuais;
 - estados de vazio, carregamento e erro;
-- preservacao de rotas anteriores por compatibilidade.
+- preservacao de rotas anteriores por compatibilidade;
+- solicitacao manual de revisao cadastral com feedback de criacao, reutilizacao de pendencia e entrega de notificacao.
 
 Pendente:
 
@@ -101,16 +102,26 @@ Pendente:
 
 ### 2. Cadastro, servicos, contratos e vinculos
 
-**Maturidade: Implementado parcialmente.**
+**Maturidade: Revisao cadastral web implementada e validada de forma integrada; demais vinculos implementados parcialmente.**
+
+Entregue:
+
+- revisao cadastral periodica com solicitacao manual por professor/gestor e reutilizacao idempotente da pendencia;
+- sinalizacao da pendencia no inicio do aluno e fluxo responsivo em `/student/profile-review`;
+- conclusao sem alteracoes, aplicacao direta de campos nao sensiveis e aprovacao/rejeicao profissional de campos sensiveis;
+- persistencia canonica, auditoria e proxima revisao sem depender de provider externo;
+- notificacao in-app e entrega opcional por email/WhatsApp com estado de envio observavel e degradacao segura;
+- isolamento por usuario, vinculo ativo e `contractId`, inclusive quando a mesma conta participa de mais de um contrato;
+- matriz de regressao em `docs/profile-review-e2e-validation.md` e contrato de cliente em `docs/student-app-data-contract.md`.
 
 Pendente:
 
-- consolidar onboarding e revisao periodica;
 - manter dados de avaliacao fora do cadastro administrativo;
 - garantir autoridade unica para servico e contrato vigentes;
 - exibir resumos administrativos consistentes na Central;
-- versionar questionarios iniciais e revisoes;
-- organizar carteira de alunos, substituicao e acesso temporario conforme permissao.
+- versionar questionarios iniciais alem dos fluxos ja migrados;
+- organizar carteira de alunos, substituicao e acesso temporario conforme permissao;
+- app mobile nativo, se priorizado, reutilizando o contrato `student/me` existente.
 
 ### 3. PRNT
 
@@ -478,7 +489,7 @@ Nao incorporar:
 
 ### Prioridade 7 - integracoes externas
 
-Integracoes com Garmin, Strava ou outros provedores permanecem adiadas. Nao devem bloquear nenhuma prioridade anterior.
+Integracoes com Garmin, Strava ou outros provedores permanecem adiadas. Nao devem bloquear nenhuma prioridade anterior. Email/WhatsApp usados para notificacoes operacionais da revisao cadastral sao canais opcionais de comunicacao e nao alteram essa dependencia funcional.
 
 Pre-condicoes futuras:
 
@@ -514,7 +525,7 @@ Cada epic deve declarar:
 
 ## Fora do escopo atual
 
-- integracoes externas;
+- integracoes externas de treino/dados como Garmin e Strava;
 - sincronizacao em background;
 - importacao de planos ou midia proprietaria;
 - prescricao ou progressao totalmente automatica;
