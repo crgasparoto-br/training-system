@@ -65,22 +65,23 @@ if [[ ! -f .env ]]; then
 fi
 
 if [[ "$SKIP_INSTALL" == "true" ]]; then
-  echo "[1/4] Pulando instalacao de dependencias (--skip-install)"
+  echo "[1/5] Pulando instalacao de dependencias (--skip-install)"
 else
-  echo "[1/4] Instalando dependencias..."
+  echo "[1/5] Instalando dependencias..."
   pnpm install
 fi
 
-echo "[2/4] Validando portas da aplicacao..."
+echo "[2/5] Validando portas da aplicacao..."
 API_PORT="$(sed -n 's/^API_PORT=["'\'']\?\([0-9]\+\)["'\'']\?$/\1/p' apps/api/.env | head -n 1)"
 API_PORT="${API_PORT:-3000}"
 ensure_port_free "$API_PORT" "api"
 ensure_port_free 5200 "web"
 
-echo "[3/4] Subindo banco e cache (docker compose)..."
+echo "[3/5] Subindo banco e cache (docker compose)..."
 docker compose up -d postgres redis pgadmin redis-commander
 
-echo "[4/4] Aplicando migrations da API..."
+echo "[4/5] Preparando schema da API..."
+pnpm --filter @corrida/api db:generate
 if [[ "$MIGRATION_MODE" == "dev" ]]; then
   echo "Modo de migration: prisma migrate dev (--migrate-dev)"
   pnpm --filter @corrida/api db:migrate
@@ -90,4 +91,4 @@ else
 fi
 
 echo "[5/5] Iniciando API + Web..."
-exec pnpm dev:local
+exec pnpm dev:serve
