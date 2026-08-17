@@ -3,39 +3,36 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ContractSettings from './Contract';
 
-const { mockApiPost, mockGetMe, mockLoadUser } = vi.hoisted(() => ({
-  mockApiPost: vi.fn(),
-  mockGetMe: vi.fn(),
-  mockLoadUser: vi.fn(),
-}));
+const { mockApiPost, mockGetMe, mockLoadUser, mockUser } = vi.hoisted(() => {
+  const contract = {
+    id: 'contract-target',
+    type: 'academy' as const,
+    document: '12345678000199',
+    name: 'Academia Teste',
+    tradeName: 'Teste',
+    cref: null,
+    addressStreet: null,
+    addressNumber: null,
+    addressNeighborhood: null,
+    addressCity: null,
+    addressState: null,
+    addressComplement: null,
+    addressZipCode: null,
+    logoUrl: null,
+  };
 
-const contract = {
-  id: 'contract-target',
-  type: 'academy' as const,
-  document: '12345678000199',
-  name: 'Academia Teste',
-  tradeName: 'Teste',
-  cref: null,
-  addressStreet: null,
-  addressNumber: null,
-  addressNeighborhood: null,
-  addressCity: null,
-  addressState: null,
-  addressComplement: null,
-  addressZipCode: null,
-  logoUrl: null,
-};
-
-vi.mock('../../stores/useAuthStore', () => ({
-  useAuthStore: () => ({
-    user: {
+  return {
+    mockApiPost: vi.fn(),
+    mockGetMe: vi.fn(),
+    mockLoadUser: vi.fn(),
+    mockUser: {
       id: 'user-master',
       email: 'master@example.com',
       name: 'Master',
-      type: 'professor',
+      type: 'professor' as const,
       professor: {
         id: 'professor-master',
-        role: 'master',
+        role: 'master' as const,
         collaboratorFunction: {
           id: 'function-master',
           name: 'Master',
@@ -45,6 +42,14 @@ vi.mock('../../stores/useAuthStore', () => ({
         contract,
       },
     },
+  };
+});
+
+const contract = mockUser.professor.contract;
+
+vi.mock('../../stores/useAuthStore', () => ({
+  useAuthStore: () => ({
+    user: mockUser,
     loadUser: mockLoadUser,
   }),
 }));
