@@ -1,0 +1,10 @@
+Material candidate: cb202efcb94a7223d6fece470a8030da5c1e3a05
+
+Source contract readback:
+- apps/api/src/main.ts imports periodizationRoutes from ./modules/periodization/index.js.
+- apps/api/src/main.ts advertises periodization: /api/v1/periodization.
+- apps/api/src/main.ts mounts app.use('/api/v1/periodization', periodizationRoutes) before the generic 404 fallback.
+- apps/web/src/services/periodization.service.ts requests GET /periodization/parameters (with includeInactive query when requested).
+- apps/api/src/modules/periodization/periodization.routes.ts implements GET /parameters.
+
+Discriminant failure: removing the mount or placing it after the generic 404 fallback would route the settings request to HTTP 404 and fail the contract test added in this candidate.

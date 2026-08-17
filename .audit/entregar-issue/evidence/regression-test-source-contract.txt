@@ -1,0 +1,11 @@
+Material candidate: cb202efcb94a7223d6fece470a8030da5c1e3a05
+
+Regression test added: apps/api/tests/periodization-route-mount.contract.test.ts
+The test asserts:
+- periodizationRoutes is imported in main.ts;
+- /api/v1/periodization is present in the API manifest;
+- the periodization router is mounted before the global 404 fallback;
+- the frontend GET /periodization/parameters path aligns with backend GET /parameters;
+- authMiddleware and professorMiddleware remain present on the parameters route contract.
+
+Execution note: repository Jest execution is not available in the connector-only runtime because no repository checkout can be materialized; CI is the executable gate. This evidence records exact source-contract assertions only and does not claim local Jest execution.
