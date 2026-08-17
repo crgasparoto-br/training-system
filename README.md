@@ -66,29 +66,42 @@ Fontes de verdade atuais:
 - pnpm 9+
 - Docker e Docker Compose
 
-### Setup local
+### Setup local completo
+
+O fluxo recomendado prepara dependências, infraestrutura Docker, Prisma Client e migrations antes de iniciar API e web:
 
 ```bash
-pnpm install
-pnpm dev:up
+pnpm dev:all
 ```
 
-Alternativa manual:
+Para pular apenas a reinstalação de dependências em execuções seguintes:
 
 ```bash
-cp .env.example .env.local
-docker-compose up -d
-cd apps/api
-pnpm db:migrate
-pnpm db:seed
-cd ../..
+pnpm dev:all:fast
+```
+
+### Setup local com infraestrutura já ativa
+
+Quando PostgreSQL e Redis já estiverem disponíveis e as dependências já estiverem instaladas, use:
+
+```bash
+cp .env.example .env
+docker compose up -d postgres redis pgadmin redis-commander
 pnpm dev:local
+```
+
+`pnpm dev:local` gera o Prisma Client e executa as migrations existentes com `prisma migrate deploy` antes de iniciar API e web. Se a preparação do schema falhar, os processos da aplicação não são iniciados. Para criar uma migration nova durante desenvolvimento de schema, use explicitamente `pnpm dev:all:dev-migrate` ou o comando `db:migrate` da API.
+
+Quando precisar de dados iniciais no banco local, execute separadamente:
+
+```bash
+pnpm --filter @corrida/api db:seed
 ```
 
 ### Acessos locais
 
 - API: `http://localhost:3000` ou porta definida no `.env`.
-- Frontend web: `http://localhost:5173`.
+- Frontend web: `http://localhost:5200`.
 - pgAdmin: `http://localhost:5050`, quando habilitado pelo Docker Compose.
 - Redis Commander: `http://localhost:8081`, quando habilitado pelo Docker Compose.
 
