@@ -1,1 +1,77 @@
-{"schema_version":1,"patterns":[{"escape_class":"handoff-canonical-source-identity-drift","control_id":"HANDOFF-CANONICAL-SOURCE-IDENTITY-001","trigger_terms":["stale handoff","primary source mismatch","candidate identity mismatch"],"risk_families":["structural-contract","documentation"]},{"escape_class":"fragmented-internal-boundary-proof","control_id":"REAL-INTERNAL-SEAM-001","trigger_terms":["end-to-end","mocks only at external boundaries","real internal contracts","client API persistence"],"plausible_wrong_implementation":"Compose several layer-local tests that each mock an adjacent internal seam and claim the combined suite proves one real integrated path.","required_risk_families":["structural-contract","public-boundary","tenant-isolation"],"prevention_controls":["Require one executed path crossing the public entrypoint and durable persistence with internal boundaries real."],"detection_controls":["Reject external-mocks-only requirements when the internal seam control mocks a non-external boundary or does not cross persistence."],"sibling_cases":["shared identity across tenant contexts","state transition through a later privileged action"],"origin":{"issue":345,"sha":"69a9493855d1139036e43e52b648a51753e806fe"}}]}
+{
+  "schema_version": 1,
+  "patterns": [
+    {
+      "escape_class": "handoff-canonical-source-identity-drift",
+      "control_id": "HANDOFF-CANONICAL-SOURCE-IDENTITY-001",
+      "trigger_terms": [
+        "stale handoff",
+        "primary source mismatch",
+        "candidate identity mismatch"
+      ],
+      "risk_families": [
+        "structural-contract",
+        "documentation"
+      ]
+    },
+    {
+      "escape_class": "fragmented-internal-boundary-proof",
+      "control_id": "REAL-INTERNAL-SEAM-001",
+      "trigger_terms": [
+        "end-to-end",
+        "mocks only at external boundaries",
+        "real internal contracts",
+        "client API persistence"
+      ],
+      "plausible_wrong_implementation": "Compose several layer-local tests that each mock an adjacent internal seam and claim the combined suite proves one real integrated path.",
+      "required_risk_families": [
+        "structural-contract",
+        "public-boundary",
+        "tenant-isolation"
+      ],
+      "prevention_controls": [
+        "Require one executed path crossing the public entrypoint and durable persistence with internal boundaries real."
+      ],
+      "detection_controls": [
+        "Reject external-mocks-only requirements when the internal seam control mocks a non-external boundary or does not cross persistence."
+      ],
+      "sibling_cases": [
+        "shared identity across tenant contexts",
+        "state transition through a later privileged action"
+      ],
+      "origin": {
+        "issue": 345,
+        "sha": "69a9493855d1139036e43e52b648a51753e806fe"
+      }
+    },
+    {
+      "escape_class": "adversarial-evidence-placeholder-acceptance",
+      "control_id": "ADVERSARIAL-EVIDENCE-SPECIFICITY",
+      "trigger_terms": [
+        "generated adversarial matrix",
+        "generic control text",
+        "shared aggregate evidence",
+        "recertified handoff"
+      ],
+      "plausible_wrong_implementation": "Emit schema-valid controls with generic filler and reuse one aggregate green gate as proof for unrelated attack dimensions.",
+      "required_risk_families": [
+        "structural-contract",
+        "documentation"
+      ],
+      "prevention_controls": [
+        "Preserve concrete wrong implementation, procedure, expected, observed and source provenance during regeneration."
+      ],
+      "detection_controls": [
+        "Reject normalized placeholder phrases and require scenario-specific executable provenance for material controls."
+      ],
+      "sibling_cases": [
+        "provider state transition evidence",
+        "multi-tenant access denial evidence"
+      ],
+      "origin": {
+        "issue": 345,
+        "sha": "2332a2a8d31d7c5aa43d051b46112e6bc567fba9"
+      }
+    }
+  ]
+}

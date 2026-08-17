@@ -1,1 +1,59 @@
-{"schema_version":1,"classification":"systemic-escape","source_event":{"repository":"crgasparoto-br/training-system","issue":345,"audited_head_sha":"69a9493855d1139036e43e52b648a51753e806fe","finding":"A-345-001"},"generalized_learning":{"escape_class":"fragmented-internal-boundary-proof","generalized_failure_pattern":"Layer-local tests can all pass while adjacent internal seams are replaced by mocks, leaving no executable evidence that the real producer, public boundary, domain logic and durable state interoperate.","plausible_wrong_implementation":"Mock the public entrypoint in the client test and bypass it in the persistence test, then compose those independent results as if one path crossed both seams.","trigger_signals":["end-to-end validation","external-only mocks","real internal contracts","client plus public entrypoint plus persistence"],"risk_families":["structural-contract","public-boundary","tenant-isolation"],"reusable_control":{"id":"REAL-INTERNAL-SEAM-001","requirement":"One executed control crosses the public entrypoint and persistence while every mocked boundary is external."},"prevention_rule":"When a contract limits mocks to external boundaries, require an explicit external-mocks-only policy and one executable internal seam control before handoff.","detection_rule":"Fail readiness when the internal seam control does not cross both the public entrypoint and persistence, covers fewer than two internal surfaces, or mocks a boundary classified as internal.","transfer_cases":[{"surface":"web_client_to_durable_state","scenario":"client -> public_entrypoint -> domain -> persistence with provider transport external","status":"passed"},{"surface":"async_consumer_to_durable_state","scenario":"consumer -> canonical_adapter -> durable_state with only remote provider mocked","status":"passed"}],"promotion_status":"promoted"},"skill_changes":[{"role":"prevention","status":"passed","evidence":"references/requirement-attack-matrix.md","change":"Added the external-mocks-only structural prevention rule."},{"role":"detection","status":"passed","evidence":"scripts/validate_requirement_attack_matrix.py + tests/test_real_internal_boundary_policy.py","change":"Validator now rejects internal mocks, missing persistence crossing and single-surface seam evidence when the policy is active."}]}
+{
+  "schema_version": 1,
+  "classification": "systemic-escape",
+  "source_event": {
+    "repository": "crgasparoto-br/training-system",
+    "issue": 345,
+    "audited_head_sha": "2332a2a8d31d7c5aa43d051b46112e6bc567fba9",
+    "finding": "A-345-SAT-001"
+  },
+  "generalized_learning": {
+    "escape_class": "adversarial-evidence-placeholder-acceptance",
+    "generalized_failure_pattern": "A schema-valid evidence package can retain every required field while replacing discriminant semantics with generic filler and one coarse green gate, making unrelated risk families appear saturated without scenario proof.",
+    "plausible_wrong_implementation": "Generate negative controls from a template whose failure, procedure, expected and observed fields are generic, then reuse one aggregate CI summary as evidence for every attack surface.",
+    "trigger_signals": [
+      "generated adversarial matrix",
+      "shared evidence file across risk families",
+      "generic procedure text",
+      "recertified handoff",
+      "negative controls synthesized from templates"
+    ],
+    "risk_families": [
+      "structural-contract",
+      "documentation"
+    ],
+    "reusable_control": {
+      "id": "ADVERSARIAL-EVIDENCE-SPECIFICITY",
+      "requirement": "Reject semantic placeholders and require every material control to identify a discriminant attack plus scenario-specific executable provenance."
+    },
+    "prevention_rule": "When regenerating an adversarial matrix, preserve or improve the semantic specificity of each control; never replace scenario descriptions with generic filler merely to satisfy schema shape.",
+    "detection_rule": "Fail readiness when mandatory adversarial fields normalize to known placeholder phrases or when a material control cannot be traced to an executable source that exercises its declared dimension.",
+    "transfer_cases": [
+      {
+        "surface": "provider-state-machine",
+        "scenario": "Distinguish provider acceptance, confirmed delivery and failure with separate observed assertions instead of a global test-suite pass.",
+        "status": "passed"
+      },
+      {
+        "surface": "multi-tenant-access",
+        "scenario": "Bind cross-tenant denial to a boundary/full-stack source proving the foreign context is denied before protected state is exposed or mutated.",
+        "status": "passed"
+      }
+    ],
+    "promotion_status": "promoted"
+  },
+  "skill_changes": [
+    {
+      "role": "prevention",
+      "status": "passed",
+      "evidence": "references/requirement-attack-matrix.md",
+      "change": "The producer contract requires discriminant negative controls and scenario-specific provenance rather than generic green-gate assertions."
+    },
+    {
+      "role": "detection",
+      "status": "passed",
+      "evidence": "scripts/validate_requirement_attack_matrix.py + tests/test_requirement_attack_saturation.py",
+      "change": "The validator rejects known placeholder phrases and regression coverage reproduces the escaped package shape."
+    }
+  ]
+}

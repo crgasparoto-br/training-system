@@ -1,1 +1,160 @@
-{"schema_version":1,"escapes":[{"escape_id":"A-345-HANDOFF-001","escape_class":"handoff-canonical-source-identity-drift","status":"passed","root_cause":"A result package retained stale identity/source composition instead of being rebuilt from the canonical delivery sources.","literal_case":{"status":"passed","evidence":"evidence/handoff-recovery.json"},"sibling_cases":[{"id":"HANDOFF-S1","dimension":"canonical primary issue source identity","status":"passed","evidence":"specification-snapshot.json"},{"id":"HANDOFF-S2","dimension":"material head versus result-only child identity","status":"passed","evidence":"handoff-ready.json"}],"prevention_change":{"status":"passed","evidence":"evidence/handoff-recovery.json"},"detection_change":{"status":"passed","evidence":"handoff-ready.json"}},{"escape_id":"A-345-001","escape_class":"fragmented-internal-boundary-proof","status":"passed","root_cause":"Layer-local browser, route and persistence tests each replaced a neighboring internal seam, then their independent green results were treated as evidence for a seam that no executable test actually crossed.","literal_case":{"status":"passed","evidence":"evidence/issue-345-fullstack-remediation.json"},"sibling_cases":[{"id":"REAL-SEAM-S1","dimension":"same account across two contracts through real browser, HTTP and PostgreSQL","status":"passed","evidence":"evidence/issue-345-fullstack-remediation.json"},{"id":"REAL-SEAM-S2","dimension":"sensitive approval and rejection through real professional HTTP routes and canonical persistence","status":"passed","evidence":"evidence/issue-345-fullstack-remediation.json"},{"id":"REAL-SEAM-S3","dimension":"repeated request through real professional HTTP boundary remains one pending authority","status":"passed","evidence":"evidence/issue-345-fullstack-remediation.json"}],"prevention_change":{"status":"passed","evidence":"apps/api/tests/profile-review-fullstack-http-browser.integration.test.ts","description":"Add one executable path crossing client, public HTTP entrypoint, domain and durable persistence without internal mocks."},"detection_change":{"status":"passed","evidence":"requirement-attack-matrix.json","description":"Promote REAL-INTERNAL-SEAM-001 and external-mocks-only policy so layered internal mocks cannot satisfy the structural contract."}}]}
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "A-345-HANDOFF-001",
+      "escape_class": "handoff-canonical-source-identity-drift",
+      "status": "passed",
+      "root_cause": "Um pacote result-only anterior reteve composição de identidade/fontes desatualizada em vez de ser reconstruído a partir das fontes canônicas da entrega.",
+      "plausible_wrong_implementation": "Reutilizar certificado e artefatos de um candidato anterior depois de mudar o material SHA, reportando readiness sem rebinding das fontes e hashes.",
+      "required_risk_families": [
+        "structural-contract",
+        "documentation"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "handoff-identity",
+          "dimension": "material-head-rebound"
+        },
+        {
+          "risk_family": "documentation",
+          "surface": "canonical-sources",
+          "dimension": "source-identity-preserved"
+        }
+      ],
+      "literal_case": {
+        "status": "passed",
+        "evidence": "evidence/a345-sat.json"
+      },
+      "sibling_cases": [
+        {
+          "id": "HANDOFF-S1",
+          "dimension": "canonical primary issue source identity",
+          "status": "passed",
+          "evidence": "specification-snapshot.json"
+        },
+        {
+          "id": "HANDOFF-S2",
+          "dimension": "material head versus result-only child identity",
+          "status": "passed",
+          "evidence": "handoff-ready.json"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "evidence/a345-sat.json"
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "handoff-ready.json"
+      }
+    },
+    {
+      "escape_id": "A-345-001",
+      "escape_class": "fragmented-internal-boundary-proof",
+      "status": "passed",
+      "root_cause": "Testes locais de camada substituíam seams internos adjacentes e os resultados independentes foram compostos incorretamente como evidência end-to-end.",
+      "plausible_wrong_implementation": "Mockar a entrada HTTP no teste de browser e bypassar o seam browser-HTTP nos testes de persistência, combinando resultados independentes como se um caminho único cruzasse cliente, HTTP, domínio e estado durável.",
+      "required_risk_families": [
+        "structural-contract",
+        "tenant-isolation",
+        "public-boundary"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "internal-seam",
+          "dimension": "real-client-http-db"
+        },
+        {
+          "risk_family": "tenant-isolation",
+          "surface": "contract-context",
+          "dimension": "same-account-cross-contract"
+        },
+        {
+          "risk_family": "public-boundary",
+          "surface": "access-response",
+          "dimension": "foreign-context-safe-denial"
+        }
+      ],
+      "literal_case": {
+        "status": "passed",
+        "evidence": "evidence/a345-sat.json"
+      },
+      "sibling_cases": [
+        {
+          "id": "REAL-SEAM-S1",
+          "dimension": "shared account across two contracts through real browser HTTP and PostgreSQL",
+          "status": "passed",
+          "evidence": "evidence/a345-sat.json"
+        },
+        {
+          "id": "REAL-SEAM-S2",
+          "dimension": "sensitive approval and rejection through real professional HTTP routes and persistence",
+          "status": "passed",
+          "evidence": "evidence/a345-sat.json"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "apps/api/tests/profile-review-fullstack-http-browser.integration.test.ts"
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "requirement-attack-matrix.json"
+      }
+    },
+    {
+      "escape_id": "A-345-SAT-001",
+      "escape_class": "adversarial-evidence-placeholder-acceptance",
+      "status": "passed",
+      "root_cause": "O validador estrutural exigia campos, comprimentos, hashes e status, mas não rejeitava placeholders semanticamente vazios nem exigia proveniência de cenário; uma recertificação pôde degradar controles específicos para texto genérico.",
+      "plausible_wrong_implementation": "Preencher todos os controles negativos com frases genéricas de tamanho suficiente e vincular rollback, tenant isolation, idempotência e demais famílias ao mesmo resumo verde de CI, sem fonte executável por cenário.",
+      "required_risk_families": [
+        "structural-contract",
+        "documentation"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "adversarial-evidence",
+          "dimension": "semantic-specificity"
+        },
+        {
+          "risk_family": "documentation",
+          "surface": "evidence-provenance",
+          "dimension": "scenario-specific-source"
+        }
+      ],
+      "literal_case": {
+        "status": "passed",
+        "evidence": "evidence/a345-sat.json"
+      },
+      "sibling_cases": [
+        {
+          "id": "SAT-S1",
+          "dimension": "provider rollback uses notification persistence proof",
+          "status": "passed",
+          "evidence": "evidence/a345-sat.json"
+        },
+        {
+          "id": "SAT-S2",
+          "dimension": "tenant isolation uses boundary and full-stack proof",
+          "status": "passed",
+          "evidence": "evidence/a345-sat.json"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "requirement-attack-matrix.json",
+        "description": "Rebuilt all material controls with concrete wrong implementation, procedure, expected, observed and immutable source provenance."
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "skills://entregar-issue/scripts/validate_requirement_attack_matrix.py",
+        "description": "Validator rejects known semantic placeholders; regression test locks the escape class."
+      }
+    }
+  ]
+}
