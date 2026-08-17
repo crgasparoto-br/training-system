@@ -1,1 +1,163 @@
-{"schema_version":1,"head_sha":"585578201a55a50283d340b4a62f456d7a27f861","families":[{"family":"authorization","applicable":true,"reason":"The authorization family is material to covered requirements and has discriminant controls on the current material head.","control_ids":["C8"],"status":"passed","dimensions":[{"surface":"professional-action","status":"passed","reason":"Current-head controls cover the professional-action surface.","control_ids":["C8"]}]},{"family":"tenant-isolation","applicable":true,"reason":"The tenant-isolation family is material to covered requirements and has discriminant controls on the current material head.","control_ids":["REVIEW-CONTRACT-ISOLATION-001"],"status":"passed","dimensions":[{"surface":"contract-context","status":"passed","reason":"Current-head controls cover the contract-context surface.","control_ids":["REVIEW-CONTRACT-ISOLATION-001"]}]},{"family":"public-boundary","applicable":true,"reason":"The public-boundary family is material to covered requirements and has discriminant controls on the current material head.","control_ids":["C3","C10","C11"],"status":"passed","dimensions":[{"surface":"access-response","status":"passed","reason":"Current-head controls cover the access-response surface.","control_ids":["C10"]},{"surface":"browser-state","status":"passed","reason":"Current-head controls cover the browser-state surface.","control_ids":["C11"]},{"surface":"external-delivery-result","status":"passed","reason":"Current-head controls cover the external-delivery-result surface.","control_ids":["C3"]}]},{"family":"reference-liveness","applicable":true,"reason":"The reference-liveness family is material to covered requirements and has discriminant controls on the current material head.","control_ids":["C1"],"status":"passed","dimensions":[{"surface":"pending-review-reference","status":"passed","reason":"Current-head controls cover the pending-review-reference surface.","control_ids":["C1"]}]},{"family":"temporal-consistency","applicable":true,"reason":"The temporal-consistency family is material to covered requirements and has discriminant controls on the current material head.","control_ids":["C5"],"status":"passed","dimensions":[{"surface":"delivery-state","status":"passed","reason":"Current-head controls cover the delivery-state surface.","control_ids":["C5"]}]},{"family":"temporal-destination","applicable":false,"reason":"The temporal-destination family is not activated by the current issue contract.","control_ids":[],"status":"not-applicable","dimensions":[]},{"family":"concurrency-atomicity","applicable":true,"reason":"The concurrency-atomicity family is material to covered requirements and has discriminant controls on the current material head.","control_ids":["C6"],"status":"passed","dimensions":[{"surface":"pending-review-creation","status":"passed","reason":"Current-head controls cover the pending-review-creation surface.","control_ids":["C6"]}]},{"family":"idempotency","applicable":true,"reason":"The idempotency family is material to covered requirements and has discriminant controls on the current material head.","control_ids":["C7"],"status":"passed","dimensions":[{"surface":"repeat-request","status":"passed","reason":"Current-head controls cover the repeat-request surface.","control_ids":["C7"]}]},{"family":"rollback","applicable":true,"reason":"The rollback family is material to covered requirements and has discriminant controls on the current material head.","control_ids":["C4"],"status":"passed","dimensions":[{"surface":"review-durability","status":"passed","reason":"Current-head controls cover the review-durability surface.","control_ids":["C4"]}]},{"family":"historical-immutability","applicable":true,"reason":"The historical-immutability family is material to covered requirements and has discriminant controls on the current material head.","control_ids":["C2"],"status":"passed","dimensions":[{"surface":"review-history","status":"passed","reason":"Current-head controls cover the review-history surface.","control_ids":["C2"]}]},{"family":"structural-contract","applicable":true,"reason":"The structural-contract family is material to covered requirements and has discriminant controls on the current material head.","control_ids":["REAL-INTERNAL-SEAM-001","HANDOFF-CANONICAL-SOURCE-IDENTITY-001","ADVERSARIAL-EVIDENCE-SPECIFICITY-001","AUDIT-SOURCE-PROOF-BLOB-EXISTS-001"],"status":"passed","dimensions":[{"surface":"adversarial-evidence","status":"passed","reason":"Current-head controls cover the adversarial-evidence surface.","control_ids":["ADVERSARIAL-EVIDENCE-SPECIFICITY-001"]},{"surface":"git-object-integrity","status":"passed","reason":"Current-head controls cover the git-object-integrity surface.","control_ids":["AUDIT-SOURCE-PROOF-BLOB-EXISTS-001"]},{"surface":"handoff-identity","status":"passed","reason":"Current-head controls cover the handoff-identity surface.","control_ids":["HANDOFF-CANONICAL-SOURCE-IDENTITY-001"]},{"surface":"internal-seam","status":"passed","reason":"Current-head controls cover the internal-seam surface.","control_ids":["REAL-INTERNAL-SEAM-001"]}]},{"family":"documentation","applicable":true,"reason":"The documentation family is material to covered requirements and has discriminant controls on the current material head.","control_ids":["C13","ADVERSARIAL-EVIDENCE-PROVENANCE-001","AUDIT-SOURCE-PROOF-PATH-MATCH-001"],"status":"passed","dimensions":[{"surface":"canonical-sources","status":"passed","reason":"Current-head controls cover the canonical-sources surface.","control_ids":["C13"]},{"surface":"evidence-provenance","status":"passed","reason":"Current-head controls cover the evidence-provenance surface.","control_ids":["ADVERSARIAL-EVIDENCE-PROVENANCE-001","AUDIT-SOURCE-PROOF-PATH-MATCH-001"]}]}],"material_families_missing_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": true,
+      "reason": "The newly reachable private router must preserve access controls.",
+      "control_ids": [
+        "CTRL-AUTH-MODULE",
+        "CTRL-AUTH-PROF"
+      ],
+      "dimensions": [
+        {
+          "surface": "module-auth",
+          "reason": "Module-wide authentication remains required on the newly reachable router.",
+          "control_ids": [
+            "CTRL-AUTH-MODULE"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "professor-guard",
+          "reason": "Parameter administration remains restricted to professor context.",
+          "control_ids": [
+            "CTRL-AUTH-PROF"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": true,
+      "reason": "The newly reachable parameter router must preserve authenticated contract scoping.",
+      "control_ids": [
+        "CTRL-TENANT-REQUEST",
+        "CTRL-TENANT-SERVICE"
+      ],
+      "dimensions": [
+        {
+          "surface": "request-contract",
+          "reason": "Contract identity remains derived from the authenticated request.",
+          "control_ids": [
+            "CTRL-TENANT-REQUEST"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "service-contract",
+          "reason": "Contract identity continues into parameter service calls.",
+          "control_ids": [
+            "CTRL-TENANT-SERVICE"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "The public error envelope is unchanged; this fix only makes an existing authenticated router reachable.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": false,
+      "reason": "No persisted reference lifecycle or liveness rule changes in this bootstrap-only fix.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": false,
+      "reason": "No date, time, scheduling, or temporal state is changed by this route registration.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No future or historical destination selection is involved in this route registration.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No concurrent mutation or transaction semantics are changed by mounting the existing router.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": false,
+      "reason": "No retry or idempotency semantics are introduced or modified by this bootstrap change.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No multi-step write or rollback boundary is introduced or changed by this bootstrap change.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No historical record or immutable revision behavior is affected by this route registration.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "The defect is a missing Express route registration and needs a structural regression control.",
+      "control_ids": [
+        "CTRL-STR-ROUTE",
+        "CTRL-STR-TEST"
+      ],
+      "dimensions": [
+        {
+          "surface": "route-bootstrap",
+          "reason": "Express must mount periodization before the 404 fallback.",
+          "control_ids": [
+            "CTRL-STR-ROUTE"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "regression-test",
+          "reason": "The focused contract test protects mount and path alignment.",
+          "control_ids": [
+            "CTRL-STR-TEST"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": false,
+      "reason": "No durable product contract changes; the existing API endpoint becomes reachable and is listed in the runtime manifest.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    }
+  ],
+  "material_families_missing_controls": []
+}

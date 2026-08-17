@@ -1,1 +1,286 @@
-{"schema_version":1,"head_sha":"585578201a55a50283d340b4a62f456d7a27f861","requirements":[{"requirement_id":"REQ-FLOW","risk_families":["reference-liveness","historical-immutability"],"risk_surfaces":[{"risk_family":"reference-liveness","surface":"pending-review-reference","reason":"pending-review-reference is material."},{"risk_family":"historical-immutability","surface":"review-history","reason":"review-history is material."}],"plausible_wrong_implementation":"Stale or rejected review mutates the wrong canonical profile state.","positive_control":{"status":"passed","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","evidence":"evidence/a345-sat.json"},"negative_controls":[{"id":"C1","risk_family":"reference-liveness","surface":"pending-review-reference","dimension":"stale-vs-live","failure_mode":"Closed review reused as pending.","plausible_wrong_implementation":"Cache completed review instead of resolving live pending review.","control_type":"test","procedure":"Complete, request again, then resolve pending review.","expected":"Only live pending review returns.","observed":"Live-reference flow passed.","evidence":"evidence/a345-sat.json","evidence_sha256":"957ceeeb53f1e74c87c70e8bd3f6dbf36e8f942421dd4b18f54c149d0fc76c5b","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","status":"passed","sibling_cases":[{"id":"C1-1","surface":"pending-review-reference","dimension":"stale-vs-live-1","status":"passed"},{"id":"C1-2","surface":"pending-review-reference","dimension":"stale-vs-live-2","status":"passed"}]},{"id":"C2","risk_family":"historical-immutability","surface":"review-history","dimension":"approve-vs-reject","failure_mode":"Rejected sensitive value mutates canonical state.","plausible_wrong_implementation":"Apply sensitive data before professional approval or rejection.","control_type":"test","procedure":"Submit sensitive value, then approve and reject separate reviews.","expected":"Reject preserves; approve applies.","observed":"Decision-history flow passed.","evidence":"evidence/a345-sat.json","evidence_sha256":"957ceeeb53f1e74c87c70e8bd3f6dbf36e8f942421dd4b18f54c149d0fc76c5b","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","status":"passed","sibling_cases":[{"id":"C2-1","surface":"review-history","dimension":"approve-vs-reject-1","status":"passed"},{"id":"C2-2","surface":"review-history","dimension":"approve-vs-reject-2","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","evidence":"evidence/a345-sat.json"}]},{"requirement_id":"REQ-NOTIFICATIONS","risk_families":["public-boundary","rollback","temporal-consistency"],"risk_surfaces":[{"risk_family":"public-boundary","surface":"external-delivery-result","reason":"external-delivery-result is material."},{"risk_family":"rollback","surface":"review-durability","reason":"review-durability is material."},{"risk_family":"temporal-consistency","surface":"delivery-state","reason":"delivery-state is material."}],"plausible_wrong_implementation":"Provider outcomes could be misreported or roll back durable review state.","positive_control":{"status":"passed","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","evidence":"evidence/a345-sat.json"},"negative_controls":[{"id":"C3","risk_family":"public-boundary","surface":"external-delivery-result","dimension":"accepted-vs-confirmed","failure_mode":"Provider 2xx appears as confirmed delivery.","plausible_wrong_implementation":"Map provider acceptance directly to sent without confirmation.","control_type":"test","procedure":"Exercise accepted, confirmed and failed provider outcomes.","expected":"Accepted differs from sent.","observed":"Provider-state tests passed.","evidence":"evidence/a345-sat.json","evidence_sha256":"957ceeeb53f1e74c87c70e8bd3f6dbf36e8f942421dd4b18f54c149d0fc76c5b","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","status":"passed","sibling_cases":[{"id":"C3-1","surface":"external-delivery-result","dimension":"accepted-vs-confirmed-1","status":"passed"},{"id":"C3-2","surface":"external-delivery-result","dimension":"accepted-vs-confirmed-2","status":"passed"}]},{"id":"C4","risk_family":"rollback","surface":"review-durability","dimension":"provider-failure-after-persist","failure_mode":"Provider failure rolls back persisted review.","plausible_wrong_implementation":"Couple optional outbound delivery to the durable review transaction.","control_type":"test","procedure":"Persist review, then force external provider failure.","expected":"Review stays durable.","observed":"Rollback tests passed.","evidence":"evidence/a345-sat.json","evidence_sha256":"957ceeeb53f1e74c87c70e8bd3f6dbf36e8f942421dd4b18f54c149d0fc76c5b","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","status":"passed","sibling_cases":[{"id":"C4-1","surface":"review-durability","dimension":"provider-failure-after-persist-1","status":"passed"},{"id":"C4-2","surface":"review-durability","dimension":"provider-failure-after-persist-2","status":"passed"}]},{"id":"C5","risk_family":"temporal-consistency","surface":"delivery-state","dimension":"accepted-before-sent","failure_mode":"Sent is recorded before provider confirmation.","plausible_wrong_implementation":"Promote accepted state to sent before positive callback.","control_type":"test","procedure":"Exercise accepted-to-confirmed and accepted-to-failed transitions.","expected":"Sent requires confirmation.","observed":"Temporal-state tests passed.","evidence":"evidence/a345-sat.json","evidence_sha256":"957ceeeb53f1e74c87c70e8bd3f6dbf36e8f942421dd4b18f54c149d0fc76c5b","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","status":"passed","sibling_cases":[{"id":"C5-1","surface":"delivery-state","dimension":"accepted-before-sent-1","status":"passed"},{"id":"C5-2","surface":"delivery-state","dimension":"accepted-before-sent-2","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","evidence":"evidence/a345-sat.json"}]},{"requirement_id":"REQ-REPEAT","risk_families":["concurrency-atomicity","idempotency"],"risk_surfaces":[{"risk_family":"concurrency-atomicity","surface":"pending-review-creation","reason":"pending-review-creation is material."},{"risk_family":"idempotency","surface":"repeat-request","reason":"repeat-request is material."}],"plausible_wrong_implementation":"Retries or races could create duplicate pending review authorities.","positive_control":{"status":"passed","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","evidence":"evidence/a345-sat.json"},"negative_controls":[{"id":"C6","risk_family":"concurrency-atomicity","surface":"pending-review-creation","dimension":"single-pending-authority","failure_mode":"Concurrent requests create duplicate pending reviews.","plausible_wrong_implementation":"Use check-then-create outside the serializable creation boundary.","control_type":"test","procedure":"Issue concurrent equivalent review requests.","expected":"One pending authority remains.","observed":"Concurrency tests passed.","evidence":"evidence/a345-sat.json","evidence_sha256":"957ceeeb53f1e74c87c70e8bd3f6dbf36e8f942421dd4b18f54c149d0fc76c5b","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","status":"passed","sibling_cases":[{"id":"C6-1","surface":"pending-review-creation","dimension":"single-pending-authority-1","status":"passed"},{"id":"C6-2","surface":"pending-review-creation","dimension":"single-pending-authority-2","status":"passed"}]},{"id":"C7","risk_family":"idempotency","surface":"repeat-request","dimension":"reuse-existing-pending","failure_mode":"Retry creates a second pending review.","plausible_wrong_implementation":"Always insert instead of reusing current pending review.","control_type":"test","procedure":"Repeat request before completing the first review.","expected":"Same pending id is reused.","observed":"Idempotency tests passed.","evidence":"evidence/a345-sat.json","evidence_sha256":"957ceeeb53f1e74c87c70e8bd3f6dbf36e8f942421dd4b18f54c149d0fc76c5b","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","status":"passed","sibling_cases":[{"id":"C7-1","surface":"repeat-request","dimension":"reuse-existing-pending-1","status":"passed"},{"id":"C7-2","surface":"repeat-request","dimension":"reuse-existing-pending-2","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","evidence":"evidence/a345-sat.json"}]},{"requirement_id":"REQ-SECURITY","risk_families":["authorization","tenant-isolation","public-boundary"],"risk_surfaces":[{"risk_family":"authorization","surface":"professional-action","reason":"professional-action is material."},{"risk_family":"tenant-isolation","surface":"contract-context","reason":"contract-context is material."},{"risk_family":"public-boundary","surface":"access-response","reason":"access-response is material."}],"plausible_wrong_implementation":"Unscoped actor or contract context could cross authorization boundaries.","positive_control":{"status":"passed","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","evidence":"evidence/a345-sat.json"},"negative_controls":[{"id":"C8","risk_family":"authorization","surface":"professional-action","dimension":"protected-route-scope","failure_mode":"Unauthorized professional reaches protected mutation.","plausible_wrong_implementation":"Trust client student id without checking professional scope.","control_type":"test","procedure":"Call protected action from an out-of-scope professional.","expected":"Action is denied before mutation.","observed":"Authorization tests passed.","evidence":"evidence/a345-sat.json","evidence_sha256":"957ceeeb53f1e74c87c70e8bd3f6dbf36e8f942421dd4b18f54c149d0fc76c5b","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","status":"passed","sibling_cases":[{"id":"C8-1","surface":"professional-action","dimension":"protected-route-scope-1","status":"passed"},{"id":"C8-2","surface":"professional-action","dimension":"protected-route-scope-2","status":"passed"}]},{"id":"REVIEW-CONTRACT-ISOLATION-001","risk_family":"tenant-isolation","surface":"contract-context","dimension":"same-account-cross-contract","failure_mode":"Contract B can see or mutate contract A review.","plausible_wrong_implementation":"Resolve review by shared user id without contract scope.","control_type":"test","procedure":"Use one account across two contracts and open foreign context.","expected":"Foreign contract is denied.","observed":"Isolation tests passed.","evidence":"evidence/a345-sat.json","evidence_sha256":"957ceeeb53f1e74c87c70e8bd3f6dbf36e8f942421dd4b18f54c149d0fc76c5b","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","status":"passed","sibling_cases":[{"id":"REVIEW-CONTRACT-ISOLATION-001-1","surface":"contract-context","dimension":"same-account-cross-contract-1","status":"passed"},{"id":"REVIEW-CONTRACT-ISOLATION-001-2","surface":"contract-context","dimension":"same-account-cross-contract-2","status":"passed"}]},{"id":"C10","risk_family":"public-boundary","surface":"access-response","dimension":"ambiguous-or-revoked-denial","failure_mode":"Invalid contract reaches protected service.","plausible_wrong_implementation":"Silently select a contract when context is ambiguous or revoked.","control_type":"test","procedure":"Call routes with ambiguous and revoked contract contexts.","expected":"409/403 occurs before service work.","observed":"Boundary tests passed.","evidence":"evidence/a345-sat.json","evidence_sha256":"957ceeeb53f1e74c87c70e8bd3f6dbf36e8f942421dd4b18f54c149d0fc76c5b","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","status":"passed","sibling_cases":[{"id":"C10-1","surface":"access-response","dimension":"ambiguous-or-revoked-denial-1","status":"passed"},{"id":"C10-2","surface":"access-response","dimension":"ambiguous-or-revoked-denial-2","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","evidence":"evidence/a345-sat.json"}]},{"requirement_id":"REQ-WEB-STATES","risk_families":["public-boundary"],"risk_surfaces":[{"risk_family":"public-boundary","surface":"browser-state","reason":"browser-state is material."}],"plausible_wrong_implementation":"UI could show success or foreign state after a failed request.","positive_control":{"status":"passed","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","evidence":"evidence/a345-sat.json"},"negative_controls":[{"id":"C11","risk_family":"public-boundary","surface":"browser-state","dimension":"error-without-false-success","failure_mode":"Failed submit renders false completion.","plausible_wrong_implementation":"Set success state before API confirms review completion.","control_type":"test","procedure":"Force submit failure and no-pending browser states.","expected":"No success appears on failure.","observed":"Browser-state tests passed.","evidence":"evidence/a345-sat.json","evidence_sha256":"957ceeeb53f1e74c87c70e8bd3f6dbf36e8f942421dd4b18f54c149d0fc76c5b","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","status":"passed","sibling_cases":[{"id":"C11-1","surface":"browser-state","dimension":"error-without-false-success-1","status":"passed"},{"id":"C11-2","surface":"browser-state","dimension":"error-without-false-success-2","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","evidence":"evidence/a345-sat.json"}]},{"requirement_id":"REQ-TEST-BOUNDARY","risk_families":["structural-contract"],"risk_surfaces":[{"risk_family":"structural-contract","surface":"internal-seam","reason":"internal-seam is material."}],"plausible_wrong_implementation":"Mocked internal seams could be mislabeled as real end-to-end coverage.","positive_control":{"status":"passed","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","evidence":"evidence/a345-sat.json"},"negative_controls":[{"id":"REAL-INTERNAL-SEAM-001","risk_family":"structural-contract","surface":"internal-seam","dimension":"real-client-http-db","failure_mode":"No test crosses browser, HTTP and PostgreSQL.","plausible_wrong_implementation":"Mock API in browser tests and call domain directly in DB tests.","control_type":"test","procedure":"Run Vite/Puppeteer through Express, Prisma and PostgreSQL.","expected":"One path crosses internal seams.","observed":"Full-stack seam test passed.","evidence":"evidence/a345-sat.json","evidence_sha256":"957ceeeb53f1e74c87c70e8bd3f6dbf36e8f942421dd4b18f54c149d0fc76c5b","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","status":"passed","sibling_cases":[{"id":"REAL-INTERNAL-SEAM-001-1","surface":"internal-seam","dimension":"real-client-http-db-1","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","evidence":"evidence/a345-sat.json"}]},{"requirement_id":"REQ-DOCUMENTATION","risk_families":["documentation","structural-contract"],"risk_surfaces":[{"risk_family":"documentation","surface":"canonical-sources","reason":"canonical-sources is material."},{"risk_family":"documentation","surface":"evidence-provenance","reason":"evidence-provenance is material."},{"risk_family":"structural-contract","surface":"handoff-identity","reason":"handoff-identity is material."},{"risk_family":"structural-contract","surface":"adversarial-evidence","reason":"adversarial-evidence is material."},{"risk_family":"structural-contract","surface":"git-object-integrity","reason":"git-object-integrity is material."}],"plausible_wrong_implementation":"Handoff could certify stale identity or false Git source provenance.","positive_control":{"status":"passed","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","evidence":"evidence/a345-sat.json"},"negative_controls":[{"id":"C13","risk_family":"documentation","surface":"canonical-sources","dimension":"source-identity-preserved","failure_mode":"Canonical issue source is substituted.","plausible_wrong_implementation":"Build claims from summary and omit a canonical issue source.","control_type":"test","procedure":"Validate source ids and hashes in specification snapshot.","expected":"Both sources stay hash-bound.","observed":"Source check passed.","evidence":"evidence/a345-sat.json","evidence_sha256":"957ceeeb53f1e74c87c70e8bd3f6dbf36e8f942421dd4b18f54c149d0fc76c5b","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","status":"passed","sibling_cases":[{"id":"C13-1","surface":"canonical-sources","dimension":"source-identity-preserved-1","status":"passed"}]},{"id":"ADVERSARIAL-EVIDENCE-PROVENANCE-001","risk_family":"documentation","surface":"evidence-provenance","dimension":"scenario-specific-source","failure_mode":"Control cites aggregate CI without source provenance.","plausible_wrong_implementation":"Reuse one green gate for unrelated material risk surfaces.","control_type":"test","procedure":"Inspect control-to-source bindings in SAT evidence.","expected":"Controls name scenario sources.","observed":"Provenance check passed.","evidence":"evidence/a345-sat.json","evidence_sha256":"957ceeeb53f1e74c87c70e8bd3f6dbf36e8f942421dd4b18f54c149d0fc76c5b","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","status":"passed","sibling_cases":[{"id":"ADVERSARIAL-EVIDENCE-PROVENANCE-001-1","surface":"evidence-provenance","dimension":"scenario-specific-source-1","status":"passed"}]},{"id":"AUDIT-SOURCE-PROOF-PATH-MATCH-001","risk_family":"documentation","surface":"evidence-provenance","dimension":"exact-path-blob-match","failure_mode":"Blob from another path is accepted.","plausible_wrong_implementation":"Check only that SHA exists somewhere in repository.","control_type":"test","procedure":"Validate sibling-file blob against declared material path.","expected":"Path mismatch is rejected.","observed":"Wrong-path test passed.","evidence":"evidence/issue-345-audit-provenance-remediation.json","evidence_sha256":"37c8f0abae923b736dc5ee78535ba05a0a9f08322d4d39af2ab49772d6176c02","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","status":"passed","sibling_cases":[{"id":"AUDIT-SOURCE-PROOF-PATH-MATCH-001-1","surface":"evidence-provenance","dimension":"exact-path-blob-match-1","status":"passed"}]},{"id":"HANDOFF-CANONICAL-SOURCE-IDENTITY-001","risk_family":"structural-contract","surface":"handoff-identity","dimension":"material-head-rebound","failure_mode":"Old certificate survives new material commit.","plausible_wrong_implementation":"Reuse handoff identity after material code or tooling changes.","control_type":"test","procedure":"Build direct result-only child for current material SHA.","expected":"Parent and certificate agree.","observed":"Identity gate passed.","evidence":"evidence/a345-sat.json","evidence_sha256":"957ceeeb53f1e74c87c70e8bd3f6dbf36e8f942421dd4b18f54c149d0fc76c5b","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","status":"passed","sibling_cases":[{"id":"HANDOFF-CANONICAL-SOURCE-IDENTITY-001-1","surface":"handoff-identity","dimension":"material-head-rebound-1","status":"passed"}]},{"id":"ADVERSARIAL-EVIDENCE-SPECIFICITY-001","risk_family":"structural-contract","surface":"adversarial-evidence","dimension":"semantic-specificity","failure_mode":"Adversarial controls degrade to generic filler.","plausible_wrong_implementation":"Keep schema shape while removing discriminant attack semantics.","control_type":"test","procedure":"Validate concrete failure, procedure, expected and observed fields.","expected":"Controls remain discriminant.","observed":"Specificity gate passed.","evidence":"evidence/a345-sat.json","evidence_sha256":"957ceeeb53f1e74c87c70e8bd3f6dbf36e8f942421dd4b18f54c149d0fc76c5b","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","status":"passed","sibling_cases":[{"id":"ADVERSARIAL-EVIDENCE-SPECIFICITY-001-1","surface":"adversarial-evidence","dimension":"semantic-specificity-1","status":"passed"}]},{"id":"AUDIT-SOURCE-PROOF-BLOB-EXISTS-001","risk_family":"structural-contract","surface":"git-object-integrity","dimension":"declared-blob-exists","failure_mode":"Nonexistent object is accepted as source evidence.","plausible_wrong_implementation":"Validate SHA syntax without checking Git blob existence.","control_type":"test","procedure":"Validate nonexistent object id as a source proof.","expected":"Missing blob is rejected.","observed":"Missing-blob test passed.","evidence":"evidence/issue-345-audit-provenance-remediation.json","evidence_sha256":"37c8f0abae923b736dc5ee78535ba05a0a9f08322d4d39af2ab49772d6176c02","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","status":"passed","sibling_cases":[{"id":"AUDIT-SOURCE-PROOF-BLOB-EXISTS-001-1","surface":"git-object-integrity","dimension":"declared-blob-exists-1","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"585578201a55a50283d340b4a62f456d7a27f861","evidence":"evidence/a345-sat.json"}]}],"uncovered_requirements":[]}
+{
+  "schema_version": 1,
+  "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+  "requirements": [
+    {
+      "requirement_id": "REQ-001",
+      "obligation_ids": [
+        "OBL-001",
+        "OBL-002",
+        "OBL-003"
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "route-bootstrap",
+          "reason": "The Express bootstrap must mount the existing periodization router before the generic 404 fallback."
+        }
+      ],
+      "plausible_wrong_implementation": "Change only the frontend URL or import the router without mounting it before the generic 404 fallback.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+        "evidence": "evidence/route-mount-source-contract.txt"
+      },
+      "negative_controls": [
+        {
+          "id": "CTRL-STR-ROUTE",
+          "risk_family": "structural-contract",
+          "surface": "route-bootstrap",
+          "dimension": "mount-order",
+          "failure_mode": "The settings request still falls through to the global 404 handler.",
+          "plausible_wrong_implementation": "The router is imported but not mounted, or is mounted after the fallback.",
+          "control_type": "procedure",
+          "procedure": "Read back main.ts and verify the exact periodization mount exists before the generic 404 fallback and aligns with frontend/backend paths.",
+          "expected": "The periodization mount precedes the fallback and the settings path resolves through GET /parameters.",
+          "observed": "The candidate contains the mount before fallback and aligned frontend/backend parameter paths.",
+          "evidence_path": "evidence/route-mount-source-contract.txt",
+          "evidence_sha256": "564ecde187b93ff8fe4898e72836f4139909e8cd80989986813d0f743e1fc602",
+          "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "SIB-STR-MANIFEST",
+              "surface": "route-bootstrap",
+              "dimension": "api-manifest",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+          "evidence": "evidence/regression-test-source-contract.txt"
+        }
+      ]
+    },
+    {
+      "requirement_id": "REQ-002",
+      "obligation_ids": [
+        "OBL-004"
+      ],
+      "risk_families": [
+        "authorization",
+        "tenant-isolation"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "authorization",
+          "surface": "module-auth",
+          "reason": "Mounting the router must retain the module-wide authentication boundary."
+        },
+        {
+          "risk_family": "authorization",
+          "surface": "professor-guard",
+          "reason": "Parameter administration remains restricted to professor context on the route."
+        },
+        {
+          "risk_family": "tenant-isolation",
+          "surface": "request-contract",
+          "reason": "The tenant identifier must continue to come from the authenticated request context."
+        },
+        {
+          "risk_family": "tenant-isolation",
+          "surface": "service-contract",
+          "reason": "The authenticated contractId must continue into service calls that read or mutate parameters."
+        }
+      ],
+      "plausible_wrong_implementation": "Mount the router correctly but bypass one of its existing authentication or contract-scoping controls while making parameters reachable.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+        "evidence": "evidence/access-isolation-source-contract.txt"
+      },
+      "negative_controls": [
+        {
+          "id": "CTRL-AUTH-MODULE",
+          "risk_family": "authorization",
+          "surface": "module-auth",
+          "dimension": "global-auth-middleware",
+          "failure_mode": "Unauthenticated requests can reach periodization parameter handlers.",
+          "plausible_wrong_implementation": "Mount an alternate unprotected router or remove router.use(authMiddleware).",
+          "control_type": "procedure",
+          "procedure": "Read back periodization.routes.ts and verify router.use(authMiddleware) remains the module-wide guard.",
+          "expected": "All periodization module routes remain behind authMiddleware.",
+          "observed": "router.use(authMiddleware) is present on the mounted periodization router.",
+          "evidence_path": "evidence/access-isolation-source-contract.txt",
+          "evidence_sha256": "eea96dce5e4fc11a7e3dc394cab32a742d108e20ef8382eb857f1fccedf646f3",
+          "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "SIB-AUTH-MODULE",
+              "surface": "module-auth",
+              "dimension": "unauthenticated-request",
+              "status": "passed"
+            },
+            {
+              "id": "SIB-AUTH-PROF",
+              "surface": "professor-guard",
+              "dimension": "non-professor-request",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "CTRL-AUTH-PROF",
+          "risk_family": "authorization",
+          "surface": "professor-guard",
+          "dimension": "professor-middleware",
+          "failure_mode": "An authenticated non-professor context can administer training parameters.",
+          "plausible_wrong_implementation": "Keep global authentication but remove professorMiddleware from GET /parameters.",
+          "control_type": "procedure",
+          "procedure": "Read back the GET /parameters declaration and verify professorMiddleware remains attached.",
+          "expected": "The administrative parameters route retains professorMiddleware.",
+          "observed": "GET /parameters is declared with professorMiddleware.",
+          "evidence_path": "evidence/access-isolation-source-contract.txt",
+          "evidence_sha256": "eea96dce5e4fc11a7e3dc394cab32a742d108e20ef8382eb857f1fccedf646f3",
+          "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "SIB-AUTH-PROF-1",
+              "surface": "professor-guard",
+              "dimension": "read-parameters",
+              "status": "passed"
+            },
+            {
+              "id": "SIB-AUTH-MODULE-2",
+              "surface": "module-auth",
+              "dimension": "module-entry",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "CTRL-TENANT-REQUEST",
+          "risk_family": "tenant-isolation",
+          "surface": "request-contract",
+          "dimension": "server-owned-contract-id",
+          "failure_mode": "A client-selected contractId could escape the authenticated tenant boundary.",
+          "plausible_wrong_implementation": "Accept contractId from query/body instead of deriving it from req.user.contractId.",
+          "control_type": "procedure",
+          "procedure": "Read back GET /parameters and verify contractId is derived from req.user.contractId.",
+          "expected": "Tenant identity is server-owned from the authenticated request context.",
+          "observed": "GET /parameters derives contractId from req.user.contractId.",
+          "evidence_path": "evidence/access-isolation-source-contract.txt",
+          "evidence_sha256": "eea96dce5e4fc11a7e3dc394cab32a742d108e20ef8382eb857f1fccedf646f3",
+          "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "SIB-TENANT-REQUEST",
+              "surface": "request-contract",
+              "dimension": "client-contract-input",
+              "status": "passed"
+            },
+            {
+              "id": "SIB-TENANT-SERVICE",
+              "surface": "service-contract",
+              "dimension": "read-service-scope",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "CTRL-TENANT-SERVICE",
+          "risk_family": "tenant-isolation",
+          "surface": "service-contract",
+          "dimension": "service-scope-propagation",
+          "failure_mode": "The route could read parameters without constraining the service by contractId.",
+          "plausible_wrong_implementation": "Derive contractId correctly but omit it when calling getAllParameters/getParametersByCategory.",
+          "control_type": "procedure",
+          "procedure": "Read back route service calls and verify contractId is passed into parameter read helpers.",
+          "expected": "Every parameter read path remains scoped by the authenticated contractId.",
+          "observed": "The route passes contractId to both parameter read service helpers.",
+          "evidence_path": "evidence/access-isolation-source-contract.txt",
+          "evidence_sha256": "eea96dce5e4fc11a7e3dc394cab32a742d108e20ef8382eb857f1fccedf646f3",
+          "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "SIB-TENANT-SERVICE-1",
+              "surface": "service-contract",
+              "dimension": "all-parameters-read",
+              "status": "passed"
+            },
+            {
+              "id": "SIB-TENANT-REQUEST-2",
+              "surface": "request-contract",
+              "dimension": "authenticated-context",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+          "evidence": "evidence/regression-test-source-contract.txt"
+        }
+      ]
+    },
+    {
+      "requirement_id": "REQ-003",
+      "obligation_ids": [
+        "OBL-005"
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "regression-test",
+          "reason": "A source-contract test must fail if the route mount or client/backend path alignment regresses."
+        }
+      ],
+      "plausible_wrong_implementation": "Fix the bootstrap once without a regression test, allowing a future refactor to silently remove the mount.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+        "evidence": "evidence/regression-test-source-contract.txt"
+      },
+      "negative_controls": [
+        {
+          "id": "CTRL-STR-TEST",
+          "risk_family": "structural-contract",
+          "surface": "regression-test",
+          "dimension": "removal-detection",
+          "failure_mode": "Future removal of the mount is not detected by a focused test.",
+          "plausible_wrong_implementation": "Ship only the main.ts change and omit a contract test for mount order and path alignment.",
+          "control_type": "procedure",
+          "procedure": "Inspect the added test and verify it asserts import, manifest, mount ordering, path alignment, and middleware presence.",
+          "expected": "The regression test contains discriminant assertions for the 404 root cause.",
+          "observed": "periodization-route-mount.contract.test.ts contains those assertions.",
+          "evidence_path": "evidence/regression-test-source-contract.txt",
+          "evidence_sha256": "aef4645b42c728e4fd481329d2a9c6c6475ef0b27b517af07b29f156222f56f5",
+          "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "SIB-STR-TEST-PATH",
+              "surface": "regression-test",
+              "dimension": "frontend-backend-alignment",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+          "evidence": "evidence/route-mount-source-contract.txt"
+        }
+      ]
+    }
+  ],
+  "uncovered_requirements": []
+}
