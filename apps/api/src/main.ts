@@ -22,6 +22,7 @@ import { contractRoutes } from './modules/contracts/index.js';
 import { hourlyRateLevelRoutes } from './modules/hourly-rate-levels/index.js';
 import { notificationDeliveryWebhookRoutes } from './modules/notifications/notification-delivery.routes.js';
 import { planRoutes } from './modules/plans/index.js';
+import { periodizationRoutes } from './modules/periodization/index.js';
 import { professorRoutes } from './modules/professores/index.js';
 import { legacyCollaboratorContractMiddleware } from './modules/professores/legacy-collaborator-contract.middleware.js';
 import { serviceRoutes } from './modules/services/index.js';
@@ -156,6 +157,7 @@ app.get('/api/v1', (_req, res) => {
       contracts: '/api/v1/contracts',
       hourlyRateLevels: '/api/v1/hourly-rate-levels',
       plans: '/api/v1/plans',
+      periodization: '/api/v1/periodization',
       professores: '/api/v1/professores',
       services: '/api/v1/services',
       student: '/api/v1/student',
@@ -203,6 +205,7 @@ app.use('/api/v1/contracts', contractRejectionRoutes);
 app.use('/api/v1/contracts', contractRoutes);
 app.use('/api/v1/hourly-rate-levels', hourlyRateLevelRoutes);
 app.use('/api/v1/plans', planRoutes);
+app.use('/api/v1/periodization', periodizationRoutes);
 app.use('/api/v1/professores', legacyCollaboratorContractMiddleware);
 app.use('/api/v1/professores', professorRoutes);
 app.use('/api/v1/services', serviceRoutes);
