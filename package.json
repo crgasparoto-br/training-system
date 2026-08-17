@@ -21,11 +21,12 @@
     "arch:check": "node scripts/check-architecture.mjs",
     "access:check": "node scripts/check-access-catalog.mjs",
     "docs:check": "node --test scripts/check-doc-references.test.mjs && node scripts/check-docs.mjs",
+    "audit:source-proofs": "node --test scripts/check-audit-source-proofs.test.mjs && node scripts/check-audit-source-proofs.mjs",
     "harness:reset-db": "bash scripts/harness/reset-local-db.sh",
     "harness:seed-demo": "node scripts/harness/seed-demo-users.mjs",
     "harness:smoke-api": "node scripts/harness/smoke-api.mjs",
     "harness:validate-env": "node scripts/harness/validate-production-env.mjs",
-    "validate": "pnpm type-check && pnpm lint && pnpm test && pnpm arch:check && pnpm access:check && pnpm docs:check"
+    "validate": "pnpm type-check && pnpm lint && pnpm test && pnpm arch:check && pnpm access:check && pnpm docs:check && pnpm audit:source-proofs"
   },
   "workspaces": [
     "apps/*",

@@ -18,6 +18,7 @@ app.use(express.json());
 app.use('/consolidated-prescriptions', consolidatedPrescriptionRoutes);
 
 const CAPACITIES = ['resisted', 'flexibility', 'cyclic', 'balance'] as const;
+const RELEASE_NOW = new Date('2026-08-16T12:00:00.000Z');
 const FLEXIBILITY_PARAMETERS = {
   articulations: [{ name: 'Ombro', suggestedPrescription: '3 x 30 s' }],
 } as const;
@@ -411,6 +412,12 @@ describeDatabase('PB-ERR-001 consolidated operational release public boundary', 
   it('sanitiza P0001 após escrita operacional e comprova rollback integral pela rota pública', async () => {
     const fixture = await seedFixture('rollback');
     await installFailureInjection();
+    const releaseWithFrozenNow = consolidatedPrescriptionReleaseService.release.bind(
+      consolidatedPrescriptionReleaseService
+    );
+    jest.spyOn(consolidatedPrescriptionReleaseService, 'release').mockImplementationOnce(
+      (context, command) => releaseWithFrozenNow(context, command, RELEASE_NOW)
+    );
     const logSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
 
     const response = await request(app)

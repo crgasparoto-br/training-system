@@ -16,9 +16,17 @@ Este documento registra as regras minimas para publicar o Sistema Acesso.
 - `PRISMA_CONNECTION_LIMIT`: limite por instancia de `PrismaClient`. Quando a URL nao possui `connection_limit`, o runtime produtivo usa `1` por padrao.
 - `PRISMA_POOL_TIMEOUT_SECONDS`: tempo maximo de espera por uma conexao livre. Quando a URL nao possui `pool_timeout`, o runtime produtivo usa `15` segundos.
 - `NODE_ENV`: use `production` no ambiente produtivo.
-- `FRONTEND_URL`
+- `FRONTEND_URL`: origem publica do frontend usada em links seguros enviados ao aluno.
 - `CORS_ORIGINS`: obrigatoria em producao e deve listar somente origins produtivas explicitamente permitidas. Origins locais nao sao incluidas por padrao em `NODE_ENV=production`.
 - `JWT_SECRET`: obrigatoria em producao. Nao use placeholders como `dev-secret` ou `your-super-secret-jwt-key-change-in-production`.
+- `SENDGRID_API_KEY`: credencial opcional para email transacional da revisao cadastral.
+- `SENDGRID_FROM_EMAIL`: remetente verificado usado pelo SendGrid.
+- `SENDGRID_EVENT_WEBHOOK_PUBLIC_KEY`: chave publica usada para validar callbacks assinados de entrega do SendGrid. Sem confirmacao configurada, o canal fica `not_configured` e nao e marcado como entregue.
+- `TWILIO_ACCOUNT_SID`: conta Twilio usada pelo canal WhatsApp opcional.
+- `TWILIO_AUTH_TOKEN`: segredo Twilio usado no envio e na validacao do callback de status.
+- `TWILIO_WHATSAPP_NUMBER`: numero remetente habilitado para WhatsApp no formato esperado pela Twilio.
+- `TWILIO_WHATSAPP_PROFILE_REVIEW_CONTENT_SID`: `ContentSid` de template Utility aprovado especificamente para revisao cadastral. Nao existe fallback para `Body` livre.
+- `NOTIFICATION_CALLBACK_BASE_URL`: URL publica HTTPS da API usada para callbacks de status de SendGrid/Twilio. Nao pode conter credenciais embutidas, query ou fragmento.
 - `PRE_REGISTRATION_ENABLED`: gate global das rotas publicas, autenticadas e administrativas de pre-matricula. Em producao, ausencia ou valor invalido significa desabilitado.
 - `PRE_REGISTRATION_TELEMETRY_ENABLED`: habilita a metrica HTTP tecnica agregada da pre-matricula. Nao autoriza registrar path, token, payload, usuario, tenant ou dados pessoais.
 - `PRE_REGISTRATION_INVITE_TTL_DAYS`: validade dos convites publicos de pre-cadastro em dias. Usa `30` quando ausente ou invalida; configure o mesmo valor em todas as replicas da API.
@@ -37,6 +45,20 @@ Este documento registra as regras minimas para publicar o Sistema Acesso.
 - `R2_ACCESS_KEY_ID`: access key id do token R2 usada somente pela API/backend.
 - `R2_SECRET_ACCESS_KEY`: secret access key do token R2 usada somente pela API/backend.
 - `R2_PUBLIC_BASE_URL`: URL publica de leitura do bucket R2, preferencialmente um dominio customizado como `https://assets.seu-dominio.com`.
+
+## Notificacoes de revisao cadastral
+
+A revisao cadastral sempre persiste a pendencia e a notificacao in-app antes de depender de canal externo. Email e WhatsApp sao complementares e opcionais: ausencia de configuracao ou falha de provider nao invalida a solicitacao nem o fluxo do aluno.
+
+Configuracao minima por canal:
+
+- Email: `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `SENDGRID_EVENT_WEBHOOK_PUBLIC_KEY` e `NOTIFICATION_CALLBACK_BASE_URL`.
+- WhatsApp: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_NUMBER`, `TWILIO_WHATSAPP_PROFILE_REVIEW_CONTENT_SID` e `NOTIFICATION_CALLBACK_BASE_URL`.
+- Links ao aluno usam `FRONTEND_URL` e devem apontar para a experiencia autenticada, sem transportar dado sensivel no texto da notificacao.
+
+O aceite sincrono de um provider nao equivale a entrega final. O backend so consolida `sent`/entregue quando o provider confirma um estado terminal positivo por resultado sincrono suportado ou callback validado. Falha, callback invalido ou confirmacao ausente permanecem observaveis e recuperaveis.
+
+Em CI e testes deterministas, nao configure credenciais reais: os adapters exercitam SendGrid/Twilio com transporte HTTP simulado somente na fronteira externa. Para contratos de payload, idempotencia, callbacks, estados e troubleshooting, consulte [`../profile-review-notification-delivery.md`](../profile-review-notification-delivery.md). A matriz integrada da revisao esta em [`../profile-review-e2e-validation.md`](../profile-review-e2e-validation.md).
 
 ## Banco no Render
 

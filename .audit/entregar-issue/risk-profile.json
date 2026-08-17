@@ -1,1 +1,0 @@
-{"schema_version":1,"head_sha":"42551d53a0e17112024ccecd34e177a6e292c1f6","effective_level":"controller-adversarial","material_families":["concurrency-atomicity","documentation","idempotency","public-boundary","reference-liveness","rollback","structural-contract","temporal-consistency"],"primary_escape":"external-url-userinfo-secret-propagation","status":"saturated"}

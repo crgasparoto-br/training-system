@@ -20,6 +20,7 @@ const concurrentService = createConsolidatedPrescriptionReleaseService(concurren
 const traceabilityService = createConsolidatedPrescriptionTraceabilityService(prisma);
 
 const CAPACITIES = ['resisted', 'flexibility', 'cyclic', 'balance'] as const;
+const RELEASE_NOW = new Date('2026-08-16T12:00:00.000Z');
 
 const FLEXIBILITY_PARAMETERS = {
   articulations: [
@@ -379,8 +380,8 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
     const fixture = await seedFixture('idempotency');
     const command = commandFor(fixture);
 
-    const first = await service.release(contextFor(fixture), command);
-    const repeated = await service.release(contextFor(fixture), command);
+    const first = await service.release(contextFor(fixture), command, RELEASE_NOW);
+    const repeated = await service.release(contextFor(fixture), command, RELEASE_NOW);
 
     expect(first.idempotent).toBe(false);
     expect(repeated.idempotent).toBe(true);
@@ -452,8 +453,8 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
     const command = commandFor(fixture);
 
     const results = await Promise.allSettled([
-      service.release(contextFor(fixture), command),
-      concurrentService.release(contextFor(fixture), command),
+      service.release(contextFor(fixture), command, RELEASE_NOW),
+      concurrentService.release(contextFor(fixture), command, RELEASE_NOW),
     ]);
 
     expect(results.some((result) => result.status === 'fulfilled')).toBe(true);
@@ -518,7 +519,7 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
       },
     });
 
-    const released = await service.release(contextFor(fixture), commandFor(fixture));
+    const released = await service.release(contextFor(fixture), commandFor(fixture), RELEASE_NOW);
     expect(released.workoutTemplateId).toBe(template.id);
 
     const reconciled = await prisma.workoutTemplate.findUnique({
@@ -557,7 +558,9 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
       },
     });
 
-    await expect(service.release(contextFor(fixture), commandFor(fixture))).rejects.toMatchObject({
+    await expect(
+      service.release(contextFor(fixture), commandFor(fixture), RELEASE_NOW)
+    ).rejects.toMatchObject({
       code: 'CONFLICT',
     });
 
@@ -575,9 +578,9 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
     const fixture = await seedFixture('rollback');
     await installFailureInjection();
 
-    await expect(service.release(contextFor(fixture), commandFor(fixture))).rejects.toThrow(
-      'issue 320 injected release failure'
-    );
+    await expect(
+      service.release(contextFor(fixture), commandFor(fixture), RELEASE_NOW)
+    ).rejects.toThrow('issue 320 injected release failure');
 
     const assembly = await prisma.consolidatedPrescription.findUnique({
       where: { id: fixture.assemblyId },
