@@ -1,24 +1,20 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-17T00:40:38.351413+00:00",
+  "created_at": "2026-08-17T01:22:05.103429+00:00",
   "identity": {
-    "head_sha": "d8d69782519211ae3d1b6fa629f518156ac794da",
-    "material_head_sha": "d8d69782519211ae3d1b6fa629f518156ac794da",
+    "head_sha": "fe155fc536e91886dd4ce3fd16bad7e1ee0472d9",
+    "material_head_sha": "fe155fc536e91886dd4ce3fd16bad7e1ee0472d9",
     "base_sha": "8c14b9ca0207b684c1b2d9805ac0787fe741fad7",
-    "merge_preview_sha": "2c0f21e51f229157527122cd940f0dde55c497ec",
-    "material_merge_preview_sha": "2c0f21e51f229157527122cd940f0dde55c497ec"
+    "merge_preview_sha": "c25d187ac14d0fb762853877896af64e7c509455",
+    "material_merge_preview_sha": "c25d187ac14d0fb762853877896af64e7c509455"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
     "allowed_paths": [
       ".audit/entregar-issue/audit-escape-closure.json",
-      ".audit/entregar-issue/audit-escape-pattern-catalog.json",
       ".audit/entregar-issue/evidence/a345-sat.json",
-      ".audit/entregar-issue/evidence/handoff-recovery.json",
-      ".audit/entregar-issue/evidence/issue-345-ci-remediation.json",
-      ".audit/entregar-issue/evidence/issue-345-fullstack-remediation.json",
-      ".audit/entregar-issue/evidence/issue-345-post-ci-refreeze.json",
+      ".audit/entregar-issue/evidence/issue-345-temporal-ci-remediation.json",
       ".audit/entregar-issue/handoff-ready.json",
       ".audit/entregar-issue/inherited-controls.json",
       ".audit/entregar-issue/learning-closure.json",
@@ -31,12 +27,12 @@
   "contract_version": "2026-08-06.2",
   "producer": {
     "skill": "entregar-issue",
-    "skill_sha256": "59a74dd0c23fb86c8a223a0e999905ca112a021e1f962d79bd3b131f14a50e62"
+    "skill_sha256": "b13eeaf971accddba5db0d9c1809f1c65a21b91f7286d9aa483afbf470392e3c"
   },
   "validators": {
     "validate_specification_coverage.py": "a9e0510ae5dae3efd1d1bd84d5a8cfd6e6edce801db717e92126fdf4666e9b20",
     "validate_handoff_readiness.py": "dd5db6e1a88a16ed97e8a73535ce2e444e73638e4e7836f87b54949eeb978e83",
-    "validate_requirement_attack_matrix.py": "b2bbaf873b178eb2941916303756970c61d7aecfaebf409b32c5b3a03f56695b",
+    "validate_requirement_attack_matrix.py": "3b7779a140635135e6b9b87615f6a84f177784e486fab4f60308b1e77ec80a5b",
     "validate_risk_saturation.py": "78d27bfb7cc14c9d72652e78ffbcc170747f65a8cb9b029a27e36118acb6dc61",
     "validate_inherited_controls.py": "614572eef445e4dff24dc0dd8753203603896521a499c4c1788f89bb668d8685",
     "validate_learning_closure.py": "38e91c2fab18aeba5545aa67a9ab118b3961e742867b670ccca7de7e1ca4ba94"
@@ -48,27 +44,27 @@
     },
     "requirement_closure": {
       "name": "requirement-closure.json",
-      "sha256": "90e97882e36792471478aefce11873ca3fc9a7b73f59eafab1aaa298b0c40537"
+      "sha256": "c9dffc95b547aa12b52090c409aa7734db65a1a47df6e041eb1b81271d7dbf1d"
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "ad057e8cbf7b7a9f85cbd4a7c76c954e33f0031e4f7013a22685f99387e12091"
+      "sha256": "1f283c6ce191be42832893497be902a68a3c944b5d92a789ad5fa1a5881c657d"
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "24adc4f441d623e50c95da558a3bd48a7fbd4d6e28b68a3dc7623d57235b7ef9"
+      "sha256": "b654efe36692d578520d0bdba2bdba3150a7d3654248b03faddc56a80feb2e89"
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "ae4e1e0659fdbabfd30702adff3cd4dc9294b816cf37263e2771d712458afb29"
+      "sha256": "0b5870bbdc357001dff325b0110f345f9c35aea37513e774282ef326085efc31"
     },
     "audit_escape_closure": {
       "name": "audit-escape-closure.json",
-      "sha256": "cc422a4e1a6ad026bee7f6cdf1fabb2b15758ffa96784405470484395e48e6a3"
+      "sha256": "d07d52e326984bebbff1e1e0c7f4f8329405429205334eaf35287aefab295544"
     },
     "learning_closure": {
       "name": "learning-closure.json",
-      "sha256": "90ad235d041c43edb6046dc0e45d725954e3c68ed87e047be9bb5d4867eac3bb"
+      "sha256": "4fe3743588fbd8d2f728eb00c7f5dd23d50ac66042897e7eed2963faff617117"
     }
   },
   "previous_independent_rejection": true
