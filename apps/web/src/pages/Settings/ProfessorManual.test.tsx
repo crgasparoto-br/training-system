@@ -35,6 +35,15 @@ const manualItem: ProfessorManualItem = {
   updatedAt: new Date().toISOString(),
 };
 
+async function fillRequiredCreateFields(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(screen.getByRole('textbox', { name: /^Item/ }), 'Postura');
+  await user.type(screen.getByLabelText(/Frase/), 'Oriente a postura.');
+  await user.type(screen.getByLabelText(/Título no sistema/), 'Postura durante a avaliação');
+  await user.type(screen.getByLabelText(/Texto de apoio/), 'Ajuste a postura antes de iniciar.');
+  await user.type(screen.getByLabelText(/Código/), 'POSTURA');
+  await user.type(screen.getByLabelText(/Ponto do produto/), 'physical_assessment');
+}
+
 describe('SettingsProfessorManual', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -59,6 +68,49 @@ describe('SettingsProfessorManual', () => {
     expect(screen.getByLabelText(/Código/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Ponto do produto/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Configurações avançadas' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('cria item com os campos obrigatórios e retorna para a lista', async () => {
+    const user = userEvent.setup();
+    render(<SettingsProfessorManual />);
+
+    await screen.findByRole('table');
+    await user.click(screen.getByRole('button', { name: 'Novo item' }));
+    await fillRequiredCreateFields(user);
+    await user.click(screen.getByRole('button', { name: 'Salvar item' }));
+
+    await waitFor(() => expect(professorManualService.create).toHaveBeenCalledTimes(1));
+    expect(professorManualService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        setor: 'Todos',
+        item: 'Postura',
+        frase: 'Oriente a postura.',
+        title: 'Postura durante a avaliação',
+        content: 'Ajuste a postura antes de iniciar.',
+        code: 'POSTURA',
+        productArea: 'physical_assessment',
+      })
+    );
+    expect(await screen.findByRole('table')).toBeInTheDocument();
+  });
+
+  it('edita item, persiste as alterações e retorna para a lista', async () => {
+    const user = userEvent.setup();
+    render(<SettingsProfessorManual />);
+
+    await screen.findByRole('table');
+    await user.click(screen.getAllByRole('button', { name: 'Editar' })[0]);
+    const title = screen.getByLabelText(/Título no sistema/);
+    await user.clear(title);
+    await user.type(title, 'Vestimenta revisada');
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+
+    await waitFor(() => expect(professorManualService.update).toHaveBeenCalledTimes(1));
+    expect(professorManualService.update).toHaveBeenCalledWith(
+      'manual-1',
+      expect.objectContaining({ title: 'Vestimenta revisada' })
+    );
+    expect(await screen.findByRole('table')).toBeInTheDocument();
   });
 
   it('cancela edição sem persistir alterações e retorna para a lista', async () => {
@@ -94,6 +146,34 @@ describe('SettingsProfessorManual', () => {
     expect(screen.getByText('Informe o ponto do produto.')).toBeInTheDocument();
     expect(setor).toHaveFocus();
     expect(professorManualService.create).not.toHaveBeenCalled();
+  });
+
+  it('mantém filtros de contexto, formato, status e busca textual funcionais', async () => {
+    const user = userEvent.setup();
+    render(<SettingsProfessorManual />);
+
+    await screen.findByRole('table');
+
+    await user.selectOptions(screen.getByLabelText('Contexto'), 'montagem_treino');
+    expect(await screen.findByText('Nenhum resultado com estes filtros')).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Contexto'), 'avaliacao_fisica');
+    expect(await screen.findByRole('table')).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Formato'), 'alerta');
+    expect(await screen.findByText('Nenhum resultado com estes filtros')).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Formato'), 'dica_rapida');
+    expect(await screen.findByRole('table')).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Status'), 'inactive');
+    expect(await screen.findByText('Nenhum resultado com estes filtros')).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Status'), 'active');
+    expect(await screen.findByRole('table')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Buscar'), 'uniformizado');
+    expect(await screen.findByRole('table')).toBeInTheDocument();
+    await user.clear(screen.getByLabelText('Buscar'));
+    await user.type(screen.getByLabelText('Buscar'), 'inexistente');
+    expect(await screen.findByText('Nenhum resultado com estes filtros')).toBeInTheDocument();
   });
 
   it('distingue base vazia de filtro sem resultado', async () => {
@@ -136,13 +216,7 @@ describe('SettingsProfessorManual', () => {
 
     await screen.findByRole('table');
     await user.click(screen.getByRole('button', { name: 'Novo item' }));
-
-    await user.type(screen.getByRole('textbox', { name: /^Item/ }), 'Postura');
-    await user.type(screen.getByLabelText(/Frase/), 'Oriente a postura.');
-    await user.type(screen.getByLabelText(/Título no sistema/), 'Postura durante a avaliação');
-    await user.type(screen.getByLabelText(/Texto de apoio/), 'Ajuste a postura antes de iniciar.');
-    await user.type(screen.getByLabelText(/Código/), 'POSTURA');
-    await user.type(screen.getByLabelText(/Ponto do produto/), 'physical_assessment');
+    await fillRequiredCreateFields(user);
     await user.click(screen.getByRole('button', { name: 'Salvar item' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('falha ao salvar');
