@@ -1,1 +1,77 @@
-{"schema_version":1,"escapes":[{"escape_id":"A-359-001","escape_class":"control-propagation-gap","status":"passed","plausible_wrong_implementation":"Repair only currently persisted authorization rows while leaving the persistent provisioning trigger unchanged for future entities.","literal_case":{"description":"Administrative collaborator function created after deploy receives screen and management grants while clinical approval remains denied.","status":"passed","evidence":"Reused behavioral evidence from Validate PR run 7103 on a15b4139ac73a56b2c8acd2c61aeb555c55250f9; compare a15b4139ac73a56b2c8acd2c61aeb555c55250f9..a8389720f4e0391d5cd4418301c8c51a427f1ea2 contains no executable changes, only prior result artifacts and the two canonical documentation corrections."},"sibling_cases":[{"id":"SIB-POSTDEPLOY-NONADMIN","description":"A non-administrative sibling created after deploy remains denied the management action.","status":"passed","evidence":"Reused behavioral evidence from Validate PR run 7103 on a15b4139ac73a56b2c8acd2c61aeb555c55250f9; compare a15b4139ac73a56b2c8acd2c61aeb555c55250f9..a8389720f4e0391d5cd4418301c8c51a427f1ea2 contains no executable changes, only prior result artifacts and the two canonical documentation corrections."},{"id":"SIB-MIGRATION-RERUN","description":"Rerunning the migration restores drift without duplicate or broadened grants.","status":"passed","evidence":"Reused behavioral evidence from Validate PR run 7103 on a15b4139ac73a56b2c8acd2c61aeb555c55250f9; compare a15b4139ac73a56b2c8acd2c61aeb555c55250f9..a8389720f4e0391d5cd4418301c8c51a427f1ea2 contains no executable changes, only prior result artifacts and the two canonical documentation corrections."}],"required_risk_families":["authorization"],"required_attack_dimensions":[{"risk_family":"authorization","surface":"post-deploy-trigger","dimension":"post-deploy-create"},{"risk_family":"authorization","surface":"existing-backfill","dimension":"existing-row"}],"prevention_change":{"description":"Persist corrected authorization in durable provisioning and existing-row repair.","evidence":["apps/api/prisma/migrations/20260817192000_allow_administrative_manage_adipometry_responsibility/migration.sql"]},"detection_change":{"description":"Cross lifecycle, sibling denial, rerun, and protected HTTP controls.","evidence":["scripts/verify-adipometry-administrative-responsibility-lifecycle.sh","apps/api/scripts/verify-pr359-administrative-adpt-http.ts","Validate PR run 7103 plus unaffected-delta proof"]}},{"escape_id":"A-359-002","escape_class":"documentation-claim-drift","status":"passed","plausible_wrong_implementation":"Change an executable authorization/default policy while canonical product and database sources continue to declare the superseded deny/no-inheritance rule.","literal_case":{"description":"Both canonical ADPT governance sources are reconciled with the persisted administrative management grant while clinical approval remains deny-by-default.","status":"passed","evidence":".audit/entregar-issue/evidence/pr359-documentation-semantic-drift.json"},"sibling_cases":[{"id":"SIB-DOC-PRODUCT","description":"Product-level canonical authorization claim is checked against executable policy.","status":"passed","evidence":".audit/entregar-issue/evidence/pr359-documentation-semantic-drift.json"},{"id":"SIB-DOC-DATABASE","description":"Database-governance canonical authorization claim is checked independently against executable policy.","status":"passed","evidence":".audit/entregar-issue/evidence/pr359-documentation-semantic-drift.json"}],"required_risk_families":["documentation"],"required_attack_dimensions":[{"risk_family":"documentation","surface":"canonical-claims","dimension":"product-policy"},{"risk_family":"documentation","surface":"canonical-claims","dimension":"database-policy"}],"prevention_change":{"description":"Treat normative authorization/default changes as material documentation changes and require old/new contract terms plus repository-wide contradiction inventory before freeze.","evidence":["documentacao-repositorio semantic normative change rules","DOC-SEMANTIC-DRIFT-001"]},"detection_change":{"description":"Require documentation risk family/canonical-claims coverage in the internal handoff gate whenever documentation consistency is material.","evidence":["entregar-issue documentation semantic drift gate","validate_handoff_readiness.py documentation-family enforcement"]}}]}
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "ESC-TARGET-BINDING",
+      "escape_class": "foreign-delivery-artifact-reuse",
+      "source_audit": {
+        "head_sha": "829e19bdbc94abc1febda351c16cbb3d38d971d7",
+        "rejection_id": "audit-rejection:7027bee7-766e-419e-9279-42b577b4dde4"
+      },
+      "plausible_wrong_implementation": "Treat an internally valid readiness package inherited from another delivery as current because its files already exist.",
+      "literal_case": {
+        "procedure": "Classify the inherited package against the current target identity and require rejection of a foreign subject.",
+        "status": "passed",
+        "evidence": "evidence/pr364-delivery-readiness.json"
+      },
+      "sibling_cases": [
+        {
+          "id": "late-target-identity",
+          "surface": "controller-context",
+          "dimension": "late-identity-binding",
+          "status": "passed",
+          "evidence": "refresh-context regression coverage"
+        },
+        {
+          "id": "connector-rebuild",
+          "surface": "connector-workspace",
+          "dimension": "post-rebuild-binding",
+          "status": "passed",
+          "evidence": "connector terminal reclassification coverage"
+        },
+        {
+          "id": "foreign-parent-lineage",
+          "surface": "result-only-child-lineage",
+          "dimension": "foreign-parent-not-inherited",
+          "status": "passed",
+          "evidence": "19 focused terminal and target-binding tests"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "delivery-target-binding",
+          "dimension": "foreign-package-rejected"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "terminal-handoff-identity",
+          "dimension": "identity-change-reclassification"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "result-only-child-lineage",
+          "dimension": "foreign-parent-not-inherited"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "delivery target binding lifecycle",
+        "evidence": "reclassify on identity evolution and after package reconstruction; never carry cumulative ledgers across a proven foreign material parent"
+      },
+      "detection_change": {
+        "skill_or_gate": "terminal handoff gate",
+        "control_id": "HANDOFF-TARGET-BINDING-001",
+        "evidence": "require current-target package at terminal; classify material parent before lineage and preserve fail-closed same-target monotonicity"
+      },
+      "trigger_terms": [
+        "inherited readiness package",
+        "target identity changes",
+        "stale certificate"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "status": "passed"
+    }
+  ]
+}
