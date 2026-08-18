@@ -1,1 +1,179 @@
-{"schema_version":1,"head_sha":"35d262930b17fc1a8623d89b9abe456a1c5bea5f","families":[{"family":"authorization","applicable":false,"reason":"No current contract, diff or inherited audit signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"tenant-isolation","applicable":false,"reason":"No current contract, diff or inherited audit signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"public-boundary","applicable":true,"reason":"Derived from requirement attack matrix.","control_ids":["CLONE-ERROR-001","CLONE-SUCCESS-001"],"dimensions":[{"surface":"clone-error-feedback","reason":"API failure and malformed success responses must become local user-visible clone errors.","control_ids":["CLONE-ERROR-001"],"status":"passed"},{"surface":"clone-success-feedback","reason":"The API success payload crosses into user-visible feedback in the clone card.","control_ids":["CLONE-SUCCESS-001"],"status":"passed"}],"status":"passed"},{"family":"reference-liveness","applicable":false,"reason":"No current contract, diff or inherited audit signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"temporal-consistency","applicable":false,"reason":"No current contract, diff or inherited audit signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"temporal-destination","applicable":false,"reason":"No current contract, diff or inherited audit signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"concurrency-atomicity","applicable":false,"reason":"No current contract, diff or inherited audit signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"idempotency","applicable":true,"reason":"Derived from requirement attack matrix.","control_ids":["CLONE-IDEMP-001"],"dimensions":[{"surface":"clone-action","reason":"The user action must produce one request and block re-entry while pending.","control_ids":["CLONE-IDEMP-001"],"status":"passed"}],"status":"passed"},{"family":"rollback","applicable":false,"reason":"No current contract, diff or inherited audit signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"historical-immutability","applicable":false,"reason":"No current contract, diff or inherited audit signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"structural-contract","applicable":false,"reason":"No current contract, diff or inherited audit signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"documentation","applicable":true,"reason":"Independent audit findings exposed a persisted handoff-history and terminal-identity evidence consistency surface.","control_ids":["HANDOFF-HISTORY-001","HANDOFF-TERMINAL-001"],"dimensions":[{"surface":"handoff-history","reason":"Persisted rejection history must agree across evidence, closures, inherited controls and certificate metadata.","control_ids":["HANDOFF-HISTORY-001"],"status":"passed"},{"surface":"terminal-handoff","reason":"Published result identity must be a direct allowlisted child of the certified material head.","control_ids":["HANDOFF-TERMINAL-001"],"status":"passed"}],"status":"passed"}],"material_families_missing_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "a15b4139ac73a56b2c8acd2c61aeb555c55250f9",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": true,
+      "status": "passed",
+      "reason": "The delivery materially changes persisted authorization behavior or migration rerun behavior.",
+      "control_ids": [
+        "NC-REQ3-BACKFILL",
+        "NC-REQ2-APPROVAL",
+        "NC-REQ1-HTTP",
+        "NC-REQ1-PERSIST",
+        "NC-REQ3-POSTDEPLOY",
+        "NC-REQ2-SIBLING"
+      ],
+      "dimensions": [
+        {
+          "surface": "existing-backfill",
+          "status": "passed",
+          "reason": "Material risk surface is exercised by exact-head remediation controls.",
+          "control_ids": [
+            "NC-REQ3-BACKFILL"
+          ]
+        },
+        {
+          "surface": "http-approval-route",
+          "status": "passed",
+          "reason": "Material risk surface is exercised by exact-head remediation controls.",
+          "control_ids": [
+            "NC-REQ2-APPROVAL"
+          ]
+        },
+        {
+          "surface": "http-management-route",
+          "status": "passed",
+          "reason": "Material risk surface is exercised by exact-head remediation controls.",
+          "control_ids": [
+            "NC-REQ1-HTTP"
+          ]
+        },
+        {
+          "surface": "persisted-grant",
+          "status": "passed",
+          "reason": "Material risk surface is exercised by exact-head remediation controls.",
+          "control_ids": [
+            "NC-REQ1-PERSIST"
+          ]
+        },
+        {
+          "surface": "post-deploy-trigger",
+          "status": "passed",
+          "reason": "Material risk surface is exercised by exact-head remediation controls.",
+          "control_ids": [
+            "NC-REQ3-POSTDEPLOY"
+          ]
+        },
+        {
+          "surface": "sibling-function-grant",
+          "status": "passed",
+          "reason": "Material risk surface is exercised by exact-head remediation controls.",
+          "control_ids": [
+            "NC-REQ2-SIBLING"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No material requirement or changed surface in this delivery activates this canonical risk family.",
+      "control_ids": [],
+      "dimensions": []
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No material requirement or changed surface in this delivery activates this canonical risk family.",
+      "control_ids": [],
+      "dimensions": []
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No material requirement or changed surface in this delivery activates this canonical risk family.",
+      "control_ids": [],
+      "dimensions": []
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No material requirement or changed surface in this delivery activates this canonical risk family.",
+      "control_ids": [],
+      "dimensions": []
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No material requirement or changed surface in this delivery activates this canonical risk family.",
+      "control_ids": [],
+      "dimensions": []
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No material requirement or changed surface in this delivery activates this canonical risk family.",
+      "control_ids": [],
+      "dimensions": []
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "status": "passed",
+      "reason": "The delivery materially changes persisted authorization behavior or migration rerun behavior.",
+      "control_ids": [
+        "NC-REQ3-RERUN",
+        "NC-REQ3-UNIQUE"
+      ],
+      "dimensions": [
+        {
+          "surface": "migration-rerun",
+          "status": "passed",
+          "reason": "Material risk surface is exercised by exact-head remediation controls.",
+          "control_ids": [
+            "NC-REQ3-RERUN"
+          ]
+        },
+        {
+          "surface": "permission-uniqueness",
+          "status": "passed",
+          "reason": "Material risk surface is exercised by exact-head remediation controls.",
+          "control_ids": [
+            "NC-REQ3-UNIQUE"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No material requirement or changed surface in this delivery activates this canonical risk family.",
+      "control_ids": [],
+      "dimensions": []
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No material requirement or changed surface in this delivery activates this canonical risk family.",
+      "control_ids": [],
+      "dimensions": []
+    },
+    {
+      "family": "structural-contract",
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No material requirement or changed surface in this delivery activates this canonical risk family.",
+      "control_ids": [],
+      "dimensions": []
+    },
+    {
+      "family": "documentation",
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No material requirement or changed surface in this delivery activates this canonical risk family.",
+      "control_ids": [],
+      "dimensions": []
+    }
+  ],
+  "material_families_missing_controls": []
+}

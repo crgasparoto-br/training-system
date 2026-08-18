@@ -1,24 +1,53 @@
 {
   "schema_version": 1,
-  "classification": "implementation-only",
+  "classification": "systemic-escape",
   "source_event": {
-    "kind": "independent-rejection",
-    "finding_ids": [
-      "STALE-HANDOFF-001",
-      "REMEDIATION-INCOMPLETE-001"
-    ]
+    "kind": "independent-audit-finding",
+    "finding_id": "A-359-001",
+    "summary": "An authorization backfill fixed existing entities but did not propagate the policy to entities created later by a persistent trigger."
   },
   "generalized_learning": {
-    "promotion_status": "not-required",
-    "reason": "The producer skill and its fail-closed handoff validators already contained the generic rejection-history, learning-closure, post-write refreeze and terminal result-only-child rules under the same producer skill hash. The defect was local execution state: the prior package incorrectly set previous_independent_rejection=false and therefore skipped required closure artifacts. This remediation adds explicit repository-local regression controls, cumulative inherited controls, and re-executes the existing generic validators; no new permanent skill rule is needed."
-  },
-  "regression_evidence": {
-    "controls": [
-      "HANDOFF-HISTORY-001",
-      "HANDOFF-TERMINAL-001"
+    "escape_class": "control-propagation-gap",
+    "generalized_failure_pattern": "A one-time authorization repair can pass existing-data checks while a persistent creator, trigger, seed, or provisioning path continues to produce the old policy for future entities.",
+    "plausible_wrong_implementation": "Change only currently persisted rows and omit the durable creation/provisioning path that controls equivalent future entities.",
+    "trigger_signals": [
+      "authorization backfill",
+      "persistent trigger or provisioning path",
+      "future entity creation"
     ],
-    "focused_skill_tests": "9 passed",
-    "genericity_gate": "READY",
-    "material_head_sha": "35d262930b17fc1a8623d89b9abe456a1c5bea5f"
-  }
+    "risk_families": [
+      "authorization",
+      "idempotency"
+    ],
+    "reusable_control": "For authorization migrations, test an existing entity, a newly created equivalent entity after the migration, a denied sibling role/function, and an exact migration rerun.",
+    "prevention_rule": "When a policy must remain true for future entities, update the durable creation/provisioning mechanism together with any existing-row repair.",
+    "detection_rule": "Require cross-lifecycle controls that compare existing-row repair with post-migration creation and least-privilege sibling denial.",
+    "transfer_cases": [
+      {
+        "id": "TRANSFER-PROVISIONING",
+        "surface": "persistent-provisioning",
+        "scenario": "Synthetic permission seed: verify a new entity receives the corrected policy after migration.",
+        "status": "passed"
+      },
+      {
+        "id": "TRANSFER-RERUN",
+        "surface": "existing-data-rerun",
+        "scenario": "Synthetic backfill: drift an existing row, rerun the migration, and verify convergence without duplicates.",
+        "status": "passed"
+      }
+    ],
+    "promotion_status": "promoted"
+  },
+  "skill_changes": [
+    {
+      "role": "prevention",
+      "status": "passed",
+      "evidence": "Delivery workflow requires material risk surfaces and durable producer/consumer paths to be closed before freeze."
+    },
+    {
+      "role": "detection",
+      "status": "passed",
+      "evidence": "Risk saturation and inherited-control gates require sibling and lifecycle attack dimensions before independent handoff."
+    }
+  ]
 }
