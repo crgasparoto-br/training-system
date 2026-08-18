@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-rejection",
+    "finding_ids": [
+      "STALE-HANDOFF-001",
+      "REMEDIATION-INCOMPLETE-001"
+    ]
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "The producer skill and its fail-closed handoff validators already contained the generic rejection-history, learning-closure, post-write refreeze and terminal result-only-child rules under the same producer skill hash. The defect was local execution state: the prior package incorrectly set previous_independent_rejection=false and therefore skipped required closure artifacts. This remediation adds explicit repository-local regression controls, cumulative inherited controls, and re-executes the existing generic validators; no new permanent skill rule is needed."
+  },
+  "regression_evidence": {
+    "controls": [
+      "HANDOFF-HISTORY-001",
+      "HANDOFF-TERMINAL-001"
+    ],
+    "focused_skill_tests": "9 passed",
+    "genericity_gate": "READY",
+    "material_head_sha": "35d262930b17fc1a8623d89b9abe456a1c5bea5f"
+  }
+}
