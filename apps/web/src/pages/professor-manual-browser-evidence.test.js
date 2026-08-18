@@ -144,7 +144,7 @@ async function screenshotEvidence(page) {
 
 async function routeLayout(page) {
   return page.evaluate(() => {
-    const visible = (el) => !!el && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden';
+    const visible = (el) => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
     const buttons = [...document.querySelectorAll('button')]
       .filter(visible)
       .map((el) => {
@@ -201,7 +201,7 @@ async function exerciseEditor(page) {
   await waitForText(page, 'Novo item do manual');
 
   const editor = await page.evaluate(() => {
-    const visible = (el) => !!el && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden';
+    const visible = (el) => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
     const required = [
       'professor-manual-setor',
       'professor-manual-item',
