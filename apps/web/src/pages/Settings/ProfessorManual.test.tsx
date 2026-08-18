@@ -137,7 +137,7 @@ describe('SettingsProfessorManual', () => {
     await screen.findByRole('table');
     await user.click(screen.getByRole('button', { name: 'Novo item' }));
 
-    await user.type(screen.getByLabelText(/Item/), 'Postura');
+    await user.type(screen.getByRole('textbox', { name: /^Item/ }), 'Postura');
     await user.type(screen.getByLabelText(/Frase/), 'Oriente a postura.');
     await user.type(screen.getByLabelText(/Título no sistema/), 'Postura durante a avaliação');
     await user.type(screen.getByLabelText(/Texto de apoio/), 'Ajuste a postura antes de iniciar.');
