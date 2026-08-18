@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { createHash } from 'node:crypto';
 import http from 'node:http';
 import { createRequire } from 'node:module';
