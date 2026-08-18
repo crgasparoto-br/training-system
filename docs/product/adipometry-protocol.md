@@ -51,7 +51,7 @@ Mudanças materiais de fórmula, população, limites, precisão, arredondamento
 
 A seção **Responsabilidade técnica** fica em `/settings/contract`.
 
-A gestão da designação exige a ação sensível `settings.contract.actions.manageClinicalTechnicalResponsibility`. Aprovação e revogação exigem `settings.contract.adipometryProtocolApproval`. Essas ações começam negadas e não decorrem automaticamente de `master`, `professor`, `manager` ou perfil administrativo. A concessão é registrada na função do colaborador e revalidada no middleware, no serviço e no banco.
+A gestão da designação exige a ação sensível `settings.contract.actions.manageClinicalTechnicalResponsibility`. Para a função integrada `administrative`, essa ação e o acesso à tela `settings.contract` são materializados explicitamente em `AccessPermission` com `canView=true`, inclusive para funções criadas depois do deploy; esse grant é específico da função integrada e não amplia funções irmãs. Aprovação e revogação continuam exigindo `settings.contract.adipometryProtocolApproval`, que permanece negada por padrão e não é concedida automaticamente a `master`, `professor`, `manager` nem ao perfil administrativo. As concessões sensíveis permanecem persistidas na função do colaborador e revalidadas no middleware, no serviço e no banco.
 
 O profissional selecionado precisa:
 
