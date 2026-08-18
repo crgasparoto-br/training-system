@@ -1,0 +1,5 @@
+# PR 360 - Clonagem de dados do contrato
+
+- Ao clicar em "Clonar dados", a tela deve disparar imediatamente exatamente um POST para `/contracts/clone-data` com `copyParameters`, `copyExercises` e `copyAssessmentTypes` iguais a `true`, sem depender de confirmação nativa, e deve impedir novo acionamento enquanto a requisição estiver em andamento.
+- Quando a clonagem retornar dados válidos, a tela deve exibir no próprio card de clonagem os totais criados e ignorados de parâmetros, exercícios e avaliações.
+- Quando a API de clonagem falhar ou retornar resposta sem `data`, a tela deve exibir o erro no próprio card de clonagem e não deve falhar silenciosamente.

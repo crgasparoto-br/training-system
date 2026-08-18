@@ -1,39 +1,29 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-17T22:34:21.987026+00:00",
+  "created_at": "2026-08-18T01:37:04.744647+00:00",
   "identity": {
-    "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
-    "material_head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
-    "base_sha": "025723da930a7b17af4cdf9b44dde951c2b159c7",
-    "merge_preview_sha": null,
-    "material_merge_preview_sha": null
+    "head_sha": "7596493406d27cace15e294dd41c86537b60f524",
+    "material_head_sha": "7596493406d27cace15e294dd41c86537b60f524",
+    "base_sha": "8e2a691ea843d6edbcf00a8da9349d9f1b6cbca8",
+    "merge_preview_sha": "22afad4d43b5ad073e496ee2c1c5431ab571b40e",
+    "material_merge_preview_sha": "22afad4d43b5ad073e496ee2c1c5431ab571b40e"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
     "allowed_paths": [
-      ".audit/entregar-issue/audit-escape-closure.json",
-      ".audit/entregar-issue/audit-escape-pattern-catalog.json",
-      ".audit/entregar-issue/evidence/a345-sat.json",
       ".audit/entregar-issue/evidence/access-isolation-source-contract.txt",
-      ".audit/entregar-issue/evidence/handoff-recovery.json",
-      ".audit/entregar-issue/evidence/issue-345-audit-provenance-remediation.json",
-      ".audit/entregar-issue/evidence/issue-345-ci-remediation.json",
-      ".audit/entregar-issue/evidence/issue-345-fullstack-remediation.json",
-      ".audit/entregar-issue/evidence/issue-345-post-ci-refreeze.json",
-      ".audit/entregar-issue/evidence/issue-345-temporal-ci-remediation.json",
+      ".audit/entregar-issue/evidence/pr360-ci-controls.json",
       ".audit/entregar-issue/evidence/regression-test-source-contract.txt",
       ".audit/entregar-issue/evidence/route-mount-source-contract.txt",
       ".audit/entregar-issue/handoff-ready.json",
       ".audit/entregar-issue/inherited-controls.json",
-      ".audit/entregar-issue/learning-closure.json",
       ".audit/entregar-issue/requirement-attack-matrix.json",
       ".audit/entregar-issue/requirement-closure.json",
       ".audit/entregar-issue/risk-saturation.json",
       ".audit/entregar-issue/specification-snapshot.json",
-      ".audit/entregar-issue/specification-sources/SRC-ISSUE-344.txt",
-      ".audit/entregar-issue/specification-sources/SRC-ISSUE-345.txt",
-      ".audit/entregar-issue/specification-sources/SRC-ISSUE-361.txt"
+      ".audit/entregar-issue/specification-sources/SRC-ISSUE-361.txt",
+      ".audit/entregar-issue/specification-sources/SRC-PR-360.txt"
     ]
   },
   "contract_version": "2026-08-06.2",
@@ -52,23 +42,23 @@
   "artifacts": {
     "specification_snapshot": {
       "name": "specification-snapshot.json",
-      "sha256": "b3d393132c73907cd129bcd390b36b4d5353cd1e01e09560e7df360058cf67dc"
+      "sha256": "d928fb6596ebf8a0c598786e495fb07014b8ce0279dc87957040f19d7723a038"
     },
     "requirement_closure": {
       "name": "requirement-closure.json",
-      "sha256": "2e0accde7f7584002ec8994eb8dd8738c9788a022c31df957049a598fa7dbbe0"
+      "sha256": "0b58fe3e766e6fbcb772d25319cfd260f2571bdeb9a2e6224ce1c5d4ea81030b"
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "dd60f4a3285a3ccbd8d7d1cf1e5ffc8380276d6d89cb45e5d59433cfdb2c74df"
+      "sha256": "657d7522b5543686bd985eab197d33ecf24b8d1c312cb8df1a5d604988b4b32b"
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "b0f50ad79ab6ed1dadccc752eb63cde9a65c9c6980f605b470bc326ba28bc277"
+      "sha256": "d34a0303a25f337e3f7416b1f022284a04c27cca3cd79ad9cb0f7276f49d69c4"
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "a3d1a1fb1688b3cb6ef7552960ccfd35c0e2e330e902e8dfbcac82178a679f47"
+      "sha256": "67a26307f7dfab00dd4afc4cf50e65da96876c4f48fbc1d97be65e1c479243ea"
     }
   },
   "previous_independent_rejection": false
