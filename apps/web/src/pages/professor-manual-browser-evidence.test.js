@@ -2,9 +2,10 @@ import { createHash } from 'node:crypto';
 import http from 'node:http';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const apiRequire = createRequire(new URL('../../../api/package.json', import.meta.url));
+const apiRequire = createRequire(path.resolve(process.cwd(), '../api/package.json'));
 const puppeteer = apiRequire('puppeteer');
 
 const HOST = '127.0.0.1';
