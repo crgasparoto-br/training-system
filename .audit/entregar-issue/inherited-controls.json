@@ -1,1 +1,31 @@
-{"schema_version":1,"head_sha":"a8389720f4e0391d5cd4418301c8c51a427f1ea2","controls":[{"id":"AUTH-LIFECYCLE-FUTURE-ENTITY","status":"passed","head_sha":"a8389720f4e0391d5cd4418301c8c51a427f1ea2","evidence":"Reused behavioral evidence from Validate PR run 7103 on a15b4139ac73a56b2c8acd2c61aeb555c55250f9; compare a15b4139ac73a56b2c8acd2c61aeb555c55250f9..a8389720f4e0391d5cd4418301c8c51a427f1ea2 contains no executable changes, only prior result artifacts and the two canonical documentation corrections."},{"id":"AUTH-PUBLIC-BOUNDARY-LEAST-PRIVILEGE","status":"passed","head_sha":"a8389720f4e0391d5cd4418301c8c51a427f1ea2","evidence":"Reused behavioral evidence from Validate PR run 7103 on a15b4139ac73a56b2c8acd2c61aeb555c55250f9; compare a15b4139ac73a56b2c8acd2c61aeb555c55250f9..a8389720f4e0391d5cd4418301c8c51a427f1ea2 contains no executable changes, only prior result artifacts and the two canonical documentation corrections."},{"id":"DOC-CANONICAL-CLAIM-DRIFT","status":"passed","head_sha":"a8389720f4e0391d5cd4418301c8c51a427f1ea2","evidence":"DOC-SEMANTIC-DRIFT-001 exact material-head canonical-source reconciliation; evidence/pr359-documentation-semantic-drift.json"}],"unresolved_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "829e19bdbc94abc1febda351c16cbb3d38d971d7",
+  "source_audits": [
+    {
+      "rejection_id": "audit-rejection:7027bee7-766e-419e-9279-42b577b4dde4",
+      "kind": "independent-rejection",
+      "head_sha": "829e19bdbc94abc1febda351c16cbb3d38d971d7"
+    }
+  ],
+  "controls": [
+    {
+      "id": "HANDOFF-TARGET-BINDING-001",
+      "status": "passed",
+      "head_sha": "829e19bdbc94abc1febda351c16cbb3d38d971d7",
+      "subject_sha": "829e19bdbc94abc1febda351c16cbb3d38d971d7",
+      "control_type": "procedure",
+      "procedure": "Classify persisted delivery artifacts against current target identity before reuse, after reconstruction, and classify the material-parent audit package before cumulative result-child lineage checks.",
+      "expected": "Foreign packages remain non-reusable, foreign parent ledgers are not inherited, same-target lineage remains monotonic, and only a package bound to the current target reaches handoff.",
+      "observed": "The inherited package and material-parent package are rejected as foreign; focused controls also prove same-target lineage cannot use the foreign exception.",
+      "evidence": "evidence/pr364-delivery-readiness.json",
+      "evidence_sha256": "2d220074ac4ca2f15b81204e6ddf81401069be8c476e5840b724ec8d9e0893f7",
+      "attack_control_id": "NEG-07",
+      "risk_family": "structural-contract",
+      "surface": "result-only-child-lineage",
+      "dimension": "foreign-parent-not-inherited"
+    }
+  ],
+  "retired_controls": [],
+  "unresolved_controls": []
+}

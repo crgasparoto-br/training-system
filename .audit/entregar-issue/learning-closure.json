@@ -1,1 +1,54 @@
-{"schema_version":1,"classification":"systemic-escape","source_event":{"kind":"independent-audit-finding","finding_id":"A-359-002","summary":"Canonical documentation retained a superseded normative authorization/default claim after executable policy changed."},"generalized_learning":{"escape_class":"documentation-claim-drift","generalized_failure_pattern":"An executable policy can change successfully while canonical documentation continues to state the previous normative authorization, default, provisioning, availability, or allow/deny behavior.","plausible_wrong_implementation":"Rely on green behavioral tests and a pull-request summary without deriving old/new normative claims and searching canonical sources outside the diff.","trigger_signals":["authorization or permission change","default or allow/deny change","seed or provisioning behavior change","canonical product or database documentation"],"risk_families":["documentation","authorization"],"reusable_control":"DOC-SEMANTIC-DRIFT-001: derive old/new contract terms, search repository-wide on the final material candidate, classify normative occurrences, and block unresolved current contradictions.","prevention_rule":"Whenever executable behavior changes a normative policy, activate documentation as a material risk family and update affected canonical sources in the same delivery before freeze.","detection_rule":"The internal handoff gate must require a documentation canonical-claims adversarial surface with old/new terms, outside-diff search evidence, classified occurrences, and zero unresolved contradictions.","transfer_cases":[{"id":"TRANSFER-AUTH-POLICY","surface":"canonical-product-policy","scenario":"Synthetic role changes from denied to allowed while a canonical product source still says the action is not granted automatically; the gate must reject until reconciled.","status":"passed"},{"id":"TRANSFER-DEFAULT-POLICY","surface":"canonical-operational-default","scenario":"Synthetic feature changes from disabled-by-default to enabled-by-default while a runbook keeps the former default as current; the gate must reject until reconciled.","status":"passed"}],"promotion_status":"promoted"},"skill_changes":[{"role":"prevention","status":"passed","evidence":"documentacao-repositorio now activates repository-wide contradiction scanning for normative authorization, default, seed, provisioning, and availability changes."},{"role":"detection","status":"passed","evidence":"entregar-issue now requires DOC-SEMANTIC-DRIFT-001 and documentation:canonical-claims coverage before handoff; independent audit trigger was expanded consistently."}]}
+{
+  "schema_version": 1,
+  "classification": "systemic-escape",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:7027bee7-766e-419e-9279-42b577b4dde4"
+  },
+  "generalized_learning": {
+    "escape_class": "foreign-delivery-artifact-reuse",
+    "generalized_failure_pattern": "A delivery can inherit a valid readiness package from another target and mistake existence or internal consistency for current-target ownership.",
+    "plausible_wrong_implementation": "Classify persisted artifacts once before terminal identity exists and never reclassify after identity changes or reconstruction.",
+    "trigger_signals": [
+      "existing readiness package on a derived branch",
+      "target identity added after controller initialization",
+      "connector-only reconstruction"
+    ],
+    "risk_families": [
+      "structural-contract"
+    ],
+    "reusable_control": "HANDOFF-TARGET-BINDING-001 performs semantic target classification before reuse and again at terminal handoff.",
+    "prevention_rule": "Reclassify persisted delivery artifacts whenever target identity changes and after rebuilding or publishing; never inherit cumulative audit state from a proven foreign material parent.",
+    "detection_rule": "Fail closed unless the published package classifies as current-target; before result-child lineage checks, classify the material-parent audit package and allow lineage bypass only for proven foreign-target state.",
+    "transfer_cases": [
+      {
+        "surface": "controller-context-refresh",
+        "scenario": "A target identifier becomes known after initialization and stale reuse must be invalidated.",
+        "status": "passed"
+      },
+      {
+        "surface": "connector-materialization",
+        "scenario": "A connector workspace starts with inherited artifacts and rebuilt bytes become current only after current subject binding.",
+        "status": "passed"
+      },
+      {
+        "surface": "result-only-child-lineage",
+        "scenario": "A result-only child overwrites cumulative audit paths whose material parent belongs to another target; foreign lineage must not be inherited while same-target lineage remains protected.",
+        "status": "passed"
+      }
+    ],
+    "promotion_status": "promoted"
+  },
+  "skill_changes": [
+    {
+      "role": "prevention",
+      "status": "passed",
+      "change": "Reclassification on identity refresh and after reconstruction."
+    },
+    {
+      "role": "detection",
+      "status": "passed",
+      "change": "Terminal gate requires current-target classification and foreign-vs-current material-parent lineage discrimination."
+    }
+  ]
+}

@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/Accordion';
 import { Button } from '../../components/ui/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
+import { Input } from '../../components/ui/Input';
 import {
   PROFESSOR_MANUAL_LOCALE,
   professorManualContextLabels,
@@ -28,6 +31,20 @@ const formatOptions: Array<{ value: ProfessorManualFormat; label: string }> = [
   { value: 'saiba_mais', label: professorManualFormatLabels.saiba_mais },
 ];
 
+type EditorMode = 'list' | 'create' | 'edit';
+type RequiredField = 'setor' | 'item' | 'frase' | 'title' | 'content' | 'code' | 'productArea';
+type FieldErrors = Partial<Record<RequiredField, string>>;
+
+const requiredFields: Array<{ key: RequiredField; id: string; message: string }> = [
+  { key: 'setor', id: 'professor-manual-setor', message: 'Informe o setor.' },
+  { key: 'item', id: 'professor-manual-item', message: 'Informe o item.' },
+  { key: 'frase', id: 'professor-manual-frase', message: 'Informe a frase de orientação.' },
+  { key: 'title', id: 'professor-manual-title', message: 'Informe o título no sistema.' },
+  { key: 'content', id: 'professor-manual-content', message: 'Informe o texto de apoio.' },
+  { key: 'code', id: 'professor-manual-code', message: 'Informe o código.' },
+  { key: 'productArea', id: 'professor-manual-product-area', message: 'Informe o ponto do produto.' },
+];
+
 const defaultForm = (): ProfessorManualPayload => ({
   code: '',
   title: '',
@@ -46,12 +63,24 @@ const defaultForm = (): ProfessorManualPayload => ({
   isActive: true,
 });
 
+const selectClassName =
+  'h-11 w-full rounded-lg border border-input bg-card px-4 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+const textareaClassName =
+  'min-h-[116px] w-full rounded-lg border border-input bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+
+function fieldValue(form: ProfessorManualPayload, key: RequiredField) {
+  const value = form[key];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 export default function SettingsProfessorManual() {
   const { user } = useAuthStore();
   const [items, setItems] = useState<ProfessorManualItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [mode, setMode] = useState<EditorMode>('list');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ProfessorManualPayload>(defaultForm);
   const [filters, setFilters] = useState({
@@ -132,13 +161,31 @@ export default function SettingsProfessorManual() {
     }));
   }, [items]);
 
-  const resetForm = () => {
+  const clearFieldError = (key: RequiredField) => {
+    if (!fieldErrors[key]) return;
+    setFieldErrors((current) => ({ ...current, [key]: undefined }));
+  };
+
+  const leaveEditor = () => {
+    setMode('list');
     setEditingId(null);
     setForm(defaultForm());
+    setFieldErrors({});
+    setError(null);
+  };
+
+  const handleNew = () => {
+    setEditingId(null);
+    setForm(defaultForm());
+    setFieldErrors({});
+    setError(null);
+    setMode('create');
   };
 
   const handleEdit = (item: ProfessorManualItem) => {
     setEditingId(item.id);
+    setFieldErrors({});
+    setError(null);
     setForm({
       code: item.code,
       title: item.title,
@@ -156,25 +203,31 @@ export default function SettingsProfessorManual() {
       order: item.order,
       isActive: item.isActive,
     });
+    setMode('edit');
+  };
+
+  const validateForm = () => {
+    const nextErrors: FieldErrors = {};
+    let firstInvalidId: string | null = null;
+
+    requiredFields.forEach((field) => {
+      if (!fieldValue(form, field.key)) {
+        nextErrors[field.key] = field.message;
+        firstInvalidId ??= field.id;
+      }
+    });
+
+    setFieldErrors(nextErrors);
+    if (firstInvalidId) {
+      document.getElementById(firstInvalidId)?.focus();
+      return false;
+    }
+    return true;
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-
-    if (
-      !form.code.trim() ||
-      !form.title.trim() ||
-      !form.content.trim() ||
-      !form.productArea.trim() ||
-      !form.setor?.trim() ||
-      !form.item?.trim() ||
-      !form.frase?.trim()
-    ) {
-      setError(
-        'Preencha código, setor, item, frase, título no sistema, texto de apoio e ponto do produto.'
-      );
-      return;
-    }
+    if (!validateForm()) return;
 
     setSaving(true);
     setError(null);
@@ -185,7 +238,7 @@ export default function SettingsProfessorManual() {
         await professorManualService.create(form);
       }
       await loadItems();
-      resetForm();
+      leaveEditor();
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || 'Erro ao salvar item do manual.');
     } finally {
@@ -193,13 +246,15 @@ export default function SettingsProfessorManual() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (item: ProfessorManualItem) => {
+    const itemLabel = item.item || item.title || item.code;
+    if (!window.confirm(`Excluir “${itemLabel}”? Esta ação não pode ser desfeita.`)) return;
+
     setSaving(true);
     setError(null);
     try {
-      await professorManualService.remove(id);
+      await professorManualService.remove(item.id);
       await loadItems();
-      if (editingId === id) resetForm();
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || 'Erro ao excluir item do manual.');
     } finally {
@@ -207,382 +262,446 @@ export default function SettingsProfessorManual() {
     }
   };
 
+  const clearFilters = () => {
+    setFilters({ context: 'all', format: 'all', status: 'all', search: '' });
+  };
+
+  const renderStatus = (item: ProfessorManualItem) => (
+    <span
+      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+        item.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+      }`}
+    >
+      {item.isActive ? 'Ativo' : 'Inativo'}
+    </span>
+  );
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="max-w-3xl">
           <h1 className="text-2xl font-bold text-gray-900">Manual do Professor</h1>
-          <p className="text-sm text-muted-foreground">
-            Estruture o cadastro com base na planilha original: Setor, Item e Frase.
+          <p className="mt-1 text-sm text-muted-foreground">
+            Cadastre e organize as orientações que apoiam o professor durante avaliações, montagem de treinos e uso do sistema.
           </p>
         </div>
-        <Button variant="outline" onClick={loadItems}>
-          Atualizar lista
-        </Button>
-      </div>
+        <div className="flex flex-wrap gap-2">
+          {mode === 'list' ? (
+            <>
+              <Button type="button" onClick={handleNew}>
+                Novo item
+              </Button>
+              <Button type="button" variant="outline" onClick={loadItems} disabled={loading}>
+                Atualizar
+              </Button>
+            </>
+          ) : (
+            <Button type="button" variant="outline" onClick={leaveEditor} disabled={saving}>
+              Voltar para lista
+            </Button>
+          )}
+        </div>
+      </header>
 
-      <div className="grid gap-3 md:grid-cols-3">
-        {totalsByContext.map((item) => (
-          <div key={item.value} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{item.label}</p>
-            <p className="mt-2 text-2xl font-semibold text-gray-900">{item.total}</p>
-            <p className="text-sm text-muted-foreground">itens ativos conectados ao fluxo</p>
-          </div>
-        ))}
-      </div>
+      {mode === 'list' ? (
+        <div className="grid gap-3 md:grid-cols-3" aria-label="Resumo por contexto">
+          {totalsByContext.map((item) => (
+            <Card key={item.value} className="shadow-none">
+              <CardContent className="flex items-center justify-between gap-3 p-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">{item.label}</p>
+                  <p className="mt-1 text-2xl font-semibold text-gray-900">{item.total}</p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setFilters((current) => ({ ...current, context: item.value }))}
+                  aria-label={`Filtrar por ${item.label}`}
+                >
+                  Filtrar
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : null}
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[460px_1fr]">
-        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              {editingId ? 'Editar item do manual' : 'Cadastrar item do manual'}
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Cadastre primeiro a base do manual e depois ajuste como ela será exibida no sistema.
+      {mode !== 'list' ? (
+        <Card>
+          <CardHeader className="border-b border-border">
+            <CardTitle className="text-xl">{mode === 'edit' ? 'Editar item do manual' : 'Novo item do manual'}</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Organize a orientação primeiro e deixe os ajustes técnicos opcionais para o final.
             </p>
-          </div>
-
-          <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
-            <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-              <p className="font-semibold">Referência da planilha</p>
-              <p className="mt-1">
-                Use os cabeçalhos da planilha como base: <strong>Setor</strong>, <strong>Item</strong> e <strong>Frase</strong>.
-              </p>
-              <p className="mt-1">
-                Observação: configure o campo de serviço conforme o serviço contratado. Contrato atual:{' '}
-                <strong>{contractTypeLabel}</strong>.
-              </p>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-sm font-medium text-gray-700">Código</span>
-                <input
-                  value={form.code}
-                  onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-                  className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
-                  placeholder="EX: VESTIMENTA_PADRAO"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-sm font-medium text-gray-700">Ordem</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={form.order ?? 0}
-                  onChange={(e) => setForm({ ...form, order: Number(e.target.value) || 0 })}
-                  className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
-                />
-              </label>
-            </div>
-
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900">Base do manual</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Campos equivalentes aos cabeçalhos e textos da planilha.
-                </p>
-              </div>
-
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <label className="space-y-1">
-                  <span className="text-sm font-medium text-gray-700">Setor</span>
-                  <input
+          </CardHeader>
+          <CardContent className="pt-6">
+            <form className="mx-auto max-w-5xl space-y-8" onSubmit={handleSubmit} noValidate>
+              <section aria-labelledby="orientacao-heading" className="space-y-4">
+                <div>
+                  <h2 id="orientacao-heading" className="text-base font-semibold text-gray-900">Orientação</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Defina o assunto e a frase que o professor deve consultar.</p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Input
+                    id="professor-manual-setor"
+                    label="Setor"
+                    required
                     value={form.setor || ''}
-                    onChange={(e) => setForm({ ...form, setor: e.target.value })}
-                    className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
+                    error={fieldErrors.setor}
+                    onChange={(event) => {
+                      clearFieldError('setor');
+                      setForm({ ...form, setor: event.target.value });
+                    }}
                     placeholder="Ex: Todos"
                   />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-sm font-medium text-gray-700">Item</span>
-                  <input
+                  <Input
+                    id="professor-manual-item"
+                    label="Item"
+                    required
                     value={form.item || ''}
-                    onChange={(e) => setForm({ ...form, item: e.target.value })}
-                    className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
+                    error={fieldErrors.item}
+                    onChange={(event) => {
+                      clearFieldError('item');
+                      setForm({ ...form, item: event.target.value });
+                    }}
                     placeholder="Ex: Vestimenta"
                   />
-                </label>
-              </div>
+                </div>
+                <div>
+                  <label htmlFor="professor-manual-frase" className="mb-2 block text-sm font-medium text-foreground">
+                    Frase <span className="ml-1 text-destructive">*</span>
+                  </label>
+                  <textarea
+                    id="professor-manual-frase"
+                    value={form.frase || ''}
+                    aria-invalid={fieldErrors.frase ? true : undefined}
+                    aria-describedby={fieldErrors.frase ? 'professor-manual-frase-error' : undefined}
+                    onChange={(event) => {
+                      clearFieldError('frase');
+                      setForm({ ...form, frase: event.target.value });
+                    }}
+                    className={`${textareaClassName} ${fieldErrors.frase ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                    placeholder="Escreva a orientação de forma direta para o professor."
+                  />
+                  {fieldErrors.frase ? <p id="professor-manual-frase-error" className="mt-1 text-sm text-destructive">{fieldErrors.frase}</p> : null}
+                </div>
+              </section>
 
-              <label className="mt-4 block space-y-1">
-                <span className="text-sm font-medium text-gray-700">Frase</span>
-                <textarea
-                  value={form.frase || ''}
-                  onChange={(e) => setForm({ ...form, frase: e.target.value })}
-                  className="min-h-[110px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                  placeholder="Ex: Vestimenta: Estar sempre uniformizado durante atendimento..."
-                />
-              </label>
-
-              <label className="mt-4 block space-y-1">
-                <span className="text-sm font-medium text-gray-700">Serviço contratado</span>
-                <input
+              <section aria-labelledby="aplicacao-heading" className="space-y-4 border-t border-border pt-6">
+                <div>
+                  <h2 id="aplicacao-heading" className="text-base font-semibold text-gray-900">Onde se aplica</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Defina em quais situações esta orientação deve estar disponível.</p>
+                </div>
+                <Input
+                  label="Serviço contratado"
                   value={form.servicoContratado || ''}
-                  onChange={(e) => setForm({ ...form, servicoContratado: e.target.value })}
-                  className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
+                  onChange={(event) => setForm({ ...form, servicoContratado: event.target.value })}
                   placeholder="Ex: Todos ou Personal|Consultoria"
                 />
-                <span className="block text-xs text-muted-foreground">
-                  Use este campo quando a aplicação do item depender do serviço contratado.
-                </span>
-              </label>
-            </div>
+                <p className="-mt-2 text-xs text-muted-foreground">Contrato atual: {contractTypeLabel}.</p>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label htmlFor="professor-manual-context" className="mb-2 block text-sm font-medium text-foreground">Contexto</label>
+                    <select
+                      id="professor-manual-context"
+                      value={form.context}
+                      onChange={(event) => setForm({ ...form, context: event.target.value as ProfessorManualContext })}
+                      className={selectClassName}
+                    >
+                      {contextOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="professor-manual-format" className="mb-2 block text-sm font-medium text-foreground">Formato</label>
+                    <select
+                      id="professor-manual-format"
+                      value={form.format}
+                      onChange={(event) => setForm({ ...form, format: event.target.value as ProfessorManualFormat })}
+                      className={selectClassName}
+                    >
+                      {formatOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </section>
 
-            <div className="rounded-xl border border-gray-200 bg-white p-4">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900">Aplicação no sistema</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Configure como a frase do manual será transformada em apoio contextual dentro do app.
-                </p>
-              </div>
-
-              <label className="mt-4 block space-y-1">
-                <span className="text-sm font-medium text-gray-700">Título no sistema</span>
-                <input
+              <section aria-labelledby="appearance-heading" className="space-y-4 border-t border-border pt-6">
+                <div>
+                  <h2 id="appearance-heading" className="text-base font-semibold text-gray-900">Como aparece no sistema</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Defina o título e o texto de apoio exibidos durante o uso do sistema.</p>
+                </div>
+                <Input
+                  id="professor-manual-title"
+                  label="Título no sistema"
+                  required
                   value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
+                  error={fieldErrors.title}
+                  onChange={(event) => {
+                    clearFieldError('title');
+                    setForm({ ...form, title: event.target.value });
+                  }}
                   placeholder="Ex: Objetivo do período primeiro"
                 />
-              </label>
+                <div>
+                  <label htmlFor="professor-manual-content" className="mb-2 block text-sm font-medium text-foreground">
+                    Texto de apoio <span className="ml-1 text-destructive">*</span>
+                  </label>
+                  <textarea
+                    id="professor-manual-content"
+                    value={form.content}
+                    aria-invalid={fieldErrors.content ? true : undefined}
+                    aria-describedby={fieldErrors.content ? 'professor-manual-content-error' : undefined}
+                    onChange={(event) => {
+                      clearFieldError('content');
+                      setForm({ ...form, content: event.target.value });
+                    }}
+                    className={`${textareaClassName} ${fieldErrors.content ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                    placeholder="Frase curta e orientativa para o momento da ação."
+                  />
+                  {fieldErrors.content ? <p id="professor-manual-content-error" className="mt-1 text-sm text-destructive">{fieldErrors.content}</p> : null}
+                </div>
+              </section>
 
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <label className="space-y-1">
-                  <span className="text-sm font-medium text-gray-700">Contexto</span>
-                  <select
-                    value={form.context}
-                    onChange={(e) => setForm({ ...form, context: e.target.value as ProfessorManualContext })}
-                    className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
-                  >
-                    {contextOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="space-y-1">
-                  <span className="text-sm font-medium text-gray-700">Formato</span>
-                  <select
-                    value={form.format}
-                    onChange={(e) => setForm({ ...form, format: e.target.value as ProfessorManualFormat })}
-                    className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
-                  >
-                    {formatOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              <label className="mt-4 block space-y-1">
-                <span className="text-sm font-medium text-gray-700">Texto de apoio no sistema</span>
-                <textarea
-                  value={form.content}
-                  onChange={(e) => setForm({ ...form, content: e.target.value })}
-                  className="min-h-[110px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                  placeholder="Frase curta e orientativa para o momento da ação."
-                />
-              </label>
-
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <label className="space-y-1">
-                  <span className="text-sm font-medium text-gray-700">Ponto do produto</span>
-                  <input
+              <section aria-labelledby="identification-heading" className="space-y-4 border-t border-border pt-6">
+                <div>
+                  <h2 id="identification-heading" className="text-base font-semibold text-gray-900">Identificação no sistema</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Estes identificadores são obrigatórios para manter o vínculo atual com o produto.</p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Input
+                    id="professor-manual-code"
+                    label="Código"
+                    required
+                    value={form.code}
+                    error={fieldErrors.code}
+                    onChange={(event) => {
+                      clearFieldError('code');
+                      setForm({ ...form, code: event.target.value.toUpperCase() });
+                    }}
+                    placeholder="Ex: VESTIMENTA_PADRAO"
+                  />
+                  <Input
+                    id="professor-manual-product-area"
+                    label="Ponto do produto"
+                    required
                     value={form.productArea}
-                    onChange={(e) => setForm({ ...form, productArea: e.target.value })}
-                    className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
+                    error={fieldErrors.productArea}
+                    onChange={(event) => {
+                      clearFieldError('productArea');
+                      setForm({ ...form, productArea: event.target.value });
+                    }}
                     placeholder="Ex: workout_builder_liberacao"
                   />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-sm font-medium text-gray-700">Momento da orientação</span>
+                </div>
+              </section>
+
+              <section aria-labelledby="advanced-heading" className="border-t border-border pt-6">
+                <h2 id="advanced-heading" className="sr-only">Configurações avançadas</h2>
+                <Accordion type="single" collapsible>
+                  <AccordionItem value="advanced" className="rounded-xl border border-border px-4">
+                    <AccordionTrigger className="py-4 text-base font-semibold no-underline hover:no-underline">
+                      Configurações avançadas
+                    </AccordionTrigger>
+                    <AccordionContent className="space-y-4 pb-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <Input
+                          type="number"
+                          min={0}
+                          label="Ordem"
+                          value={form.order ?? 0}
+                          onChange={(event) => setForm({ ...form, order: Number(event.target.value) || 0 })}
+                        />
+                        <Input
+                          label="Momento da orientação"
+                          value={form.productMoment || ''}
+                          onChange={(event) => setForm({ ...form, productMoment: event.target.value })}
+                          placeholder="Ex: antes de liberar a semana"
+                        />
+                        <Input
+                          label="Label do link"
+                          value={form.linkLabel || ''}
+                          onChange={(event) => setForm({ ...form, linkLabel: event.target.value })}
+                          placeholder="Ex: Abrir cadastro do manual"
+                        />
+                        <Input
+                          label="Link"
+                          value={form.linkHref || ''}
+                          onChange={(event) => setForm({ ...form, linkHref: event.target.value })}
+                          placeholder="/settings/professor-manual?context=avaliacao_fisica"
+                        />
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </section>
+
+              <section aria-labelledby="status-heading" className="space-y-4 border-t border-border pt-6">
+                <h2 id="status-heading" className="text-base font-semibold text-gray-900">Status e ações</h2>
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
                   <input
-                    value={form.productMoment || ''}
-                    onChange={(e) => setForm({ ...form, productMoment: e.target.value })}
-                    className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
-                    placeholder="Ex: antes de liberar a semana"
+                    type="checkbox"
+                    checked={form.isActive ?? true}
+                    onChange={(event) => setForm({ ...form, isActive: event.target.checked })}
+                    className="h-4 w-4 rounded border-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   />
+                  Item ativo
                 </label>
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <Button type="button" variant="outline" onClick={leaveEditor} disabled={saving}>
+                    {mode === 'edit' ? 'Cancelar edição' : 'Cancelar'}
+                  </Button>
+                  <Button type="submit" isLoading={saving}>
+                    {mode === 'edit' ? 'Salvar alterações' : 'Salvar item'}
+                  </Button>
+                </div>
+              </section>
+            </form>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-4 sm:p-6">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_2fr]">
+              <div>
+                <label htmlFor="professor-manual-filter-context" className="mb-1 block text-xs font-medium text-muted-foreground">Contexto</label>
+                <select
+                  id="professor-manual-filter-context"
+                  value={filters.context}
+                  onChange={(event) => setFilters({ ...filters, context: event.target.value })}
+                  className={selectClassName}
+                >
+                  <option value="all">Todos os contextos</option>
+                  {contextOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
               </div>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-sm font-medium text-gray-700">Label do link</span>
-                <input
-                  value={form.linkLabel || ''}
-                  onChange={(e) => setForm({ ...form, linkLabel: e.target.value })}
-                  className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
-                  placeholder="Ex: Abrir cadastro do manual"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-sm font-medium text-gray-700">Link</span>
-                <input
-                  value={form.linkHref || ''}
-                  onChange={(e) => setForm({ ...form, linkHref: e.target.value })}
-                  className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
-                  placeholder="/settings/professor-manual?context=avaliacao_fisica"
-                />
-              </label>
-            </div>
-
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={form.isActive ?? true}
-                onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-                className="h-4 w-4"
+              <div>
+                <label htmlFor="professor-manual-filter-format" className="mb-1 block text-xs font-medium text-muted-foreground">Formato</label>
+                <select
+                  id="professor-manual-filter-format"
+                  value={filters.format}
+                  onChange={(event) => setFilters({ ...filters, format: event.target.value })}
+                  className={selectClassName}
+                >
+                  <option value="all">Todos os formatos</option>
+                  {formatOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="professor-manual-filter-status" className="mb-1 block text-xs font-medium text-muted-foreground">Status</label>
+                <select
+                  id="professor-manual-filter-status"
+                  value={filters.status}
+                  onChange={(event) => setFilters({ ...filters, status: event.target.value })}
+                  className={selectClassName}
+                >
+                  <option value="active">Ativos</option>
+                  <option value="inactive">Inativos</option>
+                  <option value="all">Todos</option>
+                </select>
+              </div>
+              <Input
+                label="Buscar"
+                value={filters.search}
+                onChange={(event) => setFilters({ ...filters, search: event.target.value })}
+                placeholder="Buscar por setor, item, frase, título, serviço ou ponto do produto"
               />
-              Item ativo
-            </label>
-
-            <div className="flex flex-wrap gap-2">
-              <Button type="submit" isLoading={saving}>
-                {editingId ? 'Salvar alterações' : 'Cadastrar item'}
-              </Button>
-              {editingId ? (
-                <Button type="button" variant="outline" onClick={resetForm}>
-                  Cancelar edição
-                </Button>
-              ) : null}
             </div>
-          </form>
-        </section>
 
-        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={filters.context}
-              onChange={(e) => setFilters({ ...filters, context: e.target.value })}
-              className="h-10 rounded-lg border border-gray-300 px-3 text-sm"
-            >
-              <option value="all">Todos os contextos</option>
-              {contextOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={filters.format}
-              onChange={(e) => setFilters({ ...filters, format: e.target.value })}
-              className="h-10 rounded-lg border border-gray-300 px-3 text-sm"
-            >
-              <option value="all">Todos os formatos</option>
-              {formatOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="h-10 rounded-lg border border-gray-300 px-3 text-sm"
-            >
-              <option value="active">Ativos</option>
-              <option value="inactive">Inativos</option>
-              <option value="all">Todos</option>
-            </select>
-            <input
-              value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              className="h-10 min-w-[260px] flex-1 rounded-lg border border-gray-300 px-3 text-sm"
-              placeholder="Buscar por setor, item, frase, título, serviço ou ponto do produto"
-            />
-          </div>
+            {loading ? (
+              <div className="py-12 text-center text-sm text-muted-foreground">Carregando itens...</div>
+            ) : items.length === 0 ? (
+              <div className="py-12 text-center">
+                <h2 className="text-lg font-semibold text-gray-900">Nenhum item cadastrado</h2>
+                <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">Crie a primeira orientação para começar a organizar o Manual do Professor.</p>
+                <Button type="button" className="mt-4" onClick={handleNew}>Novo item</Button>
+              </div>
+            ) : filteredItems.length === 0 ? (
+              <div className="py-12 text-center">
+                <h2 className="text-lg font-semibold text-gray-900">Nenhum resultado com estes filtros</h2>
+                <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">Revise a busca ou limpe os filtros para voltar a ver os itens cadastrados.</p>
+                <Button type="button" variant="outline" className="mt-4" onClick={clearFilters}>Limpar filtros</Button>
+              </div>
+            ) : (
+              <>
+                <div className="mt-6 hidden overflow-hidden rounded-xl border border-border md:block">
+                  <table className="w-full table-fixed text-sm">
+                    <thead className="bg-muted/40">
+                      <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+                        <th className="w-[18%] px-4 py-3">Setor</th>
+                        <th className="w-[24%] px-4 py-3">Item</th>
+                        <th className="w-[28%] px-4 py-3">Contexto / formato</th>
+                        <th className="w-[8%] px-4 py-3 text-center">Ordem</th>
+                        <th className="w-[10%] px-4 py-3 text-center">Status</th>
+                        <th className="w-[12%] px-4 py-3 text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredItems.map((item) => (
+                        <tr key={item.id} className="border-b border-border last:border-b-0 align-top">
+                          <td className="px-4 py-4 text-gray-700">
+                            <p className="break-words font-medium text-gray-900">{item.setor || '-'}</p>
+                            {item.servicoContratado ? <p className="mt-1 truncate text-xs text-muted-foreground" title={item.servicoContratado}>{item.servicoContratado}</p> : null}
+                          </td>
+                          <td className="px-4 py-4 text-gray-700">
+                            <p className="line-clamp-2 break-words" title={item.item || undefined}>{item.item || '-'}</p>
+                          </td>
+                          <td className="px-4 py-4 text-gray-700">
+                            <p className="font-medium text-gray-900">{professorManualContextLabels[item.context]}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">{professorManualFormatLabels[item.format]}</p>
+                          </td>
+                          <td className="px-4 py-4 text-center text-gray-700">{item.order}</td>
+                          <td className="px-4 py-4 text-center">{renderStatus(item)}</td>
+                          <td className="px-4 py-4 text-right">
+                            <div className="flex flex-col items-end gap-2 lg:flex-row lg:justify-end">
+                              <Button type="button" variant="outline" size="sm" onClick={() => handleEdit(item)}>Editar</Button>
+                              <Button type="button" variant="destructive" size="sm" onClick={() => void handleDelete(item)} disabled={saving}>Excluir</Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-xs uppercase text-gray-500">
-                  <th className="px-3 py-2">Setor</th>
-                  <th className="px-3 py-2">Item</th>
-                  <th className="px-3 py-2">Frase</th>
-                  <th className="px-3 py-2">Aplicação</th>
-                  <th className="px-3 py-2 text-center">Ordem</th>
-                  <th className="px-3 py-2 text-center">Status</th>
-                  <th className="px-3 py-2 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={7} className="px-3 py-8 text-center text-gray-400">
-                      Carregando...
-                    </td>
-                  </tr>
-                ) : filteredItems.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-3 py-8 text-center text-gray-400">
-                      Nenhum item encontrado.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredItems.map((item) => (
-                    <tr key={item.id} className="border-b align-top">
-                      <td className="px-3 py-3 text-gray-700">
-                        <div>{item.setor || '-'}</div>
-                        {item.servicoContratado ? (
-                          <div className="mt-1 text-xs text-muted-foreground">{item.servicoContratado}</div>
-                        ) : null}
-                      </td>
-                      <td className="px-3 py-3 text-gray-700">{item.item || '-'}</td>
-                      <td className="px-3 py-3">
-                        <div className="max-w-[420px] text-sm text-gray-700">{item.frase || '-'}</div>
-                      </td>
-                      <td className="px-3 py-3 text-gray-700">
-                        <div className="font-semibold text-gray-900">{item.title}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">{item.content}</div>
-                        <div className="mt-2 text-xs text-muted-foreground">
-                          {contextOptions.find((option) => option.value === item.context)?.label || item.context}
-                          {' | '}
-                          {formatOptions.find((option) => option.value === item.format)?.label || item.format}
+                <div className="mt-6 grid gap-3 md:hidden">
+                  {filteredItems.map((item) => (
+                    <article key={item.id} className="rounded-xl border border-border p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.setor || '-'}</p>
+                          <h2 className="mt-1 break-words text-base font-semibold text-gray-900">{item.item || item.title}</h2>
                         </div>
-                        <div className="mt-1 text-xs text-muted-foreground">{item.productArea}</div>
-                        {item.productMoment ? (
-                          <div className="mt-1 text-xs text-muted-foreground">{item.productMoment}</div>
-                        ) : null}
-                      </td>
-                      <td className="px-3 py-3 text-center text-gray-700">{item.order}</td>
-                      <td className="px-3 py-3 text-center">
-                        <span
-                          className={`rounded-full px-2 py-1 text-xs font-medium ${
-                            item.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                          }`}
-                        >
-                          {item.isActive ? 'Ativo' : 'Inativo'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button type="button" variant="outline" size="sm" onClick={() => handleEdit(item)}>
-                            Editar
-                          </Button>
-                          <Button type="button" variant="destructive" size="sm" onClick={() => handleDelete(item.id)}>
-                            Excluir
-                          </Button>
+                        {renderStatus(item)}
+                      </div>
+                      <dl className="mt-4 grid gap-3 text-sm">
+                        <div>
+                          <dt className="text-xs font-medium text-muted-foreground">Contexto</dt>
+                          <dd className="mt-1 text-gray-800">{professorManualContextLabels[item.context]}</dd>
                         </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
+                        <div>
+                          <dt className="text-xs font-medium text-muted-foreground">Formato</dt>
+                          <dd className="mt-1 text-gray-800">{professorManualFormatLabels[item.format]}</dd>
+                        </div>
+                      </dl>
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={() => handleEdit(item)}>Editar</Button>
+                        <Button type="button" variant="destructive" size="sm" onClick={() => void handleDelete(item)} disabled={saving}>Excluir</Button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

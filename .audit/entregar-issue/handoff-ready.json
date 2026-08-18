@@ -1,79 +1,80 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-18T16:50:44.470772+00:00",
+  "created_at": "2026-08-18T21:51:33.727141+00:00",
   "identity": {
-    "head_sha": "a8389720f4e0391d5cd4418301c8c51a427f1ea2",
-    "material_head_sha": "a8389720f4e0391d5cd4418301c8c51a427f1ea2",
-    "base_sha": "43e060668568dd8df13a2ab6ca3c10f604186428",
-    "merge_preview_sha": "d4225a1b9671029387765e4ee6102e7bbe385f98",
-    "material_merge_preview_sha": "d4225a1b9671029387765e4ee6102e7bbe385f98"
+    "head_sha": "829e19bdbc94abc1febda351c16cbb3d38d971d7",
+    "material_head_sha": "829e19bdbc94abc1febda351c16cbb3d38d971d7",
+    "base_sha": "ab724cbc1f810f8691e8bce888cb43bc5b65d68c",
+    "merge_preview_sha": "b932c38e44e7d59fb7b26f8b282f249ffe08818e",
+    "material_merge_preview_sha": "b932c38e44e7d59fb7b26f8b282f249ffe08818e"
   },
   "subject": {
     "repository": "crgasparoto-br/training-system",
-    "work_item_kind": "pr",
-    "work_item_number": 359,
-    "pull_request": 359,
+    "work_item_kind": "issue",
+    "work_item_number": 363,
+    "pull_request": 364,
     "base_ref": "develop",
-    "head_ref": "fix/admin-adipometry-responsibility"
+    "head_ref": "feat/issue-363-professor-manual-ux"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
     "allowed_paths": [
       ".audit/entregar-issue/audit-escape-closure.json",
-      ".audit/entregar-issue/documentation-impact.json",
-      ".audit/entregar-issue/evidence/pr359-documentation-semantic-drift.json",
+      ".audit/entregar-issue/evidence/pr364-delivery-readiness.json",
       ".audit/entregar-issue/handoff-ready.json",
       ".audit/entregar-issue/inherited-controls.json",
       ".audit/entregar-issue/learning-closure.json",
       ".audit/entregar-issue/requirement-attack-matrix.json",
       ".audit/entregar-issue/requirement-closure.json",
       ".audit/entregar-issue/risk-saturation.json",
-      ".audit/entregar-issue/specification-snapshot.json"
+      ".audit/entregar-issue/specification-snapshot.json",
+      ".audit/entregar-issue/specification-sources/SRC-ISSUE-363.txt"
     ]
   },
   "contract_version": "2026-08-18.1",
   "producer": {
     "skill": "entregar-issue",
-    "skill_sha256": "126fbbbd227834fe0a986fbc247192ae216c6f27d9c085343cb0d58a5694fd0b"
+    "skill_sha256": "253d6d4cff485d40f8d40400544446ab72c57b55529c9473c71e0f1b114731bf"
   },
   "validators": {
     "validate_specification_coverage.py": "a9e0510ae5dae3efd1d1bd84d5a8cfd6e6edce801db717e92126fdf4666e9b20",
-    "validate_handoff_readiness.py": "506655274158f60919daf95494d3b6b734731290167de00e6e2e96499b2b50d3",
-    "validate_requirement_attack_matrix.py": "213bff4a0fb722aed69ad022d3ac656dcb52d21e49311a77c3e939b22ac1b2cd",
+    "validate_handoff_readiness.py": "e6bce1339a592eb99668bd6ec140f467e2b802b12ba3ecbb0a3a1ae6904ec46b",
+    "validate_requirement_attack_matrix.py": "9d47e13e89b787446aea026d49165f4d6db98b98a874b68917b3765e6a4c7dee",
     "validate_evidence_freshness.py": "8a20cb7547d03e49b30e6c5713d61c9350a553e46c81ebeef6111137e165aaf8",
-    "validate_risk_saturation.py": "78d27bfb7cc14c9d72652e78ffbcc170747f65a8cb9b029a27e36118acb6dc61",
-    "validate_inherited_controls.py": "614572eef445e4dff24dc0dd8753203603896521a499c4c1788f89bb668d8685",
-    "validate_learning_closure.py": "38e91c2fab18aeba5545aa67a9ab118b3961e742867b670ccca7de7e1ca4ba94"
+    "validate_risk_saturation.py": "b281fdc61fc4ddf9683efa93024ddd802cc4de33bb3fbe3feae6ad871b887f04",
+    "validate_inherited_controls.py": "265811897ce1ebc0f3a6b0ccb483a133ed9a7e20a12a2cb7798c54a966d36e33",
+    "validate_learning_closure.py": "488e0c5ce2c9d85c1427b1205ba87945acb9d37cca2763ac194fa2f040900872",
+    "validate_independent_rejection_closure.py": "d83e69bbee9981586a33c942bd472cd713659fa44bae7ca805f1f745d74ce73b"
   },
   "artifacts": {
     "specification_snapshot": {
       "name": "specification-snapshot.json",
-      "sha256": "3ca0d7d8d770cd0bf9269f5422bd6138010442b517d948994eadd8d90291529c"
+      "sha256": "d4c125e5901fa25e6e0c3a080c63d04a28640bcf6ca50ea09786c40506a1ce87"
     },
     "requirement_closure": {
       "name": "requirement-closure.json",
-      "sha256": "403a10690f6db1cc83b99f612119ca178176774914d42b5e1460a3ca4891a3cd"
+      "sha256": "d4d069777391e46d5d707a4e1d4b87a8dd279a37268e7896a9f051e255cd8fad"
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "10fb6e1759be39f7c4a56be8624d4beb308c9eed131dff26e02c26259e305a4a"
+      "sha256": "e697910b627f919081ec008f14c4d9fa7fed0f86cfb4db161e4b70a2788a7246"
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "6fdf30839547d6ff37657140be620abd70641ae15dd85a87c2e6d3933642b7ee"
+      "sha256": "37c08ad0daa4a652b0aa15b06b1c28453d3b4627646c3f288b78cc20c4f13672"
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "b05fa08007364df799c724a2bcd619cf183d94a6bac922c0465fc1f9e6a21501"
+      "sha256": "e72068769c475a3d372514212b05459fbbf9f8e786d9facef18f4d83570ad3dc"
     },
     "audit_escape_closure": {
       "name": "audit-escape-closure.json",
-      "sha256": "f6f3d5a810f623041f078ffa71ed537f261780c4099ca8d60d230ba7fe7dabee"
+      "sha256": "73096a83726b0627e758823653468b69bd551f294a6e3f014867243350a5a2c9"
     },
     "learning_closure": {
       "name": "learning-closure.json",
-      "sha256": "76803010c1af53345f23416b702916b163de74bbbc3ff537bbba2c96aa04cc2c"
+      "sha256": "06d52712b20504c3e520aaef45a234f7e71450a07f73d09469fa4579378ca02a"
     }
   },
   "previous_independent_rejection": true
