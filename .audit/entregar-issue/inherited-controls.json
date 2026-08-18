@@ -1,1 +1,7 @@
-{"schema_version":1,"head_sha":"816bca09124ab1f09d294263117e28e2eca55078","source_audits":[],"controls":[],"unresolved_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+  "controls": [],
+  "unresolved_controls": [],
+  "reason": "Issue #361 has no prior independent rejection; no inherited controls apply."
+}

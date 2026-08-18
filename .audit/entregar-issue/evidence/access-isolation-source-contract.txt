@@ -1,0 +1,10 @@
+Material candidate: cb202efcb94a7223d6fece470a8030da5c1e3a05
+
+Source contract readback for the newly reachable periodization router:
+- periodization.routes.ts applies router.use(authMiddleware) to all module routes.
+- GET /parameters additionally applies professorMiddleware.
+- GET /parameters derives contractId from req.user.contractId rather than request input.
+- GET /parameters passes contractId into periodizationService.getAllParameters/getParametersByCategory.
+- CRUD parameter routes likewise derive contractId from the authenticated user before service calls.
+
+Discriminant failures: removing global auth, removing the professor guard, accepting contractId from client input, or omitting contractId from service calls would violate the preserved access/isolation contract.

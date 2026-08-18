@@ -1,1 +1,286 @@
-{"schema_version":1,"head_sha":"816bca09124ab1f09d294263117e28e2eca55078","uncovered_requirements":[],"requirements":[{"requirement_id":"REQ-001","obligation_ids":["OBL-001"],"risk_families":["idempotency"],"plausible_wrong_implementation":"The button could issue more than one clone request or remain gated by a native confirmation dialog.","risk_surfaces":[{"risk_family":"idempotency","surface":"clone-action","reason":"The user action must produce one request and block re-entry while pending."}],"positive_control":{"status":"passed","head_sha":"816bca09124ab1f09d294263117e28e2eca55078","evidence":"evidence/pr360-ci-controls.json"},"negative_controls":[{"id":"CLONE-IDEMP-001","status":"passed","head_sha":"816bca09124ab1f09d294263117e28e2eca55078","evidence":"evidence/pr360-ci-controls.json","evidence_sha256":"5410e849d92eb0b3f0101e1e6604fb0592646cee14dba97a1956489aa162577b","risk_family":"idempotency","surface":"clone-action","dimension":"duplicate-click-while-pending","control_type":"procedure","failure_mode":"A second interaction while the request is pending could produce a duplicate clone POST.","plausible_wrong_implementation":"Only disabling visual styling without a handler guard could still allow programmatic or rapid duplicate invocation.","procedure":"Inspect the exact-head handler and button state and correlate them with the passing clone regression test and workflow.","expected":"One clone POST per accepted action with re-entry blocked while cloning.","observed":"The handler guards on cloning, the button is disabled during cloning, and the exact-head Test step passed.","sibling_cases":[{"id":"CLONE-IDEMP-SIB-001","surface":"clone-action","dimension":"rapid-second-click","status":"passed"},{"id":"CLONE-IDEMP-SIB-002","surface":"clone-action","dimension":"reentry-before-request-settles","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"816bca09124ab1f09d294263117e28e2eca55078","evidence":"evidence/pr360-ci-controls.json"}]},{"requirement_id":"REQ-002","obligation_ids":["OBL-002"],"risk_families":["public-boundary"],"plausible_wrong_implementation":"A successful API response could be consumed without surfacing the created and skipped totals near the clone action.","risk_surfaces":[{"risk_family":"public-boundary","surface":"clone-success-feedback","reason":"The API success payload crosses into user-visible feedback in the clone card."}],"positive_control":{"status":"passed","head_sha":"816bca09124ab1f09d294263117e28e2eca55078","evidence":"evidence/pr360-ci-controls.json"},"negative_controls":[{"id":"CLONE-SUCCESS-001","status":"passed","head_sha":"816bca09124ab1f09d294263117e28e2eca55078","evidence":"evidence/pr360-ci-controls.json","evidence_sha256":"5410e849d92eb0b3f0101e1e6604fb0592646cee14dba97a1956489aa162577b","risk_family":"public-boundary","surface":"clone-success-feedback","dimension":"success-feedback-locality","control_type":"procedure","failure_mode":"A successful request could finish without useful feedback in the clone card.","plausible_wrong_implementation":"The implementation could update state elsewhere or omit one category while still returning a successful request.","procedure":"Verify the exact-head rendering path and the regression assertion for all created and skipped category totals.","expected":"All three category totals are rendered in the clone card after success.","observed":"The cloneResult rendering is local to the clone card and the exact-head success test passed.","sibling_cases":[{"id":"CLONE-SUCCESS-SIB-001","surface":"clone-success-feedback","dimension":"all-category-counts-visible","status":"passed"},{"id":"CLONE-SUCCESS-SIB-002","surface":"clone-success-feedback","dimension":"feedback-remains-in-clone-card","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"816bca09124ab1f09d294263117e28e2eca55078","evidence":"evidence/pr360-ci-controls.json"}]},{"requirement_id":"REQ-003","obligation_ids":["OBL-003"],"risk_families":["public-boundary"],"plausible_wrong_implementation":"An API rejection or a response without data could leave the clone card silent or show the error only in an unrelated page section.","risk_surfaces":[{"risk_family":"public-boundary","surface":"clone-error-feedback","reason":"API failure and malformed success responses must become local user-visible clone errors."}],"positive_control":{"status":"passed","head_sha":"816bca09124ab1f09d294263117e28e2eca55078","evidence":"evidence/pr360-ci-controls.json"},"negative_controls":[{"id":"CLONE-ERROR-001","status":"passed","head_sha":"816bca09124ab1f09d294263117e28e2eca55078","evidence":"evidence/pr360-ci-controls.json","evidence_sha256":"5410e849d92eb0b3f0101e1e6604fb0592646cee14dba97a1956489aa162577b","risk_family":"public-boundary","surface":"clone-error-feedback","dimension":"api-error-and-missing-data","control_type":"procedure","failure_mode":"The action could fail silently for an API rejection or for a successful envelope without clone data.","plausible_wrong_implementation":"Only handling rejected promises would leave the missing-data response path silent or produce an undefined access failure.","procedure":"Verify explicit missing-data rejection and API error extraction in the exact-head handler plus the passing error regression test.","expected":"Both API rejection and missing data resolve to cloneError displayed in the clone card.","observed":"Contract.tsx explicitly throws on absent data and maps API errors to cloneError; the exact-head error test passed.","sibling_cases":[{"id":"CLONE-ERROR-SIB-001","surface":"clone-error-feedback","dimension":"api-rejection-message","status":"passed"},{"id":"CLONE-ERROR-SIB-002","surface":"clone-error-feedback","dimension":"missing-data-fallback","status":"passed"}]}],"regression_controls":[{"status":"passed","head_sha":"816bca09124ab1f09d294263117e28e2eca55078","evidence":"evidence/pr360-ci-controls.json"}]}]}
+{
+  "schema_version": 1,
+  "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+  "requirements": [
+    {
+      "requirement_id": "REQ-001",
+      "obligation_ids": [
+        "OBL-001",
+        "OBL-002",
+        "OBL-003"
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "route-bootstrap",
+          "reason": "The Express bootstrap must mount the existing periodization router before the generic 404 fallback."
+        }
+      ],
+      "plausible_wrong_implementation": "Change only the frontend URL or import the router without mounting it before the generic 404 fallback.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+        "evidence": "evidence/route-mount-source-contract.txt"
+      },
+      "negative_controls": [
+        {
+          "id": "CTRL-STR-ROUTE",
+          "risk_family": "structural-contract",
+          "surface": "route-bootstrap",
+          "dimension": "mount-order",
+          "failure_mode": "The settings request still falls through to the global 404 handler.",
+          "plausible_wrong_implementation": "The router is imported but not mounted, or is mounted after the fallback.",
+          "control_type": "procedure",
+          "procedure": "Read back main.ts and verify the exact periodization mount exists before the generic 404 fallback and aligns with frontend/backend paths.",
+          "expected": "The periodization mount precedes the fallback and the settings path resolves through GET /parameters.",
+          "observed": "The candidate contains the mount before fallback and aligned frontend/backend parameter paths.",
+          "evidence_path": "evidence/route-mount-source-contract.txt",
+          "evidence_sha256": "564ecde187b93ff8fe4898e72836f4139909e8cd80989986813d0f743e1fc602",
+          "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "SIB-STR-MANIFEST",
+              "surface": "route-bootstrap",
+              "dimension": "api-manifest",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+          "evidence": "evidence/regression-test-source-contract.txt"
+        }
+      ]
+    },
+    {
+      "requirement_id": "REQ-002",
+      "obligation_ids": [
+        "OBL-004"
+      ],
+      "risk_families": [
+        "authorization",
+        "tenant-isolation"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "authorization",
+          "surface": "module-auth",
+          "reason": "Mounting the router must retain the module-wide authentication boundary."
+        },
+        {
+          "risk_family": "authorization",
+          "surface": "professor-guard",
+          "reason": "Parameter administration remains restricted to professor context on the route."
+        },
+        {
+          "risk_family": "tenant-isolation",
+          "surface": "request-contract",
+          "reason": "The tenant identifier must continue to come from the authenticated request context."
+        },
+        {
+          "risk_family": "tenant-isolation",
+          "surface": "service-contract",
+          "reason": "The authenticated contractId must continue into service calls that read or mutate parameters."
+        }
+      ],
+      "plausible_wrong_implementation": "Mount the router correctly but bypass one of its existing authentication or contract-scoping controls while making parameters reachable.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+        "evidence": "evidence/access-isolation-source-contract.txt"
+      },
+      "negative_controls": [
+        {
+          "id": "CTRL-AUTH-MODULE",
+          "risk_family": "authorization",
+          "surface": "module-auth",
+          "dimension": "global-auth-middleware",
+          "failure_mode": "Unauthenticated requests can reach periodization parameter handlers.",
+          "plausible_wrong_implementation": "Mount an alternate unprotected router or remove router.use(authMiddleware).",
+          "control_type": "procedure",
+          "procedure": "Read back periodization.routes.ts and verify router.use(authMiddleware) remains the module-wide guard.",
+          "expected": "All periodization module routes remain behind authMiddleware.",
+          "observed": "router.use(authMiddleware) is present on the mounted periodization router.",
+          "evidence_path": "evidence/access-isolation-source-contract.txt",
+          "evidence_sha256": "eea96dce5e4fc11a7e3dc394cab32a742d108e20ef8382eb857f1fccedf646f3",
+          "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "SIB-AUTH-MODULE",
+              "surface": "module-auth",
+              "dimension": "unauthenticated-request",
+              "status": "passed"
+            },
+            {
+              "id": "SIB-AUTH-PROF",
+              "surface": "professor-guard",
+              "dimension": "non-professor-request",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "CTRL-AUTH-PROF",
+          "risk_family": "authorization",
+          "surface": "professor-guard",
+          "dimension": "professor-middleware",
+          "failure_mode": "An authenticated non-professor context can administer training parameters.",
+          "plausible_wrong_implementation": "Keep global authentication but remove professorMiddleware from GET /parameters.",
+          "control_type": "procedure",
+          "procedure": "Read back the GET /parameters declaration and verify professorMiddleware remains attached.",
+          "expected": "The administrative parameters route retains professorMiddleware.",
+          "observed": "GET /parameters is declared with professorMiddleware.",
+          "evidence_path": "evidence/access-isolation-source-contract.txt",
+          "evidence_sha256": "eea96dce5e4fc11a7e3dc394cab32a742d108e20ef8382eb857f1fccedf646f3",
+          "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "SIB-AUTH-PROF-1",
+              "surface": "professor-guard",
+              "dimension": "read-parameters",
+              "status": "passed"
+            },
+            {
+              "id": "SIB-AUTH-MODULE-2",
+              "surface": "module-auth",
+              "dimension": "module-entry",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "CTRL-TENANT-REQUEST",
+          "risk_family": "tenant-isolation",
+          "surface": "request-contract",
+          "dimension": "server-owned-contract-id",
+          "failure_mode": "A client-selected contractId could escape the authenticated tenant boundary.",
+          "plausible_wrong_implementation": "Accept contractId from query/body instead of deriving it from req.user.contractId.",
+          "control_type": "procedure",
+          "procedure": "Read back GET /parameters and verify contractId is derived from req.user.contractId.",
+          "expected": "Tenant identity is server-owned from the authenticated request context.",
+          "observed": "GET /parameters derives contractId from req.user.contractId.",
+          "evidence_path": "evidence/access-isolation-source-contract.txt",
+          "evidence_sha256": "eea96dce5e4fc11a7e3dc394cab32a742d108e20ef8382eb857f1fccedf646f3",
+          "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "SIB-TENANT-REQUEST",
+              "surface": "request-contract",
+              "dimension": "client-contract-input",
+              "status": "passed"
+            },
+            {
+              "id": "SIB-TENANT-SERVICE",
+              "surface": "service-contract",
+              "dimension": "read-service-scope",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "id": "CTRL-TENANT-SERVICE",
+          "risk_family": "tenant-isolation",
+          "surface": "service-contract",
+          "dimension": "service-scope-propagation",
+          "failure_mode": "The route could read parameters without constraining the service by contractId.",
+          "plausible_wrong_implementation": "Derive contractId correctly but omit it when calling getAllParameters/getParametersByCategory.",
+          "control_type": "procedure",
+          "procedure": "Read back route service calls and verify contractId is passed into parameter read helpers.",
+          "expected": "Every parameter read path remains scoped by the authenticated contractId.",
+          "observed": "The route passes contractId to both parameter read service helpers.",
+          "evidence_path": "evidence/access-isolation-source-contract.txt",
+          "evidence_sha256": "eea96dce5e4fc11a7e3dc394cab32a742d108e20ef8382eb857f1fccedf646f3",
+          "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "SIB-TENANT-SERVICE-1",
+              "surface": "service-contract",
+              "dimension": "all-parameters-read",
+              "status": "passed"
+            },
+            {
+              "id": "SIB-TENANT-REQUEST-2",
+              "surface": "request-contract",
+              "dimension": "authenticated-context",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+          "evidence": "evidence/regression-test-source-contract.txt"
+        }
+      ]
+    },
+    {
+      "requirement_id": "REQ-003",
+      "obligation_ids": [
+        "OBL-005"
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "regression-test",
+          "reason": "A source-contract test must fail if the route mount or client/backend path alignment regresses."
+        }
+      ],
+      "plausible_wrong_implementation": "Fix the bootstrap once without a regression test, allowing a future refactor to silently remove the mount.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+        "evidence": "evidence/regression-test-source-contract.txt"
+      },
+      "negative_controls": [
+        {
+          "id": "CTRL-STR-TEST",
+          "risk_family": "structural-contract",
+          "surface": "regression-test",
+          "dimension": "removal-detection",
+          "failure_mode": "Future removal of the mount is not detected by a focused test.",
+          "plausible_wrong_implementation": "Ship only the main.ts change and omit a contract test for mount order and path alignment.",
+          "control_type": "procedure",
+          "procedure": "Inspect the added test and verify it asserts import, manifest, mount ordering, path alignment, and middleware presence.",
+          "expected": "The regression test contains discriminant assertions for the 404 root cause.",
+          "observed": "periodization-route-mount.contract.test.ts contains those assertions.",
+          "evidence_path": "evidence/regression-test-source-contract.txt",
+          "evidence_sha256": "aef4645b42c728e4fd481329d2a9c6c6475ef0b27b517af07b29f156222f56f5",
+          "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+          "status": "passed",
+          "sibling_cases": [
+            {
+              "id": "SIB-STR-TEST-PATH",
+              "surface": "regression-test",
+              "dimension": "frontend-backend-alignment",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "status": "passed",
+          "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
+          "evidence": "evidence/route-mount-source-contract.txt"
+        }
+      ]
+    }
+  ],
+  "uncovered_requirements": []
+}

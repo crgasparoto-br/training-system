@@ -1,1 +1,180 @@
-{"schema_version":3,"specification_snapshot":{"path":"/tmp/entregar-pr360/.audit/entregar-issue/specification-snapshot.json","sha256":"ce9254648718f1f3dee00ea55e05a0e5f10c0944e4bb6fd248083dcf52b40100"},"primary_issue_source_id":"SRC-PR-360","obligations":[{"id":"OBL-001","candidate_key":"e5050b91eb11e2fb4b8c6fbbaa772f602b05d273d4167a547861bc8b028d1433","source_id":"SRC-PR-360","source_sha256":"a07931190ad74516dc4833a4e89011bd1d025d18ee697b5ce651c4435d6c6b1b","source_line":3,"source_text":"Ao clicar em \"Clonar dados\", a tela deve disparar imediatamente exatamente um POST para `/contracts/clone-data` com `copyParameters`, `copyExercises` e `copyAssessmentTypes` iguais a `true`, sem depender de confirmação nativa, e deve impedir novo acionamento enquanto a requisição estiver em andamento.","flags":["observable","negative","temporal","aftermath"],"disposition":"covered","requirement_ids":["REQ-001"],"inventory_ids":[],"assertion_ids":[],"scope_decision":null,"rationale":"Implemented and verified on the material head by the PR-specific regression tests and the successful Validate PR workflow."},{"id":"OBL-002","candidate_key":"cbf943a0366c053fcebbe92a4c3996f63c29368d1ce1c48dde8e98e6ef5683f4","source_id":"SRC-PR-360","source_sha256":"a07931190ad74516dc4833a4e89011bd1d025d18ee697b5ce651c4435d6c6b1b","source_line":4,"source_text":"Quando a clonagem retornar dados válidos, a tela deve exibir no próprio card de clonagem os totais criados e ignorados de parâmetros, exercícios e avaliações.","flags":[],"disposition":"covered","requirement_ids":["REQ-002"],"inventory_ids":[],"assertion_ids":[],"scope_decision":null,"rationale":"Implemented and verified on the material head by the PR-specific regression tests and the successful Validate PR workflow."},{"id":"OBL-003","candidate_key":"ed014a422d029b826849ddd26739c50c17aba7f21461ddbf5962b6a8e0422d3f","source_id":"SRC-PR-360","source_sha256":"a07931190ad74516dc4833a4e89011bd1d025d18ee697b5ce651c4435d6c6b1b","source_line":5,"source_text":"Quando a API de clonagem falhar ou retornar resposta sem `data`, a tela deve exibir o erro no próprio card de clonagem e não deve falhar silenciosamente.","flags":["negative"],"disposition":"covered","requirement_ids":["REQ-003"],"inventory_ids":[],"assertion_ids":[],"scope_decision":null,"rationale":"Implemented and verified on the material head by the PR-specific regression tests and the successful Validate PR workflow."}],"source_coverage":[{"source_id":"SRC-PR-360","source_sha256":"a07931190ad74516dc4833a4e89011bd1d025d18ee697b5ce651c4435d6c6b1b","candidate_count":3,"obligation_ids":["OBL-001","OBL-002","OBL-003"],"unmapped_candidate_keys":[]}],"domain_inventories":[],"observable_assertions":[],"structural_invariant_closures":{"status":"not-applicable","applicability_reason":"No structural, canonical-path, precedence, dependency-independence, or forbidden-implementation obligation was detected.","entries":[],"unresolved_invariants":[]},"read_model_closures":{"status":"not-applicable","applicability_reason":"The change does not introduce or alter a read model contract.","entries":[],"unconsumed_outputs":[],"unmapped_required_fields":[]},"canonical_source_consistency":{"status":"not-applicable","applicability_reason":"The PR changes one existing UI action and does not introduce competing canonical sources.","entries":[],"unverified_surfaces":[],"missing_divergent_tests":[]},"documentation_consistency":{"status":"not-applicable","applicability_reason":"No durable product or architecture documentation contract changes in this UI bug fix.","old_contract_terms":[],"new_contract_terms":[],"occurrences":[],"unresolved_contradictions":[],"searched_outside_diff":true,"search_evidence":["PR diff limited to Contract.tsx and Contract.clone.test.tsx; repository documentation gates passed in Validate PR #7077."]},"scope_reduction_review":{"status":"passed","matches":[]},"pass_c":{"status":"passed","requirement_ids":["REQ-001","REQ-002","REQ-003"],"obligation_ids":["OBL-001","OBL-002","OBL-003"],"evidence":["apps/web/src/pages/Settings/Contract.tsx","apps/web/src/pages/Settings/Contract.clone.test.tsx","Validate PR #7077"],"rederived_without_pr_description":true,"reviewed_user_visible_semantics":true,"reviewed_producer_consumer_parity":true,"reviewed_all_specification_sources":true}}
+{
+  "schema_version": 3,
+  "specification_snapshot": {
+    "path": "specification-snapshot.json",
+    "sha256": "b3d393132c73907cd129bcd390b36b4d5353cd1e01e09560e7df360058cf67dc"
+  },
+  "primary_issue_source_id": "SRC-ISSUE-361",
+  "obligations": [
+    {
+      "id": "OBL-001",
+      "candidate_key": "7a0bb7df65dab2b81f7b1c8b758d81c8cbccb6020a92aa6a356bee403fda6935",
+      "source_id": "SRC-ISSUE-361",
+      "source_sha256": "263c12894942e7481a56c0f402c240d2729e87f0a43b660516e8e5cd98e7b8c1",
+      "source_line": 4,
+      "source_text": "Corrigir o erro `Request failed with status code 404` exibido ao acessar `http://localhost:5200/settings/parameters`.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-001"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the route bootstrap fix and its source-contract regression controls on the material candidate."
+    },
+    {
+      "id": "OBL-002",
+      "candidate_key": "e005b5c17721da7300271868be759520bd076c4afbfe026b43dda59f68798869",
+      "source_id": "SRC-ISSUE-361",
+      "source_sha256": "263c12894942e7481a56c0f402c240d2729e87f0a43b660516e8e5cd98e7b8c1",
+      "source_line": 10,
+      "source_text": "A tela `/settings/parameters` deve carregar sem erro HTTP 404.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-001"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the route bootstrap fix and its source-contract regression controls on the material candidate."
+    },
+    {
+      "id": "OBL-003",
+      "candidate_key": "59a23651da60151db752c8ad3cf3e84bda117b291f6b71a654dc121e0297f9c8",
+      "source_id": "SRC-ISSUE-361",
+      "source_sha256": "263c12894942e7481a56c0f402c240d2729e87f0a43b660516e8e5cd98e7b8c1",
+      "source_line": 11,
+      "source_text": "O frontend deve chamar uma rota existente e compatível com o backend.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-001"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the route bootstrap fix and its source-contract regression controls on the material candidate."
+    },
+    {
+      "id": "OBL-004",
+      "candidate_key": "56d50f7d1b0a31d93b6ab0ff395b7d1d042c480aa59fd7c8718bda609f62b803",
+      "source_id": "SRC-ISSUE-361",
+      "source_sha256": "263c12894942e7481a56c0f402c240d2729e87f0a43b660516e8e5cd98e7b8c1",
+      "source_line": 12,
+      "source_text": "A correção deve preservar o comportamento esperado de leitura/edição dos parâmetros.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-002"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the route bootstrap fix and its source-contract regression controls on the material candidate."
+    },
+    {
+      "id": "OBL-005",
+      "candidate_key": "0b88bf1ed42ef74d14f5a61bddeaf2a1e7782887d27ce3ae816df67549324416",
+      "source_id": "SRC-ISSUE-361",
+      "source_sha256": "263c12894942e7481a56c0f402c240d2729e87f0a43b660516e8e5cd98e7b8c1",
+      "source_line": 13,
+      "source_text": "Devem existir testes cobrindo o contrato corrigido quando aplicável.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-003"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the route bootstrap fix and its source-contract regression controls on the material candidate."
+    }
+  ],
+  "source_coverage": [
+    {
+      "source_id": "SRC-ISSUE-361",
+      "source_sha256": "263c12894942e7481a56c0f402c240d2729e87f0a43b660516e8e5cd98e7b8c1",
+      "candidate_count": 5,
+      "obligation_ids": [
+        "OBL-001",
+        "OBL-002",
+        "OBL-003",
+        "OBL-004",
+        "OBL-005"
+      ],
+      "unmapped_candidate_keys": []
+    }
+  ],
+  "domain_inventories": [],
+  "observable_assertions": [],
+  "structural_invariant_closures": {
+    "status": "not-applicable",
+    "applicability_reason": "No structural, canonical-path, precedence, dependency-independence, or forbidden-implementation obligation was detected.",
+    "entries": [],
+    "unresolved_invariants": []
+  },
+  "read_model_closures": {
+    "status": "not-applicable",
+    "applicability_reason": "No read-model shape or projection contract changes; only an existing router becomes reachable.",
+    "entries": [],
+    "unconsumed_outputs": [],
+    "unmapped_required_fields": []
+  },
+  "canonical_source_consistency": {
+    "status": "passed",
+    "applicability_reason": "Frontend service path, router path, and bootstrap mount were checked together on the material candidate.",
+    "entries": [
+      {
+        "id": "CSC-001",
+        "status": "passed",
+        "evidence": "evidence/route-mount-source-contract.txt"
+      }
+    ],
+    "unverified_surfaces": [],
+    "missing_divergent_tests": []
+  },
+  "documentation_consistency": {
+    "status": "not-applicable",
+    "applicability_reason": "No product or operational contract changed; the API manifest was updated in code with the newly mounted existing module.",
+    "old_contract_terms": [],
+    "new_contract_terms": [],
+    "occurrences": [],
+    "unresolved_contradictions": [],
+    "searched_outside_diff": true,
+    "search_evidence": [
+      "evidence/route-mount-source-contract.txt"
+    ]
+  },
+  "scope_reduction_review": {
+    "status": "passed",
+    "matches": []
+  },
+  "pass_c": {
+    "status": "passed",
+    "requirement_ids": [
+      "REQ-001",
+      "REQ-002",
+      "REQ-003"
+    ],
+    "obligation_ids": [
+      "OBL-001",
+      "OBL-002",
+      "OBL-003",
+      "OBL-004",
+      "OBL-005"
+    ],
+    "evidence": [
+      "evidence/route-mount-source-contract.txt",
+      "evidence/access-isolation-source-contract.txt",
+      "evidence/regression-test-source-contract.txt"
+    ],
+    "rederived_without_pr_description": true,
+    "reviewed_user_visible_semantics": true,
+    "reviewed_producer_consumer_parity": true,
+    "reviewed_all_specification_sources": true
+  }
+}

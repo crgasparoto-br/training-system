@@ -1,0 +1,17 @@
+# Issue #361 - Corrigir 404 em /settings/parameters
+
+## Objetivo
+Corrigir o erro `Request failed with status code 404` exibido ao acessar `http://localhost:5200/settings/parameters`.
+
+## Contexto
+A tela de parâmetros carrega, mas uma requisição disparada pelo frontend retorna HTTP 404.
+
+## Critérios de aceite
+- A tela `/settings/parameters` deve carregar sem erro HTTP 404.
+- O frontend deve chamar uma rota existente e compatível com o backend.
+- A correção deve preservar o comportamento esperado de leitura/edição dos parâmetros.
+- Devem existir testes cobrindo o contrato corrigido quando aplicável.
+
+## Validação
+- Executar os testes focados das camadas alteradas.
+- Executar os gates finais definidos pelo repositório antes da entrega.
