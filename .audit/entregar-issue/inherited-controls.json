@@ -1,7 +1,1 @@
-{
-  "schema_version": 1,
-  "head_sha": "cb202efcb94a7223d6fece470a8030da5c1e3a05",
-  "controls": [],
-  "unresolved_controls": [],
-  "reason": "Issue #361 has no prior independent rejection; no inherited controls apply."
-}
+{"schema_version":1,"head_sha":"35d262930b17fc1a8623d89b9abe456a1c5bea5f","source_audits":["AUD-STALE-HANDOFF","AUD-REMEDIATION-INCOMPLETE"],"controls":[{"id":"HANDOFF-HISTORY-001","origin_finding":"Independent rejection history was contradicted by the prior certificate flag and mandatory closures were absent.","status":"passed","head_sha":"35d262930b17fc1a8623d89b9abe456a1c5bea5f","evidence":"evidence/pr360-audit-remediation-controls.json"},{"id":"HANDOFF-TERMINAL-001","origin_finding":"A prior material write invalidated an older handoff; terminal parent and allowlist must be proven before re-audit.","status":"passed","head_sha":"35d262930b17fc1a8623d89b9abe456a1c5bea5f","evidence":"evidence/pr360-audit-remediation-controls.json"}],"unresolved_controls":[]}

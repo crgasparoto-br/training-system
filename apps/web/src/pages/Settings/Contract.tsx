@@ -54,6 +54,7 @@ export default function ContractSettings() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [cloning, setCloning] = useState(false);
   const [cloneResult, setCloneResult] = useState<string | null>(null);
+  const [cloneError, setCloneError] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [cepError, setCepError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -251,14 +252,11 @@ export default function ContractSettings() {
   };
 
   const handleCloneData = async () => {
-    if (!canEdit) return;
-    if (!confirm(contractCopy.cloneConfirm)) {
-      return;
-    }
+    if (!canEdit || cloning) return;
 
     setCloning(true);
     setCloneResult(null);
-    setErrorMessage(null);
+    setCloneError(null);
     try {
       const response = await api.post('/contracts/clone-data', {
         copyParameters: true,
@@ -267,11 +265,15 @@ export default function ContractSettings() {
       });
 
       const result = response.data?.data;
+      if (!result) {
+        throw new Error(contractCopy.cloneError);
+      }
+
       setCloneResult(
         `Parâmetros: +${result.parametersCreated} (ignorado ${result.parametersSkipped}) | Exercícios: +${result.exercisesCreated} (ignorado ${result.exercisesSkipped}) | Avaliações: +${result.assessmentTypesCreated} (ignorado ${result.assessmentTypesSkipped})`
       );
     } catch (err: any) {
-      setErrorMessage(err.response?.data?.error || contractCopy.cloneError);
+      setCloneError(err.response?.data?.error || err.message || contractCopy.cloneError);
     } finally {
       setCloning(false);
     }
@@ -534,9 +536,9 @@ export default function ContractSettings() {
         <Card>
           <CardHeader>
             <CardTitle>{contractCopy.cloneTitle}</CardTitle>
-          <CardDescription>
+            <CardDescription>
               {contractCopy.cloneDescription}
-          </CardDescription>
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {cloneResult && (
@@ -544,7 +546,18 @@ export default function ContractSettings() {
                 {cloneResult}
               </div>
             )}
-            <Button variant="outline" onClick={handleCloneData} isLoading={cloning}>
+            {cloneError && (
+              <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md border border-destructive/20">
+                {cloneError}
+              </div>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCloneData}
+              isLoading={cloning}
+              disabled={cloning}
+            >
               {contractCopy.cloneButton}
             </Button>
             <p className="text-xs text-muted-foreground">
