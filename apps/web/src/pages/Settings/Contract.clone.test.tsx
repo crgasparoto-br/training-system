@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { contractCopy } from '../../i18n/ptBR';
 import ContractSettings from './Contract';
 
 const { mockApiPost, mockGetMe, mockLoadUser, mockUser } = vi.hoisted(() => {
@@ -46,6 +47,15 @@ const { mockApiPost, mockGetMe, mockLoadUser, mockUser } = vi.hoisted(() => {
 });
 
 const contract = mockUser.professor.contract;
+const cloneData = {
+  parametersCreated: 2,
+  parametersSkipped: 1,
+  exercisesCreated: 3,
+  exercisesSkipped: 4,
+  assessmentTypesCreated: 5,
+  assessmentTypesSkipped: 6,
+};
+const cloneResponse = { data: { data: cloneData } };
 
 vi.mock('../../stores/useAuthStore', () => ({
   useAuthStore: () => ({
@@ -77,18 +87,7 @@ describe('ContractSettings clone data', () => {
     vi.clearAllMocks();
     mockGetMe.mockResolvedValue(contract);
     mockLoadUser.mockResolvedValue(undefined);
-    mockApiPost.mockResolvedValue({
-      data: {
-        data: {
-          parametersCreated: 2,
-          parametersSkipped: 1,
-          exercisesCreated: 3,
-          exercisesSkipped: 4,
-          assessmentTypesCreated: 5,
-          assessmentTypesSkipped: 6,
-        },
-      },
-    });
+    mockApiPost.mockResolvedValue(cloneResponse);
   });
 
   it('dispara a clonagem imediatamente ao clicar no botão e mostra o resultado no próprio card', async () => {
@@ -113,6 +112,35 @@ describe('ContractSettings clone data', () => {
     ).toBeInTheDocument();
   });
 
+  it('impede um segundo acionamento enquanto a clonagem ainda está pendente', async () => {
+    let resolveClone!: (value: typeof cloneResponse) => void;
+    mockApiPost.mockImplementationOnce(
+      () =>
+        new Promise<typeof cloneResponse>((resolve) => {
+          resolveClone = resolve;
+        })
+    );
+
+    const user = userEvent.setup();
+    render(<ContractSettings />);
+
+    const cloneButton = await screen.findByRole('button', { name: 'Clonar dados' });
+    await user.click(cloneButton);
+
+    await waitFor(() => {
+      expect(mockApiPost).toHaveBeenCalledTimes(1);
+      expect(cloneButton).toBeDisabled();
+    });
+
+    await user.click(cloneButton);
+    expect(mockApiPost).toHaveBeenCalledTimes(1);
+
+    resolveClone(cloneResponse);
+    await waitFor(() => {
+      expect(cloneButton).not.toBeDisabled();
+    });
+  });
+
   it('mostra a falha da clonagem junto ao botão em vez de exigir que o usuário procure o erro no topo da tela', async () => {
     mockApiPost.mockRejectedValueOnce({
       response: {
@@ -131,5 +159,22 @@ describe('ContractSettings clone data', () => {
     expect(
       await screen.findByText('Nenhum contrato de origem com dados clonáveis foi encontrado')
     ).toBeInTheDocument();
+  });
+
+  it('mostra erro no card quando a API resolve sem os dados da clonagem', async () => {
+    mockApiPost.mockResolvedValueOnce({ data: {} });
+
+    const user = userEvent.setup();
+    render(<ContractSettings />);
+
+    const cloneButton = await screen.findByRole('button', { name: 'Clonar dados' });
+    await user.click(cloneButton);
+
+    expect(await screen.findByText(contractCopy.cloneError)).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        'Parâmetros: +2 (ignorado 1) | Exercícios: +3 (ignorado 4) | Avaliações: +5 (ignorado 6)'
+      )
+    ).not.toBeInTheDocument();
   });
 });
