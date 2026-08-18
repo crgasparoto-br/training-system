@@ -41,4 +41,8 @@ bash "$ROOT_DIR/scripts/verify-adipometry-active-approval-snapshot.sh"
 bash "$ROOT_DIR/scripts/verify-adipometry-temporal-authority.sh"
 bash "$ROOT_DIR/scripts/verify-adipometry-contract-vector-approval.sh"
 bash "$ROOT_DIR/scripts/verify-adipometry-contract-parity-and-designation-eligibility.sh"
+bash "$ROOT_DIR/scripts/verify-adipometry-administrative-responsibility-lifecycle.sh"
+pnpm --filter @corrida/types build
+pnpm --filter @corrida/utils build
+pnpm --filter @corrida/api exec tsx scripts/verify-pr359-administrative-adpt-http.ts
 echo "adipometry audit remediation compatibility gate OK"

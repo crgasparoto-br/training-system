@@ -1,52 +1,80 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-18T09:30:17.116362+00:00",
+  "created_at": "2026-08-18T16:50:44.470772+00:00",
   "identity": {
-    "head_sha": "35d262930b17fc1a8623d89b9abe456a1c5bea5f",
-    "material_head_sha": "35d262930b17fc1a8623d89b9abe456a1c5bea5f",
-    "base_sha": "8e2a691ea843d6edbcf00a8da9349d9f1b6cbca8",
-    "merge_preview_sha": "8d1a02edd43af8d0e78a53fb9920fd2e18b13940",
-    "material_merge_preview_sha": "8d1a02edd43af8d0e78a53fb9920fd2e18b13940"
+    "head_sha": "a8389720f4e0391d5cd4418301c8c51a427f1ea2",
+    "material_head_sha": "a8389720f4e0391d5cd4418301c8c51a427f1ea2",
+    "base_sha": "43e060668568dd8df13a2ab6ca3c10f604186428",
+    "merge_preview_sha": "d4225a1b9671029387765e4ee6102e7bbe385f98",
+    "material_merge_preview_sha": "d4225a1b9671029387765e4ee6102e7bbe385f98"
+  },
+  "subject": {
+    "repository": "crgasparoto-br/training-system",
+    "work_item_kind": "pr",
+    "work_item_number": 359,
+    "pull_request": 359,
+    "base_ref": "develop",
+    "head_ref": "fix/admin-adipometry-responsibility"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
     "allowed_paths": [
       ".audit/entregar-issue/audit-escape-closure.json",
-      ".audit/entregar-issue/audit-escape-pattern-catalog.json",
-      ".audit/entregar-issue/evidence/pr360-audit-remediation-controls.json",
-      ".audit/entregar-issue/evidence/pr360-ci-controls.json",
+      ".audit/entregar-issue/documentation-impact.json",
+      ".audit/entregar-issue/evidence/pr359-documentation-semantic-drift.json",
       ".audit/entregar-issue/handoff-ready.json",
       ".audit/entregar-issue/inherited-controls.json",
       ".audit/entregar-issue/learning-closure.json",
       ".audit/entregar-issue/requirement-attack-matrix.json",
       ".audit/entregar-issue/requirement-closure.json",
       ".audit/entregar-issue/risk-saturation.json",
-      ".audit/entregar-issue/specification-snapshot.json",
-      ".audit/entregar-issue/specification-sources/SRC-PR-360.txt"
+      ".audit/entregar-issue/specification-snapshot.json"
     ]
   },
-  "contract_version": "2026-08-06.2",
+  "contract_version": "2026-08-18.1",
   "producer": {
     "skill": "entregar-issue",
-    "skill_sha256": "7d4a7c77276de858d098aaf0373a352238abe328bdb432c8cbf671250bef551a"
+    "skill_sha256": "126fbbbd227834fe0a986fbc247192ae216c6f27d9c085343cb0d58a5694fd0b"
   },
   "validators": {
     "validate_specification_coverage.py": "a9e0510ae5dae3efd1d1bd84d5a8cfd6e6edce801db717e92126fdf4666e9b20",
-    "validate_handoff_readiness.py": "dd5db6e1a88a16ed97e8a73535ce2e444e73638e4e7836f87b54949eeb978e83",
-    "validate_requirement_attack_matrix.py": "3b7779a140635135e6b9b87615f6a84f177784e486fab4f60308b1e77ec80a5b",
+    "validate_handoff_readiness.py": "506655274158f60919daf95494d3b6b734731290167de00e6e2e96499b2b50d3",
+    "validate_requirement_attack_matrix.py": "213bff4a0fb722aed69ad022d3ac656dcb52d21e49311a77c3e939b22ac1b2cd",
+    "validate_evidence_freshness.py": "8a20cb7547d03e49b30e6c5713d61c9350a553e46c81ebeef6111137e165aaf8",
     "validate_risk_saturation.py": "78d27bfb7cc14c9d72652e78ffbcc170747f65a8cb9b029a27e36118acb6dc61",
     "validate_inherited_controls.py": "614572eef445e4dff24dc0dd8753203603896521a499c4c1788f89bb668d8685",
     "validate_learning_closure.py": "38e91c2fab18aeba5545aa67a9ab118b3961e742867b670ccca7de7e1ca4ba94"
   },
   "artifacts": {
-    "specification_snapshot": {"name": "specification-snapshot.json", "sha256": "5c3fc5670583b43715d73e6e3bf5472d0a45318f4be0bab22bf85c230681678c"},
-    "requirement_closure": {"name": "requirement-closure.json", "sha256": "79bba53b92e3b07fc061d9e4ea12057938c427217e0a7c123109a2b4ccf6553d"},
-    "requirement_attack_matrix": {"name": "requirement-attack-matrix.json", "sha256": "87c48638e71b40d4df927f03d3c45ebc42fab0cf75e70d0ba917fff872540574"},
-    "risk_saturation": {"name": "risk-saturation.json", "sha256": "9382b2a842fd9929bbc08c7770a88783ff75f280071264d00421f15bcb2fa0e9"},
-    "inherited_controls": {"name": "inherited-controls.json", "sha256": "61ed427434c440f056a1e22889a011ab397855ac8527873d2c7e855655a1a7f2"},
-    "audit_escape_closure": {"name": "audit-escape-closure.json", "sha256": "68230080995e3bce7b8c475207d22f62a74810ad9ec45376bebef3341c92eee1"},
-    "learning_closure": {"name": "learning-closure.json", "sha256": "b044b0a2b6f5b3bfd66597858fc7ca74971896d9d5cb02ee29b174b63070e776"}
+    "specification_snapshot": {
+      "name": "specification-snapshot.json",
+      "sha256": "3ca0d7d8d770cd0bf9269f5422bd6138010442b517d948994eadd8d90291529c"
+    },
+    "requirement_closure": {
+      "name": "requirement-closure.json",
+      "sha256": "403a10690f6db1cc83b99f612119ca178176774914d42b5e1460a3ca4891a3cd"
+    },
+    "requirement_attack_matrix": {
+      "name": "requirement-attack-matrix.json",
+      "sha256": "10fb6e1759be39f7c4a56be8624d4beb308c9eed131dff26e02c26259e305a4a"
+    },
+    "risk_saturation": {
+      "name": "risk-saturation.json",
+      "sha256": "6fdf30839547d6ff37657140be620abd70641ae15dd85a87c2e6d3933642b7ee"
+    },
+    "inherited_controls": {
+      "name": "inherited-controls.json",
+      "sha256": "b05fa08007364df799c724a2bcd619cf183d94a6bac922c0465fc1f9e6a21501"
+    },
+    "audit_escape_closure": {
+      "name": "audit-escape-closure.json",
+      "sha256": "f6f3d5a810f623041f078ffa71ed537f261780c4099ca8d60d230ba7fe7dabee"
+    },
+    "learning_closure": {
+      "name": "learning-closure.json",
+      "sha256": "76803010c1af53345f23416b702916b163de74bbbc3ff537bbba2c96aa04cc2c"
+    }
   },
   "previous_independent_rejection": true
 }
