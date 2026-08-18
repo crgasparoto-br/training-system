@@ -145,7 +145,10 @@ async function screenshotEvidence(page) {
 async function routeLayout(page) {
   return page.evaluate(() => {
     const visible = (el) => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
-    const buttons = [...document.querySelectorAll('button')]
+    const title = [...document.querySelectorAll('h1')].find((el) => el.textContent?.trim() === 'Manual do Professor');
+    const root = title?.closest('header')?.parentElement;
+    if (!root) throw new Error('Professor Manual page root not found');
+    const buttons = [...root.querySelectorAll('button')]
       .filter(visible)
       .map((el) => {
         const rect = el.getBoundingClientRect();
@@ -156,8 +159,8 @@ async function routeLayout(page) {
       innerWidth,
       innerHeight,
       scrollWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
-      tableVisible: visible(document.querySelector('table')),
-      mobileCardCount: [...document.querySelectorAll('article')].filter(visible).length,
+      tableVisible: visible(root.querySelector('table')),
+      mobileCardCount: [...root.querySelectorAll('article')].filter(visible).length,
       buttons,
     };
   });
@@ -192,7 +195,9 @@ async function assertViewport(page, viewport) {
 
 async function exerciseEditor(page) {
   const focusedNew = await page.evaluate(() => {
-    const button = [...document.querySelectorAll('button')].find((el) => el.textContent?.trim() === 'Novo item');
+    const title = [...document.querySelectorAll('h1')].find((el) => el.textContent?.trim() === 'Manual do Professor');
+    const root = title?.closest('header')?.parentElement;
+    const button = root ? [...root.querySelectorAll('button')].find((el) => el.textContent?.trim() === 'Novo item') : undefined;
     button?.focus();
     return document.activeElement === button;
   });
@@ -202,6 +207,9 @@ async function exerciseEditor(page) {
 
   const editor = await page.evaluate(() => {
     const visible = (el) => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+    const title = [...document.querySelectorAll('h1')].find((el) => el.textContent?.trim() === 'Manual do Professor');
+    const root = title?.closest('header')?.parentElement;
+    if (!root) throw new Error('Professor Manual page root not found');
     const required = [
       'professor-manual-setor',
       'professor-manual-item',
@@ -211,13 +219,13 @@ async function exerciseEditor(page) {
       'professor-manual-code',
       'professor-manual-product-area',
     ];
-    const advanced = [...document.querySelectorAll('button')].find((el) => el.textContent?.includes('Configurações avançadas'));
+    const advanced = [...root.querySelectorAll('button')].find((el) => el.textContent?.includes('Configurações avançadas'));
     return {
       scrollWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
       innerWidth,
-      tableVisible: visible(document.querySelector('table')),
-      mobileCards: [...document.querySelectorAll('article')].filter(visible).length,
-      requiredVisible: required.filter((id) => visible(document.getElementById(id))),
+      tableVisible: visible(root.querySelector('table')),
+      mobileCards: [...root.querySelectorAll('article')].filter(visible).length,
+      requiredVisible: required.filter((id) => visible(root.querySelector(`#${id}`))),
       advancedExpanded: advanced?.getAttribute('aria-expanded'),
     };
   });
@@ -231,16 +239,20 @@ async function exerciseEditor(page) {
   await page.keyboard.press('Tab');
   expect(await page.evaluate(() => document.activeElement?.id)).toBe('professor-manual-item');
 
-  const advancedButton = await page.evaluateHandle(() =>
-    [...document.querySelectorAll('button')].find((el) => el.textContent?.includes('Configurações avançadas'))
-  );
+  const advancedButton = await page.evaluateHandle(() => {
+    const title = [...document.querySelectorAll('h1')].find((el) => el.textContent?.trim() === 'Manual do Professor');
+    const root = title?.closest('header')?.parentElement;
+    return root ? [...root.querySelectorAll('button')].find((el) => el.textContent?.includes('Configurações avançadas')) : undefined;
+  });
   await advancedButton.focus();
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() =>
-    [...document.querySelectorAll('button')].some(
+  await page.waitForFunction(() => {
+    const title = [...document.querySelectorAll('h1')].find((el) => el.textContent?.trim() === 'Manual do Professor');
+    const root = title?.closest('header')?.parentElement;
+    return !!root && [...root.querySelectorAll('button')].some(
       (el) => el.textContent?.includes('Configurações avançadas') && el.getAttribute('aria-expanded') === 'true'
-    )
-  );
+    );
+  });
   return {
     editor,
     keyboard: ['Novo item:Enter', 'Setor:Tab->Item', 'Configurações avançadas:Enter'],
