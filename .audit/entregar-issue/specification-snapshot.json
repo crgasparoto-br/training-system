@@ -2,14 +2,14 @@
   "schema_version": 1,
   "repository": "crgasparoto-br/training-system",
   "issue": 359,
-  "created_at": "2026-08-18T13:33:35.184098+00:00",
+  "created_at": "2026-08-18T15:03:16.452001+00:00",
   "primary_source_id": "SRC-PR-359",
   "sources": [
     {
       "id": "SRC-PR-359",
       "kind": "issue-body",
       "path": "specification-sources/SRC-PR-359.txt",
-      "locator": "/mnt/data/pr359-handoff/pr359-body.txt",
+      "locator": "/mnt/data/pr359-remediation-v2/pr359-body.txt",
       "sha256": "94e746bf79aa69353e77fc728e87d147f4c2ce3a50f036af6f8b3f69bb618c28",
       "textual": true,
       "extract_source_id": null,
