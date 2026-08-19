@@ -37,8 +37,8 @@ interface ExerciseDefaultRow {
 interface NormalizedExerciseDefault {
   name: string;
   category: string;
-  muscleGroup?: string;
-  notes?: string;
+  muscleGroup: string | undefined;
+  notes: string | undefined;
 }
 
 const normalizeExerciseName = (value: string) => value.trim().replace(/\s+/g, ' ');
