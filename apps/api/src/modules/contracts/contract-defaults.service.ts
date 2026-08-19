@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '@prisma/client';
 import {
   PRODUCT_ASSESSMENT_TYPES,
@@ -64,13 +63,11 @@ function determineExerciseCategory(name: string) {
 }
 
 function resolveExerciseDefaultsPath() {
-  const moduleRelativePath = fileURLToPath(
-    new URL('../../scripts/exercises-data.json', import.meta.url)
-  );
   const candidates = [
-    moduleRelativePath,
     path.resolve(process.cwd(), 'src/scripts/exercises-data.json'),
+    path.resolve(process.cwd(), 'dist/scripts/exercises-data.json'),
     path.resolve(process.cwd(), 'apps/api/src/scripts/exercises-data.json'),
+    path.resolve(process.cwd(), 'apps/api/dist/scripts/exercises-data.json'),
   ];
 
   const resolved = candidates.find((candidate) => fs.existsSync(candidate));
