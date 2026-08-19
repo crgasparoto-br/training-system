@@ -6,6 +6,7 @@ import { studentAccessScopeService } from '../alunos/student-access-scope.servic
 import legacyContractRoutes from './contract.routes.js';
 import collaboratorContractRoutes from './collaborator-contract.routes.js';
 import contractTemplateApplicabilityRoutes from './contract-template-applicability.routes.js';
+import contractDefaultsRoutes from './contract-defaults.routes.js';
 import { contractAuthoritativeGenerationService } from './contract-authoritative-generation.service.js';
 import { normalizeContractDateFields } from './contract-date-input.js';
 import { contractPreviewAccessMiddleware } from './contract-preview-access.middleware.js';
@@ -78,6 +79,7 @@ router.use((req: Request, _res: Response, next: NextFunction) => {
   return next();
 });
 router.use(contractTemplateApplicabilityRoutes);
+router.use(contractDefaultsRoutes);
 
 router.post(
   '/preview',
