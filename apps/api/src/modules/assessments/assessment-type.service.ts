@@ -1,4 +1,5 @@
 import { PrismaClient, type Prisma, type AssessmentScheduleType } from '@prisma/client';
+import { PRODUCT_ASSESSMENT_TYPES } from '../../common/product-defaults.js';
 
 const prisma = new PrismaClient();
 
@@ -25,50 +26,44 @@ export interface UpdateAssessmentTypeDTO {
   isActive?: boolean;
 }
 
-const DEFAULT_TYPES = [
-  {
-    name: 'Avaliação Intermediária',
-    code: 'intermediate',
-    scheduleType: 'fixed_interval' as AssessmentScheduleType,
-    intervalMonths: 2,
-  },
-  {
-    name: 'Avaliação Completa',
-    code: 'complete',
-    scheduleType: 'fixed_interval' as AssessmentScheduleType,
-    intervalMonths: 2,
-  },
-];
-
 export async function ensureDefaultAssessmentTypes(
   tx: Prisma.TransactionClient,
   contractId: string
 ) {
-  const existing = await tx.assessmentType.count({
+  const existing = await tx.assessmentType.findMany({
     where: { contractId },
+    select: { code: true },
   });
+  const existingCodes = new Set(existing.map((item) => item.code));
+  const missing = PRODUCT_ASSESSMENT_TYPES.filter((item) => !existingCodes.has(item.code));
 
-  if (existing > 0) {
-    return;
+  if (missing.length === 0) {
+    return {
+      installed: 0,
+      skipped: PRODUCT_ASSESSMENT_TYPES.length,
+    };
   }
 
-  await tx.assessmentType.createMany({
-    data: DEFAULT_TYPES.map((item) => ({
+  const created = await tx.assessmentType.createMany({
+    data: missing.map((item) => ({
       contractId,
       name: item.name,
       code: item.code,
       scheduleType: item.scheduleType,
       intervalMonths: item.intervalMonths,
-      isActive: true,
+      isActive: item.isActive,
     })),
     skipDuplicates: true,
   });
+
+  return {
+    installed: created.count,
+    skipped: PRODUCT_ASSESSMENT_TYPES.length - created.count,
+  };
 }
 
 export async function ensureDefaultAssessmentTypesForContract(contractId: string) {
-  await prisma.$transaction(async (tx) => {
-    await ensureDefaultAssessmentTypes(tx, contractId);
-  });
+  return prisma.$transaction(async (tx) => ensureDefaultAssessmentTypes(tx, contractId));
 }
 
 export const assessmentTypeService = {
