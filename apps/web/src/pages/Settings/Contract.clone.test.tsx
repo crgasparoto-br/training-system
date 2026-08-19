@@ -1,7 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { contractCopy } from '../../i18n/ptBR';
 import ContractSettings from './Contract';
 
 const { mockApiPost, mockGetMe, mockLoadUser, mockUser } = vi.hoisted(() => {
@@ -47,15 +46,21 @@ const { mockApiPost, mockGetMe, mockLoadUser, mockUser } = vi.hoisted(() => {
 });
 
 const contract = mockUser.professor.contract;
-const cloneData = {
-  parametersCreated: 2,
-  parametersSkipped: 1,
-  exercisesCreated: 3,
-  exercisesSkipped: 4,
-  assessmentTypesCreated: 5,
-  assessmentTypesSkipped: 6,
+const installData = {
+  trainingParameters: {
+    installed: 2,
+    skipped: 1,
+  },
+  exercises: {
+    installed: 3,
+    skipped: 4,
+  },
+  assessmentTypes: {
+    installed: 5,
+    skipped: 6,
+  },
 };
-const cloneResponse = { data: { data: cloneData } };
+const installResponse = { data: { data: installData } };
 
 vi.mock('../../stores/useAuthStore', () => ({
   useAuthStore: () => ({
@@ -82,70 +87,70 @@ vi.mock('./components/AdipometryTechnicalResponsibilityCard', () => ({
   AdipometryTechnicalResponsibilityCard: () => null,
 }));
 
-describe('ContractSettings clone data', () => {
+describe('ContractSettings install product defaults', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetMe.mockResolvedValue(contract);
     mockLoadUser.mockResolvedValue(undefined);
-    mockApiPost.mockResolvedValue(cloneResponse);
+    mockApiPost.mockResolvedValue(installResponse);
   });
 
-  it('dispara a clonagem imediatamente ao clicar no botão e mostra o resultado no próprio card', async () => {
+  it('instala os padrões imediatamente ao clicar no botão e mostra o resultado no próprio card', async () => {
     const user = userEvent.setup();
     render(<ContractSettings />);
 
-    const cloneButton = await screen.findByRole('button', { name: 'Clonar dados' });
-    await user.click(cloneButton);
+    const installButton = await screen.findByRole('button', {
+      name: 'Instalar padrões do sistema',
+    });
+    await user.click(installButton);
 
     await waitFor(() => {
       expect(mockApiPost).toHaveBeenCalledTimes(1);
     });
-    expect(mockApiPost).toHaveBeenCalledWith('/contracts/clone-data', {
-      copyParameters: true,
-      copyExercises: true,
-      copyAssessmentTypes: true,
-    });
+    expect(mockApiPost).toHaveBeenCalledWith('/contracts/install-defaults');
     expect(
       await screen.findByText(
-        'Parâmetros: +2 (ignorado 1) | Exercícios: +3 (ignorado 4) | Avaliações: +5 (ignorado 6)'
+        'Parâmetros: +2 (já existentes 1) | Exercícios: +3 (já existentes 4) | Avaliações: +5 (já existentes 6)'
       )
     ).toBeInTheDocument();
   });
 
-  it('impede um segundo acionamento enquanto a clonagem ainda está pendente', async () => {
-    let resolveClone!: (value: typeof cloneResponse) => void;
+  it('impede um segundo acionamento enquanto a instalação ainda está pendente', async () => {
+    let resolveInstall!: (value: typeof installResponse) => void;
     mockApiPost.mockImplementationOnce(
       () =>
-        new Promise<typeof cloneResponse>((resolve) => {
-          resolveClone = resolve;
+        new Promise<typeof installResponse>((resolve) => {
+          resolveInstall = resolve;
         })
     );
 
     const user = userEvent.setup();
     render(<ContractSettings />);
 
-    const cloneButton = await screen.findByRole('button', { name: 'Clonar dados' });
-    await user.click(cloneButton);
+    const installButton = await screen.findByRole('button', {
+      name: 'Instalar padrões do sistema',
+    });
+    await user.click(installButton);
 
     await waitFor(() => {
       expect(mockApiPost).toHaveBeenCalledTimes(1);
-      expect(cloneButton).toBeDisabled();
+      expect(installButton).toBeDisabled();
     });
 
-    await user.click(cloneButton);
+    await user.click(installButton);
     expect(mockApiPost).toHaveBeenCalledTimes(1);
 
-    resolveClone(cloneResponse);
+    resolveInstall(installResponse);
     await waitFor(() => {
-      expect(cloneButton).not.toBeDisabled();
+      expect(installButton).not.toBeDisabled();
     });
   });
 
-  it('mostra a falha da clonagem junto ao botão em vez de exigir que o usuário procure o erro no topo da tela', async () => {
+  it('mostra a falha da instalação junto ao botão em vez de exigir que o usuário procure o erro no topo da tela', async () => {
     mockApiPost.mockRejectedValueOnce({
       response: {
         data: {
-          error: 'Nenhum contrato de origem com dados clonáveis foi encontrado',
+          error: 'Falha ao instalar padrões do sistema',
         },
       },
     });
@@ -153,27 +158,29 @@ describe('ContractSettings clone data', () => {
     const user = userEvent.setup();
     render(<ContractSettings />);
 
-    const cloneButton = await screen.findByRole('button', { name: 'Clonar dados' });
-    await user.click(cloneButton);
+    const installButton = await screen.findByRole('button', {
+      name: 'Instalar padrões do sistema',
+    });
+    await user.click(installButton);
 
-    expect(
-      await screen.findByText('Nenhum contrato de origem com dados clonáveis foi encontrado')
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Falha ao instalar padrões do sistema')).toBeInTheDocument();
   });
 
-  it('mostra erro no card quando a API resolve sem os dados da clonagem', async () => {
+  it('mostra erro no card quando a API resolve sem os dados da instalação', async () => {
     mockApiPost.mockResolvedValueOnce({ data: {} });
 
     const user = userEvent.setup();
     render(<ContractSettings />);
 
-    const cloneButton = await screen.findByRole('button', { name: 'Clonar dados' });
-    await user.click(cloneButton);
+    const installButton = await screen.findByRole('button', {
+      name: 'Instalar padrões do sistema',
+    });
+    await user.click(installButton);
 
-    expect(await screen.findByText(contractCopy.cloneError)).toBeInTheDocument();
+    expect(await screen.findByText('Erro ao instalar padrões do sistema')).toBeInTheDocument();
     expect(
       screen.queryByText(
-        'Parâmetros: +2 (ignorado 1) | Exercícios: +3 (ignorado 4) | Avaliações: +5 (ignorado 6)'
+        'Parâmetros: +2 (já existentes 1) | Exercícios: +3 (já existentes 4) | Avaliações: +5 (já existentes 6)'
       )
     ).not.toBeInTheDocument();
   });
