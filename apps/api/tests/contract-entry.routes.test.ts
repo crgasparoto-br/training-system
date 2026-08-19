@@ -44,6 +44,19 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
     _res: express.Response,
     next: express.NextFunction
   ) => next(),
+  masterMiddleware: (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction
+  ) => {
+    if ((req as any).user?.professorRole !== 'master') {
+      return res.status(403).json({
+        success: false,
+        error: 'Apenas professor master pode acessar este recurso',
+      });
+    }
+    return next();
+  },
 }));
 
 jest.mock('../src/modules/access-control/access-control.middleware', () => ({
