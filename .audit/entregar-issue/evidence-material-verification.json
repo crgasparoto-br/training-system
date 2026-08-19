@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/training-system",
+  "issue": 365,
+  "pull_request": 366,
+  "material_head_sha": "19de4d766872319d20c8bac458da0e8eb7fb32d2",
+  "base_sha": "be578b5ad3ccd8e26693ce170122b73b5473ee9e",
+  "ci": {
+    "workflow": "Validate PR",
+    "run_id": 32252457989,
+    "run_number": 7158,
+    "conclusion": "success",
+    "passed_gates": [
+      "migration validation",
+      "type check",
+      "lint",
+      "test",
+      "build",
+      "architecture checks",
+      "access catalog checks",
+      "documentation checks"
+    ]
+  },
+  "verified_surfaces": [
+    {
+      "path": "apps/api/src/modules/contracts/contract-defaults.service.test.ts",
+      "observations": [
+        "Installs all canonical defaults into an empty target contract while reads are scoped only to the target contractId.",
+        "Repairs only missing defaults while preserving customized target data.",
+        "Second execution creates zero new defaults and reports existing items as skipped."
+      ]
+    },
+    {
+      "path": "apps/api/src/common/product-defaults.ts",
+      "observations": [
+        "Defines the shared product training-parameter catalog used by seed/runtime with 26 entries.",
+        "Defines the two shared product assessment types intermediate and complete with two-month fixed intervals."
+      ]
+    },
+    {
+      "path": "apps/api/src/modules/contracts/contract-defaults.service.ts",
+      "observations": [
+        "Loads the canonical exercise JSON from repository/runtime asset paths and does not select another CompanyContract as a source.",
+        "Uses target-scoped findMany queries and createMany operations for parameters, assessments and exercises."
+      ]
+    },
+    {
+      "path": "apps/web/src/pages/Settings/Contract.clone.test.tsx",
+      "observations": [
+        "Exercises the Instalar padrões do sistema action, /contracts/install-defaults endpoint, in-card counters, pending-state protection and error feedback."
+      ]
+    },
+    {
+      "path": "docs/architecture/contract-defaults.md",
+      "observations": [
+        "Documents product-owned canonical defaults and separation from explicit cross-contract copy semantics."
+      ]
+    },
+    {
+      "path": ".env.example",
+      "observations": [
+        "Removes DEFAULT_CONTRACT_ID from the product-default installation contract and documents repository-versioned catalogs."
+      ]
+    }
+  ],
+  "ci_remediation_commits": [
+    "6731db2f4669d26821f56b5f03c1192c0fd71f32",
+    "07760159f23ff53144281bd5b073b7a0b1cd2531",
+    "04d3f6e64fedc5dda4dd59569ae24fd5fddd3bbc",
+    "19de4d766872319d20c8bac458da0e8eb7fb32d2"
+  ]
+}
