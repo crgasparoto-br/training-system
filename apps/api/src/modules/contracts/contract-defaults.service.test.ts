@@ -269,7 +269,15 @@ describe('installContractDefaults', () => {
       args.data.map((item) => item.code)
     );
     expect(created.sort()).toEqual([...expectedCreatedCodes].sort());
-    expect(fake.state.assessments.find((item) => item.code === 'custom-assessment')?.intervalMonths).toBe(7);
+
+    const customAssessment = fake.state.assessments.find(
+      (item) => item.code === 'custom-assessment'
+    );
+    if (existingCodes.includes('custom-assessment')) {
+      expect(customAssessment?.intervalMonths).toBe(7);
+    } else {
+      expect(customAssessment).toBeUndefined();
+    }
   });
 
   it('é idempotente e não cria novas linhas na segunda execução', async () => {
