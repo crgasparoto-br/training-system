@@ -53,9 +53,8 @@ export default function SettingsParameters() {
   const [form, setForm] = useState(defaultForm);
   const [filters, setFilters] = useState(defaultFilters);
 
-  const loadParameters = async () => {
+  const refreshParameters = async () => {
     setLoading(true);
-    setError(null);
     try {
       const data = await periodizationService.getAllParameters(true);
       const toBoolean = (value: unknown) =>
@@ -66,10 +65,28 @@ export default function SettingsParameters() {
           active: toBoolean(parameter.active),
         }))
       );
-    } catch (err: any) {
-      setError(err?.message || 'Erro ao carregar parâmetros.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadParameters = async () => {
+    setError(null);
+    try {
+      await refreshParameters();
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao carregar parâmetros.');
+    }
+  };
+
+  const refreshAfterMutation = async (failureMessage: string) => {
+    try {
+      await refreshParameters();
+      return true;
+    } catch {
+      setSuccessMessage(null);
+      setError(failureMessage);
+      return false;
     }
   };
 
@@ -210,7 +227,14 @@ export default function SettingsParameters() {
           order: form.order,
           active: form.active,
         });
-        await loadParameters();
+        const refreshed = await refreshAfterMutation(
+          'Parâmetro atualizado, mas não foi possível atualizar a lista. Use Atualizar para sincronizar os dados.'
+        );
+        if (!refreshed) {
+          resetEditor();
+          setMode('list');
+          return;
+        }
         finishEditor('Parâmetro atualizado com sucesso.');
       } else {
         await periodizationService.createParameter({
@@ -219,7 +243,14 @@ export default function SettingsParameters() {
           description: form.description,
           order: form.order,
         });
-        await loadParameters();
+        const refreshed = await refreshAfterMutation(
+          'Parâmetro criado, mas não foi possível atualizar a lista. Use Atualizar para sincronizar os dados.'
+        );
+        if (!refreshed) {
+          resetEditor();
+          setMode('list');
+          return;
+        }
         finishEditor('Parâmetro criado com sucesso.');
       }
     } catch (err: any) {
@@ -238,7 +269,10 @@ export default function SettingsParameters() {
     setSuccessMessage(null);
     try {
       await periodizationService.deleteParameter(parameter.id);
-      await loadParameters();
+      const refreshed = await refreshAfterMutation(
+        `Parâmetro ${parameter.code} foi excluído, mas não foi possível atualizar a lista. Use Atualizar para sincronizar os dados.`
+      );
+      if (!refreshed) return;
       setSuccessMessage(`Parâmetro ${parameter.code} excluído com sucesso.`);
     } catch (err: any) {
       setError(err?.message || 'Erro ao excluir parâmetro.');
@@ -272,7 +306,13 @@ export default function SettingsParameters() {
     setSuccessMessage(null);
     try {
       await periodizationService.renameParameterCategory({ fromCategory, toCategory });
-      await loadParameters();
+      const refreshed = await refreshAfterMutation(
+        'Categoria renomeada, mas não foi possível atualizar a lista. Use Atualizar para sincronizar os dados.'
+      );
+      if (!refreshed) {
+        setCategoryEdit({ from: '', to: '' });
+        return;
+      }
       setFilters((current) => ({
         ...current,
         category: current.category === fromCategory ? toCategory : current.category,

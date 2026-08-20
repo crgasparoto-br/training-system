@@ -23,6 +23,12 @@ const parameter: TrainingParameter = {
   active: true,
 };
 
+const mockRefreshFailureAfterInitialLoad = () => {
+  vi.mocked(periodizationService.getAllParameters)
+    .mockResolvedValueOnce([parameter])
+    .mockRejectedValueOnce(new Error('refresh indisponível'));
+};
+
 describe('SettingsParameters', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -182,6 +188,88 @@ describe('SettingsParameters', () => {
     render(<SettingsParameters />);
     expect(await screen.findByText('Nenhum parâmetro cadastrado')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Novo parâmetro' }).length).toBeGreaterThan(0);
+  });
+
+  it('não anuncia sucesso quando criação persiste mas o refresh falha, e permite recuperar com Atualizar', async () => {
+    const user = userEvent.setup();
+    mockRefreshFailureAfterInitialLoad();
+    render(<SettingsParameters />);
+
+    await screen.findByRole('table');
+    await user.click(screen.getByRole('button', { name: 'Novo parâmetro' }));
+    await user.selectOptions(screen.getByLabelText(/Categoria/), 'objetivo');
+    await user.type(screen.getByLabelText(/Código/), 'for');
+    await user.type(screen.getByLabelText(/Descrição/), 'Força');
+    await user.click(screen.getByRole('button', { name: 'Salvar parâmetro' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Parâmetro criado, mas não foi possível atualizar a lista.'
+    );
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(periodizationService.createParameter).toHaveBeenCalledTimes(1);
+    expect(periodizationService.getAllParameters).toHaveBeenCalledTimes(2);
+
+    await user.click(screen.getByRole('button', { name: 'Atualizar' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+    expect(periodizationService.getAllParameters).toHaveBeenCalledTimes(3);
+  });
+
+  it('não anuncia sucesso quando edição persiste mas o refresh falha', async () => {
+    const user = userEvent.setup();
+    mockRefreshFailureAfterInitialLoad();
+    render(<SettingsParameters />);
+
+    await screen.findByRole('table');
+    await user.click(screen.getByRole('button', { name: 'Editar' }));
+    await user.clear(screen.getByLabelText(/Descrição/));
+    await user.type(screen.getByLabelText(/Descrição/), 'Adaptação revisada');
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Parâmetro atualizado, mas não foi possível atualizar a lista.'
+    );
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(periodizationService.updateParameter).toHaveBeenCalledTimes(1);
+    expect(periodizationService.getAllParameters).toHaveBeenCalledTimes(2);
+  });
+
+  it('não anuncia sucesso quando exclusão persiste mas o refresh falha', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockRefreshFailureAfterInitialLoad();
+    render(<SettingsParameters />);
+
+    await screen.findByRole('table');
+    await user.click(screen.getByRole('button', { name: 'Excluir' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Parâmetro ADP foi excluído, mas não foi possível atualizar a lista.'
+    );
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(periodizationService.deleteParameter).toHaveBeenCalledTimes(1);
+    expect(periodizationService.getAllParameters).toHaveBeenCalledTimes(2);
+  });
+
+  it('não anuncia sucesso quando renomeação persiste mas o refresh falha', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockRefreshFailureAfterInitialLoad();
+    render(<SettingsParameters />);
+
+    await screen.findByRole('table');
+    await user.click(screen.getByRole('button', { name: 'Gerenciar categorias' }));
+    await user.selectOptions(screen.getByLabelText('Categoria atual'), 'objetivo');
+    await user.type(screen.getByLabelText('Nova categoria'), 'objetivo_principal');
+    await user.click(screen.getByRole('button', { name: 'Renomear categoria' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Categoria renomeada, mas não foi possível atualizar a lista.'
+    );
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(periodizationService.renameParameterCategory).toHaveBeenCalledTimes(1);
+    expect(periodizationService.getAllParameters).toHaveBeenCalledTimes(2);
   });
 
   it('preserva o formulário quando a API falha ao salvar', async () => {
