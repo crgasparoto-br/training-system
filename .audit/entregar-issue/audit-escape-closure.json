@@ -12,7 +12,8 @@
       "literal_case": {
         "procedure": "Classify the inherited package against the current target identity and require rejection of a foreign subject.",
         "status": "passed",
-        "evidence": "evidence/pr364-delivery-readiness.json"
+        "evidence": "evidence/pr364-delivery-readiness.json",
+        "observed": "The historical foreign-target escape remains preserved in the cumulative ledger and its reusable target-binding controls remain represented in the current attack matrix."
       },
       "sibling_cases": [
         {
@@ -71,7 +72,85 @@
       "required_risk_families": [
         "structural-contract"
       ],
-      "status": "passed"
+      "status": "passed",
+      "revalidated_head_sha": "634b95b2f0ee091185b0d2fe1ad267a72ade28c9"
+    },
+    {
+      "escape_id": "ESC-POST-MUTATION-REFRESH",
+      "escape_class": "post-mutation-refresh-error-swallowing",
+      "source_audit": {
+        "head_sha": "4904c4244de424967b93041d683fb6cbec431bce",
+        "rejection_id": "audit-rejection:1b519788-e313-411e-ae6a-4fde96ecbedf",
+        "finding_ids": [
+          "A-001"
+        ]
+      },
+      "plausible_wrong_implementation": "Await a refresh helper after a successful mutation while that helper catches the refresh error and returns normally, allowing stale state and contradictory success feedback.",
+      "literal_case": {
+        "procedure": "Resolve create persistence, reject the immediate list refresh, then require an accessible alert, no success status, list recovery state, and exactly one create call.",
+        "status": "passed",
+        "evidence": "evidence/issue367-remediation-evidence.json",
+        "observed": "Exact material separates refresh error propagation from ordinary loading, and every mutation path returns before success when the immediate refresh fails."
+      },
+      "sibling_cases": [
+        {
+          "id": "update-refresh-failure",
+          "surface": "post-mutation-refresh",
+          "dimension": "create-update-refresh-failure",
+          "status": "passed",
+          "evidence": "evidence/issue367-remediation-evidence.json"
+        },
+        {
+          "id": "delete-refresh-failure",
+          "surface": "post-mutation-refresh",
+          "dimension": "delete-archive-refresh-failure",
+          "status": "passed",
+          "evidence": "evidence/issue367-remediation-evidence.json"
+        },
+        {
+          "id": "rename-refresh-failure",
+          "surface": "post-mutation-refresh",
+          "dimension": "rename-reorder-refresh-failure",
+          "status": "passed",
+          "evidence": "evidence/issue367-remediation-evidence.json"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "post-mutation-refresh",
+          "dimension": "create-update-refresh-failure"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "post-mutation-refresh",
+          "dimension": "delete-archive-refresh-failure"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "post-mutation-refresh",
+          "dimension": "rename-reorder-refresh-failure"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "implementation workflow",
+        "evidence": "POST-MUTATION-REFRESH-001 now requires mutation-success plus refresh-failure controls and recovery without mutation replay."
+      },
+      "detection_change": {
+        "skill_or_gate": "controller adversarial evidence",
+        "control_id": "POST-MUTATION-REFRESH-001",
+        "evidence": "Awaiting a refresh helper is no longer accepted when helper error propagation is not proven."
+      },
+      "trigger_terms": [
+        "mutation followed by refresh",
+        "reload after persist",
+        "success feedback after revalidation"
+      ],
+      "required_risk_families": [
+        "temporal-consistency"
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "634b95b2f0ee091185b0d2fe1ad267a72ade28c9"
     }
   ]
 }

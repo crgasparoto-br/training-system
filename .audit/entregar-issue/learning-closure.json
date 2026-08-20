@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "classification": "systemic-escape",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:1b519788-e313-411e-ae6a-4fde96ecbedf",
+    "finding_ids": [
+      "A-001"
+    ]
+  },
+  "generalized_learning": {
+    "escape_class": "post-mutation-refresh-error-swallowing",
+    "generalized_failure_pattern": "A mutation can persist while a following refresh failure is swallowed, allowing stale UI and contradictory success feedback.",
+    "plausible_wrong_implementation": "Await a refresh helper but let that helper catch and normalize refresh failures as a successful return.",
+    "trigger_signals": [
+      "mutation followed by refresh",
+      "reload or revalidation after persist",
+      "success state emitted after a refresh helper"
+    ],
+    "risk_families": [
+      "temporal-consistency"
+    ],
+    "reusable_control": "POST-MUTATION-REFRESH-001",
+    "prevention_rule": "Separate refresh primitives that propagate failure from user-triggered loaders that render errors; after mutation, branch on refresh outcome before emitting success.",
+    "detection_rule": "Force a mutation to resolve and the immediate refresh to reject; require visible failure, no success state, and unchanged mutation call count during recovery.",
+    "transfer_cases": [
+      {
+        "surface": "create-update",
+        "scenario": "persist succeeds then refresh fails",
+        "status": "passed"
+      },
+      {
+        "surface": "delete-archive",
+        "scenario": "destructive mutation succeeds then refresh fails",
+        "status": "passed"
+      },
+      {
+        "surface": "rename-reorder",
+        "scenario": "metadata mutation succeeds then refresh fails",
+        "status": "passed"
+      }
+    ],
+    "promotion_status": "promoted"
+  },
+  "skill_changes": [
+    {
+      "role": "prevention",
+      "status": "passed",
+      "change": "Implementation workflow requires the post-mutation refresh failure control before freeze."
+    },
+    {
+      "role": "detection",
+      "status": "passed",
+      "change": "Controller adversarial evidence rejects refresh-await-only proof without error propagation and outcome discrimination."
+    }
+  ],
+  "validation": {
+    "focused_skill_tests": "passed",
+    "genericity": "passed"
+  }
+}

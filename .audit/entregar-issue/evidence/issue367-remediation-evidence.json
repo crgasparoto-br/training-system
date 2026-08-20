@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/training-system",
+  "issue": 367,
+  "pull_request": 368,
+  "base_ref": "develop",
+  "base_sha": "be578b5ad3ccd8e26693ce170122b73b5473ee9e",
+  "material_head_sha": "634b95b2f0ee091185b0d2fe1ad267a72ade28c9",
+  "mode": "connector-only-remediation",
+  "source_audit": {
+    "rejection_id": "audit-rejection:1b519788-e313-411e-ae6a-4fde96ecbedf",
+    "finding_ids": [
+      "A-001"
+    ],
+    "escape_class": "post-mutation-refresh-error-swallowing"
+  },
+  "changed_files": [
+    "apps/web/src/pages/Settings/Parameters.tsx",
+    "apps/web/src/pages/Settings/Parameters.test.tsx"
+  ],
+  "exact_material": {
+    "source_blob_sha": "4a65a52e1c45cce30cad63b847250ba4fcc69fbf",
+    "test_blob_sha": "954070145e16c9986f3cf7b4f74a8d2f73eac263",
+    "source_sha256": "56ff049562c0f0f5a4357e5fc65fdb9e60fe4f4bc0a5e6fe419a118783730e6d",
+    "test_sha256": "44afb4998422eca201fe52a29925de8adbd081a488a2c2a65eafcdb38aaf861d"
+  },
+  "remediation_observations": [
+    "A refresh primitive now propagates getAllParameters failures while the user-triggered loader remains responsible for rendering ordinary load errors.",
+    "The post-mutation refresh boundary converts refresh failure into an accessible alert and returns false before any success status is emitted.",
+    "Create and update reset the editor and return to list after persisted mutation plus refresh failure, preventing an accidental second mutation submission.",
+    "Delete and category rename do not emit success when the immediate refresh fails; the alert directs the user to the existing Atualizar recovery action.",
+    "Recovery through Atualizar performs only getAllParameters and does not repeat the mutation."
+  ],
+  "focused_test_contract": [
+    {
+      "case": "create persists then refresh rejects; alert/no status/list/recovery via Atualizar; mutation count remains one",
+      "status": "declared",
+      "file": "apps/web/src/pages/Settings/Parameters.test.tsx"
+    },
+    {
+      "case": "update persists then refresh rejects; alert/no status/list; mutation count remains one",
+      "status": "declared",
+      "file": "apps/web/src/pages/Settings/Parameters.test.tsx"
+    },
+    {
+      "case": "delete persists then refresh rejects; alert/no status; mutation count remains one",
+      "status": "declared",
+      "file": "apps/web/src/pages/Settings/Parameters.test.tsx"
+    },
+    {
+      "case": "rename persists then refresh rejects; alert/no status; mutation count remains one",
+      "status": "declared",
+      "file": "apps/web/src/pages/Settings/Parameters.test.tsx"
+    }
+  ],
+  "static_controls": {
+    "material_compare": "b3b8ec762128c9fc8a75592f3657ae53e7597c9a..634b95b2f0ee091185b0d2fe1ad267a72ade28c9 changes only the parameters page and its focused test file.",
+    "post_mutation_refresh_source_review": "passed",
+    "sibling_case_source_review": "passed"
+  },
+  "skill_hardening": {
+    "control_id": "POST-MUTATION-REFRESH-001",
+    "prevention": "implementation-workflow requires an explicit mutation-success then refresh-failure attack and mutation call-count assertion.",
+    "detection": "controller-adversarial-evidence rejects await-refresh-only proof when the refresh helper can swallow failures.",
+    "catalog": "audit-escape-pattern-catalog activates temporal-consistency:post-mutation-refresh for the generalized pattern.",
+    "focused_tests": "3 passed in post-mutation/shift-left contract selection; broader focused selection 4 passed.",
+    "genericity_validation": "READY; no repository/issue-specific coupling in the promoted rule."
+  },
+  "remote_snapshot": {
+    "workflow": "Validate PR",
+    "run_number": 7182,
+    "run_id": 32325877155,
+    "material_head_sha": "634b95b2f0ee091185b0d2fe1ad267a72ade28c9",
+    "status": "in_progress",
+    "conclusion": null,
+    "observation_policy": "single snapshot; no polling"
+  },
+  "limitations": [
+    "The connector-only runtime cannot execute the repository pnpm suite or authenticated browser viewport validation locally.",
+    "The remote integrated workflow was in progress at the one allowed material-head snapshot; this handoff does not infer a green result.",
+    "Focused component tests are declared in exact material source and are not mislabeled as locally executed."
+  ]
+}

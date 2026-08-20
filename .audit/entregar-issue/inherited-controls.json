@@ -1,29 +1,50 @@
 {
   "schema_version": 1,
-  "head_sha": "4904c4244de424967b93041d683fb6cbec431bce",
+  "head_sha": "634b95b2f0ee091185b0d2fe1ad267a72ade28c9",
   "source_audits": [
     {
       "rejection_id": "audit-rejection:7027bee7-766e-419e-9279-42b577b4dde4",
       "kind": "independent-rejection",
       "head_sha": "829e19bdbc94abc1febda351c16cbb3d38d971d7"
+    },
+    {
+      "rejection_id": "audit-rejection:1b519788-e313-411e-ae6a-4fde96ecbedf",
+      "kind": "independent-rejection",
+      "head_sha": "4904c4244de424967b93041d683fb6cbec431bce"
     }
   ],
   "controls": [
     {
       "id": "ISSUE367-HANDOFF-TRUTHFULNESS",
       "status": "passed",
-      "head_sha": "4904c4244de424967b93041d683fb6cbec431bce",
-      "subject_sha": "4904c4244de424967b93041d683fb6cbec431bce",
+      "head_sha": "634b95b2f0ee091185b0d2fe1ad267a72ade28c9",
+      "subject_sha": "634b95b2f0ee091185b0d2fe1ad267a72ade28c9",
       "control_type": "procedure",
-      "procedure": "Compare the connector-only execution record, PR validation text and exact-material remote snapshot before handoff.",
-      "expected": "Unavailable integrated or browser checks remain explicitly not-run and are never converted into green evidence.",
-      "observed": "PR #368 and exact-material controller evidence record pnpm validate and browser inspection as unavailable, with the material remote snapshot classified pending-no-run.",
-      "evidence": "evidence/issue367-controller-verification.json",
-      "evidence_sha256": "b92f0fd4dd30f374a6eb80fa6d543f2ca3328f8fc98241e598442f982ed7875c",
+      "procedure": "Compare connector-only capability, exact remediated evidence and the one allowed remote material-head workflow snapshot before handoff.",
+      "expected": "Unavailable local/browser checks and an unfinished remote workflow remain explicitly non-green and are not promoted to executed success.",
+      "observed": "Current exact-head evidence records local pnpm/browser validation unavailable and Validate PR run 7182 as in_progress at the single snapshot, without a green claim.",
+      "evidence": "evidence/issue367-remediation-evidence.json",
+      "evidence_sha256": "b1f371ab2256b0ae007d6fac30d4b3340b721c1cf71bf3419d4967d066ff2cb2",
       "attack_control_id": "NEG-07",
       "risk_family": "structural-contract",
       "surface": "runtime-validation-truthfulness",
       "dimension": "no-false-green-claim"
+    },
+    {
+      "id": "POST-MUTATION-REFRESH-001",
+      "status": "passed",
+      "head_sha": "634b95b2f0ee091185b0d2fe1ad267a72ade28c9",
+      "subject_sha": "634b95b2f0ee091185b0d2fe1ad267a72ade28c9",
+      "control_type": "procedure",
+      "procedure": "Force the persistence step to succeed conceptually while inspecting the immediate refresh rejection branch across create/update, delete and rename exact-material paths.",
+      "expected": "Refresh failure is visible, success is absent, stale state is explicit and recovery does not replay the mutation.",
+      "observed": "Exact material propagates refresh errors into refreshAfterMutation=false, returns before every success branch, and exact test source asserts one mutation call plus refresh-only recovery.",
+      "evidence": "evidence/issue367-remediation-evidence.json",
+      "evidence_sha256": "b1f371ab2256b0ae007d6fac30d4b3340b721c1cf71bf3419d4967d066ff2cb2",
+      "attack_control_id": "NEG-POST-REFRESH",
+      "risk_family": "temporal-consistency",
+      "surface": "post-mutation-refresh",
+      "dimension": "create-update-refresh-failure"
     }
   ],
   "retired_controls": [
@@ -31,13 +52,13 @@
       "id": "HANDOFF-TARGET-BINDING-001",
       "disposition": "superseded",
       "replacement_control_id": "ISSUE367-HANDOFF-TRUTHFULNESS",
-      "reason": "The inherited control belongs to a prior delivery target; the current delivery keeps its lineage explicitly while replacing its active proof with a control bound to Issue 367.",
-      "subject_sha": "4904c4244de424967b93041d683fb6cbec431bce",
-      "evidence": "evidence/issue367-controller-verification.json",
-      "evidence_sha256": "b92f0fd4dd30f374a6eb80fa6d543f2ca3328f8fc98241e598442f982ed7875c",
-      "procedure": "Classify the prior inherited control as foreign-target history and bind the active handoff proof to the current material candidate.",
-      "expected": "Historical audit lineage remains visible without treating the prior delivery evidence as proof for Issue 367.",
-      "observed": "The prior source audit remains recorded, the old control is explicitly retired, and the replacement executes against the current Issue 367 material SHA."
+      "reason": "The historical target-binding control remains explicitly retired; its escape dimensions stay in the attack matrix while current target truthfulness is proved by current material evidence.",
+      "subject_sha": "634b95b2f0ee091185b0d2fe1ad267a72ade28c9",
+      "evidence": "evidence/issue367-remediation-evidence.json",
+      "evidence_sha256": "b1f371ab2256b0ae007d6fac30d4b3340b721c1cf71bf3419d4967d066ff2cb2",
+      "procedure": "Preserve the prior control as retired lineage and require active current-target evidence rather than treating foreign readiness artifacts as proof.",
+      "expected": "Historical audit lineage remains visible without substituting for current-target evidence.",
+      "observed": "The prior source audit remains recorded, the retired control remains explicit, and active controls execute against the remediated material candidate."
     }
   ],
   "unresolved_controls": []
