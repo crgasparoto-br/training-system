@@ -1,17 +1,25 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "repository": "crgasparoto-br/training-system",
   "issue": 365,
   "pull_request": 366,
-  "material_head_sha": "19de4d766872319d20c8bac458da0e8eb7fb32d2",
+  "material_head_sha": "5f8face3facac6d2564c68240d78e81a4e2cd3a5",
   "base_sha": "be578b5ad3ccd8e26693ce170122b73b5473ee9e",
+  "captured_at": "2026-08-19T19:47:51Z",
   "ci": {
     "workflow": "Validate PR",
-    "run_id": 32252457989,
-    "run_number": 7158,
+    "run_id": 32291675343,
+    "run_number": 7164,
+    "job_id": 96193679373,
+    "status": "completed",
     "conclusion": "success",
+    "head_sha": "5f8face3facac6d2564c68240d78e81a4e2cd3a5",
+    "test_environment": {
+      "RUN_DATABASE_INTEGRATION_TESTS": "true"
+    },
+    "test_command": "pnpm test",
+    "test_command_scope": "pnpm -r run test",
     "passed_gates": [
-      "migration validation",
       "type check",
       "lint",
       "test",
@@ -21,52 +29,121 @@
       "documentation checks"
     ]
   },
-  "verified_surfaces": [
+  "exact_head_sources": [
     {
       "path": "apps/api/src/modules/contracts/contract-defaults.service.test.ts",
-      "observations": [
-        "Installs all canonical defaults into an empty target contract while reads are scoped only to the target contractId.",
-        "Repairs only missing defaults while preserving customized target data.",
-        "Second execution creates zero new defaults and reports existing items as skipped."
-      ]
+      "blob_sha": "7322c649062ae88e393a4b20e2fecada0433d200"
     },
     {
-      "path": "apps/api/src/common/product-defaults.ts",
-      "observations": [
-        "Defines the shared product training-parameter catalog used by seed/runtime with 26 entries.",
-        "Defines the two shared product assessment types intermediate and complete with two-month fixed intervals."
-      ]
+      "path": "apps/api/src/modules/contracts/contract-defaults.integration.test.ts",
+      "blob_sha": "7ce2874fea84f238e14d6dfd2670b3f3e6416a03"
     },
     {
-      "path": "apps/api/src/modules/contracts/contract-defaults.service.ts",
-      "observations": [
-        "Loads the canonical exercise JSON from repository/runtime asset paths and does not select another CompanyContract as a source.",
-        "Uses target-scoped findMany queries and createMany operations for parameters, assessments and exercises."
-      ]
+      "path": "apps/api/src/modules/contracts/contract-defaults.routes.test.ts",
+      "blob_sha": "24ee3eeaa876aabbf13183262ed81c9969778631"
     },
     {
       "path": "apps/web/src/pages/Settings/Contract.clone.test.tsx",
-      "observations": [
-        "Exercises the Instalar padrões do sistema action, /contracts/install-defaults endpoint, in-card counters, pending-state protection and error feedback."
-      ]
+      "blob_sha": "df723ed1c3a1a1080abe0a65bdb59bf44c82b7eb"
+    },
+    {
+      "path": "apps/api/src/modules/contracts/contract-defaults.service.ts",
+      "blob_sha": "a5766595c780bc4790f5eebd4fa06239a29e0c69"
     },
     {
       "path": "docs/architecture/contract-defaults.md",
-      "observations": [
-        "Documents product-owned canonical defaults and separation from explicit cross-contract copy semantics."
-      ]
+      "blob_sha": "899a48adfd01c0a2e38841b6136091a7e0514f76"
     },
     {
-      "path": ".env.example",
-      "observations": [
-        "Removes DEFAULT_CONTRACT_ID from the product-default installation contract and documents repository-versioned catalogs."
-      ]
+      "path": ".github/workflows/validate-pr.yml",
+      "blob_sha": "e9896087a394bc780359869710cde1da95427490"
+    },
+    {
+      "path": "package.json",
+      "blob_sha": "4f84708ffe3b6c9bc3c68632d40f0ae25426fc9b"
     }
   ],
-  "ci_remediation_commits": [
-    "6731db2f4669d26821f56b5f03c1192c0fd71f32",
-    "07760159f23ff53144281bd5b073b7a0b1cd2531",
-    "04d3f6e64fedc5dda4dd59569ae24fd5fddd3bbc",
-    "19de4d766872319d20c8bac458da0e8eb7fb32d2"
-  ]
+  "behavioral_observations": [
+    {
+      "id": "EMPTY-TARGET",
+      "procedure": "Execute installContractDefaults against an empty target-scoped database fixture and the real database integration fixture with DEFAULT_CONTRACT_ID pointing to a missing source.",
+      "expected": "All product defaults are installed using only the authenticated target contract.",
+      "observed": "Exact-head unit and database integration tests are declared in the executed monorepo test suite; the workflow enables RUN_DATABASE_INTEGRATION_TESTS=true and the Test gate passed."
+    },
+    {
+      "id": "SESSION-TARGET",
+      "procedure": "POST /contracts/install-defaults with attacker contractId and targetContractId values while the authenticated session is session-contract.",
+      "expected": "The body cannot override the target; installation receives session-contract only.",
+      "observed": "Exact-head route test asserts installContractDefaults(session-contract), rejects attacker-contract as target, and the Test gate passed."
+    },
+    {
+      "id": "DEFAULT-CONTRACT-INDEPENDENCE",
+      "procedure": "Run installation with DEFAULT_CONTRACT_ID absent, empty, invalid, and pointing to a foreign tenant.",
+      "expected": "Installation succeeds identically without using DEFAULT_CONTRACT_ID.",
+      "observed": "Exact-head parameterized service test covers all four values and the Test gate passed."
+    },
+    {
+      "id": "CROSS-TENANT-SENTINELS",
+      "procedure": "Seed foreign-only parameter, assessment and exercise sentinels under foreign-contract, then install defaults into target-contract.",
+      "expected": "No foreign sentinel appears in the target and every read remains scoped to target-contract.",
+      "observed": "Exact-head service test asserts all three sentinels remain absent from target and target-only reads; the Test gate passed."
+    },
+    {
+      "id": "PARTIAL-FILL",
+      "procedure": "Preload one canonical item plus customized target records and install defaults.",
+      "expected": "Only missing canonical items are created and customized target values remain unchanged.",
+      "observed": "Exact-head service test verifies missing-count deltas and preservation of custom parameter description, assessment, and exercise; the Test gate passed."
+    },
+    {
+      "id": "ASSESSMENT-MATRIX",
+      "procedure": "Exercise assessment initial states: custom-only, intermediate-only, complete-only, and both canonical types.",
+      "expected": "Only missing canonical codes are created; custom assessment exists only in the custom-only case and retains intervalMonths=7.",
+      "observed": "The current material commit corrected this exact parameterized assertion; CI on the corrected SHA passed the Test gate."
+    },
+    {
+      "id": "IDEMPOTENCY",
+      "procedure": "Run the installation twice on the same target fixture.",
+      "expected": "Second execution installs zero items and reports all canonical items as skipped.",
+      "observed": "Exact-head service test asserts installed=0 for all categories and skipped equals each canonical catalog length; the Test gate passed."
+    },
+    {
+      "id": "CANONICAL-SOURCES",
+      "procedure": "Compare runtime exercise loader with exercises-data.json and inspect seed/runtime/assessment imports of shared product constants.",
+      "expected": "Exercises derive from the canonical JSON; parameter and assessment maintenance/runtime paths consume the same shared definitions.",
+      "observed": "Exact-head source-contract test asserts JSON name parity, shared PRODUCT_TRAINING_PARAMETERS and PRODUCT_ASSESSMENT_TYPES imports, 26 training parameters, and assessment codes intermediate/complete; the Test gate passed."
+    },
+    {
+      "id": "LEGACY-COMPAT",
+      "procedure": "Exercise /contracts/clone-data without sourceContractId and with explicit sourceContractId.",
+      "expected": "No-source installs product defaults with legacy counters; explicit source invokes manual copy with session target.",
+      "observed": "Exact-head route tests assert both branches and legacy counters; the Test gate passed."
+    },
+    {
+      "id": "UI-FEEDBACK",
+      "procedure": "Click Instalar padrões do sistema, then exercise success, pending duplicate click, API error, and malformed-success response.",
+      "expected": "One install request is sent, pending double-submit is blocked, and success/error feedback remains in the action card.",
+      "observed": "Exact-head web tests assert endpoint, counters, disabled pending button, and in-card error states; the monorepo Test gate passed."
+    },
+    {
+      "id": "DOCUMENTATION",
+      "procedure": "Compare runtime contract with docs/architecture/contract-defaults.md and execute repository documentation gate.",
+      "expected": "Documentation states repository-owned defaults, authenticated target, explicit cross-contract copy, and no DEFAULT_CONTRACT_ID dependency.",
+      "observed": "Exact-head architecture document contains those claims and Documentation checks passed."
+    },
+    {
+      "id": "POST-WRITE-REFREEZE",
+      "procedure": "Compare the stale certificate material SHA with current PR head and current head parent/path, then classify recovery using classify_handoff_recovery.py with the auditor floor post-write-refreeze.",
+      "expected": "A material write after freeze invalidates the old handoff and forces post-write refreeze before a new result-only child.",
+      "observed": "Recovery classifier returned post-write-refreeze for stale material 19de4d... versus current material head 5f8face... whose material test path changed."
+    }
+  ],
+  "quantitative_assertions": {
+    "training_parameters": 26,
+    "assessment_codes": [
+      "intermediate",
+      "complete"
+    ],
+    "assessment_type_count": 2,
+    "source": "Exact-head service test assertions executed by successful CI Test gate."
+  }
 }

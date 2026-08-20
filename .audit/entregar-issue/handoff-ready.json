@@ -1,1 +1,93 @@
-{"schema_version":2,"status":"ready","created_at":"2026-08-19T12:55:28.589367+00:00","identity":{"head_sha":"19de4d766872319d20c8bac458da0e8eb7fb32d2","material_head_sha":"19de4d766872319d20c8bac458da0e8eb7fb32d2","base_sha":"be578b5ad3ccd8e26693ce170122b73b5473ee9e","merge_preview_sha":null,"material_merge_preview_sha":null},"subject":{"repository":"crgasparoto-br/training-system","work_item_kind":"issue","work_item_number":365,"pull_request":366,"base_ref":"develop","head_ref":"feat/365-install-product-defaults"},"certificate_commit_policy":{"mode":"result-only-child","allowed_paths":[".audit/entregar-issue/evidence-material-verification.json",".audit/entregar-issue/evidence-provenance.json",".audit/entregar-issue/handoff-ready.json",".audit/entregar-issue/inherited-controls.json",".audit/entregar-issue/requirement-attack-matrix.json",".audit/entregar-issue/requirement-closure.json",".audit/entregar-issue/risk-saturation.json",".audit/entregar-issue/specification-snapshot.json",".audit/entregar-issue/specification-sources/SRC-ISSUE-365.txt"]},"contract_version":"2026-08-18.1","producer":{"skill":"entregar-issue","skill_sha256":"fbc4a9a27f24ab544eb359f25a9127be4d287ef3df5db7f6aca5bc5cdd50cb26"},"validators":{"validate_specification_coverage.py":"ece443365cc37a7548676a194e9355e5d0a13cfdea11a861375a4493e7e9a943","validate_handoff_readiness.py":"9d9fca04309647441defbfcba8f081ce35ec7a58e186372303485913fb1468aa","validate_requirement_attack_matrix.py":"7041ec9c0d0c7de3f7e9c0480c7a952fda2f7a8e68d8efd5c4e895b5f12d40a4","validate_evidence_freshness.py":"8a20cb7547d03e49b30e6c5713d61c9350a553e46c81ebeef6111137e165aaf8","validate_risk_saturation.py":"fc6286588f136290beba1e15927803fab82e1e0f092771234048748ad2345300","validate_inherited_controls.py":"fc9e91372df5d37cb9dbc875611b0cbe0c6281cb1a70ef8b972fbbe030889ee9","validate_learning_closure.py":"488e0c5ce2c9d85c1427b1205ba87945acb9d37cca2763ac194fa2f040900872","validate_independent_rejection_closure.py":"d83e69bbee9981586a33c942bd472cd713659fa44bae7ca805f1f745d74ce73b"},"artifacts":{"specification_snapshot":{"name":"specification-snapshot.json","sha256":"5e5b921222ad93378f64929b927692df45aec4caaae3f3101ba3afc15a1b10c4"},"requirement_closure":{"name":"requirement-closure.json","sha256":"9ee575e82f8bfe45fed0c01d86ceb1fde928e0863ed13eddbb98a04b2d73a83c"},"requirement_attack_matrix":{"name":"requirement-attack-matrix.json","sha256":"8c5905f8dbce29ca8a45bcdfc410ccf008bf057865882d8836e45752ce6637c2"},"risk_saturation":{"name":"risk-saturation.json","sha256":"9c2f15b181093de09002a88e7059ced01950987653ca101d52449c452af5f4d6"},"inherited_controls":{"name":"inherited-controls.json","sha256":"39c517d3363fe10b96a44f087a9979bc090b4ab15e7890d5fb2556e0d5fe7c00"},"evidence_provenance":{"name":"evidence-provenance.json","sha256":"d882f0f48c4c7172d468f9edc3f4a77af841272ad116a7db1a8ed5983020362c"}},"previous_independent_rejection":false}
+{
+  "schema_version": 2,
+  "status": "ready",
+  "created_at": "2026-08-20T00:58:05+00:00",
+  "identity": {
+    "head_sha": "5f8face3facac6d2564c68240d78e81a4e2cd3a5",
+    "material_head_sha": "5f8face3facac6d2564c68240d78e81a4e2cd3a5",
+    "base_sha": "be578b5ad3ccd8e26693ce170122b73b5473ee9e",
+    "merge_preview_sha": "0151969f81cf0fc8a4775122564f6c93972961a4",
+    "material_merge_preview_sha": "0151969f81cf0fc8a4775122564f6c93972961a4"
+  },
+  "subject": {
+    "repository": "crgasparoto-br/training-system",
+    "work_item_kind": "issue",
+    "work_item_number": 365,
+    "pull_request": 366,
+    "base_ref": "develop",
+    "head_ref": "feat/365-install-product-defaults"
+  },
+  "certificate_commit_policy": {
+    "mode": "result-only-child",
+    "allowed_paths": [
+      ".audit/entregar-issue/audit-escape-closure.json",
+      ".audit/entregar-issue/evidence-lineage-verification.json",
+      ".audit/entregar-issue/evidence-material-verification.json",
+      ".audit/entregar-issue/evidence-provenance.json",
+      ".audit/entregar-issue/handoff-ready.json",
+      ".audit/entregar-issue/inherited-controls.json",
+      ".audit/entregar-issue/learning-closure.json",
+      ".audit/entregar-issue/requirement-attack-matrix.json",
+      ".audit/entregar-issue/requirement-closure.json",
+      ".audit/entregar-issue/risk-saturation.json",
+      ".audit/entregar-issue/specification-snapshot.json",
+      ".audit/entregar-issue/specification-sources/SRC-ISSUE-365.txt"
+    ]
+  },
+  "contract_version": "2026-08-18.1",
+  "producer": {
+    "skill": "entregar-issue",
+    "skill_sha256": "5ac5bd02455dd0e6fa6d5baa6151264e4f11a3d8112f2d722ec3176489e37cbd"
+  },
+  "validators": {
+    "validate_specification_coverage.py": "4eb93ff6a8f451d824adc4ad8faf9fd92a24f92bb42e93666a804f1e74f39aea",
+    "validate_handoff_readiness.py": "e05ab47b90c8cc1e9645f5357d989b05245c66f0f33679519610d70f529da01e",
+    "validate_requirement_attack_matrix.py": "cce39121a991fe540cd1cf787d5609bb4ffe291990bc0cd8d25f6fa72aa7cc62",
+    "validate_evidence_freshness.py": "8a20cb7547d03e49b30e6c5713d61c9350a553e46c81ebeef6111137e165aaf8",
+    "validate_risk_saturation.py": "fc6286588f136290beba1e15927803fab82e1e0f092771234048748ad2345300",
+    "validate_inherited_controls.py": "d76aff2b5745f6d8d34adf805d51dc112e960bcc7ac06028982d872f284a2976",
+    "validate_learning_closure.py": "488e0c5ce2c9d85c1427b1205ba87945acb9d37cca2763ac194fa2f040900872",
+    "validate_independent_rejection_closure.py": "d83e69bbee9981586a33c942bd472cd713659fa44bae7ca805f1f745d74ce73b",
+    "validate_audit_escape_lineage.py": "8805ae55456ee5e77f7d1a42a313c44890ec4f7bacc68b793c27cbb3af9c218e",
+    "validate_terminal_handoff.py": "5a832fb8550a9deaa233c58ca319e7634d82f297538ea3393e79439bc7b146bf"
+  },
+  "artifacts": {
+    "specification_snapshot": {
+      "name": "specification-snapshot.json",
+      "sha256": "a70ff233478774a713e65efe412dfd13ddf071ee68b2fc6c292d4eae97c5bff9"
+    },
+    "requirement_closure": {
+      "name": "requirement-closure.json",
+      "sha256": "33b806bd9db8c8dc41d714eb6ba4a4eedc6c942b1116f6a850e3af316656c35d"
+    },
+    "requirement_attack_matrix": {
+      "name": "requirement-attack-matrix.json",
+      "sha256": "9791a48654e2b7f8bb03ce0f57ecd2347531a953c1c97a7b25fe5b255721de4e"
+    },
+    "risk_saturation": {
+      "name": "risk-saturation.json",
+      "sha256": "212c36c94948a13fe9284aabd30969b3916e9adad25850f90c885d958b7973bb"
+    },
+    "inherited_controls": {
+      "name": "inherited-controls.json",
+      "sha256": "4f4d0867b3a13cc7658dd91aca267d0a717d6edc248a876329f5a3dbd8553f97"
+    },
+    "evidence_provenance": {
+      "name": "evidence-provenance.json",
+      "sha256": "f0c36bd60fc9edc5646d1ce05dfaa74a2e282443df839f93fe7ef3ab5786a2ba"
+    },
+    "audit_escape_closure": {
+      "name": "audit-escape-closure.json",
+      "sha256": "01fc8596dfcc3c011216b456b154113cfe4bd17ad6248da4566d720aaf3d1a47"
+    },
+    "learning_closure": {
+      "name": "learning-closure.json",
+      "sha256": "3bf48efff9c0d975661b436e1688779b6814fad2cbb93846694336b61c536321"
+    },
+    "lineage_evidence": {
+      "name": "evidence-lineage-verification.json",
+      "sha256": "6359bfd374503719ff96593bb6a4c99de069145d4d3d6d34abe0acd4f5824abe"
+    }
+  },
+  "previous_independent_rejection": true
+}

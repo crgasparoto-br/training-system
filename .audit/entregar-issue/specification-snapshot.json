@@ -2,14 +2,14 @@
   "schema_version": 1,
   "repository": "crgasparoto-br/training-system",
   "issue": 365,
-  "created_at": "2026-08-19T12:54:09.438685+00:00",
+  "created_at": "2026-08-19T19:53:18.802469+00:00",
   "primary_source_id": "SRC-ISSUE-365",
   "sources": [
     {
       "id": "SRC-ISSUE-365",
       "kind": "issue-body",
       "path": "specification-sources/SRC-ISSUE-365.txt",
-      "locator": "/tmp/entregar365compact/issue-365-normalized.md",
+      "locator": "/tmp/refreeze365/issue-365-normalized.md",
       "sha256": "48dfe6ddd87e610f0c7aad694a9d785d15df305ed78c2b723eb000838cbf20b1",
       "textual": true,
       "extract_source_id": null,

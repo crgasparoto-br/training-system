@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/training-system",
+  "issue": 365,
+  "pull_request": 366,
+  "material_head_sha": "5f8face3facac6d2564c68240d78e81a4e2cd3a5",
+  "rejected_handoff_head_sha": "9b9f38eda89823aeafda48f0437eab0b07e56153",
+  "source_rejection": {
+    "rejection_id": "audit-rejection:d363899c-b75c-4caf-878c-b355a7db56ec",
+    "finding_ids": [
+      "A-002"
+    ]
+  },
+  "checks": [
+    {
+      "id": "material-parent-retired-control-preservation",
+      "status": "passed",
+      "source_sha": "5f8face3facac6d2564c68240d78e81a4e2cd3a5",
+      "required_ids": [
+        "HANDOFF-TARGET-BINDING-001"
+      ],
+      "observed": "The retired target-binding control present on the material parent is preserved explicitly as superseded in the rebuilt handoff."
+    },
+    {
+      "id": "previous-handoff-active-control-preservation",
+      "status": "passed",
+      "source_sha": "9b9f38eda89823aeafda48f0437eab0b07e56153",
+      "required_ids": [
+        "HANDOFF-TARGET-BINDING-365",
+        "HANDOFF-POST-WRITE-REFREEZE-365"
+      ],
+      "observed": "All active controls from the rejected handoff remain active on the same material candidate."
+    },
+    {
+      "id": "source-audit-monotonicity",
+      "status": "passed",
+      "required_rejection_ids": [
+        "audit-rejection:7027bee7-766e-419e-9279-42b577b4dde4",
+        "audit-rejection:63aa7591-9ebe-45ed-aa0e-7db38c50ee3f",
+        "audit-rejection:d363899c-b75c-4caf-878c-b355a7db56ec"
+      ],
+      "observed": "Both earlier independent rejection records are preserved and the latest rejection is appended."
+    },
+    {
+      "id": "unresolved-controls",
+      "status": "passed",
+      "expected": [],
+      "observed": []
+    }
+  ]
+}
