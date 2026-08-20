@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "829e19bdbc94abc1febda351c16cbb3d38d971d7",
+  "head_sha": "4904c4244de424967b93041d683fb6cbec431bce",
   "source_audits": [
     {
       "rejection_id": "audit-rejection:7027bee7-766e-419e-9279-42b577b4dde4",
@@ -10,22 +10,35 @@
   ],
   "controls": [
     {
-      "id": "HANDOFF-TARGET-BINDING-001",
+      "id": "ISSUE367-HANDOFF-TRUTHFULNESS",
       "status": "passed",
-      "head_sha": "829e19bdbc94abc1febda351c16cbb3d38d971d7",
-      "subject_sha": "829e19bdbc94abc1febda351c16cbb3d38d971d7",
+      "head_sha": "4904c4244de424967b93041d683fb6cbec431bce",
+      "subject_sha": "4904c4244de424967b93041d683fb6cbec431bce",
       "control_type": "procedure",
-      "procedure": "Classify persisted delivery artifacts against current target identity before reuse, after reconstruction, and classify the material-parent audit package before cumulative result-child lineage checks.",
-      "expected": "Foreign packages remain non-reusable, foreign parent ledgers are not inherited, same-target lineage remains monotonic, and only a package bound to the current target reaches handoff.",
-      "observed": "The inherited package and material-parent package are rejected as foreign; focused controls also prove same-target lineage cannot use the foreign exception.",
-      "evidence": "evidence/pr364-delivery-readiness.json",
-      "evidence_sha256": "2d220074ac4ca2f15b81204e6ddf81401069be8c476e5840b724ec8d9e0893f7",
+      "procedure": "Compare the connector-only execution record, PR validation text and exact-material remote snapshot before handoff.",
+      "expected": "Unavailable integrated or browser checks remain explicitly not-run and are never converted into green evidence.",
+      "observed": "PR #368 and exact-material controller evidence record pnpm validate and browser inspection as unavailable, with the material remote snapshot classified pending-no-run.",
+      "evidence": "evidence/issue367-controller-verification.json",
+      "evidence_sha256": "b92f0fd4dd30f374a6eb80fa6d543f2ca3328f8fc98241e598442f982ed7875c",
       "attack_control_id": "NEG-07",
       "risk_family": "structural-contract",
-      "surface": "result-only-child-lineage",
-      "dimension": "foreign-parent-not-inherited"
+      "surface": "runtime-validation-truthfulness",
+      "dimension": "no-false-green-claim"
     }
   ],
-  "retired_controls": [],
+  "retired_controls": [
+    {
+      "id": "HANDOFF-TARGET-BINDING-001",
+      "disposition": "superseded",
+      "replacement_control_id": "ISSUE367-HANDOFF-TRUTHFULNESS",
+      "reason": "The inherited control belongs to a prior delivery target; the current delivery keeps its lineage explicitly while replacing its active proof with a control bound to Issue 367.",
+      "subject_sha": "4904c4244de424967b93041d683fb6cbec431bce",
+      "evidence": "evidence/issue367-controller-verification.json",
+      "evidence_sha256": "b92f0fd4dd30f374a6eb80fa6d543f2ca3328f8fc98241e598442f982ed7875c",
+      "procedure": "Classify the prior inherited control as foreign-target history and bind the active handoff proof to the current material candidate.",
+      "expected": "Historical audit lineage remains visible without treating the prior delivery evidence as proof for Issue 367.",
+      "observed": "The prior source audit remains recorded, the old control is explicitly retired, and the replacement executes against the current Issue 367 material SHA."
+    }
+  ],
   "unresolved_controls": []
 }
