@@ -1,13 +1,13 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-20T03:05:12.981077+00:00",
+  "created_at": "2026-08-20T17:36:05.149712+00:00",
   "identity": {
-    "head_sha": "634b95b2f0ee091185b0d2fe1ad267a72ade28c9",
-    "material_head_sha": "634b95b2f0ee091185b0d2fe1ad267a72ade28c9",
+    "head_sha": "d9f75a7a4af37e741e2c87efe2163ac5029053a2",
+    "material_head_sha": "d9f75a7a4af37e741e2c87efe2163ac5029053a2",
     "base_sha": "be578b5ad3ccd8e26693ce170122b73b5473ee9e",
-    "merge_preview_sha": null,
-    "material_merge_preview_sha": null
+    "merge_preview_sha": "3548bcc55b490f880398060e2eb166e844182019",
+    "material_merge_preview_sha": "3548bcc55b490f880398060e2eb166e844182019"
   },
   "subject": {
     "repository": "crgasparoto-br/training-system",
@@ -31,20 +31,23 @@
       ".audit/entregar-issue/specification-snapshot.json"
     ]
   },
-  "contract_version": "2026-08-18.1",
+  "contract_version": "2026-08-20.2",
+  "evidence_profile": "critical",
   "producer": {
     "skill": "entregar-issue",
-    "skill_sha256": "5d1311462e139e2d9c7cde17aa3e46d8b346bfe74bc7056ed6bff14fe221dba6"
+    "skill_sha256": "26954cde29278d5e43c7faee8e39d39b4a2602a64c0d49d9fe74b56f76ab3f57"
   },
   "validators": {
     "validate_specification_coverage.py": "4eb93ff6a8f451d824adc4ad8faf9fd92a24f92bb42e93666a804f1e74f39aea",
-    "validate_handoff_readiness.py": "e05ab47b90c8cc1e9645f5357d989b05245c66f0f33679519610d70f529da01e",
+    "validate_handoff_readiness.py": "f9c5958556c6ca57dfa01cba0ee867c28bf1dc1f40f4ededbd502d840db57bfb",
     "validate_requirement_attack_matrix.py": "cce39121a991fe540cd1cf787d5609bb4ffe291990bc0cd8d25f6fa72aa7cc62",
     "validate_evidence_freshness.py": "8a20cb7547d03e49b30e6c5713d61c9350a553e46c81ebeef6111137e165aaf8",
     "validate_risk_saturation.py": "fc6286588f136290beba1e15927803fab82e1e0f092771234048748ad2345300",
     "validate_inherited_controls.py": "d76aff2b5745f6d8d34adf805d51dc112e960bcc7ac06028982d872f284a2976",
     "validate_learning_closure.py": "488e0c5ce2c9d85c1427b1205ba87945acb9d37cca2763ac194fa2f040900872",
-    "validate_independent_rejection_closure.py": "d83e69bbee9981586a33c942bd472cd713659fa44bae7ca805f1f745d74ce73b"
+    "validate_independent_rejection_closure.py": "d83e69bbee9981586a33c942bd472cd713659fa44bae7ca805f1f745d74ce73b",
+    "validate_code_growth_report.py": "96c5b2a8559ab788e872abd408796f6e12a45e148cff2ba5889238aae443e48b",
+    "validate_standard_evidence.py": "7e506ab745a68d6dff6781c11bc7b6f90c22470206b4d8218ca2aa660d71562b"
   },
   "artifacts": {
     "specification_snapshot": {
@@ -53,28 +56,36 @@
     },
     "requirement_closure": {
       "name": "requirement-closure.json",
-      "sha256": "7bf016b175e4c4bfce932ffab62faa6cb45f3671db9ab0da5ca80ff6d6a9710e"
+      "sha256": "a3af3e273aa37cdf817538a76b1992668e3a2a4ddb4381f06545c12b2f2c46c8"
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "5c06da79b2bf1bb10ce15ca049d076c4036e71adb75bbe1b52137563a16b9283"
+      "sha256": "129f50388eadc1dba993ece3dd5a6452a5ea6a938f7a951663fc93b427287f72"
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "323ced058bac55b4a3660060ccbe929b3e095376891b22693b675ec965d06e11"
+      "sha256": "380e59ffb5f7c21104a18ad8a81609e398de9c98667187330452d6fe8e8da9be"
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "0e556f2bed331b06a7d1755595d45159a5f9e3dff58ee61b6c9b47d0757bd5b9"
+      "sha256": "32facf828b3571847ebd0c78ada45056129edeb28355884508ef2d4b7a14b7b6"
     },
     "audit_escape_closure": {
       "name": "audit-escape-closure.json",
-      "sha256": "56a11f8a1276593b5fd6cac5ba8d3e18e8322449b66d0b0278fe26a7cffb328f"
+      "sha256": "35f617254d1701f0413fa9583728600ffc8a1b796ca00ac2a45d5341e7e200bd"
     },
     "learning_closure": {
       "name": "learning-closure.json",
-      "sha256": "0c110e1cde704f063da9fc637216e5705dd1468dea1500ef9891cf7224616ade"
+      "sha256": "c5ff26e94cc41185951896fd69be266ac56c9ad5ace0b190112ed445fcb451f0"
     }
   },
-  "previous_independent_rejection": true
+  "previous_independent_rejection": true,
+  "readiness_validation_reused": false,
+  "controls": {
+    "code_growth": {
+      "applicable": false,
+      "control_id": "CODE-GROWTH-001",
+      "artifact": null
+    }
+  }
 }
