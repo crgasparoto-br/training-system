@@ -71,21 +71,22 @@ O módulo `apps/api/src/modules/professor-manual` é montado em `/api/v1/profess
 - os painéis contextuais da Central do Aluno consomem essa rota, inclusive na área de avaliações físicas;
 - a rota deve permanecer registrada no bootstrap da API sempre que os componentes web do Manual do Professor estiverem ativos, evitando que uma capacidade existente seja apresentada como erro 404.
 
-## Clonagem de dados do contrato
+## Defaults e cópia de dados do contrato
 
-A rota `POST /api/v1/contracts/clone-data` continua autenticada no contexto de professor e restrita a professor master. O contrato alvo é sempre o `contractId` da sessão autenticada; o body não redefine o alvo.
+Os dados padrão são propriedade do produto e ficam versionados no repositório. O fluxo principal da tela `/settings/contract` usa `POST /api/v1/contracts/install-defaults`, autenticado no contexto de professor e restrito a professor master. O contrato alvo é sempre o `contractId` da sessão autenticada; o body não redefine o alvo.
 
-No fluxo da tela `/settings/contract`, em que `copyParameters`, `copyExercises` e `copyAssessmentTypes` estão habilitados e `sourceContractId` não é informado, a origem automática segue este contrato:
+A instalação usa somente as fontes canônicas do produto:
 
-1. `DEFAULT_CONTRACT_ID` tem precedência somente quando for diferente do contrato alvo e possuir pelo menos um parâmetro de treinamento, exercício de biblioteca ou tipo de avaliação;
-2. se o default estiver ausente, apontar para o alvo ou estiver vazio nas três categorias, a API seleciona outro contrato elegível;
-3. entre candidatos elegíveis, a ordem é: possuir exercícios de biblioteca, cobrir mais categorias, possuir mais registros no total, ser o contrato mais antigo (`createdAt`) e, por fim, menor `id` para desempate determinístico;
-4. se nenhum contrato elegível possuir exercícios, o ranking começa por cobertura de categorias, depois total de registros, antiguidade e `id`;
-5. se não houver origem elegível, a rota responde `404` em vez de sucesso com todos os contadores zerados.
+- parâmetros de treino e tipos de avaliação em `apps/api/src/common/product-defaults.ts`;
+- biblioteca inicial de exercícios em `apps/api/src/scripts/exercises-data.json`.
 
-A elegibilidade considera os registros existentes na origem, sem calcular previamente o delta contra o alvo. A deduplicação permanece em `cloneContractData`: uma repetição idempotente pode retornar `created = 0` quando os itens da origem já existirem no alvo, refletindo-os nos respectivos contadores `skipped`.
+`DEFAULT_CONTRACT_ID` não participa da instalação de padrões. O endpoint não seleciona outro tenant como origem, funciona mesmo quando só existe o contrato autenticado e complementa apenas os padrões ausentes, preservando dados personalizados já existentes. Repetir a operação é idempotente e contabiliza itens já presentes como `skipped`.
 
-Chamadas com `sourceContractId` explícito preservam sua semântica. Chamadas técnicas que desabilitam uma ou mais das três categorias também preservam o fallback legado de `DEFAULT_CONTRACT_ID` e, na ausência dele, do contrato diferente mais antigo.
+A cópia entre contratos permanece uma operação separada em `POST /api/v1/contracts/copy-data`. Ela exige `sourceContractId` explícito, mantém o contrato alvo vinculado à sessão autenticada e nunca transforma o contrato de origem em fonte canônica de padrões.
+
+`POST /api/v1/contracts/clone-data` existe somente como alias temporário de compatibilidade. Com `sourceContractId` explícito, executa a cópia manual; sem origem explícita, instala os defaults canônicos do produto. O alias não faz seleção automática de tenant e não usa `DEFAULT_CONTRACT_ID` como fallback.
+
+O contrato detalhado e as fontes canônicas estão registrados em `docs/architecture/contract-defaults.md`.
 
 ## Validacoes relacionadas
 
