@@ -245,7 +245,9 @@ async function exerciseKeyboardCreateAndEdit(page, state) {
   }
   interactions.push({ control: 'editar', role: 'button', key: 'Enter', passed: true });
 
-  await page.keyboard.press('Control+A');
+  await page.keyboard.down('Control');
+  await page.keyboard.press('A');
+  await page.keyboard.up('Control');
   await page.keyboard.type('Alteração que deve ser cancelada');
   await pressButtonByText(page, 'Cancelar', 'Space');
 
