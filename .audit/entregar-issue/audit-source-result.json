@@ -1,0 +1,32 @@
+{
+  "contract_version": "2026-08-20.3",
+  "mode": "independent",
+  "status": "rejected",
+  "rejection_id": "audit-rejection:602b239a-5fdf-48e4-b50b-1c07bf813321",
+  "head_sha": "3e2aebbb3585417f9b5454e04b51e5e93525ff22",
+  "material_head_sha": "9976969fafeaffa33ee668a188bc69100a6a67dd",
+  "repository": "crgasparoto-br/training-system",
+  "work_item_kind": "issue",
+  "work_item_number": 365,
+  "pull_request": 366,
+  "base_ref": "develop",
+  "head_ref": "feat/365-install-product-defaults",
+  "result": "REPROVADA",
+  "release_gate_satisfied": false,
+  "findings": [
+    {
+      "id": "A-001",
+      "title": "Pacote de reauditoria não satisfaz o contrato atual",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "category": "delivery-not-ready",
+      "reason": "O handoff de reauditoria usa contract_version 2026-08-20.2 e não publica audit-remediation.json nem audit-source-result.json, embora declare previous_independent_rejection=true."
+    }
+  ],
+  "recommendations": [],
+  "return_control_to": "entregar-issue",
+  "recovery_scope": "handoff-only",
+  "requires_refreeze": false
+}

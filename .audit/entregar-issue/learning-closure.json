@@ -1,15 +1,1 @@
-{
-  "schema_version": 1,
-  "classification": "implementation-only",
-  "source_event": {
-    "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:d363899c-b75c-4caf-878c-b355a7db56ec",
-    "finding_ids": [
-      "A-002"
-    ]
-  },
-  "generalized_learning": {
-    "promotion_status": "not-required",
-    "reason": "The governing delivery contract already requires cumulative inherited-control/source-audit preservation and material-parent comparison for result-only children. This rejection is a local packet-assembly violation of an existing global rule, so the remediation adds repository evidence and restores the ledger without promoting another permanent rule."
-  }
-}
+{"schema_version":1,"classification":"implementation-only","source_event":{"kind":"independent-rejection","rejection_id":"audit-rejection:513918b7-dfa9-443c-92db-3d4ebfb4e7af","finding_ids":["A-001"]},"generalized_learning":{"promotion_status":"not-required","reason":"The canonical entregar-issue terminal-handoff contract and the corrigir-ci delivery contract already require post-write refreeze after any material repository write. The rejection is therefore a local execution/packet-refresh failure of an existing global rule; this remediation re-executes the inherited control and rebuilds the exact-head handoff without adding a duplicate permanent rule."}}

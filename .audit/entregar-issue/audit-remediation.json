@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:602b239a-5fdf-48e4-b50b-1c07bf813321",
+    "audit_report_sha256": "9e7ad2938c10b6c5aa86da2d4e16e051714cf7fb99b5f83f6e6b283de30fb90d",
+    "audited_head_sha": "3e2aebbb3585417f9b5454e04b51e5e93525ff22"
+  },
+  "candidate_head_sha": "9976969fafeaffa33ee668a188bc69100a6a67dd",
+  "remediation_mode": "targeted-remediation",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "changed_files": [
+        ".audit/entregar-issue/audit-source-result.json",
+        ".audit/entregar-issue/audit-remediation.json",
+        ".audit/entregar-issue/handoff-ready.json"
+      ],
+      "evidence": [
+        "audit-source-result.json records the independent rejection and actionable finding A-001",
+        "audit-remediation.json closes A-001 1:1 on material head 9976969fafeaffa33ee668a188bc69100a6a67dd",
+        "handoff-ready.json is rebuilt with contract_version 2026-08-20.3 and certifies both remediation artifacts"
+      ],
+      "validations": [
+        "validate_audit_remediation.py --head-sha 9976969fafeaffa33ee668a188bc69100a6a67dd",
+        "terminal result-only-child parent and allowlist verification",
+        "existing Validate PR run #7192 remains green for the unchanged material candidate"
+      ],
+      "reason": "Handoff-only remediation: no product code or material evidence changed."
+    }
+  ],
+  "status": "closed"
+}
