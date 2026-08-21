@@ -268,7 +268,7 @@ export async function installContractDefaults(
   }
 
   return transactionalDb.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${contractId})::bigint)`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${contractId})::bigint)`;
     return installContractDefaultsUnlocked(contractId, tx);
   });
 }
