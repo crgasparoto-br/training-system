@@ -12,15 +12,18 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { commonCopy, contractCopy, professoresCopy } from '../../i18n/ptBR';
 import type { Contract } from '../../services/contract.service';
+import { formatBrazilianDocument, type BrazilianDocumentType } from '../../utils/document';
 import { resolveAssetUrl } from '../../utils/assetUrl';
 import { AdipometryTechnicalResponsibilityCard } from './components/AdipometryTechnicalResponsibilityCard';
 
 const ACCESS_REFRESH_SIGNAL_KEY = 'auth-permissions-updated-at';
 
+type ContractType = Contract['type'];
+
 const contractSchema = z.object({
   name: z.string().trim().min(1, contractCopy.companyNameRequired),
   tradeName: z.string().optional(),
-  document: z.string().refine((value) => value.replace(/\D/g, '').length === 14, contractCopy.invalidDocument),
+  document: z.string(),
   cref: z.string().optional(),
   addressStreet: z.string().optional(),
   addressNumber: z.string().optional(),
@@ -34,13 +37,36 @@ const contractSchema = z.object({
 
 type ContractForm = z.infer<typeof contractSchema>;
 
-function formatCnpj(value: string) {
-  const digits = value.replace(/\D/g, '').slice(0, 14);
-  return digits
-    .replace(/^(\d{2})(\d)/, '$1.$2')
-    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-    .replace(/\.(\d{3})(\d)/, '.$1/$2')
-    .replace(/(\d{4})(\d)/, '$1-$2');
+function documentTypeForContract(contractType: ContractType): BrazilianDocumentType {
+  return contractType === 'academy' ? 'cnpj' : 'cpf';
+}
+
+function documentLabelForContract(contractType: ContractType) {
+  return contractType === 'academy' ? 'CNPJ' : 'CPF';
+}
+
+function documentPlaceholderForContract(contractType: ContractType) {
+  return contractType === 'academy' ? '00.000.000/0000-00' : '000.000.000-00';
+}
+
+function expectedDocumentLength(contractType: ContractType) {
+  return contractType === 'academy' ? 14 : 11;
+}
+
+function caretPositionAfterDigits(value: string, digitCount: number) {
+  if (digitCount <= 0) return 0;
+
+  let seen = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    if (/\d/.test(value[index])) {
+      seen += 1;
+      if (seen === digitCount) {
+        return index + 1;
+      }
+    }
+  }
+
+  return value.length;
 }
 
 function ReadOnlyField({ label, value }: { label: string; value?: string | null }) {
@@ -49,6 +75,9 @@ function ReadOnlyField({ label, value }: { label: string; value?: string | null 
 
 export default function ContractSettings() {
   const { user, loadUser } = useAuthStore();
+  const initialContractType: ContractType =
+    user?.professor?.contract?.type === 'personal' ? 'personal' : 'academy';
+  const [contractType, setContractType] = useState<ContractType>(initialContractType);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -65,6 +94,7 @@ export default function ContractSettings() {
     reset,
     setError,
     setValue,
+    clearErrors,
     watch,
     formState: { errors },
   } = useForm<ContractForm>({
@@ -89,13 +119,23 @@ export default function ContractSettings() {
   const logoUrl = watch('logoUrl');
   const resolvedLogoUrl = resolveAssetUrl(logoUrl || user?.professor?.contract?.logoUrl || '');
   const zipCodeField = register('addressZipCode');
+  const documentField = register('document');
+  const documentType = documentTypeForContract(contractType);
+  const documentLabel = documentLabelForContract(contractType);
+  const documentPlaceholder = documentPlaceholderForContract(contractType);
 
   const applyContractToForm = useCallback(
     (contract: Contract | NonNullable<NonNullable<typeof user>['professor']>['contract']) => {
+      const resolvedContractType: ContractType =
+        contract?.type === 'personal' ? 'personal' : 'academy';
+      setContractType(resolvedContractType);
       reset({
         name: contract?.name || '',
         tradeName: contract?.tradeName || '',
-        document: formatCnpj(contract?.document || ''),
+        document: formatBrazilianDocument(
+          contract?.document || '',
+          documentTypeForContract(resolvedContractType)
+        ),
         cref: contract?.cref || '',
         addressStreet: contract?.addressStreet || '',
         addressNumber: contract?.addressNumber || '',
@@ -115,6 +155,20 @@ export default function ContractSettings() {
     await loadUser();
     localStorage.setItem(ACCESS_REFRESH_SIGNAL_KEY, String(Date.now()));
   }, [loadUser]);
+
+  const handleDocumentChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const valueBeforeMask = input.value;
+    const selectionStart = input.selectionStart ?? valueBeforeMask.length;
+    const digitsBeforeCaret = valueBeforeMask.slice(0, selectionStart).replace(/\D/g, '').length;
+    const formatted = formatBrazilianDocument(valueBeforeMask, documentType);
+    const nextCaret = caretPositionAfterDigits(formatted, digitsBeforeCaret);
+
+    input.value = formatted;
+    clearErrors('document');
+    documentField.onChange(event);
+    input.setSelectionRange(nextCaret, nextCaret);
+  };
 
   const handleZipCodeChange = (event: ChangeEvent<HTMLInputElement>) => {
     setCepError(null);
@@ -179,21 +233,23 @@ export default function ContractSettings() {
 
   const onSubmit = async (data: ContractForm) => {
     if (!canEdit) return;
+
+    const normalized = data.document.replace(/\D/g, '');
+    const expectedLength = expectedDocumentLength(contractType);
+    if (normalized.length !== expectedLength) {
+      setError('document', {
+        message: `${documentLabel} inválido`,
+      });
+      return;
+    }
+
     setSaving(true);
     setErrorMessage(null);
     try {
-      const normalized = data.document.replace(/\D/g, '');
-      if (normalized.length !== 14) {
-        setError('document', {
-          message: contractCopy.invalidCnpj,
-        });
-        setSaving(false);
-        return;
-      }
       const updated = await contractService.updateMe({
         name: data.name.trim(),
         tradeName: data.tradeName?.trim() || null,
-        document: data.document,
+        document: normalized,
         cref: data.cref?.trim() || null,
         addressStreet: data.addressStreet?.trim() || null,
         addressNumber: data.addressNumber?.trim() || null,
@@ -411,20 +467,22 @@ export default function ContractSettings() {
               <div>
                 {canEdit ? (
                   <Input
-                    label={contractCopy.documentLabel}
-                    placeholder="00.000.000/0000-00"
+                    label={documentLabel}
+                    placeholder={documentPlaceholder}
+                    inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={contractType === 'academy' ? 18 : 14}
                     error={errors.document?.message}
-                    {...register('document', {
-                      onChange: (event) => {
-                        const formatted = formatCnpj(event.target.value);
-                        setValue('document', formatted, { shouldValidate: true });
-                      },
-                    })}
+                    {...documentField}
+                    onChange={handleDocumentChange}
                   />
                 ) : (
                   <ReadOnlyField
-                    label={contractCopy.documentLabel}
-                    value={formatCnpj(user?.professor?.contract?.document || '')}
+                    label={documentLabel}
+                    value={formatBrazilianDocument(
+                      user?.professor?.contract?.document || '',
+                      documentType
+                    )}
                   />
                 )}
               </div>
