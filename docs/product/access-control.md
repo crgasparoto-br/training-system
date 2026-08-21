@@ -191,6 +191,19 @@ Regras obrigatórias:
 - a mesma versão aprovada só pode possuir uma liberação operacional; retry equivalente é idempotente e destino divergente retorna conflito;
 - auditoria de ações sensíveis é gravada na mesma transação da versão e, para `release`, inclui vínculo relacional append-only até o `WorkoutTemplate`.
 
+## Navegação efetiva e configuração de permissões
+
+A hierarquia visual usada em **Funções de colaboradores > Acessos** deve derivar da mesma navegação efetiva usada pelo menu lateral quando a posição de uma tela depende de rollout. A definição base do menu pode permanecer estática, mas o enriquecimento por feature deve possuir uma única implementação compartilhada entre os dois consumidores.
+
+Regras obrigatórias:
+
+- a decisão de rollout deve reutilizar a fonte canônica da própria feature; não deve existir parser paralelo de variável de ambiente na tela de configuração de permissões;
+- uma tela ocultada por rollout não deve reaparecer no fallback de **Permissões internas**;
+- ocultar temporariamente uma feature muda apenas sua projeção visual e não revoga `screenKey`, `blockKey` ou `dataScope` já persistidos para uma função;
+- ao reabilitar o rollout, a árvore volta a projetar as permissões persistidas sem exigir migração ou recriação da função.
+
+Para `students.preRegistration`, quando a interface estiver habilitada, a posição canônica é `Alunos > Operação do aluno > Leads e pré-matrículas`. Quando estiver desabilitada, a tela fica ausente da árvore sem alterar as permissões salvas.
+
 ## Critérios de aceite para mudanças de acesso
 
 - Catálogo compartilhado atualizado.

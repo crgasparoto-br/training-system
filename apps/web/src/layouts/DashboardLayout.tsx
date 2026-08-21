@@ -6,13 +6,11 @@ import { filterSidebarItemsByAccess } from '../access/access-control';
 import { useAuthStore } from '../stores/useAuthStore';
 import { Button } from '../components/ui/Button';
 import { AppSidebar, type SidebarNavItem } from '../components/sidebar';
-import { sidebarMenuItems } from '../navigation/sidebarMenu';
+import { effectiveSidebarMenuItems } from '../navigation/sidebarMenu';
 import { shellCopy } from '../i18n/ptBR';
 import { resolveAssetUrl } from '../utils/assetUrl';
-import { PRE_REGISTRATION_UI_ENABLED } from '../config/pre-registration-rollout';
 
 const ACCESS_REFRESH_SIGNAL_KEY = 'auth-permissions-updated-at';
-
 
 function applyExactCapacityPrescriptionAccess(items: SidebarNavItem[]): SidebarNavItem[] {
   return items.map((item) => ({
@@ -26,32 +24,7 @@ function applyExactCapacityPrescriptionAccess(items: SidebarNavItem[]): SidebarN
   }));
 }
 
-const menuWithPreRegistration = PRE_REGISTRATION_UI_ENABLED
-  ? sidebarMenuItems.map((item) => {
-      if (item.id !== 'atendimento') return item;
-
-      return {
-        ...item,
-        children: item.children?.map((group) => {
-          if (group.id !== 'atendimento-consultas') return group;
-          return {
-            ...group,
-            children: [
-              ...(group.children ?? []),
-              {
-                id: 'pre-matriculas',
-                label: 'Leads e pré-matrículas',
-                path: '/pre-matriculas',
-                screenKey: 'students.preRegistration',
-              },
-            ],
-          };
-        }),
-      };
-    })
-  : sidebarMenuItems;
-
-const appMenuItems = applyExactCapacityPrescriptionAccess(menuWithPreRegistration);
+const appMenuItems = applyExactCapacityPrescriptionAccess(effectiveSidebarMenuItems);
 
 export function DashboardLayout() {
   const navigate = useNavigate();
