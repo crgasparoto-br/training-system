@@ -56,6 +56,25 @@ Referência canônica: `apps/web/src/components/alunos/AlunoDetailsTabs.tsx` (ba
 - ✅ Migrado: `apps/web/src/pages/AlunoForm.tsx` (guias do cadastro do aluno, `/alunos/new` e `/alunos/:id/edit`). Como a regra genérica `[role='tablist'] > [role='tab']` tem especificidade maior que utilitárias Tailwind de uma classe só (ex.: `bg-primary/10`), a migração precisou de um seletor com especificidade equivalente para vencer o cascade: `#aluno-form-tablist > [role='tab']` em `index.css`, escopado pelo `id="aluno-form-tablist"` do contêiner `role="tablist"`. Esse é o padrão a repetir ao migrar as demais telas.
 - ⏳ Pendente: `CollaboratorFunctions.tsx`, `ServicesCatalog.tsx`, `WorkoutBuilder/index.tsx`, `PublicPreRegistration.tsx`, `CapacityPrescriptionScreen.tsx` — ainda no padrão legado.
 
+## Validação permanente — parâmetros de treino
+
+A rota `/settings/parameters` possui um validador permanente em navegador real: `apps/api/scripts/visual-audit-settings-parameters.mjs`. O workflow existente `.github/workflows/validate-pr.yml` executa esse harness depois do build, usando o Chrome instalado via Puppeteer, e publica screenshots, árvore de acessibilidade, diagnósticos e `visual-metrics.json` no artefato `settings-parameters-visual-*`.
+
+O contrato visual da rota cobre:
+
+- viewports `1440x900`, `1366x768` e `390x844`;
+- conteúdo longo e ausência de overflow horizontal acidental no documento;
+- scroll horizontal deliberado restrito ao contêiner da tabela em mobile;
+- fluxo de criação e cancelamento de edição por teclado, incluindo restauração lógica de foco;
+- validação e foco no primeiro campo obrigatório inválido;
+- bloqueio de submissão repetida enquanto o salvamento está em andamento, comprovando exatamente uma chamada de criação;
+- Accordion de gestão de categorias recolhido por padrão e operável por teclado;
+- captura da árvore de acessibilidade e screenshots dos estados de lista e editor mobile.
+
+Execução local equivalente, com dependências e Chrome disponíveis:
+
+`pnpm --filter @corrida/web build && pnpm --filter @corrida/api exec puppeteer browsers install chrome && pnpm --filter @corrida/api exec node scripts/visual-audit-settings-parameters.mjs`
+
 ## Onde trocar o logo
 1. Copie o arquivo oficial para:
    - `apps/web/public/brand/acesso-logo.jpg`

@@ -54,7 +54,7 @@ function runGeneralTestsInBatches() {
   // um único `--runInBand` acumula essa memória até o processo ser encerrado
   // pelo OOM killer do host. Reiniciar o processo a cada lote libera essa
   // memória sem reduzir a cobertura executada.
-  const batchSize = Number.parseInt(process.env.JEST_TEST_BATCH_SIZE ?? '40', 10);
+  const batchSize = Number.parseInt(process.env.JEST_TEST_BATCH_SIZE ?? '10', 10);
   for (let offset = 0; offset < testFiles.length; offset += batchSize) {
     const batch = testFiles.slice(offset, offset + batchSize);
     runJest(['--runInBand', '--runTestsByPath', ...batch, ...forwardedArgs]);

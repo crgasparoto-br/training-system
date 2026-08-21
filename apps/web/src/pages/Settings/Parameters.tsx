@@ -1,5 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { periodizationService, TrainingParameter } from '../../services/periodization.service';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/Accordion';
+import { Button } from '../../components/ui/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
+import { Input } from '../../components/ui/Input';
+import { periodizationService, type TrainingParameter } from '../../services/periodization.service';
 
 const DEFAULT_CATEGORIES = [
   'carga_microciclo',
@@ -12,112 +16,210 @@ const DEFAULT_CATEGORIES = [
   'local',
 ];
 
+type EditorMode = 'list' | 'create' | 'edit';
+type RequiredField = 'category' | 'code' | 'description';
+type FieldErrors = Partial<Record<RequiredField, string>>;
+
+const defaultForm = () => ({
+  category: '',
+  code: '',
+  description: '',
+  order: 1,
+  active: true,
+});
+
+const defaultFilters = () => ({
+  category: 'all',
+  search: '',
+  active: 'active',
+});
+
+const selectClassName =
+  'ts-form-control focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+
 export default function SettingsParameters() {
   const [parameters, setParameters] = useState<TrainingParameter[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [mode, setMode] = useState<EditorMode>('list');
+  const previousModeRef = useRef<EditorMode>('list');
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [categoryMode, setCategoryMode] = useState<'select' | 'new'>('select');
   const [categoryEdit, setCategoryEdit] = useState({ from: '', to: '' });
+  const [form, setForm] = useState(defaultForm);
+  const [filters, setFilters] = useState(defaultFilters);
 
-  const [form, setForm] = useState({
-    category: '',
-    code: '',
-    description: '',
-    order: 1,
-    active: true,
-  });
-
-  const [filters, setFilters] = useState({
-    category: 'all',
-    search: '',
-    active: 'active',
-  });
-
-  const loadParameters = async () => {
+  const refreshParameters = async () => {
     setLoading(true);
-    setError(null);
     try {
       const data = await periodizationService.getAllParameters(true);
-      const toBoolean = (value: any) =>
+      const toBoolean = (value: unknown) =>
         value === true || value === 1 || value === 'true' || value === '1';
       setParameters(
-        data.map((param) => ({
-          ...param,
-          active: toBoolean(param.active),
+        data.map((parameter) => ({
+          ...parameter,
+          active: toBoolean(parameter.active),
         }))
       );
-    } catch (err: any) {
-      setError(err?.message || 'Erro ao carregar parâmetros');
     } finally {
       setLoading(false);
     }
   };
 
+  const loadParameters = async () => {
+    setError(null);
+    try {
+      await refreshParameters();
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao carregar parâmetros.');
+    }
+  };
+
+  const refreshAfterMutation = async (failureMessage: string) => {
+    try {
+      await refreshParameters();
+      return true;
+    } catch {
+      setSuccessMessage(null);
+      setError(failureMessage);
+      return false;
+    }
+  };
+
   useEffect(() => {
-    loadParameters();
+    void loadParameters();
   }, []);
 
+  useEffect(() => {
+    const previousMode = previousModeRef.current;
+
+    if (mode === 'create') {
+      document.getElementById('parameter-category')?.focus();
+    } else if (mode === 'edit') {
+      document.getElementById('parameter-description')?.focus();
+    } else if (previousMode !== 'list') {
+      document.getElementById('parameters-new-button')?.focus();
+    }
+
+    previousModeRef.current = mode;
+  }, [mode]);
+
   const categories = useMemo(() => {
-    const fromData = Array.from(new Set(parameters.map((p) => p.category))).sort();
-    const merged = Array.from(new Set([...DEFAULT_CATEGORIES, ...fromData]));
-    return merged;
+    const fromData = Array.from(new Set(parameters.map((parameter) => parameter.category))).sort();
+    return Array.from(new Set([...DEFAULT_CATEGORIES, ...fromData]));
   }, [parameters]);
 
   const filteredParameters = useMemo(() => {
+    const term = filters.search.trim().toLowerCase();
+
     return parameters
-      .filter((param) => (filters.category === 'all' ? true : param.category === filters.category))
-      .filter((param) => {
-        if (!filters.search.trim()) return true;
-        const term = filters.search.toLowerCase();
+      .filter((parameter) =>
+        filters.category === 'all' ? true : parameter.category === filters.category
+      )
+      .filter((parameter) => {
+        if (!term) return true;
         return (
-          param.code.toLowerCase().includes(term) ||
-          param.description.toLowerCase().includes(term)
+          parameter.code.toLowerCase().includes(term) ||
+          parameter.description.toLowerCase().includes(term)
         );
       })
-      .filter((param) => {
+      .filter((parameter) => {
         if (filters.active === 'all') return true;
-        return filters.active === 'active' ? param.active : !param.active;
+        return filters.active === 'active' ? parameter.active : !parameter.active;
       })
-      .sort((a, b) => a.category.localeCompare(b.category) || a.order - b.order);
+      .sort(
+        (first, second) =>
+          first.category.localeCompare(second.category) || first.order - second.order
+      );
   }, [parameters, filters]);
 
-  const resetForm = (keepCategory?: string) => {
+  const clearFieldError = (field: RequiredField) => {
+    if (!fieldErrors[field]) return;
+    setFieldErrors((current) => ({ ...current, [field]: undefined }));
+  };
+
+  const resetEditor = () => {
     setEditingId(null);
     setCategoryMode('select');
-    setForm({
-      category: keepCategory ?? '',
-      code: '',
-      description: '',
-      order: 1,
-      active: true,
-    });
+    setForm(defaultForm());
+    setFieldErrors({});
   };
 
-  const handleEdit = (param: TrainingParameter) => {
-    setEditingId(param.id);
+  const leaveEditor = () => {
+    resetEditor();
+    setError(null);
+    setSuccessMessage(null);
+    setMode('list');
+  };
+
+  const finishEditor = (message: string) => {
+    resetEditor();
+    setError(null);
+    setSuccessMessage(message);
+    setMode('list');
+  };
+
+  const handleNew = () => {
+    resetEditor();
+    setError(null);
+    setSuccessMessage(null);
+    setMode('create');
+  };
+
+  const handleEdit = (parameter: TrainingParameter) => {
+    setEditingId(parameter.id);
     setCategoryMode('select');
+    setFieldErrors({});
+    setError(null);
+    setSuccessMessage(null);
     setForm({
-      category: param.category,
-      code: param.code,
-      description: param.description,
-      order: param.order,
-      active: param.active,
+      category: parameter.category,
+      code: parameter.code,
+      description: parameter.description,
+      order: parameter.order,
+      active: parameter.active,
     });
+    setMode('edit');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const normalizedCategory = form.category.trim();
-    if (!normalizedCategory || !form.code || !form.description) {
-      setError('Preencha categoria, código e descrição.');
-      return;
+  const validateForm = () => {
+    const nextErrors: FieldErrors = {};
+    let firstInvalidId: string | null = null;
+
+    if (!form.category.trim()) {
+      nextErrors.category = 'Informe a categoria.';
+      firstInvalidId = categoryMode === 'new' ? 'parameter-new-category' : 'parameter-category';
+    }
+    if (!form.code.trim()) {
+      nextErrors.code = 'Informe o código.';
+      firstInvalidId ??= 'parameter-code';
+    }
+    if (!form.description.trim()) {
+      nextErrors.description = 'Informe a descrição.';
+      firstInvalidId ??= 'parameter-description';
     }
 
+    setFieldErrors(nextErrors);
+    if (firstInvalidId) {
+      document.getElementById(firstInvalidId)?.focus();
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!validateForm()) return;
+
+    const normalizedCategory = form.category.trim();
     setSaving(true);
     setError(null);
+    setSuccessMessage(null);
+
     try {
       if (editingId) {
         await periodizationService.updateParameter(editingId, {
@@ -125,9 +227,15 @@ export default function SettingsParameters() {
           order: form.order,
           active: form.active,
         });
-        await loadParameters();
-        resetForm();
-        return;
+        const refreshed = await refreshAfterMutation(
+          'Parâmetro atualizado, mas não foi possível atualizar a lista. Use Atualizar para sincronizar os dados.'
+        );
+        if (!refreshed) {
+          resetEditor();
+          setMode('list');
+          return;
+        }
+        finishEditor('Parâmetro atualizado com sucesso.');
       } else {
         await periodizationService.createParameter({
           category: normalizedCategory,
@@ -135,25 +243,39 @@ export default function SettingsParameters() {
           description: form.description,
           order: form.order,
         });
+        const refreshed = await refreshAfterMutation(
+          'Parâmetro criado, mas não foi possível atualizar a lista. Use Atualizar para sincronizar os dados.'
+        );
+        if (!refreshed) {
+          resetEditor();
+          setMode('list');
+          return;
+        }
+        finishEditor('Parâmetro criado com sucesso.');
       }
-
-      await loadParameters();
-      resetForm(normalizedCategory);
     } catch (err: any) {
-      setError(err?.message || 'Erro ao salvar parâmetro');
+      setError(err?.message || 'Erro ao salvar parâmetro.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (parameter: TrainingParameter) => {
+    const label = `${parameter.code} — ${parameter.description}`;
+    if (!window.confirm(`Excluir “${label}”? Esta ação não pode ser desfeita.`)) return;
+
     setSaving(true);
     setError(null);
+    setSuccessMessage(null);
     try {
-      await periodizationService.deleteParameter(id);
-      await loadParameters();
+      await periodizationService.deleteParameter(parameter.id);
+      const refreshed = await refreshAfterMutation(
+        `Parâmetro ${parameter.code} foi excluído, mas não foi possível atualizar a lista. Use Atualizar para sincronizar os dados.`
+      );
+      if (!refreshed) return;
+      setSuccessMessage(`Parâmetro ${parameter.code} excluído com sucesso.`);
     } catch (err: any) {
-      setError(err?.message || 'Erro ao excluir parâmetro');
+      setError(err?.message || 'Erro ao excluir parâmetro.');
     } finally {
       setSaving(false);
     }
@@ -164,120 +286,346 @@ export default function SettingsParameters() {
     const toCategory = categoryEdit.to.trim();
 
     if (!fromCategory || !toCategory) {
-      setError('Informe categoria atual e nova.');
+      setError('Informe a categoria atual e a nova categoria.');
       return;
     }
-
     if (fromCategory === toCategory) {
-      setError('A nova categoria deve ser diferente.');
+      setError('A nova categoria deve ser diferente da categoria atual.');
+      return;
+    }
+    if (
+      !window.confirm(
+        `Renomear “${fromCategory}” para “${toCategory}”? Todos os parâmetros dessa categoria serão atualizados.`
+      )
+    ) {
       return;
     }
 
     setSaving(true);
     setError(null);
+    setSuccessMessage(null);
     try {
-      await periodizationService.renameParameterCategory({
-        fromCategory,
-        toCategory,
-      });
-      await loadParameters();
+      await periodizationService.renameParameterCategory({ fromCategory, toCategory });
+      const refreshed = await refreshAfterMutation(
+        'Categoria renomeada, mas não foi possível atualizar a lista. Use Atualizar para sincronizar os dados.'
+      );
+      if (!refreshed) {
+        setCategoryEdit({ from: '', to: '' });
+        return;
+      }
+      setFilters((current) => ({
+        ...current,
+        category: current.category === fromCategory ? toCategory : current.category,
+      }));
       setCategoryEdit({ from: '', to: '' });
+      setSuccessMessage(`Categoria renomeada de ${fromCategory} para ${toCategory}.`);
     } catch (err: any) {
-      setError(err?.message || 'Erro ao renomear categoria');
+      setError(err?.message || 'Erro ao renomear categoria.');
     } finally {
       setSaving(false);
     }
   };
 
+  const clearFilters = () => {
+    setFilters({ category: 'all', search: '', active: 'all' });
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Parâmetros</h1>
-          <p className="text-sm text-muted-foreground">
-            Cadastro, consulta e alteração dos parâmetros da periodização.
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="max-w-3xl">
+          <h1 className="text-2xl font-bold text-gray-900">Parâmetros de treino</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Consulte e organize os parâmetros usados na montagem e periodização dos treinos.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={loadParameters}
-          className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        >
-          Atualizar lista
-        </button>
-      </div>
+        <div className="flex flex-wrap gap-2">
+          {mode === 'list' ? (
+            <>
+              <Button id="parameters-new-button" type="button" onClick={handleNew}>
+                Novo parâmetro
+              </Button>
+              <Button type="button" variant="outline" onClick={loadParameters} disabled={loading || saving}>
+                Atualizar
+              </Button>
+            </>
+          ) : (
+            <Button type="button" variant="outline" onClick={leaveEditor} disabled={saving}>
+              Voltar para lista
+            </Button>
+          )}
+        </div>
+      </header>
 
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {error ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
           {error}
         </div>
-      )}
+      ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <h3 className="text-sm font-semibold text-gray-900">Gerenciar categorias</h3>
-            <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-              <select
-                value={categoryEdit.from}
-                onChange={(e) => setCategoryEdit({ ...categoryEdit, from: e.target.value })}
-                className="w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              >
-                <option value="">Categoria atual</option>
-                {categories.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="text"
-                value={categoryEdit.to}
-                onChange={(e) => setCategoryEdit({ ...categoryEdit, to: e.target.value })}
-                className="w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                placeholder="Nova categoria"
-              />
-              <button
-                type="button"
-                onClick={handleRenameCategory}
-                disabled={saving}
-                className="h-10 whitespace-nowrap rounded-lg bg-gray-900 px-4 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
-              >
-                Renomear
-              </button>
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Renomeia a categoria de todos os parâmetros existentes.
+      {successMessage ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success"
+        >
+          {successMessage}
+        </div>
+      ) : null}
+
+      {mode === 'list' ? (
+        <div className="space-y-6">
+          <Card className="shadow-none">
+            <CardContent className="p-4 sm:p-5">
+              <Accordion type="single" collapsible>
+                <AccordionItem value="categories" className="border-0">
+                  <AccordionTrigger className="py-1 text-base font-semibold text-foreground hover:no-underline">
+                    Gerenciar categorias
+                  </AccordionTrigger>
+                  <AccordionContent className="pt-4">
+                    <p className="mb-4 max-w-3xl text-sm text-muted-foreground">
+                      Use esta opção quando precisar corrigir o nome de uma categoria. A alteração é aplicada a todos os parâmetros que pertencem à categoria selecionada.
+                    </p>
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-end">
+                      <div>
+                        <label htmlFor="category-current" className="mb-2 block text-sm font-medium text-foreground">
+                          Categoria atual
+                        </label>
+                        <select
+                          id="category-current"
+                          value={categoryEdit.from}
+                          onChange={(event) =>
+                            setCategoryEdit((current) => ({ ...current, from: event.target.value }))
+                          }
+                          disabled={saving}
+                          className={selectClassName}
+                        >
+                          <option value="">Selecione...</option>
+                          {categories.map((category) => (
+                            <option key={category} value={category}>
+                              {category}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <Input
+                        id="category-new-name"
+                        label="Nova categoria"
+                        value={categoryEdit.to}
+                        onChange={(event) =>
+                          setCategoryEdit((current) => ({ ...current, to: event.target.value }))
+                        }
+                        disabled={saving}
+                        placeholder="Ex.: zona_repeticoes"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleRenameCategory}
+                        disabled={saving}
+                        isLoading={saving}
+                        loadingText="Renomeando..."
+                      >
+                        Renomear categoria
+                      </Button>
+                    </div>
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Quando a categoria precisar seguir o padrão técnico do sistema, use nomes em snake_case, como zona_repeticoes.
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="border-b border-border">
+              <CardTitle className="text-xl">Parâmetros cadastrados</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Filtre por categoria e status ou busque por código e descrição.
+              </p>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(280px,1.5fr)]">
+                <div>
+                  <label htmlFor="parameter-filter-category" className="mb-2 block text-sm font-medium text-foreground">
+                    Categoria
+                  </label>
+                  <select
+                    id="parameter-filter-category"
+                    value={filters.category}
+                    onChange={(event) =>
+                      setFilters((current) => ({ ...current, category: event.target.value }))
+                    }
+                    className={selectClassName}
+                  >
+                    <option value="all">Todas as categorias</option>
+                    {categories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="parameter-filter-status" className="mb-2 block text-sm font-medium text-foreground">
+                    Status
+                  </label>
+                  <select
+                    id="parameter-filter-status"
+                    value={filters.active}
+                    onChange={(event) =>
+                      setFilters((current) => ({ ...current, active: event.target.value }))
+                    }
+                    className={selectClassName}
+                  >
+                    <option value="active">Ativos</option>
+                    <option value="inactive">Inativos</option>
+                    <option value="all">Todos</option>
+                  </select>
+                </div>
+                <Input
+                  id="parameter-filter-search"
+                  label="Buscar"
+                  value={filters.search}
+                  onChange={(event) =>
+                    setFilters((current) => ({ ...current, search: event.target.value }))
+                  }
+                  placeholder="Código ou descrição"
+                />
+              </div>
+
+              <div className="mt-6">
+                {loading ? (
+                  <div className="rounded-lg border border-border bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
+                    Carregando parâmetros...
+                  </div>
+                ) : parameters.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center">
+                    <h2 className="text-base font-semibold text-foreground">Nenhum parâmetro cadastrado</h2>
+                    <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
+                      Cadastre o primeiro parâmetro para disponibilizá-lo nas rotinas de treino.
+                    </p>
+                    <Button type="button" className="mt-4" onClick={handleNew}>
+                      Novo parâmetro
+                    </Button>
+                  </div>
+                ) : filteredParameters.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center">
+                    <h2 className="text-base font-semibold text-foreground">Nenhum resultado com estes filtros</h2>
+                    <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
+                      Revise os filtros ou limpe a busca para voltar a visualizar os parâmetros cadastrados.
+                    </p>
+                    <Button type="button" variant="outline" className="mt-4" onClick={clearFilters}>
+                      Limpar filtros
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-lg border border-border">
+                    <table className="min-w-[760px] w-full text-sm">
+                      <caption className="sr-only">Lista de parâmetros de treino</caption>
+                      <thead className="bg-muted/40">
+                        <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                          <th scope="col" className="px-4 py-3">Categoria</th>
+                          <th scope="col" className="px-4 py-3">Código</th>
+                          <th scope="col" className="px-4 py-3">Descrição</th>
+                          <th scope="col" className="px-4 py-3 text-center">Ordem</th>
+                          <th scope="col" className="px-4 py-3 text-center">Status</th>
+                          <th scope="col" className="px-4 py-3 text-right">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredParameters.map((parameter) => (
+                          <tr key={parameter.id} className="border-b border-border last:border-b-0">
+                            <td className="px-4 py-3 align-top text-foreground">{parameter.category}</td>
+                            <td className="px-4 py-3 align-top font-medium text-foreground">{parameter.code}</td>
+                            <td className="max-w-xl break-words px-4 py-3 align-top text-foreground">
+                              {parameter.description}
+                            </td>
+                            <td className="px-4 py-3 text-center align-top text-foreground">{parameter.order}</td>
+                            <td className="px-4 py-3 text-center align-top">
+                              <span
+                                className={
+                                  parameter.active
+                                    ? 'inline-flex rounded-full bg-success/10 px-2.5 py-1 text-xs font-medium text-success'
+                                    : 'inline-flex rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground'
+                                }
+                              >
+                                {parameter.active ? 'Ativo' : 'Inativo'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 align-top">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleEdit(parameter)}
+                                  disabled={saving}
+                                >
+                                  Editar
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleDelete(parameter)}
+                                  disabled={saving}
+                                >
+                                  Excluir
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <Card>
+          <CardHeader className="border-b border-border">
+            <CardTitle className="text-xl">
+              {mode === 'edit' ? 'Editar parâmetro' : 'Novo parâmetro'}
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {mode === 'edit'
+                ? 'Atualize a descrição, a ordem e o status. Categoria e código permanecem fixos.'
+                : 'Defina a categoria, o código e a descrição usados nas rotinas de treino.'}
             </p>
-          </div>
-
-          <h2 className="text-lg font-semibold text-gray-900">
-            {editingId ? 'Alterar Parâmetro' : 'Cadastrar Parâmetro'}
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {editingId
-              ? 'Edite a descrição, ordem e status do parâmetro.'
-              : 'Crie um novo parâmetro para uso nas rotinas de treino.'}
-          </p>
-
-          <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
-            <div>
-              <label className="text-sm font-medium text-gray-700">Categoria</label>
-              <div className="mt-1 flex flex-col gap-2">
+          </CardHeader>
+          <CardContent className="pt-6">
+            <form className="mx-auto max-w-3xl space-y-6" onSubmit={handleSubmit} noValidate>
+              <div>
+                <label htmlFor="parameter-category" className="mb-2 block text-sm font-medium text-foreground">
+                  Categoria <span className="text-destructive">*</span>
+                </label>
                 <select
+                  id="parameter-category"
                   value={categoryMode === 'new' ? '__new__' : form.category}
-                  onChange={(e) => {
-                    if (e.target.value === '__new__') {
+                  onChange={(event) => {
+                    clearFieldError('category');
+                    if (event.target.value === '__new__') {
                       setCategoryMode('new');
-                      setForm({ ...form, category: '' });
+                      setForm((current) => ({ ...current, category: '' }));
                       return;
                     }
-
                     setCategoryMode('select');
-                    setForm({ ...form, category: e.target.value });
+                    setForm((current) => ({ ...current, category: event.target.value }));
                   }}
-                  disabled={!!editingId}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  disabled={mode === 'edit' || saving}
+                  aria-invalid={categoryMode === 'select' && fieldErrors.category ? true : undefined}
+                  aria-describedby={
+                    categoryMode === 'select' && fieldErrors.category ? 'parameter-category-error' : undefined
+                  }
+                  className={selectClassName}
                 >
                   <option value="">Selecione...</option>
                   <option value="__new__">Nova categoria...</option>
@@ -287,199 +635,113 @@ export default function SettingsParameters() {
                     </option>
                   ))}
                 </select>
-
-                {categoryMode === 'new' && (
-                  <div className="flex flex-col gap-1">
-                    <input
-                      type="text"
+                {categoryMode === 'new' && mode === 'create' ? (
+                  <div className="mt-3">
+                    <Input
+                      id="parameter-new-category"
+                      label="Nome da nova categoria"
+                      required
                       value={form.category}
-                      onChange={(e) => setForm({ ...form, category: e.target.value })}
-                      disabled={!!editingId}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                      placeholder="Ex: zona_repeticoes"
+                      error={fieldErrors.category}
+                      onChange={(event) => {
+                        clearFieldError('category');
+                        setForm((current) => ({ ...current, category: event.target.value }));
+                      }}
+                      disabled={saving}
+                      placeholder="Ex.: zona_repeticoes"
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Use nomes em snake_case para manter o padrão das categorias.
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Use snake_case quando a categoria precisar seguir o padrão técnico do sistema.
                     </p>
+                  </div>
+                ) : fieldErrors.category ? (
+                  <p id="parameter-category-error" className="mt-1 text-sm text-destructive">
+                    {fieldErrors.category}
+                  </p>
+                ) : null}
+              </div>
+
+              <Input
+                id="parameter-code"
+                label="Código"
+                required
+                value={form.code}
+                error={fieldErrors.code}
+                onChange={(event) => {
+                  clearFieldError('code');
+                  setForm((current) => ({ ...current, code: event.target.value.toUpperCase() }));
+                }}
+                disabled={mode === 'edit' || saving}
+                placeholder="Ex.: ADP"
+              />
+
+              <Input
+                id="parameter-description"
+                label="Descrição"
+                required
+                value={form.description}
+                error={fieldErrors.description}
+                onChange={(event) => {
+                  clearFieldError('description');
+                  setForm((current) => ({ ...current, description: event.target.value }));
+                }}
+                disabled={saving}
+                placeholder="Ex.: Adaptação"
+              />
+
+              <div className="grid gap-5 sm:grid-cols-2 sm:items-end">
+                <Input
+                  id="parameter-order"
+                  type="number"
+                  min={1}
+                  label="Ordem"
+                  value={form.order}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, order: Number(event.target.value) || 1 }))
+                  }
+                  disabled={saving}
+                />
+                {mode === 'edit' ? (
+                  <label
+                    htmlFor="parameter-active"
+                    className="flex h-11 items-center gap-3 rounded-lg border border-input bg-card px-4 text-sm text-foreground"
+                  >
+                    <input
+                      id="parameter-active"
+                      type="checkbox"
+                      checked={form.active}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, active: event.target.checked }))
+                      }
+                      disabled={saving}
+                      className="h-4 w-4 rounded border-input text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    />
+                    Parâmetro ativo
+                  </label>
+                ) : (
+                  <div className="flex min-h-11 items-center rounded-lg border border-border bg-muted/30 px-4 text-sm text-muted-foreground">
+                    Novos parâmetros são criados como ativos.
                   </div>
                 )}
               </div>
-            </div>
 
-            <div>
-              <label className="text-sm font-medium text-gray-700">Código</label>
-              <input
-                type="text"
-                value={form.code}
-                onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-                disabled={!!editingId}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                placeholder="Ex: ADP"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-gray-700">Descrição</label>
-              <input
-                type="text"
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                placeholder="Ex: Adaptação"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Ordem</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={form.order}
-                  onChange={(e) => setForm({ ...form, order: Number(e.target.value) || 1 })}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="flex items-end gap-2">
-                <input
-                  id="active"
-                  type="checkbox"
-                  checked={form.active}
-                  onChange={(e) => setForm({ ...form, active: e.target.checked })}
-                  className="h-4 w-4"
-                />
-                <label htmlFor="active" className="text-sm text-gray-700">
-                  Ativo
-                </label>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="submit"
-                disabled={saving}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-              >
-                {editingId ? 'Salvar alterações' : 'Cadastrar'}
-              </button>
-              {editingId && (
-                <button
-                  type="button"
-                  onClick={() => resetForm()}
-                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
+              <div className="flex flex-col-reverse gap-2 border-t border-border pt-5 sm:flex-row sm:justify-end">
+                <Button type="button" variant="outline" onClick={leaveEditor} disabled={saving}>
                   Cancelar
-                </button>
-              )}
-            </div>
-          </form>
-        </div>
-
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <h2 className="text-lg font-semibold text-gray-900">Consulta e alteração</h2>
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={filters.category}
-                onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              >
-                <option value="all">Todas as categorias</option>
-                {categories.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={filters.active}
-                onChange={(e) => setFilters({ ...filters, active: e.target.value })}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              >
-                <option value="active">Ativos</option>
-                <option value="inactive">Inativos</option>
-                <option value="all">Todos</option>
-              </select>
-              <input
-                type="text"
-                value={filters.search}
-                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                placeholder="Buscar por código ou descrição"
-              />
-            </div>
-          </div>
-
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-xs uppercase text-gray-500">
-                  <th className="px-3 py-2">Categoria</th>
-                  <th className="px-3 py-2">Código</th>
-                  <th className="px-3 py-2">Descrição</th>
-                  <th className="px-3 py-2 text-center">Ordem</th>
-                  <th className="px-3 py-2 text-center">Ativo</th>
-                  <th className="px-3 py-2 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="px-3 py-6 text-center text-gray-400">
-                      Carregando...
-                    </td>
-                  </tr>
-                ) : filteredParameters.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-3 py-6 text-center text-gray-400">
-Nenhum parâmetro encontrado
-                    </td>
-                  </tr>
-                ) : (
-                  filteredParameters.map((param) => (
-                    <tr key={param.id} className="border-b">
-                      <td className="px-3 py-2 text-gray-700">{param.category}</td>
-                      <td className="px-3 py-2 text-gray-700">{param.code}</td>
-                      <td className="px-3 py-2 text-gray-700">{param.description}</td>
-                      <td className="px-3 py-2 text-center text-gray-700">{param.order}</td>
-                      <td className="px-3 py-2 text-center">
-                        <span
-                          className={`rounded-full px-2 py-1 text-xs font-medium ${
-                            param.active
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-gray-100 text-gray-500'
-                          }`}
-                        >
-                          {param.active ? 'Ativo' : 'Inativo'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleEdit(param)}
-                            className="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(param.id)}
-                            className="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
-                          >
-                            Excluir
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={saving}
+                  isLoading={saving}
+                  loadingText="Salvando..."
+                >
+                  {mode === 'edit' ? 'Salvar alterações' : 'Salvar parâmetro'}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

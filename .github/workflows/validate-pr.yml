@@ -248,6 +248,25 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Validate settings parameters in real browser
+        env:
+          SETTINGS_PARAMETERS_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec node scripts/visual-audit-settings-parameters.mjs 2>&1 | tee settings-parameters-visual-output.log
+
+      - name: Upload settings parameters browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: settings-parameters-visual-${{ github.run_id }}
+          path: |
+            artifacts/settings-parameters-visual/**
+            settings-parameters-visual-output.log
+            orquestrador-artifact.json
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Architecture checks
         run: pnpm arch:check
 
