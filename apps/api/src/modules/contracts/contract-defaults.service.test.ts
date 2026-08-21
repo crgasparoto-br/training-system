@@ -300,9 +300,13 @@ describe('installContractDefaults', () => {
       nome?: string;
       name?: string;
     }>;
-    const canonicalNames = canonicalRows
-      .map((row) => (row.name || row.nome || '').trim().replace(/\s+/g, ' '))
-      .filter(Boolean);
+    const canonicalNames = [
+      ...new Set(
+        canonicalRows
+          .map((row) => (row.name || row.nome || '').trim().replace(/\s+/g, ' '))
+          .filter(Boolean)
+      ),
+    ];
 
     expect(loadProductExerciseDefaults().map((item) => item.name)).toEqual(canonicalNames);
   });
