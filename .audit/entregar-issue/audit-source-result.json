@@ -1,1 +1,32 @@
-{"contract_version":"2026-08-20.3","mode":"independent","status":"rejected","rejection_id":"audit-rejection:fc983d85-76ae-4ec6-ae5e-efe4cbdfe259","head_sha":"88e061659d058ea781df4b7273e1c15b2a8c2315","material_head_sha":"19c61b089e86e46cee7d39af07ab08dcf15adbe8","repository":"crgasparoto-br/training-system","work_item_kind":"issue","work_item_number":365,"pull_request":366,"base_ref":"develop","head_ref":"feat/365-install-product-defaults","result":"REPROVADA","release_gate_satisfied":false,"findings":[{"id":"A-001","title":"Handoff stale versus base identity","disposition":"blocking","status":"open","actionable":true,"remediation_mode":"targeted-remediation","category":"delivery-not-ready","reason":"The published handoff certificate did not reflect a trustworthy authoritative-base identity for the audited candidate."}],"recommendations":[],"return_control_to":"entregar-issue","recovery_scope":"handoff-only","requires_refreeze":false}
+{
+  "contract_version": "2026-08-20.3",
+  "mode": "independent",
+  "status": "rejected",
+  "rejection_id": "audit-rejection:32605ed8-7f59-4904-9b9c-084689463a5d",
+  "head_sha": "ea1d4bcf1de25ffe2da7bb660312469214fae8d1",
+  "material_head_sha": "ea1d4bcf1de25ffe2da7bb660312469214fae8d1",
+  "repository": "crgasparoto-br/training-system",
+  "work_item_kind": "issue",
+  "work_item_number": 365,
+  "pull_request": 366,
+  "base_ref": "develop",
+  "head_ref": "feat/365-install-product-defaults",
+  "result": "REPROVADA",
+  "release_gate_satisfied": false,
+  "findings": [
+    {
+      "id": "A-001",
+      "title": "Handoff stale after post-freeze material writes",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "category": "delivery-not-ready",
+      "reason": "The published handoff certified material 265f0041c61ec70432a7b0e8fc494db1346da8a4 while the audited candidate had moved to ea1d4bcf1de25ffe2da7bb660312469214fae8d1 after material writes."
+    }
+  ],
+  "recommendations": [],
+  "return_control_to": "entregar-issue",
+  "recovery_scope": "post-write-refreeze",
+  "requires_refreeze": true
+}

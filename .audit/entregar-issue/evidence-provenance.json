@@ -1,1 +1,18 @@
-{"schema_version":1,"material_head_sha":"265f0041c61ec70432a7b0e8fc494db1346da8a4","evidence":[{"evidence_id":"EV-REQ365-REMEDIATION","kind":"quantitative","status":"passed","path":"evidence-material-verification.json","sha256":"44ab834f98bc0bc39a9a5a4cb02b86b5a9941f34178fcb39c0ef0170ae4bd645","subject_sha":"265f0041c61ec70432a7b0e8fc494db1346da8a4","freshness_policy":"exact-material-head","observed":"Two audit reservations are represented by exact-head implementation changes and discriminating test source; CI run 7255 was in progress at the single remote snapshot.","producer":"entregar-issue exact-head connector verification"},{"evidence_id":"EV-REQ365-015","kind":"quantitative","status":"passed","path":"evidence-material-verification.json","sha256":"44ab834f98bc0bc39a9a5a4cb02b86b5a9941f34178fcb39c0ef0170ae4bd645","subject_sha":"265f0041c61ec70432a7b0e8fc494db1346da8a4","freshness_policy":"exact-material-head","observed":"The exact material delta preserves the prior specified Issue #365 test matrix and adds focused invalid-catalog and concurrent-install tests; Validate PR #7255 was bound to this SHA and in progress at the single remote snapshot.","producer":"entregar-issue exact-head connector verification"}],"base_sha":"6b328b32884ee026155f9de131764c1b4986fcd0"}
+{
+  "schema_version": 1,
+  "material_head_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+  "evidence": [
+    {
+      "evidence_id": "EV-REQ365-015",
+      "kind": "quantitative",
+      "status": "passed",
+      "path": "evidence-material-verification.json",
+      "sha256": "7de06d2d388e97fdd97e19c2932681da63f9509fdc0e6964807a92af5bb2f29d",
+      "subject_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+      "freshness_policy": "exact-material-head",
+      "observed": "Nine explicitly specified Issue #365 test scenarios remain represented and exact material Validate PR #7293 completed successfully.",
+      "producer": "entregar-issue exact-head connector refreeze / Validate PR #7293"
+    }
+  ],
+  "base_sha": "93256880dc2894a6b8fa07ab8a6bd3de43d38967"
+}

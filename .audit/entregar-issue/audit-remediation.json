@@ -1,1 +1,51 @@
-{"schema_version":1,"contract_version":"2026-08-20.3","resolution_policy":"all-actionable-items","source":{"rejection_id":"audit-rejection:fc983d85-76ae-4ec6-ae5e-efe4cbdfe259","audited_head_sha":"88e061659d058ea781df4b7273e1c15b2a8c2315"},"candidate_head_sha":"265f0041c61ec70432a7b0e8fc494db1346da8a4","remediation_mode":"targeted-remediation","items":[{"source_kind":"finding","source_id":"A-001","remediation_mode":"targeted-remediation","status":"fixed","changed_files":[".audit/entregar-issue/audit-source-result.json",".audit/entregar-issue/audit-remediation.json",".audit/entregar-issue/evidence-material-verification.json",".audit/entregar-issue/inherited-controls.json",".audit/entregar-issue/audit-escape-closure.json",".audit/entregar-issue/learning-closure.json",".audit/entregar-issue/requirement-attack-matrix.json",".audit/entregar-issue/risk-saturation.json",".audit/entregar-issue/handoff-ready.json"],"evidence":["Authoritative develop 6b328b32884ee026155f9de131764c1b4986fcd0 is the merge base and ancestor of material 265f0041c61ec70432a7b0e8fc494db1346da8a4.","All prior independent-rejection lineage is preserved and revalidated on the exact material head.","The current material remediation does not reuse any prior terminal certificate."],"validations":["fresh GitHub branch resolution and compare","cumulative inherited-control validation","terminal result-only child parent and allowlist verification"],"reason":"The current material write invalidated the prior freeze, so terminal delivery evidence is rebuilt from the exact remediation candidate."}],"status":"closed"}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:32605ed8-7f59-4904-9b9c-084689463a5d",
+    "audited_head_sha": "ea1d4bcf1de25ffe2da7bb660312469214fae8d1",
+    "audit_report_sha256": "4aee6546998614788ca07d3866c9c5cb7512957b5abfa6a74b52d735d1e85d47"
+  },
+  "candidate_head_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+  "remediation_mode": "targeted-remediation",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "changed_files": [
+        ".audit/entregar-issue/audit-source-result.json",
+        ".audit/entregar-issue/audit-remediation.json",
+        ".audit/entregar-issue/evidence-material-verification.json",
+        ".audit/entregar-issue/evidence-provenance.json",
+        ".audit/entregar-issue/inherited-controls.json",
+        ".audit/entregar-issue/audit-escape-closure.json",
+        ".audit/entregar-issue/learning-closure.json",
+        ".audit/entregar-issue/requirement-attack-matrix.json",
+        ".audit/entregar-issue/risk-saturation.json",
+        ".audit/entregar-issue/handoff-ready.json"
+      ],
+      "evidence": [
+        "The independent recovery floor post-write-refreeze/requires_refreeze=true is preserved.",
+        "The branch is synchronized with authoritative develop as a direct merge parent; the sync delta is unrelated to Issue #365 product paths.",
+        "Validate PR #7293 completed successfully on exact material 72c6e71.",
+        "A fresh result-only handoff will be published as a direct child of the synchronized material."
+      ],
+      "validations": [
+        "validate_specification_coverage.py",
+        "validate_requirement_attack_matrix.py",
+        "validate_evidence_freshness.py",
+        "validate_risk_saturation.py",
+        "validate_inherited_controls.py",
+        "validate_audit_escape_lineage.py",
+        "validate_learning_closure.py",
+        "validate_independent_rejection_closure.py",
+        "Validate PR #7293"
+      ],
+      "reason": "The delivery-state finding is closed by refreezing the exact synchronized material; no additional Issue #365 product-code change is necessary."
+    }
+  ],
+  "status": "closed"
+}

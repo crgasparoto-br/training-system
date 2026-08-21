@@ -1,1 +1,15 @@
-{"schema_version":1,"classification":"implementation-only","source_event":{"kind":"independent-rejection","rejection_id":"audit-rejection:fc983d85-76ae-4ec6-ae5e-efe4cbdfe259","finding_ids":["A-001"]},"generalized_learning":{"promotion_status":"not-required","reason":"The canonical entregar-issue lifecycle already requires fresh remote identity resolution, post-write refreeze and terminal result-only lineage. The current reservation remediation applies those existing rules and does not create a duplicate global rule."}}
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:32605ed8-7f59-4904-9b9c-084689463a5d",
+    "finding_ids": [
+      "A-001"
+    ]
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "The canonical entregar-issue lifecycle already requires post-write refreeze, fresh terminal identity and direct result-only-child lineage. This rejection is closed by applying those existing generic controls to the synchronized candidate rather than adding a repository-specific rule."
+  }
+}
