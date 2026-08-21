@@ -43,6 +43,7 @@ import {
   preRegistrationInvitePublicRoutes,
 } from './modules/pre-registration-invites/index.js';
 import { startStudentContractLifecycleScheduler } from './modules/student-contracts/student-contract-lifecycle.scheduler.js';
+import libraryRoutes from './routes/library.routes.js';
 import studentRoutes from './routes/student.routes.js';
 import { getUploadStorageRoot } from './common/asset-storage.js';
 import { createApiCorsOptions } from './common/api-cors.js';
@@ -156,6 +157,7 @@ app.get('/api/v1', (_req, res) => {
       collaboratorFunctions: '/api/v1/collaborator-functions',
       contracts: '/api/v1/contracts',
       hourlyRateLevels: '/api/v1/hourly-rate-levels',
+      library: '/api/v1/library',
       plans: '/api/v1/plans',
       periodization: '/api/v1/periodization',
       professores: '/api/v1/professores',
@@ -204,6 +206,7 @@ app.use('/api/v1/contracts', contractLifecycleRoutes);
 app.use('/api/v1/contracts', contractRejectionRoutes);
 app.use('/api/v1/contracts', contractRoutes);
 app.use('/api/v1/hourly-rate-levels', hourlyRateLevelRoutes);
+app.use('/api/v1/library', libraryRoutes);
 app.use('/api/v1/plans', planRoutes);
 app.use('/api/v1/periodization', periodizationRoutes);
 app.use('/api/v1/professores', legacyCollaboratorContractMiddleware);
