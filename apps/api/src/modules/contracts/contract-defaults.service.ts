@@ -113,17 +113,13 @@ export function loadProductExerciseDefaults(): NormalizedExerciseDefault[] {
   );
   const seenNames = new Set<string>();
 
-  return rows.map((row, index) => {
+  return rows.reduce<NormalizedExerciseDefault[]>((defaults, row, index) => {
     const rawName =
       readCatalogString(row, 'name', index) ?? readCatalogString(row, 'nome', index) ?? '';
     const name = normalizeExerciseName(rawName);
     if (!name) {
       return invalidExerciseCatalog(`item ${index + 1} não possui name/nome válido`);
     }
-    if (seenNames.has(name)) {
-      return invalidExerciseCatalog(`nome duplicado após normalização: ${name}`);
-    }
-    seenNames.add(name);
 
     const muscleGroup =
       (
@@ -148,13 +144,19 @@ export function loadProductExerciseDefaults(): NormalizedExerciseDefault[] {
         .filter((value): value is string => Boolean(value))
         .join('\n') || undefined;
 
-    return {
+    if (seenNames.has(name)) {
+      return defaults;
+    }
+    seenNames.add(name);
+
+    defaults.push({
       name,
       category: determineExerciseCategory(name),
       muscleGroup,
       notes,
-    };
-  });
+    });
+    return defaults;
+  }, []);
 }
 
 async function installTrainingParameters(contractId: string, db: DefaultsDb) {
