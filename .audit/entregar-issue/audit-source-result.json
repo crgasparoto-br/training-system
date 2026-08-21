@@ -2,9 +2,9 @@
   "contract_version": "2026-08-20.3",
   "mode": "independent",
   "status": "rejected",
-  "rejection_id": "audit-rejection:602b239a-5fdf-48e4-b50b-1c07bf813321",
-  "head_sha": "3e2aebbb3585417f9b5454e04b51e5e93525ff22",
-  "material_head_sha": "9976969fafeaffa33ee668a188bc69100a6a67dd",
+  "rejection_id": "audit-rejection:fc983d85-76ae-4ec6-ae5e-efe4cbdfe259",
+  "head_sha": "88e061659d058ea781df4b7273e1c15b2a8c2315",
+  "material_head_sha": "19c61b089e86e46cee7d39af07ab08dcf15adbe8",
   "repository": "crgasparoto-br/training-system",
   "work_item_kind": "issue",
   "work_item_number": 365,
@@ -16,13 +16,13 @@
   "findings": [
     {
       "id": "A-001",
-      "title": "Pacote de reauditoria não satisfaz o contrato atual",
+      "title": "Handoff stale versus base identity",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
       "category": "delivery-not-ready",
-      "reason": "O handoff de reauditoria usa contract_version 2026-08-20.2 e não publica audit-remediation.json nem audit-source-result.json, embora declare previous_independent_rejection=true."
+      "reason": "The published handoff certificate did not reflect a trustworthy authoritative-base identity for the audited candidate."
     }
   ],
   "recommendations": [],

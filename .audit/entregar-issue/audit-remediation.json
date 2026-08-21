@@ -3,11 +3,10 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:602b239a-5fdf-48e4-b50b-1c07bf813321",
-    "audit_report_sha256": "9e7ad2938c10b6c5aa86da2d4e16e051714cf7fb99b5f83f6e6b283de30fb90d",
-    "audited_head_sha": "3e2aebbb3585417f9b5454e04b51e5e93525ff22"
+    "rejection_id": "audit-rejection:fc983d85-76ae-4ec6-ae5e-efe4cbdfe259",
+    "audited_head_sha": "88e061659d058ea781df4b7273e1c15b2a8c2315"
   },
-  "candidate_head_sha": "9976969fafeaffa33ee668a188bc69100a6a67dd",
+  "candidate_head_sha": "cc056a666a89b5f252d50cec7fd9e052d8d8e2b7",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
@@ -18,19 +17,25 @@
       "changed_files": [
         ".audit/entregar-issue/audit-source-result.json",
         ".audit/entregar-issue/audit-remediation.json",
+        ".audit/entregar-issue/evidence-material-verification.json",
+        ".audit/entregar-issue/inherited-controls.json",
+        ".audit/entregar-issue/audit-escape-closure.json",
+        ".audit/entregar-issue/learning-closure.json",
+        ".audit/entregar-issue/requirement-attack-matrix.json",
+        ".audit/entregar-issue/risk-saturation.json",
         ".audit/entregar-issue/handoff-ready.json"
       ],
       "evidence": [
-        "audit-source-result.json records the independent rejection and actionable finding A-001",
-        "audit-remediation.json closes A-001 1:1 on material head 9976969fafeaffa33ee668a188bc69100a6a67dd",
-        "handoff-ready.json is rebuilt with contract_version 2026-08-20.3 and certifies both remediation artifacts"
+        "Authoritative develop 6b328b32884ee026155f9de131764c1b4986fcd0 is a parent/ancestor of material cc056a666a89b5f252d50cec7fd9e052d8d8e2b7.",
+        "Validate PR run #7247 completed successfully on the exact material head.",
+        "Base-authority, target-binding and result-only lineage controls are included in the refreshed packet."
       ],
       "validations": [
-        "validate_audit_remediation.py --head-sha 9976969fafeaffa33ee668a188bc69100a6a67dd",
-        "terminal result-only-child parent and allowlist verification",
-        "existing Validate PR run #7192 remains green for the unchanged material candidate"
+        "GitHub compare develop...material reports behind_by=0 and merge base equal to authoritative develop",
+        "Validate PR #7247 conclusion=success",
+        "terminal result-only child parent and allowlist verification"
       ],
-      "reason": "Handoff-only remediation: no product code or material evidence changed."
+      "reason": "Targeted delivery remediation escalated to refreeze because authoritative develop had advanced beyond the prior material candidate."
     }
   ],
   "status": "closed"
