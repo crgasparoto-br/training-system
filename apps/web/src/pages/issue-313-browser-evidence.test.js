@@ -17,6 +17,9 @@ const API_ORIGIN = `http://${HOST}:${API_PORT}`;
 const ALUNO_ID = 'lead-313-browser-evidence';
 const DESTINATION_PATH = '/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento';
 const OP_TIMEOUT = 10000;
+const CHROME_START_ATTEMPTS = 3;
+const CHROME_START_TIMEOUT = 12000;
+const CHROME_RETRY_DELAY_MS = 750;
 const NORMALIZE_JS = `(v)=>(v||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim()`;
 
 const user = {
@@ -345,8 +348,8 @@ async function stopChild(child, signal = 'SIGTERM') {
   }
 }
 
-async function startChrome() {
-  const profile = mkdtempSync(path.join(os.tmpdir(), 'issue-313-browser-'));
+async function startChromeAttempt(attempt) {
+  const profile = mkdtempSync(path.join(os.tmpdir(), `issue-313-browser-${attempt}-`));
   const executable = chromeExecutable();
   const child = spawn(
     executable,
@@ -368,7 +371,7 @@ async function startChrome() {
   });
   try {
     const activePort = path.join(profile, 'DevToolsActivePort');
-    const deadline = Date.now() + 20000;
+    const deadline = Date.now() + CHROME_START_TIMEOUT;
     let port;
     while (Date.now() < deadline) {
       if (child.exitCode !== null || child.signalCode !== null) {
@@ -412,6 +415,24 @@ async function startChrome() {
     } catch {}
     throw error;
   }
+}
+
+async function startChrome() {
+  const failures = [];
+  for (let attempt = 1; attempt <= CHROME_START_ATTEMPTS; attempt += 1) {
+    try {
+      return await startChromeAttempt(attempt);
+    } catch (error) {
+      failures.push(error instanceof Error ? error.message : String(error));
+      if (attempt < CHROME_START_ATTEMPTS) {
+        stage(`chrome:retry:${attempt + 1}`);
+        await delay(CHROME_RETRY_DELAY_MS * attempt);
+      }
+    }
+  }
+  throw new Error(
+    `Chrome failed to start after ${CHROME_START_ATTEMPTS} attempts. ${failures.join(' | ')}`
+  );
 }
 
 class Cdp {
