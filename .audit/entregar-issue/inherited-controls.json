@@ -1,1 +1,114 @@
-{"schema_version":1,"head_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702","source_audits":[{"rejection_id":"audit-rejection:7027bee7-766e-419e-9279-42b577b4dde4","kind":"independent-rejection","head_sha":"829e19bdbc94abc1febda351c16cbb3d38d971d7"},{"rejection_id":"audit-rejection:1b519788-e313-411e-ae6a-4fde96ecbedf","kind":"independent-rejection","head_sha":"4904c4244de424967b93041d683fb6cbec431bce"},{"rejection_id":"audit-rejection:ead5242d-5121-4a61-9d0d-93ef017b0800","kind":"independent-rejection","head_sha":"d9f75a7a4af37e741e2c87efe2163ac5029053a2"},{"rejection_id":"audit-rejection:67a9d444-7323-4ef8-9f28-678aba259880","kind":"independent-rejection","head_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702"}],"controls":[{"id":"ISSUE367-HANDOFF-TRUTHFULNESS","status":"passed","head_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702","subject_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702","control_type":"gate","procedure":"Compare the exact current material SHA and base with the workflow subject before accepting any completed gate as current evidence.","expected":"Only completed evidence whose subject is the current material candidate can support handoff readiness.","observed":"Validate PR run 7202 attempt 2 completed successfully with head c7d37eb and base develop@be578b5.","evidence":"evidence/issue367-remediation-evidence.json","evidence_sha256":"c2cc86a312747f9258bd575af68f5470a031a86e504017d7a42752c8919f4cb3","attack_control_id":"NEG-OBL-007","risk_family":"semantic-effect","surface":"runtime-validation-truthfulness","dimension":"exact-head-green-state"},{"id":"POST-MUTATION-REFRESH-001","status":"passed","head_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702","subject_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702","control_type":"procedure","procedure":"Force mutation success followed by list refresh failure for create, update, delete and rename, then inspect user-visible status and mutation counts.","expected":"Refresh failure remains visible, success is suppressed, and recovery does not replay the mutation.","observed":"The exact-head parameter regression suite is included in run 7202 and retains create/update/delete/rename refresh-failure coverage.","evidence":"evidence/issue367-remediation-evidence.json","evidence_sha256":"c2cc86a312747f9258bd575af68f5470a031a86e504017d7a42752c8919f4cb3","attack_control_id":"NEG-POST-REFRESH","risk_family":"temporal-consistency","surface":"post-mutation-refresh","dimension":"refresh-error-propagation"},{"id":"POST-WRITE-REFREEZE-001","status":"passed","head_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702","subject_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702","control_type":"gate","procedure":"Classify every repository write after a published handoff and invalidate the certificate whenever a non-result path changes.","expected":"Any material write after handoff forces post-write-refreeze before another audit or release claim.","observed":"The prior d9f75a7 handoff was rejected after later browser-evidence test commits; this remediation freezes c7d37eb as the new material head.","evidence":"evidence/issue367-remediation-evidence.json","evidence_sha256":"c2cc86a312747f9258bd575af68f5470a031a86e504017d7a42752c8919f4cb3","attack_control_id":"NEG-POST-WRITE-REFREEZE","risk_family":"structural-contract","surface":"post-write-refreeze","dimension":"material-drift-invalidates-handoff"},{"id":"TERMINAL-POST-WRITE-LATCH-001","status":"passed","head_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702","subject_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702","control_type":"gate","procedure":"Immediately before the delivery response, re-read the remote branch head and compare it with the published result-only child plus the complete post-publication changed-path delta.","expected":"No delivery may be handed to independent audit when the current remote head moved beyond the published handoff or contains a later material path.","observed":"The current remediation protocol requires a fresh remote identity read after publication and blocks if current_head differs from the terminal child; terminal verification is performed after the new commit is published.","evidence":"evidence/issue367-remediation-evidence.json","evidence_sha256":"c2cc86a312747f9258bd575af68f5470a031a86e504017d7a42752c8919f4cb3"}],"retired_controls":[{"id":"HANDOFF-TARGET-BINDING-001","disposition":"superseded","replacement_control_id":"ISSUE367-HANDOFF-TRUTHFULNESS","reason":"The historical target-binding identifier remains preserved while the active truthfulness control verifies the current target and exact workflow subject on every refreeze.","subject_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702","evidence":"evidence/issue367-remediation-evidence.json","evidence_sha256":"c2cc86a312747f9258bd575af68f5470a031a86e504017d7a42752c8919f4cb3","procedure":"Preserve the historical control identifier and use the active exact-head replacement for the current delivery target.","expected":"Historical lineage remains explicit and a passed exact-head replacement continues to enforce the target boundary.","observed":"The retired identifier remains cumulative and ISSUE367-HANDOFF-TRUTHFULNESS passed against the current material head."}],"unresolved_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "39a6b23d997f647499d9558c7c0f322c3c14603f",
+  "source_audits": [
+    {"rejection_id":"audit-rejection:7027bee7-766e-419e-9279-42b577b4dde4","kind":"independent-rejection","head_sha":"829e19bdbc94abc1febda351c16cbb3d38d971d7"},
+    {"rejection_id":"audit-rejection:1b519788-e313-411e-ae6a-4fde96ecbedf","kind":"independent-rejection","head_sha":"4904c4244de424967b93041d683fb6cbec431bce"},
+    {"rejection_id":"audit-rejection:ead5242d-5121-4a61-9d0d-93ef017b0800","kind":"independent-rejection","head_sha":"d9f75a7a4af37e741e2c87efe2163ac5029053a2"},
+    {"rejection_id":"audit-rejection:67a9d444-7323-4ef8-9f28-678aba259880","kind":"independent-rejection","head_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702"}
+  ],
+  "controls": [
+    {
+      "id": "ISSUE370-RUNTIME-VALIDATION-TRUTHFULNESS",
+      "status": "passed",
+      "head_sha": "39a6b23d997f647499d9558c7c0f322c3c14603f",
+      "subject_sha": "39a6b23d997f647499d9558c7c0f322c3c14603f",
+      "control_type": "gate",
+      "procedure": "Match the completed Validate PR run subject to the exact issue 370 material head and develop base before accepting repository validation evidence.",
+      "expected": "Only validation produced for the exact current material candidate can support issue 370 handoff readiness.",
+      "observed": "Validate PR run 7227 completed successfully for material head 39a6b23d997f647499d9558c7c0f322c3c14603f, the same candidate frozen for this handoff.",
+      "evidence": "evidence/issue370-handoff-evidence.json",
+      "evidence_sha256": "5986896b01d2fc75f2037fcd86251dd6d8e186e219cedd9e937ceba37fbe913d"
+    },
+    {
+      "id": "ISSUE370-CONTEXT-REFRESH-001",
+      "status": "passed",
+      "head_sha": "39a6b23d997f647499d9558c7c0f322c3c14603f",
+      "subject_sha": "39a6b23d997f647499d9558c7c0f322c3c14603f",
+      "control_type": "test",
+      "procedure": "Change the authenticated contract logo between renders, then remove it, and inspect the favicon href after each authenticated-context transition.",
+      "expected": "The favicon follows the updated company logo without a hard reload and returns to the Sistema Acesso fallback when the logo is removed.",
+      "observed": "BrowserFavicon focused tests on the exact material candidate cover company A to company B transition and logo removal to fallback; run 7227 executed the suite successfully.",
+      "evidence": "evidence/issue370-handoff-evidence.json",
+      "evidence_sha256": "5986896b01d2fc75f2037fcd86251dd6d8e186e219cedd9e937ceba37fbe913d",
+      "attack_control_id": "NEG-REQ-046-02",
+      "risk_family": "temporal-consistency",
+      "surface": "favicon-update-sequencing",
+      "dimension": "favicon-update-sequencing-divergence"
+    },
+    {
+      "id": "ISSUE370-POST-WRITE-REFREEZE-001",
+      "status": "passed",
+      "head_sha": "39a6b23d997f647499d9558c7c0f322c3c14603f",
+      "subject_sha": "39a6b23d997f647499d9558c7c0f322c3c14603f",
+      "control_type": "gate",
+      "procedure": "After the CI remediation commit, re-establish the material candidate on the new exact head and require all final requirement, attack, saturation and readiness gates to pass before publishing any handoff child.",
+      "expected": "The prior pre-CI-fix delivery identity cannot certify the later material head; the handoff must be regenerated from the green remediated candidate.",
+      "observed": "The issue 370 package was rebuilt and all delivery validators returned READY against material head 39a6b23d997f647499d9558c7c0f322c3c14603f after the CI remediation.",
+      "evidence": "evidence/issue370-handoff-evidence.json",
+      "evidence_sha256": "5986896b01d2fc75f2037fcd86251dd6d8e186e219cedd9e937ceba37fbe913d"
+    }
+  ],
+  "retired_controls": [
+    {
+      "id": "ISSUE367-HANDOFF-TRUTHFULNESS",
+      "disposition": "superseded",
+      "replacement_control_id": "ISSUE370-RUNTIME-VALIDATION-TRUTHFULNESS",
+      "reason": "The inherited control belongs to the foreign issue 367 delivery; its exact-head truthfulness purpose is preserved by a current-target control bound to issue 370 and run 7227.",
+      "subject_sha": "39a6b23d997f647499d9558c7c0f322c3c14603f",
+      "evidence": "evidence/issue370-handoff-evidence.json",
+      "evidence_sha256": "5986896b01d2fc75f2037fcd86251dd6d8e186e219cedd9e937ceba37fbe913d",
+      "procedure": "Replace the foreign-target exact-head control with the current issue 370 exact-head workflow binding control.",
+      "expected": "Historical lineage remains explicit while only current-target exact-head evidence supports the new handoff.",
+      "observed": "Issue 370 uses the replacement current-target control and does not reuse issue 367 workflow evidence as product proof."
+    },
+    {
+      "id": "POST-MUTATION-REFRESH-001",
+      "disposition": "superseded",
+      "replacement_control_id": "ISSUE370-CONTEXT-REFRESH-001",
+      "reason": "The issue 367 list-refresh mutation surface is foreign to this delivery, while issue 370 has its own temporal authenticated-context refresh obligation that requires a current discriminant control.",
+      "subject_sha": "39a6b23d997f647499d9558c7c0f322c3c14603f",
+      "evidence": "evidence/issue370-handoff-evidence.json",
+      "evidence_sha256": "5986896b01d2fc75f2037fcd86251dd6d8e186e219cedd9e937ceba37fbe913d",
+      "procedure": "Retire the foreign list-refresh control in favor of the current favicon context-refresh transition test.",
+      "expected": "The required temporal family remains actively discriminated on the current target without treating issue 367 behavior as issue 370 evidence.",
+      "observed": "The current replacement exercises logo update and removal transitions on the exact issue 370 material candidate."
+    },
+    {
+      "id": "POST-WRITE-REFREEZE-001",
+      "disposition": "superseded",
+      "replacement_control_id": "ISSUE370-POST-WRITE-REFREEZE-001",
+      "reason": "The generic post-write refreeze invariant remains applicable, but its prior evidence belongs to issue 367 and is replaced with a current issue 370 refreeze control after the CI fix.",
+      "subject_sha": "39a6b23d997f647499d9558c7c0f322c3c14603f",
+      "evidence": "evidence/issue370-handoff-evidence.json",
+      "evidence_sha256": "5986896b01d2fc75f2037fcd86251dd6d8e186e219cedd9e937ceba37fbe913d",
+      "procedure": "Replace the stale foreign-target refreeze control with the exact current issue 370 post-CI refreeze gate.",
+      "expected": "Material drift remains a blocking condition and only a new current-target freeze can restore handoff readiness.",
+      "observed": "The issue 370 material head was revalidated after its CI remediation before this result-only publication."
+    },
+    {
+      "id": "TERMINAL-POST-WRITE-LATCH-001",
+      "disposition": "not-applicable",
+      "reason": "This inherited issue 367 terminal latch is target-specific historical evidence; issue 370 enforces the terminal post-publication identity check through validate_terminal_handoff.py after its own result-only child is published.",
+      "subject_sha": "39a6b23d997f647499d9558c7c0f322c3c14603f",
+      "evidence": "evidence/issue370-handoff-evidence.json",
+      "evidence_sha256": "5986896b01d2fc75f2037fcd86251dd6d8e186e219cedd9e937ceba37fbe913d",
+      "procedure": "Keep the foreign-target latch in cumulative history while excluding its old execution result from current issue evidence.",
+      "expected": "Issue 367 terminal evidence is not reused, and issue 370 obtains a fresh remote terminal check after publication.",
+      "observed": "The inherited execution result is retained only as history; the current delivery requires a new terminal guard before release to audit."
+    },
+    {
+      "id": "HANDOFF-TARGET-BINDING-001",
+      "disposition": "superseded",
+      "replacement_control_id": "ISSUE370-RUNTIME-VALIDATION-TRUTHFULNESS",
+      "reason": "The historical retired target-binding identifier remains cumulative, and its purpose is now carried by the issue 370 current-target exact-head validation control.",
+      "subject_sha": "39a6b23d997f647499d9558c7c0f322c3c14603f",
+      "evidence": "evidence/issue370-handoff-evidence.json",
+      "evidence_sha256": "5986896b01d2fc75f2037fcd86251dd6d8e186e219cedd9e937ceba37fbe913d",
+      "procedure": "Preserve the historical identifier and route current target-binding truthfulness to the issue 370 replacement control.",
+      "expected": "The lineage stays monotonic while the current handoff is bound only to issue 370 and PR 372.",
+      "observed": "The replacement control is active on the current material candidate and the foreign target certificate is not reused."
+    }
+  ],
+  "unresolved_controls": []
+}
