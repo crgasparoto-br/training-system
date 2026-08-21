@@ -53,6 +53,10 @@ function expectedDocumentLength(contractType: ContractType) {
   return contractType === 'academy' ? 14 : 11;
 }
 
+function personTypeLabel(contractType: ContractType) {
+  return contractType === 'academy' ? 'Pessoa jurídica' : 'Pessoa física';
+}
+
 function caretPositionAfterDigits(value: string, digitCount: number) {
   if (digitCount <= 0) return 0;
 
@@ -170,6 +174,18 @@ export default function ContractSettings() {
     input.setSelectionRange(nextCaret, nextCaret);
   };
 
+  const handleContractTypeChange = (nextType: ContractType) => {
+    if (!canEdit || nextType === contractType) return;
+
+    setContractType(nextType);
+    setValue('document', '', {
+      shouldDirty: true,
+      shouldValidate: false,
+    });
+    clearErrors('document');
+    setErrorMessage(null);
+  };
+
   const handleZipCodeChange = (event: ChangeEvent<HTMLInputElement>) => {
     setCepError(null);
     setValue('addressZipCode', formatCep(event.target.value), {
@@ -246,7 +262,8 @@ export default function ContractSettings() {
     setSaving(true);
     setErrorMessage(null);
     try {
-      const updated = await contractService.updateMe({
+      const response = await api.put<{ success: boolean; data: Contract }>('/contracts/me', {
+        type: contractType,
         name: data.name.trim(),
         tradeName: data.tradeName?.trim() || null,
         document: normalized,
@@ -260,6 +277,7 @@ export default function ContractSettings() {
         addressZipCode: data.addressZipCode?.trim() || null,
         logoUrl: data.logoUrl?.trim() || null,
       });
+      const updated = response.data.data;
       applyContractToForm(updated);
       await refreshAuthenticatedContract();
     } catch (err: any) {
@@ -421,6 +439,58 @@ export default function ContractSettings() {
             </div>
           </div>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div className="rounded-lg border border-border bg-card p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Tipo de pessoa</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Define se o cadastro usa CPF ou CNPJ.
+                  </p>
+                </div>
+                {canEdit ? (
+                  <div
+                    role="group"
+                    aria-label="Tipo de pessoa do contrato"
+                    className="inline-flex w-full rounded-lg border border-input bg-muted p-1 sm:w-auto"
+                  >
+                    <button
+                      type="button"
+                      aria-pressed={contractType === 'personal'}
+                      onClick={() => handleContractTypeChange('personal')}
+                      className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition sm:flex-none ${
+                        contractType === 'personal'
+                          ? 'bg-card text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      Pessoa física (CPF)
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={contractType === 'academy'}
+                      onClick={() => handleContractTypeChange('academy')}
+                      className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition sm:flex-none ${
+                        contractType === 'academy'
+                          ? 'bg-card text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      Pessoa jurídica (CNPJ)
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-sm font-medium text-foreground">
+                    {personTypeLabel(contractType)}
+                  </span>
+                )}
+              </div>
+              {canEdit && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Ao trocar o tipo, o documento atual é limpo para evitar salvar CPF como CNPJ ou CNPJ como CPF.
+                </p>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 gap-4">
               <div>
                 {canEdit ? (
