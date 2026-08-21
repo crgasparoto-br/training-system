@@ -1,5 +1,6 @@
 import { cleanup, render } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -27,7 +28,7 @@ describe('BrowserFavicon', () => {
   });
 
   it('mantem um fallback estatico valido no HTML inicial e remove a referencia do Vite', () => {
-    const indexHtml = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+    const indexHtml = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
 
     expect(indexHtml).toContain(`href="${SYSTEM_FAVICON_FALLBACK}"`);
     expect(indexHtml).not.toContain('/vite.svg');
