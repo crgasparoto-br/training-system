@@ -1,1 +1,61 @@
-{"schema_version":1,"classification":"systemic-escape","source_event":{"kind":"independent-rejection","rejection_id":"audit-rejection:67a9d444-7323-4ef8-9f28-678aba259880","audit_report_sha256":"9dd4132709cb7cb4ead9afb18c95826a2aa448608f92b0a92292617bbd8bed29","finding_ids":["A-001"]},"generalized_learning":{"escape_class":"post-handoff-material-drift-without-terminal-reconciliation","generalized_failure_pattern":"A readiness certificate can be valid when published yet become stale if any later material repository write occurs before the delivery response.","plausible_wrong_implementation":"Cache the publication result and skip a fresh remote identity check after subsequent writes.","trigger_signals":["result-only child published before all repository writes are finished","remote head changes after handoff publication","post-publication delta contains a non-result path"],"risk_families":["structural-contract"],"reusable_control":"After the last write, compare the published result head with a fresh remote head and classify the complete delta before handing control to an independent auditor.","prevention_rule":"Do not publish the terminal result child until all material edits and material CI remediations are complete; any later material write invalidates the freeze.","detection_rule":"A fresh terminal reconciliation must fail closed whenever current head differs from the published result child and the delta contains any non-result path.","transfer_cases":[{"surface":"late-test-write","scenario":"A test-only commit lands after a valid handoff publication.","status":"passed"},{"surface":"late-documentation-write","scenario":"A documentation commit lands after a valid handoff publication.","status":"passed"}],"promotion_status":"promoted"},"skill_changes":[{"role":"prevention","status":"passed","evidence":"terminal-handoff protocol requires post-write refreeze after any material write."},{"role":"detection","status":"passed","evidence":"terminal-handoff guard requires a fresh remote current_head check and complete post-publication delta classification."}]}
+{
+  "schema_version": 1,
+  "classification": "systemic-escape",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:38138d5a-9eba-4c9a-a7eb-b87610c63855",
+    "finding_ids": [
+      "A-001"
+    ],
+    "audit_report_sha256": "200cb0562767aedecdf5fa4edafc920a78d36210eed16be44522f9d6b83148fa"
+  },
+  "generalized_learning": {
+    "escape_class": "semantic-artifact-transport-boundary-mismatch",
+    "generalized_failure_pattern": "A delivery can certify a transport representation whose bytes are intact while a downstream schema-aware validator expects the materialized logical object.",
+    "plausible_wrong_implementation": "Hash and certify a transport wrapper as though it were the semantic JSON object consumed by the next gate.",
+    "trigger_signals": [
+      "semantic JSON artifact",
+      "transport manifest",
+      "independent re-audit",
+      "certified artifact"
+    ],
+    "risk_families": [
+      "structural-contract"
+    ],
+    "reusable_control": {
+      "id": "HANDOFF-SEMANTIC-ARTIFACT-001",
+      "rule": "Materialize supported transport before semantic validation and reject unsupported legacy transport at schema-aware boundaries."
+    },
+    "prevention_rule": "Use a single artifact reader that verifies transport and returns logical bytes before schema-aware hashing and validation.",
+    "detection_rule": "Readiness and certificate gates must validate the logical semantic object and require all independent-rejection ledger artifacts before release.",
+    "transfer_cases": [
+      {
+        "id": "filesystem-transport-manifest",
+        "surface": "filesystem-artifact",
+        "status": "passed",
+        "expected": "supported transport materializes; unsupported legacy wrapper is rejected by semantic validation"
+      },
+      {
+        "id": "connector-transport-manifest",
+        "surface": "connector-artifact",
+        "status": "passed",
+        "expected": "physical shards are verified and logical JSON is validated before certification"
+      }
+    ],
+    "promotion_status": "promoted"
+  },
+  "skill_changes": [
+    {
+      "role": "prevention",
+      "status": "passed",
+      "target": "audit_artifact_io supported transport reader",
+      "evidence": "tests/test_large_artifact_transport.py"
+    },
+    {
+      "role": "detection",
+      "status": "passed",
+      "target": "handoff readiness and certificate logical artifact validation",
+      "evidence": "tests/test_large_artifact_transport.py"
+    }
+  ]
+}

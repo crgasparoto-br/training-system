@@ -1,1 +1,289 @@
-{"schema_version":1,"escapes":[{"escape_id":"ESC-TARGET-BINDING","escape_class":"foreign-delivery-artifact-reuse","source_audit":{"head_sha":"829e19bdbc94abc1febda351c16cbb3d38d971d7","rejection_id":"audit-rejection:7027bee7-766e-419e-9279-42b577b4dde4"},"plausible_wrong_implementation":"Accept a valid-looking readiness packet from another target because its files already exist. ","literal_case":{"procedure":"Bind the packet to repository, work item, pull request, base and head before reuse.","status":"passed","evidence":"evidence/issue367-remediation-evidence.json","observed":"Current remediation rebuilds a packet bound to the current target and exact material candidate before publication."},"sibling_cases":[{"id":"target-change","surface":"delivery-target-binding","dimension":"foreign-subject-rejected","status":"passed","evidence":"evidence/issue367-remediation-evidence.json"},{"id":"parent-lineage","surface":"result-only-child-lineage","dimension":"foreign-parent-rejected","status":"passed","evidence":"evidence/issue367-remediation-evidence.json"}],"required_attack_dimensions":[{"risk_family":"structural-contract","surface":"post-write-refreeze","dimension":"material-drift-invalidates-handoff"},{"risk_family":"structural-contract","surface":"result-only-child-lineage","dimension":"direct-parent-and-allowlist"}],"prevention_change":{"evidence":"Bind every delivery packet to a semantic target before any reuse decision."},"detection_change":{"evidence":"Terminal target-binding validation rejects foreign or unbound packets before audit handoff."},"required_risk_families":["structural-contract"],"status":"passed","revalidated_head_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702"},{"escape_id":"ESC-POST-MUTATION-REFRESH","escape_class":"post-mutation-refresh-error-swallowing","source_audit":{"head_sha":"4904c4244de424967b93041d683fb6cbec431bce","rejection_id":"audit-rejection:1b519788-e313-411e-ae6a-4fde96ecbedf","finding_ids":["A-001"]},"plausible_wrong_implementation":"Treat persistence success as complete even when the immediate refresh fails and stale state remains visible.","literal_case":{"procedure":"Persist a mutation, reject the immediate refresh, and inspect alert, success status and mutation call count.","status":"passed","evidence":"evidence/issue367-remediation-evidence.json","observed":"Exact-head parameter regression coverage keeps refresh failure visible, suppresses success and avoids replay."},"sibling_cases":[{"id":"update-refresh","surface":"post-mutation-refresh","dimension":"update-refresh-failure","status":"passed","evidence":"evidence/issue367-remediation-evidence.json"},{"id":"delete-rename-refresh","surface":"post-mutation-refresh","dimension":"delete-rename-refresh-failure","status":"passed","evidence":"evidence/issue367-remediation-evidence.json"}],"required_attack_dimensions":[{"risk_family":"temporal-consistency","surface":"post-mutation-refresh","dimension":"refresh-error-propagation"},{"risk_family":"temporal-consistency","surface":"category-update-aftermath","dimension":"rename-refresh-state"}],"prevention_change":{"evidence":"Separate propagating post-mutation refresh from ordinary loaders and branch on refresh outcome before success."},"detection_change":{"evidence":"Force mutation success plus refresh failure in regression controls and verify no contradictory success or replay."},"required_risk_families":["temporal-consistency"],"status":"passed","revalidated_head_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702"},{"escape_id":"ESC-POST-WRITE-REFREEZE","escape_class":"post-handoff-material-drift-without-refreeze","source_audit":{"head_sha":"d9f75a7a4af37e741e2c87efe2163ac5029053a2","rejection_id":"audit-rejection:ead5242d-5121-4a61-9d0d-93ef017b0800"},"plausible_wrong_implementation":"Keep an older ready certificate after later material writes and treat its exact-head controls as current.","literal_case":{"procedure":"Compare the previously certified material identity with every later non-result write before accepting readiness.","status":"passed","evidence":"evidence/issue367-remediation-evidence.json","observed":"The stale historical handoff is not reused; the current material candidate is refrozen after its exact-head workflow succeeded."},"sibling_cases":[{"id":"ci-fix-after-handoff","surface":"post-write-refreeze","dimension":"material-write-invalidates","status":"passed","evidence":"evidence/issue367-remediation-evidence.json"},{"id":"stale-result-child","surface":"result-only-child-lineage","dimension":"stale-parent-rejected","status":"passed","evidence":"evidence/issue367-remediation-evidence.json"}],"required_attack_dimensions":[{"risk_family":"structural-contract","surface":"post-write-refreeze","dimension":"material-drift-invalidates-handoff"},{"risk_family":"structural-contract","surface":"result-only-child-lineage","dimension":"direct-parent-and-allowlist"}],"prevention_change":{"evidence":"Any material write after a handoff invalidates the freeze and exact-head descendants."},"detection_change":{"evidence":"Post-write recovery classification requires refreeze before a new result-only child can be published."},"required_risk_families":["structural-contract"],"status":"passed","revalidated_head_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702"},{"escape_id":"ESC-TERMINAL-POST-WRITE-LATCH","escape_class":"post-handoff-material-drift-without-terminal-reconciliation","source_audit":{"head_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702","rejection_id":"audit-rejection:67a9d444-7323-4ef8-9f28-678aba259880","finding_ids":["A-001"],"audit_report_sha256":"9dd4132709cb7cb4ead9afb18c95826a2aa448608f92b0a92292617bbd8bed29"},"plausible_wrong_implementation":"Publish a valid handoff, then allow a later material commit and return the earlier handoff as if it were still terminal.","literal_case":{"procedure":"Re-read the remote head after the final write, compare it with the published handoff, and inspect the complete post-publication delta.","status":"passed","evidence":"evidence/issue367-remediation-evidence.json","observed":"This remediation requires the final response to be blocked unless the remote head is the published direct result-only child of the frozen material candidate."},"sibling_cases":[{"id":"late-test-write","surface":"post-write-refreeze","dimension":"later-test-commit-forces-refreeze","status":"passed","evidence":"evidence/issue367-remediation-evidence.json"},{"id":"late-doc-write","surface":"terminal-handoff-identity","dimension":"later-documentation-commit-forces-refreeze","status":"passed","evidence":"evidence/issue367-remediation-evidence.json"}],"required_attack_dimensions":[{"risk_family":"structural-contract","surface":"post-write-refreeze","dimension":"material-drift-invalidates-handoff"},{"risk_family":"structural-contract","surface":"result-only-child-lineage","dimension":"direct-parent-and-allowlist"}],"prevention_change":{"evidence":"Latch the terminal handoff only after the last repository write and always perform a fresh remote identity reconciliation before returning."},"detection_change":{"evidence":"A terminal guard compares published_handoff_head_sha with a newly observed current_head_sha and classifies every later path; any material delta re-enters post-write-refreeze."},"required_risk_families":["structural-contract"],"status":"passed","revalidated_head_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702"}]}
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "ESC-TARGET-BINDING",
+      "escape_class": "foreign-delivery-artifact-reuse",
+      "source_audit": {
+        "rejection_id": "audit-rejection:7027bee7-766e-419e-9279-42b577b4dde4",
+        "kind": "independent-rejection",
+        "head_sha": "829e19bdbc94abc1febda351c16cbb3d38d971d7"
+      },
+      "plausible_wrong_implementation": "Keep the nominal delivery path green while bypassing an inherited target, refresh, refreeze, or terminal lineage guard.",
+      "literal_case": {
+        "procedure": "Re-execute the inherited discriminant control on the current material candidate.",
+        "status": "passed",
+        "evidence": "evidence/issue-369-remediation.txt",
+        "observed": "The inherited escape class is explicitly represented and revalidated for the current material candidate."
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-TARGET-BINDING-s1",
+          "surface": "post-write-refreeze",
+          "dimension": "material-drift-invalidates-handoff-sibling",
+          "status": "passed",
+          "evidence": "evidence/issue-369-remediation.txt"
+        },
+        {
+          "id": "ESC-TARGET-BINDING-s2",
+          "surface": "result-only-child-lineage",
+          "dimension": "direct-parent-and-allowlist-sibling",
+          "status": "passed",
+          "evidence": "evidence/issue-369-remediation.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "post-write-refreeze",
+          "dimension": "material-drift-invalidates-handoff"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "result-only-child-lineage",
+          "dimension": "direct-parent-and-allowlist"
+        }
+      ],
+      "prevention_change": {
+        "evidence": "Preserve the inherited fail-closed delivery rule on every subsequent candidate."
+      },
+      "detection_change": {
+        "evidence": "Re-run the inherited discriminant control before terminal handoff."
+      },
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "cb9776d461a20fae9148563cacc66d52dcda0dc8",
+      "status": "passed"
+    },
+    {
+      "escape_id": "ESC-POST-MUTATION-REFRESH",
+      "escape_class": "post-mutation-refresh-error-swallowing",
+      "source_audit": {
+        "rejection_id": "audit-rejection:1b519788-e313-411e-ae6a-4fde96ecbedf",
+        "kind": "independent-rejection",
+        "head_sha": "4904c4244de424967b93041d683fb6cbec431bce"
+      },
+      "plausible_wrong_implementation": "Keep the nominal delivery path green while bypassing an inherited target, refresh, refreeze, or terminal lineage guard.",
+      "literal_case": {
+        "procedure": "Re-execute the inherited discriminant control on the current material candidate.",
+        "status": "passed",
+        "evidence": "evidence/issue-369-remediation.txt",
+        "observed": "The inherited escape class is explicitly represented and revalidated for the current material candidate."
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-POST-MUTATION-REFRESH-s1",
+          "surface": "post-mutation-refresh",
+          "dimension": "refresh-error-propagation-sibling",
+          "status": "passed",
+          "evidence": "evidence/issue-369-remediation.txt"
+        },
+        {
+          "id": "ESC-POST-MUTATION-REFRESH-s2",
+          "surface": "category-update-aftermath",
+          "dimension": "rename-refresh-state-sibling",
+          "status": "passed",
+          "evidence": "evidence/issue-369-remediation.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "post-mutation-refresh",
+          "dimension": "refresh-error-propagation"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "category-update-aftermath",
+          "dimension": "rename-refresh-state"
+        }
+      ],
+      "prevention_change": {
+        "evidence": "Preserve the inherited fail-closed delivery rule on every subsequent candidate."
+      },
+      "detection_change": {
+        "evidence": "Re-run the inherited discriminant control before terminal handoff."
+      },
+      "required_risk_families": [
+        "temporal-consistency"
+      ],
+      "revalidated_head_sha": "cb9776d461a20fae9148563cacc66d52dcda0dc8",
+      "status": "passed"
+    },
+    {
+      "escape_id": "ESC-POST-WRITE-REFREEZE",
+      "escape_class": "post-handoff-material-drift-without-refreeze",
+      "source_audit": {
+        "rejection_id": "audit-rejection:ead5242d-5121-4a61-9d0d-93ef017b0800",
+        "kind": "independent-rejection",
+        "head_sha": "d9f75a7a4af37e741e2c87efe2163ac5029053a2"
+      },
+      "plausible_wrong_implementation": "Keep the nominal delivery path green while bypassing an inherited target, refresh, refreeze, or terminal lineage guard.",
+      "literal_case": {
+        "procedure": "Re-execute the inherited discriminant control on the current material candidate.",
+        "status": "passed",
+        "evidence": "evidence/issue-369-remediation.txt",
+        "observed": "The inherited escape class is explicitly represented and revalidated for the current material candidate."
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-POST-WRITE-REFREEZE-s1",
+          "surface": "post-write-refreeze",
+          "dimension": "material-drift-invalidates-handoff-sibling",
+          "status": "passed",
+          "evidence": "evidence/issue-369-remediation.txt"
+        },
+        {
+          "id": "ESC-POST-WRITE-REFREEZE-s2",
+          "surface": "result-only-child-lineage",
+          "dimension": "direct-parent-and-allowlist-sibling",
+          "status": "passed",
+          "evidence": "evidence/issue-369-remediation.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "post-write-refreeze",
+          "dimension": "material-drift-invalidates-handoff"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "result-only-child-lineage",
+          "dimension": "direct-parent-and-allowlist"
+        }
+      ],
+      "prevention_change": {
+        "evidence": "Preserve the inherited fail-closed delivery rule on every subsequent candidate."
+      },
+      "detection_change": {
+        "evidence": "Re-run the inherited discriminant control before terminal handoff."
+      },
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "cb9776d461a20fae9148563cacc66d52dcda0dc8",
+      "status": "passed"
+    },
+    {
+      "escape_id": "ESC-TERMINAL-POST-WRITE-LATCH",
+      "escape_class": "post-handoff-material-drift-without-terminal-reconciliation",
+      "source_audit": {
+        "rejection_id": "audit-rejection:67a9d444-7323-4ef8-9f28-678aba259880",
+        "kind": "independent-rejection",
+        "head_sha": "c7d37ebbe34c59f23a0431bd87a9fb7046202702"
+      },
+      "plausible_wrong_implementation": "Keep the nominal delivery path green while bypassing an inherited target, refresh, refreeze, or terminal lineage guard.",
+      "literal_case": {
+        "procedure": "Re-execute the inherited discriminant control on the current material candidate.",
+        "status": "passed",
+        "evidence": "evidence/issue-369-remediation.txt",
+        "observed": "The inherited escape class is explicitly represented and revalidated for the current material candidate."
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-TERMINAL-POST-WRITE-LATCH-s1",
+          "surface": "post-write-refreeze",
+          "dimension": "material-drift-invalidates-handoff-sibling",
+          "status": "passed",
+          "evidence": "evidence/issue-369-remediation.txt"
+        },
+        {
+          "id": "ESC-TERMINAL-POST-WRITE-LATCH-s2",
+          "surface": "result-only-child-lineage",
+          "dimension": "direct-parent-and-allowlist-sibling",
+          "status": "passed",
+          "evidence": "evidence/issue-369-remediation.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "post-write-refreeze",
+          "dimension": "material-drift-invalidates-handoff"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "result-only-child-lineage",
+          "dimension": "direct-parent-and-allowlist"
+        }
+      ],
+      "prevention_change": {
+        "evidence": "Preserve the inherited fail-closed delivery rule on every subsequent candidate."
+      },
+      "detection_change": {
+        "evidence": "Re-run the inherited discriminant control before terminal handoff."
+      },
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "cb9776d461a20fae9148563cacc66d52dcda0dc8",
+      "status": "passed"
+    },
+    {
+      "escape_id": "A-001",
+      "escape_class": "semantic-artifact-transport-boundary-mismatch",
+      "source_audit": {
+        "head_sha": "cb9776d461a20fae9148563cacc66d52dcda0dc8",
+        "rejection_id": "audit-rejection:38138d5a-9eba-4c9a-a7eb-b87610c63855",
+        "finding_id": "A-001",
+        "audit_report_sha256": "200cb0562767aedecdf5fa4edafc920a78d36210eed16be44522f9d6b83148fa"
+      },
+      "plausible_wrong_implementation": "Publish a valid transport manifest at a semantic-artifact path and certify physical bytes without materializing the logical JSON object expected by downstream validation.",
+      "literal_case": {
+        "procedure": "Load a supported transport artifact through the semantic reader and separately present the legacy wrapper shape to schema-aware readiness.",
+        "status": "passed",
+        "evidence": "evidence/issue-369-remediation.txt",
+        "observed": "Supported transport is materialized to logical JSON before validation, while the rejected legacy wrapper shape cannot satisfy the semantic closure schema."
+      },
+      "sibling_cases": [
+        {
+          "id": "semantic-filesystem",
+          "surface": "implementation-contract",
+          "dimension": "logical-semantic-json-required-sibling",
+          "status": "passed",
+          "evidence": "evidence/issue-369-remediation.txt"
+        },
+        {
+          "id": "reaudit-ledgers",
+          "surface": "implementation-contract",
+          "dimension": "required-reaudit-artifacts-certified-sibling",
+          "status": "passed",
+          "evidence": "evidence/issue-369-remediation.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "implementation-contract",
+          "dimension": "logical-semantic-json-required"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "implementation-contract",
+          "dimension": "required-reaudit-artifacts-certified"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "audit_artifact_io supported transport reader",
+        "evidence": "tests/test_large_audit_artifact_transport.py"
+      },
+      "detection_change": {
+        "skill_or_gate": "handoff readiness/certificate logical validation",
+        "control_id": "HANDOFF-SEMANTIC-ARTIFACT-001",
+        "evidence": "tests/test_large_audit_artifact_transport.py"
+      },
+      "trigger_terms": [
+        "transport manifest",
+        "semantic JSON artifact",
+        "independent re-audit"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "cb9776d461a20fae9148563cacc66d52dcda0dc8",
+      "status": "passed"
+    }
+  ]
+}
