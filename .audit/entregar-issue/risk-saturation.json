@@ -1,1 +1,276 @@
-{"schema_version":1,"head_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702","families":[{"family":"authorization","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"tenant-isolation","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"public-boundary","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"reference-liveness","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"temporal-consistency","applicable":true,"reason":"Derived from requirement attack matrix.","control_ids":["NEG-OBL-001","NEG-OBL-002","NEG-OBL-004","NEG-POST-REFRESH"],"dimensions":[{"surface":"category-update-aftermath","reason":"Discriminant surface for issue 367 and the post-write refreeze remediation: category-update-aftermath.","control_ids":["NEG-OBL-002"],"status":"passed"},{"surface":"destructive-operation-boundary","reason":"Discriminant surface for issue 367 and the post-write refreeze remediation: destructive-operation-boundary.","control_ids":["NEG-OBL-004"],"status":"passed"},{"surface":"mode-transition-order","reason":"Discriminant surface for issue 367 and the post-write refreeze remediation: mode-transition-order.","control_ids":["NEG-OBL-001"],"status":"passed"},{"surface":"post-mutation-refresh","reason":"Discriminant surface for issue 367 and the post-write refreeze remediation: post-mutation-refresh.","control_ids":["NEG-POST-REFRESH"],"status":"passed"}],"status":"passed"},{"family":"temporal-destination","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"concurrency-atomicity","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"idempotency","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"rollback","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"historical-immutability","applicable":false,"reason":"No current contract or diff signal requires this family.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"structural-contract","applicable":true,"reason":"Derived from requirement attack matrix.","control_ids":["NEG-LINEAGE","NEG-OBL-003","NEG-POST-WRITE-REFREEZE"],"dimensions":[{"surface":"form-accessibility-contract","reason":"Discriminant surface for issue 367 and the post-write refreeze remediation: form-accessibility-contract.","control_ids":["NEG-OBL-003"],"status":"passed"},{"surface":"post-write-refreeze","reason":"Discriminant surface for issue 367 and the post-write refreeze remediation: post-write-refreeze.","control_ids":["NEG-POST-WRITE-REFREEZE"],"status":"passed"},{"surface":"result-only-child-lineage","reason":"Discriminant surface for issue 367 and the post-write refreeze remediation: result-only-child-lineage.","control_ids":["NEG-LINEAGE"],"status":"passed"}],"status":"passed"},{"family":"documentation","applicable":true,"reason":"Derived from requirement attack matrix.","control_ids":["NEG-DOC"],"dimensions":[{"surface":"documentation-impact-consistency","reason":"The delivery changes and documents a permanent browser validation path, so current guidance must remain consistent with the exact-head workflow.","control_ids":["NEG-DOC"],"status":"passed"}],"status":"passed"}],"material_families_missing_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "cb9776d461a20fae9148563cacc66d52dcda0dc8",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": true,
+      "reason": "Canonical covered obligations, inherited controls, and exact-head attacks require and close this family.",
+      "control_ids": [
+        "N-035-1",
+        "N-052-1",
+        "N-053-1",
+        "N-063-1",
+        "N-071-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "permission-configuration",
+          "reason": "Exact-head discriminant surface for the authorization obligation.",
+          "control_ids": [
+            "N-035-1",
+            "N-052-1",
+            "N-053-1",
+            "N-063-1",
+            "N-071-1"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Canonical covered obligations, inherited controls, and exact-head attacks require and close this family.",
+      "control_ids": [
+        "N-071-2"
+      ],
+      "dimensions": [
+        {
+          "surface": "persisted-reference-liveness",
+          "reason": "Exact-head discriminant surface for the reference-liveness obligation.",
+          "control_ids": [
+            "N-071-2"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Canonical covered obligations, inherited controls, and exact-head attacks require and close this family.",
+      "control_ids": [
+        "N-045-1",
+        "N-051-1",
+        "N-054-1",
+        "N-054-aftermath",
+        "N-054-refresh",
+        "N-056-2",
+        "N-057-2"
+      ],
+      "dimensions": [
+        {
+          "surface": "category-update-aftermath",
+          "reason": "Inherited audit lineage requires post-update state visibility coverage.",
+          "control_ids": [
+            "N-054-aftermath"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "post-mutation-refresh",
+          "reason": "Inherited audit lineage requires explicit refresh-failure propagation coverage.",
+          "control_ids": [
+            "N-054-refresh"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "rollout-state-transition",
+          "reason": "Exact-head discriminant surface for the temporal-consistency obligation.",
+          "control_ids": [
+            "N-045-1",
+            "N-051-1",
+            "N-054-1",
+            "N-056-2",
+            "N-057-2"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Canonical covered obligations, inherited controls, and exact-head attacks require and close this family.",
+      "control_ids": [
+        "N-020-1",
+        "N-021-1",
+        "N-022-1",
+        "N-023-1",
+        "N-024-1",
+        "N-025-1",
+        "N-026-1",
+        "N-027-1",
+        "N-029-1",
+        "N-030-1",
+        "N-031-1",
+        "N-033-1",
+        "N-034-1",
+        "N-036-1",
+        "N-039-1",
+        "N-042-1",
+        "N-048-1",
+        "N-049-1",
+        "N-050-1",
+        "N-052-2",
+        "N-053-2",
+        "N-055-1",
+        "N-056-1",
+        "N-057-1",
+        "N-058-1",
+        "N-059-1",
+        "N-060-1",
+        "N-060-lineage",
+        "N-060-postwrite",
+        "N-060-reaudit",
+        "N-060-semantic",
+        "N-061-1",
+        "N-062-1",
+        "N-069-2",
+        "N-070-2"
+      ],
+      "dimensions": [
+        {
+          "surface": "implementation-contract",
+          "reason": "Exact-head discriminant surface for the structural-contract obligation.",
+          "control_ids": [
+            "N-020-1",
+            "N-021-1",
+            "N-022-1",
+            "N-023-1",
+            "N-024-1",
+            "N-025-1",
+            "N-026-1",
+            "N-027-1",
+            "N-029-1",
+            "N-030-1",
+            "N-031-1",
+            "N-033-1",
+            "N-034-1",
+            "N-036-1",
+            "N-039-1",
+            "N-042-1",
+            "N-048-1",
+            "N-049-1",
+            "N-050-1",
+            "N-052-2",
+            "N-053-2",
+            "N-055-1",
+            "N-056-1",
+            "N-057-1",
+            "N-058-1",
+            "N-059-1",
+            "N-060-1",
+            "N-060-reaudit",
+            "N-060-semantic",
+            "N-061-1",
+            "N-062-1",
+            "N-069-2",
+            "N-070-2"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "post-write-refreeze",
+          "reason": "Inherited audit control requires material drift after handoff to invalidate the previous freeze.",
+          "control_ids": [
+            "N-060-postwrite"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "result-only-child-lineage",
+          "reason": "Inherited audit control requires direct-parent and allowlist validation for result-only handoff lineage.",
+          "control_ids": [
+            "N-060-lineage"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Canonical covered obligations, inherited controls, and exact-head attacks require and close this family.",
+      "control_ids": [
+        "N-069-1",
+        "N-070-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "reason": "Exact-head discriminant surface for the documentation obligation.",
+          "control_ids": [
+            "N-069-1",
+            "N-070-1"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}

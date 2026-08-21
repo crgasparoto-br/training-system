@@ -1,1 +1,22 @@
-{"contract_version":"2026-08-20.3","status":"rejected","mode":"independent","rejection_id":"audit-rejection:67a9d444-7323-4ef8-9f28-678aba259880","head_sha":"c7d37ebbe34c59f23a0431bd87a9fb7046202702","repository":"crgasparoto-br/training-system","work_item_kind":"issue","work_item_number":367,"pull_request":368,"findings":[{"id":"A-001","title":"delivery-not-ready: handoff invalidated by material drift","disposition":"blocking","severity":"blocking","status":"open","actionable":true,"remediation_mode":"systemic-remediation","recovery_scope":"post-write-refreeze","requires_refreeze":true,"requested":"Publish a fresh exact-head handoff after every material write before re-audit.","observed":"The prior certificate still named d9f75a7 as material head after later browser-evidence test commits moved the PR head to c7d37eb."}],"recommendations":[]}
+{
+  "contract_version": "2026-08-20.3",
+  "mode": "independent",
+  "status": "rejected",
+  "rejection_id": "audit-rejection:38138d5a-9eba-4c9a-a7eb-b87610c63855",
+  "head_sha": "cb9776d461a20fae9148563cacc66d52dcda0dc8",
+  "published_handoff_head_sha": "b9a4afe6e9347776639c0c6bf2db22750cc63f93",
+  "findings": [
+    {
+      "id": "A-001",
+      "title": "Critical handoff semantic artifacts were published as transport wrappers",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "category": "delivery-not-ready",
+      "recovery_scope": "handoff-only",
+      "requires_refreeze": false
+    }
+  ],
+  "recommendations": []
+}
