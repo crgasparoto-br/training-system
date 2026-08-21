@@ -42,9 +42,9 @@ describe('contract defaults audit remediation', () => {
     const events: string[] = [];
     const createMany = jest.fn(async (args: { data: unknown[] }) => ({ count: args.data.length }));
     const tx = {
-      $queryRaw: jest.fn(async (..._args: unknown[]) => {
+      $executeRaw: jest.fn(async (..._args: unknown[]) => {
         events.push('lock');
-        return [];
+        return 1;
       }),
       trainingParameter: {
         findMany: jest.fn(async () => {
@@ -84,8 +84,8 @@ describe('contract defaults audit remediation', () => {
       expect(events.indexOf(event)).toBeGreaterThan(events.indexOf('lock'));
     }
 
-    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
-    const [queryParts, boundContractId] = tx.$queryRaw.mock.calls[0] as unknown as [
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    const [queryParts, boundContractId] = tx.$executeRaw.mock.calls[0] as unknown as [
       TemplateStringsArray,
       string,
     ];
