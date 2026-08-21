@@ -366,28 +366,52 @@ async function startChrome() {
   child.stderr.on('data', (chunk) => {
     stderr = `${stderr}${chunk.toString()}`.slice(-4000);
   });
-  const activePort = path.join(profile, 'DevToolsActivePort');
-  const deadline = Date.now() + 15000;
-  let port;
-  while (Date.now() < deadline) {
-    if (child.exitCode !== null || child.signalCode !== null) {
-      throw new Error(`Chrome exited before CDP: ${stderr || child.exitCode}`);
+  try {
+    const activePort = path.join(profile, 'DevToolsActivePort');
+    const deadline = Date.now() + 20000;
+    let port;
+    while (Date.now() < deadline) {
+      if (child.exitCode !== null || child.signalCode !== null) {
+        throw new Error(`Chrome exited before CDP: ${stderr || child.exitCode}`);
+      }
+      try {
+        port = Number(readFileSync(activePort, 'utf8').trim().split(/\r?\n/)[0]);
+        if (port) break;
+      } catch {}
+      await delay(100);
     }
+    if (!port) throw new Error(`Chrome did not expose DevToolsActivePort. ${stderr}`);
+
+    const discoveryDeadline = Date.now() + 12000;
+    let page;
+    let lastDiscoveryError;
+    while (Date.now() < discoveryDeadline) {
+      if (child.exitCode !== null || child.signalCode !== null) {
+        throw new Error(`Chrome exited during target discovery: ${stderr || child.exitCode}`);
+      }
+      try {
+        const response = await fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(1500) });
+        if (!response.ok) throw new Error(`Chrome target discovery returned HTTP ${response.status}`);
+        const targets = await response.json();
+        page = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
+        if (page) break;
+      } catch (error) {
+        lastDiscoveryError = error;
+      }
+      await delay(150);
+    }
+    if (!page?.webSocketDebuggerUrl) {
+      const suffix = lastDiscoveryError instanceof Error ? ` Last discovery error: ${lastDiscoveryError.message}` : '';
+      throw new Error(`Chrome page target not found.${suffix} ${stderr}`.trim());
+    }
+    return { child, profile, port, url: page.webSocketDebuggerUrl, executable };
+  } catch (error) {
+    await stopChild(child, 'SIGKILL').catch(() => {});
     try {
-      port = Number(readFileSync(activePort, 'utf8').trim().split(/\r?\n/)[0]);
-      if (port) break;
+      rmSync(profile, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
     } catch {}
-    await delay(100);
+    throw error;
   }
-  if (!port) throw new Error(`Chrome did not expose DevToolsActivePort. ${stderr}`);
-  const targets = await bounded(
-    fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(3000) }).then((r) => r.json()),
-    4000,
-    'Chrome target discovery'
-  );
-  const page = targets.find((target) => target.type === 'page');
-  if (!page?.webSocketDebuggerUrl) throw new Error('Chrome page target not found');
-  return { child, profile, port, url: page.webSocketDebuggerUrl, executable };
 }
 
 class Cdp {
