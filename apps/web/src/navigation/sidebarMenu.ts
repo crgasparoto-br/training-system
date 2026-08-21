@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { ACCESS_SCREEN_CATALOG } from '@corrida/types';
 import type { SidebarNavItem } from '../components/sidebar';
+import { PRE_REGISTRATION_UI_ENABLED } from '../config/pre-registration-rollout';
 
 export type PermissionTreeRow =
   | { kind: 'sub-header'; id: string; label: string; depth: number }
@@ -36,6 +37,13 @@ type PermissionAttachedItem = {
 type PermissionNavItem = Omit<SidebarNavItem, 'children'> & {
   children?: PermissionNavItem[];
 };
+
+export type EffectiveSidebarNavigation = {
+  items: SidebarNavItem[];
+  hiddenPermissionScreenKeys: ReadonlySet<string>;
+};
+
+const PRE_REGISTRATION_SCREEN_KEY = 'students.preRegistration';
 
 export const sidebarMenuItems: SidebarNavItem[] = [
   {
@@ -299,6 +307,46 @@ export const sidebarMenuItems: SidebarNavItem[] = [
   },
 ];
 
+export function buildEffectiveSidebarNavigation(
+  preRegistrationUiEnabled = PRE_REGISTRATION_UI_ENABLED,
+): EffectiveSidebarNavigation {
+  if (!preRegistrationUiEnabled) {
+    return {
+      items: sidebarMenuItems,
+      hiddenPermissionScreenKeys: new Set([PRE_REGISTRATION_SCREEN_KEY]),
+    };
+  }
+
+  return {
+    items: sidebarMenuItems.map((item) => {
+      if (item.id !== 'atendimento') return item;
+
+      return {
+        ...item,
+        children: item.children?.map((group) => {
+          if (group.id !== 'atendimento-consultas') return group;
+          return {
+            ...group,
+            children: [
+              ...(group.children ?? []),
+              {
+                id: 'pre-matriculas',
+                label: 'Leads e pré-matrículas',
+                path: '/pre-matriculas',
+                screenKey: PRE_REGISTRATION_SCREEN_KEY,
+              },
+            ],
+          };
+        }),
+      };
+    }),
+    hiddenPermissionScreenKeys: new Set(),
+  };
+}
+
+export const effectiveSidebarNavigation = buildEffectiveSidebarNavigation();
+export const effectiveSidebarMenuItems = effectiveSidebarNavigation.items;
+
 const attachedPermissionItemsByMenuId: Record<string, PermissionAttachedItem[]> = {
   'central-do-aluno': [
     {
@@ -369,46 +417,54 @@ function collectScreenKeys(items: PermissionNavItem[], screenKeys = new Set<stri
   return screenKeys;
 }
 
-const permissionMenuItems = sidebarMenuItems.map(withAttachedPermissionItems);
-const menuPermissionScreenKeys = collectScreenKeys(permissionMenuItems);
+export function buildPermissionTreeGroups(
+  navigation: EffectiveSidebarNavigation,
+): PermissionTreeGroup[] {
+  const permissionMenuItems = navigation.items.map(withAttachedPermissionItems);
+  const menuPermissionScreenKeys = collectScreenKeys(permissionMenuItems);
 
-export const permissionTreeGroups: PermissionTreeGroup[] = [
-  ...permissionMenuItems
-    .map((item) => {
-      const screenKeys = Array.from(collectScreenKeys([item]));
-      const rows = buildPermissionRows([item], 0, new Set<string>());
-      return screenKeys.length > 0
-        ? {
-            id: item.id,
-            label: item.label,
-            screenKeys,
-            rows,
-          }
-        : null;
-    })
-    .filter((group): group is PermissionTreeGroup => group !== null),
-  ...(() => {
-    const internalScreens = ACCESS_SCREEN_CATALOG.filter(
-      (screen) => !menuPermissionScreenKeys.has(screen.key),
-    );
+  return [
+    ...permissionMenuItems
+      .map((item) => {
+        const screenKeys = Array.from(collectScreenKeys([item]));
+        const rows = buildPermissionRows([item], 0, new Set<string>());
+        return screenKeys.length > 0
+          ? {
+              id: item.id,
+              label: item.label,
+              screenKeys,
+              rows,
+            }
+          : null;
+      })
+      .filter((group): group is PermissionTreeGroup => group !== null),
+    ...(() => {
+      const internalScreens = ACCESS_SCREEN_CATALOG.filter(
+        (screen) =>
+          !menuPermissionScreenKeys.has(screen.key)
+          && !navigation.hiddenPermissionScreenKeys.has(screen.key),
+      );
 
-    if (internalScreens.length === 0) {
-      return [];
-    }
+      if (internalScreens.length === 0) {
+        return [];
+      }
 
-    return [
-      {
-        id: 'internal',
-        label: 'Permissões internas',
-        screenKeys: internalScreens.map((screen) => screen.key),
-        rows: internalScreens.map((screen) => ({
-          kind: 'screen' as const,
-          id: `screen-${screen.key}`,
-          screenKey: screen.key,
-          label: screen.label,
-          depth: 0,
-        })),
-      },
-    ];
-  })(),
-];
+      return [
+        {
+          id: 'internal',
+          label: 'Permissões internas',
+          screenKeys: internalScreens.map((screen) => screen.key),
+          rows: internalScreens.map((screen) => ({
+            kind: 'screen' as const,
+            id: `screen-${screen.key}`,
+            screenKey: screen.key,
+            label: screen.label,
+            depth: 0,
+          })),
+        },
+      ];
+    })(),
+  ];
+}
+
+export const permissionTreeGroups = buildPermissionTreeGroups(effectiveSidebarNavigation);
