@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "material_head_sha": "cc056a666a89b5f252d50cec7fd9e052d8d8e2b7",
+  "base_sha": "6b328b32884ee026155f9de131764c1b4986fcd0",
+  "material_tree_sha": "368d377cd59eb8a4bf1a8043a544d1dc1a0648e5",
+  "material_parents": [
+    "19c61b089e86e46cee7d39af07ab08dcf15adbe8",
+    "6b328b32884ee026155f9de131764c1b4986fcd0"
+  ],
+  "expected_publication_mode": "result-only-child",
+  "allowed_paths": [],
+  "observed": "Material candidate contains authoritative develop and is frozen after successful exact-head CI; terminal child lineage will be verified after publication.",
+  "verified_at": "2026-08-21T15:17:21.274800+00:00"
+}

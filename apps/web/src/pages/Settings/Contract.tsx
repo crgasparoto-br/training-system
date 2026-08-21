@@ -258,22 +258,18 @@ export default function ContractSettings() {
     setCloneResult(null);
     setCloneError(null);
     try {
-      const response = await api.post('/contracts/clone-data', {
-        copyParameters: true,
-        copyExercises: true,
-        copyAssessmentTypes: true,
-      });
+      const response = await api.post('/contracts/install-defaults');
 
       const result = response.data?.data;
       if (!result) {
-        throw new Error(contractCopy.cloneError);
+        throw new Error('Erro ao instalar padrões do sistema');
       }
 
       setCloneResult(
-        `Parâmetros: +${result.parametersCreated} (ignorado ${result.parametersSkipped}) | Exercícios: +${result.exercisesCreated} (ignorado ${result.exercisesSkipped}) | Avaliações: +${result.assessmentTypesCreated} (ignorado ${result.assessmentTypesSkipped})`
+        `Parâmetros: +${result.trainingParameters.installed} (já existentes ${result.trainingParameters.skipped}) | Exercícios: +${result.exercises.installed} (já existentes ${result.exercises.skipped}) | Avaliações: +${result.assessmentTypes.installed} (já existentes ${result.assessmentTypes.skipped})`
       );
     } catch (err: any) {
-      setCloneError(err.response?.data?.error || err.message || contractCopy.cloneError);
+      setCloneError(err.response?.data?.error || err.message || 'Erro ao instalar padrões do sistema');
     } finally {
       setCloning(false);
     }
@@ -535,9 +531,9 @@ export default function ContractSettings() {
       {canEdit && (
         <Card>
           <CardHeader>
-            <CardTitle>{contractCopy.cloneTitle}</CardTitle>
+            <CardTitle>Instalar padrões do sistema</CardTitle>
             <CardDescription>
-              {contractCopy.cloneDescription}
+              Preenche parâmetros de treino, tipos de avaliação e exercícios padrão que ainda não existem neste contrato, sem copiar dados de outra conta.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -558,10 +554,10 @@ export default function ContractSettings() {
               isLoading={cloning}
               disabled={cloning}
             >
-              {contractCopy.cloneButton}
+              Instalar padrões do sistema
             </Button>
             <p className="text-xs text-muted-foreground">
-              {contractCopy.cloneIgnoreHint}
+              A instalação preserva itens existentes e personalizados; execuções repetidas adicionam somente padrões ausentes.
             </p>
           </CardContent>
         </Card>

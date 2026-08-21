@@ -1,1 +1,148 @@
-{"schema_version":1,"head_sha":"97847d2f0157202deaeaf0ac3f5349088f98edd3","source_audits":[{"rejection_id":"audit-rejection:7027bee7-766e-419e-9279-42b577b4dde4","kind":"independent-rejection"},{"rejection_id":"audit-rejection:1b519788-e313-411e-ae6a-4fde96ecbedf","kind":"independent-rejection"},{"rejection_id":"audit-rejection:ead5242d-5121-4a61-9d0d-93ef017b0800","kind":"independent-rejection"},{"rejection_id":"audit-rejection:67a9d444-7323-4ef8-9f28-678aba259880","kind":"independent-rejection"},{"rejection_id":"audit-rejection:3a2eb0a1-6b89-4ab8-9e19-b76ca30c1b3d","kind":"independent-rejection"},{"rejection_id":"audit-rejection:64ce0661-df07-4558-9524-2e8e099baf05","kind":"independent-rejection","head_sha":"2bf078b20a44f981c9fc15cf58cae0ec48eb2122"}],"controls":[{"id":"ISSUE370-RUNTIME-VALIDATION-TRUTHFULNESS","status":"passed","head_sha":"97847d2f0157202deaeaf0ac3f5349088f98edd3","subject_sha":"97847d2f0157202deaeaf0ac3f5349088f98edd3","control_type":"gate","procedure":"Bind CI to exact material head.","expected":"Current-target exact-head proof is required.","observed":"Run 7288 passed on 97847d2.","evidence":"evidence/issue370-handoff-evidence.json","evidence_sha256":"ecfd9a6abcc7c7f1863af8c2f13b1f64bc60262cdc9fd8cf29cdb219640bac6a"},{"id":"ISSUE370-CONTEXT-REFRESH-001","status":"passed","head_sha":"97847d2f0157202deaeaf0ac3f5349088f98edd3","subject_sha":"97847d2f0157202deaeaf0ac3f5349088f98edd3","control_type":"test","procedure":"Exercise favicon logo change/removal.","expected":"Current-target exact-head proof is required.","observed":"BrowserFavicon regressions passed in run 7288.","evidence":"evidence/issue370-handoff-evidence.json","evidence_sha256":"ecfd9a6abcc7c7f1863af8c2f13b1f64bc60262cdc9fd8cf29cdb219640bac6a","risk_family":"temporal-consistency","surface":"favicon-update-sequencing"},{"id":"ISSUE370-POST-WRITE-REFREEZE-001","status":"passed","head_sha":"97847d2f0157202deaeaf0ac3f5349088f98edd3","subject_sha":"97847d2f0157202deaeaf0ac3f5349088f98edd3","control_type":"gate","procedure":"Refreeze after material writes.","expected":"Current-target exact-head proof is required.","observed":"97847d2 is the new material head.","evidence":"evidence/issue370-handoff-evidence.json","evidence_sha256":"ecfd9a6abcc7c7f1863af8c2f13b1f64bc60262cdc9fd8cf29cdb219640bac6a"},{"id":"ISSUE370-AUDIT-TARGET-ISOLATION-001","status":"passed","head_sha":"97847d2f0157202deaeaf0ac3f5349088f98edd3","subject_sha":"97847d2f0157202deaeaf0ac3f5349088f98edd3","control_type":"gate","procedure":"Bind audit evidence to issue 370/PR 372.","expected":"Current-target exact-head proof is required.","observed":"Active rejection is audit-rejection:64ce0661-df07-4558-9524-2e8e099baf05.","evidence":"evidence/issue370-handoff-evidence.json","evidence_sha256":"ecfd9a6abcc7c7f1863af8c2f13b1f64bc60262cdc9fd8cf29cdb219640bac6a","risk_family":"structural-contract","surface":"delivery-target-binding"},{"id":"ISSUE370-PR-MERGEABILITY-001","status":"passed","head_sha":"97847d2f0157202deaeaf0ac3f5349088f98edd3","subject_sha":"97847d2f0157202deaeaf0ac3f5349088f98edd3","control_type":"gate","procedure":"Read fresh PR/base mergeability.","expected":"Current-target exact-head proof is required.","observed":"PR 372 mergeable=true against develop@260e857.","evidence":"evidence/issue370-handoff-evidence.json","evidence_sha256":"ecfd9a6abcc7c7f1863af8c2f13b1f64bc60262cdc9fd8cf29cdb219640bac6a","attack_control_id":"NEG-PR-MERGEABILITY","risk_family":"structural-contract","surface":"pr-integration-mergeability","dimension":"fresh-mergeability-required"}],"retired_controls":[],"unresolved_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+  "source_audits": [
+    {
+      "rejection_id": "audit-rejection:7027bee7-766e-419e-9279-42b577b4dde4",
+      "kind": "independent-rejection",
+      "head_sha": "829e19bdbc94abc1febda351c16cbb3d38d971d7"
+    },
+    {
+      "rejection_id": "audit-rejection:63aa7591-9ebe-45ed-aa0e-7db38c50ee3f",
+      "kind": "independent-rejection",
+      "head_sha": "5f8face3facac6d2564c68240d78e81a4e2cd3a5",
+      "finding_ids": [
+        "A-001"
+      ]
+    },
+    {
+      "rejection_id": "audit-rejection:d363899c-b75c-4caf-878c-b355a7db56ec",
+      "kind": "independent-rejection",
+      "head_sha": "9b9f38eda89823aeafda48f0437eab0b07e56153",
+      "finding_ids": [
+        "A-002"
+      ]
+    },
+    {
+      "rejection_id": "audit-rejection:513918b7-dfa9-443c-92db-3d4ebfb4e7af",
+      "kind": "independent-rejection",
+      "head_sha": "9976969fafeaffa33ee668a188bc69100a6a67dd",
+      "finding_ids": [
+        "A-001"
+      ]
+    },
+    {
+      "rejection_id": "audit-rejection:fc983d85-76ae-4ec6-ae5e-efe4cbdfe259",
+      "kind": "independent-rejection",
+      "head_sha": "88e061659d058ea781df4b7273e1c15b2a8c2315",
+      "finding_ids": [
+        "A-001"
+      ]
+    },
+    {
+      "rejection_id": "audit-rejection:32605ed8-7f59-4904-9b9c-084689463a5d",
+      "kind": "independent-rejection",
+      "head_sha": "ea1d4bcf1de25ffe2da7bb660312469214fae8d1",
+      "finding_ids": [
+        "A-001"
+      ]
+    }
+  ],
+  "controls": [
+    {
+      "id": "HANDOFF-TARGET-BINDING-365",
+      "status": "passed",
+      "head_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+      "subject_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+      "control_type": "procedure",
+      "procedure": "Resolve immutable repository, PR, authoritative base, material head, parent and changed paths and execute the discriminant terminal delivery control before publication.",
+      "expected": "A stale, foreign, post-write or cached delivery identity cannot certify the current candidate.",
+      "observed": "Fresh remote target is Issue #365 / PR #366 at synchronized material 72c6e71.",
+      "evidence": "evidence-material-verification.json",
+      "evidence_sha256": "7de06d2d388e97fdd97e19c2932681da63f9509fdc0e6964807a92af5bb2f29d",
+      "attack_control_id": "H365-01",
+      "risk_family": "structural-contract",
+      "surface": "delivery-target-binding",
+      "dimension": "d35"
+    },
+    {
+      "id": "HANDOFF-POST-WRITE-REFREEZE-365",
+      "status": "passed",
+      "head_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+      "subject_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+      "control_type": "procedure",
+      "procedure": "Resolve immutable repository, PR, authoritative base, material head, parent and changed paths and execute the discriminant terminal delivery control before publication.",
+      "expected": "A stale, foreign, post-write or cached delivery identity cannot certify the current candidate.",
+      "observed": "The old freeze and audited ea1d head are historical; synchronization produced material 72c6e71 and triggered another exact refreeze.",
+      "evidence": "evidence-material-verification.json",
+      "evidence_sha256": "7de06d2d388e97fdd97e19c2932681da63f9509fdc0e6964807a92af5bb2f29d",
+      "attack_control_id": "H365-02",
+      "risk_family": "structural-contract",
+      "surface": "post-freeze-material-drift",
+      "dimension": "d38"
+    },
+    {
+      "id": "HANDOFF-CUMULATIVE-LINEAGE-365",
+      "status": "passed",
+      "head_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+      "subject_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+      "control_type": "procedure",
+      "procedure": "Resolve immutable repository, PR, authoritative base, material head, parent and changed paths and execute the discriminant terminal delivery control before publication.",
+      "expected": "A stale, foreign, post-write or cached delivery identity cannot certify the current candidate.",
+      "observed": "All six independent rejection sources are cumulative and the terminal publication is prepared as a direct result-only child.",
+      "evidence": "evidence-material-verification.json",
+      "evidence_sha256": "7de06d2d388e97fdd97e19c2932681da63f9509fdc0e6964807a92af5bb2f29d",
+      "attack_control_id": "H365-05",
+      "risk_family": "structural-contract",
+      "surface": "result-only-child-lineage",
+      "dimension": "direct-parent-allowlist"
+    },
+    {
+      "id": "HANDOFF-POST-WRITE-REFREEZE-366-REPEAT",
+      "status": "passed",
+      "head_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+      "subject_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+      "control_type": "procedure",
+      "procedure": "Resolve immutable repository, PR, authoritative base, material head, parent and changed paths and execute the discriminant terminal delivery control before publication.",
+      "expected": "A stale, foreign, post-write or cached delivery identity cannot certify the current candidate.",
+      "observed": "The synchronization merge is treated as material and exact-head CI #7293 passed before the new freeze.",
+      "evidence": "evidence-material-verification.json",
+      "evidence_sha256": "7de06d2d388e97fdd97e19c2932681da63f9509fdc0e6964807a92af5bb2f29d",
+      "attack_control_id": "H365-03",
+      "risk_family": "structural-contract",
+      "surface": "post-freeze-material-drift",
+      "dimension": "d41"
+    },
+    {
+      "id": "HANDOFF-BASE-REF-AUTHORITY-365",
+      "status": "passed",
+      "head_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+      "subject_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+      "control_type": "procedure",
+      "procedure": "Resolve immutable repository, PR, authoritative base, material head, parent and changed paths and execute the discriminant terminal delivery control before publication.",
+      "expected": "A stale, foreign, post-write or cached delivery identity cannot certify the current candidate.",
+      "observed": "Fresh authoritative develop is 93256880 and is a direct parent/merge base of material 72c6e71 with behind_by=0.",
+      "evidence": "evidence-material-verification.json",
+      "evidence_sha256": "7de06d2d388e97fdd97e19c2932681da63f9509fdc0e6964807a92af5bb2f29d",
+      "attack_control_id": "H365-07",
+      "risk_family": "structural-contract",
+      "surface": "base-ref-authority",
+      "dimension": "authoritative-ref-vs-pr-cache"
+    }
+  ],
+  "retired_controls": [
+    {
+      "id": "HANDOFF-TARGET-BINDING-001",
+      "disposition": "superseded",
+      "reason": "The historical generic target-binding control remains represented and is superseded by the active Issue #365 target-binding control on the current material candidate.",
+      "subject_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+      "evidence": "evidence-material-verification.json",
+      "evidence_sha256": "7de06d2d388e97fdd97e19c2932681da63f9509fdc0e6964807a92af5bb2f29d",
+      "procedure": "Compare the retired generic target binding with the active current-target replacement on the exact material candidate.",
+      "expected": "The historical control remains explicit and the replacement is active and passed.",
+      "observed": "HANDOFF-TARGET-BINDING-365 is active and passed on synchronized material 72c6e71.",
+      "replacement_control_id": "HANDOFF-TARGET-BINDING-365"
+    }
+  ],
+  "unresolved_controls": []
+}

@@ -1,1 +1,15 @@
-{"schema_version":1,"classification":"systemic-escape","source_event":{"kind":"independent-rejection","rejection_id":"audit-rejection:64ce0661-df07-4558-9524-2e8e099baf05","finding_ids":["A-003"]},"generalized_learning":{"escape_class":"terminal-handoff-without-current-base-mergeability-proof","generalized_failure_pattern":"A candidate can be functionally green and carry a valid-looking handoff while current base drift makes the pull request unmergeable.","plausible_wrong_implementation":"Freeze and hand off a green head without rechecking PR mergeability against the current base immediately before release readiness.","trigger_signals":["base branch advanced after material validation","pull request mergeability changed to dirty/conflicting","handoff was produced from an older base SHA"],"risk_families":["structural-contract"],"reusable_control":"Before terminal handoff, read fresh PR identity and require mergeable=true against the current base; if dirty/conflicting, reconcile, rerun gates and refreeze.","prevention_rule":"Terminal readiness must be based on current base identity, not only exact-head CI.","detection_rule":"Fail handoff readiness when fresh PR mergeability is false/dirty or base SHA differs from the base used by the frozen candidate without reconciliation.","transfer_cases":[{"surface":"base-advanced-after-green-ci","scenario":"A synthetic PR is green but base advances into a textual conflict before handoff.","status":"passed"},{"surface":"stale-base-certificate","scenario":"A certificate names an older base while the live PR is no longer mergeable.","status":"passed"}],"promotion_status":"promoted"},"skill_changes":[{"role":"prevention","status":"passed","evidence":"Current delivery now treats fresh PR/base mergeability as a terminal structural control."},{"role":"detection","status":"passed","evidence":"NEG-PR-MERGEABILITY is carried into inherited controls and risk saturation for subsequent re-audit."}]}
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:32605ed8-7f59-4904-9b9c-084689463a5d",
+    "finding_ids": [
+      "A-001"
+    ]
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "The canonical entregar-issue lifecycle already requires post-write refreeze, fresh terminal identity and direct result-only-child lineage. This rejection is closed by applying those existing generic controls to the synchronized candidate rather than adding a repository-specific rule."
+  }
+}

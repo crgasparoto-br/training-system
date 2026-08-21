@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "material_head_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+  "repository": "crgasparoto-br/training-system",
+  "issue": 365,
+  "pull_request": 366,
+  "exact_head_tree": {
+    "commit": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+    "tree_sha": "b674537b77c22c40f9cb09426aba363f36027d13",
+    "parents": [
+      "ea1d4bcf1de25ffe2da7bb660312469214fae8d1",
+      "93256880dc2894a6b8fa07ab8a6bd3de43d38967"
+    ]
+  },
+  "base_authority": {
+    "base_ref": "develop",
+    "authoritative_sha": "93256880dc2894a6b8fa07ab8a6bd3de43d38967",
+    "compare_status": "ahead",
+    "merge_base_sha": "93256880dc2894a6b8fa07ab8a6bd3de43d38967",
+    "ahead_by": 46,
+    "behind_by": 0,
+    "status": "passed",
+    "observed": "Fresh develop resolution is the second parent and merge base of the synchronized material candidate; behind_by is zero."
+  },
+  "post_write_refreeze": {
+    "previous_certified_material_sha": "265f0041c61ec70432a7b0e8fc494db1346da8a4",
+    "audited_material_sha": "ea1d4bcf1de25ffe2da7bb660312469214fae8d1",
+    "current_material_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+    "auditor_recovery_scope": "post-write-refreeze",
+    "auditor_requires_refreeze": true,
+    "status": "passed",
+    "observed": "The stale certificate is historical. The branch synchronization is treated as a new material write and the candidate is refrozen on the exact synchronized head."
+  },
+  "synchronization_delta": {
+    "from_sha": "ea1d4bcf1de25ffe2da7bb660312469214fae8d1",
+    "to_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+    "changed_paths": [
+      "apps/web/index.html",
+      "apps/web/src/components/BrowserFavicon.test.tsx",
+      "apps/web/src/components/BrowserFavicon.tsx",
+      "apps/web/src/main.tsx",
+      "apps/web/src/pages/issue-313-browser-evidence.test.js"
+    ],
+    "status": "passed",
+    "observed": "The only delta after the audited Issue #365 head is inherited develop work in five web/favicon/browser-evidence paths; no Issue #365 defaults API, tests, routes, docs, environment or settings page path changed."
+  },
+  "runtime_controls": {
+    "canonical_defaults": {
+      "status": "passed",
+      "observed": "Issue #365 canonical product-default implementation is unchanged from the previously validated material path."
+    },
+    "authenticated_target": {
+      "status": "passed",
+      "observed": "Issue #365 authenticated target binding and explicit-only cross-contract copy are unchanged by the synchronization delta."
+    },
+    "advisory_lock": {
+      "status": "passed",
+      "observed": "The advisory-lock implementation and its focused $executeRaw test remain unchanged by the synchronization delta."
+    },
+    "specified_test_matrix": {
+      "status": "passed",
+      "observed": "The Issue #365 specified test matrix remains present and the exact synchronized material passed Validate PR #7293."
+    }
+  },
+  "current_ci": {
+    "commit": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+    "workflow": "Validate PR",
+    "run_id": 32520380967,
+    "run_number": 7293,
+    "status": "completed",
+    "conclusion": "success",
+    "status_check": "passed",
+    "snapshot_policy": "single remote snapshot for this material SHA in this invocation",
+    "observed": "Validate PR #7293 completed successfully on the exact synchronized material SHA."
+  },
+  "audit_lineage": {
+    "status": "passed",
+    "observed": "Five historical independent rejections plus current rejection audit-rejection:32605ed8-7f59-4904-9b9c-084689463a5d are retained in cumulative delivery controls."
+  },
+  "quantitative_observation": {
+    "metric": "specified_issue365_test_scenarios_preserved",
+    "value": 9,
+    "unit": "scenarios",
+    "subject_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f"
+  },
+  "verified_at": "2026-08-21T20:16:52.146270+00:00"
+}

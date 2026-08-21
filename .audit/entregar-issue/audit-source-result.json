@@ -1,1 +1,32 @@
-{"contract_version":"2026-08-20.3","status":"rejected","mode":"independent","rejection_id":"audit-rejection:64ce0661-df07-4558-9524-2e8e099baf05","head_sha":"2bf078b20a44f981c9fc15cf58cae0ec48eb2122","repository":"crgasparoto-br/training-system","work_item_kind":"issue","work_item_number":370,"pull_request":372,"findings":[{"id":"A-003","title":"PR possui conflitos com develop","disposition":"blocking","severity":"blocking","status":"open","actionable":true,"remediation_mode":"targeted-remediation","recovery_scope":"post-write-refreeze","requires_refreeze":true,"requested":"Atualizar a branch contra develop, resolver conflitos preservando o contrato da issue 370, reexecutar gates no novo material SHA e refazer o handoff terminal.","observed":"No momento da auditoria o GitHub reportava mergeable=false, rebaseable=false e mergeable_state=dirty."}],"recommendations":[]}
+{
+  "contract_version": "2026-08-20.3",
+  "mode": "independent",
+  "status": "rejected",
+  "rejection_id": "audit-rejection:32605ed8-7f59-4904-9b9c-084689463a5d",
+  "head_sha": "ea1d4bcf1de25ffe2da7bb660312469214fae8d1",
+  "material_head_sha": "ea1d4bcf1de25ffe2da7bb660312469214fae8d1",
+  "repository": "crgasparoto-br/training-system",
+  "work_item_kind": "issue",
+  "work_item_number": 365,
+  "pull_request": 366,
+  "base_ref": "develop",
+  "head_ref": "feat/365-install-product-defaults",
+  "result": "REPROVADA",
+  "release_gate_satisfied": false,
+  "findings": [
+    {
+      "id": "A-001",
+      "title": "Handoff stale after post-freeze material writes",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "category": "delivery-not-ready",
+      "reason": "The published handoff certified material 265f0041c61ec70432a7b0e8fc494db1346da8a4 while the audited candidate had moved to ea1d4bcf1de25ffe2da7bb660312469214fae8d1 after material writes."
+    }
+  ],
+  "recommendations": [],
+  "return_control_to": "entregar-issue",
+  "recovery_scope": "post-write-refreeze",
+  "requires_refreeze": true
+}

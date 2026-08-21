@@ -1,1 +1,51 @@
-{"schema_version":1,"contract_version":"2026-08-20.3","resolution_policy":"all-actionable-items","status":"closed","candidate_head_sha":"97847d2f0157202deaeaf0ac3f5349088f98edd3","remediation_mode":"targeted-remediation","source":{"rejection_id":"audit-rejection:64ce0661-df07-4558-9524-2e8e099baf05","audited_head_sha":"2bf078b20a44f981c9fc15cf58cae0ec48eb2122","audit_report_sha256":"f962d1dfca594cebaaa03889291497afb4c9bc187c0af93d914f4ac4f7e0b48f"},"items":[{"source_kind":"finding","source_id":"A-003","remediation_mode":"targeted-remediation","status":"fixed","resolution":"Reconciled feat/issue-370-dynamic-favicon with current develop in merge commit 97847d2, verified GitHub mergeable=true, and revalidated the exact material head with Validate PR run 7288 success.","evidence":["evidence/issue370-handoff-evidence.json","handoff-ready.json"],"validations":["GitHub mergeability snapshot","Validate PR run 7288","terminal direct-parent/result-only reconciliation"]}]}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:32605ed8-7f59-4904-9b9c-084689463a5d",
+    "audited_head_sha": "ea1d4bcf1de25ffe2da7bb660312469214fae8d1",
+    "audit_report_sha256": "4aee6546998614788ca07d3866c9c5cb7512957b5abfa6a74b52d735d1e85d47"
+  },
+  "candidate_head_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+  "remediation_mode": "targeted-remediation",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "changed_files": [
+        ".audit/entregar-issue/audit-source-result.json",
+        ".audit/entregar-issue/audit-remediation.json",
+        ".audit/entregar-issue/evidence-material-verification.json",
+        ".audit/entregar-issue/evidence-provenance.json",
+        ".audit/entregar-issue/inherited-controls.json",
+        ".audit/entregar-issue/audit-escape-closure.json",
+        ".audit/entregar-issue/learning-closure.json",
+        ".audit/entregar-issue/requirement-attack-matrix.json",
+        ".audit/entregar-issue/risk-saturation.json",
+        ".audit/entregar-issue/handoff-ready.json"
+      ],
+      "evidence": [
+        "The independent recovery floor post-write-refreeze/requires_refreeze=true is preserved.",
+        "The branch is synchronized with authoritative develop as a direct merge parent; the sync delta is unrelated to Issue #365 product paths.",
+        "Validate PR #7293 completed successfully on exact material 72c6e71.",
+        "A fresh result-only handoff will be published as a direct child of the synchronized material."
+      ],
+      "validations": [
+        "validate_specification_coverage.py",
+        "validate_requirement_attack_matrix.py",
+        "validate_evidence_freshness.py",
+        "validate_risk_saturation.py",
+        "validate_inherited_controls.py",
+        "validate_audit_escape_lineage.py",
+        "validate_learning_closure.py",
+        "validate_independent_rejection_closure.py",
+        "Validate PR #7293"
+      ],
+      "reason": "The delivery-state finding is closed by refreezing the exact synchronized material; no additional Issue #365 product-code change is necessary."
+    }
+  ],
+  "status": "closed"
+}
