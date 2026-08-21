@@ -1,6 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { contractService } from './contract.service.js';
 import {
+  validateContractProfileIdentityUpdate,
+  type ContractProfileType,
+} from './contract-profile-validation.js';
+import {
   adipometryGovernanceService,
   AdipometryGovernanceError,
 } from '../adipometry/adipometry-governance.service.js';
@@ -20,7 +24,6 @@ import { savePublicAsset } from '../../common/supabase-storage.js';
 const router: Router = Router();
 const prisma = new PrismaClient();
 
-const normalizeDocument = (document: string) => document.replace(/\D/g, '');
 const trimOptional = (value: unknown) =>
   typeof value === 'string' ? value.trim() || null : null;
 
@@ -475,6 +478,7 @@ router.put('/me', async (req: Request, res: Response) => {
     }
 
     const {
+      type,
       name,
       document,
       tradeName,
@@ -488,6 +492,7 @@ router.put('/me', async (req: Request, res: Response) => {
       addressZipCode,
       logoUrl,
     } = req.body as {
+      type?: unknown;
       name?: string;
       document?: string;
       tradeName?: string | null;
@@ -501,7 +506,19 @@ router.put('/me', async (req: Request, res: Response) => {
       addressZipCode?: string | null;
       logoUrl?: string | null;
     };
+
+    const identityValidation = validateContractProfileIdentityUpdate({
+      currentType: contract.type as ContractProfileType,
+      requestedType: type,
+      document,
+    });
+
+    if (!identityValidation.ok) {
+      return sendError(res, identityValidation.error, 400);
+    }
+
     const updateData: {
+      type?: 'academy' | 'personal';
       name?: string;
       document?: string;
       tradeName?: string | null;
@@ -516,6 +533,10 @@ router.put('/me', async (req: Request, res: Response) => {
       logoUrl?: string | null;
     } = {};
 
+    if (type !== undefined) {
+      updateData.type = identityValidation.targetType;
+    }
+
     if (typeof name === 'string' && name.trim().length > 0) {
       updateData.name = name.trim();
     }
@@ -524,19 +545,8 @@ router.put('/me', async (req: Request, res: Response) => {
       updateData.tradeName = trimOptional(tradeName);
     }
 
-    if (typeof document === 'string' && document.trim().length > 0) {
-      const normalized = normalizeDocument(document);
-      const expectedLength = contract.type === 'academy' ? 14 : 11;
-
-      if (normalized.length !== expectedLength) {
-        return sendError(
-          res,
-          contract.type === 'academy' ? 'CNPJ invÃ¡lido' : 'CPF invÃ¡lido',
-          400
-        );
-      }
-
-      updateData.document = normalized;
+    if (identityValidation.normalizedDocument !== undefined) {
+      updateData.document = identityValidation.normalizedDocument;
     }
 
     if (cref !== undefined) {
@@ -697,4 +707,3 @@ router.post('/clone-data', async (req: Request, res: Response) => {
 });
 
 export default router;
-
