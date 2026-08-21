@@ -1,6 +1,7 @@
 import { PrismaClient, LoadType, MovementType, CountingType } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
+import { repairPtBrMojibake } from '../common/pt-br-text.js';
 
 const prisma = new PrismaClient();
 
@@ -21,6 +22,7 @@ const LOWERCASE_WORDS = new Set([
 
 /**
  * Normaliza o nome do exercício:
+ * - Recupera acentuação pt-BR de exportações legadas CP850
  * - Remove espaços extras
  * - Primeira letra de cada palavra em maiúscula
  * - Conjunções em minúscula
@@ -29,27 +31,20 @@ const LOWERCASE_WORDS = new Set([
 function normalizeName(name: string): string {
   if (!name) return '';
 
-  // Remove espaços extras
-  const cleaned = name.trim().replace(/\s+/g, ' ');
-
-  // Divide em palavras
+  const cleaned = repairPtBrMojibake(name).trim().replace(/\s+/g, ' ');
   const words = cleaned.split(' ');
 
-  // Processa cada palavra
   const normalized = words.map((word, index) => {
     const lowerWord = word.toLowerCase();
 
-    // Primeira palavra sempre maiúscula
     if (index === 0) {
       return capitalizeFirst(word);
     }
 
-    // Conjunções e preposições em minúscula
     if (LOWERCASE_WORDS.has(lowerWord)) {
       return lowerWord;
     }
 
-    // Outras palavras com primeira letra maiúscula
     return capitalizeFirst(word);
   });
 
@@ -185,7 +180,6 @@ async function importExercises(filePath: string, dryRun: boolean) {
     process.exit(1);
   }
 
-  // Ler arquivo JSON
   const fileContent = fs.readFileSync(filePath, 'utf-8');
   const rows: ExerciseRow[] = JSON.parse(fileContent);
 
@@ -198,7 +192,6 @@ async function importExercises(filePath: string, dryRun: boolean) {
 
   for (const row of rows) {
     try {
-      // Normalizar nome
       const normalizedName = normalizeName(row.name);
 
       if (!normalizedName) {
@@ -207,7 +200,6 @@ async function importExercises(filePath: string, dryRun: boolean) {
         continue;
       }
 
-      // Verificar se já existe
       const existing = await prisma.exerciseLibrary.findFirst({
         where: { name: normalizedName, contractId },
       });
@@ -218,7 +210,6 @@ async function importExercises(filePath: string, dryRun: boolean) {
         continue;
       }
 
-      // Preparar dados
       const data = {
         contractId,
         name: normalizedName,
@@ -227,8 +218,10 @@ async function importExercises(filePath: string, dryRun: boolean) {
         movementType: normalizeMovementType(row.movementType),
         countingType: normalizeCountingType(row.countingType),
         category: determineCategory(normalizedName),
-        muscleGroup: row.muscleGroup?.trim() || undefined,
-        notes: row.notes?.trim() || undefined,
+        muscleGroup: row.muscleGroup
+          ? repairPtBrMojibake(row.muscleGroup).trim() || undefined
+          : undefined,
+        notes: row.notes ? repairPtBrMojibake(row.notes).trim() || undefined : undefined,
       };
 
       if (dryRun) {
@@ -237,7 +230,6 @@ async function importExercises(filePath: string, dryRun: boolean) {
         continue;
       }
 
-      // Criar exercício
       await prisma.exerciseLibrary.create({ data });
 
       console.log(`✅ Importado: "${normalizedName}"`);
@@ -277,5 +269,4 @@ async function main() {
   }
 }
 
-// Executar
 main();
