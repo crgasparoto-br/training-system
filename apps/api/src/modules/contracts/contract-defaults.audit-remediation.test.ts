@@ -22,17 +22,20 @@ describe('contract defaults audit remediation', () => {
     );
   });
 
-  it('rejeita nomes canônicos duplicados após normalização', () => {
+  it('consolida nomes canônicos duplicados após normalização sem instalar duplicatas', () => {
     jest.spyOn(fs, 'readFileSync').mockReturnValueOnce(
       JSON.stringify([
-        { name: 'Agachamento Livre' },
-        { name: '  Agachamento   Livre  ' },
+        { name: 'Agachamento Livre', muscleGroup: 'Quadríceps' },
+        { name: '  Agachamento   Livre  ', muscleGroup: 'Quadríceps' },
       ])
     );
 
-    expect(() => loadProductExerciseDefaults()).toThrow(
-      'Catálogo padrão de exercícios inválido: nome duplicado após normalização: Agachamento Livre'
-    );
+    expect(loadProductExerciseDefaults()).toEqual([
+      expect.objectContaining({
+        name: 'Agachamento Livre',
+        muscleGroup: 'Quadríceps',
+      }),
+    ]);
   });
 
   it('adquire lock transacional por contrato antes de qualquer leitura de instalação', async () => {
