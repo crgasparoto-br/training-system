@@ -2,50 +2,30 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
-  "source": {
-    "rejection_id": "audit-rejection:32605ed8-7f59-4904-9b9c-084689463a5d",
-    "audited_head_sha": "ea1d4bcf1de25ffe2da7bb660312469214fae8d1",
-    "audit_report_sha256": "4aee6546998614788ca07d3866c9c5cb7512957b5abfa6a74b52d735d1e85d47"
-  },
-  "candidate_head_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+  "status": "closed",
+  "candidate_head_sha": "7c291f0a6ea7df6ae7716d8b34822dd7a1cbe1f1",
   "remediation_mode": "targeted-remediation",
+  "source": {
+    "rejection_id": "audit-rejection:b4c5ce7d-af78-4d6e-8bb0-540fd22700a5",
+    "audited_head_sha": "7c291f0a6ea7df6ae7716d8b34822dd7a1cbe1f1",
+    "audit_report_sha256": "c8f9b147e03b6b227282df1c10222cd244eda6039f2a5151b603111bc57d9f0c"
+  },
   "items": [
     {
       "source_kind": "finding",
       "source_id": "A-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "changed_files": [
-        ".audit/entregar-issue/audit-source-result.json",
-        ".audit/entregar-issue/audit-remediation.json",
-        ".audit/entregar-issue/evidence-material-verification.json",
-        ".audit/entregar-issue/evidence-provenance.json",
-        ".audit/entregar-issue/inherited-controls.json",
-        ".audit/entregar-issue/audit-escape-closure.json",
-        ".audit/entregar-issue/learning-closure.json",
-        ".audit/entregar-issue/requirement-attack-matrix.json",
-        ".audit/entregar-issue/risk-saturation.json",
-        ".audit/entregar-issue/handoff-ready.json"
-      ],
       "evidence": [
-        "The independent recovery floor post-write-refreeze/requires_refreeze=true is preserved.",
-        "The branch is synchronized with authoritative develop as a direct merge parent; the sync delta is unrelated to Issue #365 product paths.",
-        "Validate PR #7293 completed successfully on exact material 72c6e71.",
-        "A fresh result-only handoff will be published as a direct child of the synchronized material."
+        ".audit/entregar-issue/skill-target-binding-tests.log sha256 73eb814398ba2b77d46272e80597200671e4025b0ace59f483fde197608bee19",
+        ".audit/entregar-issue/skill-rejection-learning-tests.log sha256 a90fa2a1493ac4c6b8deb6539dfbba340fe1654f04ae14570c0f3bedb67c4dbe",
+        "specification-snapshot.json rebuilt from issues 375, 377 and 378 for repository crgasparoto-br/training-system"
       ],
       "validations": [
-        "validate_specification_coverage.py",
-        "validate_requirement_attack_matrix.py",
-        "validate_evidence_freshness.py",
-        "validate_risk_saturation.py",
-        "validate_inherited_controls.py",
-        "validate_audit_escape_lineage.py",
-        "validate_learning_closure.py",
-        "validate_independent_rejection_closure.py",
-        "Validate PR #7293"
-      ],
-      "reason": "The delivery-state finding is closed by refreezing the exact synchronized material; no additional Issue #365 product-code change is necessary."
+        "20 generic delivery-target-binding/connector-only/terminal-handoff tests passed",
+        "30 independent-rejection/learning/audit-escape contract tests passed",
+        "requirement coverage, attack matrix, inherited controls and risk saturation validators returned READY"
+      ]
     }
-  ],
-  "status": "closed"
+  ]
 }

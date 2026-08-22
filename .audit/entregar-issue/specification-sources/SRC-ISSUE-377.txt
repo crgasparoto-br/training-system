@@ -1,0 +1,26 @@
+## Objetivo
+Corrigir os problemas de codificação e de edição/validação do documento na tela `/settings/contract`.
+
+## Contexto
+Foram identificados dois problemas relacionados:
+1. mensagens da API aparecem com mojibake, como `CPF invÃ¡lido`;
+2. a tela sempre apresentava e validava o campo como CNPJ (14 dígitos), enquanto o backend valida `personal` como CPF (11 dígitos) e `academy` como CNPJ (14 dígitos). Isso fazia um contrato `personal` preencher 14 dígitos na UI e receber `CPF inválido` do backend. Além disso, a máscara aplicava `setValue` a cada tecla, deslocando o cursor para o fim do campo.
+
+## Escopo
+- normalizar mensagens de erro UTF-8/pt-BR no ponto comum de resposta;
+- fazer `/settings/contract` respeitar o tipo do contrato: `academy` = CNPJ e `personal` = CPF;
+- usar placeholder, máscara e comprimento coerentes com o tipo do contrato;
+- validar o comprimento correto antes do envio;
+- enviar o documento normalizado somente com dígitos;
+- preservar a posição lógica do cursor durante edição no meio do campo;
+- remover a validação agressiva a cada tecla e limpar o erro quando o usuário volta a editar;
+- preservar mensagens já corretas.
+
+## Critérios de aceite
+- contrato `academy` exibe CNPJ e aceita 14 dígitos;
+- contrato `personal` exibe CPF e aceita 11 dígitos;
+- a UI não envia um CNPJ para uma rota que espera CPF, nem o inverso;
+- editar no meio do documento não joga o cursor para o fim;
+- após corrigir o documento, a mensagem de inválido não permanece indevidamente;
+- `CPF inválido` e `CNPJ inválido` são exibidos com acentuação correta;
+- suíte relevante passa.

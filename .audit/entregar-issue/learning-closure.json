@@ -3,13 +3,13 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:32605ed8-7f59-4904-9b9c-084689463a5d",
+    "rejection_id": "audit-rejection:b4c5ce7d-af78-4d6e-8bb0-540fd22700a5",
     "finding_ids": [
       "A-001"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The canonical entregar-issue lifecycle already requires post-write refreeze, fresh terminal identity and direct result-only-child lineage. This rejection is closed by applying those existing generic controls to the synchronized candidate rather than adding a repository-specific rule."
+    "reason": "The installed delivery skill already contains generic foreign-target rejection, fresh-handoff recovery, and terminal result-only-child validation; this rejection needs a target-specific packet replacement rather than a new global rule."
   }
 }

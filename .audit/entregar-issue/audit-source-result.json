@@ -1,32 +1,29 @@
 {
+  "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "mode": "independent",
-  "status": "rejected",
-  "rejection_id": "audit-rejection:32605ed8-7f59-4904-9b9c-084689463a5d",
-  "head_sha": "ea1d4bcf1de25ffe2da7bb660312469214fae8d1",
-  "material_head_sha": "ea1d4bcf1de25ffe2da7bb660312469214fae8d1",
-  "repository": "crgasparoto-br/training-system",
-  "work_item_kind": "issue",
-  "work_item_number": 365,
-  "pull_request": 366,
-  "base_ref": "develop",
-  "head_ref": "feat/365-install-product-defaults",
   "result": "REPROVADA",
-  "release_gate_satisfied": false,
+  "rejection_id": "audit-rejection:b4c5ce7d-af78-4d6e-8bb0-540fd22700a5",
+  "head_sha": "7c291f0a6ea7df6ae7716d8b34822dd7a1cbe1f1",
+  "identity": {
+    "repository": "crgasparoto-br/training-system",
+    "issue_number": 375,
+    "pull_request_number": 376,
+    "base_ref": "develop",
+    "head_ref": "fix/375-exercise-ptbr-encoding"
+  },
   "findings": [
     {
       "id": "A-001",
-      "title": "Handoff stale after post-freeze material writes",
+      "title": "Handoff pertence à issue/PR errados",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
-      "remediation_mode": "targeted-remediation",
       "category": "delivery-not-ready",
-      "reason": "The published handoff certified material 265f0041c61ec70432a7b0e8fc494db1346da8a4 while the audited candidate had moved to ea1d4bcf1de25ffe2da7bb660312469214fae8d1 after material writes."
+      "reason": "foreign-target-handoff",
+      "recovery_scope": "fresh-handoff-required",
+      "remediation_mode": "targeted-remediation"
     }
   ],
-  "recommendations": [],
-  "return_control_to": "entregar-issue",
-  "recovery_scope": "post-write-refreeze",
-  "requires_refreeze": true
+  "recommendations": []
 }
