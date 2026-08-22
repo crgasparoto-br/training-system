@@ -1,54 +1,17 @@
 {
   "schema_version": 1,
-  "classification": "systemic-escape",
+  "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:89f872e5-4271-4fa7-9b1e-91f2f5aaaf1f",
-    "finding_ids": []
+    "rejection_id": "audit-rejection:8096b568-f1ff-4bd6-9da2-aa0cf0cf5658",
+    "audit_report_sha256": "ba05817c36ed69a276a27d2c77140df4be88a1b418b6e51331ec00dcfe998e69",
+    "finding_ids": [
+      "A-380-001",
+      "A-380-002"
+    ]
   },
   "generalized_learning": {
-    "escape_class": "inherited-base-handoff-misattribution",
-    "generalized_failure_pattern": "A fixed-path delivery certificate inherited unchanged from a base branch can be mistaken for evidence produced by the current delivery target.",
-    "plausible_wrong_implementation": "Validate only the certificate subject observed at the head without proving whether the fixed-path artifact was inherited unchanged from the exact base revision.",
-    "trigger_signals": [
-      "fixed-path delivery certificate",
-      "base branch inheritance",
-      "foreign target identity",
-      "unchanged identity artifact"
-    ],
-    "risk_families": [
-      "structural-contract"
-    ],
-    "reusable_control": {
-      "id": "HANDOFF-BASE-ORIGIN-001",
-      "procedure": "Compare identity artifacts at the material head against the exact base revision before semantic target reuse decisions."
-    },
-    "prevention_rule": "A delivery producer must rebuild and publish a target-bound handoff whenever the only existing certificate is inherited from the base.",
-    "detection_rule": "Classify byte-identical base/head foreign identity artifacts as inherited-base artifacts and require current-target publication.",
-    "transfer_cases": [
-      {
-        "surface": "feature-branch-inherited-certificate",
-        "status": "passed",
-        "evidence": "Current generic target-binding regression suite classifies a byte-identical foreign base artifact as inherited history."
-      },
-      {
-        "surface": "candidate-introduced-foreign-certificate",
-        "status": "passed",
-        "evidence": "Current generic target-binding regression suite keeps a changed foreign head certificate classified as a foreign current artifact."
-      }
-    ],
-    "promotion_status": "promoted"
-  },
-  "skill_changes": [
-    {
-      "role": "prevention",
-      "skill": "entregar-issue",
-      "status": "passed"
-    },
-    {
-      "role": "detection",
-      "skill": "auditar-issue",
-      "status": "passed"
-    }
-  ]
+    "promotion_status": "not-required",
+    "reason": "The repository delivery already had generic validators for canonical remediation-ledger shape and issue-driven test coverage. This rejection resulted from not applying those existing controls to this delivery packet and from an incomplete target regression test, so no new global rule is required."
+  }
 }

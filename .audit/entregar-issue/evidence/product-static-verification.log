@@ -1,0 +1,11 @@
+create mock routed: PASS
+create mode rendered: PASS
+name input filled: PASS
+email input filled: PASS
+password input filled: PASS
+submit clicked: PASS
+create call asserted: PASS
+payload function asserted: PASS
+created route asserted: PASS
+success state asserted: PASS
+RESULT: PASS exact source structural submit regression control
