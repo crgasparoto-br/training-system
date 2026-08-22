@@ -1,29 +1,16 @@
 {
   "schema_version": 1,
-  "contract_version": "2026-08-20.3",
-  "mode": "independent",
   "result": "REPROVADA",
-  "rejection_id": "audit-rejection:475ff353-6a6b-4b56-a7f5-a2ab8dd6e3cd",
-  "head_sha": "f81cdac848a4249bfbff62d32b5f2066be167019",
-  "identity": {
+  "validity": "Independente",
+  "libera_merge_release": false,
+  "rejection_id": "audit-rejection:89f872e5-4271-4fa7-9b1e-91f2f5aaaf1f",
+  "reason": "delivery-not-ready: the available fixed-path handoff belonged to a different target and no current-target handoff had been produced.",
+  "functional_findings": [],
+  "audit_scope_note": "The independent audit stopped at mandatory delivery-readiness preflight before broad functional auditing.",
+  "remediation_target": {
     "repository": "crgasparoto-br/training-system",
-    "issue_number": 375,
-    "pull_request_number": 376,
-    "base_ref": "develop",
-    "head_ref": "fix/375-exercise-ptbr-encoding"
-  },
-  "findings": [
-    {
-      "id": "A-001",
-      "title": "requirement-closure certificado possui shard com tamanho divergente",
-      "disposition": "blocking",
-      "status": "open",
-      "actionable": true,
-      "category": "delivery-not-ready",
-      "reason": "certified-artifact-size-mismatch",
-      "recovery_scope": "handoff-only",
-      "remediation_mode": "targeted-remediation"
-    }
-  ],
-  "recommendations": []
+    "issue_number": 379,
+    "pull_request_number": 380,
+    "material_head_sha": "7b9553ac9e3e74721fbbc73eb6c458678e8d7c4b"
+  }
 }

@@ -1,0 +1,22 @@
+# Issue 379 - Corrigir cadastro de colaborador em /professores/new
+
+## Problema
+Na rota `/professores/new`, o botão **Cadastrar colaborador** aparenta não funcionar.
+
+## Diagnóstico
+O fluxo de submit existe e o botão é `type="submit"`. O problema observado é coerente com o contrato atual estar como `personal`: o backend possui uma regra explícita que impede criação de colaboradores nesse tipo (`Contrato personal não permite cadastrar professores`). A tela, porém, permite chegar ao formulário e o tratamento do erro do Axios devolve apenas uma mensagem genérica, o que dá a impressão de que nada aconteceu.
+
+A regra `personal` sem colaboradores já existia no backend e não será removida nesta correção sem um requisito funcional explícito, pois isso altera o modelo de negócio. A Issue #378 adiciona na tela de contrato a troca entre pessoa física/pessoa jurídica; para cadastrar colaboradores, o contrato deve estar como pessoa jurídica (`academy`).
+
+## Escopo
+- fazer o frontend propagar a mensagem funcional retornada pela API no cadastro de colaborador;
+- adicionar proteção/feedback claro para o cenário de contrato `personal`, indicando que é necessário alterar o cadastro para **Pessoa jurídica (CNPJ)** em `/settings/contract` antes de cadastrar colaboradores;
+- manter o fluxo de criação funcionando normalmente em contratos `academy`;
+- adicionar teste de regressão do submit de criação e da mensagem de erro da API.
+
+## Critérios de aceite
+- contrato `academy`: clicar em **Cadastrar colaborador** com dados válidos chama a API e cria o registro;
+- contrato `personal`: o usuário recebe orientação explícita, sem falha silenciosa;
+- erros retornados pela API aparecem com a mensagem de negócio, e não apenas `Request failed with status code 400`;
+- permissões e escopo atuais permanecem preservados;
+- suíte relevante passa.

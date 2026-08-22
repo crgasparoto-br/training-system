@@ -1,42 +1,20 @@
 {
   "schema_version": 1,
   "repository": "crgasparoto-br/training-system",
-  "issue": 375,
-  "created_at": "2026-08-22T01:20:50.400489+00:00",
-  "primary_source_id": "SRC-ISSUE-375",
+  "issue": 379,
+  "created_at": "2026-08-22T10:51:22.945563+00:00",
+  "primary_source_id": "SRC-ISSUE-379",
   "sources": [
     {
-      "id": "SRC-ISSUE-375",
+      "id": "SRC-ISSUE-379",
       "kind": "issue-body",
-      "path": "specification-sources/SRC-ISSUE-375.txt",
-      "locator": "/tmp/handoff376/source-input/SRC-ISSUE-375.txt",
-      "sha256": "820e11b8730d39904285a72bc4edff674a4c6ed346c895d9b86b19b4be1ba9d1",
+      "path": "specification-sources/SRC-ISSUE-379.txt",
+      "locator": "/mnt/data/delivery-379/sources/issue-379.md",
+      "sha256": "9d91e042454ac0e0a9852e820fbb2debede08758ad71a27e712edf1493c7a0e8",
       "textual": true,
       "extract_source_id": null,
       "required": true,
-      "line_count": 19
-    },
-    {
-      "id": "SRC-ISSUE-377",
-      "kind": "subissue",
-      "path": "specification-sources/SRC-ISSUE-377.txt",
-      "locator": "/tmp/handoff376/source-input/SRC-ISSUE-377.txt",
-      "sha256": "884a6637a45c62533c58f958c16941c7fa2d56926c0df5a7a35bac5b42f00dec",
-      "textual": true,
-      "extract_source_id": null,
-      "required": true,
-      "line_count": 26
-    },
-    {
-      "id": "SRC-ISSUE-378",
-      "kind": "subissue",
-      "path": "specification-sources/SRC-ISSUE-378.txt",
-      "locator": "/tmp/handoff376/source-input/SRC-ISSUE-378.txt",
-      "sha256": "264d5b650dfb55b45d5465ad36ef75869d3fa2ba235bb7702c18bcc83d1576d4",
-      "textual": true,
-      "extract_source_id": null,
-      "required": true,
-      "line_count": 24
+      "line_count": 22
     }
   ]
 }

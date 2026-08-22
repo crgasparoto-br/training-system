@@ -1,0 +1,52 @@
+Issue 379 / PR 380 delivery evidence
+
+Identity
+- repository: crgasparoto-br/training-system
+- base_ref: develop
+- base_sha: d5781506c47b9168f816002747c4b7d19605b489
+- head_ref: fix/379-collaborator-create
+- material_head_sha: 7b9553ac9e3e74721fbbc73eb6c458678e8d7c4b
+- merge_preview_sha: 6dc29854a860037d98328a5efdcf495977dfebb2
+
+Issue-local changed paths
+- apps/web/src/App.tsx
+- apps/web/src/pages/CollaboratorCreateRoute.test.tsx
+- apps/web/src/pages/CollaboratorCreateRoute.tsx
+- apps/web/src/services/api-error-message.test.ts
+- apps/web/src/services/api.ts
+
+Static patch verification
+- /professores/new preserves withAccess('collaborators.registration', ...) and renders CollaboratorCreateRoute.
+- CollaboratorCreateRoute reads the authenticated professor contract type from useAuthStore on render.
+- contract type personal renders an explicit alert explaining Pessoa fisica (CPF) versus Pessoa juridica (CNPJ) and links to /settings/contract.
+- academy/non-personal path renders CollaboratorFormPage mode=create.
+- responseErrorMessage prefers textual response.data.error, falls back to textual response.data.message, trims it, and returns null for non-text payloads.
+- the Axios response interceptor replaces the generic Axios message with the functional API message when available.
+
+Exact-material-head CI
+- workflow: Validate PR
+- run_id: 32565304064
+- run_number: 7358
+- material_head_sha: 7b9553ac9e3e74721fbbc73eb6c458678e8d7c4b
+- status: completed
+- conclusion: success
+- Validate repository job: completed/success
+- Type check, Lint, Test, Build, browser settings validation, Architecture checks, Access catalog checks, and Documentation checks all completed/success.
+- downloaded test-output artifact digest: sha256:05382debd7ba2e7269b6f915a169143dd472bccdb5fa8b30f392ef9a79107b7c
+- CollaboratorCreateRoute.test.tsx: 2 tests passed.
+- api-error-message.test.ts: 3 tests passed.
+- apps/web Test Files: 129 passed (129).
+- apps/web Tests: 527 passed (527).
+
+Inherited-base handoff provenance
+- material head handoff-ready.json Git blob: bb5d350dc0516213b5b1537b48f44ab5dd36d15d.
+- exact base handoff-ready.json Git blob: bb5d350dc0516213b5b1537b48f44ab5dd36d15d.
+- inherited certificate subject: Issue 375 / PR 376, not Issue 379 / PR 380.
+- material head and exact base specification-snapshot.json Git blob: 9d26503d3d405f9f5e60a639b876dee490dc6171.
+- delivery_target_binding preflight classified the foreign byte-identical identity artifact as inherited-base-artifact, reuse_allowed=false, requires_fresh_handoff=true.
+
+Independent rejection remediation
+- rejection_id: audit-rejection:89f872e5-4271-4fa7-9b1e-91f2f5aaaf1f
+- class: inherited-base handoff misattribution / current-target handoff not produced.
+- the independent audit stopped at mandatory readiness preflight and emitted no functional product finding.
+- current entregar-issue generic handoff regression suite: 23 passed, covering target binding, recovery classification, and universal post-write handoff guard.

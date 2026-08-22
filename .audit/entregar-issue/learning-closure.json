@@ -1,15 +1,54 @@
 {
   "schema_version": 1,
-  "classification": "implementation-only",
+  "classification": "systemic-escape",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:475ff353-6a6b-4b56-a7f5-a2ab8dd6e3cd",
-    "finding_ids": [
-      "A-001"
-    ]
+    "rejection_id": "audit-rejection:89f872e5-4271-4fa7-9b1e-91f2f5aaaf1f",
+    "finding_ids": []
   },
   "generalized_learning": {
-    "promotion_status": "not-required",
-    "reason": "The installed delivery skill already mandates strict base64-shards-v1 part size, SHA-256, strict base64 and logical hash validation. This rejection is closed by target-specific byte-exact repackaging and terminal remote blob verification rather than a new global rule."
-  }
+    "escape_class": "inherited-base-handoff-misattribution",
+    "generalized_failure_pattern": "A fixed-path delivery certificate inherited unchanged from a base branch can be mistaken for evidence produced by the current delivery target.",
+    "plausible_wrong_implementation": "Validate only the certificate subject observed at the head without proving whether the fixed-path artifact was inherited unchanged from the exact base revision.",
+    "trigger_signals": [
+      "fixed-path delivery certificate",
+      "base branch inheritance",
+      "foreign target identity",
+      "unchanged identity artifact"
+    ],
+    "risk_families": [
+      "structural-contract"
+    ],
+    "reusable_control": {
+      "id": "HANDOFF-BASE-ORIGIN-001",
+      "procedure": "Compare identity artifacts at the material head against the exact base revision before semantic target reuse decisions."
+    },
+    "prevention_rule": "A delivery producer must rebuild and publish a target-bound handoff whenever the only existing certificate is inherited from the base.",
+    "detection_rule": "Classify byte-identical base/head foreign identity artifacts as inherited-base artifacts and require current-target publication.",
+    "transfer_cases": [
+      {
+        "surface": "feature-branch-inherited-certificate",
+        "status": "passed",
+        "evidence": "Current generic target-binding regression suite classifies a byte-identical foreign base artifact as inherited history."
+      },
+      {
+        "surface": "candidate-introduced-foreign-certificate",
+        "status": "passed",
+        "evidence": "Current generic target-binding regression suite keeps a changed foreign head certificate classified as a foreign current artifact."
+      }
+    ],
+    "promotion_status": "promoted"
+  },
+  "skill_changes": [
+    {
+      "role": "prevention",
+      "skill": "entregar-issue",
+      "status": "passed"
+    },
+    {
+      "role": "detection",
+      "skill": "auditar-issue",
+      "status": "passed"
+    }
+  ]
 }
