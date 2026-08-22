@@ -4,6 +4,7 @@ import {
   PRODUCT_ASSESSMENT_TYPES,
   PRODUCT_TRAINING_PARAMETERS,
 } from '../../common/product-defaults.js';
+import { repairPtBrMojibake } from '../../common/pt-br-text.js';
 import {
   installContractDefaults,
   loadProductExerciseDefaults,
@@ -71,6 +72,22 @@ function createFakeDb(initial?: {
     exercises.push(...args.data);
     return { count: args.data.length };
   });
+  const exerciseUpdateMany = jest.fn(async (args: {
+    where: { contractId: string; name: string };
+    data: { name: string };
+  }) => {
+    let count = 0;
+    for (const exercise of exercises) {
+      if (
+        exercise.contractId === args.where.contractId &&
+        exercise.name === args.where.name
+      ) {
+        exercise.name = args.data.name;
+        count++;
+      }
+    }
+    return { count };
+  });
 
   const db = {
     trainingParameter: {
@@ -84,6 +101,7 @@ function createFakeDb(initial?: {
     exerciseLibrary: {
       findMany: exerciseFindMany,
       createMany: exerciseCreateMany,
+      updateMany: exerciseUpdateMany,
     },
   } as unknown as Parameters<typeof installContractDefaults>[1];
 
@@ -91,7 +109,12 @@ function createFakeDb(initial?: {
     db,
     state: { training, assessments, exercises },
     reads: { trainingFindMany, assessmentFindMany, exerciseFindMany },
-    writes: { trainingCreateMany, assessmentCreateMany, exerciseCreateMany },
+    writes: {
+      trainingCreateMany,
+      assessmentCreateMany,
+      exerciseCreateMany,
+      exerciseUpdateMany,
+    },
   };
 }
 
@@ -243,6 +266,43 @@ describe('installContractDefaults', () => {
     expect(fake.state.exercises.some((item) => item.name === 'Exercício customizado')).toBe(true);
   });
 
+  it('corrige exercício padrão já persistido com mojibake sem criar duplicata', async () => {
+    const correctName = 'Abdominal Pé a Pé';
+    const corruptedName = 'Abdominal P\u0082 a P\u0082';
+    expect(exerciseDefaults.some((item) => item.name === correctName)).toBe(true);
+
+    const fake = createFakeDb({
+      exercises: [
+        {
+          contractId,
+          name: corruptedName,
+          category: 'RESISTIDO',
+          muscleGroup: 'Abdômen',
+        },
+        {
+          contractId,
+          name: 'Exercício customizado',
+          category: 'RESISTIDO',
+        },
+      ],
+    });
+
+    await installContractDefaults(contractId, fake.db);
+
+    expect(fake.writes.exerciseUpdateMany).toHaveBeenCalledWith({
+      where: { contractId, name: corruptedName },
+      data: { name: correctName },
+    });
+    expect(fake.state.exercises.filter((item) => item.name === correctName)).toHaveLength(1);
+    expect(fake.state.exercises.some((item) => item.name === corruptedName)).toBe(false);
+    expect(fake.state.exercises.some((item) => item.name === 'Exercício customizado')).toBe(true);
+
+    const createdNames = fake.writes.exerciseCreateMany.mock.calls.flatMap(([args]) =>
+      args.data.map((item) => item.name)
+    );
+    expect(createdNames).not.toContain(correctName);
+  });
+
   it.each([
     ['somente tipo customizado', ['custom-assessment'], ['intermediate', 'complete']],
     ['somente intermediate', ['intermediate'], ['complete']],
@@ -303,7 +363,11 @@ describe('installContractDefaults', () => {
     const canonicalNames = [
       ...new Set(
         canonicalRows
-          .map((row) => (row.name || row.nome || '').trim().replace(/\s+/g, ' '))
+          .map((row) =>
+            repairPtBrMojibake(row.name || row.nome || '')
+              .trim()
+              .replace(/\s+/g, ' ')
+          )
           .filter(Boolean)
       ),
     ];

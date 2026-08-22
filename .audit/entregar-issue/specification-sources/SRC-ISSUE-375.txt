@@ -1,0 +1,19 @@
+## Objetivo
+Corrigir os nomes dos exercícios padrão exibidos na `/library` que contêm caracteres corrompidos (mojibake), garantindo texto Unicode válido em português do Brasil.
+
+## Contexto
+Na biblioteca aparecem nomes como `Abdominal P a P`, `AbduÆo de quadril com caneleira` e `ElevaÆo ...`, originados do catálogo canônico `apps/api/src/scripts/exercises-data.json`.
+
+## Escopo
+- normalizar/recuperar os caracteres pt-BR do catálogo padrão de exercícios;
+- impedir que o instalador de padrões do contrato volte a persistir nomes corrompidos;
+- ao reinstalar padrões, corrigir registros padrão já existentes com mojibake sem criar duplicatas;
+- preservar exercícios customizados do contrato;
+- cobrir a correção com testes automatizados.
+
+## Critérios de aceite
+- nomes padrão usam acentuação pt-BR correta (ex.: `Pé a Pé`, `Abdução`, `Elevação`, `Flexão`, `Rotação`, `Elástico`);
+- a instalação em contrato vazio grava somente nomes corrigidos;
+- uma nova execução do instalador corrige um registro padrão previamente corrompido e não cria a versão corrigida em duplicidade;
+- registros customizados permanecem inalterados;
+- suíte de testes relevante passa.

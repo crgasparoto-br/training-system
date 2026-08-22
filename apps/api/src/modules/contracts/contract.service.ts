@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export interface UpdateContractDTO {
+  type?: 'academy' | 'personal';
   name?: string;
   document?: string;
   tradeName?: string | null;

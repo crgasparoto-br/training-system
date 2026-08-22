@@ -1,18 +1,19 @@
 {
   "schema_version": 1,
-  "material_head_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+  "material_head_sha": "7c291f0a6ea7df6ae7716d8b34822dd7a1cbe1f1",
+  "base_sha": "15bbda8e54c5aeafacd8c5133784815bdd0548ce",
   "evidence": [
     {
-      "evidence_id": "EV-REQ365-015",
+      "evidence_id": "EVID-REQ003-CUSTOM-CARDINALITY",
       "kind": "quantitative",
-      "status": "passed",
-      "path": "evidence-material-verification.json",
-      "sha256": "7de06d2d388e97fdd97e19c2932681da63f9509fdc0e6964807a92af5bb2f29d",
-      "subject_sha": "72c6e71fdf2db9ab35732c47e8240e35a35fee3f",
+      "path": "github-actions://crgasparoto-br/training-system/actions/runs/32535325583/artifacts/test-output-32535325583/test-output.log",
+      "sha256": "479d0c6834a8dae15afd62c705b3420f5dd0ce0262d64058ea838736e03defc9",
+      "subject_sha": "7c291f0a6ea7df6ae7716d8b34822dd7a1cbe1f1",
+      "base_sha": "15bbda8e54c5aeafacd8c5133784815bdd0548ce",
       "freshness_policy": "exact-material-head",
-      "observed": "Nine explicitly specified Issue #365 test scenarios remain represented and exact material Validate PR #7293 completed successfully.",
-      "producer": "entregar-issue exact-head connector refreeze / Validate PR #7293"
+      "producer": "GitHub Actions Validate PR run 32535325583",
+      "status": "passed",
+      "metric": "custom exercise cardinality remains one while default repair does not duplicate corrected name"
     }
-  ],
-  "base_sha": "93256880dc2894a6b8fa07ab8a6bd3de43d38967"
+  ]
 }

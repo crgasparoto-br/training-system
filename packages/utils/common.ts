@@ -13,6 +13,48 @@ export interface ApiResponse<T = any> {
   timestamp: string;
 }
 
+const UTF8_MOJIBAKE_REPLACEMENTS: Readonly<Record<string, string>> = Object.freeze({
+  'Ã¡': 'á',
+  'Ã ': 'à',
+  'Ã¢': 'â',
+  'Ã£': 'ã',
+  'Ã¤': 'ä',
+  'Ã§': 'ç',
+  'Ã©': 'é',
+  'Ãª': 'ê',
+  'Ã«': 'ë',
+  'Ã­': 'í',
+  'Ã®': 'î',
+  'Ã¯': 'ï',
+  'Ã³': 'ó',
+  'Ã´': 'ô',
+  'Ãµ': 'õ',
+  'Ã¶': 'ö',
+  'Ãº': 'ú',
+  'Ã»': 'û',
+  'Ã¼': 'ü',
+  'Âº': 'º',
+  'Âª': 'ª',
+  'Â°': '°',
+});
+
+/**
+ * Repara sequências comuns de texto UTF-8 que foram interpretadas como
+ * Latin-1/Windows-1252 antes de chegar à resposta HTTP.
+ *
+ * Mensagens já corretas são preservadas sem alteração.
+ */
+export function repairUtf8Mojibake(value: string): string {
+  if (!value || (!value.includes('Ã') && !value.includes('Â'))) {
+    return value;
+  }
+
+  return Object.entries(UTF8_MOJIBAKE_REPLACEMENTS).reduce(
+    (result, [corrupted, correct]) => result.split(corrupted).join(correct),
+    value
+  );
+}
+
 export function sendSuccess<T>(
   res: Response,
   data: T,
@@ -35,7 +77,7 @@ export function sendError(
 ): Response {
   return res.status(statusCode).json({
     success: false,
-    error,
+    error: repairUtf8Mojibake(error),
     ...(details !== undefined ? { details } : {}),
     timestamp: new Date().toISOString(),
   });

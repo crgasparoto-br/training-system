@@ -5,6 +5,7 @@ import {
   PRODUCT_ASSESSMENT_TYPES,
   PRODUCT_TRAINING_PARAMETERS,
 } from '../../common/product-defaults.js';
+import { repairPtBrMojibake } from '../../common/pt-br-text.js';
 
 const prisma = new PrismaClient();
 
@@ -31,7 +32,11 @@ interface NormalizedExerciseDefault {
   notes: string | undefined;
 }
 
-const normalizeExerciseName = (value: string) => value.trim().replace(/\s+/g, ' ');
+const normalizeExerciseName = (value: string) =>
+  repairPtBrMojibake(value).trim().replace(/\s+/g, ' ');
+
+const normalizeOptionalCatalogText = (value: string | undefined) =>
+  value ? repairPtBrMojibake(value).trim() || undefined : undefined;
 
 function determineExerciseCategory(name: string) {
   const normalized = name.toLowerCase();
@@ -121,24 +126,21 @@ export function loadProductExerciseDefaults(): NormalizedExerciseDefault[] {
       return invalidExerciseCatalog(`item ${index + 1} não possui name/nome válido`);
     }
 
-    const muscleGroup =
-      (
-        readCatalogString(row, 'muscleGroup', index) ??
-        readCatalogString(row, 'grupoMuscular', index) ??
-        ''
-      ).trim() || undefined;
+    const muscleGroup = normalizeOptionalCatalogText(
+      readCatalogString(row, 'muscleGroup', index) ??
+        readCatalogString(row, 'grupoMuscular', index)
+    );
     const notes =
       [
-        (
+        normalizeOptionalCatalogText(
           readCatalogString(row, 'notes', index) ??
-          readCatalogString(row, 'descricao', index) ??
-          ''
-        ).trim() || null,
-        readCatalogString(row, 'equipamento', index)?.trim()
-          ? `Equipamento: ${readCatalogString(row, 'equipamento', index)?.trim()}`
+            readCatalogString(row, 'descricao', index)
+        ) ?? null,
+        normalizeOptionalCatalogText(readCatalogString(row, 'equipamento', index))
+          ? `Equipamento: ${normalizeOptionalCatalogText(readCatalogString(row, 'equipamento', index))}`
           : null,
-        readCatalogString(row, 'nivel', index)?.trim()
-          ? `Nível: ${readCatalogString(row, 'nivel', index)?.trim()}`
+        normalizeOptionalCatalogText(readCatalogString(row, 'nivel', index))
+          ? `Nível: ${normalizeOptionalCatalogText(readCatalogString(row, 'nivel', index))}`
           : null,
       ]
         .filter((value): value is string => Boolean(value))
@@ -212,13 +214,46 @@ async function installAssessmentTypes(contractId: string, db: DefaultsDb) {
   };
 }
 
+async function repairExistingExerciseNames(
+  contractId: string,
+  defaults: NormalizedExerciseDefault[],
+  existingNamesList: Array<{ name: string }>,
+  db: DefaultsDb
+) {
+  const defaultNames = new Set(defaults.map((item) => item.name));
+  const existingNames = new Set(existingNamesList.map((item) => item.name));
+
+  for (const item of existingNamesList) {
+    const repairedName = normalizeExerciseName(item.name);
+    if (
+      repairedName === item.name ||
+      !defaultNames.has(repairedName) ||
+      existingNames.has(repairedName)
+    ) {
+      continue;
+    }
+
+    const updated = await db.exerciseLibrary.updateMany({
+      where: { contractId, name: item.name },
+      data: { name: repairedName },
+    });
+
+    if (updated.count > 0) {
+      existingNames.delete(item.name);
+      existingNames.add(repairedName);
+    }
+  }
+
+  return existingNames;
+}
+
 async function installExercises(contractId: string, db: DefaultsDb) {
   const defaults = loadProductExerciseDefaults();
   const existing = await db.exerciseLibrary.findMany({
     where: { contractId },
     select: { name: true },
   });
-  const existingNames = new Set(existing.map((item) => item.name));
+  const existingNames = await repairExistingExerciseNames(contractId, defaults, existing, db);
   const missing = defaults.filter((item) => !existingNames.has(item.name));
 
   const created = missing.length

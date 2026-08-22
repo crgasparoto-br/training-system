@@ -1,32 +1,29 @@
 {
+  "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "mode": "independent",
-  "status": "rejected",
-  "rejection_id": "audit-rejection:32605ed8-7f59-4904-9b9c-084689463a5d",
-  "head_sha": "ea1d4bcf1de25ffe2da7bb660312469214fae8d1",
-  "material_head_sha": "ea1d4bcf1de25ffe2da7bb660312469214fae8d1",
-  "repository": "crgasparoto-br/training-system",
-  "work_item_kind": "issue",
-  "work_item_number": 365,
-  "pull_request": 366,
-  "base_ref": "develop",
-  "head_ref": "feat/365-install-product-defaults",
   "result": "REPROVADA",
-  "release_gate_satisfied": false,
+  "rejection_id": "audit-rejection:475ff353-6a6b-4b56-a7f5-a2ab8dd6e3cd",
+  "head_sha": "f81cdac848a4249bfbff62d32b5f2066be167019",
+  "identity": {
+    "repository": "crgasparoto-br/training-system",
+    "issue_number": 375,
+    "pull_request_number": 376,
+    "base_ref": "develop",
+    "head_ref": "fix/375-exercise-ptbr-encoding"
+  },
   "findings": [
     {
       "id": "A-001",
-      "title": "Handoff stale after post-freeze material writes",
+      "title": "requirement-closure certificado possui shard com tamanho divergente",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
-      "remediation_mode": "targeted-remediation",
       "category": "delivery-not-ready",
-      "reason": "The published handoff certified material 265f0041c61ec70432a7b0e8fc494db1346da8a4 while the audited candidate had moved to ea1d4bcf1de25ffe2da7bb660312469214fae8d1 after material writes."
+      "reason": "certified-artifact-size-mismatch",
+      "recovery_scope": "handoff-only",
+      "remediation_mode": "targeted-remediation"
     }
   ],
-  "recommendations": [],
-  "return_control_to": "entregar-issue",
-  "recovery_scope": "post-write-refreeze",
-  "requires_refreeze": true
+  "recommendations": []
 }
