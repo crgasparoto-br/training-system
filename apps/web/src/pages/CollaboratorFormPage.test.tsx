@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   get: vi.fn(),
   list: vi.fn(),
+  create: vi.fn(),
   update: vi.fn(),
   validateLegalFinancial: vi.fn(),
   resetPassword: vi.fn(),
@@ -34,12 +35,12 @@ vi.mock('../services/professor.service', () => ({
   professorService: {
     get: (...args: unknown[]) => mocks.get(...args),
     list: (...args: unknown[]) => mocks.list(...args),
+    create: (...args: unknown[]) => mocks.create(...args),
     update: (...args: unknown[]) => mocks.update(...args),
     validateLegalFinancial: (...args: unknown[]) => mocks.validateLegalFinancial(...args),
     resetPassword: (...args: unknown[]) => mocks.resetPassword(...args),
     activate: (...args: unknown[]) => mocks.activate(...args),
     deactivate: (...args: unknown[]) => mocks.deactivate(...args),
-    create: vi.fn(),
     uploadAvatar: vi.fn(),
   },
 }));
@@ -85,6 +86,14 @@ vi.mock('../features/collaborators/CollaboratorForm', () => ({
         Nome
         <input aria-label="Nome" {...register('name')} />
       </label>
+      <label>
+        E-mail
+        <input aria-label="E-mail" {...register('email')} />
+      </label>
+      <label>
+        Senha
+        <input aria-label="Senha" type="password" {...register('password')} />
+      </label>
       <button type="submit" disabled={submitting}>Salvar alterações</button>
       <button type="button" onClick={onCancel}>Cancelar</button>
     </div>
@@ -115,6 +124,20 @@ const collaborator = {
   createdAt: '2026-01-01T00:00:00.000Z',
 } as ProfessorSummary;
 
+const createdCollaborator = {
+  ...collaborator,
+  id: 'professor-created',
+  user: {
+    ...collaborator.user,
+    id: 'user-created',
+    email: 'novo@example.com',
+    profile: {
+      ...collaborator.user.profile,
+      name: 'Novo Colaborador',
+    },
+  },
+} as ProfessorSummary;
+
 describe('CollaboratorFormPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -127,6 +150,7 @@ describe('CollaboratorFormPage', () => {
     mocks.listBanks.mockResolvedValue([]);
     mocks.listRateLevels.mockResolvedValue([]);
     mocks.loadUser.mockResolvedValue(undefined);
+    mocks.create.mockResolvedValue(createdCollaborator);
     mocks.validateLegalFinancial.mockResolvedValue(collaborator);
     mocks.resetPassword.mockResolvedValue({ tempPassword: 'Senha123' });
     mocks.activate.mockResolvedValue(undefined);
@@ -150,6 +174,29 @@ describe('CollaboratorFormPage', () => {
     expect(await screen.findByDisplayValue('Colaborador Teste')).toBeInTheDocument();
     expect(mocks.get).toHaveBeenCalledWith('professor-1');
     expect(mocks.listRateLevels).toHaveBeenCalled();
+  });
+
+  it('cadastra colaborador no fluxo de criação e navega para o registro criado', async () => {
+    render(<MemoryRouter><CollaboratorFormPage mode="create" /></MemoryRouter>);
+
+    const nameInput = await screen.findByLabelText('Nome');
+    fireEvent.change(nameInput, { target: { value: 'Novo Colaborador' } });
+    fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'novo@example.com' } });
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'Senha123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Novo Colaborador',
+        email: 'novo@example.com',
+        password: 'Senha123',
+        collaboratorFunctionId: 'function-1',
+      })
+    ));
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      '/consultas/colaboradores/professor-created',
+      expect.objectContaining({ replace: true, state: { success: 'Colaborador cadastrado com sucesso.' } })
+    );
   });
 
   it('disponibiliza as ações administrativas somente no contexto de edição', async () => {

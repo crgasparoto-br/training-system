@@ -3,13 +3,15 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:475ff353-6a6b-4b56-a7f5-a2ab8dd6e3cd",
+    "rejection_id": "audit-rejection:8096b568-f1ff-4bd6-9da2-aa0cf0cf5658",
+    "audit_report_sha256": "ba05817c36ed69a276a27d2c77140df4be88a1b418b6e51331ec00dcfe998e69",
     "finding_ids": [
-      "A-001"
+      "A-380-001",
+      "A-380-002"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The installed delivery skill already mandates strict base64-shards-v1 part size, SHA-256, strict base64 and logical hash validation. This rejection is closed by target-specific byte-exact repackaging and terminal remote blob verification rather than a new global rule."
+    "reason": "The repository delivery already had generic validators for canonical remediation-ledger shape and issue-driven test coverage. This rejection resulted from not applying those existing controls to this delivery packet and from an incomplete target regression test, so no new global rule is required."
   }
 }
