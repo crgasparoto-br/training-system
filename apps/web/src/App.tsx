@@ -11,6 +11,7 @@ import { StudentProfileReview } from './pages/StudentProfileReview';
 import { CollaboratorsList } from './pages/CollaboratorsList';
 import { CollaboratorDetails } from './pages/CollaboratorDetails';
 import { CollaboratorFormPage } from './pages/CollaboratorFormPage';
+import { CollaboratorCreateRoute } from './pages/CollaboratorCreateRoute';
 import { Alunos } from './pages/Alunos';
 import { StudentCentral } from './pages/StudentCentral';
 import { StudentCentralEdit } from './pages/StudentCentralEdit';
@@ -121,7 +122,7 @@ function App() {
             <Route path="inicio" element={<Home />} />
             <Route path="student/profile-review" element={<StudentProfileReviewRoute />} />
             <Route path="professores" element={<Navigate to="/professores/new" replace />} />
-            <Route path="professores/new" element={withAccess('collaborators.registration', <CollaboratorFormPage mode="create" />)} />
+            <Route path="professores/new" element={withAccess('collaborators.registration', <CollaboratorCreateRoute />)} />
             <Route path="alunos" element={<StudentsRoute />} />
             <Route path="alunos/new" element={withAccess('students.registration', <AlunoFormWithContractEndDate />)} />
             <Route path="alunos/:id" element={withAnyAccess(['students.registration', 'students.consultation', 'students.details'], <AlunoDetails />)} />

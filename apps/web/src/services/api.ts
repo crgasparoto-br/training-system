@@ -25,6 +25,22 @@ function currentLocalReturnPath() {
     : '/';
 }
 
+export function responseErrorMessage(error: AxiosError) {
+  const data = error.response?.data;
+  if (!data || typeof data !== 'object') {
+    return null;
+  }
+
+  const payload = data as { error?: unknown; message?: unknown };
+  const message = typeof payload.error === 'string'
+    ? payload.error
+    : typeof payload.message === 'string'
+      ? payload.message
+      : null;
+
+  return message?.trim() || null;
+}
+
 // Criar instância do Axios
 export const api = axios.create({
   baseURL: resolveApiBaseUrl(API_URL),
@@ -85,6 +101,12 @@ api.interceptors.response.use(
         }
       }
     }
+
+    const apiMessage = responseErrorMessage(error);
+    if (apiMessage) {
+      error.message = apiMessage;
+    }
+
     return Promise.reject(error);
   }
 );
