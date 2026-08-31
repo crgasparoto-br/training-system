@@ -24,7 +24,7 @@ const CP850_C1_PT_BR_REPLACEMENTS: Readonly<Record<string, string>> = Object.fre
 });
 
 const LEGACY_PT_BR_FRAGMENTS: ReadonlyArray<readonly [string, string]> = [
-  ['çÆ', 'ção'],
+  ['çÆ', 'çã'],
   ['CÆo', 'Cão'],
   ['cÆo', 'cão'],
   ['DorsiflexÆo', 'Dorsiflexão'],

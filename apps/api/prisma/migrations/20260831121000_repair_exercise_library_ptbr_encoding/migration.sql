@@ -13,7 +13,7 @@ encoding_map AS (
 ),
 lexical_repairs(ord, source_text, target_text) AS (
   VALUES
-    (1, 'çÆ', 'ção'),
+    (1, 'çÆ', 'çã'),
     (2, 'CÆo', 'Cão'),
     (3, 'cÆo', 'cão'),
     (4, 'DorsiflexÆo', 'Dorsiflexão'),
