@@ -2,14 +2,14 @@
   "schema_version": 1,
   "repository": "crgasparoto-br/training-system",
   "issue": 412,
-  "created_at": "2026-08-31T16:11:22Z",
+  "created_at": "2026-08-31T17:20:57.147551+00:00",
   "primary_source_id": "SRC-ISSUE-412",
   "sources": [
     {
       "id": "SRC-ISSUE-412",
       "kind": "issue-body",
       "path": "specification-sources/SRC-ISSUE-412.txt",
-      "locator": "github:issues/412",
+      "locator": "/tmp/delivery413/issue-412.txt",
       "sha256": "de54a6f4f6f3fb627a2b462a21d002df278c8718c4335cec5311997479c098b7",
       "textual": true,
       "extract_source_id": null,

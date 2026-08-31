@@ -3,36 +3,41 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "status": "closed",
-  "candidate_head_sha": "6a6d5633b59508e5ba139155ea4bc75e5386ef06",
+  "candidate_head_sha": "6ce76f13bd6170ecd1129dd4c74c00dba5c681ff",
   "source": {
-    "rejection_id": "audit-rejection:8096b568-f1ff-4bd6-9da2-aa0cf0cf5658",
-    "audited_head_sha": "7b9553ac9e3e74721fbbc73eb6c458678e8d7c4b",
-    "audit_report_sha256": "ba05817c36ed69a276a27d2c77140df4be88a1b418b6e51331ec00dcfe998e69"
+    "rejection_id": "audit-rejection:83561a95-106b-4663-b5ac-beebede1f587",
+    "audited_head_sha": "a80fdd5c54c7083a65f7c6bac85050b6359a9ab3",
+    "audit_report_sha256": "1e9967b0fbb836e1968a9975083eae2b0add733d7f1751db072e8f0b624fb29a"
   },
-  "remediation_mode": "targeted-remediation",
+  "remediation_mode": "systemic-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-380-001",
-      "remediation_mode": "targeted-remediation",
+      "source_id": "A-001",
+      "remediation_mode": "systemic-remediation",
       "status": "fixed",
       "evidence": [
-        "audit-remediation.json is now generated in the canonical 2026-08-20.3 ledger shape and bound to the latest independent rejection bytes."
+        "Migration rewritten as one-pass translate excluding ambiguous valid-Unicode codepoints.",
+        "Runtime helper guards each character by the mojibake marker predicate.",
+        "Regression coverage derives and exercises the migration mapping with mixed-validity inputs."
       ],
       "validations": [
-        "validate_audit_remediation.py is executed against audit-source-result.json and the new material head before handoff publication."
+        "validate_requirement_attack_matrix.py",
+        "audit escape mixed-validity controls"
       ]
     },
     {
       "source_kind": "finding",
-      "source_id": "A-380-002",
-      "remediation_mode": "targeted-remediation",
+      "source_id": "A-002",
+      "remediation_mode": "systemic-remediation",
       "status": "fixed",
       "evidence": [
-        "apps/web/src/pages/CollaboratorFormPage.test.tsx adds a create-mode submit scenario that fills valid fields, asserts professorService.create payload and verifies navigation to the created collaborator."
+        "Risk saturation rebuilt with canonical schema_version 1 and full canonical family enumeration.",
+        "Applicable dimensions bind to current attack controls."
       ],
       "validations": [
-        "Exact Git blob def4aadd826ffec11e36bbc7529f33ed9c4b94b1 was re-read at material head 6a6d5633b59508e5ba139155ea4bc75e5386ef06; static discriminant passed; Validate PR run 7364 was observed in_progress in the single delivery CI snapshot."
+        "validate_risk_saturation.py",
+        "validate_audit_escape_lineage.py"
       ]
     }
   ]

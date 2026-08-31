@@ -1,1 +1,117 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"audit-escape-closure","compression":"gzip","encoded_size":5144,"encoded_sha256":"b0eeb0ccd2401ddb96f5a7dc7d9bb283296b10a9812f69f6b7ce22bb39ebd5b7","decoded_size":28028,"decoded_sha256":"d3adf9f24ee8f8321fecb19932899ba3cf1c51ad773f48432edb1e9a0b1e2269","parts":[{"path":"audit-escape-closure.parts/part-000.b64","size":2048,"sha256":"0f1f656b100c3610ebc8612e07cb347cfca5e51084c7d8fdcb4b5d61b773e754"},{"path":"audit-escape-closure.parts/part-001.b64","size":2048,"sha256":"6324007ad0bcfa1dd1e8ede97692dc1d9145667be1d39c37da196e7a1aac1353"},{"path":"audit-escape-closure.parts/part-002.b64","size":1048,"sha256":"bea2d22b018956141e6a3b1ce5fb4641b5f1398c1e415c234c6025e9b99d19d5"}]}
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "ESC-A001-AMBIGUOUS-CODEPOINT-REMAP",
+      "status": "passed",
+      "escape_class": "ambiguous-codepoint-self-remapping",
+      "source_audit": {
+        "rejection_id": "audit-rejection:83561a95-106b-4663-b5ac-beebede1f587",
+        "finding_ids": [
+          "A-001"
+        ],
+        "audit_report_sha256": "1e9967b0fbb836e1968a9975083eae2b0add733d7f1751db072e8f0b624fb29a"
+      },
+      "plausible_wrong_implementation": "Repair malformed characters through ordered replacements so a newly produced valid character is matched by a later replacement and corrupted again.",
+      "literal_case": {
+        "status": "passed",
+        "input": "m\\u0082dia / média / Elevação / Extensão",
+        "observed": "Single-pass exact-head repair changes only the malformed marker and preserves existing valid Unicode accents."
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-A001-S1",
+          "status": "passed",
+          "surface": "mixed-validity-string",
+          "observed": "média combined with a malformed marker preserves the original é."
+        },
+        {
+          "id": "ESC-A001-S2",
+          "status": "passed",
+          "surface": "valid-unicode-only",
+          "observed": "Elevação and Extensão remain unchanged."
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "Migration uses one-pass translate with ambiguous valid Unicode codepoints excluded; runtime helper maps only characters matching the unambiguous marker predicate."
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "Focused helper and migration tests include mixed-validity and valid-Unicode preservation cases."
+      },
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "mixed-valid-corrupt-codepoints"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "valid-unicode-preservation"
+        }
+      ],
+      "revalidated_head_sha": "6ce76f13bd6170ecd1129dd4c74c00dba5c681ff"
+    },
+    {
+      "escape_id": "ESC-A002-NONCANONICAL-RISK-MANIFEST",
+      "status": "passed",
+      "escape_class": "noncanonical-risk-saturation-manifest",
+      "source_audit": {
+        "rejection_id": "audit-rejection:83561a95-106b-4663-b5ac-beebede1f587",
+        "finding_ids": [
+          "A-002"
+        ],
+        "audit_report_sha256": "1e9967b0fbb836e1968a9975083eae2b0add733d7f1751db072e8f0b624fb29a"
+      },
+      "plausible_wrong_implementation": "Let a critical handoff define custom risk-family names and declare itself saturated without enumerating or validating the canonical contract.",
+      "literal_case": {
+        "status": "passed",
+        "input": "critical risk saturation manifest",
+        "observed": "Exact-head rebuilt manifest enumerates the canonical family set and binds applicable surfaces to attack controls."
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-A002-S1",
+          "status": "passed",
+          "surface": "family-enumeration",
+          "observed": "Omitting a canonical family is rejected by the risk-saturation validator."
+        },
+        {
+          "id": "ESC-A002-S2",
+          "status": "passed",
+          "surface": "control-binding",
+          "observed": "An applicable surface without a matching adversarial control is rejected."
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "Risk saturation is generated from the canonical initializer instead of a hand-authored family vocabulary."
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "validate_risk_saturation.py is executed before terminal handoff and checks canonical families, applicability, surfaces and controls."
+      },
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "risk-saturation-contract",
+          "dimension": "canonical-family-enumeration"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "risk-saturation-contract",
+          "dimension": "applicability-and-control-binding"
+        }
+      ],
+      "revalidated_head_sha": "6ce76f13bd6170ecd1129dd4c74c00dba5c681ff"
+    }
+  ]
+}

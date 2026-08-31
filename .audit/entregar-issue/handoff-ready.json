@@ -1,13 +1,13 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-31T16:11:22Z",
+  "created_at": "2026-08-31T17:27:37.613844+00:00",
   "identity": {
-    "head_sha": "e16fe2d66a046abdfa924f67d9878aaf043fa949",
-    "material_head_sha": "e16fe2d66a046abdfa924f67d9878aaf043fa949",
+    "head_sha": "6ce76f13bd6170ecd1129dd4c74c00dba5c681ff",
+    "material_head_sha": "6ce76f13bd6170ecd1129dd4c74c00dba5c681ff",
     "base_sha": "eaf4b403c5b9d4a991199892128cd9567f454d41",
-    "merge_preview_sha": "bedab24ca28c46f7c71abe400bbd6483f7af17f0",
-    "material_merge_preview_sha": "bedab24ca28c46f7c71abe400bbd6483f7af17f0"
+    "merge_preview_sha": "f34895f674edea4838e3da1995b6c2c679c55127",
+    "material_merge_preview_sha": "f34895f674edea4838e3da1995b6c2c679c55127"
   },
   "subject": {
     "repository": "crgasparoto-br/training-system",
@@ -16,49 +16,60 @@
     "work_item_kind": "pr",
     "work_item_number": 413,
     "pull_request": 413,
-    "base_ref": "develop",
-    "head_ref": "fix/412-exercise-encoding-replication"
+    "base_ref": "refs/heads/develop",
+    "head_ref": "refs/heads/fix/412-exercise-encoding-replication"
   },
   "scope": {
     "schema_version": 1,
-    "work_item_start_sha": "eaf4b403c5b9d4a991199892128cd9567f454d41",
-    "material_head_sha": "e16fe2d66a046abdfa924f67d9878aaf043fa949",
+    "work_item_start_sha": "a80fdd5c54c7083a65f7c6bac85050b6359a9ab3",
+    "material_head_sha": "6ce76f13bd6170ecd1129dd4c74c00dba5c681ff",
     "issue_changed_paths": [
       "apps/api/prisma/migrations/20260831121000_repair_exercise_library_ptbr_encoding/migration.sql",
-      "apps/api/src/modules/contracts/contract-data.service.test.ts",
-      "apps/api/src/modules/contracts/contract-data.service.ts",
-      "apps/api/src/modules/contracts/contract-defaults.service.test.ts",
-      "apps/api/src/scripts/exercises-data.json",
-      "apps/web/src/services/plan.service.test.ts",
-      "apps/web/src/services/plan.service.ts",
-      "docs/architecture/contract-defaults.md"
+      "apps/api/src/common/exercise-library-encoding-migration.test.ts",
+      "apps/api/src/common/pt-br-text.test.ts",
+      "apps/api/src/common/pt-br-text.ts"
     ],
-    "issue_delta_sha256": "e6f9cbc1e4bd2359b9890d45802f510278e8081fc81c8f28cb19f0aa695a79f2"
+    "issue_delta_sha256": "bc911109656a8e895c520cfe790bb80c8ab62ac686c8ce11549533b83cdd70d0"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
     "allowed_paths": [
+      ".audit/entregar-issue/**",
+      ".audit/entregar-issue/audit-escape-closure.json",
+      ".audit/entregar-issue/audit-remediation.json",
+      ".audit/entregar-issue/audit-source-result.json",
       ".audit/entregar-issue/handoff-ready.json",
-      ".audit/entregar-issue/inherited-controls-412.json",
-      ".audit/entregar-issue/inherited-controls-412.parts/part-000.b64",
+      ".audit/entregar-issue/inherited-controls.json",
+      ".audit/entregar-issue/inherited-controls.parts/part-000.b64",
+      ".audit/entregar-issue/learning-closure.json",
       ".audit/entregar-issue/requirement-attack-matrix.json",
       ".audit/entregar-issue/requirement-attack-matrix.parts/part-000.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-001.b64",
       ".audit/entregar-issue/requirement-closure.json",
       ".audit/entregar-issue/requirement-closure.parts/part-000.b64",
       ".audit/entregar-issue/risk-saturation.json",
-      ".audit/entregar-issue/specification-snapshot.json",
-      ".audit/entregar-issue/specification-sources/SRC-ISSUE-412.txt"
+      ".audit/entregar-issue/specification-snapshot.json"
     ]
   },
   "contract_version": "2026-08-20.3",
   "evidence_profile": "critical",
-  "previous_independent_rejection": false,
-  "remediation_mode": "targeted-remediation",
+  "remediation_mode": "systemic-remediation",
   "producer": {
     "skill": "entregar-issue",
-    "skill_sha256": "a8f294655eddf5458f9a571100a19bd3c32daf17c77f56396cc71fc36125a9b9"
+    "skill_sha256": "900f6e1454dc7ba6388664dca516312307da2000e6f4bdb0a322cc5e539beb62"
   },
-  "validators": {},
+  "validators": {
+    "validate_specification_coverage.py": "01709833e61dfcf4cbb81b25f75b52c486dc65e9d498df19a35da7062f7a196b",
+    "validate_handoff_readiness.py": "e2bbbe81297b416c4ff087b7c79ffb398207d44093fee3b184b09fbbc929a2cd",
+    "validate_standard_evidence.py": "87a82707220b15407cf39b956c7c5c05b6030edee3a87561b0cd0aec3328f588",
+    "validate_requirement_attack_matrix.py": "96d6d1a31a2387ae9e4e0f59cc2f384580abc2b21293dc37381fab66707fba99",
+    "validate_evidence_freshness.py": "e85849415ea701c39ead5eb7203d2264092fece959479e69c0b37b67a56c7d04",
+    "validate_risk_saturation.py": "5016cc0fb23264babd2c904e58ff9d41a266e1d764ef675bcd416503754c57ac",
+    "validate_inherited_controls.py": "183f6530f41e1d516505bb19cd315148425f7647d74f4be021a582217f96b146",
+    "validate_learning_closure.py": "d7baa1043776f7362bd2cf10125174803ba036c395f0df1268b80a89def0e0bc",
+    "validate_independent_rejection_closure.py": "61d0cb9336186e9677b718303bcdf040e77cb90beb587c64a2be5367fab056c4",
+    "validate_audit_remediation.py": "aa0e7555122ab9a01dcbfd057f4de92d4f30f94e1e0dad1cace9b49a74171777"
+  },
   "artifact_transport": {
     "version": 1,
     "supported_formats": [
@@ -69,41 +80,28 @@
   "artifacts": {
     "specification_snapshot": {
       "name": "specification-snapshot.json",
-      "sha256": "1b972a0cbe4161d13b55d195900279bdcbe96b63112918d87e677b624ed2caca",
-      "logical_sha256": "1b972a0cbe4161d13b55d195900279bdcbe96b63112918d87e677b624ed2caca",
-      "logical_size": 543,
-      "artifact_transport": {"format": "plain-json", "version": 1}
+      "sha256": "ee466fdfc41d0ba50a344e484861705971b0b0c29e0969d637ce1c9b6da90299",
+      "logical_sha256": "ee466fdfc41d0ba50a344e484861705971b0b0c29e0969d637ce1c9b6da90299",
+      "logical_size": 568,
+      "artifact_transport": {"format":"plain-json","version":1}
     },
     "requirement_closure": {
       "name": "requirement-closure.json",
-      "sha256": "cb8a6a0e83b264ab4e44c78bc77dc8e43c7b924fd10f9f1f442b8109087aa144",
-      "logical_sha256": "de55179bef6e12ca33cce2a97ddcb519991dde83eade2623c518d0ae1843de5d",
-      "logical_size": 10216,
-      "artifact_transport": {"format": "base64-shards-v1", "version": 1, "compression": "gzip", "encoded_size": 2332, "decoded_size": 10216, "decoded_sha256": "de55179bef6e12ca33cce2a97ddcb519991dde83eade2623c518d0ae1843de5d", "encoded_sha256": "c303355291b5ee36a89129f66e6490ff7b351f9060325ae77aa8cd2bc3f2921e", "parts": [{"path": "requirement-closure.parts/part-000.b64", "size": 2332, "sha256": "c303355291b5ee36a89129f66e6490ff7b351f9060325ae77aa8cd2bc3f2921e"}]}
+      "sha256": "77ba0e672d3eceea78116ad3fae8c38d43141dd8d15df7fbbe14d6dd30cf4e1e",
+      "logical_sha256": "db8be06ed71cfc76f34be7efaa84bcc6671e0150cebc056d42357fbe06119b74",
+      "logical_size": 15114,
+      "artifact_transport": {"format":"base64-shards-v1","version":1,"compression":"gzip","encoded_size":4576,"decoded_size":15114,"decoded_sha256":"db8be06ed71cfc76f34be7efaa84bcc6671e0150cebc056d42357fbe06119b74","encoded_sha256":"0c25821b6ebc4ce68e4b2562e91d01a1dff48f05b0bb024077f1b892edda9bce","parts":[{"path":"requirement-closure.parts/part-000.b64","size":4576,"sha256":"0c25821b6ebc4ce68e4b2562e91d01a1dff48f05b0bb024077f1b892edda9bce"}]}
     },
     "requirement_attack_matrix": {
-      "name": "requirement-attack-matrix.json",
-      "sha256": "9c7f9057a94007a999a4760e4e5aed744cc534622c47b254261198e1f7b6145d",
-      "logical_sha256": "048c48ac8f817ef0ab0c61b13bc3497ac19e8a0e7a56c0902617627de8a2e2ec",
-      "logical_size": 21173,
-      "artifact_transport": {"format": "base64-shards-v1", "version": 1, "compression": "gzip", "encoded_size": 3228, "decoded_size": 21173, "decoded_sha256": "048c48ac8f817ef0ab0c61b13bc3497ac19e8a0e7a56c0902617627de8a2e2ec", "encoded_sha256": "403c80a496f5bad0afade3bcc2f161d89c08131be6db99725922b7804fe9c1de", "parts": [{"path": "requirement-attack-matrix.parts/part-000.b64", "size": 3228, "sha256": "403c80a496f5bad0afade3bcc2f161d89c08131be6db99725922b7804fe9c1de"}]}
+      "name":"requirement-attack-matrix.json","sha256":"70444c252125c89c76523a97276d01b65b00487a12bbe8aa56109ef742363bd3","logical_sha256":"e98ec7ccb2ed1421e707bbc0521b76241d2979af475906047bedca2a3d131ca4","logical_size":83429,
+      "artifact_transport":{"format":"base64-shards-v1","version":1,"compression":"gzip","encoded_size":13332,"decoded_size":83429,"decoded_sha256":"e98ec7ccb2ed1421e707bbc0521b76241d2979af475906047bedca2a3d131ca4","encoded_sha256":"2451e4fbb15b534a23fe68ea02fc73c7eb9f2229a57381276b05180fcd369715","parts":[{"path":"requirement-attack-matrix.parts/part-000.b64","size":12288,"sha256":"f30cfb3e510854f52fc272028c8b6eb0d06af43fb4c6872c18f378538dd99d9d"},{"path":"requirement-attack-matrix.parts/part-001.b64","size":1044,"sha256":"40c612eca3ad45af44fcea4e9413b3ff453eee0485df0e15c8ac713cba78bc8b"}]}
     },
-    "risk_saturation": {
-      "name": "risk-saturation.json",
-      "sha256": "f4fb44b477c5ca3c684d67d01c198c502b2162a1d6ee6ef6a57280ea738cd7a0",
-      "logical_sha256": "f4fb44b477c5ca3c684d67d01c198c502b2162a1d6ee6ef6a57280ea738cd7a0",
-      "logical_size": 1462,
-      "artifact_transport": {"format": "plain-json", "version": 1}
-    },
-    "inherited_controls": {
-      "name": "inherited-controls-412.json",
-      "sha256": "29724cbb44381350810e314c1bf46a47278a5f88b872b180861e58b25a125dd4",
-      "logical_sha256": "ea88767923927b64a4d605c76a56e461c7299fd9fdba5002ee02372ca99371e9",
-      "logical_size": 12745,
-      "artifact_transport": {"format": "base64-shards-v1", "version": 1, "compression": "gzip", "encoded_size": 2748, "decoded_size": 12745, "decoded_sha256": "ea88767923927b64a4d605c76a56e461c7299fd9fdba5002ee02372ca99371e9", "encoded_sha256": "a3956713ec2e61d201726c024067e3dbe1803d5fb33a7e614d9e203b94c3f6ce", "parts": [{"path": "inherited-controls-412.parts/part-000.b64", "size": 2748, "sha256": "a3956713ec2e61d201726c024067e3dbe1803d5fb33a7e614d9e203b94c3f6ce"}]}
-    }
+    "risk_saturation":{"name":"risk-saturation.json","sha256":"d99f08ce7e20e358ae8c5b7e28380b813f1d3ec4b432dc2fab1d0f30cfceabdf","logical_sha256":"d99f08ce7e20e358ae8c5b7e28380b813f1d3ec4b432dc2fab1d0f30cfceabdf","logical_size":7035,"artifact_transport":{"format":"plain-json","version":1}},
+    "inherited_controls":{"name":"inherited-controls.json","sha256":"e94519fa7de5aff3781c3abb6d49aa7f13808783a129ecae77b545d18fc65a73","logical_sha256":"cad2359fb302157e1d59873569db9a5e9567edc936e2b81683001c7da5b3e5eb","logical_size":17380,"artifact_transport":{"format":"base64-shards-v1","version":1,"compression":"gzip","encoded_size":3872,"decoded_size":17380,"decoded_sha256":"cad2359fb302157e1d59873569db9a5e9567edc936e2b81683001c7da5b3e5eb","encoded_sha256":"a193aa1f8def342add56cec7e89f7d29812cc41357827a6bd6abaa6702a6aa38","parts":[{"path":"inherited-controls.parts/part-000.b64","size":3872,"sha256":"a193aa1f8def342add56cec7e89f7d29812cc41357827a6bd6abaa6702a6aa38"}]}},
+    "audit_escape_closure":{"name":"audit-escape-closure.json","sha256":"f76828ce08855fddf2f63253fab1fb6354c8f67d99ca8d1d548cb15a5404c171","logical_sha256":"f76828ce08855fddf2f63253fab1fb6354c8f67d99ca8d1d548cb15a5404c171","logical_size":4630,"artifact_transport":{"format":"plain-json","version":1}},
+    "learning_closure":{"name":"learning-closure.json","sha256":"e03c5c87358d9316b0958c846705657c89d4e61b78606d4f3c1b1877a08281c0","logical_sha256":"e03c5c87358d9316b0958c846705657c89d4e61b78606d4f3c1b1877a08281c0","logical_size":2711,"artifact_transport":{"format":"plain-json","version":1}},
+    "audit_remediation":{"name":"audit-remediation.json","sha256":"910731db1871e6085bc03fe41170be78eed9857578e469a113eede93a2339e37","logical_sha256":"910731db1871e6085bc03fe41170be78eed9857578e469a113eede93a2339e37","logical_size":1569,"artifact_transport":{"format":"plain-json","version":1}},
+    "audit_source_result":{"name":"audit-source-result.json","sha256":"1e9967b0fbb836e1968a9975083eae2b0add733d7f1751db072e8f0b624fb29a","logical_sha256":"1e9967b0fbb836e1968a9975083eae2b0add733d7f1751db072e8f0b624fb29a","logical_size":895,"artifact_transport":{"format":"plain-json","version":1}}
   },
-  "controls": {
-    "ci": {"mode": "delivery-snapshot", "workflow": "Validate PR", "run_number": 7374, "status": "completed", "conclusion": "success", "subject_sha": "e16fe2d66a046abdfa924f67d9878aaf043fa949"}
-  }
+  "previous_independent_rejection": true
 }
