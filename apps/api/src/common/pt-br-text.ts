@@ -1,4 +1,4 @@
-const CP850_PT_BR_REPLACEMENTS: Readonly<Record<string, string>> = Object.freeze({
+const CP850_C1_PT_BR_REPLACEMENTS: Readonly<Record<string, string>> = Object.freeze({
   '\u0080': 'Ç',
   '\u0081': 'ü',
   '\u0082': 'é',
@@ -21,40 +21,50 @@ const CP850_PT_BR_REPLACEMENTS: Readonly<Record<string, string>> = Object.freeze
   '\u0097': 'ù',
   '\u0099': 'Ö',
   '\u009a': 'Ü',
-  '\u00a0': 'á',
-  '\u00a1': 'í',
-  '\u00a2': 'ó',
-  '\u00a3': 'ú',
-  '\u00b5': 'Á',
-  '\u00b6': 'Â',
-  '\u00b7': 'À',
-  '\u00c6': 'ã',
-  '\u00c7': 'Ã',
-  '\u00d2': 'Ê',
-  '\u00d3': 'Ë',
-  '\u00d4': 'È',
-  '\u00d6': 'Í',
-  '\u00d7': 'Î',
-  '\u00d8': 'Ï',
-  '\u00de': 'Ì',
 });
 
-// O catálogo legado foi exportado em CP850 e parte dos bytes foi interpretada
-// como Latin-1/Windows-1252 antes de ser salva em UTF-8. Somente codepoints que
-// funcionam como marcadores inequívocos de mojibake são convertidos. Codepoints
-// que também representam acentos pt-BR válidos (como é/ã) ficam intactos.
-const CP850_MOJIBAKE_MARKER = /[\u0080-\u009f\u00a0-\u00a3\u00b5-\u00b7\u00c6\u00c7\u00d2-\u00d4\u00d6-\u00d8\u00de]/;
+const LEGACY_PT_BR_FRAGMENTS: ReadonlyArray<readonly [string, string]> = [
+  ['çÆ', 'ção'],
+  ['CÆo', 'Cão'],
+  ['cÆo', 'cão'],
+  ['DorsiflexÆo', 'Dorsiflexão'],
+  ['FlexÆo', 'Flexão'],
+  ['flexÆo', 'flexão'],
+  ['ExtensÆo', 'Extensão'],
+  ['impulsÆo', 'impulsão'],
+  ['B£lgaro', 'Búlgaro'],
+  ['S¢leo', 'Sóleo'],
+  ['C¢coras', 'Cócoras'],
+  ['N¢rdica', 'Nórdica'],
+  ['Equil¡brio', 'Equilíbrio'],
+  ['Tr¡ceps', 'Tríceps'],
+  ['n¡vel', 'nível'],
+  ['poss¡vel', 'possível'],
+  ['M\u00a0quina', 'Máquina'],
+  ['m\u00a0quina', 'máquina'],
+  ['El\u00a0stico', 'Elástico'],
+  ['el\u00a0stico', 'elástico'],
+  ['Tor\u00a0cica', 'Torácica'],
+  ['esc\u00a0pula', 'escápula'],
+  ['r\u00a0pido', 'rápido'],
+];
 
+// O catálogo legado foi exportado em CP850 e parte dos bytes foi interpretada
+// como Latin-1/Windows-1252 antes de ser salva em UTF-8. Caracteres C1 são
+// marcadores inequívocos; bytes visíveis ambíguos só são corrigidos em fragmentos
+// legados conhecidos, preservando Unicode pt-BR válido e NBSP legítimo.
 export function repairPtBrMojibake(value: string): string {
-  if (!value || !CP850_MOJIBAKE_MARKER.test(value)) {
+  if (!value) {
     return value;
   }
 
-  return Array.from(value, (character) => {
-    if (!CP850_MOJIBAKE_MARKER.test(character)) {
-      return character;
-    }
+  const repairedControls = Array.from(
+    value,
+    (character) => CP850_C1_PT_BR_REPLACEMENTS[character] ?? character,
+  ).join('');
 
-    return CP850_PT_BR_REPLACEMENTS[character] ?? character;
-  }).join('');
+  return LEGACY_PT_BR_FRAGMENTS.reduce(
+    (text, [source, target]) => text.split(source).join(target),
+    repairedControls,
+  );
 }
