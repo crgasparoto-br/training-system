@@ -12,10 +12,10 @@
   },
   "generalized_learning": {
     "escape_class": "transform-and-evidence-self-certification",
-    "generalized_failure_pattern": "A transformation can accidentally treat its own outputs as new inputs, while an evidence manifest can similarly self-declare an incomplete vocabulary and appear internally consistent.",
-    "plausible_wrong_implementation": "Apply sequential replacement over an overlapping character domain, or accept a risk manifest without validating it against an external canonical schema.",
+    "generalized_failure_pattern": "A transformation can accidentally treat valid output-domain values as malformed input, while an evidence manifest can similarly self-declare an incomplete vocabulary and appear internally consistent.",
+    "plausible_wrong_implementation": "Apply global replacement over an ambiguous character domain, or accept a risk manifest without validating it against an external canonical schema.",
     "trigger_signals": [
-      "replacement output overlaps replacement input domain",
+      "ambiguous replacement input overlaps valid Unicode domain",
       "mixed valid and malformed text",
       "evidence manifest defines its own family vocabulary",
       "critical handoff without schema validator"
@@ -24,14 +24,14 @@
       "structural-contract",
       "documentation"
     ],
-    "reusable_control": "Use a mixed-validity sibling test for transformation domains and an external canonical-schema validator for evidence manifests before certification.",
-    "prevention_rule": "Make repair mappings single-pass or guard each input atom against an unambiguous malformed-domain predicate; generate evidence vocabulary from the canonical contract rather than local custom labels.",
-    "detection_rule": "Test mixed strings containing valid output-domain values plus malformed inputs, and fail handoff when canonical risk families, applicability reasons, surfaces, or control bindings are missing.",
+    "reusable_control": "Use mixed-validity and idempotent sibling tests for transformation domains plus an external canonical-schema validator for evidence manifests before certification.",
+    "prevention_rule": "Restrict direct transformations to unambiguous malformed inputs and use lexical/contextual rules for ambiguous visible values; generate evidence vocabulary from the canonical contract rather than local custom labels.",
+    "detection_rule": "Test valid output-domain values, mixed inputs, reruns and fail handoff when canonical risk families, applicability reasons, surfaces or control bindings are missing.",
     "transfer_cases": [
       {
         "surface": "character-normalization",
         "status": "passed",
-        "case": "A mixed string retains valid accented characters while only malformed markers are transformed."
+        "case": "A mixed string retains valid characters from the target alphabet while malformed markers are transformed and a rerun is a no-op."
       },
       {
         "surface": "evidence-schema",
@@ -45,12 +45,12 @@
     {
       "role": "prevention",
       "status": "passed",
-      "evidence": "Delivery prevention now requires one-pass/unambiguous-domain repair and canonical risk-family generation before certification."
+      "evidence": "Delivery prevention requires unambiguous-domain repair and canonical risk-family generation before certification."
     },
     {
       "role": "detection",
       "status": "passed",
-      "evidence": "Delivery detection now includes mixed-validity migration regression coverage and canonical risk-saturation validation."
+      "evidence": "Delivery detection includes mixed-validity/idempotency regression coverage and canonical risk-saturation validation."
     }
   ]
 }

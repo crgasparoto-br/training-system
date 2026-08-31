@@ -15,30 +15,36 @@
       "plausible_wrong_implementation": "Repair malformed characters through ordered replacements so a newly produced valid character is matched by a later replacement and corrupted again.",
       "literal_case": {
         "status": "passed",
-        "input": "m\\u0082dia / média / Elevação / Extensão",
-        "observed": "Single-pass exact-head repair changes only the malformed marker and preserves existing valid Unicode accents."
+        "input": "Ótimo P\\u0082 a P\\u0082 / Ção / Ômega / Supino\\u00a0Reto",
+        "observed": "On current material head, recognized C1 corruption is repaired while valid Ç, Ó, Ô and legitimate NBSP remain unchanged; applying repair a second time is a no-op."
       },
       "sibling_cases": [
         {
           "id": "ESC-A001-S1",
           "status": "passed",
           "surface": "mixed-validity-string",
-          "observed": "média combined with a malformed marker preserves the original é."
+          "observed": "Ótimo combined with malformed P\\u0082 is repaired to Ótimo Pé without changing Ó."
         },
         {
           "id": "ESC-A001-S2",
           "status": "passed",
           "surface": "valid-unicode-only",
-          "observed": "Elevação and Extensão remain unchanged."
+          "observed": "Ção, Ótimo and Ômega remain unchanged on current material head."
+        },
+        {
+          "id": "ESC-A001-S3",
+          "status": "passed",
+          "surface": "idempotent-rerun",
+          "observed": "A second repair pass returns exactly the first repaired result."
         }
       ],
       "prevention_change": {
         "status": "passed",
-        "evidence": "Migration uses one-pass translate with ambiguous valid Unicode codepoints excluded; runtime helper maps only characters matching the unambiguous marker predicate."
+        "evidence": "Runtime and migration convert only unambiguous C1 markers directly; ambiguous visible characters including NBSP, Ç, Ó and Ô are handled only by explicit known legacy fragments."
       },
       "detection_change": {
         "status": "passed",
-        "evidence": "Focused helper and migration tests include mixed-validity and valid-Unicode preservation cases."
+        "evidence": "Current regression tests cover valid Ç/Ó/Ô, legitimate NBSP, mixed valid+corrupt input and repeated repair idempotency; CI Validate PR #7400 passed on the material head."
       },
       "required_risk_families": [
         "structural-contract"
@@ -53,9 +59,14 @@
           "risk_family": "structural-contract",
           "surface": "canonical-source-consistency",
           "dimension": "valid-unicode-preservation"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "migration-idempotency"
         }
       ],
-      "revalidated_head_sha": "6ce76f13bd6170ecd1129dd4c74c00dba5c681ff"
+      "revalidated_head_sha": "ac037afb6c432cc8a7556656607164d824236e5d"
     },
     {
       "escape_id": "ESC-A002-NONCANONICAL-RISK-MANIFEST",
@@ -72,7 +83,7 @@
       "literal_case": {
         "status": "passed",
         "input": "critical risk saturation manifest",
-        "observed": "Exact-head rebuilt manifest enumerates the canonical family set and binds applicable surfaces to attack controls."
+        "observed": "Current material head risk saturation is regenerated from the canonical 12-family initializer and validated against current attack controls."
       },
       "sibling_cases": [
         {
@@ -111,7 +122,7 @@
           "dimension": "applicability-and-control-binding"
         }
       ],
-      "revalidated_head_sha": "6ce76f13bd6170ecd1129dd4c74c00dba5c681ff"
+      "revalidated_head_sha": "ac037afb6c432cc8a7556656607164d824236e5d"
     }
   ]
 }

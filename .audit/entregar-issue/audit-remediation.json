@@ -3,7 +3,7 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "status": "closed",
-  "candidate_head_sha": "6ce76f13bd6170ecd1129dd4c74c00dba5c681ff",
+  "candidate_head_sha": "ac037afb6c432cc8a7556656607164d824236e5d",
   "source": {
     "rejection_id": "audit-rejection:83561a95-106b-4663-b5ac-beebede1f587",
     "audited_head_sha": "a80fdd5c54c7083a65f7c6bac85050b6359a9ab3",
@@ -17,13 +17,15 @@
       "remediation_mode": "systemic-remediation",
       "status": "fixed",
       "evidence": [
-        "Migration rewritten as one-pass translate excluding ambiguous valid-Unicode codepoints.",
-        "Runtime helper guards each character by the mojibake marker predicate.",
-        "Regression coverage derives and exercises the migration mapping with mixed-validity inputs."
+        "Direct CP850 repair is restricted to unambiguous C1 controls.",
+        "Ambiguous visible codepoints are repaired only in explicit known legacy fragments.",
+        "Regression tests preserve valid Ç/Ó/Ô and legitimate NBSP and assert repair idempotency.",
+        "GitHub Actions Validate PR #7400 completed success on current material head."
       ],
       "validations": [
         "validate_requirement_attack_matrix.py",
-        "audit escape mixed-validity controls"
+        "validate_audit_escape_lineage.py",
+        "Validate PR #7400"
       ]
     },
     {
@@ -32,8 +34,8 @@
       "remediation_mode": "systemic-remediation",
       "status": "fixed",
       "evidence": [
-        "Risk saturation rebuilt with canonical schema_version 1 and full canonical family enumeration.",
-        "Applicable dimensions bind to current attack controls."
+        "Risk saturation is regenerated with schema_version 1 and all canonical families.",
+        "Applicable dimensions bind to current exact-head attack controls."
       ],
       "validations": [
         "validate_risk_saturation.py",

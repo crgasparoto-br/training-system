@@ -1,1 +1,114 @@
-{"schema_version":1,"patterns":[{"escape_class":"foreign-delivery-artifact-reuse","source_audit":{"rejection_id":"audit-rejection:7027bee7-766e-419e-9279-42b577b4dde4","kind":"independent-rejection","head_sha":"829e19bdbc94abc1febda351c16cbb3d38d971d7"},"plausible_wrong_implementation":"Reuse stale or cached delivery identity after material/base changes and treat internally consistent old evidence as if it certified the exact current candidate.","sibling_cases":[{"id":"ESC-TARGET-BINDING-identity","surface":"terminal-handoff-identity","dimension":"identity-variant","status":"passed","evidence":"evidence-material-verification.json"},{"id":"ESC-TARGET-BINDING-lineage","surface":"result-only-child-lineage","dimension":"lineage-variant","status":"passed","evidence":"evidence-material-verification.json"}],"prevention_change":{"skill_or_code":"existing entregar-issue freeze/handoff lifecycle","evidence":"The canonical delivery lifecycle invalidates stale material identity and requires exact-current freeze/handoff publication."},"detection_change":{"skill_or_gate":"terminal handoff and base-authority controls","evidence":"Exact-head material, authoritative base ancestry and cumulative lineage controls were executed before handoff."},"trigger_terms":["stale certificate","material head changed","base ref mismatch","result-only child"],"required_risk_families":["structural-contract"],"required_attack_dimensions":[{"risk_family":"structural-contract","surface":"delivery-target-binding","dimension":"d35"},{"risk_family":"structural-contract","surface":"terminal-handoff-identity","dimension":"d36"},{"risk_family":"structural-contract","surface":"result-only-child-lineage","dimension":"d37"}]},{"escape_class":"post-freeze-material-drift","source_audit":{"rejection_id":"audit-rejection:63aa7591-9ebe-45ed-aa0e-7db38c50ee3f","kind":"independent-rejection","head_sha":"5f8face3facac6d2564c68240d78e81a4e2cd3a5","finding_ids":["A-001"]},"plausible_wrong_implementation":"Reuse stale or cached delivery identity after material/base changes and treat internally consistent old evidence as if it certified the exact current candidate.","sibling_cases":[{"id":"ESC-POST-WRITE-REFREEZE-identity","surface":"terminal-handoff-identity","dimension":"identity-variant","status":"passed","evidence":"evidence-material-verification.json"},{"id":"ESC-POST-WRITE-REFREEZE-lineage","surface":"result-only-child-lineage","dimension":"lineage-variant","status":"passed","evidence":"evidence-material-verification.json"}],"prevention_change":{"skill_or_code":"existing entregar-issue freeze/handoff lifecycle","evidence":"The canonical delivery lifecycle invalidates stale material identity and requires exact-current freeze/handoff publication."},"detection_change":{"skill_or_gate":"terminal handoff and base-authority controls","evidence":"Exact-head material, authoritative base ancestry and cumulative lineage controls were executed before handoff."},"trigger_terms":["stale certificate","material head changed","base ref mismatch","result-only child"],"required_risk_families":["structural-contract"],"required_attack_dimensions":[{"risk_family":"structural-contract","surface":"post-freeze-material-drift","dimension":"d38"},{"risk_family":"structural-contract","surface":"result-only-child-lineage","dimension":"d39"},{"risk_family":"structural-contract","surface":"terminal-head-freshness","dimension":"d40"}]},{"escape_class":"cumulative-audit-lineage-loss","source_audit":{"rejection_id":"audit-rejection:d363899c-b75c-4caf-878c-b355a7db56ec","kind":"independent-rejection","head_sha":"9b9f38eda89823aeafda48f0437eab0b07e56153","finding_ids":["A-002"]},"plausible_wrong_implementation":"Reuse stale or cached delivery identity after material/base changes and treat internally consistent old evidence as if it certified the exact current candidate.","sibling_cases":[{"id":"ESC-CUMULATIVE-AUDIT-LINEAGE-identity","surface":"terminal-handoff-identity","dimension":"identity-variant","status":"passed","evidence":"evidence-material-verification.json"},{"id":"ESC-CUMULATIVE-AUDIT-LINEAGE-lineage","surface":"result-only-child-lineage","dimension":"lineage-variant","status":"passed","evidence":"evidence-material-verification.json"}],"prevention_change":{"skill_or_code":"existing entregar-issue freeze/handoff lifecycle","evidence":"The canonical delivery lifecycle invalidates stale material identity and requires exact-current freeze/handoff publication."},"detection_change":{"skill_or_gate":"terminal handoff and base-authority controls","evidence":"Exact-head material, authoritative base ancestry and cumulative lineage controls were executed before handoff."},"trigger_terms":["stale certificate","material head changed","base ref mismatch","result-only child"],"required_risk_families":["structural-contract"],"required_attack_dimensions":[{"risk_family":"structural-contract","surface":"result-only-child-lineage","dimension":"d39"},{"risk_family":"structural-contract","surface":"terminal-handoff-identity","dimension":"d36"},{"risk_family":"structural-contract","surface":"delivery-target-binding","dimension":"d35"}]},{"escape_class":"post-freeze-material-drift","source_audit":{"rejection_id":"audit-rejection:513918b7-dfa9-443c-92db-3d4ebfb4e7af","kind":"independent-rejection","head_sha":"9976969fafeaffa33ee668a188bc69100a6a67dd","finding_ids":["A-001"]},"plausible_wrong_implementation":"Reuse stale or cached delivery identity after material/base changes and treat internally consistent old evidence as if it certified the exact current candidate.","sibling_cases":[{"id":"ESC-POST-WRITE-REFREEZE-REPEAT-identity","surface":"terminal-handoff-identity","dimension":"identity-variant","status":"passed","evidence":"evidence-material-verification.json"},{"id":"ESC-POST-WRITE-REFREEZE-REPEAT-lineage","surface":"result-only-child-lineage","dimension":"lineage-variant","status":"passed","evidence":"evidence-material-verification.json"}],"prevention_change":{"skill_or_code":"existing entregar-issue freeze/handoff lifecycle","evidence":"The canonical delivery lifecycle invalidates stale material identity and requires exact-current freeze/handoff publication."},"detection_change":{"skill_or_gate":"terminal handoff and base-authority controls","evidence":"Exact-head material, authoritative base ancestry and cumulative lineage controls were executed before handoff."},"trigger_terms":["stale certificate","material head changed","base ref mismatch","result-only child"],"required_risk_families":["structural-contract"],"required_attack_dimensions":[{"risk_family":"structural-contract","surface":"post-freeze-material-drift","dimension":"d41"},{"risk_family":"structural-contract","surface":"terminal-head-freshness","dimension":"d42"},{"risk_family":"structural-contract","surface":"result-only-child-lineage","dimension":"d43"}]},{"escape_class":"handoff-base-authority-drift","source_audit":{"rejection_id":"audit-rejection:fc983d85-76ae-4ec6-ae5e-efe4cbdfe259","kind":"independent-rejection","head_sha":"88e061659d058ea781df4b7273e1c15b2a8c2315","finding_ids":["A-001"]},"plausible_wrong_implementation":"Reuse stale or cached delivery identity after material/base changes and treat internally consistent old evidence as if it certified the exact current candidate.","sibling_cases":[{"id":"ESC-HANDOFF-BASE-AUTHORITY-identity","surface":"terminal-handoff-identity","dimension":"identity-variant","status":"passed","evidence":"evidence-material-verification.json"},{"id":"ESC-HANDOFF-BASE-AUTHORITY-lineage","surface":"result-only-child-lineage","dimension":"lineage-variant","status":"passed","evidence":"evidence-material-verification.json"}],"prevention_change":{"skill_or_code":"existing entregar-issue freeze/handoff lifecycle","evidence":"The canonical delivery lifecycle invalidates stale material identity and requires exact-current freeze/handoff publication."},"detection_change":{"skill_or_gate":"terminal handoff and base-authority controls","evidence":"Exact-head material, authoritative base ancestry and cumulative lineage controls were executed before handoff."},"trigger_terms":["stale certificate","material head changed","base ref mismatch","result-only child"],"required_risk_families":["structural-contract"],"required_attack_dimensions":[{"risk_family":"structural-contract","surface":"base-ref-authority","dimension":"authoritative-ref-vs-pr-cache"},{"risk_family":"structural-contract","surface":"delivery-target-binding","dimension":"d35"},{"risk_family":"structural-contract","surface":"result-only-child-lineage","dimension":"direct-parent-allowlist"}]}]}
+{
+  "schema_version": 1,
+  "patterns": [
+    {
+      "escape_class": "ambiguous-codepoint-self-remapping",
+      "source_audit": {
+        "rejection_id": "audit-rejection:83561a95-106b-4663-b5ac-beebede1f587",
+        "finding_ids": [
+          "A-001"
+        ],
+        "audit_report_sha256": "1e9967b0fbb836e1968a9975083eae2b0add733d7f1751db072e8f0b624fb29a"
+      },
+      "plausible_wrong_implementation": "Repair malformed characters through ordered replacements so a newly produced valid character is matched by a later replacement and corrupted again.",
+      "sibling_cases": [
+        {
+          "id": "ESC-A001-S1",
+          "status": "passed",
+          "surface": "mixed-validity-string",
+          "observed": "Ótimo combined with malformed P\\u0082 is repaired to Ótimo Pé without changing Ó."
+        },
+        {
+          "id": "ESC-A001-S2",
+          "status": "passed",
+          "surface": "valid-unicode-only",
+          "observed": "Ção, Ótimo and Ômega remain unchanged on current material head."
+        },
+        {
+          "id": "ESC-A001-S3",
+          "status": "passed",
+          "surface": "idempotent-rerun",
+          "observed": "A second repair pass returns exactly the first repaired result."
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "Runtime and migration convert only unambiguous C1 markers directly; ambiguous visible characters including NBSP, Ç, Ó and Ô are handled only by explicit known legacy fragments."
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "Current regression tests cover valid Ç/Ó/Ô, legitimate NBSP, mixed valid+corrupt input and repeated repair idempotency; CI Validate PR #7400 passed on the material head."
+      },
+      "trigger_terms": [],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "mixed-valid-corrupt-codepoints"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "valid-unicode-preservation"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "migration-idempotency"
+        }
+      ]
+    },
+    {
+      "escape_class": "noncanonical-risk-saturation-manifest",
+      "source_audit": {
+        "rejection_id": "audit-rejection:83561a95-106b-4663-b5ac-beebede1f587",
+        "finding_ids": [
+          "A-002"
+        ],
+        "audit_report_sha256": "1e9967b0fbb836e1968a9975083eae2b0add733d7f1751db072e8f0b624fb29a"
+      },
+      "plausible_wrong_implementation": "Let a critical handoff define custom risk-family names and declare itself saturated without enumerating or validating the canonical contract.",
+      "sibling_cases": [
+        {
+          "id": "ESC-A002-S1",
+          "status": "passed",
+          "surface": "family-enumeration",
+          "observed": "Omitting a canonical family is rejected by the risk-saturation validator."
+        },
+        {
+          "id": "ESC-A002-S2",
+          "status": "passed",
+          "surface": "control-binding",
+          "observed": "An applicable surface without a matching adversarial control is rejected."
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "Risk saturation is generated from the canonical initializer instead of a hand-authored family vocabulary."
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "validate_risk_saturation.py is executed before terminal handoff and checks canonical families, applicability, surfaces and controls."
+      },
+      "trigger_terms": [],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "risk-saturation-contract",
+          "dimension": "canonical-family-enumeration"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "risk-saturation-contract",
+          "dimension": "applicability-and-control-binding"
+        }
+      ]
+    }
+  ]
+}
