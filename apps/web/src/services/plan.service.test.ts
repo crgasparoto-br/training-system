@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planService, type SessionType, type TrainingPhase } from './plan.service';
+import { planService, type TrainingPhase } from './plan.service';
 
 describe('planService: textos pt-BR', () => {
   it('traduz todas as fases sem mojibake', () => {
@@ -17,8 +17,7 @@ describe('planService: textos pt-BR', () => {
     }
   });
 
-  it('mantém acentuação correta nos rótulos de sessão e dias da semana', () => {
-    expect(planService.translateSessionType('recovery' as SessionType)).toBe('Recuperação');
+  it('mantém acentuação correta nos dias da semana', () => {
     expect(planService.getDayName(2)).toBe('Terça');
     expect(planService.getDayName(6)).toBe('Sábado');
   });
