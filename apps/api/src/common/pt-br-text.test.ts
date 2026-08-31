@@ -9,7 +9,9 @@ describe('repairPtBrMojibake', () => {
     ['C\u00c6o Ca\u0087ador', 'Cão Caçador'],
     ['Dorsiflex\u00c6o Unilateral com El\u00a0stico', 'Dorsiflexão Unilateral com Elástico'],
     ['Eleva\u0087\u00c6o P\u0082lvica', 'Elevação Pélvica'],
-  ])('recupera exportação CP850 corrompida: %s', (input, expected) => {
+    ['média e P\u0082 a P\u0082', 'média e Pé a Pé'],
+    ['Elevação com El\u00a0stico', 'Elevação com Elástico'],
+  ])('recupera exportação CP850 corrompida sem alterar acentos válidos: %s', (input, expected) => {
     expect(repairPtBrMojibake(input)).toBe(expected);
   });
 
@@ -18,6 +20,8 @@ describe('repairPtBrMojibake', () => {
     'Elevação Pélvica',
     'Flexão de braço',
     'Rotação externa com elástico',
+    'Extensão de quadril',
+    'média',
     'Exercício customizado do aluno',
   ])('preserva texto pt-BR já correto: %s', (input) => {
     expect(repairPtBrMojibake(input)).toBe(input);
