@@ -375,6 +375,17 @@ describe('installContractDefaults', () => {
     expect(loadProductExerciseDefaults().map((item) => item.name)).toEqual(canonicalNames);
   });
 
+  it('mantém o catálogo canônico em UTF-8 pt-BR sem marcadores CP850', () => {
+    const canonicalPath = path.resolve(process.cwd(), 'src/scripts/exercises-data.json');
+    const canonicalSource = fs.readFileSync(canonicalPath, 'utf-8');
+    const cp850Markers = /[\u0080-\u009f\u00a0-\u00a3\u00b5-\u00b7\u00c6\u00c7\u00d2-\u00d4\u00d6-\u00d8\u00de]/;
+
+    expect(canonicalSource).not.toMatch(cp850Markers);
+    expect(canonicalSource).toContain('Abdominal Máquina');
+    expect(canonicalSource).toContain('Abdominal Obliquo na polia média');
+    expect(canonicalSource).toContain('Abdominal Pé a Pé');
+  });
+
   it('mantém seed, runtime e tipos de avaliação ligados às definições canônicas compartilhadas', () => {
     const seedSource = fs.readFileSync(path.resolve(process.cwd(), 'prisma/seed-parameters.ts'), 'utf-8');
     const installSource = fs.readFileSync(

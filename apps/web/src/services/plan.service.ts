@@ -1,4 +1,4 @@
-﻿import api from './api';
+import api from './api';
 
 export type TrainingPhase = 'base' | 'build' | 'peak' | 'recovery' | 'taper';
 export type SessionType = 'easy_run' | 'tempo_run' | 'interval' | 'long_run' | 'recovery' | 'strength' | 'rest';
@@ -197,7 +197,7 @@ export const planService = {
   },
 
   /**
-   * Criar sessÃ£o (microciclo)
+   * Criar sessão (microciclo)
    */
   async createSession(data: CreateSessionDTO): Promise<Microcycle> {
     const response = await api.post<{ success: boolean; data: Microcycle }>('/plans/microcycles', data);
@@ -205,7 +205,7 @@ export const planService = {
   },
 
   /**
-   * Atualizar sessÃ£o
+   * Atualizar sessão
    */
   async updateSession(id: string, data: Partial<CreateSessionDTO>): Promise<Microcycle> {
     const response = await api.put<{ success: boolean; data: Microcycle }>(`/plans/microcycles/${id}`, data);
@@ -213,7 +213,7 @@ export const planService = {
   },
 
   /**
-   * Deletar sessÃ£o
+   * Deletar sessão
    */
   async deleteSession(id: string): Promise<void> {
     await api.delete(`/plans/microcycles/${id}`);
@@ -224,17 +224,17 @@ export const planService = {
    */
   translatePhase(phase: TrainingPhase): string {
     const translations: Record<TrainingPhase, string> = {
-      base: 'Base AerÃ³bica',
-      build: 'ConstruÃ§Ã£o',
+      base: 'Base Aeróbica',
+      build: 'Construção',
       peak: 'Pico',
-      recovery: 'RecuperaÃ§Ã£o',
+      recovery: 'Recuperação',
       taper: 'Polimento',
     };
     return translations[phase];
   },
 
   /**
-   * Traduzir tipo de sessÃ£o
+   * Traduzir tipo de sessão
    */
   translateSessionType(type: SessionType): string {
     const translations: Record<SessionType, string> = {
@@ -242,7 +242,7 @@ export const planService = {
       tempo_run: 'Corrida Tempo',
       interval: 'Intervalado',
       long_run: 'Corrida Longa',
-      recovery: 'RecuperaÃ§Ã£o',
+      recovery: 'Recuperação',
       strength: 'Fortalecimento',
       rest: 'Descanso',
     };
@@ -264,7 +264,7 @@ export const planService = {
   },
 
   /**
-   * Obter cor do tipo de sessÃ£o
+   * Obter cor do tipo de sessão
    */
   getSessionTypeColor(type: SessionType): string {
     const colors: Record<SessionType, string> = {
@@ -280,7 +280,7 @@ export const planService = {
   },
 
   /**
-   * Formatar duraÃ§Ã£o em minutos para horas:minutos
+   * Formatar duração em minutos para horas:minutos
    */
   formatDuration(minutes: number): string {
     const hours = Math.floor(minutes / 60);
@@ -304,8 +304,7 @@ export const planService = {
    * Obter nome do dia da semana
    */
   getDayName(dayOfWeek: number): string {
-    const days = ['Domingo', 'Segunda', 'TerÃ§a', 'Quarta', 'Quinta', 'Sexta', 'SÃ¡bado'];
+    const days = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
     return days[dayOfWeek];
   },
 };
-
