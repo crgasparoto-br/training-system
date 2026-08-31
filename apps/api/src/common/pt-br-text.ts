@@ -37,19 +37,12 @@ const CP850_PT_BR_REPLACEMENTS: Readonly<Record<string, string>> = Object.freeze
   '\u00d7': 'Î',
   '\u00d8': 'Ï',
   '\u00de': 'Ì',
-  '\u00e0': 'Ó',
-  '\u00e2': 'Ô',
-  '\u00e3': 'Ò',
-  '\u00e4': 'õ',
-  '\u00e5': 'Õ',
-  '\u00e9': 'Ú',
-  '\u00ea': 'Û',
-  '\u00eb': 'Ù',
 });
 
 // O catálogo legado foi exportado em CP850 e parte dos bytes foi interpretada
-// como Latin-1/Windows-1252 antes de ser salva em UTF-8. Os marcadores abaixo
-// são caracteres improváveis em nomes pt-BR e evitam alterar texto já correto.
+// como Latin-1/Windows-1252 antes de ser salva em UTF-8. Somente codepoints que
+// funcionam como marcadores inequívocos de mojibake são convertidos. Codepoints
+// que também representam acentos pt-BR válidos (como é/ã) ficam intactos.
 const CP850_MOJIBAKE_MARKER = /[\u0080-\u009f\u00a0-\u00a3\u00b5-\u00b7\u00c6\u00c7\u00d2-\u00d4\u00d6-\u00d8\u00de]/;
 
 export function repairPtBrMojibake(value: string): string {
@@ -57,5 +50,11 @@ export function repairPtBrMojibake(value: string): string {
     return value;
   }
 
-  return Array.from(value, (character) => CP850_PT_BR_REPLACEMENTS[character] ?? character).join('');
+  return Array.from(value, (character) => {
+    if (!CP850_MOJIBAKE_MARKER.test(character)) {
+      return character;
+    }
+
+    return CP850_PT_BR_REPLACEMENTS[character] ?? character;
+  }).join('');
 }
