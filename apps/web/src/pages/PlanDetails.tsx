@@ -10,6 +10,7 @@ import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { planDetailsCopy } from '../i18n/ptBR';
 import { formatDateBR, parseDateOnly } from '../utils/date';
+import { resolveWorkoutBuilderPosition } from '../utils/workout-plan-position';
 import {
   Activity,
   ArrowLeft,
@@ -107,19 +108,15 @@ export function PlanDetails() {
   }, [plan]);
 
   const weeksPerMesocycle = matrix?.weeksPerMesocycle ?? 4;
-  const totalMesocycles = matrix?.totalMesocycles ?? Math.max(1, Math.ceil(planWeeks.length / weeksPerMesocycle));
-
-  const resolveBuilderPosition = (globalWeekNumber: number) => {
-    const zeroBasedWeek = Math.max(0, globalWeekNumber - 1);
-    return {
-      mesocycleNumber: Math.floor(zeroBasedWeek / weeksPerMesocycle) + 1,
-      weekNumber: (zeroBasedWeek % weeksPerMesocycle) + 1,
-    };
-  };
+  const totalMesocycles =
+    matrix?.totalMesocycles ?? Math.max(1, Math.ceil(planWeeks.length / weeksPerMesocycle));
 
   const openWeekAssembly = (globalWeekNumber: number) => {
     if (!id) return;
-    const { mesocycleNumber, weekNumber } = resolveBuilderPosition(globalWeekNumber);
+    const { mesocycleNumber, weekNumber } = resolveWorkoutBuilderPosition(
+      globalWeekNumber,
+      weeksPerMesocycle
+    );
     navigate(`/plans/${id}/workout-builder/${mesocycleNumber}/${weekNumber}`);
   };
 
@@ -273,8 +270,9 @@ export function PlanDetails() {
           {planWeeks.length > 0 ? (
             <div className="grid gap-4 lg:grid-cols-2">
               {planWeeks.map((week) => {
-                const { mesocycleNumber, weekNumber } = resolveBuilderPosition(
-                  week.globalWeekNumber
+                const { mesocycleNumber, weekNumber } = resolveWorkoutBuilderPosition(
+                  week.globalWeekNumber,
+                  weeksPerMesocycle
                 );
                 const resistedStimulus = matrix?.resistedStimulus?.find(
                   (item) =>
