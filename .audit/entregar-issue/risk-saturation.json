@@ -8,28 +8,62 @@
     {
       "risk_family": "structural-contract",
       "status": "passed",
-      "required_surfaces": ["canonical-source-consistency", "normalization-boundary"],
-      "controls": ["CTRL-REQ-01", "CTRL-REQ-02", "CTRL-REQ-03", "CTRL-AC-01", "CTRL-AC-02", "CTRL-AC-04"]
+      "required_surfaces": [
+        "canonical-source-consistency",
+        "normalization-boundary"
+      ],
+      "controls": [
+        "CTRL-REQ-01",
+        "CTRL-REQ-02",
+        "CTRL-REQ-03",
+        "CTRL-AC-01",
+        "CTRL-AC-02",
+        "CTRL-AC-04"
+      ]
     },
     {
       "risk_family": "data-integrity",
       "status": "passed",
-      "required_surfaces": ["migration-collision-preservation"],
-      "controls": ["CTRL-REQ-04", "CTRL-REQ-05", "CTRL-AC-03"]
+      "required_surfaces": [
+        "migration-collision-preservation"
+      ],
+      "controls": [
+        "CTRL-REQ-04",
+        "CTRL-REQ-05",
+        "CTRL-AC-03"
+      ]
     },
     {
       "risk_family": "presentation-integrity",
       "status": "passed",
-      "required_surfaces": ["plan-label-translation"],
-      "controls": ["CTRL-REQ-06", "CTRL-AC-05", "CTRL-AC-06"]
+      "required_surfaces": [
+        "plan-label-translation"
+      ],
+      "controls": [
+        "CTRL-REQ-06",
+        "CTRL-AC-05",
+        "CTRL-AC-06"
+      ]
     },
     {
       "risk_family": "regression",
       "status": "passed",
-      "required_surfaces": ["delivery-validation"],
-      "controls": ["CTRL-REQ-07", "CTRL-AC-07"]
+      "required_surfaces": [
+        "delivery-validation"
+      ],
+      "controls": [
+        "CTRL-REQ-07",
+        "CTRL-AC-07"
+      ]
     }
   ],
-  "not_applicable": ["authorization", "tenant-isolation", "provider-side-effect", "concurrency-atomicity", "temporal-consistency", "performance"],
+  "not_applicable": [
+    "authorization",
+    "tenant-isolation",
+    "provider-side-effect",
+    "concurrency-atomicity",
+    "temporal-consistency",
+    "performance"
+  ],
   "unresolved": []
 }
