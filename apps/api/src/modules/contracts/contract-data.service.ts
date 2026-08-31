@@ -1,6 +1,12 @@
 ﻿import { PrismaClient } from '@prisma/client';
+import { repairPtBrMojibake } from '../../common/pt-br-text.js';
 
 const prisma = new PrismaClient();
+
+type ContractDataDb = Pick<
+  PrismaClient,
+  'trainingParameter' | 'exerciseLibrary' | 'assessmentType' | 'contractDataCloneLog'
+>;
 
 export interface CloneContractDataOptions {
   sourceContractId: string;
@@ -20,8 +26,17 @@ export interface CloneResult {
   assessmentTypesSkipped: number;
 }
 
+const normalizeExerciseName = (value: string) =>
+  repairPtBrMojibake(value).trim().replace(/\s+/g, ' ');
+
+const normalizeOptionalExerciseText = (value: string | null) => {
+  if (value === null) return null;
+  return repairPtBrMojibake(value).trim() || null;
+};
+
 export async function cloneContractData(
-  options: CloneContractDataOptions
+  options: CloneContractDataOptions,
+  db: ContractDataDb = prisma
 ): Promise<CloneResult> {
   const {
     sourceContractId,
@@ -51,7 +66,7 @@ export async function cloneContractData(
   let assessmentTypesSkipped = 0;
 
   if (copyParameters) {
-    const parameters = await prisma.trainingParameter.findMany({
+    const parameters = await db.trainingParameter.findMany({
       where: { contractId: sourceContractId },
       select: {
         category: true,
@@ -63,7 +78,7 @@ export async function cloneContractData(
     });
 
     if (parameters.length > 0) {
-      const created = await prisma.trainingParameter.createMany({
+      const created = await db.trainingParameter.createMany({
         data: parameters.map((parameter) => ({
           contractId: targetContractId,
           category: parameter.category,
@@ -81,7 +96,7 @@ export async function cloneContractData(
   }
 
   if (copyExercises) {
-    const exercises = await prisma.exerciseLibrary.findMany({
+    const exercises = await db.exerciseLibrary.findMany({
       where: { contractId: sourceContractId },
       select: {
         name: true,
@@ -98,17 +113,31 @@ export async function cloneContractData(
     if (exercises.length > 0) {
       const existingNames = new Set(
         (
-          await prisma.exerciseLibrary.findMany({
+          await db.exerciseLibrary.findMany({
             where: { contractId: targetContractId },
             select: { name: true },
           })
-        ).map((item) => item.name)
+        ).map((item) => normalizeExerciseName(item.name))
       );
 
-      const toCreate = exercises.filter((exercise) => !existingNames.has(exercise.name));
+      const toCreate = exercises.reduce<typeof exercises>((items, exercise) => {
+        const normalizedName = normalizeExerciseName(exercise.name);
+        if (!normalizedName || existingNames.has(normalizedName)) {
+          return items;
+        }
+
+        existingNames.add(normalizedName);
+        items.push({
+          ...exercise,
+          name: normalizedName,
+          muscleGroup: normalizeOptionalExerciseText(exercise.muscleGroup),
+          notes: normalizeOptionalExerciseText(exercise.notes),
+        });
+        return items;
+      }, []);
 
       if (toCreate.length > 0) {
-        const created = await prisma.exerciseLibrary.createMany({
+        const created = await db.exerciseLibrary.createMany({
           data: toCreate.map((exercise) => ({
             contractId: targetContractId,
             name: exercise.name,
@@ -131,7 +160,7 @@ export async function cloneContractData(
   }
 
   if (copyAssessmentTypes) {
-    const sourceTypes = await prisma.assessmentType.findMany({
+    const sourceTypes = await db.assessmentType.findMany({
       where: { contractId: sourceContractId },
       select: {
         id: true,
@@ -147,7 +176,7 @@ export async function cloneContractData(
     });
 
     if (sourceTypes.length > 0) {
-      const targetTypes = await prisma.assessmentType.findMany({
+      const targetTypes = await db.assessmentType.findMany({
         where: { contractId: targetContractId },
         select: { id: true, code: true },
       });
@@ -158,7 +187,7 @@ export async function cloneContractData(
       const toCreate = sourceTypes.filter((type) => !targetByCode.has(type.code));
 
       for (const item of toCreate) {
-        const created = await prisma.assessmentType.create({
+        const created = await db.assessmentType.create({
           data: {
             contractId: targetContractId,
             code: item.code,
@@ -186,7 +215,7 @@ export async function cloneContractData(
         const targetTypeId = targetByCode.get(item.code);
         if (!targetTypeId) continue;
 
-        await prisma.assessmentType.update({
+        await db.assessmentType.update({
           where: { id: targetTypeId, contractId: targetContractId },
           data: {
             afterTypeId: targetAfterTypeId,
@@ -198,7 +227,7 @@ export async function cloneContractData(
     }
   }
 
-  await prisma.contractDataCloneLog.create({
+  await db.contractDataCloneLog.create({
     data: {
       sourceContractId,
       targetContractId,
@@ -221,4 +250,3 @@ export async function cloneContractData(
     assessmentTypesSkipped,
   };
 }
-
