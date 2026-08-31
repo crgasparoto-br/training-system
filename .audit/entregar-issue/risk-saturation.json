@@ -1,1 +1,35 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"risk-saturation","compression":"gzip","encoded_size":1452,"encoded_sha256":"8e5d6c01c3777f6f0503fd766986de72c0951f3d639831223587907ec99999fb","decoded_size":8243,"decoded_sha256":"a7aa16aeaa36d470ba9a8e51f7ab61c0fcfdfaadf51140dc8fda2bf0a07a936b","parts":[{"path":"risk-saturation.parts/part-000.b64","size":1452,"sha256":"8e5d6c01c3777f6f0503fd766986de72c0951f3d639831223587907ec99999fb"}]}
+{
+  "schema_version": 2,
+  "repository": "crgasparoto-br/training-system",
+  "issue": 412,
+  "head_sha": "e16fe2d66a046abdfa924f67d9878aaf043fa949",
+  "status": "passed",
+  "families": [
+    {
+      "risk_family": "structural-contract",
+      "status": "passed",
+      "required_surfaces": ["canonical-source-consistency", "normalization-boundary"],
+      "controls": ["CTRL-REQ-01", "CTRL-REQ-02", "CTRL-REQ-03", "CTRL-AC-01", "CTRL-AC-02", "CTRL-AC-04"]
+    },
+    {
+      "risk_family": "data-integrity",
+      "status": "passed",
+      "required_surfaces": ["migration-collision-preservation"],
+      "controls": ["CTRL-REQ-04", "CTRL-REQ-05", "CTRL-AC-03"]
+    },
+    {
+      "risk_family": "presentation-integrity",
+      "status": "passed",
+      "required_surfaces": ["plan-label-translation"],
+      "controls": ["CTRL-REQ-06", "CTRL-AC-05", "CTRL-AC-06"]
+    },
+    {
+      "risk_family": "regression",
+      "status": "passed",
+      "required_surfaces": ["delivery-validation"],
+      "controls": ["CTRL-REQ-07", "CTRL-AC-07"]
+    }
+  ],
+  "not_applicable": ["authorization", "tenant-isolation", "provider-side-effect", "concurrency-atomicity", "temporal-consistency", "performance"],
+  "unresolved": []
+}
