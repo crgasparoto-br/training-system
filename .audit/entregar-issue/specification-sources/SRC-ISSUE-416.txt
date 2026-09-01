@@ -1,0 +1,121 @@
+> `specification_version: 2`
+
+## Objetivo
+
+Corrigir a regressão observada na tela de detalhes do plano: ao clicar em **Montar semana** em `/plans/:planId`, o `WorkoutBuilder2` exibe `Erro ao carregar dados do plano` e retorna para `/plans`.
+
+A entrega só é considerada concluída quando o fluxo original volta a abrir a montagem da semana; corrigir apenas a tipagem/conversão da rota sem eliminar o sintoma observado não fecha a issue.
+
+## Contexto e diagnóstico técnico
+
+A regressão foi observada imediatamente após a consolidação do fluxo semanal da #414 / PR #415, no plano `cmt3h9d850002lfnlbm37g6cj`.
+
+O código atual apresenta um mismatch verificável na fronteira HTTP:
+
+- o web declara `CreateWorkoutTemplateDTO.weekStartDate` como `string` e chama `POST /workout/templates/get-or-create`;
+- `WorkoutBuilder2` produz a data da semana como string ISO antes da chamada;
+- a rota backend repassa `req.body` diretamente para `workoutService.getOrCreateTemplate`;
+- o contrato interno do service declara `weekStartDate: Date` e esse valor segue para `WorkoutTemplate.weekStartDate` (`DateTime` no Prisma);
+- a rota de cópia já converte `targetWeekStartDate` antes de chamar o service.
+
+Esse mismatch é a hipótese técnica principal para a falha ao criar o primeiro `WorkoutTemplate`, mas não deve ser tratado como causa raiz comprovada apenas por inspeção estática. A correção deve ser validada também contra o comportamento original de **Montar semana**. Se a normalização da data estiver correta e o fluxo real continuar falhando, a issue permanece aberta e o erro efetivo da chamada bloqueante deve ser capturado antes de ampliar o escopo.
+
+O alerta genérico existe porque `WorkoutBuilder2.loadTemplate()` captura falhas da carga inicial e apresenta `Erro ao carregar dados do plano` antes de retornar para `/plans`.
+
+## Escopo
+
+- Normalizar `weekStartDate` na fronteira HTTP de `POST /workout/templates/get-or-create` antes de chamar o service.
+- Considerar como entrada HTTP válida uma **string não vazia que represente uma data válida**; o produtor canônico atual envia ISO-8601.
+- Rejeitar `undefined`/campo ausente, `null`, string vazia/branca, valor não string e string de data inválida com HTTP 400, sem chamar o service e sem encaminhar valor ao Prisma.
+- Preservar o instante representado pela data recebida: a conversão não pode deslocar dia/horário por timezone, truncamento ou reconstrução local.
+- Preservar `planId`, `mesocycleNumber`, `weekNumber` e os demais campos do payload sem alteração.
+- Reutilizar uma única regra/função de validação e conversão nas rotas `POST /templates/get-or-create` e `POST /templates/:id/copy`, evitando duas implementações divergentes para datas de início de semana.
+- Adicionar testes focados da fronteira HTTP e evidência de regressão do fluxo **Montar semana**.
+
+## Fora de escopo
+
+- Alterar regras de prescrição ou periodização.
+- Reintroduzir `Microcycle`.
+- Mudar o mapeamento de semana implementado na #414.
+- Criar nova árvore de treino.
+- Refatorar genericamente todas as datas da API nesta entrega.
+- Alterar autenticação/autorização das rotas de workout nesta issue.
+- Merge automático.
+
+## Invariantes estruturais
+
+### `must_behave`
+
+- Um payload canônico do web com `weekStartDate` válido chega ao `workoutService.getOrCreateTemplate` com `weekStartDate` como objeto `Date` válido e com o mesmo instante (`getTime()`) representado pela string recebida.
+- O fluxo `/plans/:planId` -> **Montar semana** abre o `WorkoutBuilder2` para a semana escolhida quando as dependências da montagem estão disponíveis, sem exibir o alerta de erro nem redirecionar para `/plans`.
+
+### `must_not_behave`
+
+- Campo ausente, `null`, vazio/branco, número, objeto ou string de data inválida não pode chegar a `workoutService.getOrCreateTemplate` nem ao Prisma.
+- `null` não pode ser convertido implicitamente em `1970-01-01` ou qualquer outra data válida por coerção do construtor `Date`.
+- A correção não pode alterar `planId`, `mesocycleNumber`, `weekNumber` ou demais campos não relacionados.
+
+### `must_reuse`
+
+- As rotas de criação/leitura (`get-or-create`) e cópia de template devem reutilizar a mesma regra/função de normalização da data de início da semana.
+
+### `forbidden_implementation`
+
+- Confiar apenas no tipo TypeScript `Date` do service para validar JSON recebido em runtime.
+- Executar apenas `new Date(valor)` + `Number.isNaN(date.getTime())` sem validar previamente a representação de entrada; essa implementação pode aceitar coerções indesejadas, como `null -> 1970-01-01`.
+- Corrigir somente o frontend para “enviar um Date”, pois JSON serializa datas e a fronteira HTTP continua responsável por normalizar entrada não confiável.
+- Declarar a regressão resolvida apenas porque o teste unitário da função de conversão passou, sem provar o fluxo original ou uma reprodução equivalente da chamada real.
+
+### Controles discriminantes
+
+Uma implementação visualmente funcional pode continuar aceitando coerções inválidas. Os testes devem distinguir esse caso verificando que:
+
+- ISO/data válida -> service recebe `Date` e o mesmo timestamp;
+- `null` -> 400 e service não chamado;
+- string vazia/branca -> 400 e service não chamado;
+- string inválida -> 400 e service não chamado;
+- valor não string -> 400 e service não chamado;
+- a rota de cópia aplica a mesma regra;
+- o fluxo **Montar semana** não apresenta o erro original para um plano/fixture válido.
+
+## Tratamento de erro
+
+- Erro de validação de `weekStartDate`/`targetWeekStartDate` é erro de cliente e retorna HTTP 400 com mensagem de validação sem detalhes internos de Prisma.
+- Erros inesperados do service permanecem no tratamento existente da rota; esta issue não redefine o contrato global de erros da API.
+- No web, esta issue não exige redesenhar o tratamento genérico de `loadTemplate`; a ausência do alerta/redirecionamento no caminho válido é a regressão obrigatória a comprovar.
+
+## Critérios de aceite
+
+- [ ] `POST /workout/templates/get-or-create` converte a string válida de `weekStartDate` em `Date` antes de chamar `workoutService.getOrCreateTemplate`.
+- [ ] A conversão preserva exatamente o instante recebido (`Date#getTime()` corresponde ao timestamp da entrada válida).
+- [ ] `weekStartDate` ausente, `null`, vazio/branco, não string ou inválido retorna HTTP 400 e o service não é chamado.
+- [ ] A rota de cópia usa a mesma regra/função de normalização e rejeita entradas inválidas com o mesmo contrato.
+- [ ] Um payload válido mantém `planId`, `mesocycleNumber`, `weekNumber` e demais campos intactos.
+- [ ] Ao clicar em **Montar semana** em um plano válido, o `WorkoutBuilder2` abre a montagem correspondente sem `Erro ao carregar dados do plano` e sem redirecionar para `/plans`.
+- [ ] Se o fluxo real continuar falhando após a normalização, a falha efetiva é registrada e a issue não é encerrada com base apenas nos testes de conversão.
+- [ ] `pnpm validate` passa ou eventual impedimento do ambiente é documentado no PR.
+
+## Considerações de testes
+
+- Teste de rota com `supertest`, mockando `workoutService.getOrCreateTemplate`, para provar `Date` válido + timestamp preservado + campos irmãos preservados.
+- Casos negativos separados para `null`, vazio/branco, string inválida e valor não string; todos devem provar `service not called`.
+- Teste da rota de cópia para garantir o mesmo contrato de data e evitar divergência futura.
+- Regressão do fluxo original no navegador/runtime quando o ambiente estiver disponível; alternativamente, teste de integração que reproduza a primeira criação real do template com o mesmo formato de payload produzido pelo web.
+- Não é necessário ampliar testes para regras de periodização, `Microcycle` ou mapeamento de semanas já cobertos pela #414.
+
+## Impacto na documentação
+
+Não há mudança de regra de produto, arquitetura, schema ou contrato funcional pretendido; a entrega corrige a normalização de uma fronteira HTTP já consumida pelo web. Nenhuma atualização documental adicional é obrigatória, salvo se existir documentação versionada específica desse endpoint que contradiga o contrato acima.
+
+## Riscos e dependências
+
+- O diagnóstico da conversão de data é sustentado pelo mismatch do código, mas a causa do sintoma original só fica confirmada quando o fluxo **Montar semana** voltar a funcionar ou uma reprodução equivalente demonstrar a falha antes e o sucesso depois.
+- Conversão de data não pode introduzir deslocamento por timezone, pois `WorkoutBuilder2` usa a data de início da semana para posicionar os dias do template.
+
+## Perguntas em aberto
+
+Nenhuma decisão de produto bloqueante. Se a correção de data não eliminar o erro original, o próximo passo é diagnóstico da chamada efetivamente bloqueante, não expansão especulativa do escopo.
+
+## Regressão relacionada
+
+Relacionada a #414 e PR #415.

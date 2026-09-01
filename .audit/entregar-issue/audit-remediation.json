@@ -2,39 +2,47 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
-  "status": "closed",
-  "candidate_head_sha": "5e51181b3c9fdabf947da4d4d881a394d30b08ed",
-  "remediation_mode": "targeted-remediation",
   "source": {
-    "rejection_id": "audit-rejection:414-5649fa12eed-week-cardinality",
-    "audited_head_sha": "5649fa12eed14c2d18ee195fee914082ab8d0761",
-    "audit_report_sha256": "e2cc04fb145d8df0253a2443a884f46fa20dab2b58ab00c3a82b7f1d4c58bb99"
+    "rejection_id": "audit-rejection:8100eb96-4911-4b6f-984b-1b6fc5aaf75b",
+    "audit_report_sha256": "4f0938d345fd3da73a00ff3bcc07d2010bbd7accce465f5da4f1abfa89177f58",
+    "audited_head_sha": "35217c3b3c5551d95b82df53061f392b4f44a185"
   },
+  "candidate_head_sha": "bd9c7095a019d83363ab50df480c0375e777b55a",
+  "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "AUD-414-01",
+      "source_id": "A-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "evidence": ".audit/entregar-issue/evidence/issue-414-remediation-verification.txt",
+      "changed_files": [
+        "apps/api/src/routes/workout.routes.ts",
+        "apps/api/tests/workout.routes.test.ts"
+      ],
+      "evidence": ".audit/entregar-issue/evidence/handoff-recovery-classification.txt",
       "validations": [
-        "3-week matrix loads only weeks 1..3",
-        "5-week matrix loads and persists week 5",
-        "no out-of-range template creation"
+        "fresh identity classification requires post-write-refreeze after the material write",
+        "new material head is frozen before terminal result-only handoff generation"
       ]
     },
     {
       "source_kind": "finding",
-      "source_id": "AUD-414-02",
+      "source_id": "A-002",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "evidence": ".audit/entregar-issue/evidence/issue-414-remediation-verification.txt",
+      "changed_files": [
+        "apps/api/src/routes/workout.routes.ts",
+        "apps/api/tests/workout.routes.test.ts"
+      ],
+      "evidence": ".audit/entregar-issue/evidence/date-parser-adversarial.txt",
       "validations": [
-        "post-persistence matrix-updated event",
-        "PlanDetails refresh listener",
-        "assembly-tab fallback refetch",
-        "cross-plan event filtering"
+        "Mon 2026-02-31 rejected",
+        "Mon, 02/31/2026 rejected",
+        "Mon 2026 Feb 31 rejected",
+        "valid weekday-prefixed sibling formats retain Date.parse timestamp equivalence",
+        "both get-or-create and copy route invalid matrices reuse invalidDateCases"
       ]
     }
-  ]
+  ],
+  "status": "closed"
 }

@@ -1,1 +1,361 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"audit-escape-closure","compression":"gzip","encoded_size":2444,"encoded_sha256":"09a71cf44ba406fe7c4ce04c1cfb203bf340a09eb6084a39287a2bec2403b2a1","decoded_size":8710,"decoded_sha256":"fcc918c48556a5b89c153495188ffca97bee91bdf08b8f4300286d5068996a7b","parts":[{"path":"audit-escape-closure.parts/part-000.b64","size":1500,"sha256":"b32ec12f3db499bcbb341bc78c5956494b294fb94a3da6249f4822638a1435b1"},{"path":"audit-escape-closure.parts/part-001.b64","size":944,"sha256":"9a9b200e1805e273db00538ee894d226c9c6198e6d6ea9de947a4eb060d1efb4"}]}
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "ESC-A001-AMBIGUOUS-CODEPOINT-REMAP",
+      "status": "passed",
+      "escape_class": "ambiguous-codepoint-self-remapping",
+      "source_audit": {
+        "rejection_id": "audit-rejection:83561a95-106b-4663-b5ac-beebede1f587",
+        "finding_ids": [
+          "A-001"
+        ]
+      },
+      "plausible_wrong_implementation": "Reintroduce the previously closed escape class while the immediate happy path still appears valid.",
+      "literal_case": {
+        "status": "passed",
+        "input": "historical regression class",
+        "observed": "The current material candidate preserves the previously closed behavior and no active product change reopens this historical escape."
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-A001-AMBIGUOUS-CODEPOINT-REMAP-S1",
+          "status": "passed",
+          "surface": "historical-transfer-a",
+          "dimension": "preservation-a"
+        },
+        {
+          "id": "ESC-A001-AMBIGUOUS-CODEPOINT-REMAP-S2",
+          "status": "passed",
+          "surface": "historical-transfer-b",
+          "dimension": "preservation-b"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "The prior prevention remains present and the current issue does not alter the affected implementation boundary."
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "Cumulative lineage retains this escape ID so any future terminal handoff must preserve its closure."
+      },
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "canonical-source-consistency-1"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "specified-test-matrix",
+          "dimension": "specified-test-matrix-1"
+        }
+      ],
+      "revalidated_head_sha": "bd9c7095a019d83363ab50df480c0375e777b55a"
+    },
+    {
+      "escape_id": "ESC-A002-NONCANONICAL-RISK-MANIFEST",
+      "status": "passed",
+      "escape_class": "noncanonical-risk-saturation-manifest",
+      "source_audit": {
+        "rejection_id": "audit-rejection:83561a95-106b-4663-b5ac-beebede1f587",
+        "finding_ids": [
+          "A-002"
+        ]
+      },
+      "plausible_wrong_implementation": "Reintroduce the previously closed escape class while the immediate happy path still appears valid.",
+      "literal_case": {
+        "status": "passed",
+        "input": "historical regression class",
+        "observed": "The current material candidate preserves the previously closed behavior and no active product change reopens this historical escape."
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-A002-NONCANONICAL-RISK-MANIFEST-S1",
+          "status": "passed",
+          "surface": "historical-transfer-a",
+          "dimension": "preservation-a"
+        },
+        {
+          "id": "ESC-A002-NONCANONICAL-RISK-MANIFEST-S2",
+          "status": "passed",
+          "surface": "historical-transfer-b",
+          "dimension": "preservation-b"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "The prior prevention remains present and the current issue does not alter the affected implementation boundary."
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "Cumulative lineage retains this escape ID so any future terminal handoff must preserve its closure."
+      },
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "canonical-source-consistency-1"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "specified-test-matrix",
+          "dimension": "specified-test-matrix-1"
+        }
+      ],
+      "revalidated_head_sha": "bd9c7095a019d83363ab50df480c0375e777b55a"
+    },
+    {
+      "escape_id": "ESC-414-WEEK-CARDINALITY",
+      "status": "passed",
+      "escape_class": "render-state-cardinality-before-canonical-load",
+      "source_audit": {
+        "rejection_id": "audit-rejection:414-5649fa12eed-week-cardinality",
+        "finding_ids": [
+          "AUD-414-01"
+        ],
+        "audit_report_sha256": "e2cc04fb145d8df0253a2443a884f46fa20dab2b58ab00c3a82b7f1d4c58bb99"
+      },
+      "plausible_wrong_implementation": "Set the resolved matrix cardinality in React state but continue loading templates from week options captured from the previous fallback render.",
+      "literal_case": {
+        "status": "passed",
+        "input": "weeksPerMesocycle=3 and 5",
+        "observed": "The current material candidate derives template loading from resolvedWeekOptions computed directly from the fetched matrix before any template request."
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-414-WEEK-S1",
+          "status": "passed",
+          "surface": "three-week-matrix",
+          "dimension": "no-week-four-template"
+        },
+        {
+          "id": "ESC-414-WEEK-S2",
+          "status": "passed",
+          "surface": "five-week-matrix",
+          "dimension": "week-five-template-present"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "A pure resolver produces canonical weeksPerMesocycle and weekOptions from the fetched matrix value before template creation."
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "Regression tests cover 3-week and 5-week matrices plus structural use of resolvedWeekOptions inside template loading."
+      },
+      "required_risk_families": [
+        "temporal-destination",
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "temporal-destination",
+          "surface": "week-destination-mapping",
+          "dimension": "week-destination-mapping-2"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "specified-test-matrix",
+          "dimension": "specified-limites-do-mapeamento"
+        }
+      ],
+      "revalidated_head_sha": "bd9c7095a019d83363ab50df480c0375e777b55a"
+    },
+    {
+      "escape_id": "ESC-414-PERIODIZATION-REFRESH",
+      "status": "passed",
+      "escape_class": "persisted-child-state-with-stale-parent-read-model",
+      "source_audit": {
+        "rejection_id": "audit-rejection:414-5649fa12eed-week-cardinality",
+        "finding_ids": [
+          "AUD-414-02"
+        ],
+        "audit_report_sha256": "e2cc04fb145d8df0253a2443a884f46fa20dab2b58ab00c3a82b7f1d4c58bb99"
+      },
+      "plausible_wrong_implementation": "Persist periodization in a child component but leave the parent weekly read model unchanged until a full page reload.",
+      "literal_case": {
+        "status": "passed",
+        "input": "edit periodization then return to assembly tab",
+        "observed": "The current material candidate publishes an update only after persistence and PlanDetails refetches the matrix, with an additional assembly-tab refetch fallback."
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-414-REFRESH-S1",
+          "status": "passed",
+          "surface": "post-persistence-event",
+          "dimension": "same-plan-refresh"
+        },
+        {
+          "id": "ESC-414-REFRESH-S2",
+          "status": "passed",
+          "surface": "event-filtering",
+          "dimension": "other-plan-ignored"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "Periodization service mutations notify only after successful API persistence and carry matrix/plan identity for invalidation."
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "Regression controls require the event listener, assembly-tab refetch, post-write notification and cross-target filtering."
+      },
+      "required_risk_families": [
+        "semantic-effect",
+        "reference-liveness"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "semantic-effect",
+          "surface": "producer-consumer-effect",
+          "dimension": "producer-consumer-effect-1"
+        },
+        {
+          "risk_family": "reference-liveness",
+          "surface": "reference-liveness",
+          "dimension": "reference-liveness-1"
+        }
+      ],
+      "revalidated_head_sha": "bd9c7095a019d83363ab50df480c0375e777b55a"
+    },
+    {
+      "escape_id": "A-001",
+      "escape_class": "terminal-certificate-material-drift",
+      "source_audit": {
+        "head_sha": "35217c3b3c5551d95b82df53061f392b4f44a185",
+        "rejection_id": "audit-rejection:8100eb96-4911-4b6f-984b-1b6fc5aaf75b",
+        "finding_id": "A-001",
+        "audit_report_sha256": "4f0938d345fd3da73a00ff3bcc07d2010bbd7accce465f5da4f1abfa89177f58"
+      },
+      "plausible_wrong_implementation": "Reuse a valid-looking certificate after later material commits without running the required refreeze and terminal identity reconciliation.",
+      "literal_case": {
+        "procedure": "Classify the previous result-only handoff against the fresh material parent and material changed paths before rebuilding the terminal child.",
+        "expected": "Any material write after the previous handoff requires post-write-refreeze before a new terminal certificate can be published.",
+        "observed": "The recovery classifier returned post-write-refreeze because the current material parent differs from the previously certified material head.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/evidence/handoff-recovery-classification.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "material-parent-drift",
+          "surface": "git-parent",
+          "dimension": "parent-diverges-from-certified-material",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/evidence/issue-416-remediation-verification.txt"
+        },
+        {
+          "id": "material-path-after-freeze",
+          "surface": "changed-paths",
+          "dimension": "non-result-path-after-freeze",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/evidence/issue-416-remediation-verification.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "terminal-handoff",
+          "dimension": "material-head-freshness"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "git-parent",
+          "dimension": "direct-result-only-parent"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "existing terminal-handoff/refreeze protocol applied before publication",
+        "evidence": ".audit/entregar-issue/evidence/handoff-recovery-classification.txt"
+      },
+      "detection_change": {
+        "skill_or_gate": "classify_handoff_recovery + terminal handoff validation",
+        "control_id": "HANDOFF-REFREEZE-001",
+        "evidence": ".audit/entregar-issue/evidence/handoff-recovery-classification.txt"
+      },
+      "trigger_terms": [
+        "handoff stale",
+        "material write after freeze",
+        "requires refreeze"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "bd9c7095a019d83363ab50df480c0375e777b55a",
+      "status": "passed"
+    },
+    {
+      "escape_id": "A-002",
+      "escape_class": "permissive-date-normalization-bypass",
+      "source_audit": {
+        "head_sha": "35217c3b3c5551d95b82df53061f392b4f44a185",
+        "rejection_id": "audit-rejection:8100eb96-4911-4b6f-984b-1b6fc5aaf75b",
+        "finding_id": "A-002",
+        "audit_report_sha256": "4f0938d345fd3da73a00ff3bcc07d2010bbd7accce465f5da4f1abfa89177f58"
+      },
+      "plausible_wrong_implementation": "Reject only a few known impossible date spellings and delegate all sibling representations to a permissive runtime parser that silently normalizes invalid calendar components.",
+      "literal_case": {
+        "procedure": "Execute the exact candidate prevalidation against Mon 2026-02-31, Mon, 02/31/2026, and Mon 2026 Feb 31 before Date construction.",
+        "expected": "All weekday-prefixed impossible calendar representations are rejected before the permissive runtime parser can normalize them.",
+        "observed": "All three continuation literals were rejected on the current candidate, while corresponding February 28 siblings retained Date.parse timestamp equivalence.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/evidence/date-parser-adversarial.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "weekday-prefix-numeric-family",
+          "surface": "http-date-input",
+          "dimension": "weekday-prefix-year-and-month-first",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/evidence/date-parser-adversarial.txt"
+        },
+        {
+          "id": "weekday-prefix-text-family",
+          "surface": "http-date-input",
+          "dimension": "weekday-prefix-year-first-textual",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/evidence/date-parser-adversarial.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "input-parser",
+          "surface": "http-date-input",
+          "dimension": "calendar-component-validity"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "shared-date-normalizer",
+          "dimension": "same-rule-across-routes"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "Apply OPTIONAL_WEEKDAY_PREFIX to year-first numeric, month-first numeric, and year-first textual explicit calendar validation before Date construction.",
+        "evidence": ".audit/entregar-issue/evidence/issue-416-remediation-verification.txt"
+      },
+      "detection_change": {
+        "skill_or_gate": "Shared route invalidDateCases matrix plus exact parser adversarial continuation literals and valid siblings.",
+        "control_id": "DATE-CALENDAR-001",
+        "evidence": ".audit/entregar-issue/evidence/date-parser-adversarial.txt"
+      },
+      "trigger_terms": [
+        "valid date string",
+        "new Date",
+        "invalid calendar date",
+        "runtime normalization"
+      ],
+      "required_risk_families": [
+        "input-parser",
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "bd9c7095a019d83363ab50df480c0375e777b55a",
+      "status": "passed"
+    }
+  ]
+}

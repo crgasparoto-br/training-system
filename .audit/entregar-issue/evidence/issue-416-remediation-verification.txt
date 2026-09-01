@@ -1,0 +1,15 @@
+Issue 416 targeted remediation verification
+subject_sha=bd9c7095a019d83363ab50df480c0375e777b55a
+repository=crgasparoto-br/training-system
+pull_request=417
+base_ref=develop
+work_item_start_sha=a477a79a30a2d2c22d507f711703aa47e80c5477
+material_changed_paths=apps/api/src/routes/workout.routes.ts,apps/api/tests/workout.routes.test.ts
+route_change=OPTIONAL_WEEKDAY_PREFIX now applies to year-first numeric, month-first numeric, and year-first textual explicit calendar validators
+test_change=invalidDateCases includes Mon 2026-02-31, Mon, 02/31/2026, Mon 2026 Feb 31 and valid siblings; the same invalidDateCases table is exercised by get-or-create and copy routes
+adversarial_command=node /tmp/issue416-audit/new/dateparser-current.js
+adversarial_exit_code=0
+adversarial_evidence=.audit/entregar-issue/evidence/date-parser-adversarial.txt
+adversarial_result=all impossible weekday-prefixed literals rejected; valid weekday-prefixed sibling representations preserve Date.parse timestamp
+connector_mode=connector-only
+local_repository_suite=not-executed because no runnable repository checkout is available in the controller runtime
