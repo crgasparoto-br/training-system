@@ -3,15 +3,12 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:414-5649fa12eed-week-cardinality",
-    "finding_ids": [
-      "AUD-414-01",
-      "AUD-414-02"
-    ],
-    "audit_report_sha256": "e2cc04fb145d8df0253a2443a884f46fa20dab2b58ab00c3a82b7f1d4c58bb99"
+    "rejection_id": "audit-rejection:8100eb96-4911-4b6f-984b-1b6fc5aaf75b",
+    "finding_ids": ["A-001", "A-002"],
+    "audit_report_sha256": "4f0938d345fd3da73a00ff3bcc07d2010bbd7accce465f5da4f1abfa89177f58"
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "Both findings were local synchronization/cardinality defects in an existing training-plan flow; the delivery adds focused regression controls without introducing a repository-specific global Skill rule."
+    "reason": "The governing delivery skill already contains explicit post-write-refreeze and terminal handoff guards, while the parser defect is local to this endpoint contract. The remediation therefore strengthens repository regression coverage and executes the existing controller guards instead of adding a duplicate global rule."
   }
 }

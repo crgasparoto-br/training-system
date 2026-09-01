@@ -1,27 +1,27 @@
 {
   "schema_version": 1,
-  "contract_version": "2026-08-20.3",
-  "rejection_id": "audit-rejection:414-5649fa12eed-week-cardinality",
-  "head_sha": "5649fa12eed14c2d18ee195fee914082ab8d0761",
-  "result": "REPROVADA",
+  "status": "rejected",
+  "validity": "independent",
+  "rejection_id": "audit-rejection:8100eb96-4911-4b6f-984b-1b6fc5aaf75b",
+  "head_sha": "35217c3b3c5551d95b82df53061f392b4f44a185",
   "findings": [
     {
-      "id": "AUD-414-01",
+      "id": "A-001",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "severity": "high",
-      "summary": "WorkoutBuilder2 used render-time fallback weekOptions when loading templates, breaking variable weeksPerMesocycle."
+      "title": "Handoff não cobre o candidato atual",
+      "cause": "O certificado existente ficou stale após escrita material e exige post-write-refreeze."
     },
     {
-      "id": "AUD-414-02",
+      "id": "A-002",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "severity": "high",
-      "summary": "PlanDetails retained a stale PeriodizationMatrix snapshot after same-page periodization edits."
+      "title": "Datas calendáricas impossíveis ainda passam pela validação",
+      "cause": "Representações irmãs não reconhecidas eram delegadas ao parser permissivo de Date e podiam ser normalizadas silenciosamente."
     }
   ],
   "recommendations": []

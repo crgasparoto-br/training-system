@@ -1,0 +1,1 @@
+{"auditor_recovery_scope": "post-write-refreeze", "auditor_requires_refreeze": true, "certified_material_head_sha": "8cbcb92cee617c8228f3c921bdeb65f8275a893d", "reason": "auditor-recovery-floor:post-write-refreeze", "recovery_scope": "post-write-refreeze"}

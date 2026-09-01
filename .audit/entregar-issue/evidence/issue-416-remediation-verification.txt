@@ -1,0 +1,20 @@
+Issue 416 remediation verification
+subject_sha=4e353dce51a648647fc494dc71a11afda5785d58
+repository=crgasparoto-br/training-system
+pull_request=417
+base_ref=develop
+route_blob_sha=1e38133c015cbc097bdc968f7e2e0c5e139aa855
+test_blob_sha=15af0c75aa017c2948d0f9ed647f354f5df4ce8d
+integration_test_blob_sha=6d1cf9dbf60b6b02675424bec27ca7c221f88c9f
+ci_run=33535629772
+ci_run_number=7445
+ci_snapshot_status=in_progress
+ci_typecheck=success
+ci_lint=success
+ci_test=in_progress
+connector_mode=connector-only
+local_adversarial_command=node /mnt/data/dateparser-current.js
+local_adversarial_exit_code=0
+local_adversarial_output=.audit/entregar-issue/evidence/date-parser-adversarial.txt
+local_adversarial_output_sha256=32baa5e7f6e38088cf2439f44f23c6900d1db66e83ebe2c4d555709696ade539
+notes=The exact candidate parser algorithm was executed against literal audit escape cases and sibling separator/order variants. All invalid calendar dates were rejected and valid counterparts preserved Date.parse timestamps. The current CI snapshot was collected once and was not polled or rerun.
