@@ -35,11 +35,11 @@ const MONTH_NAME_PATTERN =
 const DATE_PART_SEPARATOR = '[^a-z0-9]+';
 const OPTIONAL_WEEKDAY_PREFIX = `(?:[a-z]{3,9}${DATE_PART_SEPARATOR})?`;
 const YEAR_FIRST_NUMERIC_DATE = new RegExp(
-  `^(\\d{4})${DATE_PART_SEPARATOR}(\\d{1,2})${DATE_PART_SEPARATOR}(\\d{1,2})(?=$|[^0-9])`,
+  `^${OPTIONAL_WEEKDAY_PREFIX}(\\d{4})${DATE_PART_SEPARATOR}(\\d{1,2})${DATE_PART_SEPARATOR}(\\d{1,2})(?=$|[^0-9])`,
   'i'
 );
 const MONTH_FIRST_NUMERIC_DATE = new RegExp(
-  `^(\\d{1,2})${DATE_PART_SEPARATOR}(\\d{1,2})${DATE_PART_SEPARATOR}(\\d{2}|\\d{4})(?=$|[^0-9])`,
+  `^${OPTIONAL_WEEKDAY_PREFIX}(\\d{1,2})${DATE_PART_SEPARATOR}(\\d{1,2})${DATE_PART_SEPARATOR}(\\d{2}|\\d{4})(?=$|[^0-9])`,
   'i'
 );
 const MONTH_FIRST_TEXT_DATE = new RegExp(
@@ -51,7 +51,7 @@ const DAY_FIRST_TEXT_DATE = new RegExp(
   'i'
 );
 const YEAR_FIRST_TEXT_DATE = new RegExp(
-  `^(\\d{4})${DATE_PART_SEPARATOR}${MONTH_NAME_PATTERN}${DATE_PART_SEPARATOR}(\\d{1,2})(?=$|[^0-9])`,
+  `^${OPTIONAL_WEEKDAY_PREFIX}(\\d{4})${DATE_PART_SEPARATOR}${MONTH_NAME_PATTERN}${DATE_PART_SEPARATOR}(\\d{1,2})(?=$|[^0-9])`,
   'i'
 );
 

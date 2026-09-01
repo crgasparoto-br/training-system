@@ -29,6 +29,9 @@ const invalidDateCases = [
   { name: 'invalid day-first textual date', includeField: true, value: '31 Feb 2026' },
   { name: 'invalid year-first textual date', includeField: true, value: '2026-Feb-31' },
   { name: 'invalid two-digit-year date', includeField: true, value: '02-31-26' },
+  { name: 'weekday-prefixed invalid year-first date', includeField: true, value: 'Mon 2026-02-31' },
+  { name: 'weekday-prefixed invalid month-first date', includeField: true, value: 'Mon, 02/31/2026' },
+  { name: 'weekday-prefixed invalid year-first textual date', includeField: true, value: 'Mon 2026 Feb 31' },
   { name: 'numeric-only string', includeField: true, value: '0' },
   { name: 'number', includeField: true, value: 0 },
   { name: 'object', includeField: true, value: { year: 2026, month: 9, day: 14 } },
@@ -44,6 +47,9 @@ const validDateCases = [
   { name: 'valid day-first textual date', value: '28 Feb 2026' },
   { name: 'valid year-first textual date', value: '2026-Feb-28' },
   { name: 'valid two-digit-year date', value: '02-28-26' },
+  { name: 'valid weekday-prefixed year-first date', value: 'Mon 2026-02-28' },
+  { name: 'valid weekday-prefixed month-first date', value: 'Mon, 02/28/2026' },
+  { name: 'valid weekday-prefixed year-first textual date', value: 'Mon 2026 Feb 28' },
 ] as const;
 
 describe('workout routes date normalization', () => {
