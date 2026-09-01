@@ -4,11 +4,14 @@
   "source_event": {
     "kind": "independent-rejection",
     "rejection_id": "audit-rejection:8100eb96-4911-4b6f-984b-1b6fc5aaf75b",
-    "finding_ids": ["A-001", "A-002"],
+    "finding_ids": [
+      "A-001",
+      "A-002"
+    ],
     "audit_report_sha256": "4f0938d345fd3da73a00ff3bcc07d2010bbd7accce465f5da4f1abfa89177f58"
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The governing delivery skill already contains explicit post-write-refreeze and terminal handoff guards, while the parser defect is local to this endpoint contract. The remediation therefore strengthens repository regression coverage and executes the existing controller guards instead of adding a duplicate global rule."
+    "reason": "The rejection remains targeted: terminal refreeze guards already exist globally and the parser bypass is local to the workout date boundary. The current remediation extends repository regression coverage without creating a duplicate global learning event."
   }
 }

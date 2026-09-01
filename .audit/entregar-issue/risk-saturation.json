@@ -1,1 +1,288 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"risk-saturation","compression":"gzip","encoded_size":1600,"encoded_sha256":"8bb3339a075cd3ede3b798f432bbb36bfa4d557c8aea70a490270abee3f6af8f","decoded_size":9309,"decoded_sha256":"84bf10b709174eea0a0a6f320c011b7151307ac12eda9715382b7da3fc5a46b0","parts":[{"path":"risk-saturation.parts/part-000.b64","size":1600,"sha256":"8bb3339a075cd3ede3b798f432bbb36bfa4d557c8aea70a490270abee3f6af8f"}]}
+{
+  "schema_version": 1,
+  "head_sha": "bd9c7095a019d83363ab50df480c0375e777b55a",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "REQ-005-NEG-001",
+        "REQ-009-NEG-002",
+        "REQ-009-NEG-011",
+        "REQ-009-NEG-021"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-producer-contract",
+          "reason": "The reference-liveness contract is exercised at the canonical-producer-contract boundary for this requirement.",
+          "control_ids": [
+            "REQ-005-NEG-001",
+            "REQ-009-NEG-002"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "reference-liveness",
+          "reason": "Cumulative independent-audit control requires exact-head coverage of reference-liveness:reference-liveness.",
+          "control_ids": [
+            "REQ-009-NEG-011",
+            "REQ-009-NEG-021"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "REQ-001-NEG-001",
+        "REQ-002-NEG-001",
+        "REQ-003-NEG-001",
+        "REQ-004-NEG-001",
+        "REQ-009-NEG-005",
+        "REQ-010-NEG-001",
+        "REQ-011-NEG-001",
+        "REQ-015-NEG-002",
+        "REQ-023-NEG-001",
+        "REQ-028-NEG-001",
+        "REQ-029-NEG-001",
+        "REQ-035-NEG-001",
+        "REQ-036-NEG-001"
+      ],
+      "dimensions": [
+        {
+          "surface": "date-instant-consistency",
+          "reason": "The temporal-consistency contract is exercised at the date-instant-consistency boundary for this requirement.",
+          "control_ids": [
+            "REQ-001-NEG-001",
+            "REQ-002-NEG-001",
+            "REQ-003-NEG-001",
+            "REQ-004-NEG-001",
+            "REQ-009-NEG-005",
+            "REQ-010-NEG-001",
+            "REQ-011-NEG-001",
+            "REQ-015-NEG-002",
+            "REQ-023-NEG-001",
+            "REQ-028-NEG-001",
+            "REQ-029-NEG-001",
+            "REQ-035-NEG-001",
+            "REQ-036-NEG-001"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "REQ-001-NEG-002",
+        "REQ-002-NEG-002",
+        "REQ-003-NEG-002",
+        "REQ-004-NEG-002",
+        "REQ-009-NEG-006",
+        "REQ-009-NEG-009",
+        "REQ-009-NEG-018",
+        "REQ-010-NEG-002",
+        "REQ-011-NEG-002",
+        "REQ-015-NEG-003",
+        "REQ-022-NEG-001",
+        "REQ-023-NEG-002",
+        "REQ-025-NEG-002",
+        "REQ-028-NEG-002",
+        "REQ-035-NEG-002",
+        "REQ-036-NEG-002"
+      ],
+      "dimensions": [
+        {
+          "surface": "week-destination-mapping",
+          "reason": "Cumulative independent-audit control requires exact-head coverage of temporal-destination:week-destination-mapping.",
+          "control_ids": [
+            "REQ-009-NEG-009",
+            "REQ-009-NEG-018"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "week-start-destination",
+          "reason": "The temporal-destination contract is exercised at the week-start-destination boundary for this requirement.",
+          "control_ids": [
+            "REQ-001-NEG-002",
+            "REQ-002-NEG-002",
+            "REQ-003-NEG-002",
+            "REQ-004-NEG-002",
+            "REQ-009-NEG-006",
+            "REQ-010-NEG-002",
+            "REQ-011-NEG-002",
+            "REQ-015-NEG-003",
+            "REQ-022-NEG-001",
+            "REQ-023-NEG-002",
+            "REQ-025-NEG-002",
+            "REQ-028-NEG-002",
+            "REQ-035-NEG-002",
+            "REQ-036-NEG-002"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "REQ-009-NEG-004",
+        "REQ-009-NEG-007",
+        "REQ-009-NEG-008",
+        "REQ-009-NEG-012",
+        "REQ-009-NEG-013",
+        "REQ-009-NEG-014",
+        "REQ-009-NEG-015",
+        "REQ-009-NEG-016",
+        "REQ-009-NEG-017",
+        "REQ-009-NEG-019",
+        "REQ-009-NEG-022",
+        "REQ-009-NEG-023",
+        "REQ-009-NEG-025",
+        "REQ-015-NEG-001",
+        "REQ-034-NEG-002"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-source-consistency",
+          "reason": "Cumulative independent-audit control requires exact-head coverage of structural-contract:canonical-source-consistency.",
+          "control_ids": [
+            "REQ-009-NEG-007",
+            "REQ-009-NEG-014",
+            "REQ-009-NEG-016"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "git-parent",
+          "reason": "Cumulative independent-audit control requires exact-head coverage of structural-contract:git-parent.",
+          "control_ids": [
+            "REQ-009-NEG-013",
+            "REQ-009-NEG-023"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "shared-date-normalizer",
+          "reason": "The structural-contract contract is exercised at the shared-date-normalizer boundary for this requirement.",
+          "control_ids": [
+            "REQ-009-NEG-004",
+            "REQ-009-NEG-025",
+            "REQ-015-NEG-001",
+            "REQ-034-NEG-002"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "specified-test-matrix",
+          "reason": "Cumulative independent-audit control requires exact-head coverage of structural-contract:specified-test-matrix.",
+          "control_ids": [
+            "REQ-009-NEG-008",
+            "REQ-009-NEG-015",
+            "REQ-009-NEG-017",
+            "REQ-009-NEG-019"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "terminal-handoff",
+          "reason": "Cumulative independent-audit control requires exact-head coverage of structural-contract:terminal-handoff.",
+          "control_ids": [
+            "REQ-009-NEG-012",
+            "REQ-009-NEG-022"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "REQ-034-NEG-001"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "reason": "The documentation contract is exercised at the canonical-claims boundary for this requirement.",
+          "control_ids": [
+            "REQ-034-NEG-001"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}
