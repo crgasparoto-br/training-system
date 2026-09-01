@@ -21,6 +21,14 @@ const invalidDateCases = [
   { name: 'normalized invalid non-leap date', includeField: true, value: '2025-02-29' },
   { name: 'normalized invalid legacy numeric date', includeField: true, value: '02/31/2026' },
   { name: 'normalized invalid textual date', includeField: true, value: 'Feb 29, 2025' },
+  { name: 'invalid dotted year-first date', includeField: true, value: '2026.02.31' },
+  { name: 'invalid dashed month-first date', includeField: true, value: '02-31-2026' },
+  { name: 'invalid dashed textual date', includeField: true, value: 'Feb-31-2026' },
+  { name: 'invalid spaced year-first date', includeField: true, value: '2026 02 31' },
+  { name: 'invalid comma-separated year-first date', includeField: true, value: '2026,02,31' },
+  { name: 'invalid day-first textual date', includeField: true, value: '31 Feb 2026' },
+  { name: 'invalid year-first textual date', includeField: true, value: '2026-Feb-31' },
+  { name: 'invalid two-digit-year date', includeField: true, value: '02-31-26' },
   { name: 'numeric-only string', includeField: true, value: '0' },
   { name: 'number', includeField: true, value: 0 },
   { name: 'object', includeField: true, value: { year: 2026, month: 9, day: 14 } },
@@ -30,6 +38,12 @@ const validDateCases = [
   { name: 'valid leap day', value: '2024-02-29T12:00:00.000Z' },
   { name: 'valid RFC 2822 date', value: 'Mon, 14 Sep 2026 12:00:00 GMT' },
   { name: 'valid legacy numeric date', value: '09/14/2026' },
+  { name: 'valid dotted year-first date', value: '2026.02.28' },
+  { name: 'valid dashed month-first date', value: '02-28-2026' },
+  { name: 'valid dashed textual date', value: 'Feb-28-2026' },
+  { name: 'valid day-first textual date', value: '28 Feb 2026' },
+  { name: 'valid year-first textual date', value: '2026-Feb-28' },
+  { name: 'valid two-digit-year date', value: '02-28-26' },
 ] as const;
 
 describe('workout routes date normalization', () => {
