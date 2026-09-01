@@ -3,43 +3,37 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "status": "closed",
-  "candidate_head_sha": "ac037afb6c432cc8a7556656607164d824236e5d",
+  "candidate_head_sha": "5e51181b3c9fdabf947da4d4d881a394d30b08ed",
+  "remediation_mode": "targeted-remediation",
   "source": {
-    "rejection_id": "audit-rejection:83561a95-106b-4663-b5ac-beebede1f587",
-    "audited_head_sha": "a80fdd5c54c7083a65f7c6bac85050b6359a9ab3",
-    "audit_report_sha256": "1e9967b0fbb836e1968a9975083eae2b0add733d7f1751db072e8f0b624fb29a"
+    "rejection_id": "audit-rejection:414-5649fa12eed-week-cardinality",
+    "audited_head_sha": "5649fa12eed14c2d18ee195fee914082ab8d0761",
+    "audit_report_sha256": "e2cc04fb145d8df0253a2443a884f46fa20dab2b58ab00c3a82b7f1d4c58bb99"
   },
-  "remediation_mode": "systemic-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-001",
-      "remediation_mode": "systemic-remediation",
+      "source_id": "AUD-414-01",
+      "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "evidence": [
-        "Direct CP850 repair is restricted to unambiguous C1 controls.",
-        "Ambiguous visible codepoints are repaired only in explicit known legacy fragments.",
-        "Regression tests preserve valid Ç/Ó/Ô and legitimate NBSP and assert repair idempotency.",
-        "GitHub Actions Validate PR #7400 completed success on current material head."
-      ],
+      "evidence": ".audit/entregar-issue/evidence/issue-414-remediation-verification.txt",
       "validations": [
-        "validate_requirement_attack_matrix.py",
-        "validate_audit_escape_lineage.py",
-        "Validate PR #7400"
+        "3-week matrix loads only weeks 1..3",
+        "5-week matrix loads and persists week 5",
+        "no out-of-range template creation"
       ]
     },
     {
       "source_kind": "finding",
-      "source_id": "A-002",
-      "remediation_mode": "systemic-remediation",
+      "source_id": "AUD-414-02",
+      "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "evidence": [
-        "Risk saturation is regenerated with schema_version 1 and all canonical families.",
-        "Applicable dimensions bind to current exact-head attack controls."
-      ],
+      "evidence": ".audit/entregar-issue/evidence/issue-414-remediation-verification.txt",
       "validations": [
-        "validate_risk_saturation.py",
-        "validate_audit_escape_lineage.py"
+        "post-persistence matrix-updated event",
+        "PlanDetails refresh listener",
+        "assembly-tab fallback refetch",
+        "cross-plan event filtering"
       ]
     }
   ]

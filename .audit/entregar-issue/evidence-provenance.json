@@ -1,18 +1,19 @@
 {
   "schema_version": 1,
-  "material_head_sha": "5649fa12eed14c2d18ee195fee914082ab8d0761",
+  "material_head_sha": "5e51181b3c9fdabf947da4d4d881a394d30b08ed",
   "base_sha": "dd0fefdb8c19d9c311c15a9b1d1a3e03bfd54e97",
   "evidence": [
     {
-      "evidence_id": "EVID-ISSUE414-STATIC-QUANT",
+      "evidence_id": "EVID-414-LEGACY-SUMMARY-ZERO",
       "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/issue-414-static-verification.txt",
-      "sha256": "811806cb0440987917e5e1aac66d383cfeabbdd322a99e19a54751b36da329f0",
-      "subject_sha": "5649fa12eed14c2d18ee195fee914082ab8d0761",
+      "path": ".audit/entregar-issue/evidence/issue-414-remediation-verification.txt",
+      "sha256": "5b1f0ce4b2de05382f79044d94d96cbc008ef51984479c644dcc2f47c8af5202",
+      "subject_sha": "5e51181b3c9fdabf947da4d4d881a394d30b08ed",
       "base_sha": "dd0fefdb8c19d9c311c15a9b1d1a3e03bfd54e97",
       "freshness_policy": "exact-material-head",
-      "producer": "entregar-issue connector-only exact-head inspection",
-      "status": "passed"
+      "producer": "entregar-issue exact-head connector inspection",
+      "status": "passed",
+      "metric": "legacy Microcycle-derived weekly summary references in canonical PlanDetails = 0"
     }
   ]
 }
