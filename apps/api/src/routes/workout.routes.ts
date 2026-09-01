@@ -3,6 +3,15 @@ import { workoutService } from '../modules/workout/workout.service.js';
 
 const router: Router = Router();
 
+const parseRequiredDate = (value: unknown): Date | null => {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 // ============================================================================
 // WORKOUT TEMPLATE ROUTES
 // ============================================================================
@@ -10,7 +19,15 @@ const router: Router = Router();
 // Get or create template
 router.post('/templates/get-or-create', async (req, res) => {
   try {
-    const template = await workoutService.getOrCreateTemplate(req.body);
+    const weekStartDate = parseRequiredDate(req.body?.weekStartDate);
+    if (!weekStartDate) {
+      return res.status(400).json({ error: 'Invalid weekStartDate' });
+    }
+
+    const template = await workoutService.getOrCreateTemplate({
+      ...req.body,
+      weekStartDate,
+    });
     res.json(template);
   } catch (error: any) {
     console.error('Error in get-or-create template:', error);
@@ -65,8 +82,8 @@ router.post('/templates/:id/release', async (req, res) => {
 // Copy template
 router.post('/templates/:id/copy', async (req, res) => {
   try {
-    const targetWeekStartDate = new Date(req.body.targetWeekStartDate);
-    if (Number.isNaN(targetWeekStartDate.getTime())) {
+    const targetWeekStartDate = parseRequiredDate(req.body?.targetWeekStartDate);
+    if (!targetWeekStartDate) {
       return res.status(400).json({ error: 'Invalid targetWeekStartDate' });
     }
     const targetWeekNumber = Number(req.body.targetWeekNumber);
