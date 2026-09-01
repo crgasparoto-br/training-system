@@ -17,8 +17,19 @@ const invalidDateCases = [
   { name: 'empty string', includeField: true, value: '' },
   { name: 'blank string', includeField: true, value: '   ' },
   { name: 'invalid string', includeField: true, value: 'not-a-date' },
+  { name: 'normalized invalid ISO date', includeField: true, value: '2026-02-31' },
+  { name: 'normalized invalid non-leap date', includeField: true, value: '2025-02-29' },
+  { name: 'normalized invalid legacy numeric date', includeField: true, value: '02/31/2026' },
+  { name: 'normalized invalid textual date', includeField: true, value: 'Feb 29, 2025' },
+  { name: 'numeric-only string', includeField: true, value: '0' },
   { name: 'number', includeField: true, value: 0 },
   { name: 'object', includeField: true, value: { year: 2026, month: 9, day: 14 } },
+] as const;
+
+const validDateCases = [
+  { name: 'valid leap day', value: '2024-02-29T12:00:00.000Z' },
+  { name: 'valid RFC 2822 date', value: 'Mon, 14 Sep 2026 12:00:00 GMT' },
+  { name: 'valid legacy numeric date', value: '09/14/2026' },
 ] as const;
 
 describe('workout routes date normalization', () => {
@@ -54,6 +65,24 @@ describe('workout routes date normalization', () => {
       weekStartDate: expect.any(Date),
     });
     expect(serviceInput.weekStartDate.getTime()).toBe(Date.parse(payload.weekStartDate));
+  });
+
+  it.each(validDateCases)('accepts $name without narrowing the contract to ISO-only', async ({ value }) => {
+    const payload = {
+      planId: 'plan-1',
+      mesocycleNumber: 1,
+      weekNumber: 1,
+      weekStartDate: value,
+    };
+    (workoutService.getOrCreateTemplate as jest.Mock).mockResolvedValue({ id: 'template-1' });
+
+    const response = await request(app).post('/workout/templates/get-or-create').send(payload);
+
+    expect(response.status).toBe(200);
+    expect(workoutService.getOrCreateTemplate).toHaveBeenCalledTimes(1);
+    const serviceInput = (workoutService.getOrCreateTemplate as jest.Mock).mock.calls[0][0];
+    expect(serviceInput.weekStartDate).toBeInstanceOf(Date);
+    expect(serviceInput.weekStartDate.getTime()).toBe(Date.parse(value));
   });
 
   it.each(invalidDateCases)(
