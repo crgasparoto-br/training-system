@@ -1,1 +1,193 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"risk-saturation","compression":"gzip","encoded_size":1608,"encoded_sha256":"7ef3b8a939430d02c94ad7515703042c4de9cf1cd01e42af9bceaff9708ae966","decoded_size":8183,"decoded_sha256":"d12bb529bec87299bf6eab2c8be96371b1504def10f0c858e251309e0a8bab68","parts":[{"path":"risk-saturation.parts/part-000.b64","size":1500,"sha256":"de505c29e5962aca3db537e6eb837dafbaad5f10f13a196b3310064b1ac2a69c"},{"path":"risk-saturation.parts/part-001.b64","size":108,"sha256":"4c190ea3f73a95b1d4b38072ee2238e16cb375cf470c932ee1d2049db2a0350d"}]}
+{
+  "schema_version": 1,
+  "head_sha": "8cbcb92cee617c8228f3c921bdeb65f8275a893d",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": false,
+      "reason": "No canonical issue #416 obligation or active inherited control requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "reason": "No canonical issue #416 obligation or active inherited control requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No canonical issue #416 obligation or active inherited control requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Issue #416 attack matrix declares reference-liveness controls bound to the exact material head.",
+      "control_ids": [
+        "NEG-002-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-producer-contract",
+          "reason": "Exact-head adversarial controls exercise the canonical-producer-contract surface.",
+          "control_ids": [
+            "NEG-002-02"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Issue #416 attack matrix declares temporal-consistency controls bound to the exact material head.",
+      "control_ids": [
+        "NEG-001-08"
+      ],
+      "dimensions": [
+        {
+          "surface": "sequence-regression",
+          "reason": "Exact-head adversarial controls exercise the sequence-regression surface.",
+          "control_ids": [
+            "NEG-001-08"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": true,
+      "reason": "Issue #416 attack matrix declares temporal-destination controls bound to the exact material head.",
+      "control_ids": [
+        "NEG-001-01",
+        "NEG-001-02",
+        "NEG-001-03",
+        "NEG-001-04",
+        "NEG-001-05",
+        "NEG-001-07",
+        "NEG-001-09",
+        "NEG-002-01",
+        "NEG-002-04",
+        "NEG-002-06",
+        "NEG-003-07",
+        "NEG-003-08"
+      ],
+      "dimensions": [
+        {
+          "surface": "pre-service-boundary",
+          "reason": "Exact-head adversarial controls exercise the pre-service-boundary surface.",
+          "control_ids": [
+            "NEG-001-01",
+            "NEG-001-02",
+            "NEG-001-03",
+            "NEG-001-04",
+            "NEG-001-05",
+            "NEG-001-07",
+            "NEG-001-09",
+            "NEG-002-01",
+            "NEG-002-04",
+            "NEG-002-06",
+            "NEG-003-07",
+            "NEG-003-08"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No canonical issue #416 obligation or active inherited control requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": false,
+      "reason": "No canonical issue #416 obligation or active inherited control requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No canonical issue #416 obligation or active inherited control requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No canonical issue #416 obligation or active inherited control requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Issue #416 attack matrix declares structural-contract controls bound to the exact material head.",
+      "control_ids": [
+        "NEG-001-IDMAP",
+        "NEG-005-01",
+        "NEG-005-02",
+        "NEG-006-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "semantic-identity-propagation",
+          "reason": "Exact-head adversarial controls exercise the semantic-identity-propagation surface.",
+          "control_ids": [
+            "NEG-001-IDMAP"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "shared-normalizer",
+          "reason": "Exact-head adversarial controls exercise the shared-normalizer surface.",
+          "control_ids": [
+            "NEG-005-01",
+            "NEG-005-02",
+            "NEG-006-02"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Issue #416 attack matrix declares documentation controls bound to the exact material head.",
+      "control_ids": [
+        "NEG-006-DOC"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "reason": "Exact-head adversarial controls exercise the canonical-claims surface.",
+          "control_ids": [
+            "NEG-006-DOC"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}
