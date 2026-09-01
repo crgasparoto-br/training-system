@@ -1,5 +1,4 @@
 import express from 'express';
-import workoutRouter from '../src/routes/workout.routes';
 
 const request = require('supertest');
 
@@ -13,6 +12,8 @@ const mockPrisma = {
 jest.mock('@prisma/client', () => ({
   PrismaClient: jest.fn(() => mockPrisma),
 }));
+
+const workoutRouter = require('../src/routes/workout.routes').default;
 
 describe('WorkoutBuilder2 first template creation regression', () => {
   const app = express();
