@@ -1,10 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { planService, type TrainingPlan } from '../services/plan.service';
 import {
   periodizationService,
   type PeriodizationMatrix,
 } from '../services/periodization.service';
+import {
+  PERIODIZATION_MATRIX_UPDATED_EVENT,
+  shouldRefreshPeriodizationMatrix,
+  type PeriodizationMatrixUpdatedDetail,
+} from '../services/periodization-events';
 import { PeriodizationMatrixComponent } from '../components/PeriodizationMatrix';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
@@ -39,31 +44,58 @@ export function PlanDetails() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<PlanDetailsTab>('assembly');
 
+  const refreshPeriodizationMatrix = useCallback(async (planId: string) => {
+    try {
+      const periodization = await periodizationService.getMatrixByPlanId(planId);
+      setMatrix(periodization);
+    } catch (error) {
+      console.error('Erro ao carregar periodização:', error);
+    }
+  }, []);
+
   useEffect(() => {
     if (id) {
       void loadPlan(id);
     }
   }, [id]);
 
+  useEffect(() => {
+    if (!id) return;
+
+    const handlePeriodizationMatrixUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<PeriodizationMatrixUpdatedDetail>).detail;
+      if (!shouldRefreshPeriodizationMatrix(id, matrix?.id, detail)) {
+        return;
+      }
+
+      void refreshPeriodizationMatrix(id);
+    };
+
+    window.addEventListener(PERIODIZATION_MATRIX_UPDATED_EVENT, handlePeriodizationMatrixUpdated);
+    return () => {
+      window.removeEventListener(PERIODIZATION_MATRIX_UPDATED_EVENT, handlePeriodizationMatrixUpdated);
+    };
+  }, [id, matrix?.id, refreshPeriodizationMatrix]);
+
   const loadPlan = async (planId: string) => {
     setLoading(true);
     try {
       const data = await planService.getById(planId);
       setPlan(data);
-
-      try {
-        const periodization = await periodizationService.getMatrixByPlanId(planId);
-        setMatrix(periodization);
-      } catch (error) {
-        console.error('Erro ao carregar periodização:', error);
-        setMatrix(null);
-      }
+      await refreshPeriodizationMatrix(planId);
     } catch (error) {
       console.error('Erro ao carregar plano:', error);
       alert(planDetailsCopy.loadError);
       navigate('/plans');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOpenAssemblyTab = () => {
+    setActiveTab('assembly');
+    if (id) {
+      void refreshPeriodizationMatrix(id);
     }
   };
 
@@ -236,7 +268,7 @@ export function PlanDetails() {
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8">
           <button
-            onClick={() => setActiveTab('assembly')}
+            onClick={handleOpenAssemblyTab}
             className={`${
               activeTab === 'assembly'
                 ? 'border-blue-500 text-blue-600'
