@@ -1,0 +1,28 @@
+Issue 414 remediation verification
+material_head_sha=5e51181b3c9fdabf947da4d4d881a394d30b08ed
+base_sha=dd0fefdb8c19d9c311c15a9b1d1a3e03bfd54e97
+pr=415
+
+AUD-414-01 fixed:
+- WorkoutBuilder2 resolves weeksPerMesocycle before deriving template week options.
+- Template loading uses resolvedWeekOptions rather than render-time weekOptions.
+- Regression helpers/tests cover 3-week and 5-week matrices, the last valid week, and exclusion of out-of-range weeks.
+
+AUD-414-02 fixed:
+- periodization mutations publish a matrix-updated event only after successful persistence.
+- PlanDetails listens for the event and refetches the current matrix for the active plan.
+- Returning to Montagem semanal also performs a refetch, preventing stale badges after periodization edits.
+- Cross-plan/matrix events are filtered by shouldRefreshPeriodizationMatrix.
+
+Original issue controls preserved:
+- no editable Microcycle CRUD in PlanDetails;
+- no frontend createSession/updateSession/deleteSession surface;
+- no orphan Microcycle write routes/services;
+- weekly navigation uses PeriodizationMatrix.weeksPerMesocycle;
+- Cíclico and Resistido remain independent and can coexist;
+- no destructive Microcycle migration introduced;
+- canonical flow documentation remains versioned.
+
+Execution note:
+- local checkout/dependency execution is unavailable in connector-only runtime.
+- the allowed single remote snapshot for this material SHA observed Validate PR #7425 as in_progress; pending CI is not treated as approval.

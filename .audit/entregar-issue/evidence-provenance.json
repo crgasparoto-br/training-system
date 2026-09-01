@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
-  "material_head_sha": "7c291f0a6ea7df6ae7716d8b34822dd7a1cbe1f1",
-  "base_sha": "15bbda8e54c5aeafacd8c5133784815bdd0548ce",
+  "material_head_sha": "5e51181b3c9fdabf947da4d4d881a394d30b08ed",
+  "base_sha": "dd0fefdb8c19d9c311c15a9b1d1a3e03bfd54e97",
   "evidence": [
     {
-      "evidence_id": "EVID-REQ003-CUSTOM-CARDINALITY",
+      "evidence_id": "EVID-414-LEGACY-SUMMARY-ZERO",
       "kind": "quantitative",
-      "path": "github-actions://crgasparoto-br/training-system/actions/runs/32535325583/artifacts/test-output-32535325583/test-output.log",
-      "sha256": "479d0c6834a8dae15afd62c705b3420f5dd0ce0262d64058ea838736e03defc9",
-      "subject_sha": "7c291f0a6ea7df6ae7716d8b34822dd7a1cbe1f1",
-      "base_sha": "15bbda8e54c5aeafacd8c5133784815bdd0548ce",
+      "path": ".audit/entregar-issue/evidence/issue-414-remediation-verification.txt",
+      "sha256": "5b1f0ce4b2de05382f79044d94d96cbc008ef51984479c644dcc2f47c8af5202",
+      "subject_sha": "5e51181b3c9fdabf947da4d4d881a394d30b08ed",
+      "base_sha": "dd0fefdb8c19d9c311c15a9b1d1a3e03bfd54e97",
       "freshness_policy": "exact-material-head",
-      "producer": "GitHub Actions Validate PR run 32535325583",
+      "producer": "entregar-issue exact-head connector inspection",
       "status": "passed",
-      "metric": "custom exercise cardinality remains one while default repair does not duplicate corrected name"
+      "metric": "legacy Microcycle-derived weekly summary references in canonical PlanDetails = 0"
     }
   ]
 }

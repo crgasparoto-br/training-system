@@ -1,27 +1,27 @@
 {
   "schema_version": 1,
-  "rejection_id": "audit-rejection:83561a95-106b-4663-b5ac-beebede1f587",
-  "head_sha": "a80fdd5c54c7083a65f7c6bac85050b6359a9ab3",
-  "status": "rejected",
-  "source": "independent-audit",
+  "contract_version": "2026-08-20.3",
+  "rejection_id": "audit-rejection:414-5649fa12eed-week-cardinality",
+  "head_sha": "5649fa12eed14c2d18ee195fee914082ab8d0761",
+  "result": "REPROVADA",
   "findings": [
     {
-      "id": "A-001",
-      "status": "open",
+      "id": "AUD-414-01",
       "disposition": "blocking",
+      "status": "open",
       "actionable": true,
-      "severity": "critical",
-      "remediation_mode": "systemic-remediation",
-      "summary": "Sequential CP850 replacements could remap newly produced or already-valid Unicode codepoints."
+      "remediation_mode": "targeted-remediation",
+      "severity": "high",
+      "summary": "WorkoutBuilder2 used render-time fallback weekOptions when loading templates, breaking variable weeksPerMesocycle."
     },
     {
-      "id": "A-002",
-      "status": "open",
+      "id": "AUD-414-02",
       "disposition": "blocking",
+      "status": "open",
       "actionable": true,
+      "remediation_mode": "targeted-remediation",
       "severity": "high",
-      "remediation_mode": "systemic-remediation",
-      "summary": "Critical risk saturation used a noncanonical family/schema contract and could not prove full canonical coverage."
+      "summary": "PlanDetails retained a stale PeriodizationMatrix snapshot after same-page periodization edits."
     }
   ],
   "recommendations": []

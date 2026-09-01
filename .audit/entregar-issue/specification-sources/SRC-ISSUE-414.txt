@@ -1,0 +1,173 @@
+> `specification_version: 2`
+
+## Objetivo
+
+Consolidar a montagem semanal do plano em um único fluxo operacional canônico, removendo o CRUD editável de `Microcycle` da experiência web e fazendo cada semana navegar diretamente para `WorkoutBuilder2`, sem criar nova árvore paralela de treino nem alterar regras de prescrição.
+
+## Contexto
+
+A auditoria comparou a planilha de referência (abas `Periodização Macrociclo` e `Montagem`), a `develop` atual e o histórico do repositório.
+
+O sistema mantém dois fluxos concorrentes:
+
+1. legado: `TrainingPlan -> Macrocycle -> Mesocycle -> Microcycle`, com `SessionType` orientado a corrida (`easy_run`, `tempo_run`, `interval`, `long_run`, `recovery`, `strength`, `rest`);
+2. canônico: `PeriodizationMatrix` + `WorkoutTemplate -> WorkoutDay -> WorkoutExercise`, que representa a montagem semanal conjunta de Cíclico e Resistido e é o fluxo aderente à planilha.
+
+Na `develop`, `PlanDetails` ainda usa `SessionModal` e `createSession/updateSession/deleteSession`, e seus resumos de sessões/volume são derivados de `Microcycle`. `WorkoutBuilder2`, por outro lado, já trabalha com `mesocycleNumber`, `weekNumber` e `PeriodizationMatrix.weeksPerMesocycle`.
+
+A duplicidade faz `Adicionar Sessão` competir com a montagem canônica e trata corrida/fortalecimento como tipos mutuamente exclusivos, embora a referência funcional permita Cíclico e Resistido coexistirem no mesmo dia.
+
+Há apenas dados de teste no fluxo legado; não é necessária migração desses dados nesta entrega.
+
+Relacionada à epic #397.
+
+## Decisões consolidadas
+
+- `PeriodizationMatrix` representa o planejamento macro/semanal por estímulos/capacidades.
+- `WorkoutTemplate/WorkoutDay/WorkoutExercise` é o grafo operacional canônico da montagem da semana.
+- Cíclico e Resistido podem coexistir no mesmo `WorkoutDay`.
+- `Microcycle` deixa de ser fonte editável de montagem e não deve ganhar novos tipos/campos para tentar absorver o fluxo canônico.
+- `Macrocycle/Mesocycle` **não serão removidos nesta issue**; podem permanecer para agrupamento, periodização e navegação enquanto ainda houver consumidores.
+- O model/tabela/relação `Microcycle` **não será removido destrutivamente do schema nesta issue**. Compatibilidade histórica de leitura pode permanecer onde houver consumidor real, mas não pode existir caminho web de criação/edição/exclusão.
+- Endpoints/serviços de **escrita** de `Microcycle` sem consumidor remanescente devem ser removidos; não manter endpoint de escrita apenas como fallback preventivo.
+- `SessionModal` não deve ser adaptado para o novo fluxo; ele deve sair do fluxo de planos quando não possuir outro consumidor válido.
+- Nenhuma regra de negócio de prescrição é alterada nesta entrega.
+
+## Escopo
+
+- Remover da tela de detalhes do plano o CRUD legado de `Microcycle` (`Adicionar Sessão`, editar e excluir sessão).
+- Remover o uso do `SessionModal` no fluxo de planos e remover o componente/tipos exclusivos desse fluxo se ficarem órfãos.
+- Substituir a área de sessões por uma visão de **Montagem semanal** que liste as semanas do plano sem depender de `Microcycle` como fonte operacional.
+- Garantir que cada semana possua ação direta `Montar semana` / `Editar montagem`, navegando para `WorkoutBuilder2` com `planId`, `mesocycleNumber` e `weekNumber` corretos.
+- Derivar estados/resumos exibidos por semana somente de fontes canônicas disponíveis, como `PeriodizationMatrix` e o grafo de montagem; não usar contagem, distância, duração ou `SessionType` de `Microcycle` como indicador da montagem vigente.
+- Remover chamadas frontend `createSession`, `updateSession`, `deleteSession` e os endpoints REST correspondentes quando não houver consumidor válido fora desse CRUD.
+- Preservar leituras/modelos legados apenas quando ainda necessários por consumidores históricos identificados.
+- Atualizar documentação de produto/arquitetura para registrar a fonte canônica e a compatibilidade temporária de `Microcycle`.
+- Adicionar/ajustar testes para impedir regressão do fluxo paralelo.
+
+## Mapeamento obrigatório de semana para WorkoutBuilder2
+
+A lista da tela usa **semana global do plano**; `WorkoutBuilder2` usa **mesociclo + semana dentro do mesociclo**.
+
+A conversão deve reutilizar `PeriodizationMatrix.weeksPerMesocycle`:
+
+```text
+zeroBasedWeek = globalWeekNumber - 1
+mesocycleNumber = floor(zeroBasedWeek / weeksPerMesocycle) + 1
+weekNumber = (zeroBasedWeek % weeksPerMesocycle) + 1
+```
+
+Exemplo com `weeksPerMesocycle = 4`:
+
+```text
+semana global 1 -> meso 1 / semana 1
+semana global 4 -> meso 1 / semana 4
+semana global 5 -> meso 2 / semana 1
+```
+
+Quando a matriz ainda não existir, reutilizar o mesmo fallback estrutural já usado pelo `WorkoutBuilder2` para semanas por mesociclo; não inferir essa posição a partir de registros `Microcycle`.
+
+## Invariantes estruturais
+
+### `must_behave`
+
+- Toda semana do plano abre a montagem correta em `WorkoutBuilder2`.
+- Cíclico e Resistido permanecem blocos/capacidades que podem coexistir no mesmo dia.
+- A visão semanal pode informar se há planejamento cíclico e/ou resistido usando `PeriodizationMatrix`, sem transformar isso em `SessionType`.
+
+### `must_not_behave`
+
+- A tela do plano não oferece criar, editar ou excluir `Microcycle`.
+- O frontend web não chama endpoints de escrita de `Microcycle`.
+- `SessionType` não é ampliado para representar a coexistência Cíclico + Resistido.
+- Resumos da montagem vigente não são calculados a partir de `Microcycle`.
+
+### `must_reuse`
+
+- Reutilizar `WorkoutBuilder2` como editor operacional da semana.
+- Reutilizar `PeriodizationMatrix.weeksPerMesocycle` para posicionar semana global em mesociclo/semana.
+- Reutilizar `WorkoutTemplate/WorkoutDay/WorkoutExercise` como grafo operacional existente; não criar outro modelo de sessão para esta consolidação.
+
+### `must_be_single_source`
+
+- A montagem operacional editável possui uma única fonte: `PeriodizationMatrix` + `WorkoutTemplate/WorkoutDay/WorkoutExercise` conforme sua responsabilidade.
+- `Microcycle` não pode permanecer como segunda autoridade editável, mesmo que sua UI seja renomeada.
+
+### `forbidden_implementation`
+
+- Adaptar ou renomear `SessionModal` para continuar persistindo `Microcycle`.
+- Manter `createSession/updateSession/deleteSession` escondidos na UI como caminho alternativo de edição.
+- Criar uma nova entidade/árvore de sessões paralela ao grafo de `WorkoutTemplate/WorkoutDay/WorkoutExercise`.
+- Usar os totais legados de `Microcycle` para fazer a nova tela parecer consolidada enquanto a autoridade continua duplicada.
+
+### Controles discriminantes
+
+Uma implementação pode parecer correta visualmente e ainda manter duas fontes de verdade. Os testes/inspeções devem distinguir esse caso confirmando ausência de imports/chamadas web para criação, edição e exclusão de `Microcycle` e ausência dos endpoints de escrita que ficaram sem consumidores.
+
+O mapeamento de semana deve ser testado pelo menos nos limites `1`, `weeksPerMesocycle` e `weeksPerMesocycle + 1`; isso detecta implementações que encaminham toda semana global como `weekNumber` dentro do primeiro mesociclo.
+
+A coexistência deve ser verificada com uma mesma semana/dia contendo planejamento Cíclico e Resistido sem criar dois `SessionType` concorrentes.
+
+## Cenários e casos relevantes
+
+- plano com matriz e semana no primeiro mesociclo;
+- primeira semana do segundo mesociclo;
+- matriz com `weeksPerMesocycle` diferente do valor padrão;
+- semana com somente Cíclico planejado;
+- semana com somente Resistido planejado;
+- semana com Cíclico e Resistido planejados simultaneamente;
+- semana ainda sem estímulos configurados, mas com acesso funcional à Montagem;
+- consumidor histórico que ainda leia `Microcycle`: leitura pode permanecer, escrita não volta ao fluxo web;
+- ausência da matriz: navegação usa o fallback estrutural já adotado pelo builder, sem recorrer ao CRUD legado.
+
+## Fora de escopo
+
+- Implementar #398/#399 em profundidade.
+- Modelar etapas cíclicas ou séries/blocos resistidos que ainda pertencem às issues específicas.
+- Integração com smartwatch.
+- Migração dos dados de teste de `Microcycle`.
+- Remover destrutivamente `Microcycle`, `Macrocycle` ou `Mesocycle` do schema.
+- Alterar regras de prescrição.
+- Merge do PR.
+
+## Critérios de aceite
+
+- [ ] A tela do plano não oferece `Adicionar/Editar/Excluir Sessão` via `Microcycle` e não monta `SessionModal` para esse fluxo.
+- [ ] A área operacional do plano é apresentada como Montagem semanal, não como CRUD de sessões legadas.
+- [ ] Toda semana acessa diretamente `WorkoutBuilder2` com `planId`, `mesocycleNumber` e `weekNumber` corretos.
+- [ ] O mapeamento usa `PeriodizationMatrix.weeksPerMesocycle` e está testado nos limites entre mesociclos.
+- [ ] Corrida/Cíclico e Resistido podem coexistir na mesma semana/dia sem competir como um único `SessionType`.
+- [ ] Não existe consumidor web de `createSession`, `updateSession` ou `deleteSession` para `Microcycle`.
+- [ ] Endpoints de escrita de `Microcycle` que ficaram sem consumidor são removidos.
+- [ ] Compatibilidade histórica, quando ainda necessária, é somente leitura e não reintroduz autoridade operacional paralela.
+- [ ] Resumos/estados da montagem vigente não usam dados de `Microcycle` como fonte.
+- [ ] O fluxo canônico permanece `PeriodizationMatrix -> WorkoutTemplate/WorkoutDay/WorkoutExercise` conforme as responsabilidades documentadas.
+- [ ] `Macrocycle/Mesocycle` não são removidos nesta issue enquanto ainda suportarem agrupamento/periodização/navegação.
+- [ ] Nenhuma migration destrutiva remove `Microcycle` nesta entrega.
+- [ ] Testes cobrem navegação, limites do mapeamento, ausência do CRUD legado e coexistência Cíclico + Resistido.
+- [ ] Documentação registra a fonte canônica e a compatibilidade temporária do legado.
+- [ ] `pnpm validate` passa ou o bloqueio é documentado no PR.
+
+## Testes e evidências esperadas
+
+- teste unitário do mapeamento `globalWeekNumber -> mesocycleNumber/weekNumber`, incluindo fronteira entre mesociclos e `weeksPerMesocycle` variável;
+- teste web/estrutural garantindo que `PlanDetails` não importe/use `SessionModal` nem funções de escrita de `Microcycle`;
+- teste/inspeção de rotas garantindo ausência dos endpoints de escrita removidos;
+- teste da apresentação simultânea de planejamento Cíclico e Resistido na mesma semana;
+- regressão de abertura do `WorkoutBuilder2` para semana correta;
+- checks/documentação afetados e `pnpm validate` conforme regras do repositório.
+
+## Impacto na documentação
+
+Registrar em fonte versionada de produto/arquitetura do fluxo de treinamento que:
+
+- `PeriodizationMatrix` planeja estímulos/capacidades por mesociclo/semana;
+- `WorkoutTemplate/WorkoutDay/WorkoutExercise` é o grafo operacional da montagem;
+- `Microcycle` é legado de compatibilidade, não fonte editável de novos treinos;
+- Cíclico e Resistido podem coexistir em um `WorkoutDay`.
+
+Não é necessário alterar documentação de #398/#399 além de referências diretamente afetadas por esta consolidação.
+
+## Referência funcional
+
+A planilha de origem representa, por semana e por dia, tempos/blocos distintos de Treinamento Cíclico e Treinamento Resistido. `Força` é objetivo/ênfase do resistido, não uma modalidade mutuamente exclusiva com corrida.
