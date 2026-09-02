@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { AnthropometryAssessment, AnthropometrySegment } from '../../types/anthropometry';
 
 interface Props {
@@ -16,6 +16,13 @@ const parseValue = (value?: string | null) => {
 export function AnthropometryEvolutionChart({ assessments, segments }: Props) {
   const defaultSegmentId = segments.find((segment) => segment.requiredForCompletion)?.id ?? segments[0]?.id ?? '';
   const [segmentId, setSegmentId] = useState(defaultSegmentId);
+
+  useEffect(() => {
+    if (defaultSegmentId && !segments.some((segment) => segment.id === segmentId)) {
+      setSegmentId(defaultSegmentId);
+    }
+  }, [defaultSegmentId, segmentId, segments]);
+
   const selectedSegment = segments.find((segment) => segment.id === segmentId) ?? segments[0];
 
   const points = useMemo(() => {

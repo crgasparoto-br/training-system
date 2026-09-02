@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { AdipometryServiceError } from './adipometry.service.js';
 
 const prisma = new PrismaClient();
@@ -6,35 +6,20 @@ const prisma = new PrismaClient();
 function dateOnly(value: string | Date): string {
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) {
-      throw new AdipometryServiceError(
-        'A data da avaliação é inválida.',
-        'ADIPOMETRY_INVALID_DATE'
-      );
+      throw new AdipometryServiceError('A data da avaliação é inválida.', 'ADIPOMETRY_INVALID_DATE');
     }
     return value.toISOString().slice(0, 10);
   }
 
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) {
-    throw new AdipometryServiceError(
-      'A data da avaliação é inválida.',
-      'ADIPOMETRY_INVALID_DATE'
-    );
-  }
+  if (!match) throw new AdipometryServiceError('A data da avaliação é inválida.', 'ADIPOMETRY_INVALID_DATE');
 
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
   const date = new Date(Date.UTC(year, month - 1, day));
-  if (
-    date.getUTCFullYear() !== year
-    || date.getUTCMonth() !== month - 1
-    || date.getUTCDate() !== day
-  ) {
-    throw new AdipometryServiceError(
-      'A data da avaliação é inválida.',
-      'ADIPOMETRY_INVALID_DATE'
-    );
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    throw new AdipometryServiceError('A data da avaliação é inválida.', 'ADIPOMETRY_INVALID_DATE');
   }
   return value;
 }
@@ -81,37 +66,41 @@ const includeSupportDetails = {
   },
   observations: {
     orderBy: { createdAt: 'asc' as const },
-    select: {
-      segmentId: true,
-      text: true,
-      importable: true,
-    },
+    select: { segmentId: true, text: true, importable: true },
   },
 } as const;
 
 export const adipometryAnthropometrySupportService = {
-  async getSupport(
-    contractId: string,
-    alunoId: string,
-    assessmentDate: string,
-    anthropometryAssessmentId?: string
-  ) {
+  async getSupport(contractId: string, alunoId: string, assessmentDate: string, anthropometryAssessmentId?: string) {
     const normalizedDate = dateOnly(assessmentDate);
-    const aluno = await prisma.aluno.findFirst({
-      where: { id: alunoId, contractId },
-      select: { id: true },
-    });
+    const aluno = await prisma.aluno.findFirst({ where: { id: alunoId, contractId }, select: { id: true } });
     if (!aluno) {
-      throw new AdipometryServiceError(
-        'Avaliação não encontrada.',
-        'ADIPOMETRY_RESOURCE_NOT_FOUND',
-        404
-      );
+      throw new AdipometryServiceError('Avaliação não encontrada.', 'ADIPOMETRY_RESOURCE_NOT_FOUND', 404);
+    }
+
+    const completedRows = await prisma.$queryRaw<Array<{ assessmentId: string }>>(Prisma.sql`
+      SELECT lifecycle."assessmentId"
+      FROM "AnthropometryAssessmentLifecycle" lifecycle
+      WHERE lifecycle."contractId" = ${contractId}
+        AND lifecycle."alunoId" = ${alunoId}
+        AND lifecycle."status" = 'COMPLETED'
+    `);
+    const completedIds = completedRows.map((row) => row.assessmentId);
+    if (!completedIds.length) {
+      if (anthropometryAssessmentId) {
+        throw new AdipometryServiceError(
+          'A avaliação antropométrica de apoio não está disponível para este aluno e data.',
+          'ADIPOMETRY_ANTHROPOMETRY_REFERENCE_NOT_FOUND',
+          404
+        );
+      }
+      return { latestEligible: null, selected: null };
     }
 
     const where = {
       contractId,
       alunoId,
+      id: { in: completedIds },
       assessmentDate: { lte: new Date(`${normalizedDate}T00:00:00.000Z`) },
     } as const;
 

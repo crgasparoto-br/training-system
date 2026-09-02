@@ -90,7 +90,7 @@ CREATE TABLE "AnthropometryAssessmentCorrection" (
     CONSTRAINT "AnthropometryAssessmentCorrection_actor_user_fkey"
       FOREIGN KEY ("actorUserId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "AnthropometryAssessmentCorrection_actor_professor_fkey"
-      FOREIGN KEY ("actorProfessorId") REFERENCES "Educator"("id") ON DELETE SET NULL ON UPDATE CASCADE
+      FOREIGN KEY ("actorProfessorId") REFERENCES "Professor"("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 CREATE INDEX "AnthropometryAssessmentCorrection_assessment_created_idx"
