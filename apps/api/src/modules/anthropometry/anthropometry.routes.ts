@@ -3,6 +3,10 @@ import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { blockAccessMiddleware, screenAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
+import {
+  AnthropometryCorrectionAccessError,
+  correctCompletedAnthropometry,
+} from './anthropometry-correction.service.js';
 import { AnthropometryDomainError, anthropometryService } from './anthropometry.service.js';
 
 const router: Router = Router();
@@ -80,6 +84,9 @@ const parseDate = (value?: string) => {
 
 function handleAnthropometryError(res: Response, error: unknown, fallback: string) {
   if (error instanceof z.ZodError) return sendError(res, 'Dados inválidos', 400, error.errors);
+  if (error instanceof AnthropometryCorrectionAccessError) {
+    return sendError(res, error.message, 403, { code: error.code });
+  }
   if (error instanceof AnthropometryDomainError) {
     const conflictCodes = new Set([
       'ASSESSMENT_COMPLETED',
@@ -275,7 +282,7 @@ router.post(
       const { contractId, professorId, userId } = contextFromRequest(req);
       if (!contractId || !userId) return sendError(res, 'Usuário ou contrato não encontrado', 404);
       const payload = correctionSchema.parse(req.body);
-      const assessment = await anthropometryService.correctAssessment(
+      const assessment = await correctCompletedAnthropometry(
         contractId,
         req.params.id,
         { userId, professorId },
