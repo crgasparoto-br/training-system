@@ -2,7 +2,6 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { canProfessorAccessScreen } from '../access-control/access-control.service.js';
 import {
   appendAnthropometryTimelineEvent,
-  getAssessmentLifecycle,
   listSegmentRequirements,
   markAssessmentCompleted,
 } from './anthropometry-lifecycle.js';
@@ -27,6 +26,10 @@ type CompletionSegment = {
 type CompletionValue = {
   segmentId: string;
   value?: string | null;
+};
+
+type LockedLifecycle = {
+  status: 'DRAFT' | 'COMPLETED';
 };
 
 const prisma = new PrismaClient();
@@ -98,6 +101,23 @@ async function assertCompletionAccess(
   }
 }
 
+async function lockLifecycleForCompletion(
+  tx: Prisma.TransactionClient,
+  contractId: string,
+  assessmentId: string
+): Promise<LockedLifecycle> {
+  const rows = await tx.$queryRaw<LockedLifecycle[]>(Prisma.sql`
+    SELECT "status"
+    FROM "AnthropometryAssessmentLifecycle"
+    WHERE "assessmentId" = ${assessmentId}
+      AND "contractId" = ${contractId}
+    FOR UPDATE
+  `);
+  const lifecycle = rows[0];
+  if (!lifecycle) throw new Error('Estado da avaliação antropométrica não encontrado');
+  return lifecycle;
+}
+
 export async function completeAnthropometrySecurely(
   contractId: string,
   assessmentId: string,
@@ -106,6 +126,23 @@ export async function completeAnthropometrySecurely(
   const completedId = await prisma.$transaction(async (tx) => {
     await assertCompletionAccess(tx, contractId, actor.professorId);
 
+    const assessmentExists = await tx.anthropometryAssessment.findFirst({
+      where: { id: assessmentId, contractId },
+      select: { id: true },
+    });
+    if (!assessmentExists) throw new Error('Avaliação antropométrica não encontrada');
+
+    // Lock the lifecycle row before reading mutable assessment data. The database mutation
+    // guard takes the same row lock for ordinary writes, so completion and common editing
+    // have a single serialization point and cannot cross the DRAFT -> COMPLETED boundary.
+    const lifecycle = await lockLifecycleForCompletion(tx, contractId, assessmentId);
+    if (lifecycle.status === 'COMPLETED') {
+      throw new AnthropometryDomainError(
+        'ASSESSMENT_COMPLETED',
+        'A avaliação concluída é imutável. Use o fluxo de correção auditada.'
+      );
+    }
+
     const assessment = await tx.anthropometryAssessment.findFirst({
       where: { id: assessmentId, contractId },
       include: {
@@ -113,15 +150,6 @@ export async function completeAnthropometrySecurely(
       },
     });
     if (!assessment) throw new Error('Avaliação antropométrica não encontrada');
-
-    const lifecycle = await getAssessmentLifecycle(assessment.id, contractId, tx);
-    if (!lifecycle) throw new Error('Estado da avaliação antropométrica não encontrado');
-    if (lifecycle.status === 'COMPLETED') {
-      throw new AnthropometryDomainError(
-        'ASSESSMENT_COMPLETED',
-        'A avaliação concluída é imutável. Use o fluxo de correção auditada.'
-      );
-    }
 
     const requirements = (await listSegmentRequirements(contractId, tx)).filter((item) => item.isRequired);
     if (!requirements.length) {

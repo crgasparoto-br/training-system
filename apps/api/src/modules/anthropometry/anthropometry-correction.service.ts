@@ -2,7 +2,6 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { canProfessorAccessBlock } from '../access-control/access-control.service.js';
 import {
   appendAnthropometryTimelineEvent,
-  getAssessmentLifecycle,
   insertCorrectionAudit,
 } from './anthropometry-lifecycle.js';
 import { AnthropometryDomainError, anthropometryService } from './anthropometry.service.js';
@@ -17,6 +16,10 @@ type CorrectionInput = {
 type ActorContext = {
   userId: string;
   professorId?: string | null;
+};
+
+type LockedLifecycle = {
+  status: 'DRAFT' | 'COMPLETED';
 };
 
 const prisma = new PrismaClient();
@@ -92,6 +95,31 @@ async function assertCorrectionAccess(
   }
 }
 
+async function lockLifecycleForCorrection(
+  tx: Prisma.TransactionClient,
+  contractId: string,
+  assessmentId: string
+): Promise<LockedLifecycle> {
+  const rows = await tx.$queryRaw<LockedLifecycle[]>(Prisma.sql`
+    SELECT "status"
+    FROM "AnthropometryAssessmentLifecycle"
+    WHERE "assessmentId" = ${assessmentId}
+      AND "contractId" = ${contractId}
+    FOR UPDATE
+  `);
+  const lifecycle = rows[0];
+  if (!lifecycle) throw new Error('Estado da avaliação antropométrica não encontrado');
+  return lifecycle;
+}
+
+async function enableAuditedCorrectionMutation(tx: Prisma.TransactionClient) {
+  // Transaction-local marker consumed only by the database immutability triggers. It is set
+  // after access, tenant and lifecycle checks, and automatically disappears at transaction end.
+  await tx.$queryRaw(Prisma.sql`
+    SELECT set_config('app.anthropometry_correction', 'true', true)
+  `);
+}
+
 export async function correctCompletedAnthropometry(
   contractId: string,
   assessmentId: string,
@@ -106,19 +134,27 @@ export async function correctCompletedAnthropometry(
   const correctedId = await prisma.$transaction(async (tx) => {
     await assertCorrectionAccess(tx, contractId, actor.professorId);
 
-    const assessment = await tx.anthropometryAssessment.findFirst({
+    const assessmentExists = await tx.anthropometryAssessment.findFirst({
       where: { id: assessmentId, contractId },
-      include: includeAssessment,
+      select: { id: true },
     });
-    if (!assessment) throw new Error('Avaliação antropométrica não encontrada');
+    if (!assessmentExists) throw new Error('Avaliação antropométrica não encontrada');
 
-    const lifecycle = await getAssessmentLifecycle(assessment.id, contractId, tx);
-    if (lifecycle?.status !== 'COMPLETED') {
+    // Corrections and common writes serialize on the lifecycle row. The correction is the
+    // only authorized path that enables the transaction-local database bypass below.
+    const lifecycle = await lockLifecycleForCorrection(tx, contractId, assessmentId);
+    if (lifecycle.status !== 'COMPLETED') {
       throw new AnthropometryDomainError(
         'ASSESSMENT_NOT_COMPLETED',
         'Somente avaliações concluídas usam o fluxo de correção auditada.'
       );
     }
+
+    const assessment = await tx.anthropometryAssessment.findFirst({
+      where: { id: assessmentId, contractId },
+      include: includeAssessment,
+    });
+    if (!assessment) throw new Error('Avaliação antropométrica não encontrada');
 
     if (data.values) {
       await assertSegmentsInContract(tx, contractId, data.values.map((item) => item.segmentId));
@@ -132,6 +168,7 @@ export async function correctCompletedAnthropometry(
     }
 
     const beforeSnapshot = snapshotAssessment(assessment);
+    await enableAuditedCorrectionMutation(tx);
 
     if (data.values) {
       for (const item of data.values) {
