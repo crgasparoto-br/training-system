@@ -4,6 +4,10 @@ import { sendError, sendSuccess } from '@corrida/utils';
 import { blockAccessMiddleware, screenAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import {
+  AnthropometryCompletionAccessError,
+  completeAnthropometrySecurely,
+} from './anthropometry-completion.service.js';
+import {
   AnthropometryCorrectionAccessError,
   correctCompletedAnthropometry,
 } from './anthropometry-correction.service.js';
@@ -84,7 +88,10 @@ const parseDate = (value?: string) => {
 
 function handleAnthropometryError(res: Response, error: unknown, fallback: string) {
   if (error instanceof z.ZodError) return sendError(res, 'Dados inválidos', 400, error.errors);
-  if (error instanceof AnthropometryCorrectionAccessError) {
+  if (
+    error instanceof AnthropometryCompletionAccessError ||
+    error instanceof AnthropometryCorrectionAccessError
+  ) {
     return sendError(res, error.message, 403, { code: error.code });
   }
   if (error instanceof AnthropometryDomainError) {
@@ -267,7 +274,7 @@ router.post('/assessments/:id/complete', async (req: Request, res: Response) => 
   try {
     const { contractId, professorId, userId } = contextFromRequest(req);
     if (!contractId || !userId) return sendError(res, 'Usuário ou contrato não encontrado', 404);
-    const assessment = await anthropometryService.completeAssessment(contractId, req.params.id, { userId, professorId });
+    const assessment = await completeAnthropometrySecurely(contractId, req.params.id, { userId, professorId });
     return sendSuccess(res, assessment, 'Avaliação antropométrica concluída');
   } catch (error) {
     return handleAnthropometryError(res, error, 'Erro ao concluir avaliação antropométrica');
