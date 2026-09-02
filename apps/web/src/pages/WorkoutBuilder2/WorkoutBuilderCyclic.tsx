@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { isDateWithinRange, parseDateOnly, toDateInputValue, toIsoDateAtNoonUTC } from '../../utils/date';
 
 interface WorkoutBuilderCyclicProps {
@@ -141,7 +141,6 @@ export default function WorkoutBuilderCyclic({
     return { speedMin: speed1, speedMax: speed2 };
   };
 
-
   const formatHrValue = (value: number | null | undefined) => {
     if (value === null || value === undefined || Number.isNaN(value)) return '';
     return value.toLocaleString('pt-BR', {
@@ -157,7 +156,6 @@ export default function WorkoutBuilderCyclic({
       maximumFractionDigits: 1,
     });
   };
-
 
   const getTargetHrText = (dayOfWeek: number) => {
     const data = dayData[dayOfWeek];
@@ -196,11 +194,11 @@ export default function WorkoutBuilderCyclic({
     return true;
   });
 
-  // Estado para Volume Total (virÃ¡ da periodizaÃ§Ã£o)
+  // Estado para Volume Total (virá da periodização)
   const [volumeTotalMin, setVolumeTotalMin] = useState(templateData?.totalVolumeMin || 284);
   const [volumeTotalKm, setVolumeTotalKm] = useState(templateData?.totalVolumeKm || 0);
-  
-  // DistribuiÃ§Ã£o vem da periodizaÃ§Ã£o (% Z1, Z2, Z3, Z4, Z5)
+
+  // Distribuição vem da periodização (% Z1, Z2, Z3, Z4, Z5)
   const [distribution, setDistribution] = useState({
     z1: templateData?.distributionZ1 || 25,
     z2: templateData?.distributionZ2 || 40,
@@ -208,8 +206,8 @@ export default function WorkoutBuilderCyclic({
     z4: templateData?.distributionZ4 || 10,
     z5: templateData?.distributionZ5 || 5
   });
-  
-  // Planejamento (editÃ¡vel)
+
+  // Planejamento (editável)
   const [planning] = useState({
     z1: 60,
     z2: 0,
@@ -218,10 +216,9 @@ export default function WorkoutBuilderCyclic({
     z5: 0
   });
 
-  // Hidratar dados quando o template mudar (evita sobrescrever ediÃ§Ã£o)
+  // Hidratar dados quando o template mudar (evita sobrescrever edição)
 
-
-  // CÃ¡lculos automÃ¡ticos
+  // Cálculos automáticos
   const calculateAbsolute = (zone: keyof typeof distribution) => {
     return Math.round(volumeTotalMin * (distribution[zone] / 100));
   };
@@ -250,7 +247,7 @@ export default function WorkoutBuilderCyclic({
     return Object.values(distribution).reduce((sum, val) => sum + val, 0);
   };
 
-  // FunÃ§Ãµes de cÃ¡lculo
+  // Funções de cálculo
   const calculateTempoIntenso = (dayOfWeek: number) => {
     const data = dayData[dayOfWeek];
     if (!data?.sessionTime || !data?.numSets || !data?.numSessions) return 0;
@@ -273,7 +270,7 @@ export default function WorkoutBuilderCyclic({
 
   const calculateVO2Max = (dayOfWeek: number) => {
     const data = dayData[dayOfWeek];
-    if (data?.intensity1 !== null && data?.intensity1 !== undefined && 
+    if (data?.intensity1 !== null && data?.intensity1 !== undefined &&
         data?.intensity2 !== null && data?.intensity2 !== undefined) {
       return ((data.intensity1 + data.intensity2) / 2) / 100;
     }
@@ -596,17 +593,17 @@ export default function WorkoutBuilderCyclic({
       const durationPerSession = sessionDuration / numSessions;
       const minDuration = durationPerSession - 3;
       const maxDuration = durationPerSession;
-      
+
       let text = `Mantenha ${minDuration}-${maxDuration}min em intensidade constante com frequência cardíaca entre ${data.targetHrMin || ''} bpm`;
-      
+
       if (data.intensity1 && data.intensity2) {
         text += ` (${data.intensity1} - ${data.intensity2}% VO2Máx`;
       }
-      
+
       if (data.location === 'Esteira' || data.location === 'Pista') {
         text += ` -> ${data.targetSpeedMin || ''}km/h`;
       }
-      
+
       text += ')';
       return text;
     }
@@ -615,9 +612,9 @@ export default function WorkoutBuilderCyclic({
       const numSets = data.numSets || 0;
       const sessionTime = data.sessionTime || 0;
       const restTime = data.restTime || 0;
-      
+
       let text = `${numSets}x (`;
-      
+
       // Tempo intenso
       if (sessionTime >= 60) {
         text += `${Math.floor(sessionTime / 60)}m `;
@@ -626,18 +623,18 @@ export default function WorkoutBuilderCyclic({
       if (remainingSeconds > 0) {
         text += `${remainingSeconds}s `;
       }
-      
+
       const intensity2Pct = normalizeIntensity(data.intensity2);
       if (intensity2Pct === 1.2) {
         text += 'all out';
       } else if (data.targetHrMin) {
         text += `a ${data.targetHrMin} bpm`;
       }
-      
+
       if (data.location === 'Esteira' || data.location === 'Pista') {
         text += ` -> ${data.targetSpeedMin || ''}km/h`;
       }
-      
+
       // Tempo repouso
       if (restTime > 0) {
         text += ' + ';
@@ -650,7 +647,7 @@ export default function WorkoutBuilderCyclic({
         }
         text += 'repouso';
       }
-      
+
       text += ')';
       return text;
     }
@@ -916,7 +913,7 @@ export default function WorkoutBuilderCyclic({
                     </td>
                   </tr>
 
-                  {/* Planejamento - edit?vel */}
+                  {/* Planejamento - editável */}
                   <tr>
                     <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
                       Planejamento
@@ -972,7 +969,7 @@ export default function WorkoutBuilderCyclic({
         )}
       </div>
 
-{/* Planejamento do Treinamento Cíclico */}
+      {/* Planejamento do Treinamento Cíclico */}
       <div className="bg-green-50 rounded-lg p-4 border border-green-200">
         <h3 className="text-base font-semibold text-gray-900 mb-4">
           Planejamento do Treinamento Cíclico
@@ -1062,10 +1059,10 @@ export default function WorkoutBuilderCyclic({
                 ))}
               </tr>
 
-              {/* InserÃ§Ã£o */}
+              {/* Inserção */}
               <tr>
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  InserÃ§Ã£o
+                  Inserção
                 </td>
                 {days.map((day) => (
                   <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
@@ -1074,10 +1071,10 @@ export default function WorkoutBuilderCyclic({
                 ))}
               </tr>
 
-              {/* NÂº sessÃµes */}
+              {/* Nº sessões */}
               <tr>
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  NÂº sessÃµes
+                  Nº sessões
                 </td>
                 {days.map((day) => (
                   <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
@@ -1086,10 +1083,10 @@ export default function WorkoutBuilderCyclic({
                 ))}
               </tr>
 
-              {/* NÂº de sÃ©ries */}
+              {/* Nº de séries */}
               <tr>
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  NÂº de sÃ©ries
+                  Nº de séries
                 </td>
                 {days.map((day) => (
                   <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
@@ -1122,10 +1119,10 @@ export default function WorkoutBuilderCyclic({
                 ))}
               </tr>
 
-              {/* %VO2MÃ¡x interv. */}
+              {/* %VO2Máx interv. */}
               <tr className="bg-pink-50">
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  %VO2MÃ¡x interv.
+                  %VO2Máx interv.
                 </td>
                 {days.map((day) => (
                   <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
@@ -1149,10 +1146,10 @@ export default function WorkoutBuilderCyclic({
                 })}
               </tr>
 
-              {/* %VO2MÃ¡x - CALCULADO */}
+              {/* %VO2Máx - CALCULADO */}
               <tr className="bg-pink-50">
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  %VO2MÃ¡x
+                  %VO2Máx
                 </td>
                 {days.map((day) => {
                   const vo2Max = calculateVO2Max(day.dayOfWeek);
@@ -1231,5 +1228,3 @@ export default function WorkoutBuilderCyclic({
     </div>
   );
 }
-
-
