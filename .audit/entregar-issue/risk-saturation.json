@@ -1,14 +1,27 @@
 {
   "schema_version": 1,
-  "head_sha": "bd9c7095a019d83363ab50df480c0375e777b55a",
+  "head_sha": "f474850922f5e06cdb0bf4d39efc2efe04b9e289",
   "families": [
     {
       "family": "authorization",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-REQ-ERROR-STATES-OBL-029",
+        "NEG-REQ-SECURITY-OBL-019"
+      ],
+      "dimensions": [
+        {
+          "surface": "api-authorization",
+          "reason": "The frozen candidate exposes authorization behavior on the api-authorization surface and a plausible alternate implementation could bypass it.",
+          "control_ids": [
+            "NEG-REQ-ERROR-STATES-OBL-029",
+            "NEG-REQ-SECURITY-OBL-019"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "tenant-isolation",
@@ -31,27 +44,16 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "REQ-005-NEG-001",
-        "REQ-009-NEG-002",
-        "REQ-009-NEG-011",
-        "REQ-009-NEG-021"
+        "NEG-REQ-REQUIREMENTS-OBL-013",
+        "NEG-REQ-REQUIREMENTS-OBL-022"
       ],
       "dimensions": [
         {
-          "surface": "canonical-producer-contract",
-          "reason": "The reference-liveness contract is exercised at the canonical-producer-contract boundary for this requirement.",
+          "surface": "requirement-reference",
+          "reason": "The frozen candidate exposes reference-liveness behavior on the requirement-reference surface and a plausible alternate implementation could bypass it.",
           "control_ids": [
-            "REQ-005-NEG-001",
-            "REQ-009-NEG-002"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "reference-liveness",
-          "reason": "Cumulative independent-audit control requires exact-head coverage of reference-liveness:reference-liveness.",
-          "control_ids": [
-            "REQ-009-NEG-011",
-            "REQ-009-NEG-021"
+            "NEG-REQ-REQUIREMENTS-OBL-013",
+            "NEG-REQ-REQUIREMENTS-OBL-022"
           ],
           "status": "passed"
         }
@@ -63,38 +65,25 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "REQ-001-NEG-001",
-        "REQ-002-NEG-001",
-        "REQ-003-NEG-001",
-        "REQ-004-NEG-001",
-        "REQ-009-NEG-005",
-        "REQ-010-NEG-001",
-        "REQ-011-NEG-001",
-        "REQ-015-NEG-002",
-        "REQ-023-NEG-001",
-        "REQ-028-NEG-001",
-        "REQ-029-NEG-001",
-        "REQ-035-NEG-001",
-        "REQ-036-NEG-001"
+        "NEG-REQ-CORRECTION-SURF-03",
+        "NEG-REQ-REQUIREMENTS-OBL-003",
+        "NEG-REQ-REQUIREMENTS-OBL-031"
       ],
       "dimensions": [
         {
-          "surface": "date-instant-consistency",
-          "reason": "The temporal-consistency contract is exercised at the date-instant-consistency boundary for this requirement.",
+          "surface": "lifecycle-time",
+          "reason": "The frozen candidate exposes temporal-consistency behavior on the lifecycle-time surface and a plausible alternate implementation could bypass it.",
           "control_ids": [
-            "REQ-001-NEG-001",
-            "REQ-002-NEG-001",
-            "REQ-003-NEG-001",
-            "REQ-004-NEG-001",
-            "REQ-009-NEG-005",
-            "REQ-010-NEG-001",
-            "REQ-011-NEG-001",
-            "REQ-015-NEG-002",
-            "REQ-023-NEG-001",
-            "REQ-028-NEG-001",
-            "REQ-029-NEG-001",
-            "REQ-035-NEG-001",
-            "REQ-036-NEG-001"
+            "NEG-REQ-CORRECTION-SURF-03"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "reporting-availability-window",
+          "reason": "A report can label a requested window complete even when retention or source availability makes only a suffix of that window observable.",
+          "control_ids": [
+            "NEG-REQ-REQUIREMENTS-OBL-003",
+            "NEG-REQ-REQUIREMENTS-OBL-031"
           ],
           "status": "passed"
         }
@@ -103,59 +92,11 @@
     },
     {
       "family": "temporal-destination",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "REQ-001-NEG-002",
-        "REQ-002-NEG-002",
-        "REQ-003-NEG-002",
-        "REQ-004-NEG-002",
-        "REQ-009-NEG-006",
-        "REQ-009-NEG-009",
-        "REQ-009-NEG-018",
-        "REQ-010-NEG-002",
-        "REQ-011-NEG-002",
-        "REQ-015-NEG-003",
-        "REQ-022-NEG-001",
-        "REQ-023-NEG-002",
-        "REQ-025-NEG-002",
-        "REQ-028-NEG-002",
-        "REQ-035-NEG-002",
-        "REQ-036-NEG-002"
-      ],
-      "dimensions": [
-        {
-          "surface": "week-destination-mapping",
-          "reason": "Cumulative independent-audit control requires exact-head coverage of temporal-destination:week-destination-mapping.",
-          "control_ids": [
-            "REQ-009-NEG-009",
-            "REQ-009-NEG-018"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "week-start-destination",
-          "reason": "The temporal-destination contract is exercised at the week-start-destination boundary for this requirement.",
-          "control_ids": [
-            "REQ-001-NEG-002",
-            "REQ-002-NEG-002",
-            "REQ-003-NEG-002",
-            "REQ-004-NEG-002",
-            "REQ-009-NEG-006",
-            "REQ-010-NEG-002",
-            "REQ-011-NEG-002",
-            "REQ-015-NEG-003",
-            "REQ-022-NEG-001",
-            "REQ-023-NEG-002",
-            "REQ-025-NEG-002",
-            "REQ-028-NEG-002",
-            "REQ-035-NEG-002",
-            "REQ-036-NEG-002"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "concurrency-atomicity",
@@ -183,81 +124,47 @@
     },
     {
       "family": "historical-immutability",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-REQ-LIFECYCLE-OBL-024"
+      ],
+      "dimensions": [
+        {
+          "surface": "assessment-history",
+          "reason": "The frozen candidate exposes historical-immutability behavior on the assessment-history surface and a plausible alternate implementation could bypass it.",
+          "control_ids": [
+            "NEG-REQ-LIFECYCLE-OBL-024"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "structural-contract",
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "REQ-009-NEG-004",
-        "REQ-009-NEG-007",
-        "REQ-009-NEG-008",
-        "REQ-009-NEG-012",
-        "REQ-009-NEG-013",
-        "REQ-009-NEG-014",
-        "REQ-009-NEG-015",
-        "REQ-009-NEG-016",
-        "REQ-009-NEG-017",
-        "REQ-009-NEG-019",
-        "REQ-009-NEG-022",
-        "REQ-009-NEG-023",
-        "REQ-009-NEG-025",
-        "REQ-015-NEG-001",
-        "REQ-034-NEG-002"
+        "NEG-REQ-CORRECTION-OBL-025",
+        "NEG-REQ-DOCUMENTATION-SURF-02",
+        "NEG-REQ-REQUIREMENTS-OBL-011"
       ],
       "dimensions": [
         {
-          "surface": "canonical-source-consistency",
-          "reason": "Cumulative independent-audit control requires exact-head coverage of structural-contract:canonical-source-consistency.",
+          "surface": "benchmark-path-fidelity",
+          "reason": "A benchmark can improve while bypassing productive wrappers or operations that still execute in the real application path.",
           "control_ids": [
-            "REQ-009-NEG-007",
-            "REQ-009-NEG-014",
-            "REQ-009-NEG-016"
+            "NEG-REQ-CORRECTION-OBL-025"
           ],
           "status": "passed"
         },
         {
-          "surface": "git-parent",
-          "reason": "Cumulative independent-audit control requires exact-head coverage of structural-contract:git-parent.",
+          "surface": "runtime-boundary",
+          "reason": "The frozen candidate exposes structural-contract behavior on the runtime-boundary surface and a plausible alternate implementation could bypass it.",
           "control_ids": [
-            "REQ-009-NEG-013",
-            "REQ-009-NEG-023"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "shared-date-normalizer",
-          "reason": "The structural-contract contract is exercised at the shared-date-normalizer boundary for this requirement.",
-          "control_ids": [
-            "REQ-009-NEG-004",
-            "REQ-009-NEG-025",
-            "REQ-015-NEG-001",
-            "REQ-034-NEG-002"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "specified-test-matrix",
-          "reason": "Cumulative independent-audit control requires exact-head coverage of structural-contract:specified-test-matrix.",
-          "control_ids": [
-            "REQ-009-NEG-008",
-            "REQ-009-NEG-015",
-            "REQ-009-NEG-017",
-            "REQ-009-NEG-019"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "terminal-handoff",
-          "reason": "Cumulative independent-audit control requires exact-head coverage of structural-contract:terminal-handoff.",
-          "control_ids": [
-            "REQ-009-NEG-012",
-            "REQ-009-NEG-022"
+            "NEG-REQ-DOCUMENTATION-SURF-02",
+            "NEG-REQ-REQUIREMENTS-OBL-011"
           ],
           "status": "passed"
         }
@@ -269,14 +176,18 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "REQ-034-NEG-001"
+        "NEG-REQ-DOCUMENTATION-OBL-030",
+        "NEG-REQ-DOCUMENTATION-OBL-032",
+        "NEG-REQ-REQUIREMENTS-SURF-01"
       ],
       "dimensions": [
         {
           "surface": "canonical-claims",
-          "reason": "The documentation contract is exercised at the canonical-claims boundary for this requirement.",
+          "reason": "The frozen candidate exposes documentation behavior on the canonical-claims surface and a plausible alternate implementation could bypass it.",
           "control_ids": [
-            "REQ-034-NEG-001"
+            "NEG-REQ-DOCUMENTATION-OBL-030",
+            "NEG-REQ-DOCUMENTATION-OBL-032",
+            "NEG-REQ-REQUIREMENTS-SURF-01"
           ],
           "status": "passed"
         }

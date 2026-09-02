@@ -1,0 +1,74 @@
+Parent: #381
+
+## Objetivo
+
+Concluir as pendências de Antropometria registradas no roadmap canônico, tornando o fluxo histórico, auditável e confiável para consumo por Central do Aluno, Prescrição e futuras análises evolutivas.
+
+## Escopo
+
+- formalizar estados `draft` e `completed` ou equivalentes coerentes com o domínio existente;
+- definir medidas obrigatórias por protocolo antes da conclusão;
+- impedir edição comum de avaliação concluída;
+- implementar correção auditada com motivo, autor, timestamp e preservação do valor anterior;
+- calcular e expor variações absolutas e percentuais entre avaliações comparáveis;
+- integrar gráficos de evolução somente como complemento à representação tabular acessível;
+- garantir evento canônico na timeline do aluno;
+- revisar permissões, `dataScope` quando aplicável e isolamento por `contractId`;
+- manter contrato preparado para laudos sem gerar laudo nesta entrega.
+
+## Decisões de contrato para conclusão
+
+- A obrigatoriedade de uma medida deve ser **explícita e versionável** no domínio de Antropometria por segmento/protocolo (ou estrutura equivalente); não pode ser inferida apenas de `AnthropometrySegment.type`, de `importByDefault` ou da presença da medida na planilha histórica.
+- Segmentos `opcional` e `personalizado` não podem se tornar obrigatórios por efeito colateral de migration.
+- A validação de conclusão deve usar o conjunto obrigatório vigente para a avaliação e preservar informação suficiente para reproduzir posteriormente quais requisitos foram aplicados.
+- Avaliações históricas não podem ser retroativamente invalidadas quando a configuração de obrigatoriedade mudar.
+
+## Invariantes
+
+- Nova avaliação nunca sobrescreve avaliação anterior.
+- Correção não apaga nem reescreve silenciosamente o histórico.
+- Comparação usa valores persistidos e não converte ausência em zero.
+- Antropometria permanece domínio de avaliação física, separada do cadastro administrativo.
+- UI não substitui autorização do backend.
+- Uma implementação que trate todo segmento `principal` como obrigatório sem configuração explícita é proibida, mesmo que o caminho feliz consiga concluir avaliações completas.
+
+## Cenários obrigatórios
+
+- criação e salvamento de rascunho;
+- tentativa de concluir com medida obrigatória ausente;
+- conclusão válida;
+- tentativa de editar concluída pelo fluxo comum;
+- correção autorizada e sem permissão;
+- comparação entre duas avaliações;
+- campo ausente em avaliação histórica;
+- alteração futura da configuração de obrigatoriedade sem invalidar histórico concluído;
+- acesso cross-tenant;
+- evento de timeline sem duplicação.
+
+## Critérios de aceite
+
+- [ ] Estados formais estão persistidos e refletidos na API/web.
+- [ ] Conclusão valida no backend somente as medidas marcadas explicitamente como obrigatórias para o protocolo/configuração vigente.
+- [ ] A configuração aplicada na conclusão permanece reproduzível no histórico.
+- [ ] Avaliação concluída é imutável no fluxo comum.
+- [ ] Correção preserva antes/depois, motivo e responsável.
+- [ ] Variações absolutas e percentuais são calculadas de forma determinística.
+- [ ] Histórico e comparação permanecem isolados por aluno e `contractId`.
+- [ ] Timeline recebe evento rastreável para avaliação concluída/corrigida sem virar fonte concorrente.
+- [ ] Estados de erro, vazio e falta de permissão são cobertos por testes.
+- [ ] Documentação de produto, API/banco e roadmap é atualizada conforme necessário.
+
+## Pergunta em aberto — bloqueante apenas para o gate de conclusão
+
+A documentação versionada e o modelo atual definem segmentos `principal`, `opcional` e `personalizado`, mas não registram quais segmentos do protocolo antropométrico inicial são obrigatórios para concluir uma avaliação. A implementação pode avançar em estados, histórico, correção e comparação, porém a ativação do gate `completed` exige definir e versionar esse conjunto obrigatório sem inferi-lo da UI ou da planilha.
+
+## Fora de escopo
+
+- Adipometria;
+- novos protocolos físicos;
+- geração de laudo;
+- alteração automática de prescrição ou treino.
+
+## Validação esperada
+
+Executar testes dos pacotes afetados, checks de acesso/documentação/arquitetura aplicáveis e `pnpm validate`.

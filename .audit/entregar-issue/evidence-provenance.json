@@ -1,19 +1,6 @@
 {
   "schema_version": 1,
-  "material_head_sha": "5e51181b3c9fdabf947da4d4d881a394d30b08ed",
-  "base_sha": "dd0fefdb8c19d9c311c15a9b1d1a3e03bfd54e97",
-  "evidence": [
-    {
-      "evidence_id": "EVID-414-LEGACY-SUMMARY-ZERO",
-      "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/issue-414-remediation-verification.txt",
-      "sha256": "5b1f0ce4b2de05382f79044d94d96cbc008ef51984479c644dcc2f47c8af5202",
-      "subject_sha": "5e51181b3c9fdabf947da4d4d881a394d30b08ed",
-      "base_sha": "dd0fefdb8c19d9c311c15a9b1d1a3e03bfd54e97",
-      "freshness_policy": "exact-material-head",
-      "producer": "entregar-issue exact-head connector inspection",
-      "status": "passed",
-      "metric": "legacy Microcycle-derived weekly summary references in canonical PlanDetails = 0"
-    }
-  ]
+  "material_head_sha": "f474850922f5e06cdb0bf4d39efc2efe04b9e289",
+  "base_sha": "9988e04f141b76481e190dec7bcaa5a06fd57c7a",
+  "evidence": []
 }
