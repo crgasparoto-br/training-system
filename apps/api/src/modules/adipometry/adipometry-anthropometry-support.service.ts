@@ -110,9 +110,14 @@ export const adipometryAnthropometrySupportService = {
         orderBy: [{ assessmentDate: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
         include: includeSupportDetails,
       }),
-      anthropometryAssessmentId
+      anthropometryAssessmentId && completedIds.includes(anthropometryAssessmentId)
         ? prisma.anthropometryAssessment.findFirst({
-            where: { ...where, id: anthropometryAssessmentId },
+            where: {
+              id: anthropometryAssessmentId,
+              contractId,
+              alunoId,
+              assessmentDate: { lte: new Date(`${normalizedDate}T00:00:00.000Z`) },
+            },
             include: includeSupportDetails,
           })
         : Promise.resolve(null),
