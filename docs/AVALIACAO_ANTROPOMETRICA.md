@@ -69,15 +69,6 @@ Regras importantes:
 
 O gráfico de evolução é complementar. Ele permite escolher um segmento e visualizar a série histórica, mas não substitui a tabela nem cria uma segunda fonte de cálculo.
 
-## Integração com ADPT
-
-A Adipometria pode usar Antropometria como apoio. Depois da issue #382, somente avaliações antropométricas com lifecycle `COMPLETED` são elegíveis para:
-
-- seleção automática da avaliação de apoio mais recente;
-- referência explícita de avaliação antropométrica.
-
-Rascunhos nunca são tratados como histórico clínico válido pela ADPT. Uma referência explícita para avaliação não concluída é rejeitada como referência indisponível.
-
 ## Segurança e isolamento
 
 - As rotas exigem autenticação, contexto de professor e acesso à tela `physicalAssessment.protocol`.
@@ -132,6 +123,10 @@ A issue #382 deixa o histórico pronto para consumo futuro por relatórios por m
 - eventos canônicos da linha do tempo.
 
 A geração de relatórios não faz parte desta entrega.
+
+## Limites desta entrega
+
+A issue #382 altera apenas o domínio de Antropometria. Integrações ou mudanças de comportamento em Adipometria/ADPT permanecem fora de escopo e conservam o contrato anterior nesta entrega.
 
 ## Ativação operacional da conclusão
 

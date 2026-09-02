@@ -17,13 +17,13 @@ Transformar a Antropometria em histórico confiável: rascunhos editáveis, aval
 - gerar relatório clínico/gerencial;
 - criar um novo `dataScope` para `physicalAssessment.protocol`;
 - escolher automaticamente a lista inicial de medidas obrigatórias;
-- alterar os protocolos clínicos da ADPT.
+- qualquer alteração de Adipometria/ADPT;
+- novos protocolos físicos;
+- alteração automática de prescrição ou treino.
 
 ## Arquivos e módulos principais
 
 - `apps/api/src/modules/anthropometry/*`
-- `apps/api/src/modules/adipometry/adipometry-anthropometry-support.service.ts`
-- `apps/api/src/modules/adipometry/adipometry-runtime-db.ts`
 - `apps/api/prisma/migrations/20260902010000_issue_382_anthropometry_lifecycle/migration.sql`
 - `apps/web/src/pages/PhysicalAssessment/Anthropometry*`
 - `apps/web/src/hooks/useAnthropometry.ts`
@@ -39,7 +39,7 @@ Transformar a Antropometria em histórico confiável: rascunhos editáveis, aval
 - Configuração futura não retroage sobre avaliações concluídas; a conclusão preserva snapshot dos requisitos aplicados.
 - Correção de concluída exige motivo, antes/depois, ator, horário e permissão revalidada na transação.
 - Valor ausente não é zero e gráfico nunca substitui a tabela acessível.
-- A ADPT consome somente Antropometrias concluídas.
+- Adipometria/ADPT mantém o comportamento anterior, por estar fora do escopo da issue #382.
 
 ## Passos de implementação
 
@@ -50,7 +50,7 @@ Transformar a Antropometria em histórico confiável: rascunhos editáveis, aval
 - [x] Implementar correção auditada e revalidação de acesso dentro da transação.
 - [x] Calcular variações absolutas/percentuais a partir do histórico persistido.
 - [x] Manter tabela como representação principal e adicionar gráfico complementar.
-- [x] Impedir ADPT de selecionar rascunhos como fonte de apoio.
+- [x] Remover do candidato alterações acidentais em ADPT após o CI demonstrar o acoplamento fora de escopo.
 - [x] Atualizar documentação do domínio.
 - [ ] Confirmar `pnpm validate` no candidato final via CI/ambiente executável.
 - [ ] Auditoria independente após freeze do candidato, sem merge automático.
@@ -66,7 +66,7 @@ Transformar a Antropometria em histórico confiável: rascunhos editáveis, aval
 - [x] Correção exige `students.actions.manageAssessments` no middleware e na transação.
 - [x] Comparação não converte ausência em zero.
 - [x] Gráfico é complementar à tabela acessível.
-- [x] Rascunho não é elegível como apoio ADPT.
+- [x] ADPT não é alterada por esta entrega.
 - [x] Documentação foi atualizada.
 - [ ] `pnpm validate` passa no SHA final.
 
@@ -80,8 +80,7 @@ Transformar a Antropometria em histórico confiável: rascunhos editáveis, aval
 6. Com permissão, corrija valor com motivo e confirme trilha antes/depois e evento de linha do tempo.
 7. Altere a configuração obrigatória depois da conclusão e confirme que o histórico concluído permanece válido pelo snapshot anterior.
 8. Compare avaliações com valor ausente, valor anterior zero e unidade diferente; confirme ausência de percentual inválido.
-9. Abra ADPT e confirme que um rascunho ANTR não aparece como apoio elegível.
-10. Tente IDs de aluno/segmento/avaliação de outro contrato e confirme que nenhum dado é alterado ou exposto.
+9. Tente IDs de aluno/segmento/avaliação de outro contrato e confirme que nenhum dado é alterado ou exposto.
 
 ## Decisões e pendências
 
@@ -89,5 +88,6 @@ Transformar a Antropometria em histórico confiável: rascunhos editáveis, aval
 - Decisão: avaliações legadas são preservadas como concluídas com snapshot `legacy=true` e sem requisitos inventados.
 - Decisão: `physicalAssessment.protocol` não recebe `dataScope`, pois a tela não pertence ao catálogo de telas data-scoped; isolamento permanece por `contractId` e aluno.
 - Decisão: a correção usa a capacidade existente `students.actions.manageAssessments`; não foi criado novo `blockKey`.
+- Decisão: alterações de ADPT foram retiradas do candidato para preservar o fora de escopo explícito da issue #382.
 - Pendência operacional: confirmar quais segmentos o contrato deseja marcar como obrigatórios antes da primeira conclusão nova.
-- Pendência de entrega: CI/`pnpm validate` e auditoria independente ainda precisam ser observados no SHA congelado.
+- Pendência de entrega: CI/`pnpm validate`, verificação visual executável e auditoria independente ainda precisam ser observados no SHA congelado.
