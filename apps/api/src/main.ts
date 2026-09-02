@@ -45,6 +45,7 @@ import {
 import { startStudentContractLifecycleScheduler } from './modules/student-contracts/student-contract-lifecycle.scheduler.js';
 import libraryRoutes from './routes/library.routes.js';
 import studentRoutes from './routes/student.routes.js';
+import workoutRoutes from './routes/workout.routes.js';
 import { getUploadStorageRoot } from './common/asset-storage.js';
 import { createApiCorsOptions } from './common/api-cors.js';
 import {
@@ -163,6 +164,7 @@ app.get('/api/v1', (_req, res) => {
       professores: '/api/v1/professores',
       services: '/api/v1/services',
       student: '/api/v1/student',
+      workout: '/api/v1/workout',
       preRegistrationAdmin: '/api/v1/pre-registration-admin/leads',
       preRegistrationEnrollmentReview: '/api/v1/pre-registration-admin/leads/:id/enrollment-review',
       preRegistrationInvites: '/api/v1/alunos/:alunoId/pre-registration-invites',
@@ -213,6 +215,7 @@ app.use('/api/v1/professores', legacyCollaboratorContractMiddleware);
 app.use('/api/v1/professores', professorRoutes);
 app.use('/api/v1/services', serviceRoutes);
 app.use('/api/v1/student', studentRoutes);
+app.use('/api/v1/workout', workoutRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'Route not found' });
