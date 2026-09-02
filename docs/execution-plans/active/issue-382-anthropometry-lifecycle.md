@@ -52,7 +52,7 @@ Transformar a Antropometria em histórico confiável: rascunhos editáveis, aval
 - [x] Manter tabela como representação principal e adicionar gráfico complementar.
 - [x] Remover do candidato alterações acidentais em ADPT após o CI demonstrar o acoplamento fora de escopo.
 - [x] Atualizar documentação do domínio.
-- [ ] Confirmar `pnpm validate` no candidato final via CI/ambiente executável.
+- [x] Confirmar `pnpm validate` no candidato final via workflow `Validate PR` do GitHub Actions.
 - [ ] Auditoria independente após freeze do candidato, sem merge automático.
 
 ## Critérios de aceite
@@ -68,7 +68,7 @@ Transformar a Antropometria em histórico confiável: rascunhos editáveis, aval
 - [x] Gráfico é complementar à tabela acessível.
 - [x] ADPT não é alterada por esta entrega.
 - [x] Documentação foi atualizada.
-- [ ] `pnpm validate` passa no SHA final.
+- [x] `pnpm validate` passa no SHA validado pelo workflow da PR.
 
 ## Validação manual
 
@@ -90,4 +90,5 @@ Transformar a Antropometria em histórico confiável: rascunhos editáveis, aval
 - Decisão: a correção usa a capacidade existente `students.actions.manageAssessments`; não foi criado novo `blockKey`.
 - Decisão: alterações de ADPT foram retiradas do candidato para preservar o fora de escopo explícito da issue #382.
 - Pendência operacional: confirmar quais segmentos o contrato deseja marcar como obrigatórios antes da primeira conclusão nova.
-- Pendência de entrega: CI/`pnpm validate`, verificação visual executável e auditoria independente ainda precisam ser observados no SHA congelado.
+- Validação automatizada: o workflow `Validate PR` ficou verde no candidato anterior; após qualquer escrita material, o SHA corrente deve voltar a ser observado até estado terminal.
+- Pendência de entrega: verificação visual executável e auditoria independente permanecem fora da evidência automatizada atual.
