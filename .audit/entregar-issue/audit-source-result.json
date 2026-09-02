@@ -1,28 +1,36 @@
 {
   "schema_version": 1,
-  "status": "rejected",
-  "validity": "independent",
-  "rejection_id": "audit-rejection:8100eb96-4911-4b6f-984b-1b6fc5aaf75b",
-  "head_sha": "35217c3b3c5551d95b82df53061f392b4f44a185",
+  "contract_version": "2026-08-20.3",
+  "result": "REPROVADA",
+  "rejection_id": "audit-rejection:b5727de6-3a67-4e3a-aa4a-6591133fb8d1",
+  "head_sha": "102d6798658cf47ad9ec85b7fa8aaafa5a3e96d9",
+  "identity": {
+    "repository": "crgasparoto-br/training-system",
+    "issue_number": 382,
+    "pull_request_number": 420,
+    "certified_material_head_sha": "f474850922f5e06cdb0bf4d39efc2efe04b9e289",
+    "current_head_sha": "102d6798658cf47ad9ec85b7fa8aaafa5a3e96d9",
+    "base_ref": "develop",
+    "head_ref": "feat/382-anthropometry-lifecycle"
+  },
   "findings": [
     {
-      "id": "A-001",
+      "id": "AUD-420-001",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "title": "Handoff não cobre o candidato atual",
-      "cause": "O certificado existente ficou stale após escrita material e exige post-write-refreeze."
+      "summary": "Ordinary Anthropometry writes can pass a DRAFT pre-check and commit after a concurrent completion marks the assessment COMPLETED, violating completed-state immutability."
     },
     {
-      "id": "A-002",
+      "id": "AUD-420-002",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "title": "Datas calendáricas impossíveis ainda passam pela validação",
-      "cause": "Representações irmãs não reconhecidas eram delegadas ao parser permissivo de Date e podiam ser normalizadas silenciosamente."
+      "summary": "Critical delivery evidence incorrectly classified tenant-isolation and concurrency-atomicity as not applicable despite explicit contract and reachable race surfaces."
     }
   ],
-  "recommendations": []
+  "requires_refreeze": true,
+  "recovery_scope": "post-write-refreeze"
 }

@@ -1,0 +1,21 @@
+Issue #382 requirement evidence summary for material head 9529a0472b09c1e03cbbbd188c88233f7bdbc8bf
+
+Lifecycle and explicit requirements:
+- AnthropometryAssessmentLifecycle persists DRAFT/COMPLETED and completion snapshot.
+- AnthropometrySegmentCompletionRequirement persists explicit isRequired/version; completion rejects missing explicit configuration and snapshots requirement versions.
+- migration preserves legacy assessments as COMPLETED with legacy snapshot rather than inventing required measures.
+
+Correction and history:
+- correctCompletedAnthropometry revalidates manageAssessments inside a serializable transaction, locks lifecycle, uses transaction-local correction bypass, captures before/after, reason and actor, inserts correction audit and canonical timeline event.
+
+Comparison and UI:
+- anthropometry variation helpers preserve missing values as null and percentage is null for zero baseline.
+- comparison table remains the accessible primary representation; evolution chart is complementary.
+
+Security:
+- assessment/segment queries are contractId-scoped.
+- cross-tenant integration control passes on PostgreSQL.
+- completion/correction backend authorization remains authoritative.
+
+Regression:
+- Validate PR run 33649354392 is success for migrations, type-check, lint, test, build, browser, architecture, access and documentation gates.

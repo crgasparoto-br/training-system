@@ -1,0 +1,21 @@
+Issue #382 / PR #420 material verification
+Material head: 9529a0472b09c1e03cbbbd188c88233f7bdbc8bf
+Base: develop @ 9988e04f141b76481e190dec7bcaa5a06fd57c7a
+Validate PR run: 33649354392 (#7490)
+Job: Validate repository 100312100805
+Conclusion: success
+
+Exact-head successful gates observed remotely:
+- Apply test database migrations
+- Verify lifecycle legacy backfill
+- Verify lifecycle migration rerun
+- Type check
+- Lint
+- Test
+- Build
+- Validate settings parameters in real browser
+- Architecture checks
+- Access catalog checks
+- Documentation checks
+
+Workflow sets RUN_DATABASE_INTEGRATION_TESTS=true and PostgreSQL 16 for the Test step, so database integration tests in apps/api/tests execute in the authoritative CI environment.

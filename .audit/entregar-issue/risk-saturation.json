@@ -1,22 +1,22 @@
 {
   "schema_version": 1,
-  "head_sha": "f474850922f5e06cdb0bf4d39efc2efe04b9e289",
+  "head_sha": "9529a0472b09c1e03cbbbd188c88233f7bdbc8bf",
   "families": [
     {
       "family": "authorization",
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-REQ-ERROR-STATES-OBL-029",
-        "NEG-REQ-SECURITY-OBL-019"
+        "NEG-REQ-TENANT-AUTH-OBL-019",
+        "NEG-REQ-TEST-COVERAGE-OBL-029"
       ],
       "dimensions": [
         {
-          "surface": "api-authorization",
-          "reason": "The frozen candidate exposes authorization behavior on the api-authorization surface and a plausible alternate implementation could bypass it.",
+          "surface": "backend-authorization",
+          "reason": "authorization é material para REQ-TEST-COVERAGE e requer ataque discriminante no boundary backend-authorization.",
           "control_ids": [
-            "NEG-REQ-ERROR-STATES-OBL-029",
-            "NEG-REQ-SECURITY-OBL-019"
+            "NEG-REQ-TENANT-AUTH-OBL-019",
+            "NEG-REQ-TEST-COVERAGE-OBL-029"
           ],
           "status": "passed"
         }
@@ -25,11 +25,22 @@
     },
     {
       "family": "tenant-isolation",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-REQ-TENANT-AUTH-TENANT-ISOLATION-TENANT-SCOPE-ISOLATION"
+      ],
+      "dimensions": [
+        {
+          "surface": "tenant-scope-isolation",
+          "reason": "tenant-isolation é material para REQ-TENANT-AUTH e requer ataque discriminante no boundary tenant-scope-isolation.",
+          "control_ids": [
+            "NEG-REQ-TENANT-AUTH-TENANT-ISOLATION-TENANT-SCOPE-ISOLATION"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "public-boundary",
@@ -44,16 +55,16 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-REQ-REQUIREMENTS-OBL-013",
-        "NEG-REQ-REQUIREMENTS-OBL-022"
+        "NEG-REQ-REQUIRED-CONFIG-OBL-013",
+        "NEG-REQ-REQUIRED-CONFIG-OBL-022"
       ],
       "dimensions": [
         {
-          "surface": "requirement-reference",
-          "reason": "The frozen candidate exposes reference-liveness behavior on the requirement-reference surface and a plausible alternate implementation could bypass it.",
+          "surface": "configuration-liveness",
+          "reason": "reference-liveness é material para REQ-REQUIRED-CONFIG e requer ataque discriminante no boundary configuration-liveness.",
           "control_ids": [
-            "NEG-REQ-REQUIREMENTS-OBL-013",
-            "NEG-REQ-REQUIREMENTS-OBL-022"
+            "NEG-REQ-REQUIRED-CONFIG-OBL-013",
+            "NEG-REQ-REQUIRED-CONFIG-OBL-022"
           ],
           "status": "passed"
         }
@@ -65,16 +76,18 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-REQ-CORRECTION-SURF-03",
-        "NEG-REQ-REQUIREMENTS-OBL-003",
-        "NEG-REQ-REQUIREMENTS-OBL-031"
+        "NEG-REQ-CORRECTION-TEMPORAL-CONSISTENCY-LIFECYCLE-TIME-SEMANTICS",
+        "NEG-REQ-LIFECYCLE-TEMPORAL-CONSISTENCY-REPORTING-AVAILABILITY-WINDOW",
+        "NEG-REQ-REQUIRED-CONFIG-OBL-003",
+        "NEG-REQ-REQUIRED-CONFIG-OBL-031"
       ],
       "dimensions": [
         {
-          "surface": "lifecycle-time",
-          "reason": "The frozen candidate exposes temporal-consistency behavior on the lifecycle-time surface and a plausible alternate implementation could bypass it.",
+          "surface": "lifecycle-time-semantics",
+          "reason": "temporal-consistency é material para REQ-REQUIRED-CONFIG e requer ataque discriminante no boundary lifecycle-time-semantics.",
           "control_ids": [
-            "NEG-REQ-CORRECTION-SURF-03"
+            "NEG-REQ-CORRECTION-TEMPORAL-CONSISTENCY-LIFECYCLE-TIME-SEMANTICS",
+            "NEG-REQ-REQUIRED-CONFIG-OBL-003"
           ],
           "status": "passed"
         },
@@ -82,8 +95,8 @@
           "surface": "reporting-availability-window",
           "reason": "A report can label a requested window complete even when retention or source availability makes only a suffix of that window observable.",
           "control_ids": [
-            "NEG-REQ-REQUIREMENTS-OBL-003",
-            "NEG-REQ-REQUIREMENTS-OBL-031"
+            "NEG-REQ-LIFECYCLE-TEMPORAL-CONSISTENCY-REPORTING-AVAILABILITY-WINDOW",
+            "NEG-REQ-REQUIRED-CONFIG-OBL-031"
           ],
           "status": "passed"
         }
@@ -100,11 +113,22 @@
     },
     {
       "family": "concurrency-atomicity",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-REQ-IMMUTABILITY-CONCURRENCY-ATOMICITY-LIFECYCLE-WRITE-SERIALIZATION"
+      ],
+      "dimensions": [
+        {
+          "surface": "lifecycle-write-serialization",
+          "reason": "concurrency-atomicity é material para REQ-IMMUTABILITY e requer ataque discriminante no boundary lifecycle-write-serialization.",
+          "control_ids": [
+            "NEG-REQ-IMMUTABILITY-CONCURRENCY-ATOMICITY-LIFECYCLE-WRITE-SERIALIZATION"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "idempotency",
@@ -127,14 +151,14 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-REQ-LIFECYCLE-OBL-024"
+        "NEG-REQ-IMMUTABILITY-OBL-024"
       ],
       "dimensions": [
         {
-          "surface": "assessment-history",
-          "reason": "The frozen candidate exposes historical-immutability behavior on the assessment-history surface and a plausible alternate implementation could bypass it.",
+          "surface": "completed-history",
+          "reason": "historical-immutability é material para REQ-IMMUTABILITY e requer ataque discriminante no boundary completed-history.",
           "control_ids": [
-            "NEG-REQ-LIFECYCLE-OBL-024"
+            "NEG-REQ-IMMUTABILITY-OBL-024"
           ],
           "status": "passed"
         }
@@ -147,8 +171,9 @@
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
         "NEG-REQ-CORRECTION-OBL-025",
-        "NEG-REQ-DOCUMENTATION-SURF-02",
-        "NEG-REQ-REQUIREMENTS-OBL-011"
+        "NEG-REQ-CORRECTION-STRUCTURAL-CONTRACT-EXPLICIT-DOMAIN-CONTRACT",
+        "NEG-REQ-REQUIRED-CONFIG-OBL-011",
+        "NEG-REQ-TEST-COVERAGE-STRUCTURAL-CONTRACT-EXPLICIT-DOMAIN-CONTRACT"
       ],
       "dimensions": [
         {
@@ -160,11 +185,12 @@
           "status": "passed"
         },
         {
-          "surface": "runtime-boundary",
-          "reason": "The frozen candidate exposes structural-contract behavior on the runtime-boundary surface and a plausible alternate implementation could bypass it.",
+          "surface": "explicit-domain-contract",
+          "reason": "structural-contract é material para REQ-TEST-COVERAGE e requer ataque discriminante no boundary explicit-domain-contract.",
           "control_ids": [
-            "NEG-REQ-DOCUMENTATION-SURF-02",
-            "NEG-REQ-REQUIREMENTS-OBL-011"
+            "NEG-REQ-CORRECTION-STRUCTURAL-CONTRACT-EXPLICIT-DOMAIN-CONTRACT",
+            "NEG-REQ-REQUIRED-CONFIG-OBL-011",
+            "NEG-REQ-TEST-COVERAGE-STRUCTURAL-CONTRACT-EXPLICIT-DOMAIN-CONTRACT"
           ],
           "status": "passed"
         }
@@ -177,17 +203,17 @@
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
         "NEG-REQ-DOCUMENTATION-OBL-030",
-        "NEG-REQ-DOCUMENTATION-OBL-032",
-        "NEG-REQ-REQUIREMENTS-SURF-01"
+        "NEG-REQ-REQUIRED-CONFIG-DOCUMENTATION-CANONICAL-CLAIMS",
+        "NEG-REQ-TEST-COVERAGE-OBL-032"
       ],
       "dimensions": [
         {
           "surface": "canonical-claims",
-          "reason": "The frozen candidate exposes documentation behavior on the canonical-claims surface and a plausible alternate implementation could bypass it.",
+          "reason": "documentation é material para REQ-TEST-COVERAGE e requer ataque discriminante no boundary canonical-claims.",
           "control_ids": [
             "NEG-REQ-DOCUMENTATION-OBL-030",
-            "NEG-REQ-DOCUMENTATION-OBL-032",
-            "NEG-REQ-REQUIREMENTS-SURF-01"
+            "NEG-REQ-REQUIRED-CONFIG-DOCUMENTATION-CANONICAL-CLAIMS",
+            "NEG-REQ-TEST-COVERAGE-OBL-032"
           ],
           "status": "passed"
         }

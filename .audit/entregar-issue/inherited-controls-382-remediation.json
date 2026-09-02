@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "head_sha": "9529a0472b09c1e03cbbbd188c88233f7bdbc8bf",
+  "source_audits": [
+    {
+      "rejection_id": "audit-rejection:b5727de6-3a67-4e3a-aa4a-6591133fb8d1",
+      "head_sha": "102d6798658cf47ad9ec85b7fa8aaafa5a3e96d9",
+      "finding_ids": [
+        "AUD-420-001",
+        "AUD-420-002"
+      ]
+    }
+  ],
+  "controls": [
+    {
+      "id": "CTRL-382-ATOMIC-SERIALIZATION",
+      "source_finding_id": "AUD-420-001",
+      "status": "passed",
+      "head_sha": "9529a0472b09c1e03cbbbd188c88233f7bdbc8bf",
+      "subject_sha": "9529a0472b09c1e03cbbbd188c88233f7bdbc8bf",
+      "control_type": "test",
+      "procedure": "Run the two-connection writer-versus-completion integration case and hold the writer until completion has attempted to acquire the lifecycle row lock.",
+      "expected": "Completion waits for the draft write, reads the committed value, and no ordinary mutation succeeds after COMPLETED.",
+      "observed": "The writer completed first, completion observed the committed required value, and the next ordinary value update was rejected after COMPLETED.",
+      "evidence": ".audit/entregar-issue/evidence/atomic-immutability-382.txt",
+      "evidence_sha256": "a24b7a47c3819538a5297306f156aefec8b00797d760a280606eabfbcf8bfebe",
+      "attack_control_id": "NEG-REQ-IMMUTABILITY-CONCURRENCY-ATOMICITY-LIFECYCLE-WRITE-SERIALIZATION",
+      "risk_family": "concurrency-atomicity",
+      "surface": "lifecycle-write-serialization",
+      "dimension": "concurrency-atomicity-boundary"
+    },
+    {
+      "id": "CTRL-382-COMPLETED-HISTORY",
+      "source_finding_id": "AUD-420-001",
+      "status": "passed",
+      "head_sha": "9529a0472b09c1e03cbbbd188c88233f7bdbc8bf",
+      "subject_sha": "9529a0472b09c1e03cbbbd188c88233f7bdbc8bf",
+      "control_type": "test",
+      "procedure": "Complete an assessment, then attempt ordinary header, measurement and observation mutations and reread the persisted assessment.",
+      "expected": "Every ordinary mutation is rejected and all completed historical fields retain their prior values.",
+      "observed": "Header update, measurement update and observation delete were rejected; persisted notes, value and observation remained at the completed values.",
+      "evidence": ".audit/entregar-issue/evidence/atomic-immutability-382.txt",
+      "evidence_sha256": "a24b7a47c3819538a5297306f156aefec8b00797d760a280606eabfbcf8bfebe",
+      "attack_control_id": "NEG-REQ-IMMUTABILITY-OBL-024",
+      "risk_family": "historical-immutability",
+      "surface": "completed-history",
+      "dimension": "obligation-obl-024"
+    },
+    {
+      "id": "CTRL-382-TENANT-ISOLATION",
+      "source_finding_id": "AUD-420-002",
+      "status": "passed",
+      "head_sha": "9529a0472b09c1e03cbbbd188c88233f7bdbc8bf",
+      "subject_sha": "9529a0472b09c1e03cbbbd188c88233f7bdbc8bf",
+      "control_type": "test",
+      "procedure": "Create two deliberately distinct contractId tenants, try tenant B segment injection into tenant A assessment, then read tenant A assessment through tenant B scope.",
+      "expected": "Cross-tenant segment mutation is rejected, cross-tenant assessment lookup returns no record, and no foreign segment value is persisted.",
+      "observed": "The segment injection returned INVALID_SEGMENT, the other-tenant assessment read returned null, and foreign persisted row count stayed zero.",
+      "evidence": ".audit/entregar-issue/evidence/tenant-isolation-382.txt",
+      "evidence_sha256": "f2b016a1a75ec2e902a933ba446fce64a64797f43db811d72c2442c9ccf87da3",
+      "attack_control_id": "NEG-REQ-TENANT-AUTH-TENANT-ISOLATION-TENANT-SCOPE-ISOLATION",
+      "risk_family": "tenant-isolation",
+      "surface": "tenant-scope-isolation",
+      "dimension": "tenant-isolation-boundary"
+    }
+  ],
+  "retired_controls": [],
+  "unresolved_controls": []
+}

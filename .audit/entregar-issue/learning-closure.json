@@ -3,15 +3,16 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:8100eb96-4911-4b6f-984b-1b6fc5aaf75b",
+    "rejection_id": "audit-rejection:b5727de6-3a67-4e3a-aa4a-6591133fb8d1",
+    "audit_report_sha256": "58c056409d4ceb8edc1d0d16be05f5e2f3a574f5e4be0097fa5cd5b0c203f018",
     "finding_ids": [
-      "A-001",
-      "A-002"
-    ],
-    "audit_report_sha256": "4f0938d345fd3da73a00ff3bcc07d2010bbd7accce465f5da4f1abfa89177f58"
+      "AUD-420-001",
+      "AUD-420-002"
+    ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The rejection remains targeted: terminal refreeze guards already exist globally and the parser bypass is local to the workout date boundary. The current remediation extends repository regression coverage without creating a duplicate global learning event."
-  }
+    "reason": "The rejection exposed a target-specific lifecycle TOCTOU defect and an incomplete evidence classification in this delivery. The durable fix is implemented and tested in the product and current delivery package; no new global skill rule is needed."
+  },
+  "skill_changes": []
 }

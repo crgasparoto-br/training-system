@@ -1,0 +1,5 @@
+AUD-420-002 tenant-isolation closure on material head 9529a0472b09c1e03cbbbd188c88233f7bdbc8bf
+
+The integration test seeds two distinct CompanyContract tenants. It deliberately supplies tenant B's AnthropometrySegment while mutating tenant A's assessment through anthropometryService.saveValues. Expected and observed behavior: INVALID_SEGMENT, no cross-tenant value persisted. It then requests tenant A's assessment using tenant B's contractId; expected and observed behavior: null, with zero foreign segment rows persisted.
+
+The authoritative Validate PR workflow sets RUN_DATABASE_INTEGRATION_TESTS=true and Test completed success in run 33649354392.
