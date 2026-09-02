@@ -270,20 +270,9 @@ export async function getAdipometryAnthropometrySupport(
   assessmentDate: string,
   linkedId: string | null
 ) {
-  const completedRows = await client.$queryRaw<Array<{ assessmentId: string }>>(Prisma.sql`
-    SELECT lifecycle."assessmentId"
-    FROM "AnthropometryAssessmentLifecycle" lifecycle
-    WHERE lifecycle."contractId" = ${contractId}
-      AND lifecycle."alunoId" = ${alunoId}
-      AND lifecycle."status" = 'COMPLETED'
-  `);
-  const completedIds = completedRows.map((row) => row.assessmentId);
-  if (!completedIds.length) return { latestEligible: null, linked: null };
-
   const [latestEligible, linked] = await Promise.all([
     client.anthropometryAssessment.findFirst({
       where: {
-        id: { in: completedIds },
         contractId,
         alunoId,
         assessmentDate: { lte: adipometryDateOnlyToDate(assessmentDate) },
@@ -291,7 +280,7 @@ export async function getAdipometryAnthropometrySupport(
       orderBy: [{ assessmentDate: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
       select: { id: true, code: true, assessmentDate: true },
     }),
-    linkedId && completedIds.includes(linkedId)
+    linkedId
       ? client.anthropometryAssessment.findFirst({
           where: { id: linkedId, contractId, alunoId },
           select: { id: true, code: true, assessmentDate: true },
