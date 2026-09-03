@@ -1,0 +1,22 @@
+Issue 382 / PR 420 exact-material evidence
+repository=crgasparoto-br/training-system
+base_ref=develop
+base_sha=9988e04f141b76481e190dec7bcaa5a06fd57c7a
+material_head_sha=c78ce0c9e6a7e2ac2e72364c1046543eb8da6c7f
+merge_preview_sha=983c26ba41363b832e58f71287b97c1d73198461
+workflow=Validate PR
+run_id=33679453643
+run_number=7494
+job_id=100412219289
+workflow_conclusion=success
+test_artifact_digest_sha256=cb866abed92de7ffbec650f404619c0d57f266b8f3eac9c80205f0faa6fafedd
+test_output_log_sha256=55423b90c9c3be207aacfeaeeb5c7f7a331ce6664f2da8ebfbed584d1aabef25
+workflow_attestation_sha256=dcf1f36317f4247f619b4914996578695366b3ea64f22a4d2639324e8de612d8
+
+AUD-420-003 targeted remediation evidence:
+1. Authorized official flow: correctCompletedAnthropometry is called with the assessment contract, user and professor actor; the test verifies corrected notes/value/observation and one AnthropometryAssessmentCorrection row.
+2. Audit preservation: that row is verified for reason, actorUserId, actorProfessorId, createdAt, beforeSnapshot and afterSnapshot.
+3. Timeline uniqueness: after the first correction there is exactly one anthropometry corrected timeline event with correctionId/eventKey; replaying the same semantic correction is rejected with CORRECTION_WITHOUT_CHANGES and both correction-audit and timeline counts remain exactly one.
+4. Unauthorized official flow: a professor without students.actions.manageAssessments is rejected with AnthropometryCorrectionAccessError; notes, values and observations remain unchanged and both correction-audit and correction-timeline counts remain zero.
+5. Execution evidence: test-output.log from Validate PR run 33679453643 reports PASS tests/anthropometry-completion-concurrency.integration.test.ts.
+This closes the missing automated contract proof identified by AUD-420-003 without altering production code.

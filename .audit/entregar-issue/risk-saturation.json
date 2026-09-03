@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "9529a0472b09c1e03cbbbd188c88233f7bdbc8bf",
+  "head_sha": "c78ce0c9e6a7e2ac2e72364c1046543eb8da6c7f",
   "families": [
     {
       "family": "authorization",
@@ -173,6 +173,12 @@
         "NEG-REQ-CORRECTION-OBL-025",
         "NEG-REQ-CORRECTION-STRUCTURAL-CONTRACT-EXPLICIT-DOMAIN-CONTRACT",
         "NEG-REQ-REQUIRED-CONFIG-OBL-011",
+        "NEG-REQ-TEST-COVERAGE-AUD420003-AUDIT-SNAPSHOT",
+        "NEG-REQ-TEST-COVERAGE-AUD420003-AUTHORIZED",
+        "NEG-REQ-TEST-COVERAGE-AUD420003-TIMELINE-NODUP",
+        "NEG-REQ-TEST-COVERAGE-AUD420003-UNAUTHORIZED",
+        "NEG-REQ-TEST-COVERAGE-AUD420004-CLOSURE-MATERIAL-BINDING",
+        "NEG-REQ-TEST-COVERAGE-AUD420004-CLOSURE-REMEDIATION-BINDING",
         "NEG-REQ-TEST-COVERAGE-STRUCTURAL-CONTRACT-EXPLICIT-DOMAIN-CONTRACT"
       ],
       "dimensions": [
@@ -191,6 +197,26 @@
             "NEG-REQ-CORRECTION-STRUCTURAL-CONTRACT-EXPLICIT-DOMAIN-CONTRACT",
             "NEG-REQ-REQUIRED-CONFIG-OBL-011",
             "NEG-REQ-TEST-COVERAGE-STRUCTURAL-CONTRACT-EXPLICIT-DOMAIN-CONTRACT"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "handoff-closure-freshness",
+          "reason": "A remediation can fix product evidence while leaving the certified requirement closure bound to an ancestral material SHA; the terminal package must prove exact-material and post-remediation evidence binding.",
+          "control_ids": [
+            "NEG-REQ-TEST-COVERAGE-AUD420004-CLOSURE-MATERIAL-BINDING",
+            "NEG-REQ-TEST-COVERAGE-AUD420004-CLOSURE-REMEDIATION-BINDING"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "specified-test-matrix",
+          "reason": "The issue explicitly requires permission/error test coverage and enumerates correction/timeline scenarios; direct persistence tests alone can miss the official service boundary.",
+          "control_ids": [
+            "NEG-REQ-TEST-COVERAGE-AUD420003-AUDIT-SNAPSHOT",
+            "NEG-REQ-TEST-COVERAGE-AUD420003-AUTHORIZED",
+            "NEG-REQ-TEST-COVERAGE-AUD420003-TIMELINE-NODUP",
+            "NEG-REQ-TEST-COVERAGE-AUD420003-UNAUTHORIZED"
           ],
           "status": "passed"
         }

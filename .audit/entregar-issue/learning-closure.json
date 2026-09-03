@@ -3,16 +3,15 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:b5727de6-3a67-4e3a-aa4a-6591133fb8d1",
-    "audit_report_sha256": "58c056409d4ceb8edc1d0d16be05f5e2f3a574f5e4be0097fa5cd5b0c203f018",
+    "rejection_id": "audit-rejection:50dcd16f-212f-4129-a908-558b80cf8aad",
+    "audit_report_sha256": "4249d2d2fb7d7e47b7ff3071106da3fd0b298347f39bd02f09a139da71a442fa",
     "finding_ids": [
-      "AUD-420-001",
-      "AUD-420-002"
+      "AUD-420-004"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The rejection exposed a target-specific lifecycle TOCTOU defect and an incomplete evidence classification in this delivery. The durable fix is implemented and tested in the product and current delivery package; no new global skill rule is needed."
+    "reason": "The independent audit classified this as targeted remediation of the current delivery package: the material implementation was already green, while a target-specific requirement closure retained an ancestral SHA. The current package adds exact-material and post-remediation closure controls without changing the global Skill."
   },
   "skill_changes": []
 }

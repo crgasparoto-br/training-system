@@ -1,15 +1,20 @@
-AUD-420-001 closure on material head 9529a0472b09c1e03cbbbd188c88233f7bdbc8bf
+Issue 382 / PR 420 exact-material evidence
+repository=crgasparoto-br/training-system
+base_ref=develop
+base_sha=9988e04f141b76481e190dec7bcaa5a06fd57c7a
+material_head_sha=c78ce0c9e6a7e2ac2e72364c1046543eb8da6c7f
+merge_preview_sha=983c26ba41363b832e58f71287b97c1d73198461
+workflow=Validate PR
+run_id=33679453643
+run_number=7494
+job_id=100412219289
+workflow_conclusion=success
+test_artifact_digest_sha256=cb866abed92de7ffbec650f404619c0d57f266b8f3eac9c80205f0faa6fafedd
+test_output_log_sha256=55423b90c9c3be207aacfeaeeb5c7f7a331ce6664f2da8ebfbed584d1aabef25
+workflow_attestation_sha256=dcf1f36317f4247f619b4914996578695366b3ea64f22a4d2639324e8de612d8
 
-Persistence prevention:
-- migration 20260902150000_issue_382_anthropometry_atomic_immutability installs BEFORE mutation guards on AnthropometryAssessment, AnthropometryAssessmentValue and AnthropometryObservation.
-- ordinary mutations acquire FOR UPDATE on AnthropometryAssessmentLifecycle and reject status COMPLETED.
-- completion acquires the same lifecycle row lock before reading mutable assessment values, creating one serialization point for edit-vs-complete races.
-- audited correction sets app.anthropometry_correction=true only with transaction-local set_config after authorization and lifecycle lock, then commits audit/timeline effects in the same transaction.
-
-Discriminant PostgreSQL integration controls in apps/api/tests/anthropometry-completion-concurrency.integration.test.ts:
-1. completed header update, value update and observation delete are all rejected and persisted values remain unchanged;
-2. correction marker permits the intended audited transaction but does not leak after commit;
-3. a writer holding the lifecycle lock commits its draft value before completion can acquire the lock/read the required value; subsequent ordinary write after completion is rejected;
-4. cross-contract segment injection is rejected, another contract cannot read the assessment, and no foreign segment value is persisted.
-
-Validate PR run 33649354392 executed tests with RUN_DATABASE_INTEGRATION_TESTS=true against PostgreSQL 16 and the Test step completed success.
+Inherited atomicity and historical-immutability controls revalidated on exact head:
+- The passing database integration file contains the two-connection draft-writer versus completion serialization case.
+- It also attempts ordinary completed assessment header/value/observation mutations and verifies they are rejected while persisted completed history remains unchanged.
+- The audited correction transaction marker remains transaction-local; a subsequent ordinary mutation is rejected.
+- No production persistence code changed in the AUD-420-003 remediation commit; the full exact-head integration suite passed.

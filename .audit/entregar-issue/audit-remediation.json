@@ -3,55 +3,41 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:b5727de6-3a67-4e3a-aa4a-6591133fb8d1",
-    "audit_report_sha256": "58c056409d4ceb8edc1d0d16be05f5e2f3a574f5e4be0097fa5cd5b0c203f018",
-    "audited_head_sha": "102d6798658cf47ad9ec85b7fa8aaafa5a3e96d9"
+    "rejection_id": "audit-rejection:50dcd16f-212f-4129-a908-558b80cf8aad",
+    "audit_report_sha256": "4249d2d2fb7d7e47b7ff3071106da3fd0b298347f39bd02f09a139da71a442fa",
+    "audited_head_sha": "b33f6312e98c97a33af289040c4851c9a2bf97f7"
   },
-  "candidate_head_sha": "9529a0472b09c1e03cbbbd188c88233f7bdbc8bf",
+  "candidate_head_sha": "c78ce0c9e6a7e2ac2e72364c1046543eb8da6c7f",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "AUD-420-001",
+      "source_id": "AUD-420-004",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "closure_kind": "behavioral-fix",
       "changed_files": [
-        "apps/api/prisma/migrations/20260902150000_issue_382_anthropometry_atomic_immutability/migration.sql",
-        "apps/api/src/modules/anthropometry/anthropometry-completion.service.ts",
-        "apps/api/src/modules/anthropometry/anthropometry-correction.service.ts",
-        "apps/api/tests/anthropometry-completion-concurrency.integration.test.ts"
+        ".audit/entregar-issue/requirement-closure.json",
+        ".audit/entregar-issue/requirement-attack-matrix.json",
+        ".audit/entregar-issue/risk-saturation.json",
+        ".audit/entregar-issue/inherited-controls-382-remediation.json",
+        ".audit/entregar-issue/audit-escape-closure-382-remediation.json",
+        ".audit/entregar-issue/learning-closure.json",
+        ".audit/entregar-issue/audit-remediation.json",
+        ".audit/entregar-issue/audit-source-result.json",
+        ".audit/entregar-issue/evidence/audit-420-004-requirement-closure-freshness-382.txt",
+        ".audit/entregar-issue/handoff-ready.json"
       ],
       "evidence": [
-        ".audit/entregar-issue/evidence/atomic-immutability-382.txt",
+        ".audit/entregar-issue/evidence/audit-420-004-requirement-closure-freshness-382.txt",
+        ".audit/entregar-issue/evidence/audit-420-003-correction-tests-382.txt",
         ".audit/entregar-issue/evidence/material-verification-382.txt"
       ],
       "validations": [
-        "Persistence triggers reject header, value and observation mutation after COMPLETED outside the audited correction transaction.",
-        "Completion and ordinary writes acquire the same lifecycle FOR UPDATE lock so a DRAFT write cannot cross the completion boundary.",
-        "Database integration controls exercise multiple Prisma connections and verify the post-completion state is unchanged."
-      ]
-    },
-    {
-      "source_kind": "finding",
-      "source_id": "AUD-420-002",
-      "remediation_mode": "targeted-remediation",
-      "status": "fixed",
-      "closure_kind": "behavioral-fix",
-      "changed_files": [
-        "apps/api/tests/anthropometry-completion-concurrency.integration.test.ts",
-        ".audit/entregar-issue/requirement-attack-matrix.json",
-        ".audit/entregar-issue/risk-saturation.json",
-        ".audit/entregar-issue/inherited-controls-382-remediation.json"
-      ],
-      "evidence": [
-        ".audit/entregar-issue/evidence/tenant-isolation-382.txt",
-        ".audit/entregar-issue/evidence/atomic-immutability-382.txt"
-      ],
-      "validations": [
-        "tenant-isolation is rederived as applicable with a distinct two-tenant negative control.",
-        "concurrency-atomicity is rederived as applicable with a deterministic lifecycle serialization control.",
-        "Critical saturation references controls for every applicable family and leaves material_families_missing_controls empty."
+        "All 32 obligation rationales now bind to exact material head c78ce0c9e6a7e2ac2e72364c1046543eb8da6c7f and contain zero references to rejected ancestor 9529a0472b09c1e03cbbbd188c88233f7bdbc8bf.",
+        "OBL-029 and OBL-032 explicitly incorporate the post-remediation official correction-flow evidence and Validate PR #7494.",
+        "Two structural-contract closure-freshness controls execute on the current material identity.",
+        "No product/material path changed; recovery remains handoff-only and the material CI remains green."
       ]
     }
   ],

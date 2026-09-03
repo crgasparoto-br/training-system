@@ -1,5 +1,20 @@
-AUD-420-002 tenant-isolation closure on material head 9529a0472b09c1e03cbbbd188c88233f7bdbc8bf
+Issue 382 / PR 420 exact-material evidence
+repository=crgasparoto-br/training-system
+base_ref=develop
+base_sha=9988e04f141b76481e190dec7bcaa5a06fd57c7a
+material_head_sha=c78ce0c9e6a7e2ac2e72364c1046543eb8da6c7f
+merge_preview_sha=983c26ba41363b832e58f71287b97c1d73198461
+workflow=Validate PR
+run_id=33679453643
+run_number=7494
+job_id=100412219289
+workflow_conclusion=success
+test_artifact_digest_sha256=cb866abed92de7ffbec650f404619c0d57f266b8f3eac9c80205f0faa6fafedd
+test_output_log_sha256=55423b90c9c3be207aacfeaeeb5c7f7a331ce6664f2da8ebfbed584d1aabef25
+workflow_attestation_sha256=dcf1f36317f4247f619b4914996578695366b3ea64f22a4d2639324e8de612d8
 
-The integration test seeds two distinct CompanyContract tenants. It deliberately supplies tenant B's AnthropometrySegment while mutating tenant A's assessment through anthropometryService.saveValues. Expected and observed behavior: INVALID_SEGMENT, no cross-tenant value persisted. It then requests tenant A's assessment using tenant B's contractId; expected and observed behavior: null, with zero foreign segment rows persisted.
-
-The authoritative Validate PR workflow sets RUN_DATABASE_INTEGRATION_TESTS=true and Test completed success in run 33649354392.
+Inherited tenant-isolation control revalidated on exact head:
+- The passing database integration file creates distinct contractId tenants.
+- Cross-tenant segment injection into another tenant assessment is rejected with INVALID_SEGMENT.
+- Reading the assessment through the foreign contract scope returns null and no foreign segment value is persisted.
+- No production tenant-scoping code changed in the AUD-420-003 remediation commit; the full exact-head integration suite passed.

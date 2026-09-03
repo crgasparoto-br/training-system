@@ -2,35 +2,28 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "result": "REPROVADA",
-  "rejection_id": "audit-rejection:b5727de6-3a67-4e3a-aa4a-6591133fb8d1",
-  "head_sha": "102d6798658cf47ad9ec85b7fa8aaafa5a3e96d9",
+  "rejection_id": "audit-rejection:50dcd16f-212f-4129-a908-558b80cf8aad",
+  "head_sha": "b33f6312e98c97a33af289040c4851c9a2bf97f7",
   "identity": {
     "repository": "crgasparoto-br/training-system",
     "issue_number": 382,
     "pull_request_number": 420,
-    "certified_material_head_sha": "f474850922f5e06cdb0bf4d39efc2efe04b9e289",
-    "current_head_sha": "102d6798658cf47ad9ec85b7fa8aaafa5a3e96d9",
+    "certified_material_head_sha": "c78ce0c9e6a7e2ac2e72364c1046543eb8da6c7f",
+    "current_head_sha": "b33f6312e98c97a33af289040c4851c9a2bf97f7",
     "base_ref": "develop",
     "head_ref": "feat/382-anthropometry-lifecycle"
   },
   "findings": [
     {
-      "id": "AUD-420-001",
+      "id": "AUD-420-004",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "summary": "Ordinary Anthropometry writes can pass a DRAFT pre-check and commit after a concurrent completion marks the assessment COMPLETED, violating completed-state immutability."
-    },
-    {
-      "id": "AUD-420-002",
-      "disposition": "blocking",
-      "status": "open",
-      "actionable": true,
-      "remediation_mode": "targeted-remediation",
-      "summary": "Critical delivery evidence incorrectly classified tenant-isolation and concurrency-atomicity as not applicable despite explicit contract and reachable race surfaces."
+      "summary": "The terminal requirement closure remained byte-identical to the previously rejected attempt and its 32 obligation rationales cited ancestral material 9529a047..., so the handoff was stale after the AUD-420-003 remediation."
     }
   ],
-  "requires_refreeze": true,
-  "recovery_scope": "post-write-refreeze"
+  "requires_refreeze": false,
+  "recovery_scope": "handoff-only",
+  "reason": "handoff-stale"
 }

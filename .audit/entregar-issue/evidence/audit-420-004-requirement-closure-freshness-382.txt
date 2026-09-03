@@ -1,0 +1,17 @@
+AUD-420-004 requirement-closure freshness remediation
+repository=crgasparoto-br/training-system
+issue=382
+pr=420
+stale_published_head=b33f6312e98c97a33af289040c4851c9a2bf97f7
+material_head=c78ce0c9e6a7e2ac2e72364c1046543eb8da6c7f
+source_rejection=audit-rejection:50dcd16f-212f-4129-a908-558b80cf8aad
+source_finding=AUD-420-004
+previous_obligation_rationales_with_ancestor_sha=32
+regenerated_artifact_ancestor_sha_occurrences=0
+regenerated_artifact_material_sha_occurrences=32
+requirement_closure_sha256=727d9faf4d1a51411f867356eef02aaf4053232221e41dadefe346dfd8570e81
+control_1=PASS all covered obligation rationales were rebound from the ancestor material SHA to the exact material head.
+control_2=PASS OBL-029 explicitly binds error/permission coverage to the official post-remediation correction evidence and Validate PR #7494.
+control_3=PASS OBL-032 explicitly binds the required full validation set to Validate PR #7494 on the exact material head.
+material_product_change=none; recovery_scope=handoff-only
+result=PASS
