@@ -501,3 +501,55 @@ Pre-condicoes futuras:
 - prevencao de duplicidade;
 - consentimento e revogacao;
 - observabilidade e auditoria;
+- aprovacao nos programas oficiais quando aplicavel.
+
+## Proximas epics recomendadas
+
+1. Experiencia de treinamento do aluno na Central.
+2. Catalogo interno de templates versionados.
+3. Sessao ciclica estruturada.
+4. Sessao resistida por blocos, series e agrupamentos.
+5. Check-in, execucao e feedback persistidos.
+6. Treinamento combinado, conflitos e substituicoes.
+7. Indicadores individuais e revisao validada.
+8. Agenda, frequencia e comunicacao contextual.
+
+Cada epic deve declarar:
+
+- classificacao Central, Administracao ou Hibrida;
+- aluno e `contractId`;
+- visao do aluno e visao do professor;
+- planejado e executado;
+- origem, versao e responsavel;
+- permissoes;
+- estados de erro e falha recuperavel;
+- testes e validacao manual;
+- atualizacao das fontes de verdade.
+
+## Fora do escopo atual
+
+- integracoes externas de treino/dados como Garmin e Strava;
+- sincronizacao em background;
+- importacao de planos ou midia proprietaria;
+- prescricao ou progressao totalmente automatica;
+- diagnostico clinico automatico;
+- configuracao completa de catalogos dentro da Central;
+- substituicao destrutiva dos modelos atuais sem migracao e compatibilidade;
+- exclusao ampla de documentacao historica sem revisao e plano de transicao.
+
+## Criterio de pronto
+
+Uma entrega so pode ser considerada concluida quando:
+
+- parte de um aluno selecionado ou preserva explicitamente seu contexto;
+- possui visao pratica para aluno e tecnica para professor;
+- separa planejado de executado;
+- possui modelo ou fonte de dados definida;
+- possui API e interface quando aplicavel;
+- registra historico, origem e versao;
+- protege dados por permissao e `contractId`;
+- nao altera prescricao sem validacao do professor;
+- trata vazio, carregamento, erro e falha recuperavel;
+- atualiza a Central apos salvar ou concluir;
+- possui testes relevantes e validacao manual;
+- atualiza documentacao e roadmap.
