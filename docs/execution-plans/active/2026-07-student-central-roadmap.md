@@ -6,7 +6,7 @@ Consolidar o Sistema ACESSO em torno da Central do Aluno, permitindo que profess
 
 O foco central do produto e o aluno. A organizacao tecnica, os catalogos e as rotinas administrativas existem para sustentar uma experiencia em que o aluno entende sua situacao, sabe o que fazer, registra o que aconteceu e acompanha sua evolucao.
 
-Este documento registra o estado funcional conhecido da branch `develop` em 2026-07-17. O estado de implementacao abaixo e independente do estado aberto ou fechado das issues no GitHub.
+Este documento registra o estado funcional conhecido da branch `develop`; o recorte de Antropometria foi reconciliado em 2026-09-03 com a entrega da issue #382. O estado de implementacao abaixo e independente do estado aberto ou fechado das issues no GitHub.
 
 ## Fontes relacionadas
 
@@ -130,7 +130,7 @@ Pendente:
 
 ### Fase 5 - Antropometria
 
-**Situacao: primeiro incremento funcional concluido; fase ainda nao concluida.**
+**Situacao: ciclo de vida, rastreabilidade, comparacao e controles de seguranca implementados; fase permanece aberta para laudos e validacao manual complementar.**
 
 Implementado:
 
@@ -146,22 +146,26 @@ Implementado:
 - comparacao lado a lado;
 - segmentos configuraveis;
 - observacoes gerais e importaveis;
-- retorno para a Central.
+- retorno para a Central;
+- ciclo de vida formal `DRAFT`/`COMPLETED`, incluindo compatibilidade com avaliacoes legadas;
+- criterios de conclusao baseados em medidas obrigatorias explicitamente configuradas e versionadas, sem inferencia automatica;
+- imutabilidade de avaliacao concluida nas rotas usuais e fluxo separado de correcao auditada com motivo, antes/depois, ator e horario;
+- validacao de `physicalAssessment.protocol`, capacidade de correcao e isolamento por `contractId` no boundary e na transacao definitiva;
+- evento de conclusao/correcao na timeline canonica do aluno;
+- comparacao com diferencas absolutas e percentuais a partir de valores persistidos, preservando ausencia como ausencia;
+- grafico de evolucao complementar a tabela acessivel;
+- testes focados para lifecycle, conclusao, correcao, concorrencia, permissao e isolamento por contrato.
 
-Issues relacionadas: #172, #183 e #184.
+Issues relacionadas: #172, #183, #184 e #382.
 
-A issue #172 foi encerrada como conclusao do primeiro recorte funcional. A Fase 5 continua aberta porque ainda faltam:
+A issue #172 foi encerrada como conclusao do primeiro recorte funcional. Com a issue #382, os itens estruturais de lifecycle, conclusao, historico, seguranca e comparacao deixam de ser pendencia. A Fase 5 continua aberta porque ainda faltam:
 
-- ciclo de vida formal da avaliacao, incluindo rascunho e concluida;
-- criterios de conclusao e medidas obrigatorias por protocolo;
-- validacao de permissoes e isolamento por `contractId`;
-- garantia de evento no historico unificado apos conclusao;
-- comparacao com diferencas absolutas e percentuais;
-- graficos de evolucao quando os dados estiverem confiaveis;
 - contrato de dados para laudos futuros;
-- suite especifica de testes e validacao manual.
+- validacao manual complementar por perfis e cenarios operacionais;
+- nova auditoria independente do SHA final apos a reconciliacao documental.
 
-Fonte detalhada: `docs/execution-plans/completed/2026-07-epic-172-completion-assessment.md`.
+Fonte detalhada historica do primeiro recorte: `docs/execution-plans/completed/2026-07-epic-172-completion-assessment.md`.
+Fonte corrente do ciclo de vida: `docs/AVALIACAO_ANTROPOMETRICA.md`.
 
 ### Fase 6 - Adipometria
 
@@ -324,7 +328,7 @@ Pendente:
 | 2. Base administrativa | #174, #185 | Parcial e documentada | Criar epic de consolidacao administrativa sem mover catalogos para a Central |
 | 3. Entrada inicial | sem epic propria | Parcialmente existente | Criar epic de onboarding e revisao periodica |
 | 4. PRNT | #171, #180-#182 | Avancada | Completar historicos, permissoes e resumo seguro para aluno |
-| 5. Antropometria | #172, #183, #184 | Primeiro incremento concluido | Concluir ciclo de vida, rastreabilidade, comparacao e testes |
+| 5. Antropometria | #172, #183, #184, #382 | Lifecycle, historico e comparacao implementados | Definir contrato de laudos, validar manualmente e concluir auditoria independente do SHA final |
 | 6. Adipometria | #245-#249 | Epic criada; execucao pendente | Iniciar pela #246 e respeitar gate clinico |
 | 7. Treinamento do aluno | sem epic propria | Modulos existentes; integracao pendente | Criar epic centrada na jornada definida neste plano |
 | 8. Agenda e frequencia | sem epic propria | Integracao pendente | Planejar apos o nucleo diario de treinamento |
@@ -363,8 +367,9 @@ Para treinamento, tambem e obrigatorio:
 ### Trilha imediata de confianca dos dados
 
 1. Executar a epic #245 na ordem de dependencia iniciando pela #246.
-2. Concluir as pendencias estruturais da Antropometria que afetam historico, permissao e comparacao.
-3. Validar que eventos concluidos alimentam a Central sem misturar rascunhos.
+2. Definir operacionalmente, por contrato/protocolo, quais medidas da Antropometria sao obrigatorias para novas conclusoes e manter esse conjunto versionado.
+3. Avancar o contrato de dados para laudos sem reabrir lifecycle, historico, permissao ou comparacao ja entregues na issue #382.
+4. Executar validacao manual complementar e nova auditoria independente do SHA final da Antropometria.
 
 ### Proxima grande epic de produto
 
