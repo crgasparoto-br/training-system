@@ -3,15 +3,14 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:50dcd16f-212f-4129-a908-558b80cf8aad",
-    "audit_report_sha256": "4249d2d2fb7d7e47b7ff3071106da3fd0b298347f39bd02f09a139da71a442fa",
+    "rejection_id": "AUD-420-006",
+    "audit_report_sha256": "1202706731ae5c47dcde54b4e7edd35dd66d92ba44271d58e42f0d51184a1cc3",
     "finding_ids": [
-      "AUD-420-004"
+      "AUD-420-006"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The independent audit classified this as targeted remediation of the current delivery package: the material implementation was already green, while a target-specific requirement closure retained an ancestral SHA. The current package adds exact-material and post-remediation closure controls without changing the global Skill."
-  },
-  "skill_changes": []
+    "reason": "The failure is confined to the result-only handoff package input set. The delivery framework already requires issue_changed_paths to equal the immutable work_item_start_sha..material_head_sha compare, so the corrective action is to rebuild and verify the package rather than add a repository-specific or issue-specific global rule."
+  }
 }

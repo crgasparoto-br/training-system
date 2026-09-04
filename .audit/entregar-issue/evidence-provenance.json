@@ -1,6 +1,95 @@
 {
   "schema_version": 1,
-  "material_head_sha": "c78ce0c9e6a7e2ac2e72364c1046543eb8da6c7f",
+  "material_head_sha": "ca22e6c973eff20580974eb15ccba77fdbfb5da8",
   "base_sha": "9988e04f141b76481e190dec7bcaa5a06fd57c7a",
-  "evidence": []
+  "evidence": [
+    {
+      "evidence_id": "atomic-immutability-382",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/evidence/atomic-immutability-382.txt",
+      "sha256": "0961e2bcbdaa1a15d9b58423350814d60187695a32bd58fef0e15f1aabbd30e8",
+      "subject_sha": "ca22e6c973eff20580974eb15ccba77fdbfb5da8",
+      "base_sha": "9988e04f141b76481e190dec7bcaa5a06fd57c7a",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue post-write-refreeze + Validate PR #7504",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "audit-420-003-correction-tests-382",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/evidence/audit-420-003-correction-tests-382.txt",
+      "sha256": "30bbc7be9968dd84610a65fabf218e8a698628ebb0e2441ceedc4a3691685110",
+      "subject_sha": "ca22e6c973eff20580974eb15ccba77fdbfb5da8",
+      "base_sha": "9988e04f141b76481e190dec7bcaa5a06fd57c7a",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue post-write-refreeze + Validate PR #7504",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "audit-420-004-requirement-closure-freshness-382",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/evidence/audit-420-004-requirement-closure-freshness-382.txt",
+      "sha256": "eeedff5c0913bb762fd02469e50b71b7306a42838c2e259581e2d5d315c1c70e",
+      "subject_sha": "ca22e6c973eff20580974eb15ccba77fdbfb5da8",
+      "base_sha": "9988e04f141b76481e190dec7bcaa5a06fd57c7a",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue post-write-refreeze + Validate PR #7504",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "audit-420-005-documentation-semantic-drift-382",
+      "kind": "documentation",
+      "path": ".audit/entregar-issue/evidence/audit-420-005-documentation-semantic-drift-382.txt",
+      "sha256": "8cebb061fe676451ded94af8d7dfb4bf961cdc19e8a09431cfebeaf19f80a52e",
+      "subject_sha": "ca22e6c973eff20580974eb15ccba77fdbfb5da8",
+      "base_sha": "9988e04f141b76481e190dec7bcaa5a06fd57c7a",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue post-write-refreeze + Validate PR #7504",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "audit-420-005-independent-report",
+      "kind": "documentation",
+      "path": ".audit/entregar-issue/evidence/audit-420-005-independent-report.txt",
+      "sha256": "3427b3b185c325d533bc7da8507ae43c404499bfb894700abdbf0ecfcea36ac6",
+      "subject_sha": "ca22e6c973eff20580974eb15ccba77fdbfb5da8",
+      "base_sha": "9988e04f141b76481e190dec7bcaa5a06fd57c7a",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue post-write-refreeze + Validate PR #7504",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "material-verification-382",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/evidence/material-verification-382.txt",
+      "sha256": "d6c2c4c8680c67a58327a94e089ef0621f27545d86ba90cd3b588b0858cd65a5",
+      "subject_sha": "ca22e6c973eff20580974eb15ccba77fdbfb5da8",
+      "base_sha": "9988e04f141b76481e190dec7bcaa5a06fd57c7a",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue post-write-refreeze + Validate PR #7504",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "requirement-verification-382",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/evidence/requirement-verification-382.txt",
+      "sha256": "bb9f95e6876face9017610bb2f44265971c58960162574c8f0e118c7579a33f5",
+      "subject_sha": "ca22e6c973eff20580974eb15ccba77fdbfb5da8",
+      "base_sha": "9988e04f141b76481e190dec7bcaa5a06fd57c7a",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue post-write-refreeze + Validate PR #7504",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "tenant-isolation-382",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/evidence/tenant-isolation-382.txt",
+      "sha256": "e401316d539d6b20a78c5361f1ace35b1941139244b3e61f1a490539ba65e664",
+      "subject_sha": "ca22e6c973eff20580974eb15ccba77fdbfb5da8",
+      "base_sha": "9988e04f141b76481e190dec7bcaa5a06fd57c7a",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue post-write-refreeze + Validate PR #7504",
+      "status": "passed"
+    }
+  ]
 }

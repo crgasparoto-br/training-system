@@ -1,23 +1,19 @@
-Issue 382 / PR 420 exact-material evidence
-repository=crgasparoto-br/training-system
-base_ref=develop
-base_sha=9988e04f141b76481e190dec7bcaa5a06fd57c7a
-material_head_sha=c78ce0c9e6a7e2ac2e72364c1046543eb8da6c7f
-merge_preview_sha=983c26ba41363b832e58f71287b97c1d73198461
-workflow=Validate PR
-run_id=33679453643
-run_number=7494
-job_id=100412219289
-workflow_conclusion=success
-test_artifact_digest_sha256=cb866abed92de7ffbec650f404619c0d57f266b8f3eac9c80205f0faa6fafedd
-test_output_log_sha256=55423b90c9c3be207aacfeaeeb5c7f7a331ce6664f2da8ebfbed584d1aabef25
-workflow_attestation_sha256=dcf1f36317f4247f619b4914996578695366b3ea64f22a4d2639324e8de612d8
+Repository: crgasparoto-br/training-system
+PR: 420
+Issue: 382
+Material head: ca22e6c973eff20580974eb15ccba77fdbfb5da8
+Base: 9988e04f141b76481e190dec7bcaa5a06fd57c7a
+Merge preview: 5f6c7dda24640c1136c8fa188c923df2ec160e6f
+Validate PR run: #7504 (id 33763803301)
+Validate PR conclusion: success
+Official test artifact digest: sha256:f1bc04482ded9d2f6758c12c3dca75cdf154e75ef666d5b790b2513f7d8018e2
 
-Canonical requirement verification on the exact material head:
-- DRAFT/COMPLETED lifecycle, explicit/versioned completion requirements, completed-state immutability, audited correction, comparison/evolution, timeline and tenant isolation remain covered by the existing product tests and the full Validate PR workflow.
-- The current remediation test file apps/api/tests/anthropometry-completion-concurrency.integration.test.ts is reported PASS in test-output.log.
-- The official correction service is now exercised by automated database integration tests for authorized and unauthorized callers.
-- The authorized case verifies persisted correction data, beforeSnapshot, afterSnapshot, reason, actorUserId, actorProfessorId and createdAt.
-- Repeating the same correction is rejected with CORRECTION_WITHOUT_CHANGES and leaves exactly one correction audit and one correction timeline event.
-- The unauthorized case is rejected with AnthropometryCorrectionAccessError and leaves assessment data, correction audit and timeline unchanged.
-- Existing concurrency and tenant-isolation cases in the same integration file remain part of the passing test batch.
+Procedure:
+- Re-evaluate all issue #382 obligation controls on frozen material ca22e6c973eff20580974eb15ccba77fdbfb5da8 using exact-head workflow evidence and the current repository sources.
+- Use the PostgreSQL integration suite for immutability, concurrency, tenant isolation and correction-flow assertions.
+- Use current canonical documentation plus docs:check for documentation claims.
+
+Observed:
+- Validate PR #7504 completed success on ca22e6c973eff20580974eb15ccba77fdbfb5da8; lifecycle/completion/concurrency suites pass.
+- The integration source at ca22e6c973eff20580974eb15ccba77fdbfb5da8 explicitly contains completed-history immutability, writer/completion serialization, cross-contract isolation, authorized correction audit/timeline, replay-no-duplicate and unauthorized-zero-effect controls.
+- The two current roadmap sources now classify the issue #382 lifecycle/security/comparison capabilities as implemented and retain only actual remaining work such as the laudo contract and complementary validation.

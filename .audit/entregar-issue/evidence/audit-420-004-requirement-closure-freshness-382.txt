@@ -1,17 +1,22 @@
-AUD-420-004 requirement-closure freshness remediation
-repository=crgasparoto-br/training-system
-issue=382
-pr=420
-stale_published_head=b33f6312e98c97a33af289040c4851c9a2bf97f7
-material_head=c78ce0c9e6a7e2ac2e72364c1046543eb8da6c7f
-source_rejection=audit-rejection:50dcd16f-212f-4129-a908-558b80cf8aad
-source_finding=AUD-420-004
-previous_obligation_rationales_with_ancestor_sha=32
-regenerated_artifact_ancestor_sha_occurrences=0
-regenerated_artifact_material_sha_occurrences=32
-requirement_closure_sha256=727d9faf4d1a51411f867356eef02aaf4053232221e41dadefe346dfd8570e81
-control_1=PASS all covered obligation rationales were rebound from the ancestor material SHA to the exact material head.
-control_2=PASS OBL-029 explicitly binds error/permission coverage to the official post-remediation correction evidence and Validate PR #7494.
-control_3=PASS OBL-032 explicitly binds the required full validation set to Validate PR #7494 on the exact material head.
-material_product_change=none; recovery_scope=handoff-only
-result=PASS
+Repository: crgasparoto-br/training-system
+PR: 420
+Issue: 382
+Material head: ca22e6c973eff20580974eb15ccba77fdbfb5da8
+Base: 9988e04f141b76481e190dec7bcaa5a06fd57c7a
+Merge preview: 5f6c7dda24640c1136c8fa188c923df2ec160e6f
+Validate PR run: #7504 (id 33763803301)
+Validate PR conclusion: success
+Official test artifact digest: sha256:f1bc04482ded9d2f6758c12c3dca75cdf154e75ef666d5b790b2513f7d8018e2
+
+Procedure:
+1. Rebuild requirement-closure.json logically for exact material ca22e6c973eff20580974eb15ccba77fdbfb5da8.
+2. Reject any current obligation verification rationale still bound to predecessor material c78ce0c9e6a7e2ac2e72364c1046543eb8da6c7f or rejected ancestor 9529a0472b09c1e03cbbbd188c88233f7bdbc8bf.
+3. Re-run specification coverage, attack-matrix, inherited-control and handoff-readiness validators before packing.
+
+Expected:
+- Every current obligation verification claim binds to ca22e6c973eff20580974eb15ccba77fdbfb5da8 and current exact-head evidence.
+
+Observed:
+- The regenerated logical closure replaces predecessor material identity with ca22e6c973eff20580974eb15ccba77fdbfb5da8 across all 32 covered obligations.
+- Current documentation consistency includes both canonical roadmap sources added by AUD-420-005.
+- Validator execution is recorded in the terminal handoff package before publication.

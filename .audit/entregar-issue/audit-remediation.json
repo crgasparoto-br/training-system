@@ -3,41 +3,34 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:50dcd16f-212f-4129-a908-558b80cf8aad",
-    "audit_report_sha256": "4249d2d2fb7d7e47b7ff3071106da3fd0b298347f39bd02f09a139da71a442fa",
-    "audited_head_sha": "b33f6312e98c97a33af289040c4851c9a2bf97f7"
+    "rejection_id": "AUD-420-006",
+    "audit_report_sha256": "1202706731ae5c47dcde54b4e7edd35dd66d92ba44271d58e42f0d51184a1cc3",
+    "audited_head_sha": "f6ba182392e93a75b2b648942bc00eb59d20e6e9"
   },
-  "candidate_head_sha": "c78ce0c9e6a7e2ac2e72364c1046543eb8da6c7f",
+  "candidate_head_sha": "ca22e6c973eff20580974eb15ccba77fdbfb5da8",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "AUD-420-004",
+      "source_id": "AUD-420-006",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "behavioral-fix",
+      "closure_kind": "artifact-certification-fix",
       "changed_files": [
-        ".audit/entregar-issue/requirement-closure.json",
-        ".audit/entregar-issue/requirement-attack-matrix.json",
-        ".audit/entregar-issue/risk-saturation.json",
-        ".audit/entregar-issue/inherited-controls-382-remediation.json",
-        ".audit/entregar-issue/audit-escape-closure-382-remediation.json",
-        ".audit/entregar-issue/learning-closure.json",
+        ".audit/entregar-issue/handoff-ready.json",
         ".audit/entregar-issue/audit-remediation.json",
         ".audit/entregar-issue/audit-source-result.json",
-        ".audit/entregar-issue/evidence/audit-420-004-requirement-closure-freshness-382.txt",
-        ".audit/entregar-issue/handoff-ready.json"
+        ".audit/entregar-issue/learning-closure.json",
+        ".audit/entregar-issue/audit-escape-closure-382-remediation.json",
+        ".audit/entregar-issue/evidence/audit-420-006-handoff-scope-382.txt"
       ],
       "evidence": [
-        ".audit/entregar-issue/evidence/audit-420-004-requirement-closure-freshness-382.txt",
-        ".audit/entregar-issue/evidence/audit-420-003-correction-tests-382.txt",
-        ".audit/entregar-issue/evidence/material-verification-382.txt"
+        ".audit/entregar-issue/evidence/audit-420-006-handoff-scope-382.txt"
       ],
       "validations": [
-        "All 32 obligation rationales now bind to exact material head c78ce0c9e6a7e2ac2e72364c1046543eb8da6c7f and contain zero references to rejected ancestor 9529a0472b09c1e03cbbbd188c88233f7bdbc8bf.",
-        "OBL-029 and OBL-032 explicitly incorporate the post-remediation official correction-flow evidence and Validate PR #7494.",
-        "Two structural-contract closure-freshness controls execute on the current material identity.",
-        "No product/material path changed; recovery remains handoff-only and the material CI remains green."
+        "Immutable compare work_item_start_sha..material_head_sha contains 60 changed paths.",
+        "Regenerated certificate scope contains the same 60 normalized paths with digest 63baa63813493c85e2e3762f50f7ac4e10f2ec4967ad9ad122f81627617f31b7.",
+        "No product material changes were introduced; recovery remains a sibling result-only child of ca22e6c973eff20580974eb15ccba77fdbfb5da8."
       ]
     }
   ],

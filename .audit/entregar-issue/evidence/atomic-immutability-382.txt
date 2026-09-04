@@ -1,20 +1,22 @@
-Issue 382 / PR 420 exact-material evidence
-repository=crgasparoto-br/training-system
-base_ref=develop
-base_sha=9988e04f141b76481e190dec7bcaa5a06fd57c7a
-material_head_sha=c78ce0c9e6a7e2ac2e72364c1046543eb8da6c7f
-merge_preview_sha=983c26ba41363b832e58f71287b97c1d73198461
-workflow=Validate PR
-run_id=33679453643
-run_number=7494
-job_id=100412219289
-workflow_conclusion=success
-test_artifact_digest_sha256=cb866abed92de7ffbec650f404619c0d57f266b8f3eac9c80205f0faa6fafedd
-test_output_log_sha256=55423b90c9c3be207aacfeaeeb5c7f7a331ce6664f2da8ebfbed584d1aabef25
-workflow_attestation_sha256=dcf1f36317f4247f619b4914996578695366b3ea64f22a4d2639324e8de612d8
+Repository: crgasparoto-br/training-system
+PR: 420
+Issue: 382
+Material head: ca22e6c973eff20580974eb15ccba77fdbfb5da8
+Base: 9988e04f141b76481e190dec7bcaa5a06fd57c7a
+Merge preview: 5f6c7dda24640c1136c8fa188c923df2ec160e6f
+Validate PR run: #7504 (id 33763803301)
+Validate PR conclusion: success
+Official test artifact digest: sha256:f1bc04482ded9d2f6758c12c3dca75cdf154e75ef666d5b790b2513f7d8018e2
 
-Inherited atomicity and historical-immutability controls revalidated on exact head:
-- The passing database integration file contains the two-connection draft-writer versus completion serialization case.
-- It also attempts ordinary completed assessment header/value/observation mutations and verifies they are rejected while persisted completed history remains unchanged.
-- The audited correction transaction marker remains transaction-local; a subsequent ordinary mutation is rejected.
-- No production persistence code changed in the AUD-420-003 remediation commit; the full exact-head integration suite passed.
+Procedure:
+1. Execute the exact-head database integration suite in Validate PR #7504.
+2. In anthropometry-completion-concurrency.integration.test.ts, complete an assessment and attempt ordinary header, value and observation mutations.
+3. Interleave a draft value writer with completion on separate Prisma clients, then attempt a post-COMPLETED ordinary write.
+
+Expected:
+- Completed history rejects ordinary header/value/observation mutations and preserves prior values.
+- Completion serializes behind the draft write, reads its committed required value, then later ordinary mutation is rejected.
+
+Observed:
+- The exact source contains both discriminant cases and the official exact-head test artifact reports PASS for anthropometry-completion-concurrency.integration.test.ts.
+- Validate PR #7504 completed success, so the PostgreSQL-backed integration cases executed under RUN_DATABASE_INTEGRATION_TESTS and passed on this material SHA.
