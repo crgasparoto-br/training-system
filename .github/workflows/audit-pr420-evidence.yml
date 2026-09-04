@@ -1,0 +1,104 @@
+name: Audit PR 420 Evidence
+
+on:
+  push:
+    branches:
+      - chore/audit-420-evidence
+
+permissions:
+  contents: read
+
+jobs:
+  evidence:
+    name: Materialize audit and visual evidence
+    runs-on: ubuntu-latest
+    env:
+      AUDIT_PUBLISHED_HEAD_SHA: 3e2c958270bc6a12755835de72379af1bba1d137
+      AUDIT_MATERIAL_HEAD_SHA: ca22e6c973eff20580974eb15ccba77fdbfb5da8
+
+    steps:
+      - name: Checkout evidence harness
+        uses: actions/checkout@v4
+        with:
+          path: harness
+
+      - name: Checkout audited PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.AUDIT_PUBLISHED_HEAD_SHA }}
+          fetch-depth: 0
+          path: target
+
+      - name: Verify audited identity and result-only boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C target rev-parse HEAD)" = "$AUDIT_PUBLISHED_HEAD_SHA"
+          test "$(git -C target rev-parse HEAD^)" = "$AUDIT_MATERIAL_HEAD_SHA"
+          git -C target diff --name-only "$AUDIT_MATERIAL_HEAD_SHA" "$AUDIT_PUBLISHED_HEAD_SHA" | tee result-only-paths.txt
+          if grep -Ev '^\.audit/entregar-issue/' result-only-paths.txt | grep -q .; then
+            echo "Published head contains non-result-only paths" >&2
+            exit 1
+          fi
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: target/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: target
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Puppeteer browser
+        working-directory: target
+        run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
+
+      - name: Build web from audited head
+        working-directory: target
+        run: pnpm --filter @corrida/web build
+
+      - name: Materialize complete critical audit JSON
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp harness/audit-support/export-pr420-audit-bundle.mjs target/apps/api/scripts/export-pr420-audit-bundle.mjs
+          export AUDIT_RESULT_ONLY_PATHS="$(cat result-only-paths.txt)"
+          node target/apps/api/scripts/export-pr420-audit-bundle.mjs target 2>&1 | tee target/pr420-critical-audit-output.log
+
+      - name: Upload complete critical audit bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr420-critical-audit-${{ github.run_id }}
+          path: |
+            target/artifacts/pr420-critical-audit/**
+            target/pr420-critical-audit-output.log
+            result-only-paths.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Validate Anthropometry in real browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp harness/audit-support/visual-audit-anthropometry-pr420.mjs target/apps/api/scripts/visual-audit-anthropometry-pr420.mjs
+          node target/apps/api/scripts/visual-audit-anthropometry-pr420.mjs target 2>&1 | tee target/pr420-anthropometry-visual-output.log
+
+      - name: Upload Anthropometry browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr420-anthropometry-visual-${{ github.run_id }}
+          path: |
+            target/artifacts/pr420-anthropometry-visual/**
+            target/pr420-anthropometry-visual-output.log
+            result-only-paths.txt
+          if-no-files-found: error
+          retention-days: 14
