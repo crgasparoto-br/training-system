@@ -3,15 +3,14 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:8100eb96-4911-4b6f-984b-1b6fc5aaf75b",
+    "rejection_id": "AUD-420-006",
+    "audit_report_sha256": "1202706731ae5c47dcde54b4e7edd35dd66d92ba44271d58e42f0d51184a1cc3",
     "finding_ids": [
-      "A-001",
-      "A-002"
-    ],
-    "audit_report_sha256": "4f0938d345fd3da73a00ff3bcc07d2010bbd7accce465f5da4f1abfa89177f58"
+      "AUD-420-006"
+    ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The rejection remains targeted: terminal refreeze guards already exist globally and the parser bypass is local to the workout date boundary. The current remediation extends repository regression coverage without creating a duplicate global learning event."
+    "reason": "The failure is confined to the result-only handoff package input set. The delivery framework already requires issue_changed_paths to equal the immutable work_item_start_sha..material_head_sha compare, so the corrective action is to rebuild and verify the package rather than add a repository-specific or issue-specific global rule."
   }
 }

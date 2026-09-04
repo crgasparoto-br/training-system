@@ -1,22 +1,46 @@
 {
   "schema_version": 1,
-  "head_sha": "bd9c7095a019d83363ab50df480c0375e777b55a",
+  "head_sha": "ca22e6c973eff20580974eb15ccba77fdbfb5da8",
   "families": [
     {
       "family": "authorization",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-REQ-TENANT-AUTH-OBL-019",
+        "NEG-REQ-TEST-COVERAGE-OBL-029"
+      ],
+      "dimensions": [
+        {
+          "surface": "backend-authorization",
+          "reason": "authorization é material para REQ-TEST-COVERAGE e requer ataque discriminante no boundary backend-authorization.",
+          "control_ids": [
+            "NEG-REQ-TENANT-AUTH-OBL-019",
+            "NEG-REQ-TEST-COVERAGE-OBL-029"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "tenant-isolation",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-REQ-TENANT-AUTH-TENANT-ISOLATION-TENANT-SCOPE-ISOLATION"
+      ],
+      "dimensions": [
+        {
+          "surface": "tenant-scope-isolation",
+          "reason": "tenant-isolation é material para REQ-TENANT-AUTH e requer ataque discriminante no boundary tenant-scope-isolation.",
+          "control_ids": [
+            "NEG-REQ-TENANT-AUTH-TENANT-ISOLATION-TENANT-SCOPE-ISOLATION"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "public-boundary",
@@ -31,27 +55,16 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "REQ-005-NEG-001",
-        "REQ-009-NEG-002",
-        "REQ-009-NEG-011",
-        "REQ-009-NEG-021"
+        "NEG-REQ-REQUIRED-CONFIG-OBL-013",
+        "NEG-REQ-REQUIRED-CONFIG-OBL-022"
       ],
       "dimensions": [
         {
-          "surface": "canonical-producer-contract",
-          "reason": "The reference-liveness contract is exercised at the canonical-producer-contract boundary for this requirement.",
+          "surface": "configuration-liveness",
+          "reason": "reference-liveness é material para REQ-REQUIRED-CONFIG e requer ataque discriminante no boundary configuration-liveness.",
           "control_ids": [
-            "REQ-005-NEG-001",
-            "REQ-009-NEG-002"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "reference-liveness",
-          "reason": "Cumulative independent-audit control requires exact-head coverage of reference-liveness:reference-liveness.",
-          "control_ids": [
-            "REQ-009-NEG-011",
-            "REQ-009-NEG-021"
+            "NEG-REQ-REQUIRED-CONFIG-OBL-013",
+            "NEG-REQ-REQUIRED-CONFIG-OBL-022"
           ],
           "status": "passed"
         }
@@ -63,38 +76,27 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "REQ-001-NEG-001",
-        "REQ-002-NEG-001",
-        "REQ-003-NEG-001",
-        "REQ-004-NEG-001",
-        "REQ-009-NEG-005",
-        "REQ-010-NEG-001",
-        "REQ-011-NEG-001",
-        "REQ-015-NEG-002",
-        "REQ-023-NEG-001",
-        "REQ-028-NEG-001",
-        "REQ-029-NEG-001",
-        "REQ-035-NEG-001",
-        "REQ-036-NEG-001"
+        "NEG-REQ-CORRECTION-TEMPORAL-CONSISTENCY-LIFECYCLE-TIME-SEMANTICS",
+        "NEG-REQ-LIFECYCLE-TEMPORAL-CONSISTENCY-REPORTING-AVAILABILITY-WINDOW",
+        "NEG-REQ-REQUIRED-CONFIG-OBL-003",
+        "NEG-REQ-REQUIRED-CONFIG-OBL-031"
       ],
       "dimensions": [
         {
-          "surface": "date-instant-consistency",
-          "reason": "The temporal-consistency contract is exercised at the date-instant-consistency boundary for this requirement.",
+          "surface": "lifecycle-time-semantics",
+          "reason": "temporal-consistency é material para REQ-REQUIRED-CONFIG e requer ataque discriminante no boundary lifecycle-time-semantics.",
           "control_ids": [
-            "REQ-001-NEG-001",
-            "REQ-002-NEG-001",
-            "REQ-003-NEG-001",
-            "REQ-004-NEG-001",
-            "REQ-009-NEG-005",
-            "REQ-010-NEG-001",
-            "REQ-011-NEG-001",
-            "REQ-015-NEG-002",
-            "REQ-023-NEG-001",
-            "REQ-028-NEG-001",
-            "REQ-029-NEG-001",
-            "REQ-035-NEG-001",
-            "REQ-036-NEG-001"
+            "NEG-REQ-CORRECTION-TEMPORAL-CONSISTENCY-LIFECYCLE-TIME-SEMANTICS",
+            "NEG-REQ-REQUIRED-CONFIG-OBL-003"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "reporting-availability-window",
+          "reason": "A report can label a requested window complete even when retention or source availability makes only a suffix of that window observable.",
+          "control_ids": [
+            "NEG-REQ-LIFECYCLE-TEMPORAL-CONSISTENCY-REPORTING-AVAILABILITY-WINDOW",
+            "NEG-REQ-REQUIRED-CONFIG-OBL-031"
           ],
           "status": "passed"
         }
@@ -103,67 +105,30 @@
     },
     {
       "family": "temporal-destination",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "REQ-001-NEG-002",
-        "REQ-002-NEG-002",
-        "REQ-003-NEG-002",
-        "REQ-004-NEG-002",
-        "REQ-009-NEG-006",
-        "REQ-009-NEG-009",
-        "REQ-009-NEG-018",
-        "REQ-010-NEG-002",
-        "REQ-011-NEG-002",
-        "REQ-015-NEG-003",
-        "REQ-022-NEG-001",
-        "REQ-023-NEG-002",
-        "REQ-025-NEG-002",
-        "REQ-028-NEG-002",
-        "REQ-035-NEG-002",
-        "REQ-036-NEG-002"
-      ],
-      "dimensions": [
-        {
-          "surface": "week-destination-mapping",
-          "reason": "Cumulative independent-audit control requires exact-head coverage of temporal-destination:week-destination-mapping.",
-          "control_ids": [
-            "REQ-009-NEG-009",
-            "REQ-009-NEG-018"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "week-start-destination",
-          "reason": "The temporal-destination contract is exercised at the week-start-destination boundary for this requirement.",
-          "control_ids": [
-            "REQ-001-NEG-002",
-            "REQ-002-NEG-002",
-            "REQ-003-NEG-002",
-            "REQ-004-NEG-002",
-            "REQ-009-NEG-006",
-            "REQ-010-NEG-002",
-            "REQ-011-NEG-002",
-            "REQ-015-NEG-003",
-            "REQ-022-NEG-001",
-            "REQ-023-NEG-002",
-            "REQ-025-NEG-002",
-            "REQ-028-NEG-002",
-            "REQ-035-NEG-002",
-            "REQ-036-NEG-002"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
-    },
-    {
-      "family": "concurrency-atomicity",
       "applicable": false,
       "reason": "No current contract or diff signal requires this family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-REQ-IMMUTABILITY-CONCURRENCY-ATOMICITY-LIFECYCLE-WRITE-SERIALIZATION"
+      ],
+      "dimensions": [
+        {
+          "surface": "lifecycle-write-serialization",
+          "reason": "concurrency-atomicity é material para REQ-IMMUTABILITY e requer ataque discriminante no boundary lifecycle-write-serialization.",
+          "control_ids": [
+            "NEG-REQ-IMMUTABILITY-CONCURRENCY-ATOMICITY-LIFECYCLE-WRITE-SERIALIZATION"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "idempotency",
@@ -183,81 +148,75 @@
     },
     {
       "family": "historical-immutability",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-REQ-IMMUTABILITY-OBL-024"
+      ],
+      "dimensions": [
+        {
+          "surface": "completed-history",
+          "reason": "historical-immutability é material para REQ-IMMUTABILITY e requer ataque discriminante no boundary completed-history.",
+          "control_ids": [
+            "NEG-REQ-IMMUTABILITY-OBL-024"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "structural-contract",
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "REQ-009-NEG-004",
-        "REQ-009-NEG-007",
-        "REQ-009-NEG-008",
-        "REQ-009-NEG-012",
-        "REQ-009-NEG-013",
-        "REQ-009-NEG-014",
-        "REQ-009-NEG-015",
-        "REQ-009-NEG-016",
-        "REQ-009-NEG-017",
-        "REQ-009-NEG-019",
-        "REQ-009-NEG-022",
-        "REQ-009-NEG-023",
-        "REQ-009-NEG-025",
-        "REQ-015-NEG-001",
-        "REQ-034-NEG-002"
+        "NEG-REQ-CORRECTION-OBL-025",
+        "NEG-REQ-CORRECTION-STRUCTURAL-CONTRACT-EXPLICIT-DOMAIN-CONTRACT",
+        "NEG-REQ-REQUIRED-CONFIG-OBL-011",
+        "NEG-REQ-TEST-COVERAGE-AUD420003-AUDIT-SNAPSHOT",
+        "NEG-REQ-TEST-COVERAGE-AUD420003-AUTHORIZED",
+        "NEG-REQ-TEST-COVERAGE-AUD420003-TIMELINE-NODUP",
+        "NEG-REQ-TEST-COVERAGE-AUD420003-UNAUTHORIZED",
+        "NEG-REQ-TEST-COVERAGE-AUD420004-CLOSURE-MATERIAL-BINDING",
+        "NEG-REQ-TEST-COVERAGE-AUD420004-CLOSURE-REMEDIATION-BINDING",
+        "NEG-REQ-TEST-COVERAGE-STRUCTURAL-CONTRACT-EXPLICIT-DOMAIN-CONTRACT"
       ],
       "dimensions": [
         {
-          "surface": "canonical-source-consistency",
-          "reason": "Cumulative independent-audit control requires exact-head coverage of structural-contract:canonical-source-consistency.",
+          "surface": "benchmark-path-fidelity",
+          "reason": "A benchmark can improve while bypassing productive wrappers or operations that still execute in the real application path.",
           "control_ids": [
-            "REQ-009-NEG-007",
-            "REQ-009-NEG-014",
-            "REQ-009-NEG-016"
+            "NEG-REQ-CORRECTION-OBL-025"
           ],
           "status": "passed"
         },
         {
-          "surface": "git-parent",
-          "reason": "Cumulative independent-audit control requires exact-head coverage of structural-contract:git-parent.",
+          "surface": "explicit-domain-contract",
+          "reason": "structural-contract é material para REQ-TEST-COVERAGE e requer ataque discriminante no boundary explicit-domain-contract.",
           "control_ids": [
-            "REQ-009-NEG-013",
-            "REQ-009-NEG-023"
+            "NEG-REQ-CORRECTION-STRUCTURAL-CONTRACT-EXPLICIT-DOMAIN-CONTRACT",
+            "NEG-REQ-REQUIRED-CONFIG-OBL-011",
+            "NEG-REQ-TEST-COVERAGE-STRUCTURAL-CONTRACT-EXPLICIT-DOMAIN-CONTRACT"
           ],
           "status": "passed"
         },
         {
-          "surface": "shared-date-normalizer",
-          "reason": "The structural-contract contract is exercised at the shared-date-normalizer boundary for this requirement.",
+          "surface": "handoff-closure-freshness",
+          "reason": "A remediation can fix product evidence while leaving the certified requirement closure bound to an ancestral material SHA; the terminal package must prove exact-material and post-remediation evidence binding.",
           "control_ids": [
-            "REQ-009-NEG-004",
-            "REQ-009-NEG-025",
-            "REQ-015-NEG-001",
-            "REQ-034-NEG-002"
+            "NEG-REQ-TEST-COVERAGE-AUD420004-CLOSURE-MATERIAL-BINDING",
+            "NEG-REQ-TEST-COVERAGE-AUD420004-CLOSURE-REMEDIATION-BINDING"
           ],
           "status": "passed"
         },
         {
           "surface": "specified-test-matrix",
-          "reason": "Cumulative independent-audit control requires exact-head coverage of structural-contract:specified-test-matrix.",
+          "reason": "The issue explicitly requires permission/error test coverage and enumerates correction/timeline scenarios; direct persistence tests alone can miss the official service boundary.",
           "control_ids": [
-            "REQ-009-NEG-008",
-            "REQ-009-NEG-015",
-            "REQ-009-NEG-017",
-            "REQ-009-NEG-019"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "terminal-handoff",
-          "reason": "Cumulative independent-audit control requires exact-head coverage of structural-contract:terminal-handoff.",
-          "control_ids": [
-            "REQ-009-NEG-012",
-            "REQ-009-NEG-022"
+            "NEG-REQ-TEST-COVERAGE-AUD420003-AUDIT-SNAPSHOT",
+            "NEG-REQ-TEST-COVERAGE-AUD420003-AUTHORIZED",
+            "NEG-REQ-TEST-COVERAGE-AUD420003-TIMELINE-NODUP",
+            "NEG-REQ-TEST-COVERAGE-AUD420003-UNAUTHORIZED"
           ],
           "status": "passed"
         }
@@ -269,14 +228,18 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "REQ-034-NEG-001"
+        "NEG-REQ-DOCUMENTATION-OBL-030",
+        "NEG-REQ-REQUIRED-CONFIG-DOCUMENTATION-CANONICAL-CLAIMS",
+        "NEG-REQ-TEST-COVERAGE-OBL-032"
       ],
       "dimensions": [
         {
           "surface": "canonical-claims",
-          "reason": "The documentation contract is exercised at the canonical-claims boundary for this requirement.",
+          "reason": "documentation é material para REQ-TEST-COVERAGE e requer ataque discriminante no boundary canonical-claims.",
           "control_ids": [
-            "REQ-034-NEG-001"
+            "NEG-REQ-DOCUMENTATION-OBL-030",
+            "NEG-REQ-REQUIRED-CONFIG-DOCUMENTATION-CANONICAL-CLAIMS",
+            "NEG-REQ-TEST-COVERAGE-OBL-032"
           ],
           "status": "passed"
         }

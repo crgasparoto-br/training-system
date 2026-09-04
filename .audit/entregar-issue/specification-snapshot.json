@@ -1,20 +1,20 @@
 {
   "schema_version": 1,
   "repository": "crgasparoto-br/training-system",
-  "issue": 416,
-  "created_at": "2026-09-01T21:16:52.925083+00:00",
-  "primary_source_id": "SRC-ISSUE-416",
+  "issue": 382,
+  "created_at": "2026-09-02T16:19:46.905521+00:00",
+  "primary_source_id": "SRC-ISSUE-382",
   "sources": [
     {
-      "id": "SRC-ISSUE-416",
+      "id": "SRC-ISSUE-382",
       "kind": "issue-body",
-      "path": "specification-sources/SRC-ISSUE-416.txt",
-      "locator": "/tmp/issue416-source.txt",
-      "sha256": "8610cf9977727e4862de5d65e93b0d44b95a1e41a8df026710e6110597dd264e",
+      "path": "specification-sources/SRC-ISSUE-382.txt",
+      "locator": "/tmp/issue382.txt",
+      "sha256": "dbe3a01286b5879023818a606a3ac719b55b6b5d156c8fe7330e9c2f8d9995f2",
       "textual": true,
       "extract_source_id": null,
       "required": true,
-      "line_count": 121
+      "line_count": 74
     }
   ]
 }

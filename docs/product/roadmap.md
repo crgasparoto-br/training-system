@@ -3,7 +3,7 @@
 ## Status do documento
 
 - Fonte de verdade para estado funcional, prioridades e evolucao do produto.
-- Estado revisado em 2026-08-16 no contexto das issues #341 a #345, consolidando o fluxo web de revisao cadastral e a entrega externa opcional de notificacoes, alem do candidato de liberacao operacional da Montagem Consolidada.
+- Estado revisado em 2026-09-03 no contexto da issue #382, reconciliando o ciclo de vida da Antropometria, requisitos explicitos de conclusao, historico imutavel/correcao auditada, comparacao, grafico, timeline e controles de permissao/`contractId` com a implementacao corrente.
 - Issues e PRs continuam sendo a fonte de execucao.
 - Codigo, migrations e testes definem o comportamento efetivamente entregue.
 - Documentos detalhados de produto e planos ativos complementam este roadmap; nao devem competir com ele como roadmap geral.
@@ -150,7 +150,7 @@ Pendente:
 
 ### 4. Avaliacao Fisica
 
-**Maturidade: Antropometria implementada parcialmente; demais protocolos em evolucao.**
+**Maturidade: Antropometria implementada funcionalmente para ciclo de vida, historico e comparacao; contrato de laudos ainda pendente. Demais protocolos em evolucao.**
 
 Antropometria entregue:
 
@@ -159,18 +159,21 @@ Antropometria entregue:
 - descricao tecnica e videos;
 - historico e comparacao;
 - observacoes importaveis;
-- entrada contextual pela Central.
+- entrada contextual pela Central;
+- estados formais `DRAFT` e `COMPLETED`, preservando avaliacoes legadas como historico concluido;
+- medidas obrigatorias configuradas explicitamente por contrato/protocolo, com versao e snapshot aplicados na conclusao;
+- bloqueio de conclusao sem conjunto explicito de medidas obrigatorias e sem os valores exigidos;
+- imutabilidade das avaliacoes concluidas nas rotas usuais, com correcao auditada separada, motivo, antes/depois, ator e horario;
+- variacoes absolutas e percentuais calculadas a partir dos valores persistidos, sem transformar ausencia em zero;
+- grafico de evolucao complementar, mantendo a tabela como representacao acessivel principal;
+- evento de conclusao/correcao integrado a timeline canonica do aluno;
+- protecao por `physicalAssessment.protocol`, revalidacao da capacidade de correcao e isolamento por `contractId`;
+- testes focados cobrindo lifecycle, conclusao, correcao, concorrencia, permissao e isolamento por contrato.
 
 Pendente para concluir Antropometria:
 
-- rascunho e concluida como estados formais;
-- medidas obrigatorias por protocolo;
-- imutabilidade ou correcao auditada;
-- variacoes absolutas e percentuais;
-- graficos de evolucao;
-- evento garantido na timeline;
-- testes de permissao e `contractId`;
-- contrato para laudos.
+- contrato de dados para laudos futuros;
+- nova validacao independente do SHA final apos reconciliacao documental desta entrega.
 
 Adipometria:
 
@@ -435,17 +438,17 @@ Nao incorporar:
 
 ### Prioridade 0 - confiabilidade e governanca
 
-- permissao e isolamento por `contractId`;
-- historico, origem, versao e responsavel;
-- estados de rascunho, conclusao e correcao;
-- checks documentais, testes e validacao manual.
+- manter permissao e isolamento por `contractId` como regressao obrigatoria;
+- manter historico, origem, versao e responsavel rastreaveis;
+- preservar os estados formais de rascunho/conclusao e a correcao auditada ja implementados na Antropometria;
+- manter checks documentais, testes e validacao manual como gate de evolucao.
 
 ### Prioridade 1 - dados confiaveis do aluno
 
-- concluir Antropometria;
+- completar o contrato de laudos da Antropometria sem reabrir o ciclo de vida ja entregue;
 - executar Adipometria pela epic #245;
 - consolidar PRNT e objetivos;
-- integrar eventos a timeline.
+- integrar os demais eventos da jornada a timeline.
 
 ### Prioridade 2 - experiencia diaria do aluno
 

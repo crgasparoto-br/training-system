@@ -3,44 +3,34 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:8100eb96-4911-4b6f-984b-1b6fc5aaf75b",
-    "audit_report_sha256": "4f0938d345fd3da73a00ff3bcc07d2010bbd7accce465f5da4f1abfa89177f58",
-    "audited_head_sha": "35217c3b3c5551d95b82df53061f392b4f44a185"
+    "rejection_id": "AUD-420-006",
+    "audit_report_sha256": "1202706731ae5c47dcde54b4e7edd35dd66d92ba44271d58e42f0d51184a1cc3",
+    "audited_head_sha": "f6ba182392e93a75b2b648942bc00eb59d20e6e9"
   },
-  "candidate_head_sha": "bd9c7095a019d83363ab50df480c0375e777b55a",
+  "candidate_head_sha": "ca22e6c973eff20580974eb15ccba77fdbfb5da8",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-001",
+      "source_id": "AUD-420-006",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
+      "closure_kind": "artifact-certification-fix",
       "changed_files": [
-        "apps/api/src/routes/workout.routes.ts",
-        "apps/api/tests/workout.routes.test.ts"
+        ".audit/entregar-issue/handoff-ready.json",
+        ".audit/entregar-issue/audit-remediation.json",
+        ".audit/entregar-issue/audit-source-result.json",
+        ".audit/entregar-issue/learning-closure.json",
+        ".audit/entregar-issue/audit-escape-closure-382-remediation.json",
+        ".audit/entregar-issue/evidence/audit-420-006-handoff-scope-382.txt"
       ],
-      "evidence": ".audit/entregar-issue/evidence/handoff-recovery-classification.txt",
-      "validations": [
-        "fresh identity classification requires post-write-refreeze after the material write",
-        "new material head is frozen before terminal result-only handoff generation"
-      ]
-    },
-    {
-      "source_kind": "finding",
-      "source_id": "A-002",
-      "remediation_mode": "targeted-remediation",
-      "status": "fixed",
-      "changed_files": [
-        "apps/api/src/routes/workout.routes.ts",
-        "apps/api/tests/workout.routes.test.ts"
+      "evidence": [
+        ".audit/entregar-issue/evidence/audit-420-006-handoff-scope-382.txt"
       ],
-      "evidence": ".audit/entregar-issue/evidence/date-parser-adversarial.txt",
       "validations": [
-        "Mon 2026-02-31 rejected",
-        "Mon, 02/31/2026 rejected",
-        "Mon 2026 Feb 31 rejected",
-        "valid weekday-prefixed sibling formats retain Date.parse timestamp equivalence",
-        "both get-or-create and copy route invalid matrices reuse invalidDateCases"
+        "Immutable compare work_item_start_sha..material_head_sha contains 60 changed paths.",
+        "Regenerated certificate scope contains the same 60 normalized paths with digest 63baa63813493c85e2e3762f50f7ac4e10f2ec4967ad9ad122f81627617f31b7.",
+        "No product material changes were introduced; recovery remains a sibling result-only child of ca22e6c973eff20580974eb15ccba77fdbfb5da8."
       ]
     }
   ],

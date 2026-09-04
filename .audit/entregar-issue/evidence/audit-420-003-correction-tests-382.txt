@@ -1,0 +1,24 @@
+Repository: crgasparoto-br/training-system
+PR: 420
+Issue: 382
+Material head: ca22e6c973eff20580974eb15ccba77fdbfb5da8
+Base: 9988e04f141b76481e190dec7bcaa5a06fd57c7a
+Merge preview: 5f6c7dda24640c1136c8fa188c923df2ec160e6f
+Validate PR run: #7504 (id 33763803301)
+Validate PR conclusion: success
+Official test artifact digest: sha256:f1bc04482ded9d2f6758c12c3dca75cdf154e75ef666d5b790b2513f7d8018e2
+
+Procedure:
+1. Execute correctCompletedAnthropometry through the official service with an authorized professor.
+2. Assert persisted notes/value/observation, one correction audit row with reason/actor/timestamp/beforeSnapshot/afterSnapshot, and exactly one correction timeline event.
+3. Repeat the same correction and require CORRECTION_WITHOUT_CHANGES with audit/timeline cardinality still one.
+4. Remove students.actions.manageAssessments permission and repeat with a changed payload.
+
+Expected:
+- Authorized correction is audited and emits one timeline event.
+- Replay produces no duplicate correction/timeline event.
+- Unauthorized correction raises AnthropometryCorrectionAccessError and leaves assessment/audit/timeline untouched.
+
+Observed:
+- The exact-head integration source contains all cases above.
+- Validate PR #7504 reports PASS for anthropometry-completion-concurrency.integration.test.ts on the exact material head.

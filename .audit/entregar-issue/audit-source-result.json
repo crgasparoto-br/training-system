@@ -1,28 +1,30 @@
 {
   "schema_version": 1,
-  "status": "rejected",
-  "validity": "independent",
-  "rejection_id": "audit-rejection:8100eb96-4911-4b6f-984b-1b6fc5aaf75b",
-  "head_sha": "35217c3b3c5551d95b82df53061f392b4f44a185",
+  "contract_version": "2026-08-20.3",
+  "result": "REPROVADA",
+  "rejection_id": "AUD-420-006",
+  "head_sha": "f6ba182392e93a75b2b648942bc00eb59d20e6e9",
+  "identity": {
+    "repository": "crgasparoto-br/training-system",
+    "issue_number": 382,
+    "pull_request_number": 420,
+    "certified_material_head_sha": "ca22e6c973eff20580974eb15ccba77fdbfb5da8",
+    "current_head_sha": "f6ba182392e93a75b2b648942bc00eb59d20e6e9",
+    "base_ref": "develop",
+    "head_ref": "feat/382-anthropometry-lifecycle"
+  },
   "findings": [
     {
-      "id": "A-001",
+      "id": "AUD-420-006",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "title": "Handoff não cobre o candidato atual",
-      "cause": "O certificado existente ficou stale após escrita material e exige post-write-refreeze."
-    },
-    {
-      "id": "A-002",
-      "disposition": "blocking",
-      "status": "open",
-      "actionable": true,
-      "remediation_mode": "targeted-remediation",
-      "title": "Datas calendáricas impossíveis ainda passam pela validação",
-      "cause": "Representações irmãs não reconhecidas eram delegadas ao parser permissivo de Date e podiam ser normalizadas silenciosamente."
+      "category": "handoff-scope-delta-mismatch",
+      "summary": "The handoff certificate listed only 21 issue_changed_paths while the immutable work_item_start_sha..material_head_sha compare contains 60 paths, including delivery audit artifacts."
     }
   ],
-  "recommendations": []
+  "requires_refreeze": false,
+  "recovery_scope": "handoff-only",
+  "reason": "handoff-scope-delta-mismatch"
 }

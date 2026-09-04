@@ -1,0 +1,12 @@
+Independent audit result for PR #420
+Result: REPROVADA
+Validity: Independente
+Release allowed: NAO
+Rejection ID: audit-rejection:7dd92a04-ac05-4875-a0c9-f8c807e5b0f0
+Finding: AUD-420-005 — Roadmap canônico contradiz estado funcional entregue
+Disposition: blocking
+Category: documentation-claim-drift
+Remediation mode: targeted-remediation
+Audited published head: 40b5d482c59f6cedc1cbf0535b2d350e5dceb036
+Certified material head: c78ce0c9e6a7e2ac2e72364c1046543eb8da6c7f
+Required remediation: reconcile current canonical roadmap claims with the lifecycle/security/comparison capabilities already delivered by issue #382; keep only actual remaining work pending; run a global contradiction scan and refreeze because the documentation change is material.
