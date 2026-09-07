@@ -14,7 +14,7 @@ A autoria da designação e do encerramento também é protegida no banco. O ser
 
 `designatedAt`, `effectiveFrom`, `endedAt` e `effectiveTo` são definidos pelo banco com o tempo da transação. Datas retroativas ou futuras enviadas pela aplicação não são autoridade. PostgreSQL superusers possuem apenas o bypass administrativo necessário para migrations e recuperação controlada; esse bypass não representa o caminho operacional da aplicação.
 
-A gestão da designação exige `settings.contract.actions.manageClinicalTechnicalResponsibility`. Aprovação e revogação exigem `settings.contract.adipometryProtocolApproval`. As duas capacidades começam negadas e não são herdadas automaticamente por `master`, `professor`, `manager` ou perfil administrativo. O acesso comum à tela de contrato não substitui a concessão sensível.
+A gestão da designação exige `settings.contract.actions.manageClinicalTechnicalResponsibility`. Para a função integrada `administrative`, a migration `20260817192000_allow_administrative_manage_adipometry_responsibility` materializa explicitamente `settings.contract` e essa ação de gestão com `canView=true`, tanto para funções já existentes quanto para funções criadas depois do deploy pelo trigger de provisionamento. Esse grant é específico da função integrada e não concede a ação a funções irmãs. Aprovação e revogação continuam exigindo `settings.contract.adipometryProtocolApproval`, que permanece negada por padrão e não é concedida automaticamente a `master`, `professor`, `manager` nem à função `administrative`. A autorização sensível continua persistida em `AccessPermission` e revalidada no caminho operacional.
 
 ### `AdipometryProtocolApproval`
 

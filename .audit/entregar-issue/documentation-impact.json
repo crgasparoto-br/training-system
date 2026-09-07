@@ -1,0 +1,1 @@
+{"schema_version":1,"status":"passed","head_sha":"265f0041c61ec70432a7b0e8fc494db1346da8a4","semantic_change":false,"changed_documentation_paths":[],"observed":"The remediation changes runtime validation/serialization and focused tests without changing the public API contract, UI copy, environment variables, or documented canonical source."}

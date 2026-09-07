@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
-    "build": "pnpm --filter @corrida/types build && pnpm --filter @corrida/utils build && pnpm db:generate && tsc",
+    "build": "pnpm --filter @corrida/types build && pnpm --filter @corrida/utils build && pnpm db:generate && tsc && node scripts/copy-runtime-assets.mjs",
     "start": "node scripts/migrate-and-start.mjs",
     "test": "node scripts/run-jest-tests.mjs && node --test scripts/lib/*.test.mjs",
     "test:watch": "jest --watch",

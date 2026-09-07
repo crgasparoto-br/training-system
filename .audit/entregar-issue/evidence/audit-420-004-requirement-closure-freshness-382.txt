@@ -1,0 +1,22 @@
+Repository: crgasparoto-br/training-system
+PR: 420
+Issue: 382
+Material head: ca22e6c973eff20580974eb15ccba77fdbfb5da8
+Base: 9988e04f141b76481e190dec7bcaa5a06fd57c7a
+Merge preview: 5f6c7dda24640c1136c8fa188c923df2ec160e6f
+Validate PR run: #7504 (id 33763803301)
+Validate PR conclusion: success
+Official test artifact digest: sha256:f1bc04482ded9d2f6758c12c3dca75cdf154e75ef666d5b790b2513f7d8018e2
+
+Procedure:
+1. Rebuild requirement-closure.json logically for exact material ca22e6c973eff20580974eb15ccba77fdbfb5da8.
+2. Reject any current obligation verification rationale still bound to predecessor material c78ce0c9e6a7e2ac2e72364c1046543eb8da6c7f or rejected ancestor 9529a0472b09c1e03cbbbd188c88233f7bdbc8bf.
+3. Re-run specification coverage, attack-matrix, inherited-control and handoff-readiness validators before packing.
+
+Expected:
+- Every current obligation verification claim binds to ca22e6c973eff20580974eb15ccba77fdbfb5da8 and current exact-head evidence.
+
+Observed:
+- The regenerated logical closure replaces predecessor material identity with ca22e6c973eff20580974eb15ccba77fdbfb5da8 across all 32 covered obligations.
+- Current documentation consistency includes both canonical roadmap sources added by AUD-420-005.
+- Validator execution is recorded in the terminal handoff package before publication.

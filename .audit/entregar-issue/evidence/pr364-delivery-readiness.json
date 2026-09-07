@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "subject": {
+    "repository": "crgasparoto-br/training-system",
+    "issue": 363,
+    "pull_request": 364,
+    "material_head_sha": "829e19bdbc94abc1febda351c16cbb3d38d971d7",
+    "base_ref": "develop",
+    "head_ref": "feat/issue-363-professor-manual-ux"
+  },
+  "observations": [
+    {
+      "id": "PR",
+      "status": "passed",
+      "observed": "Open mergeable pull request targets develop and retains the certified material head."
+    },
+    {
+      "id": "CI",
+      "status": "passed",
+      "observed": "Validate PR run 7130 completed successfully for the material head."
+    },
+    {
+      "id": "FOCUSED",
+      "status": "passed",
+      "observed": "Focused page tests cover list/editor separation, CRUD, cancellation, validation focus, filters, empty states, delete confirmation and form preservation."
+    },
+    {
+      "id": "BROWSER",
+      "status": "passed",
+      "observed": "Browser evidence is scoped to the Manual do Professor page root and exercises responsive interaction behavior."
+    },
+    {
+      "id": "BINDING",
+      "status": "passed",
+      "observed": "The inherited readiness package is foreign to the current delivery and is rejected instead of reused."
+    },
+    {
+      "id": "FOREIGN-PARENT-LINEAGE",
+      "status": "passed",
+      "observed": "A foreign material-parent audit package is proven foreign before terminal validation, and its cumulative controls or escapes are not inherited into the current target."
+    }
+  ],
+  "source_audit": {
+    "rejection_id": "audit-rejection:7027bee7-766e-419e-9279-42b577b4dde4",
+    "classification": "delivery-not-ready",
+    "reason": "handoff-stale"
+  },
+  "skill_hardening": {
+    "status": "passed",
+    "prevention": "artifact reuse is reclassified when target identity evolves and after package reconstruction",
+    "detection": "terminal handoff requires current-target classification and distinguishes same-target lineage from proven foreign-parent audit state",
+    "genericity_validation": "passed",
+    "focused_skill_tests": "19 focused terminal/binding tests passed; 38 broader controller contract tests passed"
+  }
+}

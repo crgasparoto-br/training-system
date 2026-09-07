@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "expected_subject": {
+    "repository": "crgasparoto-br/training-system",
+    "issue_number": 379,
+    "pull_request_number": 380,
+    "work_item_kind": "pr",
+    "work_item_number": 380,
+    "pull_request": 380,
+    "base_ref": "develop",
+    "head_ref": "fix/379-collaborator-create"
+  },
+  "checked_paths": [
+    "/mnt/data/delivery-379-current/head-inherited/handoff-ready.json",
+    "/mnt/data/delivery-379-current/head-inherited/specification-snapshot.json"
+  ],
+  "base_origin": {
+    "checked": true,
+    "base_sha": "d5781506c47b9168f816002747c4b7d19605b489",
+    "present_identity_artifacts": [
+      "specification-snapshot.json"
+    ],
+    "inherited_paths": [
+      "specification-snapshot.json"
+    ],
+    "all_present_identity_artifacts_inherited": true,
+    "comparison_mode": "materialized-base"
+  },
+  "status": "inherited-base-artifact",
+  "reuse_allowed": false,
+  "requires_fresh_handoff": true,
+  "foreign_target_detected": true,
+  "inherited_from_base": true,
+  "observed_subject": null,
+  "reasons": [
+    "snapshot.issue differs: observed=375 expected=379",
+    "foreign identity artifacts are byte-identical to the exact base SHA; treat them as inherited history, never as output of the current delivery"
+  ]
+}

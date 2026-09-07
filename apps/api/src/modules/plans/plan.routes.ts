@@ -1,4 +1,4 @@
-﻿import { Router, Request, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { planService } from './plan.service.js';
 import { periodizationService } from '../periodization/periodization.service.js';
 import { alunoService } from '../alunos/aluno.service.js';
@@ -13,13 +13,11 @@ import {
 
 const router: Router = Router();
 
-// Aplicar autenticaÃ§Ã£o em todas as rotas
 router.use(authMiddleware);
 
-// Schemas de validaÃ§Ã£o
 const createPlanSchema = z.object({
   alunoId: z.string().cuid(),
-  name: z.string().min(3, 'Nome deve ter no mÃ­nimo 3 caracteres'),
+  name: z.string().min(3, 'Nome deve ter no mínimo 3 caracteres'),
   description: z.string().optional(),
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
@@ -43,23 +41,6 @@ const createMesocycleSchema = z.object({
   volumeTarget: z.number().positive().optional(),
 });
 
-const createMicrocycleSchema = z.object({
-  mesocycleId: z.string().cuid(),
-  dayOfWeek: z.number().int().min(0).max(6),
-  sessionType: z.enum(['easy', 'moderate', 'threshold', 'vo2max', 'anaerobic', 'recovery', 'long_run', 'strength', 'cross_training']),
-  durationMinutes: z.number().int().positive(),
-  distanceKm: z.number().positive().optional(),
-  intensityPercentage: z.number().min(0).max(100),
-  paceMinPerKm: z.number().positive().optional(),
-  heartRateZone: z.number().int().min(1).max(5).optional(),
-  instructions: z.string().optional(),
-  notes: z.string().optional(),
-});
-
-/**
- * POST /api/v1/plans
- * Criar novo plano de treino (apenas professores)
- */
 router.post('/', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const validatedData = createPlanSchema.parse(req.body);
@@ -86,10 +67,6 @@ router.post('/', professorMiddleware, async (req: Request, res: Response) => {
   }
 });
 
-/**
- * GET /api/v1/plans
- * Listar planos do professor ou aluno
- */
 router.get('/', async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
@@ -107,10 +84,9 @@ router.get('/', async (req: Request, res: Response) => {
 
     let result;
     if (user.type === 'professor') {
-      // Buscar professorId do banco
       const { authService } = await import('../auth/auth.service.js');
       const userWithProfessor = await authService.getUserById(user.userId);
-      
+
       if (!userWithProfessor?.professor) {
         return sendError(res, 'Professor não encontrado', 404);
       }
@@ -160,13 +136,20 @@ router.get('/', async (req: Request, res: Response) => {
         );
       }
     } else {
-
       const membership = await resolveActiveStudentMembership(
         user.userId,
         normalizeRequestedStudentContractId(req.header('x-contract-id'))
       );
       const plans = await planService.findByAluno(membership.id, status, query);
-      result = { plans, pagination: { page: 1, limit: plans.length, total: plans.length, totalPages: 1 } };
+      result = {
+        plans,
+        pagination: {
+          page: 1,
+          limit: plans.length,
+          total: plans.length,
+          totalPages: 1,
+        },
+      };
     }
 
     return sendSuccess(res, result, 'Planos recuperados com sucesso');
@@ -183,10 +166,6 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
-/**
- * GET /api/v1/plans/:id
- * Obter plano por ID
- */
 router.get('/aluno/:alunoId', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { alunoId } = req.params;
@@ -212,9 +191,10 @@ router.get('/aluno/:alunoId', professorMiddleware, async (req: Request, res: Res
       userWithProfessor.professor.role === 'master' &&
       userWithProfessor.professor.contract?.type === 'academy';
 
-    const belongs = isMasterAcademy && contractId
-      ? await alunoService.belongsToContract(alunoId, contractId)
-      : await alunoService.belongsToProfessor(alunoId, professorId);
+    const belongs =
+      isMasterAcademy && contractId
+        ? await alunoService.belongsToContract(alunoId, contractId)
+        : await alunoService.belongsToProfessor(alunoId, professorId);
 
     if (!belongs) {
       return sendError(
@@ -244,20 +224,15 @@ router.get('/aluno/:alunoId', professorMiddleware, async (req: Request, res: Res
   }
 });
 
-/**
- * GET /api/v1/plans/:id
- * Obter plano por ID
- */
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const plan = await planService.findById(id);
 
     if (!plan) {
-      return sendError(res, 'Plano nÃ£o encontrado', 404);
+      return sendError(res, 'Plano não encontrado', 404);
     }
 
-    // Calcular estatÃ­sticas
     const stats = await planService.getPlanStats(id);
 
     return sendSuccess(
@@ -274,10 +249,6 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
-/**
- * PUT /api/v1/plans/:id
- * Atualizar plano (apenas professor dono)
- */
 router.put('/:id', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -287,7 +258,6 @@ router.put('/:id', professorMiddleware, async (req: Request, res: Response) => {
       return sendError(res, 'Professor não encontrado', 404);
     }
 
-    // Verificar se plano pertence ao professor
     const belongs = await planService.belongsToProfessor(id, professorId);
     if (!belongs) {
       return sendError(res, 'Plano não encontrado ou não pertence a você', 404);
@@ -335,10 +305,6 @@ router.put('/:id', professorMiddleware, async (req: Request, res: Response) => {
   }
 });
 
-/**
- * DELETE /api/v1/plans/:id
- * Deletar plano (apenas professor dono)
- */
 router.delete('/:id', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -348,7 +314,6 @@ router.delete('/:id', professorMiddleware, async (req: Request, res: Response) =
       return sendError(res, 'Professor não encontrado', 404);
     }
 
-    // Verificar se plano pertence ao professor
     const belongs = await planService.belongsToProfessor(id, professorId);
     if (!belongs) {
       return sendError(res, 'Plano não encontrado ou não pertence a você', 404);
@@ -363,10 +328,6 @@ router.delete('/:id', professorMiddleware, async (req: Request, res: Response) =
   }
 });
 
-/**
- * POST /api/v1/plans/:id/generate-weeks
- * Gerar semanas automaticamente para um plano
- */
 router.post('/:id/generate-weeks', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -376,7 +337,6 @@ router.post('/:id/generate-weeks', professorMiddleware, async (req: Request, res
       return sendError(res, 'Professor não encontrado', 404);
     }
 
-    // Verificar se plano pertence ao professor
     const belongs = await planService.belongsToProfessor(id, professorId);
     if (!belongs) {
       return sendError(res, 'Plano não encontrado ou não pertence a você', 404);
@@ -396,10 +356,6 @@ router.post('/:id/generate-weeks', professorMiddleware, async (req: Request, res
   }
 });
 
-/**
- * POST /api/v1/plans/macrocycles
- * Criar macrociclo
- */
 router.post('/macrocycles', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const validatedData = createMacrocycleSchema.parse(req.body);
@@ -408,17 +364,13 @@ router.post('/macrocycles', professorMiddleware, async (req: Request, res: Respo
     return sendSuccess(res, macrocycle, 'Macrociclo criado com sucesso', 201);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados invÃ¡lidos', 400, error.errors);
+      return sendError(res, 'Dados inválidos', 400, error.errors);
     }
     console.error('Erro ao criar macrociclo:', error);
     return sendError(res, 'Erro ao criar macrociclo', 500);
   }
 });
 
-/**
- * POST /api/v1/plans/mesocycles
- * Criar mesociclo
- */
 router.post('/mesocycles', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const validatedData = createMesocycleSchema.parse(req.body);
@@ -431,64 +383,11 @@ router.post('/mesocycles', professorMiddleware, async (req: Request, res: Respon
     return sendSuccess(res, mesocycle, 'Mesociclo criado com sucesso', 201);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados invÃ¡lidos', 400, error.errors);
+      return sendError(res, 'Dados inválidos', 400, error.errors);
     }
     console.error('Erro ao criar mesociclo:', error);
     return sendError(res, 'Erro ao criar mesociclo', 500);
   }
 });
 
-/**
- * POST /api/v1/plans/microcycles
- * Criar microciclo (sessÃ£o)
- */
-router.post('/microcycles', professorMiddleware, async (req: Request, res: Response) => {
-  try {
-    const validatedData = createMicrocycleSchema.parse(req.body);
-    const microcycle = await planService.createMicrocycle(validatedData);
-
-    return sendSuccess(res, microcycle, 'SessÃ£o criada com sucesso', 201);
-  } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados invÃ¡lidos', 400, error.errors);
-    }
-    console.error('Erro ao criar sessÃ£o:', error);
-    return sendError(res, 'Erro ao criar sessÃ£o', 500);
-  }
-});
-
-/**
- * PUT /api/v1/plans/microcycles/:id
- * Atualizar microciclo (sessÃ£o)
- */
-router.put('/microcycles/:id', professorMiddleware, async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const microcycle = await planService.updateMicrocycle(id, req.body);
-
-    return sendSuccess(res, microcycle, 'SessÃ£o atualizada com sucesso');
-  } catch (error) {
-    console.error('Erro ao atualizar sessÃ£o:', error);
-    return sendError(res, 'Erro ao atualizar sessÃ£o', 500);
-  }
-});
-
-/**
- * DELETE /api/v1/plans/microcycles/:id
- * Deletar microciclo (sessÃ£o)
- */
-router.delete('/microcycles/:id', professorMiddleware, async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    await planService.deleteMicrocycle(id);
-
-    return sendSuccess(res, null, 'SessÃ£o deletada com sucesso');
-  } catch (error) {
-    console.error('Erro ao deletar sessÃ£o:', error);
-    return sendError(res, 'Erro ao deletar sessÃ£o', 500);
-  }
-});
-
 export default router;
-
-

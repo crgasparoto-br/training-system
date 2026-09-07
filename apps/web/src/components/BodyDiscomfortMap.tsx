@@ -159,9 +159,9 @@ export function BodyDiscomfortMap({ value, onChange }: BodyDiscomfortMapProps) {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-5 xl:grid-cols-[minmax(320px,480px)_minmax(280px,1fr)]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,480px)_minmax(0,1fr)]">
         {/* Body map panel */}
-        <div className="rounded-xl border border-border bg-white p-4">
+        <div className="min-w-0 rounded-xl border border-border bg-white p-4">
           {/* View toggle */}
           <div className="mb-3 flex items-center justify-center gap-2">
             <button
@@ -198,17 +198,17 @@ export function BodyDiscomfortMap({ value, onChange }: BodyDiscomfortMapProps) {
             </button>
           </div>
 
-          {/* SVG with realistic body image */}
+          {/* Image, hit areas and markers scale together in this coordinate system. */}
           <div className="relative mx-auto" style={{ maxWidth: 320 }}>
             <svg
               viewBox="0 0 400 600"
-              role="img"
+              role="group"
               aria-label={`Mapa corporal interativo – vista ${view === 'front' ? 'frontal' : 'posterior'}`}
               className="mx-auto h-auto w-full"
             >
               {/* Realistic body image as background */}
               <image
-                href={view === 'front' ? '/body-front.png' : '/body-back.png'}
+                href={view === 'front' ? '/body-front.png' : '/body-back-clinical.png'}
                 x="0"
                 y="0"
                 width="400"
@@ -233,7 +233,9 @@ export function BodyDiscomfortMap({ value, onChange }: BodyDiscomfortMapProps) {
                   <g key={region.id}>
                     <g
                       id={`body-region-${region.id}`}
+                      className="group cursor-pointer outline-none"
                       role="button"
+                      aria-pressed={Boolean(entry)}
                       tabIndex={0}
                       aria-label={getRegionPathLabel(region, entry)}
                       onClick={() => openRegion(region)}
@@ -246,43 +248,27 @@ export function BodyDiscomfortMap({ value, onChange }: BodyDiscomfortMapProps) {
                     >
                       <title>{`${region.number} – ${region.name}`}</title>
                       {renderRegionShape(region, fill, stroke, hoverClass)}
+                      <circle
+                        cx={region.labelX}
+                        cy={region.labelY}
+                        r={11}
+                        fill={isActive ? '#1d4ed8' : entry ? getIntensityAccentColor(entry.intensity) : '#fff'}
+                        stroke={isActive ? '#1d4ed8' : '#475569'}
+                        strokeWidth={1.5}
+                        className="transition-colors group-hover:stroke-blue-600 group-focus-visible:stroke-blue-600 group-focus-visible:stroke-[3px]"
+                      />
+                      <text
+                        x={region.labelX}
+                        y={region.labelY}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        className="select-none text-[10px] font-bold"
+                        fill={isActive || (entry && entry.intensity >= 9) ? '#fff' : '#1e293b'}
+                        pointerEvents="none"
+                      >
+                        {region.number}
+                      </text>
                     </g>
-
-                    {/* Number label – only show when region has discomfort or is active */}
-                    {(entry || isActive) && (
-                      <text
-                        x={region.labelX}
-                        y={region.labelY}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        className="select-none text-[9px] font-extrabold"
-                        fill={isActive ? '#1d4ed8' : entry && entry.intensity >= 9 ? '#fff' : '#1e293b'}
-                        stroke={isActive ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.7)'}
-                        strokeWidth={3}
-                        paintOrder="stroke"
-                        pointerEvents="none"
-                      >
-                        {region.number}
-                      </text>
-                    )}
-
-                    {/* Subtle number hint on hover for unselected regions */}
-                    {!entry && !isActive && (
-                      <text
-                        x={region.labelX}
-                        y={region.labelY}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        className="select-none text-[8px] font-bold opacity-0 transition-opacity hover:opacity-100"
-                        fill="#334155"
-                        stroke="rgba(255,255,255,0.9)"
-                        strokeWidth={3}
-                        paintOrder="stroke"
-                        pointerEvents="none"
-                      >
-                        {region.number}
-                      </text>
-                    )}
                   </g>
                 );
               })}

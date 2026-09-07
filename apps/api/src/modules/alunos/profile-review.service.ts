@@ -1,7 +1,9 @@
 import { assertNoLegacyParqWrite } from './student-parq-legacy-cutover.js';
 import { Prisma, PrismaClient, StudentProfileReviewStatus } from '@prisma/client';
 import { notificationService } from '../notifications/notification.service.js';
+import type { ExternalNotificationDeliveryResult } from '../notifications/notification-delivery.service.js';
 import { profileAuditService } from './profile-audit.service.js';
+import { createOrReusePendingProfileReview } from './profile-review-request.service.js';
 import { loadStudentIdentity, upsertStudentIdentity } from './student-identity.service.js';
 import {
   hasCanonicalHealthIntakeMutation,
@@ -96,6 +98,8 @@ export interface ProfileReviewCompleteChangesInput {
 export interface ProfileReviewCompleteInput {
   reviewId: string;
   alunoUserId: string;
+  alunoId: string;
+  contractId: string;
   noChanges?: boolean;
   changes?: ProfileReviewCompleteChangesInput;
 }
@@ -388,6 +392,48 @@ const parseChangedFields = (value: Prisma.JsonValue | null | undefined): Changed
 const castJson = (value: unknown): Prisma.InputJsonValue =>
   normalizeSnapshotValue(value) as Prisma.InputJsonValue;
 
+const assertActiveReviewScope = async (
+  tx: Prisma.TransactionClient,
+  input: Pick<ProfileReviewCompleteInput, 'reviewId' | 'alunoUserId' | 'alunoId' | 'contractId'>
+) => {
+  const activeAluno = await tx.aluno.findFirst({
+    where: {
+      id: input.alunoId,
+      userId: input.alunoUserId,
+      contractId: input.contractId,
+      status: 'ACTIVE_STUDENT',
+    },
+    select: { id: true },
+  });
+
+  if (!activeAluno) {
+    throw new Error('Revisão cadastral não encontrada');
+  }
+};
+
+const updatePendingProfileReview = async (
+  tx: Prisma.TransactionClient,
+  reviewId: string,
+  alunoId: string,
+  data: Prisma.StudentProfileReviewUpdateInput
+) => {
+  try {
+    return await tx.studentProfileReview.update({
+      where: {
+        id: reviewId,
+        alunoId,
+        status: StudentProfileReviewStatus.pending,
+      },
+      data,
+    });
+  } catch (error: any) {
+    if (error?.code === 'P2025') {
+      throw new Error('A revisão cadastral não está pendente');
+    }
+    throw error;
+  }
+};
+
 const applyAlunoPatch = async (
   tx: Prisma.TransactionClient,
   alunoId: string,
@@ -665,49 +711,105 @@ export const profileReviewService = {
       this.getAlunoSnapshot(input.alunoId),
       this.getEffectiveSettings(input.alunoId),
     ]);
-
-    const review = await prisma.studentProfileReview.create({
-      data: {
-        alunoId: input.alunoId,
-        requestedByUserId: input.requestedByUserId ?? null,
-        dueAt: input.dueAt,
-        sectionsRequested: castJson(input.sectionsRequested ?? settingsData.effective.sectionsRequested),
-        snapshotBefore: castJson(snapshotBefore),
-      },
+    const requestedSections = input.sectionsRequested ?? settingsData.effective.sectionsRequested;
+    const { review, reviewCreated } = await createOrReusePendingProfileReview(prisma, {
+      alunoId: input.alunoId,
+      requestedByUserId: input.requestedByUserId ?? null,
+      dueAt: input.dueAt,
+      sectionsRequested: castJson(requestedSections),
+      snapshotBefore: castJson(snapshotBefore),
     });
+    const effectiveDueAt = review.dueAt ?? null;
+    const effectiveSections = normalizeSections(review.sectionsRequested);
 
-    await notificationService.create({
-      userId: aluno.user.id,
-      type: 'profile_review_requested',
-      title: 'Revisão cadastral solicitada',
-      message:
-        input.requestedByUserId
-          ? input.dueAt
-            ? `Seu professor solicitou revisão cadastral. Prazo: ${input.dueAt.toISOString()}.`
-            : 'Seu professor solicitou revisão cadastral.'
-          : input.dueAt
-            ? `Uma revisão cadastral está disponível para você. Prazo: ${input.dueAt.toISOString()}.`
-            : 'Uma revisão cadastral está disponível para você.',
-      payload: {
-        alunoId: input.alunoId,
-        reviewId: review.id,
-        dueAt: input.dueAt?.toISOString() ?? null,
-        path: '/student/profile-review',
-        deepLink: 'acesso://student/profile-review',
-        sectionsRequested: input.sectionsRequested ?? settingsData.effective.sectionsRequested,
-      },
-      dedupeWindowMinutes: 30,
-    });
+    let notification: {
+      persisted: boolean;
+      deduplicated: boolean;
+      delivery: ExternalNotificationDeliveryResult | null;
+      error: string | null;
+    } = {
+      persisted: false,
+      deduplicated: false,
+      delivery: null,
+      error: null,
+    };
+
+    try {
+      const createdNotification = await notificationService.create({
+        userId: aluno.user.id,
+        type: 'profile_review_requested',
+        title: 'Revisão cadastral solicitada',
+        message:
+          input.requestedByUserId
+            ? effectiveDueAt
+              ? `Seu professor solicitou revisão cadastral. Prazo: ${effectiveDueAt.toISOString()}.`
+              : 'Seu professor solicitou revisão cadastral.'
+            : effectiveDueAt
+              ? `Uma revisão cadastral está disponível para você. Prazo: ${effectiveDueAt.toISOString()}.`
+              : 'Uma revisão cadastral está disponível para você.',
+        payload: {
+          alunoId: input.alunoId,
+          reviewId: review.id,
+          event: 'profile_review_requested',
+          dueAt: effectiveDueAt?.toISOString() ?? null,
+          path: '/student/profile-review',
+          deepLink: 'acesso://student/profile-review',
+          sectionsRequested: effectiveSections,
+        },
+        dedupeWindowMinutes: 30,
+        dispatchExternal: true,
+      });
+
+      notification = createdNotification
+        ? {
+            persisted: true,
+            deduplicated: false,
+            delivery: createdNotification.delivery,
+            error: null,
+          }
+        : {
+            persisted: true,
+            deduplicated: true,
+            delivery: null,
+            error: null,
+          };
+    } catch {
+      console.error('Falha ao registrar a notificação da revisão cadastral');
+      notification = {
+        persisted: false,
+        deduplicated: false,
+        delivery: null,
+        error: 'Não foi possível registrar a notificação da revisão cadastral',
+      };
+    }
 
     await profileAuditService.log({
       alunoId: input.alunoId,
       changedByUserId: input.requestedByUserId ?? null,
       source: input.requestedByUserId ? 'web_admin' : 'system_review',
       action: 'request_review',
-      afterData: { reviewId: review.id, dueAt: input.dueAt?.toISOString() ?? null },
+      afterData: {
+        reviewId: review.id,
+        dueAt: effectiveDueAt?.toISOString() ?? null,
+        reviewCreated,
+        notificationDeduplicated: notification.deduplicated,
+      },
     });
 
-    return review;
+    const requestAction = reviewCreated
+      ? 'created'
+      : !notification.persisted
+        ? 'existing_pending_notification_failed'
+        : notification.deduplicated
+          ? 'existing_pending'
+          : 'existing_pending_notified';
+
+    return {
+      ...review,
+      reviewCreated,
+      requestAction,
+      notification,
+    };
   },
 
   async listByAluno(alunoId: string) {
@@ -746,6 +848,10 @@ export const profileReviewService = {
       throw new Error('Revisão cadastral não encontrada');
     }
 
+    if (review.alunoId !== input.alunoId || review.aluno.contractId !== input.contractId) {
+      throw new Error('Revisão cadastral não encontrada');
+    }
+
     if (review.aluno.user.id !== input.alunoUserId) {
       throw new Error('Você não tem permissão para concluir esta revisão');
     }
@@ -777,6 +883,17 @@ export const profileReviewService = {
 
     if (input.noChanges || !hasChanges) {
       const updated = await prisma.$transaction(async (tx) => {
+        await assertActiveReviewScope(tx, input);
+        const updatedReview = await updatePendingProfileReview(tx, review.id, input.alunoId, {
+          status: StudentProfileReviewStatus.completed_no_changes,
+          completedAt: now,
+          requiresApproval: false,
+          changedFields: castJson([]),
+          snapshotBefore: review.snapshotBefore ?? castJson(freshSnapshot),
+          snapshotAfter: castJson(freshSnapshot),
+          nextReviewAt,
+        });
+
         await tx.alunoProfileReviewSettings.upsert({
           where: { alunoId: review.alunoId },
           create: {
@@ -790,18 +907,8 @@ export const profileReviewService = {
           },
         });
 
-        return tx.studentProfileReview.update({
-          where: { id: review.id },
-          data: {
-            status: StudentProfileReviewStatus.completed_no_changes,
-            completedAt: now,
-            requiresApproval: false,
-            changedFields: castJson([]),
-            snapshotBefore: review.snapshotBefore ?? castJson(freshSnapshot),
-            snapshotAfter: castJson(freshSnapshot),
-            nextReviewAt,
-          },
-        });
+        await assertActiveReviewScope(tx, input);
+        return updatedReview;
       });
 
       await profileAuditService.log({
@@ -824,6 +931,17 @@ export const profileReviewService = {
 
     if (changedFields.length === 0) {
       const updated = await prisma.$transaction(async (tx) => {
+        await assertActiveReviewScope(tx, input);
+        const updatedReview = await updatePendingProfileReview(tx, review.id, input.alunoId, {
+          status: StudentProfileReviewStatus.completed_no_changes,
+          completedAt: now,
+          requiresApproval: false,
+          changedFields: castJson([]),
+          snapshotBefore: castJson(beforeSnapshot),
+          snapshotAfter: castJson(beforeSnapshot),
+          nextReviewAt,
+        });
+
         await tx.alunoProfileReviewSettings.upsert({
           where: { alunoId: review.alunoId },
           create: {
@@ -837,18 +955,8 @@ export const profileReviewService = {
           },
         });
 
-        return tx.studentProfileReview.update({
-          where: { id: review.id },
-          data: {
-            status: StudentProfileReviewStatus.completed_no_changes,
-            completedAt: now,
-            requiresApproval: false,
-            changedFields: castJson([]),
-            snapshotBefore: castJson(beforeSnapshot),
-            snapshotAfter: castJson(beforeSnapshot),
-            nextReviewAt,
-          },
-        });
+        await assertActiveReviewScope(tx, input);
+        return updatedReview;
       });
 
       await profileAuditService.log({
@@ -866,6 +974,17 @@ export const profileReviewService = {
     const hasSensitiveChanges = changedFields.some((field) => field.requiresApproval);
 
     const updated = await prisma.$transaction(async (tx) => {
+      await assertActiveReviewScope(tx, input);
+      const updatedReview = await updatePendingProfileReview(tx, review.id, input.alunoId, {
+        status: StudentProfileReviewStatus.completed_with_changes,
+        completedAt: now,
+        requiresApproval: hasSensitiveChanges,
+        changedFields: castJson(changedFields),
+        snapshotBefore: castJson(beforeSnapshot),
+        snapshotAfter: castJson(mergedAfterSnapshot),
+        nextReviewAt,
+      });
+
       await applyAlunoPatch(tx, review.alunoId, review.aluno.user!.id, directPatch);
 
       await tx.alunoProfileReviewSettings.upsert({
@@ -881,18 +1000,8 @@ export const profileReviewService = {
         },
       });
 
-      return tx.studentProfileReview.update({
-        where: { id: review.id },
-        data: {
-          status: StudentProfileReviewStatus.completed_with_changes,
-          completedAt: now,
-          requiresApproval: hasSensitiveChanges,
-          changedFields: castJson(changedFields),
-          snapshotBefore: castJson(beforeSnapshot),
-          snapshotAfter: castJson(mergedAfterSnapshot),
-          nextReviewAt,
-        },
-      });
+      await assertActiveReviewScope(tx, input);
+      return updatedReview;
     });
 
     await profileAuditService.log({

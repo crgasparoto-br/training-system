@@ -1,0 +1,17 @@
+Issue 414 static exact-head verification
+material_head_sha=5649fa12eed14c2d18ee195fee914082ab8d0761
+base_sha=dd0fefdb8c19d9c311c15a9b1d1a3e03bfd54e97
+pr=415
+changed_files=11
+additions=396
+deletions=824
+changed_schema_or_migration_paths=0
+plan_details_legacy_write_surface=absent (SessionModal/createSession/updateSession/deleteSession not present in exact-head PlanDetails source inspection)
+api_microcycle_write_surface=absent (REST write routes and create/update/deleteMicrocycle service methods removed at exact head)
+historical_microcycle_read_surface=present (AlunoResumoHubTabBase exact-head consumer remains read-only)
+week_mapping_controls=present (1, boundary 4->5, variable weeksPerMesocycle=3)
+cyclic_resisted_coexistence_source_control=present (independent cyclicStimulus/resistedStimulus lookups and labels)
+local_pnpm_validate=not_run (connector-only runtime has no usable checkout; blocker documented in PR #415)
+remote_material_ci_status_count=0
+remote_material_workflow_run_count=0
+remote_ci_absence_interpretation=not_approval

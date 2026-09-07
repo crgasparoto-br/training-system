@@ -1,0 +1,24 @@
+## Objetivo
+Permitir ao professor master alterar o tipo do contrato na tela `/settings/contract` entre pessoa física e pessoa jurídica por meio de um seletor tipo switch/segmentado.
+
+## Contexto
+A tela já passou a respeitar `personal` = CPF e `academy` = CNPJ. Porém o tipo do contrato ainda é apenas lido do backend, sem opção de alteração pela interface.
+
+## Escopo
+- adicionar seletor visual entre `Pessoa física (CPF)` e `Pessoa jurídica (CNPJ)`;
+- ao alternar, atualizar máscara, rótulo, placeholder e regra de comprimento do documento;
+- exigir documento compatível com o tipo selecionado antes de salvar;
+- persistir `CompanyContract.type` junto com os demais dados do contrato;
+- validar no backend o tipo solicitado e validar o documento contra o tipo de destino, de forma atômica;
+- ao trocar o tipo, limpar o documento atual para evitar reaproveitar CPF como CNPJ ou vice-versa;
+- atualizar a sessão/autorização após salvar, como já ocorre para os demais dados do contrato;
+- adicionar testes de regressão.
+
+## Critérios de aceite
+- master consegue alternar entre pessoa física e pessoa jurídica;
+- `personal` mostra CPF e exige 11 dígitos;
+- `academy` mostra CNPJ e exige 14 dígitos;
+- troca de tipo não persiste documento incompatível;
+- backend rejeita valores de tipo fora de `personal`/`academy`;
+- alteração é persistida e refletida após recarregar a tela;
+- usuários sem permissão continuam em modo somente leitura.

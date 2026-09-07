@@ -1,4 +1,4 @@
-﻿import { PrismaClient, TrainingPhase, SessionType } from '@prisma/client';
+import { PrismaClient, TrainingPhase } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -27,19 +27,6 @@ export interface CreateMesocycleDTO {
   endDate: Date;
   focus?: string;
   volumeTarget?: number;
-}
-
-export interface CreateMicrocycleDTO {
-  mesocycleId: string;
-  dayOfWeek: number;
-  sessionType: SessionType;
-  durationMinutes: number;
-  distanceKm?: number;
-  intensityPercentage: number;
-  paceMinPerKm?: number;
-  heartRateZone?: number;
-  instructions?: string;
-  notes?: string;
 }
 
 type PlanStatusFilter = 'active' | 'finished' | 'all';
@@ -403,34 +390,6 @@ export const planService = {
   },
 
   /**
-   * Criar microciclo (sessÃ£o)
-   */
-  async createMicrocycle(data: CreateMicrocycleDTO) {
-    return await prisma.microcycle.create({
-      data,
-    });
-  },
-
-  /**
-   * Atualizar microciclo (sessÃ£o)
-   */
-  async updateMicrocycle(id: string, data: Partial<CreateMicrocycleDTO>) {
-    return await prisma.microcycle.update({
-      where: { id },
-      data,
-    });
-  },
-
-  /**
-   * Deletar microciclo (sessÃ£o)
-   */
-  async deleteMicrocycle(id: string) {
-    return await prisma.microcycle.delete({
-      where: { id },
-    });
-  },
-
-  /**
    * Gerar semanas automaticamente para um plano
    */
   async generateWeeks(planId: string, startDate: Date, endDate: Date) {
@@ -588,5 +547,3 @@ export const planService = {
     };
   },
 };
-
-

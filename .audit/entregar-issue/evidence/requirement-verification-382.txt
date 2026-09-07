@@ -1,0 +1,19 @@
+Repository: crgasparoto-br/training-system
+PR: 420
+Issue: 382
+Material head: ca22e6c973eff20580974eb15ccba77fdbfb5da8
+Base: 9988e04f141b76481e190dec7bcaa5a06fd57c7a
+Merge preview: 5f6c7dda24640c1136c8fa188c923df2ec160e6f
+Validate PR run: #7504 (id 33763803301)
+Validate PR conclusion: success
+Official test artifact digest: sha256:f1bc04482ded9d2f6758c12c3dca75cdf154e75ef666d5b790b2513f7d8018e2
+
+Procedure:
+- Re-evaluate all issue #382 obligation controls on frozen material ca22e6c973eff20580974eb15ccba77fdbfb5da8 using exact-head workflow evidence and the current repository sources.
+- Use the PostgreSQL integration suite for immutability, concurrency, tenant isolation and correction-flow assertions.
+- Use current canonical documentation plus docs:check for documentation claims.
+
+Observed:
+- Validate PR #7504 completed success on ca22e6c973eff20580974eb15ccba77fdbfb5da8; lifecycle/completion/concurrency suites pass.
+- The integration source at ca22e6c973eff20580974eb15ccba77fdbfb5da8 explicitly contains completed-history immutability, writer/completion serialization, cross-contract isolation, authorized correction audit/timeline, replay-no-duplicate and unauthorized-zero-effect controls.
+- The two current roadmap sources now classify the issue #382 lifecycle/security/comparison capabilities as implemented and retain only actual remaining work such as the laudo contract and complementary validation.

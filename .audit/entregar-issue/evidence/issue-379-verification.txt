@@ -1,0 +1,32 @@
+Issue 379 / PR 380 remediation evidence
+
+Identity
+- repository: crgasparoto-br/training-system
+- base_ref: develop
+- base_sha: d5781506c47b9168f816002747c4b7d19605b489
+- head_ref: fix/379-collaborator-create
+- remediation_cycle_start_sha: 6849f4231446801a29cba2ab53707b586dbac93d
+- material_head_sha: 6a6d5633b59508e5ba139155ea4bc75e5386ef06
+
+Audit rejection remediated
+- rejection_id: audit-rejection:8096b568-f1ff-4bd6-9da2-aa0cf0cf5658
+- A-380-001: canonical audit-remediation ledger generated and validate_audit_remediation.py returned READY for both actionable findings.
+- A-380-002: CollaboratorFormPage.test.tsx now exercises create mode with valid name/email/password, asserts professorService.create payload including collaboratorFunctionId, and verifies navigation to the created collaborator success state.
+
+Exact Git object verification
+- apps/web/src/pages/CollaboratorFormPage.test.tsx Git blob at material head: def4aadd826ffec11e36bbc7529f33ed9c4b94b1
+- connector re-read the exact file at material head after the write.
+- local structural discriminant over the exact written bytes: PASS (10/10 checks), evidence/product-static-verification.log.
+
+Inherited functionality unchanged
+- /professores/new remains protected by collaborators.registration and renders CollaboratorCreateRoute.
+- personal contract handling and API business-message propagation were not changed by this remediation commit.
+
+CI delivery snapshot
+- workflow: Validate PR
+- run_id: 32571902565
+- run_number: 7364
+- material_head_sha: 6a6d5633b59508e5ba139155ea4bc75e5386ef06
+- observed status in the single delivery snapshot: in_progress
+- conclusion: pending at observation time
+- per delivery CI ownership policy, no polling/rerun/dispatch was performed; independent audit must re-observe current CI state.

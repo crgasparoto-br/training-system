@@ -12,6 +12,13 @@ export {
   createCapacityPrescriptionExtensionService,
 } from './capacity-prescription-extension.service.js';
 export {
+  capacityExerciseMappingService,
+  createCapacityExerciseMappingService,
+  mergePersistedExerciseMapping,
+  readPersistedExerciseMapping,
+  validateResistedTechnicalExerciseRefs,
+} from './capacity-exercise-mapping.service.js';
+export {
   deriveCapacityAlerts,
   mergeCapacityAlerts,
   serializeCapacityApiData,

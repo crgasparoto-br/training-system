@@ -1,0 +1,10 @@
+Historical audit escape retention verification
+repository=crgasparoto-br/training-system
+previous_revalidated_head=5e51181b3c9fdabf947da4d4d881a394d30b08ed
+current_material_head=4e353dce51a648647fc494dc71a11afda5785d58
+compare_status=ahead
+compare_commits=10
+product_paths_changed_since_previous_revalidation=apps/api/src/routes/workout.routes.ts,apps/api/tests/workout-template-first-creation.integration.test.ts,apps/api/tests/workout.routes.test.ts
+apps_web_paths_changed_since_previous_revalidation=none
+retention_result=passed
+notes=The historical ESC-414 week-cardinality and periodization-refresh implementation surfaces are under apps/web and were not changed between the previous revalidated head and the current material head. The historical structural controller escapes remain retained through the cumulative ledger and current terminal/refreeze gates. The current material changes are limited to the Issue 416 API date boundary/tests plus audit artifacts, so the historical escape classes are not reopened by this candidate.

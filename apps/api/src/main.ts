@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import 'express-async-errors';
-import { assessmentTypeRoutes } from './modules/assessments/index.js';
+import { assessmentTypeRoutes, subjectiveScaleRoutes } from './modules/assessments/index.js';
 import { anthropometryRoutes } from './modules/anthropometry/index.js';
 import { adipometryRoutes } from './modules/adipometry/index.js';
 import adipometryGovernanceRoutes from './modules/adipometry/adipometry-governance.routes.js';
@@ -20,7 +20,9 @@ import contractLifecycleRoutes from './modules/contracts/contract-lifecycle.rout
 import contractRejectionRoutes from './modules/contracts/contract-rejection.routes.js';
 import { contractRoutes } from './modules/contracts/index.js';
 import { hourlyRateLevelRoutes } from './modules/hourly-rate-levels/index.js';
+import { notificationDeliveryWebhookRoutes } from './modules/notifications/notification-delivery.routes.js';
 import { planRoutes } from './modules/plans/index.js';
+import { periodizationRoutes } from './modules/periodization/index.js';
 import { professorRoutes } from './modules/professores/index.js';
 import { legacyCollaboratorContractMiddleware } from './modules/professores/legacy-collaborator-contract.middleware.js';
 import { serviceRoutes } from './modules/services/index.js';
@@ -41,7 +43,9 @@ import {
   preRegistrationInvitePublicRoutes,
 } from './modules/pre-registration-invites/index.js';
 import { startStudentContractLifecycleScheduler } from './modules/student-contracts/student-contract-lifecycle.scheduler.js';
+import libraryRoutes from './routes/library.routes.js';
 import studentRoutes from './routes/student.routes.js';
+import workoutRoutes from './routes/workout.routes.js';
 import { getUploadStorageRoot } from './common/asset-storage.js';
 import { createApiCorsOptions } from './common/api-cors.js';
 import {
@@ -118,6 +122,10 @@ app.get('/api/v1/pre-registration/availability', (_req, res) => {
   res.status(204).end();
 });
 
+// Provider callbacks need their own parsers so SendGrid signature verification
+// receives the exact raw request body. Keep this mount before the global parsers.
+app.use('/api/v1/notification-delivery', notificationDeliveryWebhookRoutes);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use('/uploads', express.static(getUploadStorageRoot(), {
@@ -137,6 +145,7 @@ app.get('/api/v1', (_req, res) => {
     version: '0.1.0',
     endpoints: {
       assessmentTypes: '/api/v1/assessment-types',
+      subjectiveScales: '/api/v1/subjective-scales',
       auth: '/api/v1/auth',
       alunos: '/api/v1/alunos',
       anthropometry: '/api/v1/anthropometry',
@@ -149,10 +158,13 @@ app.get('/api/v1', (_req, res) => {
       collaboratorFunctions: '/api/v1/collaborator-functions',
       contracts: '/api/v1/contracts',
       hourlyRateLevels: '/api/v1/hourly-rate-levels',
+      library: '/api/v1/library',
       plans: '/api/v1/plans',
+      periodization: '/api/v1/periodization',
       professores: '/api/v1/professores',
       services: '/api/v1/services',
       student: '/api/v1/student',
+      workout: '/api/v1/workout',
       preRegistrationAdmin: '/api/v1/pre-registration-admin/leads',
       preRegistrationEnrollmentReview: '/api/v1/pre-registration-admin/leads/:id/enrollment-review',
       preRegistrationInvites: '/api/v1/alunos/:alunoId/pre-registration-invites',
@@ -166,6 +178,7 @@ app.get('/api/v1', (_req, res) => {
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/assessment-types', assessmentTypeRoutes);
+app.use('/api/v1/subjective-scales', subjectiveScaleRoutes);
 
 // A camada autoritativa intercepta create/update/review/convert antes das rotas
 // administrativas legadas para impedir bypass por referências livres.
@@ -195,11 +208,14 @@ app.use('/api/v1/contracts', contractLifecycleRoutes);
 app.use('/api/v1/contracts', contractRejectionRoutes);
 app.use('/api/v1/contracts', contractRoutes);
 app.use('/api/v1/hourly-rate-levels', hourlyRateLevelRoutes);
+app.use('/api/v1/library', libraryRoutes);
 app.use('/api/v1/plans', planRoutes);
+app.use('/api/v1/periodization', periodizationRoutes);
 app.use('/api/v1/professores', legacyCollaboratorContractMiddleware);
 app.use('/api/v1/professores', professorRoutes);
 app.use('/api/v1/services', serviceRoutes);
 app.use('/api/v1/student', studentRoutes);
+app.use('/api/v1/workout', workoutRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'Route not found' });

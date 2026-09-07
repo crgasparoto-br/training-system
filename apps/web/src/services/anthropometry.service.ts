@@ -2,6 +2,7 @@ import api from './api';
 import type {
   AnthropometryAssessment,
   AnthropometryAssessmentValue,
+  AnthropometryCorrectionPayload,
   AnthropometryObservation,
   AnthropometrySegment,
   AnthropometrySegmentPayload,
@@ -65,6 +66,14 @@ export const anthropometryService = {
     observations: Array<Pick<AnthropometryObservation, 'segmentId' | 'text' | 'importable'>>
   ): Promise<AnthropometryAssessment> {
     return unwrap(await api.put(`/anthropometry/assessments/${id}/observations`, { observations }));
+  },
+
+  async completeAssessment(id: string): Promise<AnthropometryAssessment> {
+    return unwrap(await api.post(`/anthropometry/assessments/${id}/complete`));
+  },
+
+  async correctAssessment(id: string, data: AnthropometryCorrectionPayload): Promise<AnthropometryAssessment> {
+    return unwrap(await api.post(`/anthropometry/assessments/${id}/corrections`, data));
   },
 
   async compare(alunoId: string, assessmentIds?: string[]): Promise<AnthropometryAssessment[]> {

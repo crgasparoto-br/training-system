@@ -3,7 +3,7 @@
 ## Status do documento
 
 - Fonte de verdade para estado funcional, prioridades e evolucao do produto.
-- Estado revisado em 2026-08-10 no contexto das issues #317 e #318, com base em `develop` e no candidato web da Montagem Consolidada.
+- Estado revisado em 2026-09-03 no contexto da issue #382, reconciliando o ciclo de vida da Antropometria, requisitos explicitos de conclusao, historico imutavel/correcao auditada, comparacao, grafico, timeline e controles de permissao/`contractId` com a implementacao corrente.
 - Issues e PRs continuam sendo a fonte de execucao.
 - Codigo, migrations e testes definem o comportamento efetivamente entregue.
 - Documentos detalhados de produto e planos ativos complementam este roadmap; nao devem competir com ele como roadmap geral.
@@ -90,7 +90,8 @@ Entregue:
 - historico unificado;
 - acoes contextuais;
 - estados de vazio, carregamento e erro;
-- preservacao de rotas anteriores por compatibilidade.
+- preservacao de rotas anteriores por compatibilidade;
+- solicitacao manual de revisao cadastral com feedback de criacao, reutilizacao de pendencia e entrega de notificacao.
 
 Pendente:
 
@@ -101,16 +102,26 @@ Pendente:
 
 ### 2. Cadastro, servicos, contratos e vinculos
 
-**Maturidade: Implementado parcialmente.**
+**Maturidade: Revisao cadastral web implementada e validada de forma integrada; demais vinculos implementados parcialmente.**
+
+Entregue:
+
+- revisao cadastral periodica com solicitacao manual por professor/gestor e reutilizacao idempotente da pendencia;
+- sinalizacao da pendencia no inicio do aluno e fluxo responsivo em `/student/profile-review`;
+- conclusao sem alteracoes, aplicacao direta de campos nao sensiveis e aprovacao/rejeicao profissional de campos sensiveis;
+- persistencia canonica, auditoria e proxima revisao sem depender de provider externo;
+- notificacao in-app e entrega opcional por email/WhatsApp com estado de envio observavel e degradacao segura;
+- isolamento por usuario, vinculo ativo e `contractId`, inclusive quando a mesma conta participa de mais de um contrato;
+- matriz de regressao em `docs/profile-review-e2e-validation.md` e contrato de cliente em `docs/student-app-data-contract.md`.
 
 Pendente:
 
-- consolidar onboarding e revisao periodica;
 - manter dados de avaliacao fora do cadastro administrativo;
 - garantir autoridade unica para servico e contrato vigentes;
 - exibir resumos administrativos consistentes na Central;
-- versionar questionarios iniciais e revisoes;
-- organizar carteira de alunos, substituicao e acesso temporario conforme permissao.
+- versionar questionarios iniciais alem dos fluxos ja migrados;
+- organizar carteira de alunos, substituicao e acesso temporario conforme permissao;
+- app mobile nativo, se priorizado, reutilizando o contrato `student/me` existente.
 
 ### 3. PRNT
 
@@ -139,7 +150,7 @@ Pendente:
 
 ### 4. Avaliacao Fisica
 
-**Maturidade: Antropometria implementada parcialmente; demais protocolos em evolucao.**
+**Maturidade: Antropometria implementada funcionalmente para ciclo de vida, historico e comparacao; contrato de laudos ainda pendente. Demais protocolos em evolucao.**
 
 Antropometria entregue:
 
@@ -148,18 +159,21 @@ Antropometria entregue:
 - descricao tecnica e videos;
 - historico e comparacao;
 - observacoes importaveis;
-- entrada contextual pela Central.
+- entrada contextual pela Central;
+- estados formais `DRAFT` e `COMPLETED`, preservando avaliacoes legadas como historico concluido;
+- medidas obrigatorias configuradas explicitamente por contrato/protocolo, com versao e snapshot aplicados na conclusao;
+- bloqueio de conclusao sem conjunto explicito de medidas obrigatorias e sem os valores exigidos;
+- imutabilidade das avaliacoes concluidas nas rotas usuais, com correcao auditada separada, motivo, antes/depois, ator e horario;
+- variacoes absolutas e percentuais calculadas a partir dos valores persistidos, sem transformar ausencia em zero;
+- grafico de evolucao complementar, mantendo a tabela como representacao acessivel principal;
+- evento de conclusao/correcao integrado a timeline canonica do aluno;
+- protecao por `physicalAssessment.protocol`, revalidacao da capacidade de correcao e isolamento por `contractId`;
+- testes focados cobrindo lifecycle, conclusao, correcao, concorrencia, permissao e isolamento por contrato.
 
 Pendente para concluir Antropometria:
 
-- rascunho e concluida como estados formais;
-- medidas obrigatorias por protocolo;
-- imutabilidade ou correcao auditada;
-- variacoes absolutas e percentuais;
-- graficos de evolucao;
-- evento garantido na timeline;
-- testes de permissao e `contractId`;
-- contrato para laudos.
+- contrato de dados para laudos futuros;
+- nova validacao independente do SHA final apos reconciliacao documental desta entrega.
 
 Adipometria:
 
@@ -183,14 +197,18 @@ Outros protocolos futuros:
 
 ### 5. Treinamento operacional existente
 
-**Maturidade: Modulos operacionais existentes; experiencia integrada ainda pendente.**
+**Maturidade: Modulos operacionais existentes e publicacao controlada pela Montagem Consolidada implementada; experiencia diaria integrada ainda parcial.**
 
-O sistema preserva planos, periodizacao, templates, dias, exercicios, biblioteca, Workout Builder e execucoes.
+Entregue:
+
+- planos, periodizacao, templates, dias, exercicios, biblioteca, Workout Builder e execucoes permanecem como o grafo operacional canonico;
+- uma versao aprovada da Montagem Consolidada pode ser liberada de forma controlada no grafo `TrainingPlan -> WorkoutTemplate -> WorkoutDay -> WorkoutExercise`;
+- o release preserva vinculo relacional append-only, ator, timestamp e rastreabilidade ate a versao consolidada, capacidades e fontes;
+- treino iniciado/executado e planejamento ja liberado sao protegidos contra sobrescrita silenciosa.
 
 Pendente:
 
-- conectar o nucleo atual ao PRNT, avaliacao, prescricao por capacidades e Montagem Consolidada;
-- rotina semanal e Treino de hoje no contexto do aluno;
+- completar a experiencia de rotina semanal e `Treino de hoje` na Central consumindo a saida operacional ja ligada a Prescricao/Montagem Consolidada;
 - acoes para copiar, mover, revisar e publicar sem perder o aluno selecionado;
 - planejado versus executado;
 - provas-alvo e eventos esportivos;
@@ -229,33 +247,36 @@ Pendente:
 
 ### 7. Montagem Consolidada
 
-**Maturidade: Implementado ate a aprovacao; validacao visual/manual complementar pendente.**
+**Maturidade: Implementado ate a liberacao operacional controlada; validacao visual/manual complementar pendente.**
 
 Entregue:
 
 - persistencia versionada e historico append-only por aluno/contrato;
 - API autenticada para criacao, edicao, consulta, conflitos, historico e workflow;
-- fluxo `draft -> ready_for_review -> approved`, com bloqueio estruturado, remediacao ainda bloqueada e desbloqueio explicito;
+- fluxo `draft -> ready_for_review -> approved`, com bloqueio estruturado, remediacao ainda bloqueada e desbloqueio explicito, mais comando backend separado para `approved -> released`;
 - revalidacao de conflitos estruturados sem heuristica de texto livre;
 - concorrencia otimista por `expectedCurrentVersion`, row lock e CAS;
-- permissoes separadas `view`, `manage` e `approve`, combinadas com `dataScope` e isolamento por `contractId`;
+- permissoes separadas `view`, `manage`, `approve` e `release`, combinadas com `dataScope` e isolamento por `contractId`;
 - auditoria derivada da cadeia imutavel de versoes;
 - integracao com as versoes persistidas de Resistido, Flexibilidade, Ciclico e Equilibrio;
+- liberacao transacional e idempotente no grafo existente `TrainingPlan -> WorkoutTemplate -> WorkoutDay -> WorkoutExercise`, sem arvore paralela de `Treino de hoje`;
+- vinculo relacional append-only e consulta de rastreabilidade por IDs ate `ConsolidatedPrescriptionVersion`, `CapacityPrescriptionVersion` e fontes preservadas;
+- representacao operacional estruturada e versionada de Flexibilidade/Equilibrio no `WorkoutDay`, sem perda semantica;
+- protecao historica de template, dias, exercicios e blocos estruturados depois do release, preservando apenas lifecycle/feedback de execucao permitido;
 - interface contextual pela Central do Aluno, mantendo `alunoId` na rota;
 - tela em oito secoes colapsaveis para dados gerais, capacidades, origens, conflitos, composicao, mensagem ao aluno, revisao e historico;
 - apresentacao distinta de `info`, `warning` e `critical` sem depender apenas de cor;
 - correcao de composicao em estado `blocked`, reavaliacao no servidor e desbloqueio explicito somente quando o relatorio vigente retorna `canUnblock=true`;
-- aprovacao apenas apos confirmacao do backend e nova revisao explicita apos `approved`;
+- aprovacao apenas apos confirmacao do backend e nova revisao explicita apos `approved` ou `released`;
 - tratamento de `409` preservando edicao local e exigindo reconciliacao explicita;
 - historico de versoes em modo somente leitura;
-- bloqueio estrutural de publicacao direta do `Treino de hoje` nesta fase.
+- capacidades isoladas continuam bloqueadas de publicar `Treino de hoje`; a liberacao operacional parte exclusivamente da Montagem Consolidada aprovada.
 
 Pendente:
 
 - validacao visual/manual em navegador real para desktop, mobile, teclado e leitor de tela;
-- auditoria independente do SHA final do candidato web;
-- `approved -> released` e geracao controlada do treino operacional, pertencentes ao fluxo posterior;
-- integracao operacional com biblioteca, Workout Builder e substituicoes rastreaveis;
+- auditoria independente do SHA final da entrega consolidada;
+- UI especifica do comando de liberacao no contexto da Central/`Treino de hoje`;
 - rastreabilidade ate a execucao e comparacao planejado versus executado;
 - relatorio de excecoes antes da publicacao e aplicacao em massa somente quando houver fluxo revisavel proprio.
 
@@ -417,17 +438,17 @@ Nao incorporar:
 
 ### Prioridade 0 - confiabilidade e governanca
 
-- permissao e isolamento por `contractId`;
-- historico, origem, versao e responsavel;
-- estados de rascunho, conclusao e correcao;
-- checks documentais, testes e validacao manual.
+- manter permissao e isolamento por `contractId` como regressao obrigatoria;
+- manter historico, origem, versao e responsavel rastreaveis;
+- preservar os estados formais de rascunho/conclusao e a correcao auditada ja implementados na Antropometria;
+- manter checks documentais, testes e validacao manual como gate de evolucao.
 
 ### Prioridade 1 - dados confiaveis do aluno
 
-- concluir Antropometria;
+- completar o contrato de laudos da Antropometria sem reabrir o ciclo de vida ja entregue;
 - executar Adipometria pela epic #245;
 - consolidar PRNT e objetivos;
-- integrar eventos a timeline.
+- integrar os demais eventos da jornada a timeline.
 
 ### Prioridade 2 - experiencia diaria do aluno
 
@@ -471,7 +492,7 @@ Nao incorporar:
 
 ### Prioridade 7 - integracoes externas
 
-Integracoes com Garmin, Strava ou outros provedores permanecem adiadas. Nao devem bloquear nenhuma prioridade anterior.
+Integracoes com Garmin, Strava ou outros provedores permanecem adiadas. Nao devem bloquear nenhuma prioridade anterior. Email/WhatsApp usados para notificacoes operacionais da revisao cadastral sao canais opcionais de comunicacao e nao alteram essa dependencia funcional.
 
 Pre-condicoes futuras:
 
@@ -507,7 +528,7 @@ Cada epic deve declarar:
 
 ## Fora do escopo atual
 
-- integracoes externas;
+- integracoes externas de treino/dados como Garmin e Strava;
 - sincronizacao em background;
 - importacao de planos ou midia proprietaria;
 - prescricao ou progressao totalmente automatica;

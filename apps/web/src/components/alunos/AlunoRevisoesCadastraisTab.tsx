@@ -5,6 +5,7 @@ import { Input } from '../ui/Input';
 import {
   alunoService,
   type AlunoProfileReview,
+  type AlunoProfileReviewRequestResult,
   type AlunoProfileReviewSettingsResponse,
 } from '../../services/aluno.service';
 import { formatDateBR, toDateInputValue, toIsoDateAtNoonUTC } from '../../utils/date';
@@ -116,6 +117,97 @@ const getCurrentStatus = (
 
 const getChangedFieldLabel = (path: string) => changedFieldLabelMap[path] || path;
 
+const getRequestFeedback = (
+  result: AlunoProfileReviewRequestResult
+): { message: string; type: ToastType } => {
+  const notification = result.notification;
+  const prefix =
+    result.reviewCreated === false
+      ? 'Já existe revisão pendente; nenhuma nova revisão foi criada.'
+      : 'Revisão criada.';
+
+  if (!notification?.persisted) {
+    return {
+      message: `${prefix} Não foi possível registrar a notificação do aluno.`,
+      type: 'error',
+    };
+  }
+
+  if (notification.deduplicated) {
+    return {
+      message:
+        result.reviewCreated === false
+          ? prefix
+          : `${prefix} A notificação já havia sido registrada recentemente.`,
+      type: 'success',
+    };
+  }
+
+  if (!notification.delivery) {
+    return {
+      message: `${prefix} Notificação registrada no sistema.`,
+      type: 'success',
+    };
+  }
+
+  const channels = [notification.delivery.email, notification.delivery.whatsapp];
+  const accepted = channels
+    .filter((channel) => channel.status === 'accepted')
+    .map((channel) => channel.channel);
+  const sent = channels.filter((channel) => channel.status === 'sent').map((channel) => channel.channel);
+  const failed = channels.filter((channel) => channel.status === 'failed').map((channel) => channel.channel);
+  const notConfigured = channels
+    .filter((channel) => channel.status === 'not_configured')
+    .map((channel) => channel.channel);
+
+  const label = (channel: 'email' | 'whatsapp') =>
+    channel === 'email' ? 'e-mail' : 'WhatsApp';
+  const joinChannels = (items: Array<'email' | 'whatsapp'>) => items.map(label).join(' e ');
+  const acceptedText =
+    accepted.length > 0
+      ? ` O envio por ${joinChannels(accepted)} foi aceito pelo provedor e aguarda confirmação de entrega.`
+      : '';
+
+  if (failed.length > 0) {
+    const sentText = sent.length > 0 ? ` A notificação foi enviada por ${joinChannels(sent)}.` : '';
+    const configText = notConfigured.length > 0
+      ? ` ${joinChannels(notConfigured)} não está configurado para envio.`
+      : '';
+    return {
+      message: `${prefix} O envio por ${joinChannels(failed)} falhou.${sentText}${acceptedText}${configText}`,
+      type: 'error',
+    };
+  }
+
+  if (notConfigured.length > 0) {
+    const sentText = sent.length > 0 ? ` A notificação foi enviada por ${joinChannels(sent)}.` : '';
+    return {
+      message: `${prefix} ${joinChannels(notConfigured)} não está configurado para envio.${sentText}${acceptedText}`,
+      type: 'success',
+    };
+  }
+
+  if (accepted.length > 0) {
+    const sentText = sent.length > 0 ? ` A notificação foi enviada por ${joinChannels(sent)}.` : '';
+    return {
+      message: `${prefix}${acceptedText}${sentText}`,
+      type: 'success',
+    };
+  }
+
+  if (sent.length > 0) {
+    return {
+      message: `${prefix} Notificação enviada por ${joinChannels(sent)}.`,
+      type: 'success',
+    };
+  }
+
+  return {
+    message: `${prefix} A notificação está disponível no sistema; nenhum canal externo está habilitado.`,
+    type: 'success',
+  };
+};
+
 export function AlunoRevisoesCadastraisTab({
   alunoId,
   onToast,
@@ -197,8 +289,9 @@ export function AlunoRevisoesCadastraisTab({
   const handleRequestNow = async () => {
     setRequestingNow(true);
     try {
-      await alunoService.requestProfileReview(alunoId);
-      onToast('Solicitação de revisão criada com sucesso', 'success');
+      const result = await alunoService.requestProfileReview(alunoId);
+      const feedback = getRequestFeedback(result);
+      onToast(feedback.message, feedback.type);
       await loadData();
     } catch (error: any) {
       onToast(error?.response?.data?.error || 'Erro ao solicitar revisão cadastral', 'error');

@@ -1,0 +1,16 @@
+=== tests/test_delivery_target_binding.py ===
+..........                                                               [100%]
+10 passed in 7.23s
+rc=0
+=== tests/test_handoff_recovery_classifier.py ===
+.........                                                                [100%]
+9 passed in 6.11s
+rc=0
+=== tests/test_terminal_handoff_contract.py ===
+............                                                             [100%]
+12 passed in 8.65s
+rc=0
+=== tests/test_universal_post_write_handoff_guard.py ===
+....                                                                     [100%]
+4 passed in 0.03s
+rc=0

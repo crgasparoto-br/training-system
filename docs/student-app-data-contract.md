@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Definir o contrato de dados para o futuro app mobile do aluno, usando os endpoints do backend com prefixo `/api/v1/student/me`.
+Definir o contrato de dados da experiencia autenticada do aluno. O web responsivo atual e um futuro app mobile reutilizam os endpoints do backend com prefixo `/api/v1/student/me`; regras de seguranca e dominio nao devem ser duplicadas por cliente.
 
 Este documento padroniza:
 - dados exibidos por tela
@@ -10,9 +10,21 @@ Este documento padroniza:
 - fluxo de revisao cadastral
 - regras de privacidade e limites de alteracao pelo aluno
 
-## Escopo do app do aluno
+## Implementacao atual e evolucao mobile
 
-O app do aluno deve permitir:
+A revisao cadastral ja esta implementada no web responsivo:
+
+- `/inicio` sinaliza quando existe revisao pendente;
+- `/student/profile-review` carrega perfil e revisao no contexto autenticado;
+- a conclusao preserva `x-contract-id` quando o contrato foi selecionado;
+- campos sensiveis permanecem pendentes para aprovacao/rejeicao profissional;
+- falha de notificacao externa nao desfaz a revisao persistida.
+
+O app mobile permanece evolucao futura e deve consumir o mesmo contrato `student/me`, sem criar uma segunda politica de campos, aprovacao ou isolamento por contrato.
+
+## Escopo da experiencia do aluno
+
+A experiencia do aluno deve permitir:
 - consultar seus dados cadastrais e de saude permitida
 - atualizar campos de autoatendimento
 - concluir revisao cadastral pendente
@@ -33,6 +45,8 @@ O app do aluno deve permitir:
 8. Notificacoes
 
 ## Endpoints base (student/me)
+
+Todos os endpoints desta secao exigem autenticacao do aluno. Quando a conta possui mais de um vinculo ativo ou o cliente seleciona explicitamente um contrato, o contexto deve ser enviado em `x-contract-id`. A API revalida usuario, aluno, status do vinculo e `contractId`; o cliente nao pode inferir autorizacao apenas pela rota ou pelo estado local.
 
 ### 1) GET /api/v1/student/me/profile
 
@@ -153,7 +167,7 @@ Resposta esperada:
 
 ### 3) GET /api/v1/student/me/profile-review
 
-Retorna revisao cadastral pendente (ou `null` se nao houver).
+Retorna revisao cadastral pendente (ou `null` se nao houver) para o aluno e contrato ativos no contexto autenticado.
 
 Resposta esperada (exemplo com pendencia):
 
@@ -174,7 +188,7 @@ Resposta esperada (exemplo com pendencia):
 
 ### 4) POST /api/v1/student/me/profile-reviews/:id/complete
 
-Conclui a revisao cadastral.
+Conclui a revisao cadastral. A API revalida no momento da escrita se `reviewId`, `alunoId`, usuario autenticado, vinculo `ACTIVE_STUDENT` e `contractId` continuam pertencendo ao mesmo contexto.
 
 Sem alteracoes:
 
@@ -202,6 +216,8 @@ Com alteracoes:
 Observacao:
 - alteracoes sensiveis nao sao aplicadas diretamente
 - alteracoes sensiveis ficam pendentes para aprovacao do professor/gestor
+- a resposta informa se ainda existe aprovacao pendente e deve dirigir a mensagem exibida pelo cliente
+- erro de submissao nao pode ser convertido em sucesso local pelo frontend
 
 ### 5) GET /api/v1/student/me/assessments
 
@@ -217,8 +233,8 @@ Somente leitura para o aluno.
 
 ### 7) GET /api/v1/student/me/summary
 
-Retorna resumo da home do app.
-Agora inclui o bloco `contract` para o aluno consultar contrato ativo e historico resumido.
+Retorna resumo da home da experiencia do aluno.
+Agora inclui o bloco `contract` para o aluno consultar contrato ativo e historico resumido e sinaliza a revisao cadastral pendente usada pelo `/inicio` do web.
 
 Resposta esperada (resumo):
 
@@ -284,7 +300,7 @@ Resposta esperada (resumo):
 
 ### 8) GET /api/v1/student/me/contract
 
-Endpoint opcional para tela dedicada de contrato no app do aluno.
+Endpoint opcional para tela dedicada de contrato na experiencia do aluno.
 
 Resposta esperada:
 
@@ -320,7 +336,7 @@ Resposta esperada:
 
 Observacoes:
 - endpoint somente leitura
-- sempre escopado ao aluno autenticado
+- sempre escopado ao aluno autenticado e ao contrato selecionado quando aplicavel
 - `paymentDay`, `amount` e `signedDocumentUrl` seguem politica de visibilidade
 
 ## Campos do perfil por categoria
@@ -364,27 +380,33 @@ Observacoes:
 
 ## Regras de privacidade
 
-1. O aluno so pode consultar e alterar seus proprios dados (escopo pelo usuario autenticado).
-2. Avaliacao fisica e historico de avaliacoes sao somente leitura para o aluno.
-3. Plano financeiro/contratual deve ser somente leitura, resumido ou omitido conforme sensibilidade.
-4. Valor, dia de pagamento e link de documento assinado so devem ser retornados quando permitidos por politica de privacidade.
-5. Dados bancarios, documentos legais e informacoes administrativas internas nao devem ser expostos no app do aluno.
+1. O aluno so pode consultar e alterar seus proprios dados no vinculo contratual autenticado.
+2. Quando a mesma conta possui mais de um contrato, a selecao de um contexto nao concede acesso ao outro; `x-contract-id` e revalidado no backend.
+3. Avaliacao fisica e historico de avaliacoes sao somente leitura para o aluno.
+4. Plano financeiro/contratual deve ser somente leitura, resumido ou omitido conforme sensibilidade.
+5. Valor, dia de pagamento e link de documento assinado so devem ser retornados quando permitidos por politica de privacidade.
+6. Dados bancarios, documentos legais e informacoes administrativas internas nao devem ser expostos ao cliente do aluno.
 
 ## Fluxo de revisao cadastral
 
 Estados e transicoes esperadas:
 
-1. `pending` (pendente)
-2. confirmada sem alteracao (`completed_no_changes`)
-3. confirmada com alteracao (`completed_with_changes`)
-4. aguardando aprovacao (`requiresApproval = true` para campos sensiveis)
-5. aprovada ou rejeitada pelo professor/gestor
+1. professor/gestor solicita a revisao ou o sistema agenda a pendencia;
+2. `pending` (pendente) e notificada no canal in-app; email/WhatsApp sao opcionais;
+3. confirmada sem alteracao (`completed_no_changes`);
+4. confirmada com alteracao (`completed_with_changes`);
+5. aguardando aprovacao (`requiresApproval = true` para campos sensiveis);
+6. aprovada ou rejeitada pelo professor/gestor.
 
 Regras:
+- uma nova solicitacao enquanto ja existe pendencia reutiliza a revisao aberta, conforme a politica de idempotencia/concorrrencia do backend
 - sem alteracoes: encerra revisao e agenda proxima
 - com alteracoes nao sensiveis: aplica direto e encerra
 - com alteracoes sensiveis: marca pendencia para aprovacao
-- rejeicao deve registrar motivo
+- rejeicao deve registrar motivo e nao aplicar o valor sensivel
+- notificacao externa e best effort; falha de provider nao desfaz a solicitacao persistida
+- detalhes de entrega externa e callbacks ficam em `docs/profile-review-notification-delivery.md`
+- matriz executavel de validacao do fluxo fica em `docs/profile-review-e2e-validation.md`
 
 ## Relacao com Plano de Avaliacoes
 
@@ -402,7 +424,7 @@ Consumir:
 Exibir:
 - nome
 - contrato ativo e historico resumido
-- proxima revisao cadastral
+- proxima revisao cadastral e sinalizacao da pendencia atual
 - proxima avaliacao
 - ultimo treino
 - notificacoes recentes
@@ -434,14 +456,22 @@ Editar:
 
 ### Revisao Cadastral
 
+Implementacao web atual:
+- rota `/student/profile-review`
+- responsiva para mobile e desktop
+- preserva contexto `contractId`
+- mensagens de conclusao dependem da resposta do backend
+
 Consumir:
 - `GET /api/v1/student/me/profile-review`
+- `GET /api/v1/student/me/profile`
 - `POST /api/v1/student/me/profile-reviews/:id/complete`
 
 Exibir:
 - revisao pendente
 - prazo
 - secoes solicitadas
+- estados de carregamento, ausencia de pendencia e erro recuperavel
 
 Acao:
 - concluir sem alteracoes
@@ -490,15 +520,11 @@ Consumir inicialmente:
 Evolucao futura:
 - endpoint dedicado para listagem paginada e marcacao de leitura
 
-## Criterios de aceite
+## Criterios de aceite do contrato
 
-- Documento criado em `docs/student-app-data-contract.md`.
-- Campos do perfil separados claramente em:
-  - editaveis diretamente
-  - alteraveis com aprovacao
-  - somente leitura
+- Campos do perfil separados claramente em editaveis diretamente, alteraveis com aprovacao e somente leitura.
 - Contrato dos endpoints `/api/v1/student/me` documentado com payloads esperados.
-- Regras de privacidade, fluxo de revisao cadastral e relacao com plano de avaliacoes descritos.
-- Conteudo adequado como base para implementacao futura do app mobile.
-- App consegue consultar contrato ativo por `GET /api/v1/student/me/summary` e `GET /api/v1/student/me/contract`.
+- Regras de privacidade, `contractId`, fluxo de revisao cadastral e relacao com plano de avaliacoes descritos.
+- Web responsivo e futuro app mobile compartilham o mesmo contrato de backend.
+- O cliente consegue consultar contrato ativo por `GET /api/v1/student/me/summary` e `GET /api/v1/student/me/contract`.
 - Nenhum endpoint de `student/me` permite alteracao de contrato pelo aluno.

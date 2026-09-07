@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "patterns": [
+    {
+      "escape_class": "ambiguous-codepoint-self-remapping",
+      "source_audit": {
+        "rejection_id": "audit-rejection:83561a95-106b-4663-b5ac-beebede1f587",
+        "finding_ids": [
+          "A-001"
+        ],
+        "audit_report_sha256": "1e9967b0fbb836e1968a9975083eae2b0add733d7f1751db072e8f0b624fb29a"
+      },
+      "plausible_wrong_implementation": "Repair malformed characters through ordered replacements so a newly produced valid character is matched by a later replacement and corrupted again.",
+      "sibling_cases": [
+        {
+          "id": "ESC-A001-S1",
+          "status": "passed",
+          "surface": "mixed-validity-string",
+          "observed": "Ótimo combined with malformed P\\u0082 is repaired to Ótimo Pé without changing Ó."
+        },
+        {
+          "id": "ESC-A001-S2",
+          "status": "passed",
+          "surface": "valid-unicode-only",
+          "observed": "Ção, Ótimo and Ômega remain unchanged on current material head."
+        },
+        {
+          "id": "ESC-A001-S3",
+          "status": "passed",
+          "surface": "idempotent-rerun",
+          "observed": "A second repair pass returns exactly the first repaired result."
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "Runtime and migration convert only unambiguous C1 markers directly; ambiguous visible characters including NBSP, Ç, Ó and Ô are handled only by explicit known legacy fragments."
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "Current regression tests cover valid Ç/Ó/Ô, legitimate NBSP, mixed valid+corrupt input and repeated repair idempotency; CI Validate PR #7400 passed on the material head."
+      },
+      "trigger_terms": [],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "mixed-valid-corrupt-codepoints"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "valid-unicode-preservation"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "migration-idempotency"
+        }
+      ]
+    },
+    {
+      "escape_class": "noncanonical-risk-saturation-manifest",
+      "source_audit": {
+        "rejection_id": "audit-rejection:83561a95-106b-4663-b5ac-beebede1f587",
+        "finding_ids": [
+          "A-002"
+        ],
+        "audit_report_sha256": "1e9967b0fbb836e1968a9975083eae2b0add733d7f1751db072e8f0b624fb29a"
+      },
+      "plausible_wrong_implementation": "Let a critical handoff define custom risk-family names and declare itself saturated without enumerating or validating the canonical contract.",
+      "sibling_cases": [
+        {
+          "id": "ESC-A002-S1",
+          "status": "passed",
+          "surface": "family-enumeration",
+          "observed": "Omitting a canonical family is rejected by the risk-saturation validator."
+        },
+        {
+          "id": "ESC-A002-S2",
+          "status": "passed",
+          "surface": "control-binding",
+          "observed": "An applicable surface without a matching adversarial control is rejected."
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "Risk saturation is generated from the canonical initializer instead of a hand-authored family vocabulary."
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "validate_risk_saturation.py is executed before terminal handoff and checks canonical families, applicability, surfaces and controls."
+      },
+      "trigger_terms": [],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "risk-saturation-contract",
+          "dimension": "canonical-family-enumeration"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "risk-saturation-contract",
+          "dimension": "applicability-and-control-binding"
+        }
+      ]
+    }
+  ]
+}

@@ -77,6 +77,7 @@ const ALUNO_ID = 'aluno-1';
 const ALUNO_USER_ID = 'user-1';
 const OTHER_USER_ID = 'user-OTHER';
 const REVIEW_ID = 'review-1';
+const CONTRACT_ID = 'contract-1';
 
 function makePendingReview(ownUserId: string = ALUNO_USER_ID) {
   return {
@@ -100,8 +101,9 @@ function makePendingReview(ownUserId: string = ALUNO_USER_ID) {
     sectionsRequested: null,
     aluno: {
       id: ALUNO_ID,
+      contractId: CONTRACT_ID,
       user: { id: ownUserId }, // the aluno's userId
-      professor: { contractId: 'contract-1' },
+      professor: { contractId: CONTRACT_ID },
     },
   };
 }
@@ -131,6 +133,8 @@ describe('Segurança – domínio do aluno', () => {
         profileReviewService.completeByStudent({
           reviewId: REVIEW_ID,
           alunoUserId: OTHER_USER_ID, // ← wrong user
+          alunoId: ALUNO_ID,
+          contractId: CONTRACT_ID,
           noChanges: true,
         }),
       ).rejects.toThrow('Você não tem permissão para concluir esta revisão');

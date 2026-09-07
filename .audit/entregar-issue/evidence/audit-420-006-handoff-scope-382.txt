@@ -1,0 +1,8 @@
+AUD-420-006 targeted remediation — handoff scope exactness
+
+Immutable material scope: 9988e04f141b76481e190dec7bcaa5a06fd57c7a..ca22e6c973eff20580974eb15ccba77fdbfb5da8
+Observed changed-path count: 60
+Regenerated issue_changed_paths count: 60
+Regenerated issue_delta_sha256: 63baa63813493c85e2e3762f50f7ac4e10f2ec4967ad9ad122f81627617f31b7
+The set includes product, documentation, and .audit/entregar-issue paths that are materially present in the immutable compare.
+The terminal result-only child remains a direct child of ca22e6c973eff20580974eb15ccba77fdbfb5da8 and its paths are governed separately by certificate_commit_policy.allowed_paths.

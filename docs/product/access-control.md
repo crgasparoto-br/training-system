@@ -161,31 +161,48 @@ A montagem consolidada reutiliza a tela `plans` e possui capacidades próprias, 
 
 - `plans.consolidatedPrescriptions.view`: consultar montagem atual, conflitos, histórico e auditoria;
 - `plans.consolidatedPrescriptions.manage`: criar/editar composição, recalcular conflitos, enviar para revisão, bloquear/desbloquear e criar nova revisão;
-- `plans.consolidatedPrescriptions.approve`: aprovar uma montagem em `ready_for_review` depois da revalidação estruturada.
+- `plans.consolidatedPrescriptions.approve`: aprovar uma montagem em `ready_for_review` depois da revalidação estruturada;
+- `plans.consolidatedPrescriptions.release`: transformar uma versão aprovada em saída do Workout Builder depois de revalidar versão, capacidades, projeção, tenant, escopo e alvo operacional.
 
 Defaults:
 
 - `professor`: `view` + `manage`, com `plans=self`;
-- `manager`: `view` + `manage` + `approve`, com `plans=contract`;
+- `manager`: `view` + `manage` + `approve` + `release`, com `plans=contract`;
 - `master`: acesso total dentro do contrato;
-- demais perfis não recebem as permissões automaticamente;
-- não existe `release` concedido nesta issue; a liberação operacional pertence à #320.
+- demais perfis não recebem as permissões automaticamente.
 
 Regras obrigatórias:
 
 - possuir `plans.capacityPrescriptions.*` não autoriza automaticamente a montagem consolidada;
-- `approve` é uma permissão separada de `manage`;
+- `approve` e `release` são permissões separadas de `manage` e entre si;
 - a API deriva `contractId` e professor ator da autenticação;
-- `dataScope` é validado antes de carregar/gravar a montagem e novamente o domínio revalida aluno/ator no contrato;
+- `dataScope` é validado antes de carregar/gravar a montagem e revalidado na transação definitiva de liberação;
 - `self` limita a alunos diretamente atribuídos ao professor;
 - `managed` inclui alunos do próprio professor e de professores geridos pelo ator;
 - `contract` inclui alunos do contrato autenticado;
 - acesso cross-tenant ou fora do escopo retorna resposta genérica equivalente a recurso inexistente;
 - payload de composição não controla status, versão resultante, ator, timestamp de aprovação ou liberação;
-- `critical` impede aprovação; `info` e `warning` não bloqueiam isoladamente;
-- texto livre não é fonte de conflito autoritativo;
+- o comando de liberação recebe o destino operacional, mas não aceita tenant, ator, `released`, timestamp ou vínculo de auditoria fornecidos pelo cliente;
+- `critical` impede aprovação e liberação; `info` e `warning` não bloqueiam isoladamente;
+- texto livre não é fonte de conflito autoritativo nem chave de associação operacional;
 - desbloqueio é explícito e só ocorre após nova revalidação sem `critical`;
-- auditoria de ações sensíveis é gravada na mesma transação da versão.
+- aprovação não publica treino; a liberação é um comando backend separado;
+- treino iniciado ou executado não pode ser sobrescrito pela liberação;
+- a mesma versão aprovada só pode possuir uma liberação operacional; retry equivalente é idempotente e destino divergente retorna conflito;
+- auditoria de ações sensíveis é gravada na mesma transação da versão e, para `release`, inclui vínculo relacional append-only até o `WorkoutTemplate`.
+
+## Navegação efetiva e configuração de permissões
+
+A hierarquia visual usada em **Funções de colaboradores > Acessos** deve derivar da mesma navegação efetiva usada pelo menu lateral quando a posição de uma tela depende de rollout. A definição base do menu pode permanecer estática, mas o enriquecimento por feature deve possuir uma única implementação compartilhada entre os dois consumidores.
+
+Regras obrigatórias:
+
+- a decisão de rollout deve reutilizar a fonte canônica da própria feature; não deve existir parser paralelo de variável de ambiente na tela de configuração de permissões;
+- uma tela ocultada por rollout não deve reaparecer no fallback de **Permissões internas**;
+- ocultar temporariamente uma feature muda apenas sua projeção visual e não revoga `screenKey`, `blockKey` ou `dataScope` já persistidos para uma função;
+- ao reabilitar o rollout, a árvore volta a projetar as permissões persistidas sem exigir migração ou recriação da função.
+
+Para `students.preRegistration`, quando a interface estiver habilitada, a posição canônica é `Alunos > Operação do aluno > Leads e pré-matrículas`. Quando estiver desabilitada, a tela fica ausente da árvore sem alterar as permissões salvas.
 
 ## Critérios de aceite para mudanças de acesso
 

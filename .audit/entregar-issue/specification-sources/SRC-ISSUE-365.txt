@@ -1,0 +1,20 @@
+# Issue #365 — contrato normalizado para entrega
+
+1. Objetivo: a ação principal de instalar dados padrão deve usar definições canônicas versionadas do produto e nunca derivar padrões de registros pertencentes a outro tenant.
+2. O contrato alvo deve ser exclusivamente o `contractId` da sessão autenticada; o body não pode escolher nem sobrescrever o alvo.
+3. O fluxo de instalação funciona quando somente o contrato alvo existe e não depende de `DEFAULT_CONTRACT_ID`, seleção automática de origem ou qualquer contrato previamente populado.
+4. Exercícios usam o catálogo canônico `apps/api/src/scripts/exercises-data.json`; não manter uma segunda lista de exercícios para a instalação.
+5. Parâmetros de treinamento usam a mesma definição canônica consolidada das 26 entradas de `apps/api/prisma/seed-parameters.ts`; seed e runtime consomem a mesma fonte lógica, sem runtime depender da execução do seed.
+6. Tipos de avaliação usam a mesma definição canônica dos padrões `intermediate` e `complete` hoje consolidados a partir de `DEFAULT_TYPES`; não manter uma segunda lista independente.
+7. A instalação completa somente padrões ausentes: parâmetros por `(contractId, category, code)`, avaliações por `(contractId, code)` e exercícios por nome dentro do contrato.
+8. Reexecutar a instalação deve ser idempotente: não cria duplicatas e informa os itens já existentes como skipped.
+9. A existência de dados personalizados ou de somente parte dos padrões não bloqueia a instalação dos padrões ausentes, inclusive quando houver tipo de avaliação personalizado ou apenas um dos dois tipos padrão.
+10. Dados personalizados do contrato alvo são preservados: não apagar, substituir nem desativar registros só porque não pertencem aos catálogos padrão.
+11. Dados personalizados de qualquer outro tenant nunca podem entrar no contrato alvo pela operação de padrões.
+12. A resposta mantém semântica consumível pela interface para itens instalados e existentes em parâmetros, exercícios e avaliações; qualquer evolução do formato é coordenada entre API e frontend.
+13. A ação visível é “Instalar padrões do sistema” e mantém loading, proteção contra segundo acionamento pendente e feedback de sucesso ou erro no próprio card.
+14. A capacidade explícita de copiar dados entre contratos permanece separada da instalação de padrões e requer origem explícita; compatibilidade legada não pode reintroduzir seleção implícita de tenant.
+15. Testes cobrem contrato vazio, independência de `DEFAULT_CONTRACT_ID`, ausência de vazamento cross-tenant, instalação com estado incompleto, idempotência, preservação de customizações, tipos de avaliação em combinações relevantes, consumo das fontes canônicas e feedback da interface.
+16. Executar os gates relevantes do repositório (`pnpm validate`/equivalentes de CI) antes da entrega.
+17. Documentação e ambiente devem refletir que padrões pertencem ao produto/repositório, não a um contrato existente; atualizar documentação operacional do catálogo de exercícios se o mecanismo de consumo mudar.
+18. Fora de escopo: não remover a cópia explícita entre contratos, não adicionar novos conjuntos de padrões de produto, não alterar schema apenas para esta mudança e não permitir target contract informado pelo cliente.

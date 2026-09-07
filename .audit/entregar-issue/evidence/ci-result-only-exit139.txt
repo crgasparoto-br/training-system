@@ -1,0 +1,9 @@
+Result-only CI diagnostic for issue #382 / PR #420
+Material head: f474850922f5e06cdb0bf4d39efc2efe04b9e289
+Material Validate PR run: 33634236062 (#7484) = success
+Published result-only child: 881be3e20e5a5f068771fab4f0c7962028279562
+Result-only Validate PR run: 33637641256 (#7486)
+Failed step: Verify ADPT audit remediation controls
+Observed failure: pnpm reported ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL for `tsx scripts/verify-pr359-administrative-adpt-http.ts` with exit code 139 after all preceding ADPT remediation controls and package builds passed.
+Discriminant: the exact same command on material run #7484 emitted {"control":"PR359-ADMIN-POST-DEPLOY-HTTP-001","status":"passed",...} and the remediation gate completed OK. The result-only child changes only .audit/entregar-issue paths and no executable/product path.
+Classification: runner/runtime segmentation fault; no material or product remediation is justified. This evidence records the remote finding; the replacement handoff remains a sibling direct child of the unchanged green material head.

@@ -1,0 +1,20 @@
+Issue 369 / PR 371 remediation evidence
+Repository: crgasparoto-br/training-system
+Base: develop@6b328b32884ee026155f9de131764c1b4986fcd0
+Material head: cb9776d461a20fae9148563cacc66d52dcda0dc8
+Previous published handoff: b9a4afe6e9347776639c0c6bf2db22750cc63f93
+Independent rejection: audit-rejection:38138d5a-9eba-4c9a-a7eb-b87610c63855
+
+Product evidence on the unchanged material head:
+- DashboardLayout consumes the shared effective navigation instead of maintaining a duplicate pre-registration rollout branch.
+- sidebar navigation consumes the canonical pre-registration rollout decision, places students.preRegistration under Alunos > Operacao do aluno when enabled, and suppresses hidden screen keys from the internal fallback when disabled.
+- focused regressions cover enabled placement, disabled absence, seven pre-registration blocks, dataScope, search, and preservation of persisted permissions on unrelated save while hidden.
+- docs/product/access-control.md records the shared effective-navigation and permission-persistence contract.
+- GitHub Actions Validate PR run 7214 completed successfully for the exact material head.
+
+Delivery remediation evidence:
+- The rejected handoff stored semantic artifacts behind a legacy sharded-json-v1 transport wrapper that the independent-audit semantic preflight did not materialize.
+- The material head remains unchanged; this remediation changes only result/audit artifacts.
+- Current entregar-issue semantic readers accept plain JSON or verified base64-shards-v1 transport and materialize logical JSON before schema-aware validation.
+- Current entregar-issue certificate generation requires, validates, and certifies audit-source-result.json and audit-remediation.json after an independent rejection.
+- Generic handoff/rejection/transport regression tests are part of the current skill contract before publication.

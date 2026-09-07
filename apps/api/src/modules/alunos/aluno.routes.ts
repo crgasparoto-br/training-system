@@ -1,4 +1,4 @@
-﻿import { Router, Request, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { alunoService } from './aluno.service.js';
 import { FixedScheduleError } from '../agenda/fixed-schedule.service.js';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
@@ -285,8 +285,12 @@ router.post('/:id/profile-reviews', blockAccessMiddleware('students.actions.mana
       dueAt: dueAt ?? undefined,
       sectionsRequested: validated.sectionsRequested,
     });
+    const responseStatus = created.reviewCreated ? 201 : 200;
+    const responseMessage = created.reviewCreated
+      ? 'Solicitação de revisão cadastral criada com sucesso'
+      : 'Revisão cadastral pendente reutilizada com sucesso';
 
-    return sendSuccess(res, created, 'Solicitação de revisão cadastral criada com sucesso', 201);
+    return sendSuccess(res, created, responseMessage, responseStatus);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       return sendError(res, 'Dados inválidos', 400, error.errors);

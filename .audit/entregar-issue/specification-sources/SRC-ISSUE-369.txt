@@ -1,0 +1,194 @@
+## Objetivo
+
+Corrigir a tela `/settings/collaborator-functions` para que as permissões de **Leads e pré-matrículas** sejam exibidas na mesma hierarquia funcional usada pelo menu principal do sistema, em vez de aparecerem como **Permissões internas**.
+
+## Contexto
+
+Atualmente o acesso de pré-matrícula existe no catálogo de permissões e funciona no backend por meio da tela `students.preRegistration` e de seus blocos de ação. Porém, na configuração de funções de colaboradores, essa permissão não aparece no local esperado pelo usuário.
+
+No menu efetivo da aplicação, quando a feature de pré-matrícula está habilitada, o item **Leads e pré-matrículas** é inserido em:
+
+`Alunos > Operação do aluno > Leads e pré-matrículas`
+
+Já a árvore usada em `/settings/collaborator-functions` é construída a partir do `sidebarMenuItems` estático, que não contém esse item. Como consequência, `students.preRegistration` é considerado uma tela sem correspondência no menu e acaba agrupado automaticamente em **Permissões internas**.
+
+Isso dificulta localizar e configurar os acessos necessários para operar leads, inclusive a permissão `students.preRegistration.review`, usada para concluir a revisão administrativa.
+
+O rollout da interface de pré-matrícula já possui uma fonte própria em `apps/web/src/config/pre-registration-rollout.ts`, por meio de `isPreRegistrationUiEnabled()` e `PRE_REGISTRATION_UI_ENABLED`. A correção deve reutilizar essa decisão, sem criar uma segunda interpretação da feature flag.
+
+## Comportamento atual
+
+- O menu lateral efetivo adiciona `students.preRegistration` dinamicamente quando a pré-matrícula está habilitada.
+- A tela de funções de colaboradores não reutiliza essa mesma árvore efetiva.
+- `students.preRegistration` é exibido em **Permissões internas**.
+- O usuário pode não encontrar as permissões procurando pela estrutura normal de **Alunos**.
+
+## Comportamento esperado
+
+Na aba **Acessos** de `/settings/collaborator-functions`, quando a funcionalidade de pré-matrícula estiver habilitada, a permissão deve aparecer em:
+
+`Alunos > Operação do aluno > Leads e pré-matrículas`
+
+Ao expandir **Leads e pré-matrículas**, devem continuar disponíveis os blocos existentes:
+
+- `students.preRegistration.create` — Criar lead;
+- `students.preRegistration.editCommercial` — Editar dados comerciais do lead;
+- `students.preRegistration.generateInvite` — Gerar ou substituir convite;
+- `students.preRegistration.revokeInvite` — Revogar convite;
+- `students.preRegistration.review` — Revisar pré-matrícula;
+- `students.preRegistration.discardReopen` — Descartar ou reabrir lead;
+- `students.preRegistration.convert` — Converter em aluno ativo.
+
+Também deve permanecer configurável o alcance de dados de `students.preRegistration`:
+
+- somente registros próprios;
+- registros próprios e da equipe;
+- todos os registros do contrato.
+
+Quando a pré-matrícula estiver desabilitada pelo rollout da interface:
+
+- `students.preRegistration` não deve ser exibido na árvore de permissões, nem em **Alunos** nem em **Permissões internas**;
+- permissões `students.preRegistration` e `students.preRegistration.*` já persistidas devem continuar preservadas no estado salvo da função, sem revogação silenciosa apenas porque a feature está temporariamente oculta;
+- ao reabilitar a feature, as permissões persistidas anteriormente devem voltar a ser apresentadas com os mesmos valores.
+
+## Escopo técnico
+
+### 1. Unificar a fonte da árvore de navegação/permissões
+
+Evitar manter duas representações diferentes da navegação:
+
+- `sidebarMenuItems`, usado atualmente para montar a árvore de permissões;
+- menu enriquecido com pré-matrícula, hoje montado separadamente em `DashboardLayout.tsx`.
+
+Extrair/reutilizar uma fonte ou função compartilhada que produza a árvore efetiva conforme as features habilitadas, de modo que o menu lateral e a tela de configuração de permissões usem a mesma definição.
+
+`sidebarMenuItems` pode continuar existindo como definição base estática, mas a regra que enriquece essa definição conforme rollout deve ter uma única implementação reutilizada pelos dois consumidores.
+
+A solução não deve duplicar novamente a regra de inserção de **Leads e pré-matrículas** em outro arquivo.
+
+### 2. Reutilizar a decisão canônica de rollout
+
+A presença de **Leads e pré-matrículas** na navegação efetiva e na árvore de permissões deve usar a mesma decisão já produzida por `isPreRegistrationUiEnabled()` / `PRE_REGISTRATION_UI_ENABLED`.
+
+Não criar parser alternativo de `VITE_PRE_REGISTRATION_ENABLED`, nova lista de valores habilitados/desabilitados ou regra específica apenas para `/settings/collaborator-functions`.
+
+### 3. Corrigir a classificação de `students.preRegistration`
+
+Quando a pré-matrícula estiver habilitada:
+
+- `students.preRegistration` deve fazer parte do grupo **Alunos**;
+- deve ficar subordinado a **Operação do aluno**;
+- não deve aparecer em **Permissões internas**.
+
+Quando a funcionalidade estiver desabilitada:
+
+- `students.preRegistration` deve ficar ausente da árvore renderizada;
+- não deve cair no fallback de **Permissões internas** por não estar presente na navegação efetiva;
+- essa ausência visual não pode remover permissões previamente persistidas ao salvar outras alterações da função.
+
+### 4. Preservar as permissões existentes
+
+A mudança é de organização e apresentação da árvore de permissões. Não alterar as chaves públicas existentes nem quebrar configurações já persistidas.
+
+Devem permanecer válidas:
+
+- `students.preRegistration`;
+- todos os blocos `students.preRegistration.*`;
+- `dataScope` associado a `students.preRegistration`.
+
+Não deve ser necessária migração de dados para funções existentes.
+
+### 5. Busca e filtros
+
+A busca da aba **Acessos** deve localizar **Leads e pré-matrículas** pelos textos visíveis e continuar encontrando seus blocos, como **Criar lead** e **Revisar pré-matrícula**.
+
+Os filtros **Todos**, **Liberados** e **Bloqueados** devem continuar funcionando com a nova posição da permissão.
+
+## Invariantes estruturais
+
+### `must_be_single_source`
+
+A regra que transforma a navegação base na navegação efetiva conforme rollout deve possuir uma única implementação reutilizada pelo menu lateral e pela árvore de permissões.
+
+- Implementação errada plausível: copiar para `CollaboratorFunctions.tsx` a mesma condição hoje existente em `DashboardLayout.tsx`. O caminho feliz ficaria correto, mas as duas árvores poderiam divergir na próxima alteração.
+- Controle: teste/importação deve demonstrar que ambos os consumidores utilizam a mesma função/fonte de navegação efetiva, sem duas regras equivalentes mantidas separadamente.
+
+### `must_reuse`
+
+A avaliação da feature de pré-matrícula deve reutilizar `isPreRegistrationUiEnabled()` / `PRE_REGISTRATION_UI_ENABLED`.
+
+- Implementação errada plausível: ler `import.meta.env.VITE_PRE_REGISTRATION_ENABLED` diretamente na árvore de permissões e interpretar apenas `true`/`false`, enquanto o rollout canônico também aceita outros valores e possui comportamento específico por ambiente.
+- Controle: teste do builder/fonte compartilhada deve receber ou consumir a decisão canônica de rollout, sem parser paralelo da variável de ambiente.
+
+### `must_not_behave`
+
+Com o rollout desabilitado, `students.preRegistration` não pode aparecer em **Permissões internas** como efeito colateral do fallback de telas ausentes do menu.
+
+- Implementação errada plausível: remover o item de **Alunos**, mas deixar `ACCESS_SCREEN_CATALOG` fazer a tela reaparecer no grupo interno.
+- Controle: teste explícito com rollout desabilitado deve afirmar ausência de `students.preRegistration` em todos os grupos renderizáveis.
+
+### `forbidden_implementation`
+
+Ocultar uma feature da árvore não pode filtrar ou zerar permissões persistidas dessa feature durante o salvamento de alterações não relacionadas.
+
+- Implementação errada plausível: gerar o payload de salvamento somente a partir das linhas atualmente renderizadas; com a feature desabilitada, salvar o nome da função revogaria silenciosamente `students.preRegistration.*`.
+- Controle: teste de regressão deve carregar uma função com permissões de pré-matrícula persistidas, executar o fluxo de edição com rollout desabilitado, salvar alteração não relacionada e confirmar que as chaves e `dataScope` permanecem intactos.
+
+## Critérios de aceite
+
+- [ ] Com a pré-matrícula habilitada, `students.preRegistration` aparece em **Alunos > Operação do aluno > Leads e pré-matrículas** na tela `/settings/collaborator-functions`.
+- [ ] `students.preRegistration` não aparece em **Permissões internas** nesse cenário.
+- [ ] Ao expandir a tela, todos os sete blocos `students.preRegistration.*` continuam disponíveis para configuração individual.
+- [ ] A opção de alcance de dados continua disponível para `students.preRegistration`.
+- [ ] Habilitar somente a tela permite visualizar a lista de leads conforme o alcance configurado, sem liberar implicitamente ações não selecionadas.
+- [ ] Habilitar `students.preRegistration.review` permite a ação de revisar pré-matrícula quando as demais pré-condições de negócio forem atendidas.
+- [ ] As permissões já persistidas para funções existentes continuam sendo carregadas corretamente após a alteração.
+- [ ] Com o rollout desabilitado, `students.preRegistration` não aparece em nenhum grupo da árvore de permissões.
+- [ ] Com o rollout desabilitado, salvar alteração não relacionada em uma função que já possua permissões de pré-matrícula não remove nem altera `students.preRegistration`, seus blocos ou seu `dataScope` persistido.
+- [ ] Ao reabilitar o rollout, permissões de pré-matrícula anteriormente persistidas voltam a ser exibidas com o mesmo estado.
+- [ ] A busca por `lead` ou `pré-matrícula` localiza a tela e/ou seus blocos dentro do grupo correto quando a feature está habilitada.
+- [ ] Não existe duplicação da regra de montagem do item de pré-matrícula entre `DashboardLayout` e a árvore de permissões.
+- [ ] Menu lateral e tela de funções de colaboradores usam uma fonte compartilhada ou uma função compartilhada para obter a navegação efetiva.
+- [ ] A decisão de rollout reutiliza a implementação canônica existente e não introduz parser paralelo de `VITE_PRE_REGISTRATION_ENABLED`.
+- [ ] `pnpm access:check` passa.
+- [ ] Testes existentes continuam passando e são adicionados/ajustados testes que cubram a classificação da permissão de pré-matrícula na árvore.
+
+## Testes sugeridos
+
+1. Teste unitário da construção da árvore de permissões com pré-matrícula habilitada, garantindo que `students.preRegistration` pertença ao grupo **Alunos** e não ao grupo interno.
+2. Teste garantindo que os blocos de `students.preRegistration` sejam exibidos e vinculados à tela correta.
+3. Teste de regressão para permissões persistidas, confirmando que as chaves existentes continuam sendo interpretadas sem migração de dados.
+4. Teste da busca por `lead`, `pré-matrícula` e `revisar pré-matrícula`.
+5. Teste com rollout desabilitado garantindo que `students.preRegistration` não apareça em nenhum grupo, inclusive **Permissões internas**.
+6. Teste de preservação: com rollout desabilitado e permissões de pré-matrícula já persistidas, salvar uma alteração não relacionada não pode revogar ou alterar essas permissões.
+7. Teste de reabilitação da feature confirmando que o estado persistido volta a ser projetado corretamente na árvore.
+8. Teste da fonte compartilhada para impedir regressão para duas regras independentes de enriquecimento da navegação.
+
+## Impacto na documentação
+
+`docs/product/access-control.md` é a fonte de produto para regras de controle de acesso e já exige catálogo compartilhado, defaults revisados, proteção de frontend/backend e `pnpm access:check` para mudanças de acesso.
+
+Como esta issue introduz uma regra estável de composição da navegação/permissões, atualizar esse documento para registrar que:
+
+- a árvore de configuração de permissões deve derivar da mesma navegação efetiva usada pelo menu quando a organização visual depende de rollout;
+- ocultar uma feature por rollout não deve revogar permissões persistidas dessa feature.
+
+Não é necessário alterar regras de negócio em `docs/product/pre-registration.md`, pois a issue não muda estados, autorização, conversão ou fluxo comercial da pré-matrícula.
+
+## Arquivos relacionados identificados
+
+- `apps/web/src/navigation/sidebarMenu.ts`
+- `apps/web/src/layouts/DashboardLayout.tsx`
+- `apps/web/src/pages/Settings/CollaboratorFunctions.tsx`
+- `apps/web/src/config/pre-registration-rollout.ts`
+- `packages/types/access-control.ts`
+- `docs/product/access-control.md`
+
+## Fora de escopo
+
+- Alterar regras de negócio da revisão administrativa.
+- Renomear as chaves de permissão existentes.
+- Modificar a lógica de autorização do backend além do necessário para preservar o comportamento atual.
+- Alterar defaults de acesso por perfil.
+- Alterar o fluxo comercial de lead, pré-matrícula ou conversão em aluno ativo.
+- Criar nova regra de rollout para pré-matrícula.

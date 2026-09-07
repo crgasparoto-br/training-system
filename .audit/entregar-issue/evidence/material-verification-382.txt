@@ -1,0 +1,20 @@
+Repository: crgasparoto-br/training-system
+PR: 420
+Issue: 382
+Material head: ca22e6c973eff20580974eb15ccba77fdbfb5da8
+Base: 9988e04f141b76481e190dec7bcaa5a06fd57c7a
+Merge preview: 5f6c7dda24640c1136c8fa188c923df2ec160e6f
+Validate PR run: #7504 (id 33763803301)
+Validate PR conclusion: success
+Official test artifact digest: sha256:f1bc04482ded9d2f6758c12c3dca75cdf154e75ef666d5b790b2513f7d8018e2
+
+Procedure:
+1. Compare prior published handoff head 40b5d482c59f6cedc1cbf0535b2d350e5dceb036 to frozen material ca22e6c973eff20580974eb15ccba77fdbfb5da8.
+2. Confirm the remediation material delta is limited to docs/product/roadmap.md and docs/execution-plans/active/2026-07-student-central-roadmap.md.
+3. Execute the repository Validate PR workflow on exact material head ca22e6c973eff20580974eb15ccba77fdbfb5da8.
+4. Observe migration, lifecycle backfill/rerun, type-check, lint, test, build, browser validation, architecture, access-catalog and documentation checks.
+
+Observed:
+- Material remediation changed only the two documentation sources above; no executable product path changed after the previously certified implementation.
+- Validate PR #7504 completed success on exact material head ca22e6c973eff20580974eb15ccba77fdbfb5da8.
+- Exact-head test output includes PASS for apps/api/tests/anthropometry-completion-concurrency.integration.test.ts, apps/api/src/modules/anthropometry/anthropometry-lifecycle.test.ts and apps/api/src/modules/anthropometry/anthropometry-completion.service.test.ts.

@@ -1,0 +1,31 @@
+Repository: crgasparoto-br/training-system
+PR: 420
+Issue: 382
+Material head: ca22e6c973eff20580974eb15ccba77fdbfb5da8
+Base: 9988e04f141b76481e190dec7bcaa5a06fd57c7a
+Merge preview: 5f6c7dda24640c1136c8fa188c923df2ec160e6f
+Validate PR run: #7504 (id 33763803301)
+Validate PR conclusion: success
+Official test artifact digest: sha256:f1bc04482ded9d2f6758c12c3dca75cdf154e75ef666d5b790b2513f7d8018e2
+
+Independent rejection: audit-rejection:7dd92a04-ac05-4875-a0c9-f8c807e5b0f0
+Finding: AUD-420-005
+Class: documentation-claim-drift
+Official documentation artifact digest: sha256:8063e2bc2ee54764f5ea95b0851ae934d624413ad63a5b43537909443e599d4d
+
+Procedure:
+1. Read the current source of truth docs/product/roadmap.md and the active plan docs/execution-plans/active/2026-07-student-central-roadmap.md on frozen material ca22e6c973eff20580974eb15ccba77fdbfb5da8.
+2. Search their Antropometria status, delivered lists, pending lists, priorities and implementation-control table for claims that DRAFT/COMPLETED, explicit/versioned required measures, immutable completed history/audited correction, absolute/percentage comparison, graph, timeline, permission tests or contractId isolation are still pending.
+3. Inspect docs/execution-plans/completed/2026-07-epic-172-completion-assessment.md to distinguish historical statements from current claims.
+4. Execute docs:check in Validate PR #7504 on the exact material head.
+
+Expected:
+- Current normative sources classify all issue #382 lifecycle/security/comparison capabilities as delivered.
+- Only genuinely remaining work stays pending (laudo data contract, complementary manual validation, fresh independent audit).
+- Historical completed documentation is explicitly date-scoped and redirects readers to the current roadmap.
+
+Observed:
+- docs/product/roadmap.md now marks Anthropometry lifecycle/history/comparison implemented and its pending list no longer contains the seven delivered bullets found by the audit.
+- The active student-central roadmap now states issue #382 removed lifecycle, conclusion, history, security and comparison from pending work and its implementation table reflects that status.
+- The completed epic #172 assessment explicitly records state as of 2026-07-10 and says current state/priorities must be read from docs/product/roadmap.md.
+- Validate PR #7504 documentation checks completed success; docs-check-output.log ends with "docs:check OK".

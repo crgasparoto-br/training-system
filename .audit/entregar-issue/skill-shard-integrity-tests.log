@@ -1,0 +1,12 @@
+PR 376 shard integrity remediation control
+material_head_sha=7c291f0a6ea7df6ae7716d8b34822dd7a1cbe1f1
+clean_part_size=5516
+clean_part_sha256=302c0e54043f6be073cc30a77234c73c739afb2407ba5d44782942004269d04e
+manifest_encoded_size=5516
+manifest_encoded_sha256=302c0e54043f6be073cc30a77234c73c739afb2407ba5d44782942004269d04e
+logical_size=19354
+logical_sha256=9b8c911e8601ac8dc305df024a4a9e6ebf9a7276c4f28b303378136031f588ce
+trailing-byte=rejected:ValueError:artifact part requirement-closure.parts/part-000.b64 size mismatch
+content-byte=rejected:ValueError:artifact part requirement-closure.parts/part-000.b64 SHA-256 mismatch
+missing-part=rejected:FileNotFoundError:[Errno 2] No such file or directory: '/tmp/tmpnnyz4wwo/requirement-closure.parts/part-000.b64'
+clean_roundtrip=passed:schema_version=3:obligations=21

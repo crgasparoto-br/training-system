@@ -21,6 +21,10 @@ vi.mock('../services/pre-registration-public.service', () => ({
   },
 }));
 
+vi.mock('../components/student/StudentProfileReviewEntry', () => ({
+  StudentProfileReviewEntry: () => <div>Nenhuma revisão cadastral pendente</div>,
+}));
+
 import { Home } from './Home';
 import { AuthenticatedPreRegistrationPortal } from './PublicPreRegistration/AuthenticatedPreRegistrationPortal';
 
@@ -109,13 +113,14 @@ describe('Home - roteamento entre professor/gestor e lead de pré-matrícula', (
     expect(screen.queryByText('Nenhuma rotina liberada')).not.toBeInTheDocument();
   });
 
-  it('mostra a home genérica quando o aluno não possui nenhum processo de pré-matrícula', async () => {
+  it('mostra a home do aluno quando não possui nenhum processo de pré-matrícula', async () => {
     mocks.user = { id: 'a1', type: 'aluno' };
     mocks.listProcesses.mockResolvedValue([]);
 
     renderHome();
 
-    expect(await screen.findByText('Nenhuma rotina liberada')).toBeInTheDocument();
+    expect(await screen.findByText('Nenhuma revisão cadastral pendente')).toBeInTheDocument();
+    expect(screen.queryByText('Nenhuma rotina liberada')).not.toBeInTheDocument();
   });
 
   it('bloqueia Anamnese e PAR-Q e orienta concluir o cadastro quando o cadastro básico está incompleto', async () => {
@@ -226,13 +231,13 @@ describe('Home - roteamento entre professor/gestor e lead de pré-matrícula', (
     expect(mocks.getSession).not.toHaveBeenCalled();
   });
 
-  it('usa a home normal quando o processo já é ACTIVE_STUDENT', async () => {
+  it('usa a home de pendências quando o processo já é ACTIVE_STUDENT', async () => {
     mocks.user = { id: 'a1', type: 'aluno' };
     mocks.listProcesses.mockResolvedValue([{ alunoId: 'aluno-1', status: 'ACTIVE_STUDENT' }]);
 
     renderHome();
 
-    expect(await screen.findByText('Nenhuma rotina liberada')).toBeInTheDocument();
+    expect(await screen.findByText('Nenhuma revisão cadastral pendente')).toBeInTheDocument();
     expect(screen.queryByText('Seu processo de pré-matrícula')).not.toBeInTheDocument();
   });
 });

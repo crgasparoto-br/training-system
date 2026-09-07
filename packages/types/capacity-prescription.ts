@@ -102,6 +102,7 @@ export interface CapacityPrescriptionAlert {
 
 export interface ResistedCapacityParameters {
   muscleGroups?: string[];
+  exerciseTechnicalCatalogItemIds?: string[];
   method?: string | null;
   split?: string | null;
   sets?: number | null;

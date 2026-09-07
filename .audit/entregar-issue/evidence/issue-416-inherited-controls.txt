@@ -1,0 +1,9 @@
+Issue #416 inherited-control revalidation at material head 8cbcb92cee617c8228f3c921bdeb65f8275a893d.
+
+The material delta from develop is limited to apps/api/src/routes/workout.routes.ts and two workout route/regression test files. No frontend periodization editor, PlanDetails matrix refresh path, or legacy Microcycle write surface was modified by #416.
+
+INH-414-STRUCTURAL-01: the #416 delta does not reintroduce an editable Microcycle write path; the route change only normalizes required workout template dates at the HTTP boundary.
+INH-414-WEEK-CARDINALITY-01: the #416 regression stays on the existing canonical WorkoutBuilder2 plan/mesocycle/week flow and adds no fallback cardinality logic.
+INH-414-MATRIX-REFRESH-01: the #416 delta does not modify PlanDetails or periodization refresh/invalidation behavior.
+
+This evidence is a fresh static revalidation for the #416 material head. It preserves prior independent-audit lineage without treating old issue-specific artifacts as current execution evidence.

@@ -1,0 +1,23 @@
+Repository: crgasparoto-br/training-system
+PR: 420
+Issue: 382
+Material head: ca22e6c973eff20580974eb15ccba77fdbfb5da8
+Base: 9988e04f141b76481e190dec7bcaa5a06fd57c7a
+Merge preview: 5f6c7dda24640c1136c8fa188c923df2ec160e6f
+Validate PR run: #7504 (id 33763803301)
+Validate PR conclusion: success
+Official test artifact digest: sha256:f1bc04482ded9d2f6758c12c3dca75cdf154e75ef666d5b790b2513f7d8018e2
+
+Procedure:
+1. Execute the exact-head database integration suite in Validate PR #7504.
+2. Seed two deliberately distinct contractId tenants.
+3. Attempt to save a value in tenant A using tenant B's segment, read tenant A's assessment through tenant B scope, then count any foreign persisted value.
+
+Expected:
+- Cross-tenant segment injection is rejected as INVALID_SEGMENT.
+- Foreign assessment read returns null.
+- Zero foreign values persist.
+
+Observed:
+- anthropometry-completion-concurrency.integration.test.ts contains the case "keeps assessment mutations and segment references isolated by contractId" with these three assertions.
+- The exact-head official test artifact reports PASS for that integration file in Validate PR #7504.

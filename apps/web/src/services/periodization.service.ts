@@ -1,4 +1,5 @@
 ﻿import api from './api';
+import { notifyPeriodizationMatrixUpdated } from './periodization-events';
 
 export interface PeriodizationMatrix {
   id: string;
@@ -101,7 +102,13 @@ export const periodizationService = {
     weeksPerMesocycle: number;
   }): Promise<PeriodizationMatrix> {
     const response = await api.post('/periodization/matrix', data);
-    return response.data.data;
+    const matrix = response.data.data as PeriodizationMatrix;
+    notifyPeriodizationMatrixUpdated({
+      matrixId: matrix.id,
+      planId: matrix.planId ?? data.planId,
+      source: 'matrix',
+    });
+    return matrix;
   },
 
   async getMatrixByPlanId(planId: string): Promise<PeriodizationMatrix | null> {
@@ -124,7 +131,13 @@ export const periodizationService = {
     }
   ): Promise<PeriodizationMatrix> {
     const response = await api.put(`/periodization/matrix/${matrixId}`, data);
-    return response.data.data;
+    const matrix = response.data.data as PeriodizationMatrix;
+    notifyPeriodizationMatrixUpdated({
+      matrixId: matrix.id ?? matrixId,
+      planId: matrix.planId,
+      source: 'matrix',
+    });
+    return matrix;
   },
 
   async deleteMatrix(matrixId: string): Promise<void> {
@@ -132,12 +145,17 @@ export const periodizationService = {
   },
 
   // =========================================================================
-  // ESTÃMULO RESISTIDO
+  // ESTÍMULO RESISTIDO
   // =========================================================================
 
   async upsertResistedStimulus(data: Partial<ResistedStimulus>): Promise<ResistedStimulus> {
     const response = await api.post('/periodization/resisted', data);
-    return response.data.data;
+    const stimulus = response.data.data as ResistedStimulus;
+    notifyPeriodizationMatrixUpdated({
+      matrixId: stimulus.matrixId,
+      source: 'resisted',
+    });
+    return stimulus;
   },
 
   async getResistedStimulusByMatrix(matrixId: string): Promise<ResistedStimulus[]> {
@@ -150,12 +168,17 @@ export const periodizationService = {
   },
 
   // =========================================================================
-  // ESTÃMULO CÃCLICO
+  // ESTÍMULO CÍCLICO
   // =========================================================================
 
   async upsertCyclicStimulus(data: Partial<CyclicStimulus>): Promise<CyclicStimulus> {
     const response = await api.post('/periodization/cyclic', data);
-    return response.data.data;
+    const stimulus = response.data.data as CyclicStimulus;
+    notifyPeriodizationMatrixUpdated({
+      matrixId: stimulus.matrixId,
+      source: 'cyclic',
+    });
+    return stimulus;
   },
 
   async getCyclicStimulusByMatrix(matrixId: string): Promise<CyclicStimulus[]> {
@@ -168,12 +191,17 @@ export const periodizationService = {
   },
 
   // =========================================================================
-  // NUTRIÃ‡ÃƒO
+  // NUTRIÇÃO
   // =========================================================================
 
   async upsertNutrition(data: Partial<NutritionWeekly>): Promise<NutritionWeekly> {
     const response = await api.post('/periodization/nutrition', data);
-    return response.data.data;
+    const nutrition = response.data.data as NutritionWeekly;
+    notifyPeriodizationMatrixUpdated({
+      matrixId: nutrition.matrixId,
+      source: 'nutrition',
+    });
+    return nutrition;
   },
 
   async getNutritionByMatrix(matrixId: string): Promise<NutritionWeekly[]> {
@@ -186,7 +214,7 @@ export const periodizationService = {
   },
 
   // =========================================================================
-  // PARÃ‚METROS
+  // PARÂMETROS
   // =========================================================================
 
   async createParameter(data: {
@@ -275,51 +303,50 @@ export const periodizationService = {
   // =========================================================================
 
   /**
-   * Agrupar estÃ­mulos resistidos por mesociclo e semana
+   * Agrupar estímulos resistidos por mesociclo e semana
    */
   groupResistedByMesocycleAndWeek(stimuli: ResistedStimulus[]): Map<number, Map<number, ResistedStimulus>> {
     const grouped = new Map<number, Map<number, ResistedStimulus>>();
-    
+
     stimuli.forEach((stimulus) => {
       if (!grouped.has(stimulus.mesocycleNumber)) {
         grouped.set(stimulus.mesocycleNumber, new Map());
       }
       grouped.get(stimulus.mesocycleNumber)!.set(stimulus.weekNumber, stimulus);
     });
-    
+
     return grouped;
   },
 
   /**
-   * Agrupar estÃ­mulos cÃ­clicos por mesociclo e semana
+   * Agrupar estímulos cíclicos por mesociclo e semana
    */
   groupCyclicByMesocycleAndWeek(stimuli: CyclicStimulus[]): Map<number, Map<number, CyclicStimulus>> {
     const grouped = new Map<number, Map<number, CyclicStimulus>>();
-    
+
     stimuli.forEach((stimulus) => {
       if (!grouped.has(stimulus.mesocycleNumber)) {
         grouped.set(stimulus.mesocycleNumber, new Map());
       }
       grouped.get(stimulus.mesocycleNumber)!.set(stimulus.weekNumber, stimulus);
     });
-    
+
     return grouped;
   },
 
   /**
-   * Agrupar nutriÃ§Ã£o por mesociclo e semana
+   * Agrupar nutrição por mesociclo e semana
    */
   groupNutritionByMesocycleAndWeek(nutrition: NutritionWeekly[]): Map<number, Map<number, NutritionWeekly>> {
     const grouped = new Map<number, Map<number, NutritionWeekly>>();
-    
+
     nutrition.forEach((item) => {
       if (!grouped.has(item.mesocycleNumber)) {
         grouped.set(item.mesocycleNumber, new Map());
       }
       grouped.get(item.mesocycleNumber)!.set(item.weekNumber, item);
     });
-    
+
     return grouped;
   },
 };
-

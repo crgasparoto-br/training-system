@@ -25,9 +25,28 @@ A API fica em `apps/api`.
 4. Criar testes unitarios ou de integracao para regras de permissao e dados.
 5. Atualizar docs quando a regra de negocio mudar.
 
+## Montagem Consolidada e integração operacional
+
+O módulo autoritativo continua em `apps/api/src/modules/consolidated-prescriptions` e é montado em `/api/v1/consolidated-prescriptions`.
+
+A integração operacional da issue #319 adicionou preparação e rastreabilidade sem escrever no Workout Builder. A issue #320 adiciona o comando definitivo de liberação:
+
+- leitura da biblioteca e da projeção exige `plans.consolidatedPrescriptions.view`;
+- vínculo técnico, preparação e substituição exigem `plans.consolidatedPrescriptions.manage`;
+- liberação exige `plans.consolidatedPrescriptions.release` e `dataScope` efetivo de `plans`;
+- a autorização definitiva, o aluno, o contrato, a versão aprovada, as capacidades e o destino são revalidados dentro da transação serializável;
+- o vínculo `CapacityTechnicalCatalogItem(category=exercise)` -> `ExerciseLibrary` continua usando somente IDs persistidos e revisão concorrente;
+- snapshots internos de projeção/substituição permanecem server-owned e são revalidados antes da escrita operacional;
+- a saída usa os modelos existentes `TrainingPlan`, `WorkoutTemplate`, `WorkoutDay` e `WorkoutExercise`;
+- `WorkoutTemplate.released` só é marcado depois de conteúdo, nova versão `released` e vínculo relacional de auditoria terem sido persistidos na mesma transação;
+- treino iniciado/executado não pode ser sobrescrito, e retry da mesma versão/destino é idempotente;
+- flexibilidade/equilíbrio continuam fail-closed enquanto a ponte operacional não definir representação explícita sem perda semântica.
+
+Os contratos permanentes estão em `docs/product/consolidated-prescription-operational-integration.md` e `docs/product/consolidated-prescription-operational-release.md`.
+
 ## Adipometria (ADPT)
 
-O módulo autoritativo fica em `apps/api/src/modules/adipometry` e é montado em `/api/v1/adipometry`.
+O módulo `apps/api/src/modules/adipometry` é montado em `/api/v1/adipometry`.
 
 Regras de fronteira:
 
@@ -51,6 +70,23 @@ O módulo `apps/api/src/modules/professor-manual` é montado em `/api/v1/profess
 - o contrato é derivado da sessão e usado para garantir os itens padrão e filtrar o conteúdo;
 - os painéis contextuais da Central do Aluno consomem essa rota, inclusive na área de avaliações físicas;
 - a rota deve permanecer registrada no bootstrap da API sempre que os componentes web do Manual do Professor estiverem ativos, evitando que uma capacidade existente seja apresentada como erro 404.
+
+## Defaults e cópia de dados do contrato
+
+Os dados padrão são propriedade do produto e ficam versionados no repositório. O fluxo principal da tela `/settings/contract` usa `POST /api/v1/contracts/install-defaults`, autenticado no contexto de professor e restrito a professor master. O contrato alvo é sempre o `contractId` da sessão autenticada; o body não redefine o alvo.
+
+A instalação usa somente as fontes canônicas do produto:
+
+- parâmetros de treino e tipos de avaliação em `apps/api/src/common/product-defaults.ts`;
+- biblioteca inicial de exercícios em `apps/api/src/scripts/exercises-data.json`.
+
+`DEFAULT_CONTRACT_ID` não participa da instalação de padrões. O endpoint não seleciona outro tenant como origem, funciona mesmo quando só existe o contrato autenticado e complementa apenas os padrões ausentes, preservando dados personalizados já existentes. Repetir a operação é idempotente e contabiliza itens já presentes como `skipped`.
+
+A cópia entre contratos permanece uma operação separada em `POST /api/v1/contracts/copy-data`. Ela exige `sourceContractId` explícito, mantém o contrato alvo vinculado à sessão autenticada e nunca transforma o contrato de origem em fonte canônica de padrões.
+
+`POST /api/v1/contracts/clone-data` existe somente como alias temporário de compatibilidade. Com `sourceContractId` explícito, executa a cópia manual; sem origem explícita, instala os defaults canônicos do produto. O alias não faz seleção automática de tenant e não usa `DEFAULT_CONTRACT_ID` como fallback.
+
+O contrato detalhado e as fontes canônicas estão registrados em `docs/architecture/contract-defaults.md`.
 
 ## Validacoes relacionadas
 

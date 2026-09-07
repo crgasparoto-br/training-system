@@ -1,0 +1,27 @@
+## Contexto
+Na tela `/library` da empresa **Acesso**, exercícios padrão continuam aparecendo com caracteres corrompidos, por exemplo `Abdominal M quina`, `Abdominal Obliquo na polia mdia` e `Abdominal P a P`.
+
+A correção da #375 normaliza o catálogo durante **Instalar padrões**, mas o arquivo canônico ainda contém bytes CP850 interpretados como Unicode e `cloneContractData` copia os textos da empresa de origem sem normalização. Assim, registros já persistidos permanecem incorretos e a replicação entre contratos pode propagar o problema.
+
+Foi identificado também um segundo ponto do mesmo problema na tela `/plans/:id`: no bloco **Fases do Plano**, o rótulo da fase `base` aparece como `Base AerÃ³bica` ao lado de `Macrociclo Principal`. Nesse caso a corrupção está no texto estático de `apps/web/src/services/plan.service.ts`, que também contém outros rótulos pt-BR corrompidos para fases, sessões e dias da semana.
+
+## Objetivo
+Eliminar a corrupção nas fontes afetadas, impedir novas replicações incorretas, sanear com segurança os exercícios padrão já persistidos e garantir rótulos Unicode pt-BR corretos nas telas de planos.
+
+## Escopo
+- converter o catálogo canônico `exercises-data.json` para UTF-8 pt-BR legível;
+- normalizar textos de exercícios ao copiar dados entre contratos;
+- deduplicar por nome normalizado durante a cópia;
+- adicionar migração idempotente para corrigir nomes já persistidos sem sobrescrever uma versão correta existente;
+- preservar exercícios customizados e relações existentes;
+- corrigir os rótulos pt-BR corrompidos em `apps/web/src/services/plan.service.ts`, incluindo fases, tipos de sessão e dias da semana;
+- adicionar testes de regressão para biblioteca e rótulos de planos.
+
+## Critérios de aceite
+- a Biblioteca exibe `Máquina`, `média`, `Pé a Pé`, `Abdução`, `Elevação` e demais acentos corretamente;
+- novas instalações e cópias não persistem marcadores CP850;
+- registros existentes são corrigidos na implantação quando não houver colisão com um nome já correto;
+- copiar um registro corrompido para um destino que já possui o nome corrigido não cria duplicata;
+- em `/plans/:id`, **Fases do Plano** exibe `Base Aeróbica`, `Construção` e `Recuperação` sem mojibake;
+- rótulos de sessão e dias da semana usados pelo serviço de planos preservam acentuação correta, incluindo `Recuperação`, `Terça` e `Sábado`;
+- testes relevantes e `pnpm validate` passam.

@@ -17,6 +17,9 @@ const API_ORIGIN = `http://${HOST}:${API_PORT}`;
 const ALUNO_ID = 'lead-313-browser-evidence';
 const DESTINATION_PATH = '/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento';
 const OP_TIMEOUT = 10000;
+const CHROME_START_ATTEMPTS = 3;
+const CHROME_START_TIMEOUT = 12000;
+const CHROME_RETRY_DELAY_MS = 750;
 const NORMALIZE_JS = `(v)=>(v||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim()`;
 
 const user = {
@@ -345,8 +348,8 @@ async function stopChild(child, signal = 'SIGTERM') {
   }
 }
 
-async function startChrome() {
-  const profile = mkdtempSync(path.join(os.tmpdir(), 'issue-313-browser-'));
+async function startChromeAttempt(attempt) {
+  const profile = mkdtempSync(path.join(os.tmpdir(), `issue-313-browser-${attempt}-`));
   const executable = chromeExecutable();
   const child = spawn(
     executable,
@@ -366,28 +369,70 @@ async function startChrome() {
   child.stderr.on('data', (chunk) => {
     stderr = `${stderr}${chunk.toString()}`.slice(-4000);
   });
-  const activePort = path.join(profile, 'DevToolsActivePort');
-  const deadline = Date.now() + 15000;
-  let port;
-  while (Date.now() < deadline) {
-    if (child.exitCode !== null || child.signalCode !== null) {
-      throw new Error(`Chrome exited before CDP: ${stderr || child.exitCode}`);
+  try {
+    const activePort = path.join(profile, 'DevToolsActivePort');
+    const deadline = Date.now() + CHROME_START_TIMEOUT;
+    let port;
+    while (Date.now() < deadline) {
+      if (child.exitCode !== null || child.signalCode !== null) {
+        throw new Error(`Chrome exited before CDP: ${stderr || child.exitCode}`);
+      }
+      try {
+        port = Number(readFileSync(activePort, 'utf8').trim().split(/\r?\n/)[0]);
+        if (port) break;
+      } catch {}
+      await delay(100);
     }
+    if (!port) throw new Error(`Chrome did not expose DevToolsActivePort. ${stderr}`);
+
+    const discoveryDeadline = Date.now() + 12000;
+    let page;
+    let lastDiscoveryError;
+    while (Date.now() < discoveryDeadline) {
+      if (child.exitCode !== null || child.signalCode !== null) {
+        throw new Error(`Chrome exited during target discovery: ${stderr || child.exitCode}`);
+      }
+      try {
+        const response = await fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(1500) });
+        if (!response.ok) throw new Error(`Chrome target discovery returned HTTP ${response.status}`);
+        const targets = await response.json();
+        page = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
+        if (page) break;
+      } catch (error) {
+        lastDiscoveryError = error;
+      }
+      await delay(150);
+    }
+    if (!page?.webSocketDebuggerUrl) {
+      const suffix = lastDiscoveryError instanceof Error ? ` Last discovery error: ${lastDiscoveryError.message}` : '';
+      throw new Error(`Chrome page target not found.${suffix} ${stderr}`.trim());
+    }
+    return { child, profile, port, url: page.webSocketDebuggerUrl, executable };
+  } catch (error) {
+    await stopChild(child, 'SIGKILL').catch(() => {});
     try {
-      port = Number(readFileSync(activePort, 'utf8').trim().split(/\r?\n/)[0]);
-      if (port) break;
+      rmSync(profile, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
     } catch {}
-    await delay(100);
+    throw error;
   }
-  if (!port) throw new Error(`Chrome did not expose DevToolsActivePort. ${stderr}`);
-  const targets = await bounded(
-    fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(3000) }).then((r) => r.json()),
-    4000,
-    'Chrome target discovery'
+}
+
+async function startChrome() {
+  const failures = [];
+  for (let attempt = 1; attempt <= CHROME_START_ATTEMPTS; attempt += 1) {
+    try {
+      return await startChromeAttempt(attempt);
+    } catch (error) {
+      failures.push(error instanceof Error ? error.message : String(error));
+      if (attempt < CHROME_START_ATTEMPTS) {
+        stage(`chrome:retry:${attempt + 1}`);
+        await delay(CHROME_RETRY_DELAY_MS * attempt);
+      }
+    }
+  }
+  throw new Error(
+    `Chrome failed to start after ${CHROME_START_ATTEMPTS} attempts. ${failures.join(' | ')}`
   );
-  const page = targets.find((target) => target.type === 'page');
-  if (!page?.webSocketDebuggerUrl) throw new Error('Chrome page target not found');
-  return { child, profile, port, url: page.webSocketDebuggerUrl, executable };
 }
 
 class Cdp {

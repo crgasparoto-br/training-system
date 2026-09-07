@@ -52,16 +52,31 @@ Services importantes:
 6. Um endpoint protegido por um bloco de resumo nao pode incorporar dados pertencentes a outro `blockKey`; detalhes de blocos irmaos devem ser carregados por uma fronteira dedicada que aplique a permissao correspondente.
 7. A sanitizacao deve ocorrer no backend antes da serializacao. Ocultar um card no frontend ou tratar `403` no cliente nao substitui o contrato de saida minimo.
 8. Quando a capacidade depende do estado ou da revisao do recurso, frontend e backend devem derivar a mesma capacidade exata; a posse de um bloco irmao nao pode ampliar a operacao.
+9. Ações transacionais sensíveis devem revalidar a permissão e o `dataScope` dentro da transação definitiva; middleware/preflight não substitui o gate contra TOCTOU.
 
 ## Padrao para novas permissoes
 
 1. Adicionar `screenKey` ou `blockKey` em `packages/types/access-control.ts`.
 2. Adicionar a chave ao grupo adequado em `ACCESS_PERMISSION_GROUPS`.
 3. Definir defaults em `DEFAULT_ACCESS_BY_PROFILE_CODE`.
-4. Usar a chave no frontend para ocultar UI.
+4. Usar a chave no frontend para ocultar UI quando houver ação visual correspondente.
 5. Usar a chave no backend para bloquear a rota ou acao.
-6. Adicionar ou atualizar testes.
-7. Rodar `pnpm access:check`.
+6. Para comando transacional crítico, revalidar a chave dentro da transação de escrita.
+7. Adicionar ou atualizar testes.
+8. Rodar `pnpm access:check`.
+
+## Montagem Consolidada
+
+A tela `plans` possui blocos independentes para consulta, edição, aprovação e liberação:
+
+- `plans.consolidatedPrescriptions.view`;
+- `plans.consolidatedPrescriptions.manage`;
+- `plans.consolidatedPrescriptions.approve`;
+- `plans.consolidatedPrescriptions.release`.
+
+`release` não é consequência de `approve`: a liberação operacional é outro comando e exige sua própria permissão. O preset `manager` recebe `approve` e `release`; professor comum recebe somente `view` e `manage`; `master` mantém acesso total.
+
+Na liberação da issue #320, `canProfessorAccessBlock(..., 'plans.consolidatedPrescriptions.release', tx)` e `getEffectiveDataScopeForProfessor(..., 'plans', tx)` são executados com o mesmo `TransactionClient` da escrita operacional. Revogar `release` ou reduzir o escopo antes da transação concluir impede a publicação; nenhuma flag `released`, vínculo ou nova versão pode sobreviver a uma falha de autoridade.
 
 ## Adipometria na Central do Aluno
 
