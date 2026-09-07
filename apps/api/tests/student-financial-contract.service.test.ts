@@ -8,9 +8,9 @@ const tx = {
   professor: { findFirst: jest.fn() },
   serviceOption: { findFirst: jest.fn(), findUnique: jest.fn() },
   macronutrients: { upsert: jest.fn(), create: jest.fn() },
-  alunoIntakeForm: { upsert: jest.fn(), create: jest.fn() },
+  alunoIntakeForm: { findUnique: jest.fn(), upsert: jest.fn(), create: jest.fn() },
   studentHealthIntake: { findUnique: jest.fn(), upsert: jest.fn() },
-  studentOnboardingProcess: { updateMany: jest.fn() },
+  studentOnboardingProcess: { create: jest.fn(), updateMany: jest.fn() },
   studentParqSubmission: { create: jest.fn() },
   progressMetric: { create: jest.fn() },
   contract: { findUnique: jest.fn(), create: jest.fn() },
@@ -56,6 +56,8 @@ describe('student financial contract service', () => {
     prisma.$transaction.mockImplementation(
       async (callback: (client: typeof tx) => unknown) => callback(tx)
     );
+    tx.alunoIntakeForm.findUnique.mockResolvedValue(null);
+    tx.alunoIntakeForm.upsert.mockResolvedValue({ id: 'legacy-intake-1' });
     tx.studentHealthIntake.findUnique.mockResolvedValue(null);
     tx.studentHealthIntake.upsert.mockResolvedValue({
       id: 'health-intake-1',
@@ -130,6 +132,9 @@ describe('student financial contract service', () => {
       })
       .mockResolvedValueOnce({ id: 'student-1' });
     tx.aluno.update.mockResolvedValue({ id: 'student-1', userId: 'user-1' });
+    tx.alunoIntakeForm.findUnique.mockResolvedValue({
+      formResponses: { financial: { currentService: 'active-contract-service' } },
+    });
     tx.contract.findUnique.mockResolvedValue({
       id: 'contract-1',
       alunoId: 'student-1',
@@ -204,7 +209,18 @@ describe('student financial contract service', () => {
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(tx.aluno.update).toHaveBeenCalledTimes(1);
-    expect(tx.alunoIntakeForm.upsert).not.toHaveBeenCalled();
+    expect(tx.alunoIntakeForm.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: {
+          formResponses: {
+            financial: {
+              currentService: 'active-contract-service',
+              monthlyValue: '350,00',
+            },
+          },
+        },
+      })
+    );
     expect(tx.studentHealthIntake.upsert).not.toHaveBeenCalled();
     expect(tx.serviceOption.findFirst).toHaveBeenCalledWith({
       where: { id: 'interest-service', contractId: 'company-1' },
