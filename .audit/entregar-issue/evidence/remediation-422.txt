@@ -1,0 +1,18 @@
+Issue 422 targeted remediation evidence
+material_head_sha=fa576c0a154783ec675cdcc10efc20c6e5075382
+pr=423
+branch=feat/422-student-docs-social
+
+Review findings reproduced on prior head and remediated in the material head:
+1. RG formatting could discard a trailing alphanumeric check digit when stray letters appeared before the ninth position.
+2. Legacy marital status "Viúvo" was not normalized to controlled "Viúvo(a)".
+3. Blank socialNetwork prevented legacy Instagram account fallback.
+4. Empty social network label differed from the controlled option label.
+
+Material remediation commit: fa576c0a154783ec675cdcc10efc20c6e5075382
+Changed files:
+- apps/web/src/utils/studentPersonalInfo.ts
+- apps/web/src/utils/studentPersonalInfo.test.ts
+
+Focused regression cases added for RG with stray pre-check letters plus trailing X, accented Viúvo, blank/whitespace social network with legacy account, and empty-network label consistency.
+Existing PR tests cover canonical identity precedence, Instagram-only legacy fallback, no AlunoIntakeForm write, server-owned financial currentService, authenticated contract ownership, and transaction rejection paths.

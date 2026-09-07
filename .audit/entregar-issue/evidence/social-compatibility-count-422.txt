@@ -1,0 +1,10 @@
+Exact-head social compatibility count for Issue 422
+subject_sha=fa576c0a154783ec675cdcc10efc20c6e5075382
+
+Counted from committed tests on the material head:
+- web legacy-network-missing variants: 3 (undefined, empty string, whitespace) in apps/web/src/utils/studentPersonalInfo.test.ts
+- API legacy Instagram fallback scenario: 1 in apps/api/tests/student-administrative-form-responses.service.test.ts
+- API explicit non-Instagram canonical mapping scenario: 1 (LinkedIn -> socialNetwork + socialAccount) in apps/api/tests/student-administrative-form-responses.service.test.ts
+
+Total directly enumerated social compatibility/mapping scenarios counted: 5.
+This count is used only as exact-head provenance for source clauses that the generic risk inference classifies as quantitative; it is not a product KPI or performance benchmark.

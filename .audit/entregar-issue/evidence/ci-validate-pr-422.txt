@@ -1,0 +1,25 @@
+Issue 422 exact-head CI evidence
+repository=crgasparoto-br/training-system
+pull_request=423
+material_head_sha=fa576c0a154783ec675cdcc10efc20c6e5075382
+workflow=Validate PR
+workflow_run_id=34151766652
+workflow_run_number=7567
+status=completed
+conclusion=success
+job=Validate repository
+job_id=101835352312
+started_at=2026-09-07T18:28:27Z
+completed_at=2026-09-07T18:43:52Z
+
+Relevant terminal steps:
+- Type check: success
+- Lint: success
+- Test: success (2026-09-07T18:31:20Z .. 2026-09-07T18:42:47Z)
+- Build: success
+- Validate settings parameters in real browser: success
+- Architecture checks: success
+- Access catalog checks: success
+- Documentation checks: success
+
+Source: GitHub Actions run 34151766652 observed through the repository connector on the exact material head.
