@@ -13,6 +13,12 @@ const mockTx = {
     count: jest.fn(),
   },
   studentProfile: {
+    findUnique: jest.fn(),
+    upsert: jest.fn(),
+    update: jest.fn(),
+  },
+  studentFinancialProfile: {
+    findUnique: jest.fn(),
     upsert: jest.fn(),
   },
   studentLifecycleEvent: {
@@ -101,7 +107,10 @@ describe('alunoService assessment boundary', () => {
     mockTx.user.create.mockResolvedValue({ id: 'user-1' });
     mockTx.aluno.create.mockResolvedValue({ id: 'aluno-1' });
     mockTx.aluno.update.mockResolvedValue({ id: 'aluno-1', userId: 'user-1' });
-    mockTx.aluno.findUniqueOrThrow.mockResolvedValue({ id: 'aluno-1' });
+    mockTx.aluno.findUniqueOrThrow.mockResolvedValue({
+      id: 'aluno-1',
+      contractId: 'contract-1',
+    });
     mockTx.aluno.count.mockResolvedValue(1);
     mockTx.aluno.findFirst.mockResolvedValue({
       id: 'aluno-1',
@@ -137,11 +146,13 @@ describe('alunoService assessment boundary', () => {
         },
       },
     });
+    mockTx.studentProfile.findUnique.mockResolvedValue({ preferenceData: null });
     mockTx.studentProfile.upsert.mockResolvedValue({});
+    mockTx.studentProfile.update.mockResolvedValue({});
+    mockTx.studentFinancialProfile.findUnique.mockResolvedValue(null);
+    mockTx.studentFinancialProfile.upsert.mockResolvedValue({});
     mockTx.studentLifecycleEvent.create.mockResolvedValue({});
     mockTx.studentOnboardingProcess.create.mockResolvedValue({ id: 'onboarding-1' });
-    mockTx.alunoIntakeForm.findUnique.mockResolvedValue(null);
-    mockTx.alunoIntakeForm.upsert.mockResolvedValue({ id: 'intake-legacy-1' });
     mockTx.studentHealthIntake.findUnique.mockResolvedValue(null);
     mockTx.studentHealthIntake.upsert.mockResolvedValue({
       id: 'health-intake-1',
@@ -150,7 +161,7 @@ describe('alunoService assessment boundary', () => {
     });
   });
 
-  it('cria aluno com onboarding e sem macronutrientes ou métrica quando o formulário não envia avaliação', async () => {
+  it('cria aluno, persiste identificação canônica e não reativa AlunoIntakeForm.formResponses', async () => {
     await alunoService.create({
       name: 'Aluno Novo',
       email: 'novo@example.com',
@@ -163,7 +174,11 @@ describe('alunoService assessment boundary', () => {
         trainingBackground: 'Iniciante',
         observations: 'Cadastro inicial',
         formResponses: {
-          identification: { cpf: '139.513.548-79' },
+          identification: {
+            cpf: '139.513.548-79',
+            socialNetwork: 'linkedin',
+            instagram: 'aluno-linkedin',
+          },
           financial: {},
           preferences: {},
           ahaResponses: {},
@@ -179,51 +194,40 @@ describe('alunoService assessment boundary', () => {
           serviceId: 'service-1',
           schedulePlan: 'free',
           age: 30,
-          weight: undefined,
-          height: undefined,
-          bodyFatPercentage: undefined,
-          vo2Max: undefined,
-          anaerobicThreshold: undefined,
-          maxHeartRate: undefined,
-          restingHeartRate: undefined,
-          systolicPressure: undefined,
-          diastolicPressure: undefined,
         }),
       })
     );
     expect(mockTx.studentOnboardingProcess.create).toHaveBeenCalledWith({
       data: { alunoId: 'aluno-1', contractId: 'contract-1' },
     });
-    expect(mockTx.alunoIntakeForm.upsert).toHaveBeenCalledWith(
+    expect(mockTx.studentProfile.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { alunoId: 'aluno-1' },
-        create: expect.objectContaining({
-          alunoId: 'aluno-1',
-          formResponses: expect.objectContaining({
-            identification: expect.objectContaining({ cpf: '139.513.548-79' }),
+        update: expect.objectContaining({
+          identificationData: expect.objectContaining({
+            cpf: '139.513.548-79',
+            socialNetwork: 'linkedin',
+            socialAccount: 'aluno-linkedin',
           }),
         }),
       })
     );
+    expect(mockTx.alunoIntakeForm.upsert).not.toHaveBeenCalled();
     expect(mockTx.macronutrients.create).not.toHaveBeenCalled();
     expect(mockTx.progressMetric.create).not.toHaveBeenCalled();
   });
 
-  it('preserva avaliação e persiste respostas administrativas ao atualizar cadastro e anamnese', async () => {
+  it('preserva saúde e grava relação/financeiro nos modelos canônicos sem dual-write legado', async () => {
     mockTx.aluno.findUniqueOrThrow
       .mockResolvedValueOnce({
         id: 'aluno-1',
+        contractId: 'contract-1',
         professorId: 'professor-1',
         professor: { contractId: 'contract-1' },
         currentStudentContract: null,
         intakeForm: { parqResponses: emptyParq },
       })
+      .mockResolvedValueOnce({ id: 'aluno-1', contractId: 'contract-1' })
       .mockResolvedValueOnce({ id: 'aluno-1' });
-    mockTx.alunoIntakeForm.findUnique.mockResolvedValue({
-      formResponses: {
-        financial: { currentService: 'Plano vigente' },
-      },
-    });
 
     await alunoService.update('aluno-1', {
       age: 31,
@@ -235,8 +239,8 @@ describe('alunoService assessment boundary', () => {
         trainingBackground: 'Treino atualizado',
         observations: 'Observação atualizada',
         formResponses: {
-          identification: { emergencyContactRelationship: 'Vizinho' },
-          financial: { currentService: 'valor do navegador' },
+          identification: { emergencyContactRelationship: 'Vizinho de confiança' },
+          financial: { monthlyValue: '350,00' },
           preferences: {},
           ahaResponses: {},
         },
@@ -247,19 +251,23 @@ describe('alunoService assessment boundary', () => {
       where: { id: 'aluno-1' },
       data: { age: 31 },
     });
-    expect(mockTx.macronutrients.upsert).not.toHaveBeenCalled();
-    expect(mockTx.progressMetric.create).not.toHaveBeenCalled();
-
-    expect(mockTx.alunoIntakeForm.upsert).toHaveBeenCalledWith(
+    expect(mockTx.alunoIntakeForm.upsert).not.toHaveBeenCalled();
+    expect(mockTx.studentFinancialProfile.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        update: {
-          formResponses: expect.objectContaining({
-            identification: expect.objectContaining({ emergencyContactRelationship: 'Vizinho' }),
-            financial: expect.objectContaining({ currentService: 'Plano vigente' }),
-          }),
-        },
+        update: expect.objectContaining({ monthlyAmount: 350 }),
       })
     );
+    expect(mockTx.studentProfile.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          identificationData: expect.objectContaining({
+            emergencyContactRelationship: 'Vizinho de confiança',
+          }),
+        }),
+      })
+    );
+    expect(mockTx.macronutrients.upsert).not.toHaveBeenCalled();
+    expect(mockTx.progressMetric.create).not.toHaveBeenCalled();
     expect(mockTx.studentParqSubmission.create).not.toHaveBeenCalled();
     expect(mockTx.studentHealthIntake.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
