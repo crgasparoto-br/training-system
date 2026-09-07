@@ -19,6 +19,21 @@ export const socialNetworkOptions = [
   { value: 'other', label: 'Outra' },
 ] as const;
 
+export const emergencyRelationshipOptions = [
+  'Mãe',
+  'Pai',
+  'Cônjuge',
+  'Companheiro(a)',
+  'Filho(a)',
+  'Irmão/Irmã',
+  'Avô/Avó',
+  'Tio/Tia',
+  'Primo(a)',
+  'Amigo(a)',
+  'Responsável',
+  'Outra',
+] as const;
+
 export type SocialNetwork = (typeof socialNetworkOptions)[number]['value'];
 
 const onlyDigits = (value: string) => value.replace(/\D/g, '');
