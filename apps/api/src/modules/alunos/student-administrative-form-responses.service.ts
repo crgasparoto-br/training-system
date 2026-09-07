@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { upsertStudentIdentity } from './student-identity.service.js';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -53,97 +54,156 @@ const optionalYesNo = (value: unknown): boolean | null => {
   return null;
 };
 
-const mapAdministrativeIdentification = (
-  persisted: unknown,
-  incoming: JsonRecord
-): JsonRecord => {
-  const merged = cloneRecord(persisted);
-  const existingAddress = cloneRecord(merged.address);
-  const next = { ...incoming };
-
-  const addressKeys = [
-    'address',
-    'addressNumber',
-    'addressComplement',
-    'neighborhood',
-    'city',
-    'state',
-    'zipCode',
-  ] as const;
-  const hasAddressMutation = addressKeys.some((key) => hasOwn(incoming, key));
-
-  if (hasAddressMutation) {
-    merged.address = {
-      ...existingAddress,
-      ...(hasOwn(incoming, 'address') ? { street: optionalText(incoming.address) } : {}),
-      ...(hasOwn(incoming, 'addressNumber') ? { number: optionalText(incoming.addressNumber) } : {}),
-      ...(hasOwn(incoming, 'addressComplement')
-        ? { complement: optionalText(incoming.addressComplement) }
-        : {}),
-      ...(hasOwn(incoming, 'neighborhood')
-        ? { neighborhood: optionalText(incoming.neighborhood) }
-        : {}),
-      ...(hasOwn(incoming, 'city') ? { city: optionalText(incoming.city) } : {}),
-      ...(hasOwn(incoming, 'state') ? { state: optionalText(incoming.state) } : {}),
-      ...(hasOwn(incoming, 'zipCode') ? { zipCode: optionalText(incoming.zipCode) } : {}),
-    };
-  }
-
-  addressKeys.forEach((key) => delete next[key]);
-  return { ...merged, ...next };
-};
-
 const toInputJson = (value: JsonRecord): Prisma.InputJsonValue =>
   value as Prisma.InputJsonValue;
 
+const identityField = (
+  target: JsonRecord,
+  incoming: JsonRecord,
+  incomingKey: string,
+  canonicalKey: string = incomingKey
+) => {
+  if (hasOwn(incoming, incomingKey)) {
+    target[canonicalKey] = optionalText(incoming[incomingKey]);
+  }
+};
+
 /**
- * Maps the administrative registration payload into the canonical profile
- * models. AlunoIntakeForm became database read-only after the health-intake
- * cutover, so this writer must never restore the legacy dual-write.
+ * Produces the tenant-scoped identity patch used by the canonical identity
+ * writer. The web form still exposes a few compatibility field names
+ * (`address`, `instagram`); only canonical names are persisted.
+ */
+export const buildStudentAdministrativeIdentityPatch = (
+  incoming: JsonRecord
+): JsonRecord => {
+  const patch: JsonRecord = {};
+
+  identityField(patch, incoming, 'cpf');
+  identityField(patch, incoming, 'rg');
+  identityField(patch, incoming, 'maritalStatus');
+  identityField(patch, incoming, 'address', 'addressStreet');
+  identityField(patch, incoming, 'addressNumber');
+  identityField(patch, incoming, 'addressComplement');
+  identityField(patch, incoming, 'neighborhood', 'addressNeighborhood');
+  identityField(patch, incoming, 'city', 'addressCity');
+  identityField(patch, incoming, 'state', 'addressState');
+  identityField(patch, incoming, 'zipCode', 'addressZipCode');
+  identityField(patch, incoming, 'socialNetwork');
+  identityField(patch, incoming, 'emergencyContactName');
+  identityField(patch, incoming, 'emergencyContactPhone');
+  identityField(patch, incoming, 'emergencyContactRelationship');
+
+  if (hasOwn(incoming, 'socialAccount')) {
+    patch.socialAccount = optionalText(incoming.socialAccount);
+  } else if (hasOwn(incoming, 'instagram')) {
+    // `instagram` is the old web-form field name. Persist it only as the
+    // canonical generic account; Profile.instagramHandle remains an Instagram
+    // compatibility projection and is never used for other networks.
+    patch.socialAccount = optionalText(incoming.instagram);
+  }
+
+  return patch;
+};
+
+/**
+ * Compatibility merge used only for read-model composition/tests. It never
+ * writes AlunoIntakeForm. PAR-Q stays outside this administrative payload and
+ * currentService remains server-owned.
+ */
+export const mergeStudentAdministrativeFormResponses = (
+  persisted: unknown,
+  incoming: Record<string, unknown>
+): JsonRecord => {
+  const merged = cloneRecord(persisted);
+
+  for (const [section, rawValue] of Object.entries(incoming)) {
+    if (section === 'parqResponses') continue;
+
+    const incomingRecord = asRecord(rawValue);
+    const persistedRecord = asRecord(merged[section]);
+    if (!incomingRecord) {
+      merged[section] = rawValue;
+      continue;
+    }
+
+    const nextSection: JsonRecord = {
+      ...(persistedRecord ?? {}),
+      ...incomingRecord,
+    };
+
+    if (section === 'financial') {
+      delete nextSection.currentService;
+      if (persistedRecord && hasOwn(persistedRecord, 'currentService')) {
+        nextSection.currentService = persistedRecord.currentService;
+      }
+    }
+
+    merged[section] = nextSection;
+  }
+
+  return merged;
+};
+
+/**
+ * Persists administrative registration data in canonical segmented models.
+ * Identification always crosses the canonical identity writer; this function
+ * never inserts or updates AlunoIntakeForm.formResponses.
  */
 export async function upsertStudentAdministrativeFormResponses(
   tx: Prisma.TransactionClient,
   alunoId: string,
-  contractId: string,
   incoming?: Record<string, unknown>,
   sourceReference = 'administrative_registration'
 ) {
   if (!incoming) return;
 
+  const aluno = await tx.aluno.findUniqueOrThrow({
+    where: { id: alunoId },
+    select: { contractId: true },
+  });
+  if (!aluno.contractId) {
+    throw new Error('Contrato do aluno não encontrado');
+  }
+
   const identification = asRecord(incoming.identification);
   const preferences = asRecord(incoming.preferences);
+  const identityPatch = identification
+    ? buildStudentAdministrativeIdentityPatch(identification)
+    : {};
 
   if (identification || preferences) {
+    // Even a preferences-only mutation goes through the identity boundary once
+    // so a legacy student without StudentProfile receives the canonical row
+    // before preferenceData is updated.
+    await upsertStudentIdentity(
+      alunoId,
+      aluno.contractId,
+      identityPatch as Parameters<typeof upsertStudentIdentity>[2],
+      {
+        client: tx,
+        sourceType: 'professional',
+        sourceReference,
+        syncLegacyProfile: false,
+      }
+    );
+  }
+
+  if (preferences) {
     const existing = await tx.studentProfile.findUnique({
       where: { alunoId },
-      select: {
-        identificationData: true,
-        preferenceData: true,
-      },
+      select: { preferenceData: true },
     });
+    const preferenceData = {
+      ...cloneRecord(existing?.preferenceData),
+      ...preferences,
+    };
 
-    const identificationData = identification
-      ? mapAdministrativeIdentification(existing?.identificationData, identification)
-      : cloneRecord(existing?.identificationData);
-    const preferenceData = preferences
-      ? { ...cloneRecord(existing?.preferenceData), ...preferences }
-      : cloneRecord(existing?.preferenceData);
-
-    await tx.studentProfile.upsert({
+    await tx.studentProfile.update({
       where: { alunoId },
-      create: {
-        alunoId,
-        contractId,
+      data: {
+        contractId: aluno.contractId,
         sourceType: 'professional',
         sourceReference,
-        identificationData: toInputJson(identificationData),
-        preferenceData: toInputJson(preferenceData),
-      },
-      update: {
-        contractId,
-        sourceType: 'professional',
-        sourceReference,
-        identificationData: toInputJson(identificationData),
         preferenceData: toInputJson(preferenceData),
       },
     });
@@ -156,7 +216,7 @@ export async function upsertStudentAdministrativeFormResponses(
     where: { alunoId },
   });
   const common = {
-    contractId,
+    contractId: aluno.contractId,
     sourceType: 'professional' as const,
     sourceReference,
     ...(hasOwn(financial, 'specialCondition')
@@ -188,8 +248,7 @@ export async function upsertStudentAdministrativeFormResponses(
       : {}),
   };
 
-  // currentServiceName is intentionally not copied from the browser. Contract
-  // lifecycle remains the only authority for the effective financial service.
+  // currentServiceName is synchronized only by StudentContract lifecycle.
   await tx.studentFinancialProfile.upsert({
     where: { alunoId },
     create: {
@@ -227,16 +286,85 @@ const formatInputDate = (value: unknown) => {
   return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
 };
 
+const flattenCanonicalIdentification = (
+  canonical: JsonRecord,
+  legacy: JsonRecord,
+  legacyInstagramHandle?: string | null
+) => {
+  const flattened: JsonRecord = { ...legacy };
+  const address = cloneRecord(canonical.address);
+
+  const mapCanonical = (canonicalKey: string, formKey: string = canonicalKey) => {
+    if (hasOwn(canonical, canonicalKey)) {
+      flattened[formKey] = canonical[canonicalKey] ?? '';
+    }
+  };
+
+  mapCanonical('cpf');
+  mapCanonical('rg');
+  mapCanonical('maritalStatus');
+  mapCanonical('addressStreet', 'address');
+  mapCanonical('addressNumber');
+  mapCanonical('addressComplement');
+  mapCanonical('addressNeighborhood', 'neighborhood');
+  mapCanonical('addressCity', 'city');
+  mapCanonical('addressState', 'state');
+  mapCanonical('addressZipCode', 'zipCode');
+  mapCanonical('emergencyContactName');
+  mapCanonical('emergencyContactPhone');
+  mapCanonical('emergencyContactRelationship');
+
+  // Compatibility with the short-lived nested-address representation.
+  if (!hasOwn(canonical, 'addressStreet') && Object.keys(address).length > 0) {
+    flattened.address = address.street ?? '';
+    flattened.addressNumber = address.number ?? '';
+    flattened.addressComplement = address.complement ?? '';
+    flattened.neighborhood = address.neighborhood ?? '';
+    flattened.city = address.city ?? '';
+    flattened.state = address.state ?? '';
+    flattened.zipCode = address.zipCode ?? '';
+  }
+
+  const canonicalAccount = hasOwn(canonical, 'socialAccount')
+    ? canonical.socialAccount
+    : hasOwn(canonical, 'instagramHandle')
+      ? canonical.instagramHandle
+      : undefined;
+  const legacyAccount = hasOwn(legacy, 'socialAccount')
+    ? legacy.socialAccount
+    : hasOwn(legacy, 'instagram')
+      ? legacy.instagram
+      : legacyInstagramHandle;
+  const account = canonicalAccount !== undefined ? canonicalAccount : legacyAccount;
+
+  if (hasOwn(canonical, 'socialNetwork')) {
+    flattened.socialNetwork = canonical.socialNetwork ?? '';
+  } else if (!flattened.socialNetwork && account) {
+    flattened.socialNetwork = 'instagram';
+  }
+
+  if (account !== undefined) {
+    flattened.socialAccount = account ?? '';
+    // The current web form still reads this compatibility alias. New writes are
+    // converted back to canonical socialAccount above.
+    flattened.instagram = account ?? '';
+  }
+
+  return flattened;
+};
+
 /**
- * Builds a compatibility read model for the current web form without writing
- * back to AlunoIntakeForm. This lets old UI readers migrate incrementally to
- * StudentProfile / StudentFinancialProfile.
+ * Rebuilds the current administrative form payload from canonical segmented
+ * models while keeping legacy values as read-only fallback. Canonical values,
+ * including explicit empty/null values, always win.
  */
 export function buildStudentAdministrativeFormResponsesReadModel(input: {
   legacy?: unknown;
   profile?: {
     identificationData?: unknown;
     preferenceData?: unknown;
+    identification?: unknown;
+    preferences?: unknown;
   } | null;
   financial?: {
     currentServiceName?: string | null;
@@ -250,33 +378,32 @@ export function buildStudentAdministrativeFormResponsesReadModel(input: {
     referralPerson?: string | null;
     notes?: string | null;
   } | null;
+  legacyInstagramHandle?: string | null;
 }) {
   const result = cloneRecord(input.legacy);
-  const canonicalIdentification = cloneRecord(input.profile?.identificationData);
+  const canonicalIdentification = cloneRecord(
+    input.profile?.identificationData ?? input.profile?.identification
+  );
+  const legacyIdentification = cloneRecord(result.identification);
 
   if (Object.keys(canonicalIdentification).length > 0) {
-    const address = cloneRecord(canonicalIdentification.address);
-    const legacyIdentification = cloneRecord(result.identification);
-    const flattened = {
+    result.identification = flattenCanonicalIdentification(
+      canonicalIdentification,
+      legacyIdentification,
+      input.legacyInstagramHandle
+    );
+  } else if (input.legacyInstagramHandle && !legacyIdentification.instagram) {
+    result.identification = {
       ...legacyIdentification,
-      ...canonicalIdentification,
-      ...(Object.keys(address).length > 0
-        ? {
-            address: (address.street as string | null | undefined) ?? '',
-            addressNumber: (address.number as string | null | undefined) ?? '',
-            addressComplement: (address.complement as string | null | undefined) ?? '',
-            neighborhood: (address.neighborhood as string | null | undefined) ?? '',
-            city: (address.city as string | null | undefined) ?? '',
-            state: (address.state as string | null | undefined) ?? '',
-            zipCode: (address.zipCode as string | null | undefined) ?? '',
-          }
-        : {}),
+      socialNetwork: legacyIdentification.socialNetwork || 'instagram',
+      socialAccount: input.legacyInstagramHandle,
+      instagram: input.legacyInstagramHandle,
     };
-    delete flattened.addressStreet;
-    result.identification = flattened;
   }
 
-  const preferenceData = cloneRecord(input.profile?.preferenceData);
+  const preferenceData = cloneRecord(
+    input.profile?.preferenceData ?? input.profile?.preferences
+  );
   if (Object.keys(preferenceData).length > 0) {
     result.preferences = {
       ...cloneRecord(result.preferences),
@@ -287,8 +414,8 @@ export function buildStudentAdministrativeFormResponsesReadModel(input: {
   if (input.financial) {
     result.financial = {
       ...cloneRecord(result.financial),
-      ...(input.financial.currentServiceName
-        ? { currentService: input.financial.currentServiceName }
+      ...(input.financial.currentServiceName !== undefined
+        ? { currentService: input.financial.currentServiceName ?? '' }
         : {}),
       specialCondition: input.financial.specialCondition ?? '',
       monthlyValue: formatAmount(input.financial.monthlyAmount),
@@ -307,5 +434,6 @@ export function buildStudentAdministrativeFormResponsesReadModel(input: {
     };
   }
 
+  delete result.parqResponses;
   return result;
 }
