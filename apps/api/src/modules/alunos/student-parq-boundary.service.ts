@@ -4,6 +4,7 @@ import type {
 } from '@corrida/types';
 import { alunoService } from './aluno.service.js';
 import { studentDomainService } from './student-domain.service.js';
+import { buildStudentAdministrativeFormResponsesReadModel } from './student-administrative-form-responses.service.js';
 import { preRegistrationParqService } from '../pre-registration-public/pre-registration-parq.service.js';
 
 type JsonRecord = Record<string, unknown>;
@@ -92,10 +93,28 @@ export function attachCanonicalParqToHealthIntake<T>(
 
 export const studentParqBoundaryService = {
   async getAdministrativeAluno(contractId: string, alunoId: string) {
-    const aluno = await alunoService.findById(alunoId);
+    const [aluno, profile, financial] = await Promise.all([
+      alunoService.findById(alunoId),
+      studentDomainService.getProfile(alunoId, { companyContractId: contractId }),
+      studentDomainService.getFinancialProfile(alunoId, { companyContractId: contractId }),
+    ]);
     if (!aluno || aluno.contractId !== contractId) return null;
 
-    return sanitizeAdministrativeAlunoPayload(aluno, aluno.parq);
+    const formResponses = buildStudentAdministrativeFormResponsesReadModel({
+      legacy: aluno.intakeForm?.formResponses,
+      profile,
+      financial,
+      legacyInstagramHandle: aluno.user?.profile?.instagramHandle,
+    });
+    const enrichedAluno = {
+      ...aluno,
+      intakeForm: {
+        ...(aluno.intakeForm ?? {}),
+        formResponses,
+      },
+    };
+
+    return sanitizeAdministrativeAlunoPayload(enrichedAluno, aluno.parq);
   },
 
   async getAdministrativeSummary(contractId: string, alunoId: string) {
