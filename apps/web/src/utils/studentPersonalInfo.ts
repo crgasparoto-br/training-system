@@ -48,10 +48,21 @@ export const formatCpf = (value: string) => {
 };
 
 export const formatRg = (value: string) => {
-  const normalized = value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 9);
-  const firstEight = normalized.slice(0, 8).replace(/\D/g, '');
-  const checkDigit = normalized.length > 8 ? normalized.slice(8, 9) : '';
-  const compact = `${firstEight}${checkDigit}`;
+  const normalized = value.toUpperCase().replace(/[^0-9A-Z]/g, '');
+  let digits = '';
+  let checkDigit = '';
+
+  for (const character of normalized) {
+    if (digits.length < 8) {
+      if (/\d/.test(character)) digits += character;
+      continue;
+    }
+
+    checkDigit = character;
+    break;
+  }
+
+  const compact = `${digits}${checkDigit}`;
 
   if (compact.length <= 2) return compact;
   if (compact.length <= 5) return `${compact.slice(0, 2)}.${compact.slice(2)}`;
@@ -74,6 +85,7 @@ const maritalStatusAliases: Record<string, string> = {
   separado: 'Separado(a)',
   'separado(a)': 'Separado(a)',
   separada: 'Separado(a)',
+  'viúvo': 'Viúvo(a)',
   viuvo: 'Viúvo(a)',
   viúva: 'Viúvo(a)',
   viuva: 'Viúvo(a)',
@@ -88,14 +100,16 @@ export const normalizeMaritalStatus = (value?: string | null) => {
 
 export const normalizeSocialNetwork = (value?: string | null, legacyAccount?: string | null): SocialNetwork => {
   const normalized = value?.trim().toLowerCase();
-  const known = socialNetworkOptions.some((option) => option.value === normalized);
 
+  if (!normalized) return legacyAccount?.trim() ? 'instagram' : '';
+
+  const known = socialNetworkOptions.some((option) => option.value === normalized);
   if (known) return normalized as SocialNetwork;
   return legacyAccount?.trim() ? 'instagram' : '';
 };
 
 export const socialNetworkLabel = (network?: string | null) =>
-  socialNetworkOptions.find((option) => option.value === network)?.label || 'Não informada';
+  socialNetworkOptions.find((option) => option.value === network)?.label || 'Não informado';
 
 export const socialAccountPlaceholder = (network?: string | null) => {
   switch (network) {

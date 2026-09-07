@@ -5,6 +5,7 @@ import {
   normalizeMaritalStatus,
   normalizeSocialNetwork,
   socialAccountPlaceholder,
+  socialNetworkLabel,
 } from './studentPersonalInfo';
 
 describe('studentPersonalInfo', () => {
@@ -18,18 +19,28 @@ describe('studentPersonalInfo', () => {
     expect(formatRg('207433963')).toBe('20.743.396-3');
     expect(formatRg('20743396x')).toBe('20.743.396-X');
     expect(formatRg('20.743.396-3')).toBe('20.743.396-3');
+    expect(formatRg('20A743396x')).toBe('20.743.396-X');
+    expect(formatRg('A20743396x')).toBe('20.743.396-X');
   });
 
   it('normalizes common legacy marital-status values without discarding unknown values', () => {
     expect(normalizeMaritalStatus('Casado')).toBe('Casado(a)');
     expect(normalizeMaritalStatus('uniao estavel')).toBe('União estável');
+    expect(normalizeMaritalStatus('Viúvo')).toBe('Viúvo(a)');
     expect(normalizeMaritalStatus('Outro valor legado')).toBe('Outro valor legado');
   });
 
   it('assumes Instagram for legacy accounts that did not store a network', () => {
     expect(normalizeSocialNetwork(undefined, '@aluno')).toBe('instagram');
+    expect(normalizeSocialNetwork('', '@aluno')).toBe('instagram');
+    expect(normalizeSocialNetwork('   ', '@aluno')).toBe('instagram');
     expect(normalizeSocialNetwork('linkedin', '@aluno')).toBe('linkedin');
     expect(normalizeSocialNetwork(undefined, '')).toBe('');
+  });
+
+  it('keeps the empty-network label consistent with the controlled option', () => {
+    expect(socialNetworkLabel(undefined)).toBe('Não informado');
+    expect(socialNetworkLabel('')).toBe('Não informado');
   });
 
   it('adapts the account placeholder to the selected network', () => {
