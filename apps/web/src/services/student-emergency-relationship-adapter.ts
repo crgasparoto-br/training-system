@@ -24,7 +24,27 @@ export function installStudentEmergencyRelationshipAdapter(
   root: ParentNode = document
 ) {
   const input = root.querySelector<HTMLInputElement>(`input[name="${FIELD_NAME}"]`);
-  if (!input) return () => undefined;
+  if (!input) {
+    if (typeof MutationObserver === 'undefined') return () => undefined;
+
+    let uninstallMounted = () => undefined;
+    const observer = new MutationObserver(() => {
+      const mountedInput = root.querySelector<HTMLInputElement>(
+        `input[name="${FIELD_NAME}"]`
+      );
+      if (!mountedInput) return;
+
+      observer.disconnect();
+      uninstallMounted = installStudentEmergencyRelationshipAdapter(root);
+    });
+    const observeTarget = root instanceof Node ? root : document.documentElement;
+    observer.observe(observeTarget, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      uninstallMounted();
+    };
+  }
 
   const previousStyle = input.getAttribute('style');
   const previousAriaHidden = input.getAttribute('aria-hidden');
