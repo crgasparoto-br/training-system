@@ -29,11 +29,15 @@ export function installStudentEmergencyRelationshipAdapter(
   const previousStyle = input.getAttribute('style');
   const previousAriaHidden = input.getAttribute('aria-hidden');
   const previousTabIndex = input.getAttribute('tabindex');
-  const currentValue = input.value.trim();
+  const previousValueDescriptor = Object.getOwnPropertyDescriptor(input, 'value');
+  const inheritedValueDescriptor = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    'value'
+  );
+  const activeValueDescriptor = previousValueDescriptor ?? inheritedValueDescriptor;
   const predefined = emergencyRelationshipOptions.filter(
     (relationship) => relationship !== OTHER_RELATIONSHIP
   );
-  const isCustom = Boolean(currentValue && !predefined.includes(currentValue as never));
 
   const container = document.createElement('div');
   container.className = 'space-y-3';
@@ -68,13 +72,42 @@ export function installStudentEmergencyRelationshipAdapter(
     otherInput.disabled = !show;
   };
 
-  if (isCustom) {
-    select.value = OTHER_RELATIONSHIP;
-    otherInput.value = currentValue;
-    showOther(true);
-  } else {
-    select.value = currentValue;
+  const syncControlsFromRegisteredValue = (rawValue: string) => {
+    const value = rawValue.trim();
+    const isCustom = Boolean(value && !predefined.includes(value as never));
+
+    if (isCustom) {
+      select.value = OTHER_RELATIONSHIP;
+      otherInput.value = value;
+      showOther(true);
+      return;
+    }
+
+    select.value = value;
+    otherInput.value = '';
     showOther(false);
+  };
+
+  syncControlsFromRegisteredValue(input.value);
+
+  let interceptsProgrammaticValue = false;
+  if (
+    activeValueDescriptor?.get &&
+    activeValueDescriptor.set &&
+    activeValueDescriptor.configurable !== false
+  ) {
+    Object.defineProperty(input, 'value', {
+      configurable: true,
+      enumerable: activeValueDescriptor.enumerable,
+      get() {
+        return activeValueDescriptor.get?.call(input);
+      },
+      set(value: string) {
+        activeValueDescriptor.set?.call(input, value);
+        syncControlsFromRegisteredValue(String(value));
+      },
+    });
+    interceptsProgrammaticValue = true;
   }
 
   select.addEventListener('change', () => {
@@ -103,6 +136,14 @@ export function installStudentEmergencyRelationshipAdapter(
 
   return () => {
     container.remove();
+
+    if (interceptsProgrammaticValue) {
+      if (previousValueDescriptor) {
+        Object.defineProperty(input, 'value', previousValueDescriptor);
+      } else {
+        Reflect.deleteProperty(input, 'value');
+      }
+    }
 
     if (previousStyle === null) input.removeAttribute('style');
     else input.setAttribute('style', previousStyle);
