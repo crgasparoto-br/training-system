@@ -9,6 +9,15 @@ const tx = {
   serviceOption: { findFirst: jest.fn(), findUnique: jest.fn() },
   macronutrients: { upsert: jest.fn(), create: jest.fn() },
   alunoIntakeForm: { findUnique: jest.fn(), upsert: jest.fn(), create: jest.fn() },
+  studentProfile: {
+    findUnique: jest.fn(),
+    upsert: jest.fn(),
+    update: jest.fn(),
+  },
+  studentFinancialProfile: {
+    findUnique: jest.fn(),
+    upsert: jest.fn(),
+  },
   studentHealthIntake: { findUnique: jest.fn(), upsert: jest.fn() },
   studentOnboardingProcess: { create: jest.fn(), updateMany: jest.fn() },
   studentParqSubmission: { create: jest.fn() },
@@ -56,8 +65,11 @@ describe('student financial contract service', () => {
     prisma.$transaction.mockImplementation(
       async (callback: (client: typeof tx) => unknown) => callback(tx)
     );
-    tx.alunoIntakeForm.findUnique.mockResolvedValue(null);
-    tx.alunoIntakeForm.upsert.mockResolvedValue({ id: 'legacy-intake-1' });
+    tx.studentProfile.findUnique.mockResolvedValue({ preferenceData: null });
+    tx.studentProfile.upsert.mockResolvedValue({});
+    tx.studentProfile.update.mockResolvedValue({});
+    tx.studentFinancialProfile.findUnique.mockResolvedValue(null);
+    tx.studentFinancialProfile.upsert.mockResolvedValue({});
     tx.studentHealthIntake.findUnique.mockResolvedValue(null);
     tx.studentHealthIntake.upsert.mockResolvedValue({
       id: 'health-intake-1',
@@ -106,7 +118,7 @@ describe('student financial contract service', () => {
     ).toEqual({ financial: { paymentDay: '10' } });
   });
 
-  it('uses the persisted Aluno service and ignores a serviceId injected by a direct caller', async () => {
+  it('uses the persisted Aluno service and stores administrative finance outside AlunoIntakeForm', async () => {
     tx.aluno.findUniqueOrThrow
       .mockResolvedValueOnce({
         id: 'student-1',
@@ -126,14 +138,18 @@ describe('student financial contract service', () => {
         },
       })
       .mockResolvedValueOnce({
+        id: 'student-1',
+        contractId: 'company-1',
+      })
+      .mockResolvedValueOnce({
         contractId: 'company-1',
         serviceId: 'interest-service',
         professor: { contractId: 'company-1' },
       })
       .mockResolvedValueOnce({ id: 'student-1' });
     tx.aluno.update.mockResolvedValue({ id: 'student-1', userId: 'user-1' });
-    tx.alunoIntakeForm.findUnique.mockResolvedValue({
-      formResponses: { financial: { currentService: 'active-contract-service' } },
+    tx.studentFinancialProfile.findUnique.mockResolvedValue({
+      currentServiceName: 'active-contract-service',
     });
     tx.contract.findUnique.mockResolvedValue({
       id: 'contract-1',
@@ -209,16 +225,13 @@ describe('student financial contract service', () => {
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(tx.aluno.update).toHaveBeenCalledTimes(1);
-    expect(tx.alunoIntakeForm.upsert).toHaveBeenCalledWith(
+    expect(tx.alunoIntakeForm.upsert).not.toHaveBeenCalled();
+    expect(tx.studentFinancialProfile.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        update: {
-          formResponses: {
-            financial: {
-              currentService: 'active-contract-service',
-              monthlyValue: '350,00',
-            },
-          },
-        },
+        update: expect.objectContaining({
+          currentServiceName: 'active-contract-service',
+          monthlyAmount: 350,
+        }),
       })
     );
     expect(tx.studentHealthIntake.upsert).not.toHaveBeenCalled();
