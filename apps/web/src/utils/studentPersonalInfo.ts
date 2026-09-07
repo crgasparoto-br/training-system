@@ -79,6 +79,9 @@ export const normalizeSocialNetwork = (value?: string | null, legacyAccount?: st
   return legacyAccount?.trim() ? 'instagram' : '';
 };
 
+export const socialNetworkLabel = (network?: string | null) =>
+  socialNetworkOptions.find((option) => option.value === network)?.label || 'Não informada';
+
 export const socialAccountPlaceholder = (network?: string | null) => {
   switch (network) {
     case 'instagram':
