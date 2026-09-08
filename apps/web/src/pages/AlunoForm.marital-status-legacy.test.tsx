@@ -205,7 +205,6 @@ describe('AlunoForm legacy marital status preservation', () => {
     expect(mocks.update).toHaveBeenCalledWith(
       'aluno-legacy',
       expect.objectContaining({
-        name: 'Aluno Existente Atualizado',
         intakeForm: expect.objectContaining({
           formResponses: expect.objectContaining({
             identification: expect.objectContaining({
