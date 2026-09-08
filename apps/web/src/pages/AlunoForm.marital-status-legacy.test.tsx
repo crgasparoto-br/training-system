@@ -189,18 +189,15 @@ describe('AlunoForm legacy marital status preservation', () => {
       </MemoryRouter>
     );
 
-    await screen.findByDisplayValue('Aluno Existente');
+    const nameInput = await screen.findByDisplayValue('Aluno Existente');
     const maritalStatus = document.querySelector<HTMLSelectElement>(
       'select[name="intakeForm.personalInfo.maritalStatus"]'
     )!;
 
     await waitFor(() => expect(maritalStatus).toHaveValue('Viúvo'));
 
-    const observations = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(
-      '[name="intakeForm.observations"]'
-    )!;
-    fireEvent.change(observations, { target: { value: 'Observação editada' } });
-    const form = observations.closest('form');
+    fireEvent.change(nameInput, { target: { value: 'Aluno Existente Atualizado' } });
+    const form = nameInput.closest('form');
     expect(form).toBeInstanceOf(HTMLFormElement);
     fireEvent.submit(form!);
 
@@ -208,8 +205,8 @@ describe('AlunoForm legacy marital status preservation', () => {
     expect(mocks.update).toHaveBeenCalledWith(
       'aluno-legacy',
       expect.objectContaining({
+        name: 'Aluno Existente Atualizado',
         intakeForm: expect.objectContaining({
-          observations: 'Observação editada',
           formResponses: expect.objectContaining({
             identification: expect.objectContaining({
               maritalStatus: 'Viúvo',
