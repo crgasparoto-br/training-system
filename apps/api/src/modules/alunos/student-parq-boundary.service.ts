@@ -93,16 +93,33 @@ export function attachCanonicalParqToHealthIntake<T>(
 
 export const studentParqBoundaryService = {
   async getAdministrativeAluno(contractId: string, alunoId: string) {
-    const [aluno, profile, financial] = await Promise.all([
+    const [aluno, domainSnapshot, financial] = await Promise.all([
       alunoService.findById(alunoId),
-      studentDomainService.getProfile(alunoId, { companyContractId: contractId }),
-      studentDomainService.getFinancialProfile(alunoId, { companyContractId: contractId }),
+      studentDomainService.loadAlunoDomainSnapshot(alunoId, {
+        companyContractId: contractId,
+      }),
+      studentDomainService.getFinancialProfile(alunoId, {
+        companyContractId: contractId,
+      }),
     ]);
     if (!aluno || aluno.contractId !== contractId) return null;
 
+    // The generic domain profile intentionally synthesizes a fallback from the
+    // legacy Profile when StudentProfile does not exist. That fallback contains
+    // null-valued identity keys and must not be treated as canonical here,
+    // otherwise those nulls erase values that still live only in formResponses.
+    // Pass only the real segmented StudentProfile so field-level precedence is:
+    // explicit canonical value -> read-only legacy fallback.
+    const canonicalProfile = domainSnapshot?.studentProfile
+      ? {
+          identificationData: domainSnapshot.studentProfile.identificationData,
+          preferenceData: domainSnapshot.studentProfile.preferenceData,
+        }
+      : null;
+
     const formResponses = buildStudentAdministrativeFormResponsesReadModel({
       legacy: aluno.intakeForm?.formResponses,
-      profile,
+      profile: canonicalProfile,
       financial,
       legacyInstagramHandle: aluno.user?.profile?.instagramHandle,
     });
