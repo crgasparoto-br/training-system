@@ -1,73 +1,27 @@
 {
   "schema_version": 1,
-  "head_sha": "b678c9a200fb63eb13675ea7c87699e90f3d18fb",
+  "head_sha": "5219ff792e66f6282959bc87493e96c1d10b47a6",
   "families": [
     {
       "family": "authorization",
       "applicable": false,
-      "reason": "No current contract, cumulative escape, or diff signal requires this family.",
+      "reason": "No current contract or diff signal requires this family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
     },
     {
-      "family": "concurrency-atomicity",
+      "family": "tenant-isolation",
       "applicable": false,
-      "reason": "No current contract, cumulative escape, or diff signal requires this family.",
+      "reason": "No current contract or diff signal requires this family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
-    },
-    {
-      "family": "documentation",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NEG-001-01"
-      ],
-      "dimensions": [
-        {
-          "surface": "canonical-claims",
-          "reason": "Derived from requirement attack matrix and cumulative independent-audit escape closure.",
-          "control_ids": [
-            "NEG-001-01"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
-    },
-    {
-      "family": "historical-immutability",
-      "applicable": false,
-      "reason": "No current contract, cumulative escape, or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
-    },
-    {
-      "family": "idempotency",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NEG-043-01"
-      ],
-      "dimensions": [
-        {
-          "surface": "duplicate-processing",
-          "reason": "Derived from requirement attack matrix and cumulative independent-audit escape closure.",
-          "control_ids": [
-            "NEG-043-01"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
     },
     {
       "family": "public-boundary",
       "applicable": false,
-      "reason": "No current contract, cumulative escape, or diff signal requires this family.",
+      "reason": "No current contract or diff signal requires this family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -77,15 +31,15 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-HIST-07",
         "NEG-004-01",
         "NEG-035-01",
-        "NEG-042-01"
+        "NEG-042-01",
+        "NEG-HIST-07"
       ],
       "dimensions": [
         {
           "surface": "canonical-reference",
-          "reason": "Derived from requirement attack matrix and cumulative independent-audit escape closure.",
+          "reason": "Material boundary derived from the canonical Issue 422 obligation.",
           "control_ids": [
             "NEG-004-01",
             "NEG-035-01",
@@ -95,144 +49,9 @@
         },
         {
           "surface": "reference-liveness",
-          "reason": "Derived from requirement attack matrix and cumulative independent-audit escape closure.",
+          "reason": "Historical independent-audit escape dimension retained as cumulative critical re-audit control.",
           "control_ids": [
             "NEG-HIST-07"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
-    },
-    {
-      "family": "rollback",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NEG-015-RB",
-        "NEG-041-RB",
-        "NEG-081-RB"
-      ],
-      "dimensions": [
-        {
-          "surface": "transaction-rollback",
-          "reason": "Derived from requirement attack matrix and cumulative independent-audit escape closure.",
-          "control_ids": [
-            "NEG-015-RB",
-            "NEG-041-RB",
-            "NEG-081-RB"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
-    },
-    {
-      "family": "structural-contract",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NEG-HIST-02",
-        "NEG-HIST-03",
-        "NEG-HIST-05",
-        "NEG-HIST-08",
-        "NEG-HIST-09",
-        "NEG-HIST-11",
-        "NEG-003-CS",
-        "NEG-010-CS",
-        "NEG-014-CS",
-        "NEG-016-CS",
-        "NEG-017-01",
-        "NEG-017-02",
-        "NEG-019-CS",
-        "NEG-021-CS",
-        "NEG-026-CS",
-        "NEG-044-CS",
-        "NEG-045-CS",
-        "NEG-048-CS",
-        "NEG-049-CS",
-        "NEG-051-CS",
-        "NEG-054-CS",
-        "NEG-056-CS",
-        "NEG-061-01",
-        "NEG-061-02",
-        "NEG-076-01",
-        "NEG-083-CS",
-        "NEG-084-CS",
-        "NEG-085-01",
-        "NEG-087-CS",
-        "NEG-089-CS"
-      ],
-      "dimensions": [
-        {
-          "surface": "canonical-source-consistency",
-          "reason": "Derived from requirement attack matrix and cumulative independent-audit escape closure.",
-          "control_ids": [
-            "NEG-HIST-02",
-            "NEG-003-CS",
-            "NEG-010-CS",
-            "NEG-014-CS",
-            "NEG-016-CS",
-            "NEG-017-01",
-            "NEG-019-CS",
-            "NEG-021-CS",
-            "NEG-026-CS",
-            "NEG-044-CS",
-            "NEG-045-CS",
-            "NEG-048-CS",
-            "NEG-049-CS",
-            "NEG-051-CS",
-            "NEG-054-CS",
-            "NEG-056-CS",
-            "NEG-061-01",
-            "NEG-076-01",
-            "NEG-083-CS",
-            "NEG-084-CS",
-            "NEG-085-01",
-            "NEG-087-CS",
-            "NEG-089-CS"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "git-parent",
-          "reason": "Derived from requirement attack matrix and cumulative independent-audit escape closure.",
-          "control_ids": [
-            "NEG-HIST-09"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "relational-semantic-integrity",
-          "reason": "Derived from requirement attack matrix and cumulative independent-audit escape closure.",
-          "control_ids": [
-            "NEG-017-02",
-            "NEG-061-02"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "shared-date-normalizer",
-          "reason": "Derived from requirement attack matrix and cumulative independent-audit escape closure.",
-          "control_ids": [
-            "NEG-HIST-11"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "specified-test-matrix",
-          "reason": "Derived from requirement attack matrix and cumulative independent-audit escape closure.",
-          "control_ids": [
-            "NEG-HIST-03",
-            "NEG-HIST-05"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "terminal-handoff",
-          "reason": "Derived from requirement attack matrix and cumulative independent-audit escape closure.",
-          "control_ids": [
-            "NEG-HIST-08"
           ],
           "status": "passed"
         }
@@ -258,7 +77,7 @@
       "dimensions": [
         {
           "surface": "state-ordering",
-          "reason": "Derived from requirement attack matrix and cumulative independent-audit escape closure.",
+          "reason": "Material boundary derived from the canonical Issue 422 obligation.",
           "control_ids": [
             "NEG-003-01",
             "NEG-014-01",
@@ -286,7 +105,7 @@
       "dimensions": [
         {
           "surface": "week-destination-mapping",
-          "reason": "Derived from requirement attack matrix and cumulative independent-audit escape closure.",
+          "reason": "Historical independent-audit escape dimension retained as cumulative critical re-audit control.",
           "control_ids": [
             "NEG-HIST-04"
           ],
@@ -296,12 +115,193 @@
       "status": "passed"
     },
     {
-      "family": "tenant-isolation",
+      "family": "concurrency-atomicity",
       "applicable": false,
-      "reason": "No current contract, cumulative escape, or diff signal requires this family.",
+      "reason": "No current contract or diff signal requires this family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-043-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
+          "control_ids": [
+            "NEG-043-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "rollback",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-015-RB",
+        "NEG-041-RB",
+        "NEG-081-RB"
+      ],
+      "dimensions": [
+        {
+          "surface": "transaction-rollback",
+          "reason": "Issue 422 explicitly requires all-or-nothing persistent completion on contract failure.",
+          "control_ids": [
+            "NEG-015-RB",
+            "NEG-041-RB",
+            "NEG-081-RB"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-003-CS",
+        "NEG-010-CS",
+        "NEG-014-CS",
+        "NEG-016-CS",
+        "NEG-017-01",
+        "NEG-017-02",
+        "NEG-019-CS",
+        "NEG-021-CS",
+        "NEG-026-CS",
+        "NEG-044-CS",
+        "NEG-045-CS",
+        "NEG-048-CS",
+        "NEG-049-CS",
+        "NEG-051-CS",
+        "NEG-054-CS",
+        "NEG-056-CS",
+        "NEG-061-01",
+        "NEG-061-02",
+        "NEG-076-01",
+        "NEG-083-CS",
+        "NEG-084-CS",
+        "NEG-085-01",
+        "NEG-087-CS",
+        "NEG-089-CS",
+        "NEG-HIST-02",
+        "NEG-HIST-03",
+        "NEG-HIST-05",
+        "NEG-HIST-08",
+        "NEG-HIST-09",
+        "NEG-HIST-11"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-source-consistency",
+          "reason": "The obligation names canonical domain storage or explicitly forbids legacy AlunoIntakeForm writes.",
+          "control_ids": [
+            "NEG-003-CS",
+            "NEG-010-CS",
+            "NEG-014-CS",
+            "NEG-016-CS",
+            "NEG-017-01",
+            "NEG-019-CS",
+            "NEG-021-CS",
+            "NEG-026-CS",
+            "NEG-044-CS",
+            "NEG-045-CS",
+            "NEG-048-CS",
+            "NEG-049-CS",
+            "NEG-051-CS",
+            "NEG-054-CS",
+            "NEG-056-CS",
+            "NEG-061-01",
+            "NEG-076-01",
+            "NEG-083-CS",
+            "NEG-084-CS",
+            "NEG-085-01",
+            "NEG-087-CS",
+            "NEG-089-CS",
+            "NEG-HIST-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "git-parent",
+          "reason": "Historical independent-audit escape dimension retained as cumulative critical re-audit control.",
+          "control_ids": [
+            "NEG-HIST-09"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "relational-semantic-integrity",
+          "reason": "A calculation can look correctly partitioned while linked records carry incompatible semantic dimensions because the canonical write path never enforces their relation.",
+          "control_ids": [
+            "NEG-017-02",
+            "NEG-061-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "shared-date-normalizer",
+          "reason": "Historical independent-audit escape dimension retained as cumulative critical re-audit control.",
+          "control_ids": [
+            "NEG-HIST-11"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "specified-test-matrix",
+          "reason": "Historical independent-audit escape dimension retained as cumulative critical re-audit control.",
+          "control_ids": [
+            "NEG-HIST-03",
+            "NEG-HIST-05"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "terminal-handoff",
+          "reason": "Historical independent-audit escape dimension retained as cumulative critical re-audit control.",
+          "control_ids": [
+            "NEG-HIST-08"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-001-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "reason": "Material boundary derived from the canonical Issue 422 obligation.",
+          "control_ids": [
+            "NEG-001-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     }
   ],
   "material_families_missing_controls": []

@@ -1,11 +1,11 @@
-Exact-head social compatibility count for Issue 422 after post-write refreeze
-subject_sha=b678c9a200fb63eb13675ea7c87699e90f3d18fb
+Exact-head social compatibility count for Issue 422 after A-423-002 remediation
+subject_sha=5219ff792e66f6282959bc87493e96c1d10b47a6
 
-Counted from exact-head committed tests and revalidated against the current source files:
+Counted from exact-head committed tests and revalidated from the current source files:
 - web legacy-network-missing variants: 3 (undefined, empty string, whitespace) in apps/web/src/utils/studentPersonalInfo.test.ts
 - API legacy Instagram fallback scenario: 1 in apps/api/tests/student-administrative-form-responses.service.test.ts
 - API explicit non-Instagram canonical mapping scenario: 1 (LinkedIn -> socialNetwork + socialAccount) in apps/api/tests/student-administrative-form-responses.service.test.ts
 
 Total directly enumerated social compatibility/mapping scenarios counted: 5.
-Execution confirmation: Validate PR run 34171974791 / test-output artifact shows studentPersonalInfo.test.ts (6 tests) and student-administrative-form-responses.service.test.ts PASS on subject_sha b678c9a200fb63eb13675ea7c87699e90f3d18fb.
+Execution confirmation: Validate PR run 34180192051 (#7581) succeeded on subject_sha 5219ff792e66f6282959bc87493e96c1d10b47a6. Current exact-head source inspection confirms studentPersonalInfo.test.ts still contains the three legacy-network variants and student-administrative-form-responses.service.test.ts still contains the two API mapping/fallback scenarios.
 This count exists only because generic risk inference classifies these social compatibility clauses as quantitative; it is not a product KPI or performance benchmark.

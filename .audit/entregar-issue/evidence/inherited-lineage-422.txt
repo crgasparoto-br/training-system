@@ -1,19 +1,19 @@
-Issue 422 inherited-control lineage revalidation after post-write refreeze
+Issue 422 inherited-control lineage revalidation on final material head
 repository=crgasparoto-br/training-system
 pull_request=423
-material_head_sha=b678c9a200fb63eb13675ea7c87699e90f3d18fb
+material_head_sha=5219ff792e66f6282959bc87493e96c1d10b47a6
 base_sha=4fd8c54ef5b9056a3bfba36e800bcbf6517bfcc6
 
 Procedure:
 - Preserve every inherited active/retired control identifier and every source_audits ledger entry from the previous Issue 422 handoff.
-- Revalidate non-interference on the current exact material SHA using the current issue diff and terminal Validate PR run #7575.
-- Treat the historical Issue 414/416 training-flow, week-cardinality and date-parser controls as inherited lineage, not as Issue 422 product claims.
+- Revalidate non-interference on the exact final material SHA using the issue-local delta and terminal Validate PR run #7581.
+- Treat historical Issue 414/416 training-flow, week-cardinality and date-parser controls as inherited lineage, not as Issue 422 product claims.
 
 Observed:
-- The material delta after the previous Issue 422 freeze added Issue 422 tests and changed only apps/web/src/services/student-emergency-relationship-adapter.ts on the product side.
-- None of the historical Issue 414/416 training-flow or workout date-parser protected implementation paths were modified by that post-freeze delta.
-- Validate PR run 34171974791 completed successfully on exact material SHA b678c9a200fb63eb13675ea7c87699e90f3d18fb, including type-check, lint, tests, build, browser settings check, architecture, access catalog and documentation checks.
-- Historical retirement relationships and source-audit ledger entries remain cumulative; no prior control is silently removed or reactivated.
+- The post-handoff A-423-002 material delta is confined to the student administrative read boundary and its regression test.
+- None of the historical Issue 414/416 protected implementation paths are modified by that delta.
+- Validate PR run 34180192051 completed successfully on exact material SHA 5219ff792e66f6282959bc87493e96c1d10b47a6.
+- Historical retirement relationships and source-audit ledger entries remain cumulative.
 
 Expected:
-All inherited control identifiers and source-audit ledger entries remain explicit on the current candidate, while Issue 422 introduces no contradictory change to their historical protected surfaces.
+All inherited control identifiers and source-audit ledger entries remain explicit on the current candidate while Issue 422 introduces no contradictory change to their historical protected surfaces.

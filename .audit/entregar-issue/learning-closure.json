@@ -3,12 +3,14 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:93b1ecfa-2f5b-4b5a-8357-b0517ea9d4a0",
-    "audit_report_sha256": "1d7117a15ee89549c6f9f889da930a66a1474ed8ab0ab77cea05b1d3d16dd612",
-    "finding_ids": ["A-423-001"]
+    "rejection_id": "audit-rejection:423-legacy-identification-fallback",
+    "audit_report_sha256": "6c0109dfdc43f09f717da3378d6487359278797e7a6f5bfdbb3249428f6f9656",
+    "finding_ids": [
+      "A-423-002"
+    ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The rejection was caused by a material commit arriving after an earlier handoff. The delivery framework already has a post-handoff material-drift latch and mandates post-write-refreeze before a new result-only child, so the remediation applies the existing reusable control rather than adding issue-specific framework logic."
+    "reason": "The defect was local to one administrative read boundary losing provenance between an actual canonical StudentProfile and a synthetic legacy fallback. Existing canonical-source-consistency controls already express the reusable rule; the repository fix adds the missing integrated discriminant regression without introducing issue-specific framework logic."
   }
 }

@@ -3,35 +3,31 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:93b1ecfa-2f5b-4b5a-8357-b0517ea9d4a0",
-    "audit_report_sha256": "1d7117a15ee89549c6f9f889da930a66a1474ed8ab0ab77cea05b1d3d16dd612",
-    "audited_head_sha": "b678c9a200fb63eb13675ea7c87699e90f3d18fb"
+    "rejection_id": "audit-rejection:423-legacy-identification-fallback",
+    "audit_report_sha256": "6c0109dfdc43f09f717da3378d6487359278797e7a6f5bfdbb3249428f6f9656",
+    "audited_head_sha": "564e2faa5af5986bacd25ffe01eb1bd01aace733"
   },
-  "candidate_head_sha": "b678c9a200fb63eb13675ea7c87699e90f3d18fb",
+  "candidate_head_sha": "5219ff792e66f6282959bc87493e96c1d10b47a6",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-423-001",
+      "source_id": "A-423-002",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "artifact-certification-fix",
+      "closure_kind": "implementation-fix",
       "changed_files": [
-        ".audit/entregar-issue/handoff-ready.json",
-        ".audit/entregar-issue/audit-source-result.json",
-        ".audit/entregar-issue/audit-remediation.json",
-        ".audit/entregar-issue/learning-closure.json",
-        ".audit/entregar-issue/audit-escape-closure.json",
-        ".audit/entregar-issue/evidence/audit-423-post-write-refreeze.txt"
+        "apps/api/src/modules/alunos/student-parq-boundary.service.ts",
+        "apps/api/tests/student-parq-boundary.service.test.ts"
       ],
       "evidence": [
-        ".audit/entregar-issue/evidence/audit-423-post-write-refreeze.txt",
+        ".audit/entregar-issue/evidence/audit-423-002-legacy-identification-fallback.txt",
         ".audit/entregar-issue/evidence/ci-validate-pr-422.txt"
       ],
       "validations": [
-        "Validate PR run 34171974791 completed successfully on exact material head b678c9a200fb63eb13675ea7c87699e90f3d18fb.",
-        "Official test-output artifact confirms the post-freeze Issue 422 form, adapter and rollback suites were reached and passed.",
-        "The stale handoff identity is replaced by a new certificate whose material_head_sha is b678c9a200fb63eb13675ea7c87699e90f3d18fb and whose publication is restricted to result-only audit paths."
+        "Integrated boundary regression preserves legacy identification when StudentProfile is absent.",
+        "Sibling regression preserves explicit canonical precedence while keeping legacy sibling fallback.",
+        "Validate PR run 34180192051 completed successfully on exact material head 5219ff792e66f6282959bc87493e96c1d10b47a6."
       ]
     }
   ],

@@ -1,14 +1,19 @@
-Historical audit-escape lineage revalidation for Issue 422 post-write refreeze
-material_head_sha=b678c9a200fb63eb13675ea7c87699e90f3d18fb
+Issue 422 cumulative historical escape revalidation on final material head
+repository=crgasparoto-br/training-system
+pull_request=423
+material_head_sha=5219ff792e66f6282959bc87493e96c1d10b47a6
 base_sha=4fd8c54ef5b9056a3bfba36e800bcbf6517bfcc6
-validate_pr_run=34171974791
 
-The immutable material parent carries six previously passed audit-escape IDs from earlier deliveries:
-- ESC-A001-AMBIGUOUS-CODEPOINT-REMAP
-- ESC-A002-NONCANONICAL-RISK-MANIFEST
-- ESC-414-WEEK-CARDINALITY
-- ESC-414-PERIODIZATION-REFRESH
-- A-001 (terminal-certificate-material-drift)
-- A-002 (permissive-date-normalization-bypass)
+Procedure:
+- Preserve every prior audit escape identifier from the previous Issue 422 handoff.
+- Revalidate historical protected surfaces against the final Issue 422 material delta.
+- Use the exact-head terminal Validate PR run as the regression gate while keeping historical controls as lineage rather than new product claims.
 
-For this Issue 422 refreeze, their closure is preserved cumulatively and revalidated against the exact material head. The post-freeze material delta is confined to Issue 422 tests and the student emergency-relationship adapter; it does not modify the historical encoding, plan week-cardinality/periodization, or shared date-parser protected implementation surfaces. The exact-head Validate PR run #7575 passed type-check, lint, full tests, build, architecture, access and documentation gates. The current attack matrix retains the historical required attack dimensions so the cumulative escape ledger cannot silently drop those controls.
+Observed:
+- The A-423-002 remediation changed only the student administrative read boundary and its regression test after the prior handoff.
+- It does not modify the historical Issue 414/416 training-flow, week-cardinality or date-parser protected surfaces, nor the prior terminal-handoff framework surfaces.
+- Validate PR run 34180192051 (#7581) completed successfully on exact material SHA 5219ff792e66f6282959bc87493e96c1d10b47a6.
+- The new canonical/legacy fallback regressions pass on the same exact head.
+
+Expected:
+All prior escape identifiers remain explicitly closed on the current candidate and the new A-423-002 escape is closed by a discriminant integrated boundary regression plus exact-head CI.
