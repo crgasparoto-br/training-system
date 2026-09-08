@@ -1,14 +1,15 @@
-Issue 422 internal interface verification
-material_head_sha=fa576c0a154783ec675cdcc10efc20c6e5075382
+Issue 422 internal interface refreeze verification
+material_head_sha=b678c9a200fb63eb13675ea7c87699e90f3d18fb
 mode=design-interface/internal-verification
 route=/alunos/new and equivalent edit flow
 
-Source-level observations on the frozen material candidate:
-- Documentation/social block uses responsive grid classes `grid-cols-1`, `md:grid-cols-3`, and `md:grid-cols-2`; mobile remains single-column.
-- CPF and RG inputs use the dedicated formatters during input and edit-load.
-- Marital status is a controlled select and conditionally injects the exact unknown legacy value as an option so unrelated saves do not clear it.
-- Social network is a controlled select paired with a disabled-until-selected account input and network-specific placeholder.
-- Emergency relationship adapter creates a select containing the controlled options, maps an unknown legacy value to `Outra`, preserves the exact custom text, enables a dedicated free-text input only for `Outra`, and dispatches the exact selected/custom value back to the registered form field.
-- Visible copy remains user-facing Portuguese; no canonical/legacy storage terminology is exposed in the edited form labels.
+Exact-head component evidence from Validate PR run 34171974791:
+- apps/web/src/pages/AlunoForm.registration-controls.test.tsx executed 2 tests successfully.
+- The component test asserts the controlled marital-status and social-network selects, disabled-until-selected social account input, responsive grid classes grid-cols-1/md:grid-cols-2, and the Outra emergency-relationship interaction.
+- The legacy edit fixture asserts preservation of an unknown marital-status value, Instagram fallback from an empty canonical network plus legacy account, and preservation of a custom emergency relationship loaded after the screen mounts.
+- apps/web/src/services/student-emergency-relationship-adapter.test.ts executed 2 tests successfully on the same SHA.
+- apps/web/src/utils/studentPersonalInfo.test.ts executed 6 tests successfully on the same SHA.
 
-Limitation: connector-only runtime did not provide a browser session for this route, so this evidence is source-level internal verification rather than screenshot/E2E proof. Independent audit should exercise representative desktop/mobile interaction if visual runtime evidence is required.
+The post-freeze adapter change installs the relationship controls after asynchronous form loading using MutationObserver; the final follow-up only added an explicit cleanup function type. Type-check, lint, tests and build all passed on the exact material SHA.
+
+Limitation: the exact route was not exercised in a dedicated real-browser desktop/mobile visual session in this connector-only remediation. The current evidence proves component behavior and responsive class contracts, not screenshot-level visual composition.

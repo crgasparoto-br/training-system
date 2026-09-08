@@ -1,25 +1,43 @@
-Issue 422 exact-head CI evidence
+Issue 422 exact-head CI evidence after post-write refreeze
 repository=crgasparoto-br/training-system
 pull_request=423
-material_head_sha=fa576c0a154783ec675cdcc10efc20c6e5075382
+material_head_sha=b678c9a200fb63eb13675ea7c87699e90f3d18fb
+base_sha=4fd8c54ef5b9056a3bfba36e800bcbf6517bfcc6
+merge_preview_sha=ea1a5acb8832d6075a2b1f0671c6e2f12af85547
 workflow=Validate PR
-workflow_run_id=34151766652
-workflow_run_number=7567
+workflow_run_id=34171974791
+workflow_run_number=7575
 status=completed
 conclusion=success
 job=Validate repository
-job_id=101835352312
-started_at=2026-09-07T18:28:27Z
-completed_at=2026-09-07T18:43:52Z
+job_id=101893875236
+run_started_at=2026-09-08T00:01:56Z
+run_completed_at=2026-09-08T00:18:05Z
 
-Relevant terminal steps:
+Relevant terminal steps observed through the GitHub connector:
 - Type check: success
 - Lint: success
-- Test: success (2026-09-07T18:31:20Z .. 2026-09-07T18:42:47Z)
+- Test: success
 - Build: success
 - Validate settings parameters in real browser: success
 - Architecture checks: success
 - Access catalog checks: success
 - Documentation checks: success
 
-Source: GitHub Actions run 34151766652 observed through the repository connector on the exact material head.
+Official test artifact downloaded from run 34171974791:
+- artifact=test-output-34171974791
+- artifact_id=10036241571
+- artifact_digest=sha256:8e5f0aec8506ad83729f53ef837a7112ef9eeb36d5ed921c4c52ec7d92f4c4ed
+- test-output.log sha256=a9c972ea480b36b33157dc0ef2de6924e9d7e18b938b472e9ee09dd5c37ca8f8
+- orquestrador-artifact.json sha256=b24475f58369492de4345f7c6d4c5882050cee25c6604889be3da052749d6569
+
+Issue 422 suites reached and passed on the exact material head:
+- apps/web/src/pages/AlunoForm.registration-controls.test.tsx: 2 tests passed
+- apps/web/src/services/student-emergency-relationship-adapter.test.ts: 2 tests passed
+- apps/web/src/utils/studentPersonalInfo.test.ts: 6 tests passed
+- apps/api/tests/student-administrative-form-responses.service.test.ts: PASS
+- apps/api/tests/student-financial-contract.service.test.ts: PASS
+- apps/api/tests/aluno-assessment-boundary.service.test.ts: PASS
+- apps/api/tests/issue-422-financial-contract-rollback.integration.test.ts: PASS
+
+The workflow sets RUN_DATABASE_INTEGRATION_TESTS=true and applies test database migrations before the Test step, so the Issue 422 rollback integration test was executed against the CI PostgreSQL service rather than skipped.

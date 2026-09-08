@@ -3,14 +3,12 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "AUD-420-006",
-    "audit_report_sha256": "1202706731ae5c47dcde54b4e7edd35dd66d92ba44271d58e42f0d51184a1cc3",
-    "finding_ids": [
-      "AUD-420-006"
-    ]
+    "rejection_id": "audit-rejection:93b1ecfa-2f5b-4b5a-8357-b0517ea9d4a0",
+    "audit_report_sha256": "1d7117a15ee89549c6f9f889da930a66a1474ed8ab0ab77cea05b1d3d16dd612",
+    "finding_ids": ["A-423-001"]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The failure is confined to the result-only handoff package input set. The delivery framework already requires issue_changed_paths to equal the immutable work_item_start_sha..material_head_sha compare, so the corrective action is to rebuild and verify the package rather than add a repository-specific or issue-specific global rule."
+    "reason": "The rejection was caused by a material commit arriving after an earlier handoff. The delivery framework already has a post-handoff material-drift latch and mandates post-write-refreeze before a new result-only child, so the remediation applies the existing reusable control rather than adding issue-specific framework logic."
   }
 }

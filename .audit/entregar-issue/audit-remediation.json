@@ -3,34 +3,35 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "AUD-420-006",
-    "audit_report_sha256": "1202706731ae5c47dcde54b4e7edd35dd66d92ba44271d58e42f0d51184a1cc3",
-    "audited_head_sha": "f6ba182392e93a75b2b648942bc00eb59d20e6e9"
+    "rejection_id": "audit-rejection:93b1ecfa-2f5b-4b5a-8357-b0517ea9d4a0",
+    "audit_report_sha256": "1d7117a15ee89549c6f9f889da930a66a1474ed8ab0ab77cea05b1d3d16dd612",
+    "audited_head_sha": "b678c9a200fb63eb13675ea7c87699e90f3d18fb"
   },
-  "candidate_head_sha": "ca22e6c973eff20580974eb15ccba77fdbfb5da8",
+  "candidate_head_sha": "b678c9a200fb63eb13675ea7c87699e90f3d18fb",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "AUD-420-006",
+      "source_id": "A-423-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "closure_kind": "artifact-certification-fix",
       "changed_files": [
         ".audit/entregar-issue/handoff-ready.json",
-        ".audit/entregar-issue/audit-remediation.json",
         ".audit/entregar-issue/audit-source-result.json",
+        ".audit/entregar-issue/audit-remediation.json",
         ".audit/entregar-issue/learning-closure.json",
-        ".audit/entregar-issue/audit-escape-closure-382-remediation.json",
-        ".audit/entregar-issue/evidence/audit-420-006-handoff-scope-382.txt"
+        ".audit/entregar-issue/audit-escape-closure.json",
+        ".audit/entregar-issue/evidence/audit-423-post-write-refreeze.txt"
       ],
       "evidence": [
-        ".audit/entregar-issue/evidence/audit-420-006-handoff-scope-382.txt"
+        ".audit/entregar-issue/evidence/audit-423-post-write-refreeze.txt",
+        ".audit/entregar-issue/evidence/ci-validate-pr-422.txt"
       ],
       "validations": [
-        "Immutable compare work_item_start_sha..material_head_sha contains 60 changed paths.",
-        "Regenerated certificate scope contains the same 60 normalized paths with digest 63baa63813493c85e2e3762f50f7ac4e10f2ec4967ad9ad122f81627617f31b7.",
-        "No product material changes were introduced; recovery remains a sibling result-only child of ca22e6c973eff20580974eb15ccba77fdbfb5da8."
+        "Validate PR run 34171974791 completed successfully on exact material head b678c9a200fb63eb13675ea7c87699e90f3d18fb.",
+        "Official test-output artifact confirms the post-freeze Issue 422 form, adapter and rollback suites were reached and passed.",
+        "The stale handoff identity is replaced by a new certificate whose material_head_sha is b678c9a200fb63eb13675ea7c87699e90f3d18fb and whose publication is restricted to result-only audit paths."
       ]
     }
   ],

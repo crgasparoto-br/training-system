@@ -1,19 +1,18 @@
-Issue 422 inherited-control lineage revalidation
+Issue 422 inherited-control lineage revalidation after post-write refreeze
 repository=crgasparoto-br/training-system
 pull_request=423
-material_head_sha=fa576c0a154783ec675cdcc10efc20c6e5075382
+material_head_sha=b678c9a200fb63eb13675ea7c87699e90f3d18fb
 base_sha=4fd8c54ef5b9056a3bfba36e800bcbf6517bfcc6
 
 Procedure:
-- Compare the Issue 422 material scope against the inherited controls carried by the exact material parent.
-- Preserve every previously active or retired control identifier and every source_audits ledger entry.
-- Treat the historical Issue 414/416 training-flow, week-cardinality, date-parser and prior audit-retirement controls as inherited lineage, not as current Issue 422 product claims.
-- Revalidate non-interference using the exact Issue 422 changed-path scope plus the terminal Validate PR run #7567 on the material SHA.
+- Preserve every inherited active/retired control identifier and every source_audits ledger entry from the previous Issue 422 handoff.
+- Revalidate non-interference on the current exact material SHA using the current issue diff and terminal Validate PR run #7575.
+- Treat the historical Issue 414/416 training-flow, week-cardinality and date-parser controls as inherited lineage, not as Issue 422 product claims.
 
 Observed:
-- The Issue 422 material paths are limited to student administrative API/services/tests, student form/UI utilities/adapters, and the two student architecture documents certified in handoff scope.
-- None of the historical Issue 414/416 training-flow or workout date-parser implementation paths are modified by Issue 422.
-- Validate PR run 34151766652 completed successfully on exact material SHA fa576c0a154783ec675cdcc10efc20c6e5075382, including type-check, lint, tests, build, browser check, architecture, access catalog and documentation checks.
+- The material delta after the previous Issue 422 freeze added Issue 422 tests and changed only apps/web/src/services/student-emergency-relationship-adapter.ts on the product side.
+- None of the historical Issue 414/416 training-flow or workout date-parser protected implementation paths were modified by that post-freeze delta.
+- Validate PR run 34171974791 completed successfully on exact material SHA b678c9a200fb63eb13675ea7c87699e90f3d18fb, including type-check, lint, tests, build, browser settings check, architecture, access catalog and documentation checks.
 - Historical retirement relationships and source-audit ledger entries remain cumulative; no prior control is silently removed or reactivated.
 
 Expected:

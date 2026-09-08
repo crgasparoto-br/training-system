@@ -1,26 +1,26 @@
 {
   "schema_version": 1,
-  "material_head_sha": "fa576c0a154783ec675cdcc10efc20c6e5075382",
+  "material_head_sha": "b678c9a200fb63eb13675ea7c87699e90f3d18fb",
   "base_sha": "4fd8c54ef5b9056a3bfba36e800bcbf6517bfcc6",
   "evidence": [
     {
       "evidence_id": "EVID-SOCIAL-COMPAT-COUNT-422",
       "kind": "quantitative",
       "path": ".audit/entregar-issue/evidence/social-compatibility-count-422.txt",
-      "sha256": "76c685dfc54d68e73f7aac65c45f668e3bbd5ea04737e7386d1194f9eafb9343",
-      "subject_sha": "fa576c0a154783ec675cdcc10efc20c6e5075382",
+      "sha256": "b0854e813da48ca3b39165094d752b761ed613fae73a415de938380e4a44f15d",
+      "subject_sha": "b678c9a200fb63eb13675ea7c87699e90f3d18fb",
       "freshness_policy": "exact-material-head",
-      "producer": "entregar-issue connector-only exact-head source/test count",
+      "producer": "entregar-issue connector-only exact-head source/test count + Validate PR run 34171974791",
       "status": "passed"
     },
     {
       "evidence_id": "EVID-CI-422",
       "kind": "behavioral",
       "path": ".audit/entregar-issue/evidence/ci-validate-pr-422.txt",
-      "sha256": "0c8465bef70f18f8cc6e794d5edd644e6d23b9b3c325a013d006e02913908b82",
-      "subject_sha": "fa576c0a154783ec675cdcc10efc20c6e5075382",
+      "sha256": "3f919d6e1219c06886b2d7fa31514683c1a6cc6b281a7dc47e446cf81046dcf9",
+      "subject_sha": "b678c9a200fb63eb13675ea7c87699e90f3d18fb",
       "freshness_policy": "exact-material-head",
-      "producer": "GitHub Actions Validate PR run 34151766652 via connector",
+      "producer": "GitHub Actions Validate PR run 34171974791 + official test-output artifact",
       "status": "passed"
     }
   ]

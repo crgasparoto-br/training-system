@@ -1,18 +1,19 @@
-Issue 422 targeted remediation evidence
-material_head_sha=fa576c0a154783ec675cdcc10efc20c6e5075382
-pr=423
+Issue 422 post-write refreeze remediation evidence
+repository=crgasparoto-br/training-system
+pull_request=423
 branch=feat/422-student-docs-social
+material_head_sha=b678c9a200fb63eb13675ea7c87699e90f3d18fb
+base_sha=4fd8c54ef5b9056a3bfba36e800bcbf6517bfcc6
+source_rejection_id=audit-rejection:93b1ecfa-2f5b-4b5a-8357-b0517ea9d4a0
+source_finding_id=A-423-001
+recovery_scope=post-write-refreeze
 
-Review findings reproduced on prior head and remediated in the material head:
-1. RG formatting could discard a trailing alphanumeric check digit when stray letters appeared before the ninth position.
-2. Legacy marital status "Viúvo" was not normalized to controlled "Viúvo(a)".
-3. Blank socialNetwork prevented legacy Instagram account fallback.
-4. Empty social network label differed from the controlled option label.
+The independent audit did not identify a new product defect. It rejected the delivery because the previous handoff certified material fa576c0a154783ec675cdcc10efc20c6e5075382 while the PR later advanced through material test/UI-adapter changes to b678c9a200fb63eb13675ea7c87699e90f3d18fb.
 
-Material remediation commit: fa576c0a154783ec675cdcc10efc20c6e5075382
-Changed files:
-- apps/web/src/utils/studentPersonalInfo.ts
-- apps/web/src/utils/studentPersonalInfo.test.ts
+Refreeze validation on the current material head:
+- Validate PR run 34171974791 (#7575) completed successfully on b678c9a200fb63eb13675ea7c87699e90f3d18fb.
+- Official test artifact confirms the new AlunoForm registration control tests, emergency relationship adapter tests, personal-info normalization tests, administrative persistence tests, financial contract tests, assessment boundary tests, and Issue 422 persistent rollback integration test were reached and passed.
+- The workflow runs database integration tests with RUN_DATABASE_INTEGRATION_TESTS=true.
+- No product code is changed by this remediation; only the audit package is rebuilt against the current material SHA.
 
-Focused regression cases added for RG with stray pre-check letters plus trailing X, accented Viúvo, blank/whitespace social network with legacy account, and empty-network label consistency.
-Existing PR tests cover canonical identity precedence, Instagram-only legacy fallback, no AlunoIntakeForm write, server-owned financial currentService, authenticated contract ownership, and transaction rejection paths.
+The new terminal handoff must be a direct result-only child of b678c9a200fb63eb13675ea7c87699e90f3d18fb and contain only .audit/entregar-issue paths declared by the new certificate.
