@@ -27,7 +27,7 @@ export function installStudentEmergencyRelationshipAdapter(
   if (!input) {
     if (typeof MutationObserver === 'undefined') return () => undefined;
 
-    let uninstallMounted = () => undefined;
+    let uninstallMounted: () => void = () => undefined;
     const observer = new MutationObserver(() => {
       const mountedInput = root.querySelector<HTMLInputElement>(
         `input[name="${FIELD_NAME}"]`
