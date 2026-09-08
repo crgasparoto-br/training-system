@@ -70,33 +70,7 @@ export const formatRg = (value: string) => {
   return `${compact.slice(0, 2)}.${compact.slice(2, 5)}.${compact.slice(5, 8)}-${compact.slice(8)}`;
 };
 
-const maritalStatusAliases: Record<string, string> = {
-  solteiro: 'Solteiro(a)',
-  'solteiro(a)': 'Solteiro(a)',
-  solteira: 'Solteiro(a)',
-  casado: 'Casado(a)',
-  'casado(a)': 'Casado(a)',
-  casada: 'Casado(a)',
-  'união estável': 'União estável',
-  'uniao estavel': 'União estável',
-  divorciado: 'Divorciado(a)',
-  'divorciado(a)': 'Divorciado(a)',
-  divorciada: 'Divorciado(a)',
-  separado: 'Separado(a)',
-  'separado(a)': 'Separado(a)',
-  separada: 'Separado(a)',
-  'viúvo': 'Viúvo(a)',
-  viuvo: 'Viúvo(a)',
-  viúva: 'Viúvo(a)',
-  viuva: 'Viúvo(a)',
-  'viúvo(a)': 'Viúvo(a)',
-};
-
-export const normalizeMaritalStatus = (value?: string | null) => {
-  const trimmed = value?.trim() || '';
-  if (!trimmed) return '';
-  return maritalStatusAliases[trimmed.toLocaleLowerCase('pt-BR')] || trimmed;
-};
+export const normalizeMaritalStatus = (value?: string | null) => value ?? '';
 
 export const normalizeSocialNetwork = (value?: string | null, legacyAccount?: string | null): SocialNetwork => {
   const normalized = value?.trim().toLowerCase();

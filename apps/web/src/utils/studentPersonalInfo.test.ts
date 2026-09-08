@@ -23,11 +23,13 @@ describe('studentPersonalInfo', () => {
     expect(formatRg('A20743396x')).toBe('20.743.396-X');
   });
 
-  it('normalizes common legacy marital-status values without discarding unknown values', () => {
-    expect(normalizeMaritalStatus('Casado')).toBe('Casado(a)');
-    expect(normalizeMaritalStatus('uniao estavel')).toBe('União estável');
-    expect(normalizeMaritalStatus('Viúvo')).toBe('Viúvo(a)');
+  it('preserves marital-status values until the user explicitly chooses a controlled option', () => {
+    expect(normalizeMaritalStatus('Casado')).toBe('Casado');
+    expect(normalizeMaritalStatus('uniao estavel')).toBe('uniao estavel');
+    expect(normalizeMaritalStatus('Viúvo')).toBe('Viúvo');
     expect(normalizeMaritalStatus('Outro valor legado')).toBe('Outro valor legado');
+    expect(normalizeMaritalStatus('Viúvo(a)')).toBe('Viúvo(a)');
+    expect(normalizeMaritalStatus(undefined)).toBe('');
   });
 
   it('assumes Instagram for legacy accounts that did not store a network', () => {
