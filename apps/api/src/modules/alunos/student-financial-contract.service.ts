@@ -1,7 +1,7 @@
 import { PrismaClient, type Prisma } from '@prisma/client';
 import bcryptjs from 'bcryptjs';
 import crypto from 'crypto';
-import { assertStudentInterestServiceSelectable } from './aluno.service-selection.js';
+import { loadStudentInterestService } from './student-interest-service.service.js';
 import { legacyDirectActiveStudentCreationFields } from './student-lifecycle.service.js';
 import { upsertStudentIdentity } from './student-identity.service.js';
 import {
@@ -121,21 +121,6 @@ const getResponsibleProfessorIdFromFormResponses = (
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 };
 
-const loadInterestService = async (
-  tx: DbClient,
-  companyContractId: string,
-  serviceId: string,
-  currentServiceId?: string | null
-) => {
-  const service = await tx.serviceOption.findFirst({
-    where: { id: serviceId, contractId: companyContractId },
-    select: { id: true, isActive: true, parentServiceId: true },
-  });
-  if (!service) throw new Error('Serviço selecionado não pertence ao contrato');
-  assertStudentInterestServiceSelectable(service, currentServiceId);
-  return service;
-};
-
 const createAlunoRecord = async (
   tx: DbClient,
   data: CreateAlunoDTO,
@@ -154,7 +139,11 @@ const createAlunoRecord = async (
   let serviceId: string | undefined;
   if (data.serviceId) {
     serviceId = (
-      await loadInterestService(tx, options.companyContractId, data.serviceId)
+      await loadStudentInterestService(
+        tx,
+        options.companyContractId,
+        data.serviceId
+      )
     ).id;
   }
 
@@ -312,7 +301,7 @@ const updateAlunoRecord = async (
       alunoData.serviceId = null as never;
     } else {
       alunoData.serviceId = (
-        await loadInterestService(
+        await loadStudentInterestService(
           tx,
           options.companyContractId,
           data.serviceId,
