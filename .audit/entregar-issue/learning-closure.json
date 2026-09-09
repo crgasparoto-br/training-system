@@ -3,14 +3,14 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "AUD-420-006",
-    "audit_report_sha256": "1202706731ae5c47dcde54b4e7edd35dd66d92ba44271d58e42f0d51184a1cc3",
+    "rejection_id": "audit-rejection:8063b8c9-4809-4309-a961-388da3895cfb",
+    "audit_report_sha256": "22d3eb3ddcc0ce36f3ad03c403d2c885dc47c46491a8c3cb12ee55c2c70cc214",
     "finding_ids": [
-      "AUD-420-006"
+      "A-001"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The failure is confined to the result-only handoff package input set. The delivery framework already requires issue_changed_paths to equal the immutable work_item_start_sha..material_head_sha compare, so the corrective action is to rebuild and verify the package rather than add a repository-specific or issue-specific global rule."
+    "reason": "The rejection is a target-specific stale-handoff condition after later material writes. The installed delivery workflow already has a universal post-write refreeze and terminal-handoff guard; this cycle must execute that existing control rather than add issue-specific product logic."
   }
 }

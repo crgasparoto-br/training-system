@@ -3,34 +3,28 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "AUD-420-006",
-    "audit_report_sha256": "1202706731ae5c47dcde54b4e7edd35dd66d92ba44271d58e42f0d51184a1cc3",
-    "audited_head_sha": "f6ba182392e93a75b2b648942bc00eb59d20e6e9"
+    "rejection_id": "audit-rejection:8063b8c9-4809-4309-a961-388da3895cfb",
+    "audit_report_sha256": "22d3eb3ddcc0ce36f3ad03c403d2c885dc47c46491a8c3cb12ee55c2c70cc214",
+    "audited_head_sha": "4a45517bcaa557ffd77f3d2aadac004420694917"
   },
-  "candidate_head_sha": "ca22e6c973eff20580974eb15ccba77fdbfb5da8",
+  "candidate_head_sha": "4a45517bcaa557ffd77f3d2aadac004420694917",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "AUD-420-006",
+      "source_id": "A-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "artifact-certification-fix",
-      "changed_files": [
-        ".audit/entregar-issue/handoff-ready.json",
-        ".audit/entregar-issue/audit-remediation.json",
-        ".audit/entregar-issue/audit-source-result.json",
-        ".audit/entregar-issue/learning-closure.json",
-        ".audit/entregar-issue/audit-escape-closure-382-remediation.json",
-        ".audit/entregar-issue/evidence/audit-420-006-handoff-scope-382.txt"
-      ],
+      "closure_kind": "post-write-refreeze",
+      "changed_files": [],
       "evidence": [
-        ".audit/entregar-issue/evidence/audit-420-006-handoff-scope-382.txt"
+        ".audit/entregar-issue/evidence/post-write-refreeze-423.txt",
+        ".audit/entregar-issue/handoff-ready.json"
       ],
       "validations": [
-        "Immutable compare work_item_start_sha..material_head_sha contains 60 changed paths.",
-        "Regenerated certificate scope contains the same 60 normalized paths with digest 63baa63813493c85e2e3762f50f7ac4e10f2ec4967ad9ad122f81627617f31b7.",
-        "No product material changes were introduced; recovery remains a sibling result-only child of ca22e6c973eff20580974eb15ccba77fdbfb5da8."
+        "Validate PR run 34286937065 completed successfully on exact material head 4a45517bcaa557ffd77f3d2aadac004420694917.",
+        "The stale handoff is replaced by a direct result-only child whose parent is the exact material head.",
+        "No functional code change is introduced by this remediation; only governed delivery artifacts are published."
       ]
     }
   ],

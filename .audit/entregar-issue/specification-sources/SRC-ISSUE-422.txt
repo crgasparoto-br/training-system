@@ -1,0 +1,201 @@
+<!-- specification_version: 2 -->
+
+## Objetivo
+Melhorar o bloco **Documentação e contato social** e o bloco **Contato de emergência** da tela de cadastro/edição de aluno (`/alunos/new` e fluxo equivalente de edição), reduzir erros de digitação, estruturar os campos sociais e corrigir a falha atual ao salvar um novo aluno, sem reintroduzir escrita em fontes legadas que já foram descontinuadas.
+
+## Contexto
+Hoje o bloco possui campos livres para CPF, RG, Estado civil e Rede social. CPF/RG aceitam conteúdo sem máscara, Estado civil é texto livre e Rede social mistura plataforma e usuário em um único campo. Além disso, a relação do contato de emergência é texto livre e a tela está apresentando erro ao salvar um novo aluno.
+
+Na `develop`, a identidade do aluno é canônica em `StudentProfile.identificationData`; preferências usam `StudentProfile.preferenceData`; dados financeiros possuem `StudentFinancialProfile`/`StudentContract`. `AlunoIntakeForm` é histórico e somente leitura após o cutover da issue #272. Portanto, esta entrega **não pode** voltar a gravar `formResponses` em `AlunoIntakeForm` nem desabilitar o trigger de proteção do legado.
+
+A tela atual também cria o aluno e somente depois sincroniza o contrato selecionado em chamadas separadas. Esse fluxo permite que uma falha na segunda etapa deixe um aluno já criado sem a conclusão esperada do cadastro.
+
+## Escopo
+- Aplicar formatação de CPF no padrão `000.000.000-00` enquanto o usuário digita e também ao carregar cadastro existente.
+- Aplicar formatação de RG no padrão visual brasileiro `00.000.000-0`, preservando dígito final alfanumérico quando informado, enquanto o usuário digita e também ao carregar cadastro existente.
+- Trocar Estado civil por combobox com opções controladas.
+- Separar Rede social em combobox **Rede social** e campo **Conta / usuário**.
+- Preservar compatibilidade de leitura com cadastros antigos que possuam `instagram` em `formResponses.identification` ou `instagramHandle` na projeção legada.
+- Persistir rede social e conta/usuário na identidade canônica do aluno, sem migration de schema Prisma.
+- Trocar **Relação com o paciente do contato de emergência** por combobox com opções usuais e opção **Outra**, permitindo informar manualmente qualquer relação que não esteja na lista.
+- Preservar relações e estado civil legados já cadastrados sem limpeza silenciosa.
+- Diagnosticar e corrigir a falha de salvamento de novo aluno na própria tela.
+- Garantir que dados administrativos de identificação, financeiro e preferências enviados no cadastro inicial sejam persistidos em suas fontes canônicas e recuperáveis após a criação.
+- Tornar criação do aluno e sincronização do contrato selecionado uma operação atômica do ponto de vista persistente.
+
+## Fontes de verdade e compatibilidade
+- **Identificação:** `StudentProfile.identificationData`, usando o writer canônico do domínio de identidade. CPF, RG, estado civil, endereço e os novos dados de contato/social devem ser recuperados prioritariamente dessa fonte.
+- **Preferências:** `StudentProfile.preferenceData`.
+- **Financeiro:** `StudentFinancialProfile` e `StudentContract`, conforme a natureza de cada campo já existente na tela.
+- **Legado:** `AlunoIntakeForm.formResponses` pode ser usado somente como fallback de leitura para registros antigos ainda não representados na fonte canônica. Não realizar `INSERT`/`UPDATE` nessa tabela.
+- **PAR-Q/anamnese:** permanecem fora deste contrato administrativo e não devem voltar a ser gravados no legado.
+
+Para rede social, os novos cadastros/alterações devem usar chaves explícitas na identidade canônica:
+- `socialNetwork`: plataforma selecionada;
+- `socialAccount`: conta/usuário informado.
+
+Compatibilidade de leitura:
+1. usar `socialNetwork` + `socialAccount` quando existirem na identidade canônica;
+2. se `socialAccount` não existir, aceitar o valor legado de `instagram`/`instagramHandle` como conta;
+3. se houver conta legada de Instagram e não houver rede informada, apresentar **Instagram**;
+4. salvar novamente um cadastro legado não pode apagar a conta por causa da migração de formato.
+
+## Requisitos funcionais
+### CPF
+1. Aceitar somente dígitos na entrada efetiva.
+2. Limitar a 11 dígitos.
+3. Exibir progressivamente a máscara `000.000.000-00`.
+4. Ao editar um aluno, formatar valores legados armazenados apenas com números.
+5. A máscara é somente apresentação; a persistência deve seguir a normalização já adotada pelo writer canônico de identidade.
+
+### RG
+1. Aceitar dígitos e, no dígito final, letra quando aplicável.
+2. Limitar ao equivalente a 9 caracteres sem pontuação.
+3. Exibir progressivamente a máscara `00.000.000-0`.
+4. Ao editar um aluno, formatar valores legados sem pontuação.
+5. Não remover o dígito final alfanumérico durante carga, edição ou persistência.
+
+### Estado civil
+Usar combobox com as opções:
+- Não informado
+- Solteiro(a)
+- Casado(a)
+- União estável
+- Divorciado(a)
+- Separado(a)
+- Viúvo(a)
+
+Quando um cadastro legado possuir valor que não corresponda a uma opção controlada, o valor original deve continuar visível/recuperável e permanecer inalterado ao salvar outros campos. Ele só pode ser substituído quando o usuário escolher explicitamente uma opção controlada.
+
+### Rede social
+Usar combobox com as opções:
+- Não informado
+- Instagram
+- Facebook
+- TikTok
+- LinkedIn
+- X (Twitter)
+- YouTube
+- Outra
+
+O campo **Conta / usuário** deve ficar associado à rede escolhida e usar placeholder adequado. Para compatibilidade:
+- o valor atual de `instagram`/`instagramHandle` continua sendo aceito como conta/usuário em leitura;
+- quando existir conta legada de Instagram e não existir rede informada, considerar Instagram no carregamento;
+- novos/alterados cadastros persistem `socialNetwork` e `socialAccount` em `StudentProfile.identificationData`;
+- não usar `Profile.instagramHandle` como armazenamento genérico para contas de Facebook, TikTok, LinkedIn, X, YouTube ou Outra; esse campo continua apenas como projeção/fallback de Instagram quando aplicável.
+
+### Relação do contato de emergência
+Usar combobox com opções usuais:
+- Não informado
+- Mãe
+- Pai
+- Cônjuge
+- Companheiro(a)
+- Filho(a)
+- Irmão/Irmã
+- Avô/Avó
+- Tio/Tia
+- Primo(a)
+- Amigo(a)
+- Responsável
+- Outra
+
+Ao selecionar **Outra**, habilitar campo de texto para digitar a relação livre. Se um cadastro legado tiver uma relação que não esteja na lista, carregá-la como **Outra** e preservar exatamente o texto original enquanto o usuário não o alterar explicitamente.
+
+### Correção do salvamento e atomicidade
+- O cadastro de novo aluno não pode falhar por causa dos campos opcionais desta tela.
+- Quando houver validação de negócio conhecida, a interface deve exibir mensagem útil ao usuário em vez de apenas mensagem genérica.
+- Quando houver contrato selecionado no cadastro, criar `User`/`Aluno`, persistir os dados administrativos e criar/atualizar/ativar o vínculo de contrato devem participar de uma única conclusão persistente: ou a operação completa termina com sucesso, ou nenhum novo aluno/usuário/vínculo parcial permanece criado.
+- Não considerar suficiente manter a sequência atual de chamadas independentes e apenas melhorar o tratamento visual do erro.
+- Reutilizar as regras existentes do domínio de `StudentContract`; não duplicar no frontend regras de ativação, substituição ou elegibilidade do contrato.
+- Dados de identificação, preferências e financeiro enviados na criação devem ser gravados nas fontes canônicas descritas acima e retornados no fluxo de edição.
+- É proibido corrigir a persistência reativando escrita em `AlunoIntakeForm` ou removendo/desabilitando o trigger introduzido pelo cutover da issue #272.
+
+## Invariantes estruturais
+### `must_behave`
+- Criação com contrato selecionado é atômica do ponto de vista persistente.
+- Dados administrativos enviados e aceitos pela API reaparecem na edição após recarregar a página.
+- Fallbacks legados preservam valores não reconhecidos até uma alteração explícita do usuário.
+
+### `must_not_behave`
+- Não gravar `AlunoIntakeForm.formResponses`.
+- Não reintroduzir escrita legada de PAR-Q/anamnese.
+- Não limpar estado civil, relação de emergência ou conta social legados só porque o valor não pertence à nova lista controlada.
+
+### `must_reuse`
+- Escritas de identidade passam pela fronteira canônica do domínio de identidade.
+- Regras de vínculo/ativação de contrato continuam no domínio de `StudentContract`, não em uma implementação paralela na tela.
+
+### `precedence_invariants`
+- Identidade canônica vence quando possui valor explícito.
+- Legado é apenas fallback quando o campo canônico correspondente estiver ausente.
+- Para rede social, `socialNetwork`/`socialAccount` vencem; `instagram`/`instagramHandle` só completam lacunas de compatibilidade.
+
+### `forbidden_implementation`
+- Manter `create aluno -> sync contrato` como duas conclusões independentes sem garantia transacional e considerar o caso resolvido porque o caminho feliz passa.
+- Desabilitar o bloqueio de escrita do `AlunoIntakeForm` para voltar a persistir `formResponses`.
+- Usar `Profile.instagramHandle` como chave genérica para qualquer plataforma social.
+
+## Implementações erradas plausíveis e controles discriminantes
+1. **Implementação errada:** mantém as duas chamadas independentes e apenas melhora a mensagem de erro. **Controle:** forçar falha no vínculo/ativação do contrato após iniciar a criação e comprovar que não existe novo `User`, `Aluno` ou `StudentContract` parcial.
+2. **Implementação errada:** grava os novos campos em `AlunoIntakeForm.formResponses`, fazendo o caminho feliz funcionar em ambiente sem trigger. **Controle:** executar o teste com as migrations atuais e comprovar que nenhuma escrita no legado é necessária e que o trigger permanece ativo.
+3. **Implementação errada:** ao trocar o select, um valor legado não listado vira `Não informado` no submit. **Controle:** carregar valor legado fora da lista, alterar outro campo, salvar e reabrir; o texto legado deve ser idêntico ao original.
+4. **Implementação errada:** todo usuário social continua salvo em `instagramHandle`. **Controle:** salvar Facebook/TikTok/LinkedIn, recarregar e validar `socialNetwork` + `socialAccount` canônicos sem poluir a projeção de Instagram.
+
+## Interface
+- Manter os blocos responsivos e consistentes com `AlunoForm.tsx`.
+- Não usar termos técnicos nos textos visíveis.
+- Em desktop, organizar CPF, RG e Estado civil de forma legível; Rede social + Conta/usuário como campos relacionados.
+- Em mobile, manter uma coluna sem overflow horizontal.
+- Nenhum fallback ou detalhe de fonte canônica/legada deve aparecer como linguagem técnica para o usuário final.
+
+## Cenários e casos extremos
+- **CPF legado sem máscara:** carregar `13951354879` e exibir `139.513.548-79`.
+- **RG com letra final:** carregar/digitar `12345678X` e exibir `12.345.678-X`, sem perder o `X`.
+- **Estado civil legado fora da lista:** manter o valor original ao salvar outro campo sem alteração explícita desse select.
+- **Rede social legada:** cadastro com somente `instagram`/`instagramHandle` carrega como Instagram e mantém a conta após salvar.
+- **Relação legada fora da lista:** exibir **Outra** + texto original e preservar exatamente o valor se não houver edição.
+- **Falha de contrato durante criação:** a operação falha com mensagem útil e nenhum novo cadastro parcial permanece no banco.
+- **Campos opcionais vazios:** não impedem criação nem edição.
+
+## Critérios de aceite
+- [ ] CPF `13951354879` é exibido como `139.513.548-79`.
+- [ ] CPF não aceita mais de 11 dígitos.
+- [ ] RG `207433963` é exibido como `20.743.396-3`.
+- [ ] RG `12345678X` é exibido como `12.345.678-X` e mantém a letra final após salvar/reabrir.
+- [ ] Estado civil é selecionável por combobox.
+- [ ] Valor legado de estado civil fora da lista não é apagado ao salvar alterações não relacionadas.
+- [ ] É possível escolher a rede social e informar a conta correspondente.
+- [ ] Cadastro legado com apenas `instagram`/`instagramHandle` assume Instagram e mantém a conta.
+- [ ] Facebook/TikTok/LinkedIn/X/YouTube/Outra persistem em `socialNetwork` + `socialAccount` canônicos, sem reutilizar `instagramHandle` como armazenamento genérico.
+- [ ] Relação do contato de emergência é selecionável por combobox.
+- [ ] É possível escolher **Outra** e digitar uma relação livre.
+- [ ] Relação legada fora da lista é preservada exatamente quando não for alterada.
+- [ ] Novo aluno é salvo com sucesso pela tela com e sem contrato selecionado.
+- [ ] Se a sincronização do contrato falhar durante a criação, não sobra `User`, `Aluno` ou vínculo de contrato criado parcialmente.
+- [ ] Após salvar e reabrir, CPF/RG, estado civil, rede, conta, contato de emergência, relação, financeiro e preferências permanecem disponíveis.
+- [ ] Criação e edição funcionam usando as fontes canônicas do domínio.
+- [ ] Nenhuma escrita em `AlunoIntakeForm` é necessária; o trigger de proteção do legado permanece ativo.
+- [ ] Testes automatizados cobrem máscaras, RG alfanumérico, dados legados, relação livre, precedência canônico→fallback, persistência do cadastro inicial e falha transacional na etapa de contrato.
+- [ ] Workflow `Validate PR` passa sem regressões relacionadas à mudança.
+
+## Considerações de testes
+- Testes unitários das funções de máscara/normalização de CPF e RG.
+- Testes de componente da tela para comboboxes, **Outra**, valores legados e responsividade básica.
+- Teste de integração/API para criação e edição com persistência em `StudentProfile`/`StudentFinancialProfile`/`StudentContract`.
+- Teste de regressão com `AlunoIntakeForm` protegido como somente leitura.
+- Teste de falha injetada no vínculo/ativação do contrato provando rollback integral da criação.
+- Teste de precedência entre dados canônicos e fallback legado.
+
+## Impacto na documentação
+- Atualizar `docs/architecture/student-lifecycle-data-ownership.md` para registrar os campos administrativos de identificação/preferências cobertos por esta tela e a respectiva fonte de verdade.
+- Atualizar `docs/architecture/database.md` se a matriz de ownership de `StudentProfile`/`StudentFinancialProfile` for ampliada pela implementação.
+- Não alterar `docs/operations/health-intake-cutover.md` para reautorizar escrita legada; o contrato de `AlunoIntakeForm` somente leitura deve continuar válido.
+
+## Fora de escopo
+- Validar CPF/RG em bases governamentais.
+- Tornar CPF, RG, estado civil, rede social ou contato de emergência obrigatórios.
+- Criar tabela relacional específica para redes sociais.
+- Suportar múltiplas contas sociais por aluno nesta entrega.
+- Reabrir escrita em `AlunoIntakeForm` ou remodelar o domínio canônico de anamnese/PAR-Q.
+- Fazer migration de schema Prisma apenas para os novos campos sociais/contato; os dados adicionais cabem nos JSONs canônicos existentes.

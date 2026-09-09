@@ -1,0 +1,9 @@
+repository=crgasparoto-br/training-system
+issue=422
+material_head_sha=4a45517bcaa557ffd77f3d2aadac004420694917
+workflow_run=34286937065
+measurement=unique issue-specific social compatibility test files present in the exact-head official test artifact
+count=3
+file=src/pages/AlunoForm.registration-controls.test.tsx
+file=src/utils/studentPersonalInfo.test.ts
+file=tests/student-administrative-form-responses.service.test.ts

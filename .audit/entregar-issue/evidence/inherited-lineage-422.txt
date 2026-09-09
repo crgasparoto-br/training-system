@@ -1,0 +1,19 @@
+Issue 422 inherited-control lineage revalidation on final material head
+repository=crgasparoto-br/training-system
+pull_request=423
+material_head_sha=5219ff792e66f6282959bc87493e96c1d10b47a6
+base_sha=4fd8c54ef5b9056a3bfba36e800bcbf6517bfcc6
+
+Procedure:
+- Preserve every inherited active/retired control identifier and every source_audits ledger entry from the previous Issue 422 handoff.
+- Revalidate non-interference on the exact final material SHA using the issue-local delta and terminal Validate PR run #7581.
+- Treat historical Issue 414/416 training-flow, week-cardinality and date-parser controls as inherited lineage, not as Issue 422 product claims.
+
+Observed:
+- The post-handoff A-423-002 material delta is confined to the student administrative read boundary and its regression test.
+- None of the historical Issue 414/416 protected implementation paths are modified by that delta.
+- Validate PR run 34180192051 completed successfully on exact material SHA 5219ff792e66f6282959bc87493e96c1d10b47a6.
+- Historical retirement relationships and source-audit ledger entries remain cumulative.
+
+Expected:
+All inherited control identifiers and source-audit ledger entries remain explicit on the current candidate while Issue 422 introduces no contradictory change to their historical protected surfaces.

@@ -1,0 +1,11 @@
+Issue 422 exact-head CI evidence after A-423-002 remediation
+repository=crgasparoto-br/training-system
+pull_request=423
+material_head_sha=5219ff792e66f6282959bc87493e96c1d10b47a6
+workflow=Validate PR
+run_id=34180192051
+run_number=7581
+status=completed
+conclusion=success
+
+GitHub Actions completed successfully on the exact material SHA 5219ff792e66f6282959bc87493e96c1d10b47a6. The official workflow reached type-check, lint, tests, build, browser settings, architecture, access catalog, documentation checks and uploaded test output. The test log includes PASS for apps/api/tests/student-parq-boundary.service.test.ts, including the new legacy administrative fallback regression cases.

@@ -3,6 +3,7 @@ import { installStudentFinancialContractAtomicAdapter } from '../services/studen
 import { installStudentContractEndDateAdapter } from '../services/student-contract-end-date-adapter';
 import { installStudentContractProfileCreateAdapter } from '../services/student-contract-profile-create-adapter';
 import { installStudentContractServiceResolutionAdapter } from '../services/student-contract-service-resolution';
+import { installStudentEmergencyRelationshipAdapter } from '../services/student-emergency-relationship-adapter';
 import { AlunoForm } from './AlunoForm';
 
 export function AlunoFormWithContractEndDate() {
@@ -16,8 +17,11 @@ export function AlunoFormWithContractEndDate() {
     const uninstallProfileCreateAdapter = installStudentContractProfileCreateAdapter();
     const uninstallServiceResolutionAdapter =
       installStudentContractServiceResolutionAdapter();
+    const uninstallEmergencyRelationshipAdapter =
+      installStudentEmergencyRelationshipAdapter();
 
     return () => {
+      uninstallEmergencyRelationshipAdapter();
       uninstallServiceResolutionAdapter();
       uninstallProfileCreateAdapter();
       uninstallEndDateAdapter();

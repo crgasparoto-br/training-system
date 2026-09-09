@@ -1,0 +1,19 @@
+Issue 422 cumulative historical escape revalidation on final material head
+repository=crgasparoto-br/training-system
+pull_request=423
+material_head_sha=5219ff792e66f6282959bc87493e96c1d10b47a6
+base_sha=4fd8c54ef5b9056a3bfba36e800bcbf6517bfcc6
+
+Procedure:
+- Preserve every prior audit escape identifier from the previous Issue 422 handoff.
+- Revalidate historical protected surfaces against the final Issue 422 material delta.
+- Use the exact-head terminal Validate PR run as the regression gate while keeping historical controls as lineage rather than new product claims.
+
+Observed:
+- The A-423-002 remediation changed only the student administrative read boundary and its regression test after the prior handoff.
+- It does not modify the historical Issue 414/416 training-flow, week-cardinality or date-parser protected surfaces, nor the prior terminal-handoff framework surfaces.
+- Validate PR run 34180192051 (#7581) completed successfully on exact material SHA 5219ff792e66f6282959bc87493e96c1d10b47a6.
+- The new canonical/legacy fallback regressions pass on the same exact head.
+
+Expected:
+All prior escape identifiers remain explicitly closed on the current candidate and the new A-423-002 escape is closed by a discriminant integrated boundary regression plus exact-head CI.
