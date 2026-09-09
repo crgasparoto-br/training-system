@@ -1,6 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { PrismaClient } from '@prisma/client';
+import {
+  PrismaClient,
+  type CountingType,
+  type LoadType,
+  type MovementType,
+} from '@prisma/client';
 import {
   PRODUCT_ASSESSMENT_TYPES,
   PRODUCT_TRAINING_PARAMETERS,
@@ -12,6 +17,17 @@ const prisma = new PrismaClient();
 type DefaultsDb = Pick<PrismaClient, 'trainingParameter' | 'assessmentType' | 'exerciseLibrary'>;
 
 type ExerciseCatalogRow = Record<string, unknown>;
+
+type ExistingExerciseDefault = {
+  name: string;
+  videoUrl: string | null;
+  loadType: LoadType | null;
+  movementType: MovementType | null;
+  countingType: CountingType | null;
+  category: string | null;
+  muscleGroup: string | null;
+  notes: string | null;
+};
 
 export interface DefaultCategoryInstallResult {
   installed: number;
@@ -27,16 +43,32 @@ export interface ContractDefaultsInstallResult {
 
 interface NormalizedExerciseDefault {
   name: string;
+  videoUrl: string | undefined;
+  loadType: LoadType | undefined;
+  movementType: MovementType | undefined;
+  countingType: CountingType | undefined;
   category: string;
   muscleGroup: string | undefined;
   notes: string | undefined;
 }
+
+const LOAD_TYPES = new Set<string>(['H', 'C', 'E', 'A', 'P', 'O']);
+const MOVEMENT_TYPES = new Set<string>(['U', 'I', 'O']);
+const COUNTING_TYPES = new Set<string>(['I', 'T', 'R']);
 
 const normalizeExerciseName = (value: string) =>
   repairPtBrMojibake(value).trim().replace(/\s+/g, ' ');
 
 const normalizeOptionalCatalogText = (value: string | undefined) =>
   value ? repairPtBrMojibake(value).trim() || undefined : undefined;
+
+function normalizeCatalogCode<T extends string>(
+  value: string | undefined,
+  allowed: ReadonlySet<string>
+): T | undefined {
+  const normalized = normalizeOptionalCatalogText(value)?.toUpperCase();
+  return normalized && allowed.has(normalized) ? (normalized as T) : undefined;
+}
 
 function determineExerciseCategory(name: string) {
   const normalized = name.toLowerCase();
@@ -112,13 +144,25 @@ function readCatalogString(
   return value;
 }
 
+function mergeMissingExerciseDefaultFields(
+  target: NormalizedExerciseDefault,
+  source: NormalizedExerciseDefault
+) {
+  if (!target.videoUrl && source.videoUrl) target.videoUrl = source.videoUrl;
+  if (!target.loadType && source.loadType) target.loadType = source.loadType;
+  if (!target.movementType && source.movementType) target.movementType = source.movementType;
+  if (!target.countingType && source.countingType) target.countingType = source.countingType;
+  if (!target.muscleGroup && source.muscleGroup) target.muscleGroup = source.muscleGroup;
+  if (!target.notes && source.notes) target.notes = source.notes;
+}
+
 export function loadProductExerciseDefaults(): NormalizedExerciseDefault[] {
   const rows = parseExerciseCatalog(
     fs.readFileSync(resolveExerciseDefaultsPath(), 'utf-8')
   );
-  const seenNames = new Set<string>();
+  const defaultsByName = new Map<string, NormalizedExerciseDefault>();
 
-  return rows.reduce<NormalizedExerciseDefault[]>((defaults, row, index) => {
+  for (const [index, row] of rows.entries()) {
     const rawName =
       readCatalogString(row, 'name', index) ?? readCatalogString(row, 'nome', index) ?? '';
     const name = normalizeExerciseName(rawName);
@@ -146,19 +190,35 @@ export function loadProductExerciseDefaults(): NormalizedExerciseDefault[] {
         .filter((value): value is string => Boolean(value))
         .join('\n') || undefined;
 
-    if (seenNames.has(name)) {
-      return defaults;
-    }
-    seenNames.add(name);
-
-    defaults.push({
+    const candidate: NormalizedExerciseDefault = {
       name,
+      videoUrl: normalizeOptionalCatalogText(readCatalogString(row, 'videoUrl', index)),
+      loadType: normalizeCatalogCode<LoadType>(
+        readCatalogString(row, 'loadType', index),
+        LOAD_TYPES
+      ),
+      movementType: normalizeCatalogCode<MovementType>(
+        readCatalogString(row, 'movementType', index),
+        MOVEMENT_TYPES
+      ),
+      countingType: normalizeCatalogCode<CountingType>(
+        readCatalogString(row, 'countingType', index),
+        COUNTING_TYPES
+      ),
       category: determineExerciseCategory(name),
       muscleGroup,
       notes,
-    });
-    return defaults;
-  }, []);
+    };
+
+    const existing = defaultsByName.get(name);
+    if (existing) {
+      mergeMissingExerciseDefaultFields(existing, candidate);
+    } else {
+      defaultsByName.set(name, candidate);
+    }
+  }
+
+  return [...defaultsByName.values()];
 }
 
 async function installTrainingParameters(contractId: string, db: DefaultsDb) {
@@ -217,13 +277,13 @@ async function installAssessmentTypes(contractId: string, db: DefaultsDb) {
 async function repairExistingExerciseNames(
   contractId: string,
   defaults: NormalizedExerciseDefault[],
-  existingNamesList: Array<{ name: string }>,
+  existingExercises: ExistingExerciseDefault[],
   db: DefaultsDb
 ) {
   const defaultNames = new Set(defaults.map((item) => item.name));
-  const existingNames = new Set(existingNamesList.map((item) => item.name));
+  const existingNames = new Set(existingExercises.map((item) => item.name));
 
-  for (const item of existingNamesList) {
+  for (const item of existingExercises) {
     const repairedName = normalizeExerciseName(item.name);
     if (
       repairedName === item.name ||
@@ -241,26 +301,76 @@ async function repairExistingExerciseNames(
     if (updated.count > 0) {
       existingNames.delete(item.name);
       existingNames.add(repairedName);
+      item.name = repairedName;
     }
   }
+}
 
-  return existingNames;
+function missingExerciseFields(
+  existing: ExistingExerciseDefault,
+  canonical: NormalizedExerciseDefault
+) {
+  const data: Partial<Omit<ExistingExerciseDefault, 'name'>> = {};
+
+  if (!existing.videoUrl?.trim() && canonical.videoUrl) data.videoUrl = canonical.videoUrl;
+  if (!existing.loadType && canonical.loadType) data.loadType = canonical.loadType;
+  if (!existing.movementType && canonical.movementType) data.movementType = canonical.movementType;
+  if (!existing.countingType && canonical.countingType) data.countingType = canonical.countingType;
+  if (!existing.category?.trim() && canonical.category) data.category = canonical.category;
+  if (!existing.muscleGroup?.trim() && canonical.muscleGroup) {
+    data.muscleGroup = canonical.muscleGroup;
+  }
+  if (!existing.notes?.trim() && canonical.notes) data.notes = canonical.notes;
+
+  return data;
 }
 
 async function installExercises(contractId: string, db: DefaultsDb) {
   const defaults = loadProductExerciseDefaults();
-  const existing = await db.exerciseLibrary.findMany({
+  const existing = (await db.exerciseLibrary.findMany({
     where: { contractId },
-    select: { name: true },
-  });
-  const existingNames = await repairExistingExerciseNames(contractId, defaults, existing, db);
-  const missing = defaults.filter((item) => !existingNames.has(item.name));
+    select: {
+      name: true,
+      videoUrl: true,
+      loadType: true,
+      movementType: true,
+      countingType: true,
+      category: true,
+      muscleGroup: true,
+      notes: true,
+    },
+  })) as ExistingExerciseDefault[];
+
+  await repairExistingExerciseNames(contractId, defaults, existing, db);
+  const existingByName = new Map(existing.map((item) => [item.name, item]));
+  const missing: NormalizedExerciseDefault[] = [];
+
+  for (const canonical of defaults) {
+    const current = existingByName.get(canonical.name);
+    if (!current) {
+      missing.push(canonical);
+      continue;
+    }
+
+    const data = missingExerciseFields(current, canonical);
+    if (Object.keys(data).length > 0) {
+      await db.exerciseLibrary.updateMany({
+        where: { contractId, name: canonical.name },
+        data,
+      });
+      Object.assign(current, data);
+    }
+  }
 
   const created = missing.length
     ? await db.exerciseLibrary.createMany({
         data: missing.map((item) => ({
           contractId,
           name: item.name,
+          videoUrl: item.videoUrl,
+          loadType: item.loadType,
+          movementType: item.movementType,
+          countingType: item.countingType,
           category: item.category,
           muscleGroup: item.muscleGroup,
           notes: item.notes,
