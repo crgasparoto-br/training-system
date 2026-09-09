@@ -342,7 +342,7 @@ describe('installContractDefaults', () => {
     });
 
     const kettlebell = exerciseDefaults.find((item) => item.name === 'Kettlebell Swing');
-    expect(kettlebell?.videoUrl).toBe('https://www.youtube.com/watch?v=YSxHifyI6s8');
+    expect(kettlebell?.videoUrl).toBe('https://www.youtube.com/shorts/vSCbZwkoYcY');
   });
 
   it('corrige exercício padrão já persistido com mojibake sem criar duplicata', async () => {
