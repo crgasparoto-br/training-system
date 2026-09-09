@@ -2,30 +2,30 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "result": "REPROVADA",
-  "rejection_id": "audit-rejection:423-legacy-identification-fallback",
-  "head_sha": "564e2faa5af5986bacd25ffe01eb1bd01aace733",
+  "rejection_id": "audit-rejection:8063b8c9-4809-4309-a961-388da3895cfb",
+  "head_sha": "4a45517bcaa557ffd77f3d2aadac004420694917",
   "identity": {
     "repository": "crgasparoto-br/training-system",
     "issue_number": 422,
     "pull_request_number": 423,
-    "certified_material_head_sha": "b678c9a200fb63eb13675ea7c87699e90f3d18fb",
-    "current_head_sha": "564e2faa5af5986bacd25ffe01eb1bd01aace733",
+    "certified_material_head_sha": "5219ff792e66f6282959bc87493e96c1d10b47a6",
+    "current_head_sha": "4a45517bcaa557ffd77f3d2aadac004420694917",
     "base_ref": "develop",
     "head_ref": "feat/422-student-docs-social"
   },
   "findings": [
     {
-      "id": "A-423-002",
+      "id": "A-001",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "category": "functional-regression",
-      "summary": "Legacy administrative identification fallback is overwritten by synthetic null identification keys when no canonical StudentProfile exists."
+      "category": "delivery-not-ready",
+      "summary": "The published handoff certifies an older material head after material writes; a post-write refreeze is required."
     }
   ],
   "recommendations": [],
   "requires_refreeze": true,
   "recovery_scope": "post-write-refreeze",
-  "reason": "legacy-identification-fallback"
+  "reason": "handoff-stale"
 }

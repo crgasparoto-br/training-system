@@ -3,31 +3,28 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:423-legacy-identification-fallback",
-    "audit_report_sha256": "6c0109dfdc43f09f717da3378d6487359278797e7a6f5bfdbb3249428f6f9656",
-    "audited_head_sha": "564e2faa5af5986bacd25ffe01eb1bd01aace733"
+    "rejection_id": "audit-rejection:8063b8c9-4809-4309-a961-388da3895cfb",
+    "audit_report_sha256": "22d3eb3ddcc0ce36f3ad03c403d2c885dc47c46491a8c3cb12ee55c2c70cc214",
+    "audited_head_sha": "4a45517bcaa557ffd77f3d2aadac004420694917"
   },
-  "candidate_head_sha": "5219ff792e66f6282959bc87493e96c1d10b47a6",
+  "candidate_head_sha": "4a45517bcaa557ffd77f3d2aadac004420694917",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-423-002",
+      "source_id": "A-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "implementation-fix",
-      "changed_files": [
-        "apps/api/src/modules/alunos/student-parq-boundary.service.ts",
-        "apps/api/tests/student-parq-boundary.service.test.ts"
-      ],
+      "closure_kind": "post-write-refreeze",
+      "changed_files": [],
       "evidence": [
-        ".audit/entregar-issue/evidence/audit-423-002-legacy-identification-fallback.txt",
-        ".audit/entregar-issue/evidence/ci-validate-pr-422.txt"
+        ".audit/entregar-issue/evidence/post-write-refreeze-423.txt",
+        ".audit/entregar-issue/handoff-ready.json"
       ],
       "validations": [
-        "Integrated boundary regression preserves legacy identification when StudentProfile is absent.",
-        "Sibling regression preserves explicit canonical precedence while keeping legacy sibling fallback.",
-        "Validate PR run 34180192051 completed successfully on exact material head 5219ff792e66f6282959bc87493e96c1d10b47a6."
+        "Validate PR run 34286937065 completed successfully on exact material head 4a45517bcaa557ffd77f3d2aadac004420694917.",
+        "The stale handoff is replaced by a direct result-only child whose parent is the exact material head.",
+        "No functional code change is introduced by this remediation; only governed delivery artifacts are published."
       ]
     }
   ],

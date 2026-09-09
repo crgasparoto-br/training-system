@@ -3,14 +3,14 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:423-legacy-identification-fallback",
-    "audit_report_sha256": "6c0109dfdc43f09f717da3378d6487359278797e7a6f5bfdbb3249428f6f9656",
+    "rejection_id": "audit-rejection:8063b8c9-4809-4309-a961-388da3895cfb",
+    "audit_report_sha256": "22d3eb3ddcc0ce36f3ad03c403d2c885dc47c46491a8c3cb12ee55c2c70cc214",
     "finding_ids": [
-      "A-423-002"
+      "A-001"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The defect was local to one administrative read boundary losing provenance between an actual canonical StudentProfile and a synthetic legacy fallback. Existing canonical-source-consistency controls already express the reusable rule; the repository fix adds the missing integrated discriminant regression without introducing issue-specific framework logic."
+    "reason": "The rejection is a target-specific stale-handoff condition after later material writes. The installed delivery workflow already has a universal post-write refreeze and terminal-handoff guard; this cycle must execute that existing control rather than add issue-specific product logic."
   }
 }
