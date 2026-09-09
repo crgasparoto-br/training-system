@@ -1,0 +1,21 @@
+Issue #425 exact-head regression evidence
+repository=crgasparoto-br/training-system
+pr=428
+material_head_sha=d8b8fed219a0c134360ddf923fdcb48327ee1e7e
+workflow=Validate PR
+run_id=34397899877
+job=Validate repository
+conclusion=success
+
+Relevant test evidence extracted from the exact workflow artifact test-output-34397899877:
+- PASS tests/aluno-assessment-boundary.service.test.ts
+  Batch result: 10 passed suites; 52 passed tests.
+- PASS tests/aluno-service-interest.integration.test.ts
+  Batch result: 9 passed suites; 45 passed tests.
+- PASS tests/aluno-create.routes.test.ts
+  Batch result: 10 passed suites; 32 passed tests.
+- PASS tests/aluno-create-transaction-boundary.test.ts
+- PASS tests/student-interest-service.service.test.ts
+  Shared batch result: 10 passed suites; 30 passed tests.
+
+The same workflow also completed type-check, lint, build, architecture checks, access catalog checks, documentation checks, database migration/persistence gates and browser evidence successfully. This file is a compact exact-head extraction of the already completed GitHub Actions artifact; it does not invent or rerun results.

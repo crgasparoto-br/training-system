@@ -1,1 +1,209 @@
-{"schema_version":1,"head_sha":"4a45517bcaa557ffd77f3d2aadac004420694917","families":[{"family":"authorization","applicable":false,"status":"not-applicable","reason":"No current requirement or inherited control requires this canonical family.","control_ids":[],"dimensions":[]},{"family":"concurrency-atomicity","applicable":false,"status":"not-applicable","reason":"No current requirement or inherited control requires this canonical family.","control_ids":[],"dimensions":[]},{"family":"documentation","applicable":true,"status":"passed","reason":"Required by the current requirement/escape matrix.","control_ids":["NEG-REQ-001-01"],"dimensions":[{"surface":"canonical-claims","status":"passed","reason":"Exact-head adversarial control covers this material surface on the current candidate.","control_ids":["NEG-REQ-001-01"]}]},{"family":"historical-immutability","applicable":false,"status":"not-applicable","reason":"No current requirement or inherited control requires this canonical family.","control_ids":[],"dimensions":[]},{"family":"idempotency","applicable":true,"status":"passed","reason":"Required by the current requirement/escape matrix.","control_ids":["NEG-REQ-043-01"],"dimensions":[{"surface":"duplicate-processing","status":"passed","reason":"Exact-head adversarial control covers this material surface on the current candidate.","control_ids":["NEG-REQ-043-01"]}]},{"family":"public-boundary","applicable":false,"status":"not-applicable","reason":"No current requirement or inherited control requires this canonical family.","control_ids":[],"dimensions":[]},{"family":"reference-liveness","applicable":true,"status":"passed","reason":"Required by the current requirement/escape matrix.","control_ids":["NEG-REQ-001-06","NEG-REQ-001-11"],"dimensions":[{"surface":"canonical-reference","status":"passed","reason":"Exact-head adversarial control covers this material surface on the current candidate.","control_ids":["NEG-REQ-001-11"]},{"surface":"reference-liveness","status":"passed","reason":"Exact-head adversarial control covers this material surface on the current candidate.","control_ids":["NEG-REQ-001-06"]}]},{"family":"rollback","applicable":false,"status":"not-applicable","reason":"No current requirement or inherited control requires this canonical family.","control_ids":[],"dimensions":[]},{"family":"structural-contract","applicable":true,"status":"passed","reason":"Required by the current requirement/escape matrix.","control_ids":["NEG-REQ-001-02","NEG-REQ-001-03","NEG-REQ-001-07","NEG-REQ-001-08","NEG-REQ-001-10","NEG-REQ-001-12","NEG-REQ-001-13","NEG-REQ-001-14","NEG-REQ-001-15","NEG-REQ-002-01","NEG-REQ-003-01","NEG-REQ-004-01","NEG-REQ-005-01","NEG-REQ-006-01","NEG-REQ-007-01","NEG-REQ-008-01","NEG-REQ-009-01","NEG-REQ-010-01","NEG-REQ-011-01","NEG-REQ-012-01","NEG-REQ-013-01","NEG-REQ-014-01","NEG-REQ-015-01","NEG-REQ-016-01","NEG-REQ-017-01","NEG-REQ-017-02","NEG-REQ-018-01","NEG-REQ-019-01","NEG-REQ-020-01","NEG-REQ-021-01","NEG-REQ-022-01","NEG-REQ-023-01","NEG-REQ-024-01","NEG-REQ-025-01","NEG-REQ-026-01","NEG-REQ-027-01","NEG-REQ-028-01","NEG-REQ-029-01","NEG-REQ-030-01","NEG-REQ-031-01","NEG-REQ-032-01","NEG-REQ-033-01","NEG-REQ-034-01","NEG-REQ-035-01","NEG-REQ-036-01","NEG-REQ-037-01","NEG-REQ-038-01","NEG-REQ-039-01","NEG-REQ-040-01","NEG-REQ-041-01","NEG-REQ-042-01","NEG-REQ-044-01","NEG-REQ-045-01","NEG-REQ-046-01","NEG-REQ-047-01","NEG-REQ-048-01","NEG-REQ-049-01","NEG-REQ-050-01","NEG-REQ-051-01","NEG-REQ-052-01","NEG-REQ-053-01","NEG-REQ-054-01","NEG-REQ-055-01","NEG-REQ-056-01","NEG-REQ-057-01","NEG-REQ-058-01","NEG-REQ-059-01","NEG-REQ-060-01","NEG-REQ-061-01","NEG-REQ-061-02","NEG-REQ-062-01","NEG-REQ-063-01","NEG-REQ-064-01","NEG-REQ-065-01","NEG-REQ-066-01","NEG-REQ-067-01","NEG-REQ-068-01","NEG-REQ-069-01","NEG-REQ-070-01","NEG-REQ-071-01","NEG-REQ-072-01","NEG-REQ-073-01","NEG-REQ-074-01","NEG-REQ-075-01","NEG-REQ-076-01","NEG-REQ-077-01","NEG-REQ-078-01","NEG-REQ-079-01","NEG-REQ-080-01","NEG-REQ-081-01","NEG-REQ-082-01","NEG-REQ-083-01","NEG-REQ-084-01","NEG-REQ-085-01","NEG-REQ-086-01","NEG-REQ-087-01","NEG-REQ-088-01","NEG-REQ-089-01"],"dimensions":[{"surface":"behavior-contract","status":"passed","reason":"Exact-head adversarial control covers this material surface on the current candidate.","control_ids":["NEG-REQ-002-01","NEG-REQ-003-01","NEG-REQ-004-01","NEG-REQ-005-01","NEG-REQ-006-01","NEG-REQ-007-01","NEG-REQ-008-01","NEG-REQ-009-01","NEG-REQ-010-01","NEG-REQ-011-01","NEG-REQ-012-01","NEG-REQ-013-01","NEG-REQ-014-01","NEG-REQ-015-01","NEG-REQ-016-01","NEG-REQ-018-01","NEG-REQ-019-01","NEG-REQ-020-01","NEG-REQ-021-01","NEG-REQ-022-01","NEG-REQ-023-01","NEG-REQ-024-01","NEG-REQ-025-01","NEG-REQ-026-01","NEG-REQ-027-01","NEG-REQ-028-01","NEG-REQ-029-01","NEG-REQ-030-01","NEG-REQ-031-01","NEG-REQ-032-01","NEG-REQ-033-01","NEG-REQ-034-01","NEG-REQ-035-01","NEG-REQ-036-01","NEG-REQ-037-01","NEG-REQ-038-01","NEG-REQ-039-01","NEG-REQ-040-01","NEG-REQ-041-01","NEG-REQ-042-01","NEG-REQ-044-01","NEG-REQ-045-01","NEG-REQ-046-01","NEG-REQ-047-01","NEG-REQ-048-01","NEG-REQ-049-01","NEG-REQ-050-01","NEG-REQ-051-01","NEG-REQ-052-01","NEG-REQ-053-01","NEG-REQ-054-01","NEG-REQ-055-01","NEG-REQ-056-01","NEG-REQ-057-01","NEG-REQ-058-01","NEG-REQ-059-01","NEG-REQ-060-01","NEG-REQ-062-01","NEG-REQ-063-01","NEG-REQ-064-01","NEG-REQ-065-01","NEG-REQ-066-01","NEG-REQ-067-01","NEG-REQ-068-01","NEG-REQ-069-01","NEG-REQ-070-01","NEG-REQ-071-01","NEG-REQ-072-01","NEG-REQ-073-01","NEG-REQ-074-01","NEG-REQ-075-01","NEG-REQ-076-01","NEG-REQ-077-01","NEG-REQ-078-01","NEG-REQ-079-01","NEG-REQ-080-01","NEG-REQ-081-01","NEG-REQ-082-01","NEG-REQ-083-01","NEG-REQ-084-01","NEG-REQ-085-01","NEG-REQ-086-01","NEG-REQ-087-01","NEG-REQ-088-01","NEG-REQ-089-01"]},{"surface":"canonical-source-consistency","status":"passed","reason":"Exact-head adversarial control covers this material surface on the current candidate.","control_ids":["NEG-REQ-001-02","NEG-REQ-001-13","NEG-REQ-001-14","NEG-REQ-001-15","NEG-REQ-017-01","NEG-REQ-061-01"]},{"surface":"git-parent","status":"passed","reason":"Exact-head adversarial control covers this material surface on the current candidate.","control_ids":["NEG-REQ-001-08"]},{"surface":"relational-semantic-integrity","status":"passed","reason":"Exact-head adversarial control covers this material surface on the current candidate.","control_ids":["NEG-REQ-017-02","NEG-REQ-061-02"]},{"surface":"shared-date-normalizer","status":"passed","reason":"Exact-head adversarial control covers this material surface on the current candidate.","control_ids":["NEG-REQ-001-10"]},{"surface":"specified-test-matrix","status":"passed","reason":"Exact-head adversarial control covers this material surface on the current candidate.","control_ids":["NEG-REQ-001-03","NEG-REQ-001-12"]},{"surface":"terminal-handoff","status":"passed","reason":"Exact-head adversarial control covers this material surface on the current candidate.","control_ids":["NEG-REQ-001-07"]}]},{"family":"temporal-consistency","applicable":true,"status":"passed","reason":"Required by the current requirement/escape matrix.","control_ids":["NEG-REQ-003-02","NEG-REQ-004-02","NEG-REQ-014-02","NEG-REQ-018-02","NEG-REQ-030-02","NEG-REQ-051-02","NEG-REQ-053-02","NEG-REQ-065-02","NEG-REQ-071-02","NEG-REQ-081-02","NEG-REQ-082-02"],"dimensions":[{"surface":"period-consistency","status":"passed","reason":"Exact-head adversarial control covers this material surface on the current candidate.","control_ids":["NEG-REQ-003-02","NEG-REQ-004-02","NEG-REQ-014-02","NEG-REQ-018-02","NEG-REQ-030-02","NEG-REQ-051-02","NEG-REQ-053-02","NEG-REQ-065-02","NEG-REQ-071-02","NEG-REQ-081-02","NEG-REQ-082-02"]}]},{"family":"temporal-destination","applicable":true,"status":"passed","reason":"Required by the current requirement/escape matrix.","control_ids":["NEG-REQ-001-04"],"dimensions":[{"surface":"week-destination-mapping","status":"passed","reason":"Exact-head adversarial control covers this material surface on the current candidate.","control_ids":["NEG-REQ-001-04"]}]},{"family":"tenant-isolation","applicable":false,"status":"not-applicable","reason":"No current requirement or inherited control requires this canonical family.","control_ids":[],"dimensions":[]}],"material_families_missing_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "d8b8fed219a0c134360ddf923fdcb48327ee1e7e",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": false,
+      "reason": "No current issue-425 contract signal, final diff surface, or inherited control requires this canonical risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "reason": "No current issue-425 contract signal, final diff surface, or inherited control requires this canonical risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No current issue-425 contract signal, final diff surface, or inherited control requires this canonical risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": false,
+      "reason": "No current issue-425 contract signal, final diff surface, or inherited control requires this canonical risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "The canonical specification or exact-head attack matrix requires this family and every declared surface has an executed discriminant control.",
+      "control_ids": [
+        "NEG-REQ-001-02",
+        "NEG-REQ-008-02",
+        "NEG-REQ-013-01",
+        "NEG-REQ-022-01",
+        "NEG-REQ-026-01",
+        "NEG-REQ-032-01",
+        "NEG-REQ-033-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "transaction-lifetime",
+          "reason": "The requirement exposes temporal-consistency behavior at the student creation/service-validation boundary.",
+          "control_ids": [
+            "NEG-REQ-001-02",
+            "NEG-REQ-008-02",
+            "NEG-REQ-013-01",
+            "NEG-REQ-022-01",
+            "NEG-REQ-026-01",
+            "NEG-REQ-032-01",
+            "NEG-REQ-033-02"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No current issue-425 contract signal, final diff surface, or inherited control requires this canonical risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": true,
+      "reason": "The canonical specification or exact-head attack matrix requires this family and every declared surface has an executed discriminant control.",
+      "control_ids": [
+        "NEG-REQ-028-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "identity-lock-conflict",
+          "reason": "The requirement exposes concurrency-atomicity behavior at the student creation/service-validation boundary.",
+          "control_ids": [
+            "NEG-REQ-028-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "reason": "The canonical specification or exact-head attack matrix requires this family and every declared surface has an executed discriminant control.",
+      "control_ids": [
+        "NEG-REQ-024-01",
+        "NEG-REQ-039-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "reason": "The requirement exposes idempotency behavior at the student creation/service-validation boundary.",
+          "control_ids": [
+            "NEG-REQ-024-01",
+            "NEG-REQ-039-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "rollback",
+      "applicable": true,
+      "reason": "The canonical specification or exact-head attack matrix requires this family and every declared surface has an executed discriminant control.",
+      "control_ids": [
+        "NEG-REQ-001-01",
+        "NEG-REQ-003-01",
+        "NEG-REQ-004-01",
+        "NEG-REQ-006-01",
+        "NEG-REQ-008-01",
+        "NEG-REQ-009-01",
+        "NEG-REQ-010-01",
+        "NEG-REQ-012-01",
+        "NEG-REQ-020-01",
+        "NEG-REQ-021-01",
+        "NEG-REQ-029-01",
+        "NEG-REQ-033-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "atomic-rollback",
+          "reason": "The requirement exposes rollback behavior at the student creation/service-validation boundary.",
+          "control_ids": [
+            "NEG-REQ-001-01",
+            "NEG-REQ-003-01",
+            "NEG-REQ-004-01",
+            "NEG-REQ-006-01",
+            "NEG-REQ-008-01",
+            "NEG-REQ-009-01",
+            "NEG-REQ-010-01",
+            "NEG-REQ-012-01",
+            "NEG-REQ-020-01",
+            "NEG-REQ-021-01",
+            "NEG-REQ-029-01",
+            "NEG-REQ-033-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current issue-425 contract signal, final diff surface, or inherited control requires this canonical risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "The canonical specification or exact-head attack matrix requires this family and every declared surface has an executed discriminant control.",
+      "control_ids": [
+        "NEG-REQ-004-02",
+        "NEG-REQ-018-01",
+        "NEG-REQ-037-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-source-consistency",
+          "reason": "The requirement exposes structural-contract behavior at the student creation/service-validation boundary.",
+          "control_ids": [
+            "NEG-REQ-004-02",
+            "NEG-REQ-018-01",
+            "NEG-REQ-037-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "The canonical specification or exact-head attack matrix requires this family and every declared surface has an executed discriminant control.",
+      "control_ids": [
+        "NEG-REQ-019-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "reason": "The requirement exposes documentation behavior at the student creation/service-validation boundary.",
+          "control_ids": [
+            "NEG-REQ-019-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}
