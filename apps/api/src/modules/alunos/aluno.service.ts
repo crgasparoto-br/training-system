@@ -10,6 +10,7 @@ import {
   hasCanonicalHealthIntakeValue,
   upsertCanonicalStudentHealthIntake,
 } from './student-health-intake-write.service.js';
+import { upsertStudentAdministrativeFormResponses } from './student-administrative-form-responses.service.js';
 import { preRegistrationParqService } from '../pre-registration-public/pre-registration-parq.service.js';
 import { assertNoLegacyParqWrite } from './student-parq-legacy-cutover.js';
 import {
@@ -251,6 +252,16 @@ export const alunoService = {
         },
       });
 
+      // Active students created directly by the administrative screen still
+      // need the canonical onboarding row before any health-intake write. The
+      // canonical writer intentionally fails closed when this row is missing.
+      await tx.studentOnboardingProcess.create({
+        data: {
+          alunoId: aluno.id,
+          contractId: professor.contractId,
+        },
+      });
+
       await upsertStudentIdentity(
         aluno.id,
         professor.contractId,
@@ -279,6 +290,14 @@ export const alunoService = {
             dailyCalories: data.macronutrients.dailyCalories,
           },
         });
+      }
+
+      if (data.intakeForm?.formResponses) {
+        await upsertStudentAdministrativeFormResponses(
+          tx,
+          aluno.id,
+          data.intakeForm.formResponses
+        );
       }
 
       if (data.intakeForm) {
@@ -724,6 +743,14 @@ export const alunoService = {
             },
           });
         }
+      }
+
+      if (intakeForm?.formResponses) {
+        await upsertStudentAdministrativeFormResponses(
+          tx,
+          id,
+          intakeForm.formResponses
+        );
       }
 
       if (intakeForm) {

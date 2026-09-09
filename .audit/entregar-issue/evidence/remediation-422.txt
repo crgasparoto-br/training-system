@@ -1,0 +1,20 @@
+Issue 422 final remediation evidence
+repository=crgasparoto-br/training-system
+pull_request=423
+branch=feat/422-student-docs-social
+material_head_sha=5219ff792e66f6282959bc87493e96c1d10b47a6
+base_sha=4fd8c54ef5b9056a3bfba36e800bcbf6517bfcc6
+source_rejection_id=audit-rejection:423-legacy-identification-fallback
+source_finding_id=A-423-002
+recovery_scope=post-write-refreeze
+
+The independent audit identified that the generic profile fallback synthesized null identification keys and was being passed as if it were an actual canonical StudentProfile. That allowed synthetic nulls to overwrite legacy CPF, RG, civil status and address in the administrative read model when no StudentProfile existed.
+
+Remediation on exact material head 5219ff792e66f6282959bc87493e96c1d10b47a6:
+- student-parq-boundary.service.ts now loads the domain snapshot and passes identification/preference data to the administrative read model only when an actual StudentProfile exists.
+- apps/api/tests/student-parq-boundary.service.test.ts contains an integrated regression proving legacy CPF, RG, unknown civil status, address and social fallback are preserved when StudentProfile is absent.
+- A sibling regression proves explicit canonical fields still win while legacy sibling values remain fallback, including an explicit canonical null case.
+- The five pre-existing PAR-Q boundary tests remain present, for seven tests total in that file.
+- Validate PR run 34180192051 (#7581) completed successfully on the exact material SHA.
+
+No schema migration, legacy PAR-Q write relaxation, or production merge is part of this remediation.

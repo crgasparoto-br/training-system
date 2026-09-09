@@ -44,5 +44,23 @@ bash "$ROOT_DIR/scripts/verify-adipometry-contract-parity-and-designation-eligib
 bash "$ROOT_DIR/scripts/verify-adipometry-administrative-responsibility-lifecycle.sh"
 pnpm --filter @corrida/types build
 pnpm --filter @corrida/utils build
-pnpm --filter @corrida/api exec tsx scripts/verify-pr359-administrative-adpt-http.ts
+
+# The tsx/Node process for this historical HTTP compatibility probe has shown
+# rare runner-level SIGSEGVs (exit 139) while the exact same SHA passes on a
+# sibling GitHub Actions runner. Retry only that transient signal once; any
+# functional failure (for example exit 1) remains fail-fast and unchanged.
+for attempt in 1 2; do
+  if pnpm --filter @corrida/api exec tsx scripts/verify-pr359-administrative-adpt-http.ts; then
+    break
+  else
+    status=$?
+  fi
+
+  if [[ "$status" -ne 139 || "$attempt" -eq 2 ]]; then
+    exit "$status"
+  fi
+
+  echo "PR359 administrative ADPT HTTP probe hit transient exit 139; retrying once" >&2
+done
+
 echo "adipometry audit remediation compatibility gate OK"

@@ -12,13 +12,18 @@ registro, não pessoas paralelas.
 - `Aluno` representa a participação operacional da pessoa em um `contractId`.
 - `StudentProfile.identificationData` é a fonte canônica tenant-scoped de
   identificação, contato, endereço e responsável.
+- `StudentProfile.preferenceData` é a fonte canônica tenant-scoped das
+  preferências e consentimentos administrativos do aluno.
+- `StudentFinancialProfile` guarda os dados financeiros administrativos que não
+  pertencem ao ciclo de vida do contrato; serviço vigente continua sendo
+  derivado de `StudentContract`.
 - `Aluno.lead*`, `Aluno.birthDate` e `Aluno.age` são projeções derivadas para
   busca, constraints e compatibilidade. Não são uma segunda API de escrita.
 - `StudentOnboardingProcess` contém somente estado do processo, versões,
   consentimento, progresso e timestamps. Não armazena respostas cadastrais ou
   clínicas.
 
-Toda escrita do domínio do aluno passa por
+Toda escrita de identidade do domínio do aluno passa por
 `student-identity.service.ts#upsertStudentIdentity`. Os fluxos administrativos
 legados, o aplicativo do aluno e a revisão cadastral também usam essa mesma
 fronteira. Durante o rollout, o service atualiza `Profile` como projeção de
@@ -32,13 +37,57 @@ aluno deve escrever os mesmos campos diretamente em `Profile`.
 | --- | --- | --- | --- |
 | nome | `StudentProfile.identificationData.name` | `Aluno.leadName`, `Profile.name` | `Profile` é projeção temporária da conta; leitura do domínio usa `StudentProfile` |
 | CPF/documento | `StudentProfile.identificationData.cpf` | `Aluno.leadCpf` e normalizado, `Profile.cpf` | CPF normalizado é bloqueante somente dentro do tenant; `Profile.cpf` não possui unicidade global |
+| RG | `StudentProfile.identificationData.rg` | `Profile.rg` | cadastro administrativo preserva dígito verificador alfanumérico e não cria um segundo writer |
+| estado civil | `StudentProfile.identificationData.maritalStatus` | `Profile.maritalStatus` e `AlunoIntakeForm.formResponses.identification` somente como fallback de leitura | valor canônico prevalece; valor legado não reconhecido permanece visível até alteração explícita |
+| rede social | `StudentProfile.identificationData.socialNetwork` + `socialAccount` | `AlunoIntakeForm.formResponses.identification.instagram` e `Profile.instagramHandle` somente como fallback | `Profile.instagramHandle` é projeção/fallback exclusivo de Instagram e nunca armazena conta de outra rede |
+| contato de emergência | campos `emergencyContact*` de `StudentProfile.identificationData` | `AlunoIntakeForm.formResponses.identification` somente como fallback de leitura | relações personalizadas são preservadas literalmente; escrita passa pelo writer canônico de identidade |
 | e-mail de contato | `StudentProfile.identificationData.email` | `Aluno.leadEmail` e normalizado | Pode ser diferente do e-mail de login e não bloqueia sozinho a criação |
 | e-mail de login | `User.email` | nenhuma | Globalmente único e usado apenas para autenticação |
 | telefone | `StudentProfile.identificationData.phone` | `Aluno.leadPhone` e normalizado, `Profile.phone` | Duplicidade exige revisão; não há unicidade de telefone |
 | nascimento | `StudentProfile.identificationData.birthDate` | `Aluno.birthDate`, `Profile.birthDate` | `Aluno.age` é derivada por `deriveAgeFromBirthDate`; fluxos novos não inventam idade |
 | endereço | campos `address*` de `StudentProfile.identificationData` | `Profile.address*` | Persistido no registro tenant-scoped mesmo antes de haver conta |
 | responsável | campos `guardian*` de `StudentProfile.identificationData` | sem legado canônico | Não é copiado para onboarding nem logs |
+| preferências administrativas | `StudentProfile.preferenceData` | `AlunoIntakeForm.formResponses.preferences` somente como fallback de leitura | novas alterações não fazem dual-write no intake legado |
+| dados financeiros administrativos | `StudentFinancialProfile` | `AlunoIntakeForm.formResponses.financial` somente como fallback de leitura | `currentServiceName` é sincronizado pelo ciclo de `StudentContract`; payload do navegador não é autoridade |
 | avatar | `Profile.avatar` | nenhuma | Atributo da conta, não da identidade operacional tenant-scoped |
+
+## Cadastro administrativo e compatibilidade de leitura (#422)
+
+As rotas de criação e edição de aluno continuam aceitando o formato histórico de
+`intakeForm.formResponses` na borda para não quebrar o cliente atual, mas esse
+objeto deixou de ser uma fronteira de persistência. O adapter
+`student-administrative-form-responses.service.ts` separa o payload por ownership:
+
+- identificação, documentação, endereço, rede social e contato de emergência
+  são convertidos para nomes canônicos e enviados a `upsertStudentIdentity`;
+- preferências são gravadas em `StudentProfile.preferenceData`;
+- dados financeiros administrativos são gravados em `StudentFinancialProfile`;
+- `financial.currentService` enviado pelo navegador é descartado como fonte de
+  escrita; o serviço vigente continua vindo do ciclo de `StudentContract`;
+- `parqResponses` não pertence a esse adapter e permanece na fronteira própria
+  de `StudentParqSubmission`.
+
+`AlunoIntakeForm.formResponses` é somente fallback de leitura. Nenhum fluxo da
+#422 pode executar `INSERT` ou `UPDATE` nesse JSON. Na leitura administrativa, a
+resposta compatível é reconstruída com precedência determinística:
+
+1. valor existente no modelo canônico segmentado;
+2. valor histórico de `AlunoIntakeForm.formResponses` quando ainda não existe
+   valor canônico;
+3. para conta social antiga sem rede registrada, `Profile.instagramHandle` pode
+   ser exposto como Instagram somente como fallback.
+
+O campo histórico `instagram` do formulário web é convertido em
+`StudentProfile.identificationData.socialAccount` na escrita. O alias pode ser
+reexposto no read model enquanto o cliente antigo ainda o consumir, sem voltar a
+ser uma fonte canônica.
+
+Quando a tela seleciona um contrato, perfil administrativo e vínculo contratual
+são persistidos pelo endpoint atômico de `student-financial-contract.service.ts`.
+Criação/edição do aluno e `prepareOrActivateStudentContractInTransaction` usam a
+mesma transação Prisma: falha no contrato aborta também as alterações cadastrais.
+A lógica de status, ativação e serviço do vínculo continua pertencendo ao domínio
+`StudentContract`; o cadastro não duplica essas regras.
 
 ## Conta global e vínculos tenant-scoped
 

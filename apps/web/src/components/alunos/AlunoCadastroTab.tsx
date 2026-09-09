@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/Card';
 import { formatDateBR } from '../../utils/date';
+import { formatCpf, formatRg, normalizeSocialNetwork, socialNetworkLabel } from '../../utils/studentPersonalInfo';
 import type { Aluno, StudentSegmentedProfile } from '../../services/aluno.service';
 
 type IdentificationInfo = {
@@ -13,6 +14,7 @@ type IdentificationInfo = {
   state?: string;
   zipCode?: string;
   maritalStatus?: string;
+  socialNetwork?: string;
   instagram?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
@@ -127,7 +129,11 @@ export function AlunoCadastroTab({
     (segmentedProfile?.identification.email as string | undefined) ?? aluno.user.email;
   const phone =
     (segmentedProfile?.identification.phone as string | undefined) ?? aluno.user.profile.phone;
-  const instagram = mergedIdentificationInfo.instagram;
+  const socialAccount = mergedIdentificationInfo.instagram;
+  const socialNetwork = normalizeSocialNetwork(mergedIdentificationInfo.socialNetwork, socialAccount);
+  const socialProfileLabel = socialAccount
+    ? `${socialNetworkLabel(socialNetwork)} · ${socialAccount}`
+    : 'Não informada';
 
   return (
     <div className="space-y-4">
@@ -169,7 +175,7 @@ export function AlunoCadastroTab({
             <div className="rounded-lg border border-gray-200 p-4">
               <div className="text-xs text-muted-foreground">Rede social</div>
               <div className="mt-1 text-sm font-semibold text-gray-900">
-                {instagram || 'Não informada'}
+                {socialProfileLabel}
               </div>
             </div>
           </div>
@@ -187,11 +193,15 @@ export function AlunoCadastroTab({
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-lg border border-gray-200 p-4">
               <div className="text-xs text-muted-foreground">CPF</div>
-              <div className="mt-1 text-sm font-semibold text-gray-900">{mergedIdentificationInfo.cpf || 'Não informado'}</div>
+              <div className="mt-1 text-sm font-semibold text-gray-900">
+                {mergedIdentificationInfo.cpf ? formatCpf(mergedIdentificationInfo.cpf) : 'Não informado'}
+              </div>
             </div>
             <div className="rounded-lg border border-gray-200 p-4">
               <div className="text-xs text-muted-foreground">RG</div>
-              <div className="mt-1 text-sm font-semibold text-gray-900">{mergedIdentificationInfo.rg || 'Não informado'}</div>
+              <div className="mt-1 text-sm font-semibold text-gray-900">
+                {mergedIdentificationInfo.rg ? formatRg(mergedIdentificationInfo.rg) : 'Não informado'}
+              </div>
             </div>
             <div className="rounded-lg border border-gray-200 p-4">
               <div className="text-xs text-muted-foreground">Estado civil</div>

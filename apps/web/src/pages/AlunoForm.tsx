@@ -30,6 +30,15 @@ import { alunoFormCopy } from '../i18n/ptBR';
 import { useAuthStore } from '../stores/useAuthStore';
 import { canAccessScreen } from '../access/access-control';
 import { resolveAssetUrl } from '../utils/assetUrl';
+import {
+  formatCpf,
+  formatRg,
+  maritalStatusOptions,
+  normalizeMaritalStatus,
+  normalizeSocialNetwork,
+  socialAccountPlaceholder,
+  socialNetworkOptions,
+} from '../utils/studentPersonalInfo';
 
 const identificationSchema = z.object({
   cpf: z.string().optional(),
@@ -42,6 +51,7 @@ const identificationSchema = z.object({
   state: z.string().optional(),
   zipCode: z.string().optional(),
   maritalStatus: z.string().optional(),
+  socialNetwork: z.string().optional(),
   instagram: z.string().optional(),
   emergencyContactName: z.string().optional(),
   emergencyContactPhone: z.string().optional(),
@@ -364,6 +374,7 @@ export function AlunoForm() {
           state: '',
           zipCode: '',
           maritalStatus: '',
+          socialNetwork: '',
           instagram: '',
           emergencyContactName: '',
           emergencyContactPhone: '',
@@ -415,8 +426,12 @@ export function AlunoForm() {
   const studentName = watch('name');
   const cameFromReferral = watch('intakeForm.financialInfo.cameFromReferral');
   const selectedContractId = watch('intakeForm.financialInfo.selectedContractId');
+  const selectedMaritalStatus = watch('intakeForm.personalInfo.maritalStatus');
+  const selectedSocialNetwork = watch('intakeForm.personalInfo.socialNetwork');
   const calculatedAge = calculateAgeFromBirthDate(birthDate);
   const resolvedAvatar = resolveAssetUrl(avatar);
+  const hasLegacyMaritalStatus =
+    !!selectedMaritalStatus && !maritalStatusOptions.some((option) => option.value === selectedMaritalStatus);
   const canSelectInactiveContract =
     user?.professor?.role === 'master' ||
     user?.professor?.collaboratorFunction?.code === 'manager' ||
@@ -887,8 +902,8 @@ export function AlunoForm() {
       const identification = formResponses.identification ?? {};
       const financial = formResponses.financial ?? {};
       const preferences = formResponses.preferences ?? {};
-      setValue('intakeForm.personalInfo.cpf', identification.cpf || '');
-      setValue('intakeForm.personalInfo.rg', identification.rg || '');
+      setValue('intakeForm.personalInfo.cpf', formatCpf(identification.cpf || ''));
+      setValue('intakeForm.personalInfo.rg', formatRg(identification.rg || ''));
       setValue('intakeForm.personalInfo.address', identification.address || '');
       setValue('intakeForm.personalInfo.addressNumber', identification.addressNumber || '');
       setValue('intakeForm.personalInfo.addressComplement', identification.addressComplement || '');
@@ -896,7 +911,11 @@ export function AlunoForm() {
       setValue('intakeForm.personalInfo.city', identification.city || '');
       setValue('intakeForm.personalInfo.state', identification.state || '');
       setValue('intakeForm.personalInfo.zipCode', formatCep(identification.zipCode || ''));
-      setValue('intakeForm.personalInfo.maritalStatus', identification.maritalStatus || '');
+      setValue('intakeForm.personalInfo.maritalStatus', normalizeMaritalStatus(identification.maritalStatus));
+      setValue(
+        'intakeForm.personalInfo.socialNetwork',
+        normalizeSocialNetwork(identification.socialNetwork, identification.instagram)
+      );
       setValue('intakeForm.personalInfo.instagram', identification.instagram || '');
       setValue('intakeForm.personalInfo.emergencyContactName', identification.emergencyContactName || '');
       setValue('intakeForm.personalInfo.emergencyContactPhone', identification.emergencyContactPhone || '');
@@ -1466,14 +1485,79 @@ export function AlunoForm() {
                   <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-5">
                     <div>
                       <h3 className="text-sm font-semibold text-foreground">Documentação e contato social</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">Agrupe documentos civis e o principal canal social em um mesmo bloco.</p>
+                      <p className="mt-1 text-sm text-muted-foreground">Informe os documentos civis, o estado civil e o principal perfil social do aluno.</p>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                      <Input label="CPF" placeholder="000.000.000-00" {...register('intakeForm.personalInfo.cpf')} />
-                      <Input label="RG" placeholder="00.000.000-0" {...register('intakeForm.personalInfo.rg')} />
-                      <Input label="Estado civil" placeholder="Solteiro(a), casado(a)..." {...register('intakeForm.personalInfo.maritalStatus')} />
-                      <Input label="Rede social" placeholder="Ex.: @usuario, Instagram, TikTok" {...register('intakeForm.personalInfo.instagram')} />
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <Input
+                        label="CPF"
+                        inputMode="numeric"
+                        placeholder="000.000.000-00"
+                        {...register('intakeForm.personalInfo.cpf', {
+                          onChange: (event) => {
+                            setValue('intakeForm.personalInfo.cpf', formatCpf(event.target.value), {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            });
+                          },
+                        })}
+                      />
+                      <Input
+                        label="RG"
+                        placeholder="00.000.000-0"
+                        {...register('intakeForm.personalInfo.rg', {
+                          onChange: (event) => {
+                            setValue('intakeForm.personalInfo.rg', formatRg(event.target.value), {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            });
+                          },
+                        })}
+                      />
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-foreground">Estado civil</label>
+                        <select className={selectClassName} {...register('intakeForm.personalInfo.maritalStatus')}>
+                          {hasLegacyMaritalStatus && (
+                            <option value={selectedMaritalStatus}>{selectedMaritalStatus}</option>
+                          )}
+                          {maritalStatusOptions.map((option) => (
+                            <option key={option.value || 'not-informed'} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-foreground">Rede social</label>
+                        <select
+                          className={selectClassName}
+                          {...register('intakeForm.personalInfo.socialNetwork', {
+                            onChange: (event) => {
+                              if (!event.target.value) {
+                                setValue('intakeForm.personalInfo.instagram', '', {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                });
+                              }
+                            },
+                          })}
+                        >
+                          {socialNetworkOptions.map((option) => (
+                            <option key={option.value || 'not-informed'} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <Input
+                        label="Conta / usuário"
+                        placeholder={socialAccountPlaceholder(selectedSocialNetwork)}
+                        disabled={!selectedSocialNetwork}
+                        {...register('intakeForm.personalInfo.instagram')}
+                      />
                     </div>
                   </div>
 

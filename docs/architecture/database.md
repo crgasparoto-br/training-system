@@ -45,6 +45,36 @@ Ver `docs/architecture/student-lifecycle-data-ownership.md` para ownership,
 claim concorrente, contexto de tenant, transicoes guardadas, auditoria e
 estrategia de remocao da compatibilidade na #275.
 
+## Cadastro administrativo segmentado (issue #422)
+
+A #422 nao adiciona tabela nem coluna e, portanto, nao exige migration. Ela fecha
+o dual-write historico de `AlunoIntakeForm.formResponses` usando modelos que ja
+fazem parte do dominio segmentado:
+
+- `StudentProfile.identificationData`: CPF, RG, estado civil, endereco, rede
+  social (`socialNetwork` + `socialAccount`) e contato de emergencia;
+- `StudentProfile.preferenceData`: preferencias e consentimentos administrativos;
+- `StudentFinancialProfile`: condicoes e campos financeiros administrativos;
+- `StudentContract`: autoridade do servico vigente e do ciclo do vinculo.
+
+`AlunoIntakeForm.formResponses` permanece somente como fonte de compatibilidade
+de leitura para registros antigos. Fluxos novos e edicoes administrativas nao
+executam `INSERT` nem `UPDATE` nesse JSON. A leitura compoe o payload esperado
+pelo cliente com precedencia do registro canonico sobre o legado.
+
+Campos de identificacao passam obrigatoriamente por
+`student-identity.service.ts#upsertStudentIdentity`; o adapter administrativo nao
+escreve `StudentProfile.identificationData` diretamente. O alias web historico
+`instagram` e convertido para `socialAccount` na escrita. `Profile.instagramHandle`
+pode participar somente do fallback de Instagram e nao armazena contas de outras
+redes.
+
+Quando existe contrato selecionado no cadastro, a operacao usa
+`student-financial-contract.service.ts`: perfil, dados administrativos e
+criacao/atualizacao/ativacao de `StudentContract` participam da mesma transacao
+Prisma. Falha na resolucao ou no ciclo do contrato aborta a operacao inteira; a
+regra de lifecycle continua centralizada no dominio de `StudentContract`.
+
 ## PRNT e PAR-Q canônico
 
 O PRNT possui histórico próprio em `ProntuarioRecord` e tabelas filhas por bloco. O PAR-Q usa as seguintes entidades canônicas:

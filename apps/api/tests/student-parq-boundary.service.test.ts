@@ -2,11 +2,14 @@ import type {
   ParqAdministrativeSummaryDTO,
   ParqSubmissionDTO,
 } from '@corrida/types';
+import { alunoService } from '../src/modules/alunos/aluno.service.js';
+import { studentDomainService } from '../src/modules/alunos/student-domain.service.js';
 import {
   attachCanonicalParqToHealthIntake,
   sanitizeAdministrativeAlunoPayload,
   sanitizeAdministrativeStudentSummary,
   stripLegacyParqFields,
+  studentParqBoundaryService,
 } from '../src/modules/alunos/student-parq-boundary.service.js';
 
 const parqSummary: ParqAdministrativeSummaryDTO = {
@@ -35,7 +38,41 @@ const canonicalSubmission: ParqSubmissionDTO = {
   sourceType: 'student',
 };
 
+const legacyAdministrativeAluno = {
+  id: 'aluno-legacy',
+  contractId: 'contract-1',
+  user: {
+    profile: {
+      instagramHandle: '@perfil-legado',
+    },
+  },
+  intakeForm: {
+    formResponses: {
+      identification: {
+        cpf: '13951354879',
+        rg: '12345678X',
+        maritalStatus: 'Separado judicialmente',
+        address: 'Rua Legada',
+        neighborhood: 'Centro',
+        city: 'Sorocaba',
+        state: 'SP',
+        zipCode: '18000000',
+        emergencyContactRelationship: 'Vizinho de confiança',
+      },
+      preferences: {
+        preferredNickname: 'Gaspa',
+      },
+      parqResponses: { q1: true },
+    },
+  },
+  parq: parqSummary,
+};
+
 describe('student PAR-Q administrative boundary', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('removes direct and nested legacy PAR-Q fields recursively', () => {
     expect(
       stripLegacyParqFields({
@@ -132,6 +169,92 @@ describe('student PAR-Q administrative boundary', () => {
         american: { q1: false },
       },
       rawFormResponses: { keep: 'ok' },
+    });
+  });
+
+  it('preserves legacy administrative identity when no canonical StudentProfile exists', async () => {
+    jest
+      .spyOn(alunoService, 'findById')
+      .mockResolvedValue(legacyAdministrativeAluno as any);
+    jest
+      .spyOn(studentDomainService, 'loadAlunoDomainSnapshot')
+      .mockResolvedValue({ studentProfile: null } as any);
+    jest
+      .spyOn(studentDomainService, 'getFinancialProfile')
+      .mockResolvedValue(null);
+
+    const result = await studentParqBoundaryService.getAdministrativeAluno(
+      'contract-1',
+      'aluno-legacy'
+    );
+
+    expect(result).not.toBeNull();
+    if (!result) throw new Error('expected administrative aluno');
+
+    expect(result.intakeForm.formResponses.identification).toMatchObject({
+      cpf: '13951354879',
+      rg: '12345678X',
+      maritalStatus: 'Separado judicialmente',
+      address: 'Rua Legada',
+      neighborhood: 'Centro',
+      city: 'Sorocaba',
+      state: 'SP',
+      zipCode: '18000000',
+      emergencyContactRelationship: 'Vizinho de confiança',
+      socialNetwork: 'instagram',
+      socialAccount: '@perfil-legado',
+      instagram: '@perfil-legado',
+    });
+    expect(result.intakeForm.formResponses.preferences).toEqual({
+      preferredNickname: 'Gaspa',
+    });
+    expect(JSON.stringify(result)).not.toContain('parqResponses');
+  });
+
+  it('lets explicit canonical fields win while legacy siblings remain fallback', async () => {
+    jest
+      .spyOn(alunoService, 'findById')
+      .mockResolvedValue(legacyAdministrativeAluno as any);
+    jest
+      .spyOn(studentDomainService, 'loadAlunoDomainSnapshot')
+      .mockResolvedValue({
+        studentProfile: {
+          identificationData: {
+            cpf: null,
+            maritalStatus: 'Casado(a)',
+            socialNetwork: 'linkedin',
+            socialAccount: 'aluno-linkedin',
+          },
+          preferenceData: {
+            favoriteChocolate: '70%',
+          },
+        },
+      } as any);
+    jest
+      .spyOn(studentDomainService, 'getFinancialProfile')
+      .mockResolvedValue(null);
+
+    const result = await studentParqBoundaryService.getAdministrativeAluno(
+      'contract-1',
+      'aluno-legacy'
+    );
+
+    expect(result).not.toBeNull();
+    if (!result) throw new Error('expected administrative aluno');
+
+    expect(result.intakeForm.formResponses.identification).toMatchObject({
+      cpf: '',
+      rg: '12345678X',
+      maritalStatus: 'Casado(a)',
+      address: 'Rua Legada',
+      emergencyContactRelationship: 'Vizinho de confiança',
+      socialNetwork: 'linkedin',
+      socialAccount: 'aluno-linkedin',
+      instagram: 'aluno-linkedin',
+    });
+    expect(result.intakeForm.formResponses.preferences).toEqual({
+      preferredNickname: 'Gaspa',
+      favoriteChocolate: '70%',
     });
   });
 });

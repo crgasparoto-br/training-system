@@ -8,6 +8,7 @@ import {
   hasCanonicalHealthIntakeMutation,
   upsertCanonicalStudentHealthIntake,
 } from './student-health-intake-write.service.js';
+import { upsertStudentAdministrativeFormResponses } from './student-administrative-form-responses.service.js';
 import type { CreateAlunoDTO, UpdateAlunoDTO } from './aluno.service.js';
 import { contractDocumentService } from '../contracts/contract-document.service.js';
 import { loadContractServiceVariableContext } from '../contracts/contract-service-context.js';
@@ -197,6 +198,16 @@ const createAlunoRecord = async (
     },
   });
 
+  // The contract-based registration path shares the same canonical health
+  // writer as pre-registration. Initialize its process row in this transaction
+  // before writing health data so a failure rolls back user, student and link.
+  await tx.studentOnboardingProcess.create({
+    data: {
+      alunoId: aluno.id,
+      contractId: options.companyContractId,
+    },
+  });
+
   await upsertStudentIdentity(
     aluno.id,
     options.companyContractId,
@@ -225,6 +236,14 @@ const createAlunoRecord = async (
         dailyCalories: data.macronutrients.dailyCalories,
       },
     });
+  }
+
+  if (data.intakeForm?.formResponses) {
+    await upsertStudentAdministrativeFormResponses(
+      tx,
+      aluno.id,
+      data.intakeForm.formResponses
+    );
   }
 
   if (data.intakeForm) {
@@ -358,6 +377,14 @@ const updateAlunoRecord = async (
     });
   }
 
+  if (intakeForm?.formResponses) {
+    await upsertStudentAdministrativeFormResponses(
+      tx,
+      alunoId,
+      intakeForm.formResponses
+    );
+  }
+
   if (intakeForm) {
     if (hasCanonicalHealthIntakeMutation(intakeForm)) {
       await upsertCanonicalStudentHealthIntake(tx, {
@@ -368,7 +395,7 @@ const updateAlunoRecord = async (
         health: intakeForm,
       });
     }
-    }
+  }
 };
 
 const currency = new Intl.NumberFormat('pt-BR', {

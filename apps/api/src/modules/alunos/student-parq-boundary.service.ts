@@ -4,6 +4,7 @@ import type {
 } from '@corrida/types';
 import { alunoService } from './aluno.service.js';
 import { studentDomainService } from './student-domain.service.js';
+import { buildStudentAdministrativeFormResponsesReadModel } from './student-administrative-form-responses.service.js';
 import { preRegistrationParqService } from '../pre-registration-public/pre-registration-parq.service.js';
 
 type JsonRecord = Record<string, unknown>;
@@ -92,10 +93,45 @@ export function attachCanonicalParqToHealthIntake<T>(
 
 export const studentParqBoundaryService = {
   async getAdministrativeAluno(contractId: string, alunoId: string) {
-    const aluno = await alunoService.findById(alunoId);
+    const [aluno, domainSnapshot, financial] = await Promise.all([
+      alunoService.findById(alunoId),
+      studentDomainService.loadAlunoDomainSnapshot(alunoId, {
+        companyContractId: contractId,
+      }),
+      studentDomainService.getFinancialProfile(alunoId, {
+        companyContractId: contractId,
+      }),
+    ]);
     if (!aluno || aluno.contractId !== contractId) return null;
 
-    return sanitizeAdministrativeAlunoPayload(aluno, aluno.parq);
+    // The generic domain profile intentionally synthesizes a fallback from the
+    // legacy Profile when StudentProfile does not exist. That fallback contains
+    // null-valued identity keys and must not be treated as canonical here,
+    // otherwise those nulls erase values that still live only in formResponses.
+    // Pass only the real segmented StudentProfile so field-level precedence is:
+    // explicit canonical value -> read-only legacy fallback.
+    const canonicalProfile = domainSnapshot?.studentProfile
+      ? {
+          identificationData: domainSnapshot.studentProfile.identificationData,
+          preferenceData: domainSnapshot.studentProfile.preferenceData,
+        }
+      : null;
+
+    const formResponses = buildStudentAdministrativeFormResponsesReadModel({
+      legacy: aluno.intakeForm?.formResponses,
+      profile: canonicalProfile,
+      financial,
+      legacyInstagramHandle: aluno.user?.profile?.instagramHandle,
+    });
+    const enrichedAluno = {
+      ...aluno,
+      intakeForm: {
+        ...(aluno.intakeForm ?? {}),
+        formResponses,
+      },
+    };
+
+    return sanitizeAdministrativeAlunoPayload(enrichedAluno, aluno.parq);
   },
 
   async getAdministrativeSummary(contractId: string, alunoId: string) {

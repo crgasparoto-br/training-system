@@ -1,0 +1,15 @@
+Issue 422 internal interface refreeze verification
+material_head_sha=b678c9a200fb63eb13675ea7c87699e90f3d18fb
+mode=design-interface/internal-verification
+route=/alunos/new and equivalent edit flow
+
+Exact-head component evidence from Validate PR run 34171974791:
+- apps/web/src/pages/AlunoForm.registration-controls.test.tsx executed 2 tests successfully.
+- The component test asserts the controlled marital-status and social-network selects, disabled-until-selected social account input, responsive grid classes grid-cols-1/md:grid-cols-2, and the Outra emergency-relationship interaction.
+- The legacy edit fixture asserts preservation of an unknown marital-status value, Instagram fallback from an empty canonical network plus legacy account, and preservation of a custom emergency relationship loaded after the screen mounts.
+- apps/web/src/services/student-emergency-relationship-adapter.test.ts executed 2 tests successfully on the same SHA.
+- apps/web/src/utils/studentPersonalInfo.test.ts executed 6 tests successfully on the same SHA.
+
+The post-freeze adapter change installs the relationship controls after asynchronous form loading using MutationObserver; the final follow-up only added an explicit cleanup function type. Type-check, lint, tests and build all passed on the exact material SHA.
+
+Limitation: the exact route was not exercised in a dedicated real-browser desktop/mobile visual session in this connector-only remediation. The current evidence proves component behavior and responsive class contracts, not screenshot-level visual composition.

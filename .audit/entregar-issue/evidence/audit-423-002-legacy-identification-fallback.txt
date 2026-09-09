@@ -1,0 +1,16 @@
+Independent-audit finding A-423-002 closure evidence
+rejection_id=audit-rejection:423-legacy-identification-fallback
+material_head_sha=5219ff792e66f6282959bc87493e96c1d10b47a6
+
+Literal case:
+- No canonical StudentProfile exists.
+- Legacy AlunoIntakeForm.formResponses.identification contains CPF, RG, an unknown civil-status value, address, emergency relationship and legacy social data.
+- The administrative boundary must preserve those legacy values instead of allowing a synthetic generic-profile null fallback to overwrite them.
+
+Observed on final code/test:
+- getAdministrativeAluno now loads loadAlunoDomainSnapshot and constructs canonicalProfile only when domainSnapshot.studentProfile exists.
+- The integrated regression test preserves legacy CPF 13951354879, RG 12345678X, civil status "Separado judicialmente", address, emergency relationship and legacy social fallback when StudentProfile is null.
+- Sibling case: with an actual StudentProfile, explicit canonical cpf:null still wins as an explicit canonical value while legacy RG/address/emergency siblings remain fallback and canonical social/preference values win.
+- Validate PR run 34180192051 (#7581) succeeded on this exact material SHA and includes PASS for student-parq-boundary.service.test.ts.
+
+Status: passed.
