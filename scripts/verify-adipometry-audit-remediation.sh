@@ -47,10 +47,14 @@ pnpm --filter @corrida/utils build
 
 # The tsx/Node process for this historical HTTP compatibility probe has shown
 # rare runner-level SIGSEGVs (exit 139) while the exact same SHA passes on a
-# sibling GitHub Actions runner. Retry only that transient signal once; any
-# functional failure (for example exit 1) remains fail-fast and unchanged.
+# sibling GitHub Actions runner. Run the local binary directly so Bash receives
+# the child status instead of pnpm normalizing it to exit 1, then retry only the
+# transient SIGSEGV once. Functional failures remain fail-fast and unchanged.
 for attempt in 1 2; do
-  if pnpm --filter @corrida/api exec tsx scripts/verify-pr359-administrative-adpt-http.ts; then
+  if (
+    cd "$ROOT_DIR/apps/api"
+    ./node_modules/.bin/tsx scripts/verify-pr359-administrative-adpt-http.ts
+  ); then
     break
   else
     status=$?
