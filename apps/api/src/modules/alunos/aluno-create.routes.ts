@@ -7,7 +7,7 @@ import { FixedScheduleError } from '../agenda/fixed-schedule.service.js';
 import { alunoService } from './aluno.service.js';
 import { StudentIdentityLockTimeoutError } from './student-identity.service.js';
 
-const router = Router();
+const router: Router = Router();
 
 const isDuplicateEmailError = (error: any) => {
   if (error?.message === 'Email já está registrado' || error?.message === 'Email jÃ¡ estÃ¡ registrado') {
