@@ -11,19 +11,18 @@ describe('movementType dos exercícios padrão', () => {
     expect(alternating.map((item) => item.name)).toContain('Mobilidade de Quadril Alternado');
   });
 
-  it('não converte B ou - para outro tipo de movimento', () => {
+  it('mantém código não suportado do catálogo ausente em vez de coerci-lo', () => {
     const rawRows = JSON.parse(
       fs.readFileSync(path.resolve(process.cwd(), 'src/scripts/exercises-data.json'), 'utf8')
-    ) as Array<{ movementType?: string }>;
-    const unsupportedCodes = rawRows
-      .map((row) => row.movementType?.trim().toUpperCase())
-      .filter((value) => value === 'B' || value === '-');
+    ) as Array<{ name?: string; movementType?: string }>;
+    const bicycleSource = rawRows.find((row) => row.name === 'Bicicleta');
 
-    expect(unsupportedCodes.length).toBeGreaterThan(0);
+    expect(bicycleSource?.movementType).toBe('-');
 
     const defaults = loadProductExerciseDefaults();
-    expect(
-      defaults.some((item) => ['B', '-'].includes(String(item.movementType ?? '')))
-    ).toBe(false);
+    const bicycleDefault = defaults.find((item) => item.name === 'Bicicleta');
+
+    expect(bicycleDefault).toBeDefined();
+    expect(bicycleDefault?.movementType).toBeUndefined();
   });
 });
