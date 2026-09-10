@@ -1,0 +1,11 @@
+Repository: crgasparoto-br/training-system
+PR: #430
+Material head: 761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f
+Base: b2952652539998708e3ae5fc74cadd7fa68e98fe
+Merge preview: 91872790901f21ce21ecd37b3f563e43a46f36ca
+Workflow: Validate PR
+Run: 34493868123
+Conclusion: success
+Observed exact-head artifacts: test-output-34493868123, type-check-output-34493868123, migration-output-34493868123, docs-check-output-34493868123.
+Type check: apps/web tsc --noEmit Done; apps/api tsc --noEmit Done.
+Full test artifact: web 141 files / 560 tests passed; API suites completed, including PASS src/modules/contracts/contract-defaults.movement-type.test.ts.

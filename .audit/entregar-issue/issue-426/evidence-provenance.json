@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f",
+  "base_sha": "b2952652539998708e3ae5fc74cadd7fa68e98fe",
+  "evidence": [
+    {
+      "evidence_id": "EV-CI",
+      "kind": "behavioral",
+      "path": "evidence/ci-exact-head.txt",
+      "sha256": "c3b09d7892f3bccdc1a30c1137419d68e981d09bff57b005d6c9867f143b1e01",
+      "subject_sha": "761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f",
+      "freshness_policy": "exact-material-head",
+      "producer": "GitHub Validate PR run 34493868123 and exact-head diff inspection",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EV-MOVEMENT",
+      "kind": "structural",
+      "path": "evidence/movement-domain.txt",
+      "sha256": "eb6dedd6b4af68a8ba1f8289d49a66a4c7b14d2d0d74feb513e4bea5438b08d9",
+      "subject_sha": "761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f",
+      "freshness_policy": "exact-material-head",
+      "producer": "GitHub Validate PR run 34493868123 and exact-head diff inspection",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EV-DEFAULTS",
+      "kind": "behavioral",
+      "path": "evidence/defaults-preservation.txt",
+      "sha256": "5b78cacac6eb6b64073d6bb6c4bd875f9bf1ccaa9c4700fc1e005081ca7aaf10",
+      "subject_sha": "761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f",
+      "freshness_policy": "exact-material-head",
+      "producer": "GitHub Validate PR run 34493868123 and exact-head diff inspection",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EV-MIGRATION",
+      "kind": "structural",
+      "path": "evidence/migration.txt",
+      "sha256": "ae35bee0e97e8eeb6d32f3bd11984cdd37b77465545961c711a6bec0c21677e7",
+      "subject_sha": "761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f",
+      "freshness_policy": "exact-material-head",
+      "producer": "GitHub Validate PR run 34493868123 and exact-head diff inspection",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EV-DOCS",
+      "kind": "documentation",
+      "path": "evidence/documentation.txt",
+      "sha256": "e51f6d92fd67dd236f04a538fe52b0a582e0eb266f55468687b498ee6a5888ac",
+      "subject_sha": "761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f",
+      "freshness_policy": "exact-material-head",
+      "producer": "GitHub Validate PR run 34493868123 and exact-head diff inspection",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EV-TESTS",
+      "kind": "behavioral",
+      "path": "evidence/ci-exact-head.txt",
+      "sha256": "c3b09d7892f3bccdc1a30c1137419d68e981d09bff57b005d6c9867f143b1e01",
+      "subject_sha": "761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f",
+      "freshness_policy": "exact-material-head",
+      "producer": "GitHub Validate PR run 34493868123 and exact-head diff inspection",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EV-COUNTS",
+      "kind": "quantitative",
+      "path": "evidence/ci-exact-head.txt",
+      "sha256": "c3b09d7892f3bccdc1a30c1137419d68e981d09bff57b005d6c9867f143b1e01",
+      "subject_sha": "761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f",
+      "freshness_policy": "exact-material-head",
+      "producer": "Validate PR 34493868123 exact-head test counts",
+      "status": "passed"
+    }
+  ]
+}

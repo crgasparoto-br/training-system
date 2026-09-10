@@ -1,0 +1,1 @@
+Migration apps/api/prisma/migrations/20260910150500_add_alternating_movement_type/migration.sql contains only: ALTER TYPE "MovementType" ADD VALUE IF NOT EXISTS 'A';. It extends the enum without UPDATE/backfill rewriting historical U/I/O records. Validate PR run 34493868123 passed migration/rerun/invariant checks on material head 761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f.

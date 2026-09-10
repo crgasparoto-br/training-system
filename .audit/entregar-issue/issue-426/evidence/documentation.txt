@@ -1,0 +1,1 @@
+IMPORTACAO_EXERCICIOS.md now documents movementType as U | A | I | O and A = Alternado; docs/architecture/contract-defaults.md states A = Alternado and that B and - are unsupported rather than silently reinterpreted. Documentation checks passed in Validate PR run 34493868123.
