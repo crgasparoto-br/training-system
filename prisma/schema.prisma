@@ -2228,6 +2228,7 @@ enum MovementType {
   U
   I
   O
+  A
 }
 
 enum CountingType {

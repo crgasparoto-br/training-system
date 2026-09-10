@@ -165,7 +165,7 @@ Cada exercício possui os seguintes campos:
   "name": "Nome do Exercício",
   "category": "MOBILIDADE | RESISTIDO | CICLICO",
   "loadType": "H | C | E | A | P | O",
-  "movementType": "U | I | O",
+  "movementType": "U | A | I | O",
   "countingType": "I | T | R",
   "notes": "Observações opcionais",
   "muscleGroup": "Grupo muscular principal"
@@ -184,8 +184,9 @@ Cada exercício possui os seguintes campos:
 ### Tipos de Movimento (MovementType)
 
 - **U** - Unilateral
-- **I** - Isométrico
-- **O** - Outros
+- **A** - Alternado
+- **I** - Isolado
+- **O** - Outros (Bilateral)
 
 ### Tipos de Contagem (CountingType)
 
