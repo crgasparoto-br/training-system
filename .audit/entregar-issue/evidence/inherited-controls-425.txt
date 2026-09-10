@@ -1,0 +1,21 @@
+Issue #425 inherited-control exact-head revalidation
+subject_sha=a6614b73240b539ab21ab28414acd8c8b9548809
+base_sha=887c024bc4f01a747aeefaba8b1baa0aedd42324
+merge_preview_sha=93c27d7ec372326e5b5d828c13da41ad287c1065
+pr=428
+workflow_run=34410619968
+
+Material paths added or changed by this delivery after the original freeze:
+- apps/api/src/modules/alunos/aluno-create.routes.ts
+- apps/api/src/modules/alunos/aluno.service.ts
+- apps/api/src/modules/alunos/index.ts
+- apps/api/src/modules/alunos/student-financial-contract.service.ts
+- apps/api/src/modules/alunos/student-interest-service.service.ts
+- apps/api/tests/aluno-assessment-boundary.service.test.ts
+- apps/api/tests/aluno-create-transaction-boundary.test.ts
+- apps/api/tests/aluno-create.routes.test.ts
+- apps/api/tests/aluno-service-interest.integration.test.ts
+- apps/api/tests/student-interest-service.service.test.ts
+- scripts/verify-adipometry-audit-remediation.sh
+
+The inherited active controls preserved from earlier governed deliveries protect historical structural/week-cardinality/date-calendar/handoff surfaces. Issue #425 remains confined to student creation/service validation, its regression tests, and the CI harness fix required to preserve SIGSEGV status for the inherited ADPT probe. Validate PR run 34410619968 completed success on this exact material SHA, including ADPT controls, type-check, lint, tests, build, architecture, access-catalog and documentation checks. This evidence is used only to revalidate cumulative lineage/non-overlap; it is not reused as proof of Issue #425 functional requirements.

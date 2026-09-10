@@ -3,14 +3,12 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:8063b8c9-4809-4309-a961-388da3895cfb",
-    "audit_report_sha256": "22d3eb3ddcc0ce36f3ad03c403d2c885dc47c46491a8c3cb12ee55c2c70cc214",
-    "finding_ids": [
-      "A-001"
-    ]
+    "rejection_id": "audit-rejection:32d071da-c89f-495d-b122-8288b6b40bd9",
+    "audit_report_sha256": "b39f63004b9357345b6a73032a0c7b19c9a36f2627e2bbe3f8fd41d3eb3494be",
+    "finding_ids": ["A-001", "A-002"]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The rejection is a target-specific stale-handoff condition after later material writes. The installed delivery workflow already has a universal post-write refreeze and terminal-handoff guard; this cycle must execute that existing control rather than add issue-specific product logic."
+    "reason": "Both findings are target-specific remediation of a sibling route and its evidence package. The installed delivery contracts already contain reusable public-boundary, risk-saturation, tenant-isolation and reference-liveness gates; this cycle applies those existing generic controls rather than adding issue-specific skill rules."
   }
 }

@@ -1,8 +1,7 @@
 ﻿import { PrismaClient, type Prisma } from '@prisma/client';
 import bcryptjs from 'bcryptjs';
 import crypto from 'crypto';
-import { getServiceForContract } from '../services/service.service.js';
-import { assertStudentInterestServiceSelectable } from './aluno.service-selection.js';
+import { loadStudentInterestService } from './student-interest-service.service.js';
 import { legacyDirectActiveStudentCreationFields } from './student-lifecycle.service.js';
 import { upsertStudentIdentity } from './student-identity.service.js';
 import {
@@ -168,7 +167,7 @@ export const alunoService = {
     });
 
     if (existingUser) {
-      throw new Error('Email jÃ¡ estÃ¡ registrado');
+      throw new Error('Email já está registrado');
     }
 
     const tempPassword = `temp-${crypto.randomBytes(4).toString('hex')}`;
@@ -182,9 +181,11 @@ export const alunoService = {
       });
 
       if (data.serviceId) {
-        const service = await getServiceForContract(professor.contractId, data.serviceId);
-        assertStudentInterestServiceSelectable(service);
-
+        const service = await loadStudentInterestService(
+          tx,
+          professor.contractId,
+          data.serviceId
+        );
         serviceId = service.id;
       }
 
@@ -669,9 +670,12 @@ export const alunoService = {
         if (!data.serviceId) {
           alunoData.serviceId = null as never;
         } else {
-          const service = await getServiceForContract(alunoContractId, data.serviceId);
-          assertStudentInterestServiceSelectable(service, currentAluno.serviceId);
-
+          const service = await loadStudentInterestService(
+            tx,
+            alunoContractId,
+            data.serviceId,
+            currentAluno.serviceId
+          );
           alunoData.serviceId = service.id as never;
         }
       }

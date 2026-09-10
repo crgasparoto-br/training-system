@@ -1,0 +1,13 @@
+Repository: crgasparoto-br/training-system
+Issue: 425
+PR: 428
+Workflow: Validate PR
+Run ID: 34410619968
+Material head SHA: a6614b73240b539ab21ab28414acd8c8b9548809
+Base SHA: 887c024bc4f01a747aeefaba8b1baa0aedd42324
+Merge preview SHA: 93c27d7ec372326e5b5d828c13da41ad287c1065
+Job: Validate repository
+Final job status: completed
+Final job conclusion: success
+Observed successful stages: Generate Prisma Client; migrations and persistence invariants; Verify ADPT audit remediation controls; Type check; Lint; Test; Build; browser settings validation; Architecture checks; Access catalog checks; Documentation checks.
+Regression suites observed PASS in the exact-head test artifact: tests/aluno-assessment-boundary.service.test.ts; tests/aluno-create-transaction-boundary.test.ts; tests/aluno-create.routes.test.ts; tests/aluno-service-interest.integration.test.ts; tests/student-interest-service.service.test.ts.

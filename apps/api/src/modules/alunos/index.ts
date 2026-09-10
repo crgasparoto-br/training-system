@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import legacyAlunoRoutes from './aluno.routes.js';
+import alunoCreateRoutes from './aluno-create.routes.js';
 import segmentedAlunoRoutes from './student-domain.routes.js';
 import studentFinancialContractRoutes from './student-financial-contract.routes.js';
 import studentContractTemplateStatusRoutes from './student-contract-template-status.routes.js';
@@ -8,6 +9,7 @@ import studentParqBoundaryRoutes from './student-parq-boundary.routes.js';
 const alunoRoutes: Router = Router();
 
 alunoRoutes.use(studentParqBoundaryRoutes);
+alunoRoutes.use(alunoCreateRoutes);
 alunoRoutes.use(studentFinancialContractRoutes);
 alunoRoutes.use(studentContractTemplateStatusRoutes);
 alunoRoutes.use(segmentedAlunoRoutes);

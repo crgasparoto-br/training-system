@@ -31,6 +31,10 @@ type AssessmentRow = {
 type ExerciseRow = {
   contractId: string;
   name: string;
+  videoUrl?: string | null;
+  loadType?: string | null;
+  movementType?: string | null;
+  countingType?: string | null;
   category?: string | null;
   muscleGroup?: string | null;
   notes?: string | null;
@@ -58,7 +62,7 @@ function createFakeDb(initial?: {
   const exerciseFindMany = jest.fn(async (args: { where: { contractId: string } }) =>
     exercises
       .filter((item) => item.contractId === args.where.contractId)
-      .map(({ name }) => ({ name }))
+      .map(({ contractId: _contractId, ...item }) => item)
   );
   const trainingCreateMany = jest.fn(async (args: { data: TrainingRow[] }) => {
     training.push(...args.data);
@@ -74,7 +78,7 @@ function createFakeDb(initial?: {
   });
   const exerciseUpdateMany = jest.fn(async (args: {
     where: { contractId: string; name: string };
-    data: { name: string };
+    data: Partial<Omit<ExerciseRow, 'contractId'>>;
   }) => {
     let count = 0;
     for (const exercise of exercises) {
@@ -82,7 +86,7 @@ function createFakeDb(initial?: {
         exercise.contractId === args.where.contractId &&
         exercise.name === args.where.name
       ) {
-        exercise.name = args.data.name;
+        Object.assign(exercise, args.data);
         count++;
       }
     }
@@ -150,7 +154,16 @@ describe('installContractDefaults', () => {
     });
     expect(fake.reads.exerciseFindMany).toHaveBeenCalledWith({
       where: { contractId },
-      select: { name: true },
+      select: {
+        name: true,
+        videoUrl: true,
+        loadType: true,
+        movementType: true,
+        countingType: true,
+        category: true,
+        muscleGroup: true,
+        notes: true,
+      },
     });
   });
 
@@ -264,6 +277,72 @@ describe('installContractDefaults', () => {
     expect(fake.state.training.some((item) => item.code === 'CUSTOM')).toBe(true);
     expect(fake.state.assessments.some((item) => item.code === 'custom-assessment')).toBe(true);
     expect(fake.state.exercises.some((item) => item.name === 'Exercício customizado')).toBe(true);
+  });
+
+  it('preenche somente campos vazios de um exercício padrão já existente', async () => {
+    const canonical = exerciseDefaults.find(
+      (item) =>
+        item.name === 'Abdominal Bicicleta' &&
+        item.videoUrl &&
+        item.loadType &&
+        item.movementType &&
+        item.countingType
+    );
+    expect(canonical).toBeDefined();
+
+    const customVideoUrl = 'https://www.youtube.com/watch?v=tenant-custom';
+    const customMuscleGroup = 'Grupo customizado';
+    const fake = createFakeDb({
+      exercises: [
+        {
+          contractId,
+          name: canonical!.name,
+          videoUrl: customVideoUrl,
+          loadType: null,
+          movementType: null,
+          countingType: null,
+          category: '',
+          muscleGroup: customMuscleGroup,
+          notes: null,
+        },
+      ],
+    });
+
+    await installContractDefaults(contractId, fake.db);
+
+    const stored = fake.state.exercises.find((item) => item.name === canonical!.name);
+    expect(stored).toMatchObject({
+      videoUrl: customVideoUrl,
+      loadType: canonical!.loadType,
+      movementType: canonical!.movementType,
+      countingType: canonical!.countingType,
+      category: canonical!.category,
+      muscleGroup: customMuscleGroup,
+    });
+    expect(fake.writes.exerciseUpdateMany).toHaveBeenCalledWith({
+      where: { contractId, name: canonical!.name },
+      data: expect.objectContaining({
+        loadType: canonical!.loadType,
+        movementType: canonical!.movementType,
+        countingType: canonical!.countingType,
+        category: canonical!.category,
+      }),
+    });
+    expect(fake.writes.exerciseUpdateMany.mock.calls.at(-1)?.[0].data).not.toHaveProperty('videoUrl');
+    expect(fake.writes.exerciseUpdateMany.mock.calls.at(-1)?.[0].data).not.toHaveProperty('muscleGroup');
+  });
+
+  it('completa lacunas de nomes duplicados sem sobrescrever o primeiro valor preenchido', () => {
+    const pulley = exerciseDefaults.find((item) => item.name === 'Pulley com pegada Supinada');
+    expect(pulley).toMatchObject({
+      videoUrl: 'https://www.youtube.com/shorts/b5RkrNs_EGM',
+      loadType: 'O',
+      movementType: 'O',
+      countingType: 'R',
+    });
+
+    const kettlebell = exerciseDefaults.find((item) => item.name === 'Kettlebell Swing');
+    expect(kettlebell?.videoUrl).toBe('https://www.youtube.com/shorts/vSCbZwkoYcY');
   });
 
   it('corrige exercício padrão já persistido com mojibake sem criar duplicata', async () => {
