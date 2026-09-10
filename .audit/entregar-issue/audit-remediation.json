@@ -2,31 +2,30 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
-  "source": {
-    "rejection_id": "audit-rejection:8063b8c9-4809-4309-a961-388da3895cfb",
-    "audit_report_sha256": "22d3eb3ddcc0ce36f3ad03c403d2c885dc47c46491a8c3cb12ee55c2c70cc214",
-    "audited_head_sha": "4a45517bcaa557ffd77f3d2aadac004420694917"
-  },
-  "candidate_head_sha": "4a45517bcaa557ffd77f3d2aadac004420694917",
+  "status": "closed",
   "remediation_mode": "targeted-remediation",
+  "candidate_head_sha": "c04af2bc7915dda11750f002d37ee39167d777d2",
+  "source": {
+    "rejection_id": "audit-rejection:32d071da-c89f-495d-b122-8288b6b40bd9",
+    "audited_head_sha": "8d016284e314e30a409e08d4a881346a091c2e93",
+    "audit_report_sha256": "b39f63004b9357345b6a73032a0c7b19c9a36f2627e2bbe3f8fd41d3eb3494be"
+  },
   "items": [
     {
       "source_kind": "finding",
       "source_id": "A-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "post-write-refreeze",
-      "changed_files": [],
-      "evidence": [
-        ".audit/entregar-issue/evidence/post-write-refreeze-423.txt",
-        ".audit/entregar-issue/handoff-ready.json"
-      ],
-      "validations": [
-        "Validate PR run 34286937065 completed successfully on exact material head 4a45517bcaa557ffd77f3d2aadac004420694917.",
-        "The stale handoff is replaced by a direct result-only child whose parent is the exact material head.",
-        "No functional code change is introduced by this remediation; only governed delivery artifacts are published."
-      ]
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "validations": ["selected-contract P2002 409", "identity-lock 409", "P2028/P0001 generic 5xx with correlationId", "public PostgreSQL P0001 rollback"]
+    },
+    {
+      "source_kind": "finding",
+      "source_id": "A-002",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "validations": ["public-boundary saturated", "tenant-isolation saturated", "reference-liveness saturated", "critical matrix and inherited controls validated"]
     }
-  ],
-  "status": "closed"
+  ]
 }

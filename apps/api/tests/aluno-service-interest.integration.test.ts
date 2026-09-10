@@ -145,6 +145,56 @@ describeDatabase('student service interest with PostgreSQL', () => {
     expect(result.aluno.serviceId).toBe(service.id);
   });
 
+  it('rolls back user and aluno when canonical identity enrichment fails after Aluno creation', async () => {
+    const professor = await createProfessor(contractA, 'rollback');
+    const service = await createService(contractA, 'rollback');
+    const sharedCpf = '139.513.548-79';
+
+    await alunoService.create({
+      name: 'Aluno CPF Original',
+      email: `${emailPrefix}cpf-original@example.com`,
+      professorId: professor.id,
+      serviceId: service.id,
+      schedulePlan: 'free',
+      age: 31,
+      intakeForm: {
+        formResponses: {
+          identification: { cpf: sharedCpf },
+          financial: {},
+          preferences: {},
+          ahaResponses: {},
+        },
+      },
+    });
+
+    const failedEmail = `${emailPrefix}cpf-rollback@example.com`;
+    await expect(
+      alunoService.create({
+        name: 'Aluno CPF Duplicado',
+        email: failedEmail,
+        professorId: professor.id,
+        serviceId: service.id,
+        schedulePlan: 'free',
+        age: 32,
+        intakeForm: {
+          formResponses: {
+            identification: { cpf: sharedCpf },
+            financial: {},
+            preferences: {},
+            ahaResponses: {},
+          },
+        },
+      })
+    ).rejects.toBeDefined();
+
+    await expect(
+      prisma.user.findUnique({ where: { email: failedEmail } })
+    ).resolves.toBeNull();
+    await expect(
+      prisma.aluno.findFirst({ where: { user: { email: failedEmail } } })
+    ).resolves.toBeNull();
+  });
+
   it('keeps an already linked migrated service after it becomes inactive', async () => {
     const professor = await createProfessor(contractA, 'inactive-current');
     const service = await createService(contractA, 'migrated-current', {
@@ -218,7 +268,7 @@ describeDatabase('student service interest with PostgreSQL', () => {
 
     await expect(
       alunoService.update(aluno.id, { serviceId: serviceB.id, age: 41 })
-    ).rejects.toThrow('Serviço não encontrado');
+    ).rejects.toThrow('Serviço selecionado não pertence ao contrato');
 
     await expect(
       prisma.aluno.findUniqueOrThrow({ where: { id: aluno.id } })

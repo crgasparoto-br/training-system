@@ -1,0 +1,65 @@
+# Produção: P2028 ao salvar novo aluno após release da PR #424
+
+## Objetivo
+Corrigir a regressão em produção que impede salvar um novo aluno pela rota `/alunos/new`, eliminando o encerramento prematuro da transação Prisma durante a criação e preservando as fronteiras canônicas/atômicas do cadastro administrativo.
+
+## Escopo
+- Corrigir a fronteira transacional de `alunoService.create` responsável pelo `P2028` observado em produção.
+- Garantir que consultas/mutações de banco necessárias à criação e à validação do serviço usem o `Prisma.TransactionClient` da operação enquanto a transação estiver aberta.
+- Não chamar o catálogo de serviços por um `PrismaClient` independente dentro da transação de criação; reutilizar o padrão transaction-scoped já existente em `student-financial-contract.service.ts` ou tornar a função compartilhada explicitamente compatível com `tx`.
+- Confirmar que o `formResponses` enviado pelo frontend, inclusive campos opcionais vazios e contato de emergência, não provoca falha de persistência.
+- Preservar criação de `StudentOnboardingProcess`, writers canônicos e rollback integral.
+- Melhorar a classificação de erros da rota de criação para que erros de negócio conhecidos não sejam transformados em 500 genérico.
+- Adicionar regressão que falhe se o caminho voltar a depender de cliente Prisma externo enquanto uma transação de criação estiver aberta.
+
+## Invariantes
+- A criação administrativa conclui todas as escritas persistentes da operação em uma única conclusão transacional: sucesso integral ou rollback integral.
+- A validação do serviço ocorre sem invalidar/abandonar a transação que persiste `User`, `Aluno`, onboarding e identidade.
+- O cadastro funciona com campos opcionais vazios e com identificação/financeiro/preferências presentes simultaneamente.
+- Não executar consulta ou mutação necessária ao cadastro por um `PrismaClient` independente enquanto a transação interativa da mesma operação estiver aberta.
+- Não deixar `User`, `Aluno`, `StudentOnboardingProcess`, `StudentProfile`, `StudentFinancialProfile` ou vínculo contratual parcial após falha.
+- Não reativar escrita em `AlunoIntakeForm.formResponses` nem relaxar seu bloqueio de legado.
+- Escritas de identidade continuam passando por `upsertStudentIdentity`.
+- Regras de elegibilidade/status de serviço continuam usando `assertStudentInterestServiceSelectable` e as fronteiras do domínio existentes.
+- Quando houver contrato selecionado, regras de vínculo/ativação continuam no domínio de `StudentContract` e na operação atômica documentada.
+- Para validação de serviço dentro da operação atômica, reutilizar o padrão transaction-scoped existente em `student-financial-contract.service.ts` em vez de criar uma segunda regra de validação.
+- Ownership de identificação/preferências/financeiro/legado permanece definido em `docs/architecture/student-lifecycle-data-ownership.md`; esta issue não cria uma fonte paralela.
+- O caminho principal de criação não pode depender da disponibilidade de uma segunda conexão Prisma apenas para validar o serviço enquanto a primeira conexão está retida pela transação.
+- Não aumentar apenas o timeout da transação ou o tamanho do pool e considerar a regressão resolvida.
+- Não executar `upsertStudentIdentity` depois do commit para escapar do timeout.
+- Não reativar persistência em `AlunoIntakeForm.formResponses`.
+- Não duplicar no frontend ou em novo helper regras já pertencentes ao catálogo/`StudentContract`.
+
+## Tratamento de erros
+- `P2028` e outras falhas transacionais inesperadas são erro interno: retornar mensagem segura ao usuário e registrar código, etapa e contexto técnico no backend.
+- E-mail de login já existente deve resultar em conflito de negócio (4xx) mesmo se a duplicidade ocorrer por corrida/constraint depois da pré-validação.
+- Serviço inexistente, fora do contrato ou não elegível deve resultar em erro de negócio 4xx útil; não converter em 500 genérico.
+- Falha de concorrência da identidade deve usar a classificação já adotada pelo domínio quando aplicável, sem expor detalhes de advisory lock/Prisma.
+
+## Cenários obrigatórios
+- Novo aluno com campos mínimos obrigatórios e serviço selecionado.
+- Novo aluno com endereço completo e contato de emergência.
+- Novo aluno com relação controlada de contato de emergência, como `Cônjuge`.
+- Novo aluno com campos opcionais vazios presentes em `formResponses`.
+- Novo aluno com contrato selecionado, exercitando a operação atômica com `StudentContract`.
+- Falha após criação de `Aluno` e antes da conclusão da identidade: rollback integral.
+- Validação de serviço dentro da transação sem uso de Prisma client externo à operação.
+- E-mail já existente/constraint concorrente: erro 4xx útil, sem cadastro parcial.
+- Serviço inválido ou não elegível: erro 4xx útil, sem cadastro parcial.
+- Concorrência/indisponibilidade de lock de identidade: resposta controlada e sem registro parcial.
+
+## Critérios de aceite
+- O fluxo `/alunos/new` salva um novo aluno válido em produção sem `P2028`.
+- O payload completo gerado pela tela possui teste de regressão no backend ou integração.
+- A validação de `serviceId` executada durante a criação usa o `TransactionClient` da operação e não um `PrismaClient` independente.
+- Nenhum bootstrap/mutação de catálogo ocorre fora da transação como efeito colateral da validação do serviço durante o cadastro.
+- Endereço e contato de emergência persistem nas fontes canônicas e reaparecem ao reabrir o aluno.
+- Campos opcionais vazios não impedem a criação.
+- Relação `Cônjuge` e demais opções controladas não provocam erro de persistência.
+- Criação com contrato continua atômica e reutiliza o domínio `StudentContract`.
+- Em falha transacional não ficam `User`, `Aluno`, `StudentOnboardingProcess`, `StudentProfile`, `StudentFinancialProfile` ou vínculo de contrato parciais.
+- E-mail duplicado e demais erros de negócio conhecidos retornam status 4xx adequado e mensagem compreensível ao usuário.
+- Exceções inesperadas continuam registradas no backend com contexto técnico suficiente para correlação.
+- Nenhuma escrita em `AlunoIntakeForm.formResponses` é reintroduzida.
+- A correção não depende apenas de aumento de timeout/pool.
+- Testes, type-check e build relevantes passam na branch de correção.

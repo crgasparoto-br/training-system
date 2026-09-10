@@ -50,8 +50,34 @@ jest.mock('../src/modules/alunos/student-financial-contract.service', () => ({
   },
 }));
 
+jest.mock('../src/modules/alunos/student-identity.service', () => ({
+  StudentIdentityLockTimeoutError: class StudentIdentityLockTimeoutError extends Error {
+    constructor(public readonly contractId: string) {
+      super('Muitas operações simultâneas para este contrato. Tente novamente em instantes.');
+      this.name = 'StudentIdentityLockTimeoutError';
+    }
+  },
+}));
+
 const router = require('../src/modules/alunos/student-financial-contract.routes').default;
 const { studentFinancialContractService } = require('../src/modules/alunos/student-financial-contract.service');
+const { StudentIdentityLockTimeoutError } = require('../src/modules/alunos/student-identity.service');
+
+const validCreatePayload = {
+  profile: {
+    name: 'Aluno Teste',
+    email: 'aluno@example.com',
+    serviceId: 'interest-service',
+    schedulePlan: 'free',
+    age: 30,
+  },
+  contract: {
+    contractId: 'contract-1',
+    serviceId: 'interest-service',
+    startDate: '2026-07-01',
+    endDate: '2027-07-01',
+  },
+};
 
 describe('student financial contract routes', () => {
   const app = express();
@@ -89,21 +115,7 @@ describe('student financial contract routes', () => {
       studentContract: { id: 'link-1' },
     });
 
-    const response = await request(app).post('/alunos/financial-contract').send({
-      profile: {
-        name: 'Aluno Teste',
-        email: 'aluno@example.com',
-        serviceId: 'interest-service',
-        schedulePlan: 'free',
-        age: 30,
-      },
-      contract: {
-        contractId: 'contract-1',
-        serviceId: 'interest-service',
-        startDate: '2026-07-01',
-        endDate: '2027-07-01',
-      },
-    });
+    const response = await request(app).post('/alunos/financial-contract').send(validCreatePayload);
 
     expect(response.status).toBe(201);
     expect(studentFinancialContractService.createAlunoWithContract).toHaveBeenCalledWith(
@@ -115,6 +127,105 @@ describe('student financial contract routes', () => {
       }),
       { professorId: 'professor-1', companyContractId: 'company-1' }
     );
+  });
+
+  it('classifies an invalid interest service as a business error on atomic creation', async () => {
+    studentFinancialContractService.createAlunoWithContract.mockRejectedValue(
+      new Error('Serviço selecionado não pertence ao contrato')
+    );
+
+    const response = await request(app).post('/alunos/financial-contract').send(validCreatePayload);
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Serviço selecionado não pertence ao contrato');
+  });
+
+  it('maps a concurrent email constraint to a static 409 without leaking database details', async () => {
+    studentFinancialContractService.createAlunoWithContract.mockRejectedValue({
+      name: 'PrismaClientKnownRequestError',
+      code: 'P2002',
+      meta: { target: ['email'] },
+      message: 'Unique constraint fingerprint=private-email-race',
+    });
+
+    const response = await request(app).post('/alunos/financial-contract').send(validCreatePayload);
+
+    expect(response.status).toBe(409);
+    expect(response.body.error).toBe('Email já está registrado');
+    expect(JSON.stringify(response.body)).not.toContain('P2002');
+    expect(JSON.stringify(response.body)).not.toContain('fingerprint');
+    expect(JSON.stringify(response.body)).not.toContain('Unique constraint');
+  });
+
+  it('maps identity lock contention to the controlled 409 domain response', async () => {
+    studentFinancialContractService.createAlunoWithContract.mockRejectedValue(
+      new StudentIdentityLockTimeoutError('company-1')
+    );
+
+    const response = await request(app).post('/alunos/financial-contract').send(validCreatePayload);
+
+    expect(response.status).toBe(409);
+    expect(response.body.error).toBe(
+      'Muitas operações simultâneas para este contrato. Tente novamente em instantes.'
+    );
+    expect(JSON.stringify(response.body)).not.toContain('company-1');
+  });
+
+  it('keeps P2028 as a safe correlatable 5xx on atomic creation', async () => {
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    studentFinancialContractService.createAlunoWithContract.mockRejectedValue({
+      name: 'PrismaClientKnownRequestError',
+      code: 'P2028',
+      message: 'Transaction API error fingerprint=private idempotencyKey=secret amount=999.99',
+      stack: 'private stack',
+    });
+
+    const response = await request(app).post('/alunos/financial-contract').send(validCreatePayload);
+
+    expect(response.status).toBe(500);
+    expect(response.body.error).toBe('Erro ao criar aluno');
+    expect(response.body.details).toMatchObject({ code: 'ALUNO_CREATE_INTERNAL_ERROR' });
+    expect(typeof response.body.details.correlationId).toBe('string');
+    expect(JSON.stringify(response.body)).not.toContain('P2028');
+    expect(JSON.stringify(response.body)).not.toContain('Transaction API error');
+    expect(JSON.stringify(response.body)).not.toContain('fingerprint');
+    expect(JSON.stringify(response.body)).not.toContain('idempotencyKey');
+    expect(JSON.stringify(response.body)).not.toContain('999.99');
+    expect(consoleError).toHaveBeenCalledWith(
+      'Erro na operação atômica de criação de aluno e contrato:',
+      expect.objectContaining({
+        correlationId: response.body.details.correlationId,
+        stage: 'aluno.financial-contract.create',
+        errorCode: 'P2028',
+      })
+    );
+
+    consoleError.mockRestore();
+  });
+
+  it('PB-ERR-001 hides raw persistence markers and returns correlationId', async () => {
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    studentFinancialContractService.createAlunoWithContract.mockRejectedValue({
+      name: 'DatabaseError',
+      code: 'P0001',
+      message: 'fingerprint=pb-secret idempotencyKey=pb-key amount=1234.56',
+      stack: 'private sql stack',
+    });
+
+    const response = await request(app).post('/alunos/financial-contract').send(validCreatePayload);
+    const serialized = JSON.stringify(response.body);
+
+    expect(response.status).toBe(500);
+    expect(response.body.error).toBe('Erro ao criar aluno');
+    expect(response.body.details).toMatchObject({ code: 'ALUNO_CREATE_INTERNAL_ERROR' });
+    expect(typeof response.body.details.correlationId).toBe('string');
+    expect(serialized).not.toContain('P0001');
+    expect(serialized).not.toContain('fingerprint');
+    expect(serialized).not.toContain('idempotencyKey');
+    expect(serialized).not.toContain('1234.56');
+    expect(serialized).not.toContain('private sql stack');
+
+    consoleError.mockRestore();
   });
 
   it('updates profile and contract through one scoped service operation', async () => {

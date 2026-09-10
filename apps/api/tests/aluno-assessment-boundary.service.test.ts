@@ -2,6 +2,9 @@ const mockTx = {
   professor: {
     findUniqueOrThrow: jest.fn(),
   },
+  serviceOption: {
+    findFirst: jest.fn(),
+  },
   user: {
     create: jest.fn(),
   },
@@ -59,7 +62,6 @@ const mockPrisma = {
   $transaction: jest.fn(),
 };
 
-const mockGetServiceForContract = jest.fn();
 const mockHash = jest.fn();
 
 jest.mock('@prisma/client', () => ({
@@ -71,10 +73,6 @@ jest.mock('bcryptjs', () => ({
   default: {
     hash: (...args: unknown[]) => mockHash(...args),
   },
-}));
-
-jest.mock('../src/modules/services/service.service', () => ({
-  getServiceForContract: (...args: unknown[]) => mockGetServiceForContract(...args),
 }));
 
 const { alunoService } = require('../src/modules/alunos/aluno.service');
@@ -99,7 +97,7 @@ describe('alunoService assessment boundary', () => {
     mockPrisma.user.findUnique.mockResolvedValue(null);
     mockHash.mockResolvedValue('hashed-password');
     mockTx.professor.findUniqueOrThrow.mockResolvedValue({ contractId: 'contract-1' });
-    mockGetServiceForContract.mockResolvedValue({
+    mockTx.serviceOption.findFirst.mockResolvedValue({
       id: 'service-1',
       isActive: true,
       parentServiceId: null,
@@ -161,7 +159,7 @@ describe('alunoService assessment boundary', () => {
     });
   });
 
-  it('cria aluno, persiste identificação canônica e não reativa AlunoIntakeForm.formResponses', async () => {
+  it('cria aluno com o serviço no mesmo tx, persiste payload completo canônico e não reativa formResponses legado', async () => {
     await alunoService.create({
       name: 'Aluno Novo',
       email: 'novo@example.com',
@@ -176,16 +174,32 @@ describe('alunoService assessment boundary', () => {
         formResponses: {
           identification: {
             cpf: '139.513.548-79',
+            rg: '',
+            maritalStatus: '',
             socialNetwork: 'linkedin',
             instagram: 'aluno-linkedin',
+            address: 'Rua A',
+            addressNumber: '100',
+            addressComplement: '',
+            neighborhood: 'Centro',
+            city: 'Sorocaba',
+            state: 'SP',
+            zipCode: '18000-000',
+            emergencyContactName: 'Maria',
+            emergencyContactPhone: '(15) 99999-9999',
+            emergencyContactRelationship: 'Cônjuge',
           },
-          financial: {},
+          financial: { monthlyValue: '' },
           preferences: {},
           ahaResponses: {},
         },
       },
     });
 
+    expect(mockTx.serviceOption.findFirst).toHaveBeenCalledWith({
+      where: { id: 'service-1', contractId: 'contract-1' },
+      select: { id: true, isActive: true, parentServiceId: true },
+    });
     expect(mockTx.aluno.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -207,6 +221,15 @@ describe('alunoService assessment boundary', () => {
             cpf: '139.513.548-79',
             socialNetwork: 'linkedin',
             socialAccount: 'aluno-linkedin',
+            addressStreet: 'Rua A',
+            addressNumber: '100',
+            addressNeighborhood: 'Centro',
+            addressCity: 'Sorocaba',
+            addressState: 'SP',
+            addressZipCode: '18000-000',
+            emergencyContactName: 'Maria',
+            emergencyContactPhone: '(15) 99999-9999',
+            emergencyContactRelationship: 'Cônjuge',
           }),
         }),
       })

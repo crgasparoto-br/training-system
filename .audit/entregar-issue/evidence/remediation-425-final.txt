@@ -1,0 +1,47 @@
+Issue 425 audit remediation evidence
+
+Repository: crgasparoto-br/training-system
+Pull request: 428
+Branch: fix/issue-425-prisma-transaction
+Base branch: develop
+Material candidate: c04af2bc7915dda11750f002d37ee39167d777d2
+Independent rejection: audit-rejection:32d071da-c89f-495d-b122-8288b6b40bd9
+Remediation mode: targeted-remediation
+
+Exact-head CI
+- Workflow: Validate PR
+- Run: 34432817616 (run number 7636)
+- Job: Validate repository / 102731698344
+- Conclusion: completed/success on material candidate c04af2bc7915dda11750f002d37ee39167d777d2
+- Type check: success
+- Lint: success
+- Test: success
+- Build: success
+- Real-browser settings validation: success
+- Architecture checks: success
+- Access catalog checks: success
+- Documentation checks: success
+
+Test artifact
+- Artifact id: 10135349001
+- Artifact name: test-output-34432817616
+- Artifact digest: sha256:a49d2cd4b3f1f825e8d993b099f6f927b465972ae4b1adb3e70b1d1d3a70e8d9
+- Extracted test-output.log sha256: 5fc02348fb7512a35c98af33e87e482a14f332e9fe134fb8c84ec5c6a39ab707
+
+Discriminant controls observed in the exact-head test output
+- PASS apps/api/tests/student-financial-contract.routes.test.ts: direct selected-contract public route tests cover invalid service, concurrent P2002 email constraint -> static 409 without Prisma leakage, identity lock contention -> controlled 409, P2028 -> generic correlatable 500, and PB-ERR-001 P0001 sensitive-marker redaction.
+- PASS apps/api/tests/student-financial-contract-public-boundary.integration.test.ts: real PostgreSQL-backed public POST /alunos/financial-contract injects P0001 at StudentContract INSERT; the same request returns generic ALUNO_CREATE_INTERNAL_ERROR + correlationId without fingerprint/idempotencyKey/amount and proves rollback of User, Aluno, StudentOnboardingProcess, generated Contract, and StudentContract.
+- PASS apps/api/tests/issue-422-financial-contract-rollback.integration.test.ts: independent database rollback sibling remains green for StudentContract link insertion failure.
+- PASS apps/api/tests/student-interest-service.service.test.ts: service lookup is scoped by both service id and contract id using the received TransactionClient; foreign service is rejected, inactive service is rejected, child service is rejected, and current inactive selection compatibility is preserved.
+- PASS apps/api/tests/aluno-create-transaction-boundary.test.ts: structural transaction boundary remains protected against external Prisma-client service validation.
+- PASS apps/api/tests/aluno-create.routes.test.ts: sibling simple-create public error boundary remains green after sharing the classifier.
+
+Risk-family closure for the independent findings
+- public-boundary: selected-contract create now has direct P2028/P0001 public-route controls plus exact DB rollback in the same P0001 request.
+- tenant-isolation: service selection query is contract-scoped and a deliberately foreign service is rejected rather than influencing the target contract.
+- reference-liveness: missing/foreign, inactive and child service references are rejected through the canonical eligibility path; the route exposes useful 4xx behavior instead of generic 500.
+- concurrency-atomicity: post-prevalidation P2002 and identity-lock contention have controlled public classifications.
+- rollback: unexpected persistence failure during selected-contract creation leaves no partial student/onboarding/contract state.
+
+Cumulative controls
+The current issue-local material delta does not modify the historical product boundaries protected by inherited issue-414/416 controls. The complete exact-head repository workflow passed, and all prior inherited controls remain present in inherited-controls.json with current subject_sha and explicit evidence binding. No prior control or escape was silently removed.

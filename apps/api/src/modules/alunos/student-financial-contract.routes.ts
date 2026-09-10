@@ -5,6 +5,10 @@ import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js'
 import { blockAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { studentFinancialContractService } from './student-financial-contract.service.js';
 import { studentAccessScopeService } from './student-access-scope.service.js';
+import {
+  handleKnownStudentCreationError,
+  sendUnexpectedStudentCreationError,
+} from './student-create-error-boundary.js';
 
 const router: Router = Router();
 
@@ -82,12 +86,7 @@ const mapContractInput = (input: z.infer<typeof contractMutationSchema>) => ({
   notes: input.notes,
 });
 
-const handleError = (res: Response, error: unknown) => {
-  if (error instanceof z.ZodError) {
-    return sendError(res, 'Dados inválidos', 400, error.errors);
-  }
-
-  const message = error instanceof Error ? error.message : 'Erro ao salvar aluno e contrato';
+const handleKnownContractError = (res: Response, message: string): Response | null => {
   if (message.startsWith('Campo ')) return sendError(res, message, 400);
   if (
     message.includes('não encontrado') ||
@@ -105,6 +104,36 @@ const handleError = (res: Response, error: unknown) => {
   ) {
     return sendError(res, message, 400);
   }
+
+  return null;
+};
+
+const handleCreateError = (res: Response, error: unknown) => {
+  if (error instanceof z.ZodError) {
+    return sendError(res, 'Dados inválidos', 400, error.errors);
+  }
+
+  const sharedCreationResponse = handleKnownStudentCreationError(res, error);
+  if (sharedCreationResponse) return sharedCreationResponse;
+
+  const message = error instanceof Error ? error.message : 'Erro ao salvar aluno e contrato';
+  const knownContractResponse = handleKnownContractError(res, message);
+  if (knownContractResponse) return knownContractResponse;
+
+  return sendUnexpectedStudentCreationError(res, error, {
+    stage: 'aluno.financial-contract.create',
+    logMessage: 'Erro na operação atômica de criação de aluno e contrato:',
+  });
+};
+
+const handleUpdateError = (res: Response, error: unknown) => {
+  if (error instanceof z.ZodError) {
+    return sendError(res, 'Dados inválidos', 400, error.errors);
+  }
+
+  const message = error instanceof Error ? error.message : 'Erro ao salvar aluno e contrato';
+  const knownContractResponse = handleKnownContractError(res, message);
+  if (knownContractResponse) return knownContractResponse;
 
   console.error('Erro na operação atômica de aluno e contrato:', error);
   return sendError(res, message, 500);
@@ -130,7 +159,7 @@ router.post(
       );
       return sendSuccess(res, result, 'Aluno e contrato salvos com sucesso', 201);
     } catch (error) {
-      return handleError(res, error);
+      return handleCreateError(res, error);
     }
   }
 );
@@ -163,7 +192,7 @@ router.put(
       );
       return sendSuccess(res, result, 'Aluno e contrato atualizados com sucesso');
     } catch (error) {
-      return handleError(res, error);
+      return handleUpdateError(res, error);
     }
   }
 );
