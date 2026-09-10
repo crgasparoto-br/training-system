@@ -1,31 +1,34 @@
 {
-  "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "result": "REPROVADA",
-  "rejection_id": "audit-rejection:8063b8c9-4809-4309-a961-388da3895cfb",
-  "head_sha": "4a45517bcaa557ffd77f3d2aadac004420694917",
+  "validity": "independent",
+  "rejection_id": "audit-rejection:32d071da-c89f-495d-b122-8288b6b40bd9",
+  "head_sha": "8d016284e314e30a409e08d4a881346a091c2e93",
   "identity": {
+    "certified_material_head_sha": "a6614b73240b539ab21ab28414acd8c8b9548809",
+    "published_handoff_head_sha": "8d016284e314e30a409e08d4a881346a091c2e93",
     "repository": "crgasparoto-br/training-system",
-    "issue_number": 422,
-    "pull_request_number": 423,
-    "certified_material_head_sha": "5219ff792e66f6282959bc87493e96c1d10b47a6",
-    "current_head_sha": "4a45517bcaa557ffd77f3d2aadac004420694917",
-    "base_ref": "develop",
-    "head_ref": "feat/422-student-docs-social"
+    "pull_request_number": 428,
+    "issue_number": 425
   },
   "findings": [
     {
       "id": "A-001",
-      "disposition": "blocking",
       "status": "open",
+      "disposition": "blocking",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "category": "delivery-not-ready",
-      "summary": "The published handoff certifies an older material head after material writes; a post-write refreeze is required."
+      "category": "legacy-variant-gap",
+      "reason": "The selected-contract POST /alunos/financial-contract path retained the legacy error boundary and could return raw 500 details for P2028/P2002/identity-lock cases while the simple POST /alunos path was hardened."
+    },
+    {
+      "id": "A-002",
+      "status": "open",
+      "disposition": "blocking",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "category": "control-propagation-gap",
+      "reason": "The critical evidence package omitted material public-boundary, tenant-isolation and reference-liveness families and did not exercise the selected-contract public route with discriminant negative controls."
     }
-  ],
-  "recommendations": [],
-  "requires_refreeze": true,
-  "recovery_scope": "post-write-refreeze",
-  "reason": "handoff-stale"
+  ]
 }
