@@ -1,13 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { AlunoResumoHubTab } from './AlunoResumoHubTab';
 import type { Aluno } from '../../services/aluno.service';
 import type { Assessment, AssessmentSummary } from '../../services/assessment.service';
-
-afterEach(() => {
-  vi.useRealTimers();
-});
 
 const baseAluno = {
   id: 'aluno-1',
@@ -90,9 +86,6 @@ describe('AlunoResumoHubTab assessment card', () => {
   });
 
   it('mostra última avaliação, responsável e comparação quando há múltiplos registros', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-09-09T12:00:00.000Z'));
-
     const assessments = [
       {
         id: 'assessment-2',
@@ -146,7 +139,8 @@ describe('AlunoResumoHubTab assessment card', () => {
           scheduleType: 'fixed_interval',
           intervalMonths: 2,
           lastAssessmentDate: '2026-03-10T12:00:00.000Z',
-          nextDueDate: '2026-09-10T12:00:00.000Z',
+          // Keep this scenario independent from the wall clock.
+          nextDueDate: '2099-09-10T12:00:00.000Z',
         },
       ],
     });
