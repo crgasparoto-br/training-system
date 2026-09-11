@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AlunoResumoHubTab } from './AlunoResumoHubTab';
 import type { Aluno } from '../../services/aluno.service';
 import type { Assessment, AssessmentSummary } from '../../services/assessment.service';
@@ -86,67 +86,74 @@ describe('AlunoResumoHubTab assessment card', () => {
   });
 
   it('mostra última avaliação, responsável e comparação quando há múltiplos registros', () => {
-    const assessments = [
-      {
-        id: 'assessment-2',
-        alunoId: 'aluno-1',
-        typeId: 'type-1',
-        assessmentDate: '2026-03-10T12:00:00.000Z',
-        filePath: 'assessment-2.pdf',
-        originalFileName: 'assessment-2.pdf',
-        mimeType: 'application/pdf',
-        fileSize: 1234,
-        createdAt: '2026-03-10T12:00:00.000Z',
-        updatedAt: '2026-03-10T12:00:00.000Z',
-        type: {
-          id: 'type-1',
-          name: 'Antropometria',
-          code: 'anthropometry',
-        },
-        professional: {
-          user: {
-            profile: {
-              name: 'Profa. Maria',
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-09T12:00:00.000Z'));
+
+    try {
+      const assessments = [
+        {
+          id: 'assessment-2',
+          alunoId: 'aluno-1',
+          typeId: 'type-1',
+          assessmentDate: '2026-03-10T12:00:00.000Z',
+          filePath: 'assessment-2.pdf',
+          originalFileName: 'assessment-2.pdf',
+          mimeType: 'application/pdf',
+          fileSize: 1234,
+          createdAt: '2026-03-10T12:00:00.000Z',
+          updatedAt: '2026-03-10T12:00:00.000Z',
+          type: {
+            id: 'type-1',
+            name: 'Antropometria',
+            code: 'anthropometry',
+          },
+          professional: {
+            user: {
+              profile: {
+                name: 'Profa. Maria',
+              },
             },
           },
         },
-      },
-      {
-        id: 'assessment-1',
-        alunoId: 'aluno-1',
-        typeId: 'type-1',
-        assessmentDate: '2026-01-10T12:00:00.000Z',
-        filePath: 'assessment-1.pdf',
-        originalFileName: 'assessment-1.pdf',
-        mimeType: 'application/pdf',
-        fileSize: 1234,
-        createdAt: '2026-01-10T12:00:00.000Z',
-        updatedAt: '2026-01-10T12:00:00.000Z',
-        type: {
-          id: 'type-1',
-          name: 'Antropometria',
-          code: 'anthropometry',
-        },
-      },
-    ] as Assessment[];
-
-    renderResumo(baseAluno, {
-      assessments,
-      assessmentSummary: [
         {
+          id: 'assessment-1',
+          alunoId: 'aluno-1',
           typeId: 'type-1',
-          typeName: 'Antropometria',
-          scheduleType: 'fixed_interval',
-          intervalMonths: 2,
-          lastAssessmentDate: '2026-03-10T12:00:00.000Z',
-          nextDueDate: '2026-09-10T12:00:00.000Z',
+          assessmentDate: '2026-01-10T12:00:00.000Z',
+          filePath: 'assessment-1.pdf',
+          originalFileName: 'assessment-1.pdf',
+          mimeType: 'application/pdf',
+          fileSize: 1234,
+          createdAt: '2026-01-10T12:00:00.000Z',
+          updatedAt: '2026-01-10T12:00:00.000Z',
+          type: {
+            id: 'type-1',
+            name: 'Antropometria',
+            code: 'anthropometry',
+          },
         },
-      ],
-    });
+      ] as Assessment[];
 
-    expect(screen.getAllByText('Avaliação em dia').length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Antropometria/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Profa\. Maria/i).length).toBeGreaterThan(0);
-    expect(screen.getByText('Base pronta para comparar')).toBeInTheDocument();
+      renderResumo(baseAluno, {
+        assessments,
+        assessmentSummary: [
+          {
+            typeId: 'type-1',
+            typeName: 'Antropometria',
+            scheduleType: 'fixed_interval',
+            intervalMonths: 2,
+            lastAssessmentDate: '2026-03-10T12:00:00.000Z',
+            nextDueDate: '2026-09-10T12:00:00.000Z',
+          },
+        ],
+      });
+
+      expect(screen.getAllByText('Avaliação em dia').length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Antropometria/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Profa\. Maria/i).length).toBeGreaterThan(0);
+      expect(screen.getByText('Base pronta para comparar')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
