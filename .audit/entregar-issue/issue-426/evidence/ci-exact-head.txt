@@ -1,11 +1,10 @@
-Repository: crgasparoto-br/training-system
-PR: #430
-Material head: 761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f
-Base: b2952652539998708e3ae5fc74cadd7fa68e98fe
-Merge preview: 91872790901f21ce21ecd37b3f563e43a46f36ca
-Workflow: Validate PR
-Run: 34493868123
-Conclusion: success
-Observed exact-head artifacts: test-output-34493868123, type-check-output-34493868123, migration-output-34493868123, docs-check-output-34493868123.
-Type check: apps/web tsc --noEmit Done; apps/api tsc --noEmit Done.
-Full test artifact: web 141 files / 560 tests passed; API suites completed, including PASS src/modules/contracts/contract-defaults.movement-type.test.ts.
+Issue 426 / PR 430 exact-material-head validation
+material_head_sha: 1a0fe9b106e9c98ae7684296a427e51f890975f6
+base_sha: b2952652539998708e3ae5fc74cadd7fa68e98fe
+workflow: Validate PR #7648
+workflow_run_id: 34512650459
+job: Validate repository
+result: completed/success
+validated steps: Prisma generation; migration checks; test database migrations; persistence invariants; type check; lint; test; build; browser validation; architecture checks; access catalog checks; documentation checks.
+post-freeze material delta: apps/api/src/modules/contracts/contract-defaults.movement-type.test.ts and apps/api/tests/import-exercises-movement-type.integration.test.ts.
+delta intent: strengthen rejection controls for unsupported movement codes B and - and persist canonical A=Alternado through importer integration coverage.

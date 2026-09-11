@@ -1,76 +1,36 @@
 {
   "schema_version": 1,
-  "material_head_sha": "761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f",
+  "material_head_sha": "1a0fe9b106e9c98ae7684296a427e51f890975f6",
   "base_sha": "b2952652539998708e3ae5fc74cadd7fa68e98fe",
   "evidence": [
     {
       "evidence_id": "EV-CI",
       "kind": "behavioral",
       "path": "evidence/ci-exact-head.txt",
-      "sha256": "c3b09d7892f3bccdc1a30c1137419d68e981d09bff57b005d6c9867f143b1e01",
-      "subject_sha": "761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f",
+      "sha256": "59449b4f26fa263e5082149db037aa8c11f610517c51207d448ef9edcd277810",
+      "subject_sha": "1a0fe9b106e9c98ae7684296a427e51f890975f6",
       "freshness_policy": "exact-material-head",
-      "producer": "GitHub Validate PR run 34493868123 and exact-head diff inspection",
+      "producer": "GitHub Validate PR run 34512650459 exact-head job inspection",
       "status": "passed"
     },
     {
-      "evidence_id": "EV-MOVEMENT",
+      "evidence_id": "EV-REFREEZE",
       "kind": "structural",
-      "path": "evidence/movement-domain.txt",
-      "sha256": "eb6dedd6b4af68a8ba1f8289d49a66a4c7b14d2d0d74feb513e4bea5438b08d9",
-      "subject_sha": "761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f",
+      "path": "evidence/refreeze-remediation.txt",
+      "sha256": "554c8c1425f41f135e5dedbc1d142524eab24a04bc2ec235bb25d626388eb382",
+      "subject_sha": "1a0fe9b106e9c98ae7684296a427e51f890975f6",
       "freshness_policy": "exact-material-head",
-      "producer": "GitHub Validate PR run 34493868123 and exact-head diff inspection",
-      "status": "passed"
-    },
-    {
-      "evidence_id": "EV-DEFAULTS",
-      "kind": "behavioral",
-      "path": "evidence/defaults-preservation.txt",
-      "sha256": "5b78cacac6eb6b64073d6bb6c4bd875f9bf1ccaa9c4700fc1e005081ca7aaf10",
-      "subject_sha": "761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f",
-      "freshness_policy": "exact-material-head",
-      "producer": "GitHub Validate PR run 34493868123 and exact-head diff inspection",
-      "status": "passed"
-    },
-    {
-      "evidence_id": "EV-MIGRATION",
-      "kind": "structural",
-      "path": "evidence/migration.txt",
-      "sha256": "ae35bee0e97e8eeb6d32f3bd11984cdd37b77465545961c711a6bec0c21677e7",
-      "subject_sha": "761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f",
-      "freshness_policy": "exact-material-head",
-      "producer": "GitHub Validate PR run 34493868123 and exact-head diff inspection",
-      "status": "passed"
-    },
-    {
-      "evidence_id": "EV-DOCS",
-      "kind": "documentation",
-      "path": "evidence/documentation.txt",
-      "sha256": "e51f6d92fd67dd236f04a538fe52b0a582e0eb266f55468687b498ee6a5888ac",
-      "subject_sha": "761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f",
-      "freshness_policy": "exact-material-head",
-      "producer": "GitHub Validate PR run 34493868123 and exact-head diff inspection",
-      "status": "passed"
-    },
-    {
-      "evidence_id": "EV-TESTS",
-      "kind": "behavioral",
-      "path": "evidence/ci-exact-head.txt",
-      "sha256": "c3b09d7892f3bccdc1a30c1137419d68e981d09bff57b005d6c9867f143b1e01",
-      "subject_sha": "761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f",
-      "freshness_policy": "exact-material-head",
-      "producer": "GitHub Validate PR run 34493868123 and exact-head diff inspection",
+      "producer": "entregar-issue post-write-refreeze recovery classifier and remote identity inspection",
       "status": "passed"
     },
     {
       "evidence_id": "EV-COUNTS",
       "kind": "quantitative",
-      "path": "evidence/ci-exact-head.txt",
-      "sha256": "c3b09d7892f3bccdc1a30c1137419d68e981d09bff57b005d6c9867f143b1e01",
-      "subject_sha": "761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f",
+      "path": "evidence/field-coverage-count.txt",
+      "sha256": "21b7a51873b7d753c23a31feb704c42a6cc7a146133a898ccc5ac48ed01a4fd0",
+      "subject_sha": "1a0fe9b106e9c98ae7684296a427e51f890975f6",
       "freshness_policy": "exact-material-head",
-      "producer": "Validate PR 34493868123 exact-head test counts",
+      "producer": "Issue 426 supported-field inventory cross-checked against exact-head Validate PR run 34512650459",
       "status": "passed"
     }
   ]

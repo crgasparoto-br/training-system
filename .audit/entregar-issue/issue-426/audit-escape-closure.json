@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "post-freeze-material-write-after-terminal-handoff",
+      "status": "passed",
+      "escape_class": "post-freeze-material-drift",
+      "revalidated_head_sha": "1a0fe9b106e9c98ae7684296a427e51f890975f6",
+      "source_audit": {
+        "kind": "independent-rejection",
+        "rejection_id": "audit-rejection:e6a9caaf04ec8b78",
+        "finding_ids": [
+          "A-001"
+        ],
+        "audit_report_sha256": "1f46aac6facbea8a901e6f0e866d1978282928a75f558e5bb9dc419d1b28ea8e"
+      },
+      "plausible_wrong_implementation": "A terminal result-only child can be followed by a material source or test commit, leaving an older certificate apparently present but no longer certifying the current candidate.",
+      "literal_case": {
+        "procedure": "Compare the current candidate parent and changed paths with the certified material head and result-only allowlist.",
+        "expected": "Any material write after terminal publication activates post-write refreeze and invalidates reuse of the prior certificate.",
+        "observed": "The current material candidate 1a0fe9b106e9c98ae7684296a427e51f890975f6 follows the old terminal child and is treated as material; a fresh refreeze is required and prepared."
+      },
+      "sibling_cases": [
+        {
+          "id": "post-freeze-source-change",
+          "surface": "terminal-handoff-lineage",
+          "dimension": "source-or-test-file",
+          "status": "passed"
+        },
+        {
+          "id": "post-freeze-documentation-change",
+          "surface": "terminal-handoff-lineage",
+          "dimension": "durable-documentation-file",
+          "status": "passed"
+        }
+      ],
+      "prevention_change": {
+        "kind": "existing-controller-rule-applied",
+        "evidence": "evidence/refreeze-remediation.txt",
+        "description": "Preserve the post-write-refreeze latch and do not reuse a certificate whose material SHA predates a material write."
+      },
+      "detection_change": {
+        "kind": "recovery-classifier-and-terminal-guard",
+        "evidence": "evidence/refreeze-remediation.txt",
+        "description": "Classify stale parent/path lineage before publication and require a new result-only child directly on the refrozen material SHA."
+      },
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "behavioral-contract",
+          "dimension": "primary-divergent-case"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "specified-test-matrix",
+          "dimension": "specified-case-6"
+        }
+      ]
+    }
+  ]
+}

@@ -1,8 +1,30 @@
 {
   "schema_version": 1,
-  "head_sha": "761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f",
-  "source_audits": [],
-  "controls": [],
+  "head_sha": "1a0fe9b106e9c98ae7684296a427e51f890975f6",
+  "source_audits": [
+    {
+      "kind": "independent-rejection",
+      "rejection_id": "audit-rejection:e6a9caaf04ec8b78",
+      "finding_ids": [
+        "A-001"
+      ],
+      "audit_report_sha256": "1f46aac6facbea8a901e6f0e866d1978282928a75f558e5bb9dc419d1b28ea8e"
+    }
+  ],
+  "controls": [
+    {
+      "id": "IC-POST-FREEZE-REFREEZE-001",
+      "status": "passed",
+      "head_sha": "1a0fe9b106e9c98ae7684296a427e51f890975f6",
+      "subject_sha": "1a0fe9b106e9c98ae7684296a427e51f890975f6",
+      "control_type": "gate",
+      "evidence": "evidence/refreeze-remediation.txt",
+      "evidence_sha256": "554c8c1425f41f135e5dedbc1d142524eab24a04bc2ec235bb25d626388eb382",
+      "procedure": "Classify terminal lineage after any post-handoff commit and require a fresh material freeze whenever a non-allowlisted path is written after the prior handoff.",
+      "expected": "A stale result-only certificate is rejected and a new terminal child is published only after exact-head validation of the current material candidate.",
+      "observed": "The prior certificate was rejected as stale; the current exact-head candidate is revalidated and this delivery rebuilds its terminal packet before publication."
+    }
+  ],
   "retired_controls": [],
   "unresolved_controls": []
 }

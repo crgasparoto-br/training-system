@@ -1,0 +1,6 @@
+Exact-head supported-field coverage inventory for Issue 426 / PR 430
+material_head_sha: 1a0fe9b106e9c98ae7684296a427e51f890975f6
+specified supplemental catalog fields: 4
+fields: videoUrl, loadType, movementType, countingType
+expected supported-field families covered by defaults/import path: 4 of 4
+Validate PR #7648 on the exact material head completed test and build phases successfully.

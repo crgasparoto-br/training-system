@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f",
+  "head_sha": "1a0fe9b106e9c98ae7684296a427e51f890975f6",
   "families": [
     {
       "family": "authorization",
@@ -47,7 +47,7 @@
       "dimensions": [
         {
           "surface": "current-contract-validity",
-          "reason": "Existing canonical values must remain valid after the enum extension.",
+          "reason": "Discriminant surface for reference-liveness derived from the canonical requirement and exact-head validation.",
           "control_ids": [
             "R-OBL-004-01-NEG"
           ],
@@ -161,7 +161,7 @@
       "dimensions": [
         {
           "surface": "behavioral-contract",
-          "reason": "The requirement must hold through the shared implementation without silent semantic drift.",
+          "reason": "Discriminant surface for structural-contract derived from the canonical requirement and exact-head validation.",
           "control_ids": [
             "R-OBL-001-01-NEG",
             "R-OBL-003-01-NEG",
@@ -229,7 +229,7 @@
       "dimensions": [
         {
           "surface": "canonical-claims",
-          "reason": "Documentation claims must remain aligned with the exact supported movement domain.",
+          "reason": "Discriminant surface for documentation derived from the canonical requirement and exact-head validation.",
           "control_ids": [
             "R-OBL-017-01-NEG"
           ],
