@@ -1,1 +1,4 @@
-Exact-head diff at 761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f extends MovementType with A in both Prisma schemas. contract-defaults.service.ts and import-exercises.ts validate via Object.values(MovementType), removing the U/I/O-only whitelist. Library ExerciseModal, Library index, and library.service add A. The issue-specific regression accepts A and verifies B and - remain unsupported. Validate PR run 34493868123 passed at the exact material head.
+Exact-head structural evidence for Issue 426 at 12517d21609a7b0c8f2a79971ac24efe12e366a3.
+apps/api/src/modules/contracts/contract-defaults.service.ts imports MovementType from @prisma/client and defines MOVEMENT_TYPES = new Set(Object.values(MovementType)); catalog movementType is normalized only when allowed.has(normalized).
+This makes A valid through the Prisma enum while B and - remain unsupported instead of being coerced.
+The same exact-head CI run 34617682121 passed contract-defaults.movement-type.test.ts and import-exercises-movement-type.integration.test.ts.

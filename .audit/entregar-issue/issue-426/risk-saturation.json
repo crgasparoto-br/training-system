@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "1a0fe9b106e9c98ae7684296a427e51f890975f6",
+  "head_sha": "12517d21609a7b0c8f2a79971ac24efe12e366a3",
   "families": [
     {
       "family": "authorization",
@@ -20,7 +20,7 @@
       "dimensions": [
         {
           "surface": "tenant-scope-isolation",
-          "reason": "A happy path scoped to one tenant/profile can still leak or mix records from another scope unless divergent tenant/profile identities are exercised.",
+          "reason": "A contract-scoped happy path can still leak or mutate another tenant unless deliberately different contractId values are exercised.",
           "control_ids": [
             "R-OBL-023-02-NEG"
           ],
@@ -47,7 +47,7 @@
       "dimensions": [
         {
           "surface": "current-contract-validity",
-          "reason": "Discriminant surface for reference-liveness derived from the canonical requirement and exact-head validation.",
+          "reason": "Existing historical movement values must remain valid while the current supported domain adds A without reinterpretation.",
           "control_ids": [
             "R-OBL-004-01-NEG"
           ],
@@ -94,7 +94,7 @@
       "dimensions": [
         {
           "surface": "duplicate-processing",
-          "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
+          "reason": "Reinstall or duplicate catalog processing can create duplicate records or overwrite values unless replay behavior is discriminated.",
           "control_ids": [
             "R-OBL-012-01-NEG",
             "R-OBL-013-01-NEG",
@@ -149,7 +149,6 @@
         "R-OBL-024-01-NEG",
         "R-OBL-025-01-NEG",
         "R-OBL-026-01-NEG",
-        "R-OBL-027-02-NEG",
         "R-OBL-027-CASE-01-NEG",
         "R-OBL-027-CASE-02-NEG",
         "R-OBL-027-CASE-03-NEG",
@@ -161,7 +160,7 @@
       "dimensions": [
         {
           "surface": "behavioral-contract",
-          "reason": "Discriminant surface for structural-contract derived from the canonical requirement and exact-head validation.",
+          "reason": "The requested behavior can appear correct on a happy path while violating preservation, movement-domain, or interface semantics.",
           "control_ids": [
             "R-OBL-001-01-NEG",
             "R-OBL-003-01-NEG",
@@ -188,7 +187,7 @@
         },
         {
           "surface": "canonical-source-consistency",
-          "reason": "Equivalent runtime, seed, import or maintenance paths can drift when they do not consume the same canonical product definition.",
+          "reason": "Defaults and importer can drift if movement support is encoded in separate whitelists instead of the Prisma enum.",
           "control_ids": [
             "R-OBL-002-01-NEG"
           ],
@@ -196,7 +195,7 @@
         },
         {
           "surface": "relational-semantic-integrity",
-          "reason": "A calculation can look correctly partitioned while linked records carry incompatible semantic dimensions because the canonical write path never enforces their relation.",
+          "reason": "Catalog and persisted exercise fields can diverge if the canonical write path accepts incompatible movement semantics.",
           "control_ids": [
             "R-OBL-002-02-NEG"
           ],
@@ -204,9 +203,8 @@
         },
         {
           "surface": "specified-test-matrix",
-          "reason": "A subset of green tests can satisfy the happy path while explicitly required sibling scenarios remain unexecuted.",
+          "reason": "A partial green suite can miss creation, backfill, preservation, duplication, idempotency, or unsupported-code scenarios explicitly required by the issue.",
           "control_ids": [
-            "R-OBL-027-02-NEG",
             "R-OBL-027-CASE-01-NEG",
             "R-OBL-027-CASE-02-NEG",
             "R-OBL-027-CASE-03-NEG",
@@ -229,7 +227,7 @@
       "dimensions": [
         {
           "surface": "canonical-claims",
-          "reason": "Discriminant surface for documentation derived from the canonical requirement and exact-head validation.",
+          "reason": "Durable documentation can drift from the exact movement domain and non-destructive defaults contract even when code is green.",
           "control_ids": [
             "R-OBL-017-01-NEG"
           ],

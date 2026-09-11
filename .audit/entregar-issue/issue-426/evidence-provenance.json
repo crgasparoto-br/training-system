@@ -1,36 +1,17 @@
 {
   "schema_version": 1,
-  "material_head_sha": "1a0fe9b106e9c98ae7684296a427e51f890975f6",
+  "material_head_sha": "12517d21609a7b0c8f2a79971ac24efe12e366a3",
   "base_sha": "b2952652539998708e3ae5fc74cadd7fa68e98fe",
   "evidence": [
     {
-      "evidence_id": "EV-CI",
-      "kind": "behavioral",
-      "path": "evidence/ci-exact-head.txt",
-      "sha256": "59449b4f26fa263e5082149db037aa8c11f610517c51207d448ef9edcd277810",
-      "subject_sha": "1a0fe9b106e9c98ae7684296a427e51f890975f6",
-      "freshness_policy": "exact-material-head",
-      "producer": "GitHub Validate PR run 34512650459 exact-head job inspection",
-      "status": "passed"
-    },
-    {
-      "evidence_id": "EV-REFREEZE",
-      "kind": "structural",
-      "path": "evidence/refreeze-remediation.txt",
-      "sha256": "554c8c1425f41f135e5dedbc1d142524eab24a04bc2ec235bb25d626388eb382",
-      "subject_sha": "1a0fe9b106e9c98ae7684296a427e51f890975f6",
-      "freshness_policy": "exact-material-head",
-      "producer": "entregar-issue post-write-refreeze recovery classifier and remote identity inspection",
-      "status": "passed"
-    },
-    {
-      "evidence_id": "EV-COUNTS",
+      "evidence_id": "EVID-FIELD-COVERAGE-COUNT",
       "kind": "quantitative",
       "path": "evidence/field-coverage-count.txt",
-      "sha256": "21b7a51873b7d753c23a31feb704c42a6cc7a146133a898ccc5ac48ed01a4fd0",
-      "subject_sha": "1a0fe9b106e9c98ae7684296a427e51f890975f6",
+      "sha256": "2c81b07f3ee2c0351d94d7a7062872d46578e82a502c59a58126930943c5908c",
+      "subject_sha": "12517d21609a7b0c8f2a79971ac24efe12e366a3",
+      "base_sha": "b2952652539998708e3ae5fc74cadd7fa68e98fe",
       "freshness_policy": "exact-material-head",
-      "producer": "Issue 426 supported-field inventory cross-checked against exact-head Validate PR run 34512650459",
+      "producer": "entregar-issue refreeze from exact-head source and CI",
       "status": "passed"
     }
   ]

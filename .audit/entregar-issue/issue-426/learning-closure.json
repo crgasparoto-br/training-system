@@ -11,7 +11,7 @@
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The installed delivery controller already contains a post-freeze material-write latch, recovery classifier, result-only parent constraint, and terminal handoff guard. The rejection resulted from a candidate write occurring after the prior terminal publication, not from a missing reusable skill rule; applying the existing post-write-refreeze contract closes this instance."
+    "reason": "The installed delivery controller already contains the post-freeze material-write latch, recovery classifier, result-only parent constraint, and terminal handoff guard. This targeted remediation applies those existing controls to the new exact-head candidate rather than introducing a new systemic rule."
   },
   "skill_changes": []
 }

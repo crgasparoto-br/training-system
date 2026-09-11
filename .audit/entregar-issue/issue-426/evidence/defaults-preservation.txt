@@ -1,1 +1,4 @@
-The exact-head implementation reuses the pre-existing non-destructive installContractDefaults behavior: supported canonical values are normalized through the Prisma enum, while existing non-empty/customized values are not reinterpreted by the MovementType extension. The material diff introduces no overwrite-all path. Full repository tests passed in Validate PR run 34493868123; the issue-specific movement-type regression passed.
+Exact-head preservation evidence for Issue 426 at 12517d21609a7b0c8f2a79971ac24efe12e366a3.
+apps/api/src/modules/contracts/contract-defaults.service.ts reads existing exerciseLibrary rows with where { contractId }, computes missingExerciseFields, and writes only fields that are null/empty while retaining non-empty existing values.
+Duplicate catalog names are combined by mergeMissingExerciseDefaultFields, so later occurrences only complete missing fields.
+The install path is wrapped in a transaction and advisory lock keyed by contractId; exact-head CI run 34617682121 completed successfully, including the focused defaults movement-type regression tests.

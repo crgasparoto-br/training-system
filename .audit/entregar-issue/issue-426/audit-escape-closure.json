@@ -5,7 +5,7 @@
       "escape_id": "post-freeze-material-write-after-terminal-handoff",
       "status": "passed",
       "escape_class": "post-freeze-material-drift",
-      "revalidated_head_sha": "1a0fe9b106e9c98ae7684296a427e51f890975f6",
+      "revalidated_head_sha": "12517d21609a7b0c8f2a79971ac24efe12e366a3",
       "source_audit": {
         "kind": "independent-rejection",
         "rejection_id": "audit-rejection:e6a9caaf04ec8b78",
@@ -18,7 +18,7 @@
       "literal_case": {
         "procedure": "Compare the current candidate parent and changed paths with the certified material head and result-only allowlist.",
         "expected": "Any material write after terminal publication activates post-write refreeze and invalidates reuse of the prior certificate.",
-        "observed": "The current material candidate 1a0fe9b106e9c98ae7684296a427e51f890975f6 follows the old terminal child and is treated as material; a fresh refreeze is required and prepared."
+        "observed": "The stale handoff was not reused. The exact-head candidate 12517d21609a7b0c8f2a79971ac24efe12e366a3 passed Validate PR run 34617682121 and is the new material refreeze target before publishing a fresh result-only child."
       },
       "sibling_cases": [
         {
