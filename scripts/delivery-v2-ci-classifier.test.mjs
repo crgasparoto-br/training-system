@@ -37,6 +37,33 @@ test('access-control code is CRITICAL even under web', () => {
   assert.equal(result.riskProfile, 'critical');
 });
 
+test('real frontend auth and access entrypoints are always CRITICAL', () => {
+  const sensitivePaths = [
+    'apps/web/src/components/ProtectedRoute.tsx',
+    'apps/web/src/pages/Login.tsx',
+    'apps/web/src/stores/useAuthStore.ts'
+  ];
+
+  for (const path of sensitivePaths) {
+    const result = classifyDeliveryV2Ci({ requested: 'fast', changedPaths: [path] });
+    assert.equal(result.riskProfile, 'critical', `${path} must be CRITICAL`);
+    assert.equal(result.promoted, true, `${path} must promote requested FAST`);
+  }
+});
+
+test('security-like frontend entrypoints fail critical even in FAST-friendly roots', () => {
+  const sensitivePaths = [
+    'apps/web/src/components/RoleGuard.tsx',
+    'apps/web/src/pages/SignIn.tsx',
+    'apps/web/src/stores/sessionStore.ts'
+  ];
+
+  for (const path of sensitivePaths) {
+    const result = classifyDeliveryV2Ci({ changedPaths: [path] });
+    assert.equal(result.riskProfile, 'critical', `${path} must be CRITICAL`);
+  }
+});
+
 test('Prisma migration is CRITICAL and marks database validation', () => {
   const result = classifyDeliveryV2Ci({
     changedPaths: ['apps/api/prisma/migrations/202609110001_example/migration.sql']
@@ -78,6 +105,24 @@ test('requested STANDARD may promote an observed FAST change', () => {
 test('unknown path fails closed to CRITICAL', () => {
   const result = classifyDeliveryV2Ci({ changedPaths: ['infra/custom-policy.txt'] });
   assert.equal(result.riskProfile, 'critical');
+});
+
+test('innocuous file extensions outside trusted FAST roots still fail closed', () => {
+  const unknownAssets = [
+    'infra/diagram.svg',
+    'apps/api/assets/logo.png'
+  ];
+
+  for (const path of unknownAssets) {
+    const result = classifyDeliveryV2Ci({ changedPaths: [path] });
+    assert.equal(result.riskProfile, 'critical', `${path} must fail closed to CRITICAL`);
+    assert.ok(result.reasons.some((reason) => reason === `unknown-path:${path.toLowerCase()}`));
+  }
+});
+
+test('static assets remain FAST only inside trusted web asset roots', () => {
+  const result = classifyDeliveryV2Ci({ changedPaths: ['apps/web/src/assets/logo.svg'] });
+  assert.equal(result.riskProfile, 'fast');
 });
 
 test('empty changed-path evidence fails closed to CRITICAL', () => {

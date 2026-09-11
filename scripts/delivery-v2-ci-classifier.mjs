@@ -6,6 +6,13 @@ export const DELIVERY_V2_REQUESTED_RISKS = Object.freeze(['auto', ...DELIVERY_V2
 
 const RANK = Object.freeze({ fast: 1, standard: 2, critical: 3 });
 
+// Frontend security entrypoints can live inside otherwise FAST-friendly roots
+// such as components/pages or inside STANDARD roots such as stores. Keep this
+// semantic filename guard ahead of the general allowlists so auth/access/session
+// boundaries cannot be downgraded only because their directory looks harmless.
+const CRITICAL_FRONTEND_SECURITY_ENTRYPOINT =
+  /^apps\/web\/src\/(?:components|pages|stores)\/(?:[^/]+\/)*[^/]*(?:auth|access|permission|protected|guard|login|sign-in|signin|session)[^/]*\.[cm]?[jt]sx?$/;
+
 const CRITICAL_PATTERNS = [
   /^\.github\/(workflows|actions)\//,
   /^scripts\/delivery-v2-ci-classifier(?:\.test)?\.mjs$/,
@@ -14,6 +21,7 @@ const CRITICAL_PATTERNS = [
   /^packages\//,
   /(^|\/)(prisma|migrations?|database|db)(\/|\.|$)/,
   /(^|\/)(auth|authentication|authorization|access|permissions?|security|privacy)(\/|\.|-|_|$)/,
+  CRITICAL_FRONTEND_SECURITY_ENTRYPOINT,
   /pre-registration|profile-review|notification|sendgrid|twilio|upload|storage|stripe/,
   /^scripts\/(verify-adipometry|verify-student-lifecycle|visual-audit-settings-parameters|check-access-catalog|check-architecture)/,
   /(^|\/)(package\.json|pnpm-lock\.yaml|vite\.config\.[cm]?[jt]s|vitest\.config\.[cm]?[jt]s|jest\.config\.[cm]?[jt]s|tsconfig(?:\.[^/]+)?\.json)$/,
@@ -26,8 +34,7 @@ const FAST_PATTERNS = [
   /^apps\/web\/src\/index\.css$/,
   /^apps\/web\/public\//,
   /^docs\//,
-  /^(readme|importacao_exercicios)\.md$/,
-  /\.(css|scss|sass|less|svg|png|jpe?g|webp)$/
+  /^(readme|importacao_exercicios)\.md$/
 ];
 
 const STANDARD_PATTERNS = [
