@@ -2,9 +2,11 @@
 
 ## ✅ Status Atual
 
-- **Total de exercícios:** 197
+- **Total de exercícios da referência histórica:** 197
 - **Com grupo muscular:** 197 (100%)
 - **Pronto para importação:** ✅ Sim
+
+> A importação atual é **incremental e não destrutiva**. O script não limpa a biblioteca antes de importar: exercícios já existentes no mesmo contrato, identificados pelo nome normalizado, são preservados e contabilizados como `Pulados`.
 
 ## 📊 Distribuição por Grupo Muscular
 
@@ -33,8 +35,8 @@
 
 ```bash
 # Clonar o repositório (se ainda não fez)
-git clone https://github.com/crgasparoto-br/training_system.git
-cd training_system
+git clone https://github.com/crgasparoto-br/training-system.git
+cd training-system
 
 # Instalar dependências
 pnpm install
@@ -57,48 +59,61 @@ sleep 5
 ### 3. Executar Migrations
 
 ```bash
-# Aplicar migrations do Prisma
 cd apps/api
 npx prisma migrate dev
 ```
 
-### 4. Importar os Exercícios
+### 4. Validar sem gravar (recomendado)
+
+O script exige o caminho do arquivo JSON. Use `--dry-run` para validar a leitura e a normalização sem criar registros.
 
 ```bash
-# Executar script de importação
-npx ts-node src/scripts/import-exercises.ts
+cd apps/api
+npx ts-node src/scripts/import-exercises.ts --dry-run /caminho/para/exercises-data.json
 ```
 
-### Saída Esperada
+### 5. Importar os Exercícios
 
+```bash
+cd apps/api
+npx ts-node src/scripts/import-exercises.ts /caminho/para/exercises-data.json
 ```
+
+Se houver mais de um contrato no banco, defina explicitamente `CONTRACT_ID`. Sem a variável, o script usa o primeiro contrato encontrado por `createdAt`.
+
+```bash
+CONTRACT_ID=<id-do-contrato> npx ts-node src/scripts/import-exercises.ts /caminho/para/exercises-data.json
+```
+
+### Comportamento esperado
+
+Durante a execução o script:
+
+1. lê o arquivo JSON e informa a quantidade de exercícios;
+2. resolve o contrato alvo;
+3. normaliza o nome e os campos suportados;
+4. procura um exercício com o mesmo nome normalizado no mesmo contrato;
+5. **preserva o registro existente** e o contabiliza como `Pulado`;
+6. cria somente exercícios que ainda não existem;
+7. exibe o resumo com `Importados`, `Pulados`, `Erros` e `Total`.
+
+Exemplo resumido:
+
+```text
 🚀 Iniciando importação de exercícios...
+📄 Arquivo lido: 197 exercícios encontrados
+🏢 Contrato alvo: <contract-id>
 
-📊 Total de exercícios no arquivo: 197
+✅ Importado: "Exercício Novo"
+⏭️  Pulando "Exercício Existente" (já existe)
 
-🗑️  Limpando exercícios existentes...
-✅ Exercícios anteriores removidos
+📊 Resumo da Importação:
+   ✅ Importados: 1
+   ⏭️  Pulados: 196
+   ❌ Erros: 0
+   📄 Total: 197
 
-✅ 20 exercícios importados...
-✅ 40 exercícios importados...
-✅ 60 exercícios importados...
-✅ 80 exercícios importados...
-✅ 100 exercícios importados...
-✅ 120 exercícios importados...
-✅ 140 exercícios importados...
-✅ 160 exercícios importados...
-✅ 180 exercícios importados...
-
-🎉 Importação concluída!
-✅ Importados: 197
-❌ Erros: 0
-
-📊 Estatísticas por Grupo Muscular:
-   Abdômen: 27 exercícios
-   Quadríceps: 27 exercícios
-   Peitoral: 27 exercícios
-   Costas: 21 exercícios
-   ...
+✅ Importação concluída com sucesso!
 ```
 
 ## 🔍 Verificar Importação
@@ -115,12 +130,11 @@ Acesse `http://localhost:5555` e navegue até a tabela `ExerciseLibrary`.
 ### Via API
 
 ```bash
-# Iniciar a API
 cd apps/api
 pnpm dev
 
-# Em outro terminal, testar endpoint
-curl http://localhost:3000/api/library/exercises
+# Em outro terminal
+curl http://localhost:3000/api/v1/library/exercises
 ```
 
 ## ⚠️ Troubleshooting
@@ -148,22 +162,31 @@ cd apps/api
 npx prisma migrate dev
 ```
 
-### Erro: "Duplicate key value"
+### Exercício existente foi pulado
 
-O script limpa a tabela antes de importar. Se quiser preservar dados existentes, comente a linha no script:
+Esse é o comportamento esperado e não destrutivo. O importador procura `name + contractId` antes de criar e mantém o registro já existente sem sobrescrevê-lo.
 
-```typescript
-// await prisma.exerciseLibrary.deleteMany({});
-```
+Se a intenção for alterar um exercício existente, faça a edição pelo fluxo próprio da aplicação/API; **não remova a proteção do importador e não apague a biblioteca como etapa da importação**.
+
+### Código de movimento não suportado
+
+`movementType` deriva do enum Prisma. Os valores suportados atualmente são:
+
+- `U` — Unilateral
+- `A` — Alternado
+- `I` — Isolado
+- `O` — Outros (Bilateral)
+
+Códigos como `B` e `-` não são convertidos implicitamente para outro movimento; eles são importados sem `movementType`.
 
 ## 📝 Estrutura do Arquivo JSON
 
-Cada exercício possui os seguintes campos:
+Cada exercício pode possuir os seguintes campos:
 
 ```json
 {
   "name": "Nome do Exercício",
-  "category": "MOBILIDADE | RESISTIDO | CICLICO",
+  "videoUrl": "https://youtube.com/watch?v=...",
   "loadType": "H | C | E | A | P | O",
   "movementType": "U | A | I | O",
   "countingType": "I | T | R",
@@ -171,6 +194,8 @@ Cada exercício possui os seguintes campos:
   "muscleGroup": "Grupo muscular principal"
 }
 ```
+
+A `category` é determinada pelo importador a partir do nome do exercício.
 
 ### Tipos de Carga (LoadType)
 
@@ -190,29 +215,18 @@ Cada exercício possui os seguintes campos:
 
 ### Tipos de Contagem (CountingType)
 
-- **I** - Intervalo (tempo)
+- **I** - Intervalo/Isometria
 - **T** - Tempo
 - **R** - Repetições
 
-## 🎯 Próximos Passos
+## 🎯 Verificações após a importação
 
-Após importar os exercícios:
-
-1. ✅ Testar a tela de Biblioteca no frontend
-2. ✅ Verificar filtros por grupo muscular
-3. ✅ Testar busca por nome
-4. ✅ Implementar tela de Montagem de Treinos
-5. ✅ Integrar com Periodização Macrociclo
-
-## 📞 Suporte
-
-Se encontrar problemas durante a importação, verifique:
-
-1. Logs do Docker: `docker compose logs postgres`
-2. Logs da API: verifique o terminal onde rodou o script
-3. Schema do Prisma: `apps/api/prisma/schema.prisma`
+1. Testar a tela de Biblioteca no frontend.
+2. Verificar filtros por grupo muscular e movimento.
+3. Testar busca por nome.
+4. Confirmar que registros preexistentes/customizados permaneceram inalterados.
 
 ---
 
-**Última atualização:** 01/02/2026  
-**Versão do arquivo:** exercises-data.json (commit a1fdfc5)
+**Última atualização:** 12/09/2026  
+**Comportamento documentado:** importador incremental, idempotente por nome + contrato e não destrutivo.
