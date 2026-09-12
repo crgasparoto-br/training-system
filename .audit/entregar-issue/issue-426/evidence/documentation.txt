@@ -1,0 +1,3 @@
+Exact-head documentation evidence for Issue 426 at 12517d21609a7b0c8f2a79971ac24efe12e366a3.
+Changed canonical documentation includes IMPORTACAO_EXERCICIOS.md and docs/architecture/contract-defaults.md describing the supported movement domain and non-destructive defaults behavior.
+Validate PR run 34617682121 completed Documentation checks with success on this exact head.

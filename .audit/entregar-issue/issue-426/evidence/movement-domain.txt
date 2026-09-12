@@ -1,0 +1,4 @@
+Exact-head structural evidence for Issue 426 at 12517d21609a7b0c8f2a79971ac24efe12e366a3.
+apps/api/src/modules/contracts/contract-defaults.service.ts imports MovementType from @prisma/client and defines MOVEMENT_TYPES = new Set(Object.values(MovementType)); catalog movementType is normalized only when allowed.has(normalized).
+This makes A valid through the Prisma enum while B and - remain unsupported instead of being coerced.
+The same exact-head CI run 34617682121 passed contract-defaults.movement-type.test.ts and import-exercises-movement-type.integration.test.ts.

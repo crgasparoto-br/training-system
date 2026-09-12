@@ -1,0 +1,5 @@
+Exact-head supported-field coverage inventory for Issue 426 / PR 430
+material_head_sha: 12517d21609a7b0c8f2a79971ac24efe12e366a3
+specified supplemental catalog fields: 4
+fields: videoUrl, loadType, movementType, countingType
+observed in exact-head defaults model and exact-head CI run 34617682121: all 4 fields are handled by the default installation path; movementType is validated from Prisma MovementType.

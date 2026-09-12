@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "12517d21609a7b0c8f2a79971ac24efe12e366a3",
+  "base_sha": "b2952652539998708e3ae5fc74cadd7fa68e98fe",
+  "evidence": [
+    {
+      "evidence_id": "EVID-FIELD-COVERAGE-COUNT",
+      "kind": "quantitative",
+      "path": "evidence/field-coverage-count.txt",
+      "sha256": "2c81b07f3ee2c0351d94d7a7062872d46578e82a502c59a58126930943c5908c",
+      "subject_sha": "12517d21609a7b0c8f2a79971ac24efe12e366a3",
+      "base_sha": "b2952652539998708e3ae5fc74cadd7fa68e98fe",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue refreeze from exact-head source and CI",
+      "status": "passed"
+    }
+  ]
+}

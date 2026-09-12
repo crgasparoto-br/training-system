@@ -1,0 +1,10 @@
+Issue 426 / PR 430 exact-material-head validation
+material_head_sha: 12517d21609a7b0c8f2a79971ac24efe12e366a3
+base_sha: b2952652539998708e3ae5fc74cadd7fa68e98fe
+workflow: Validate PR #7654
+workflow_run_id: 34617682121
+job: Validate repository
+result: completed/success
+validated steps: Prisma generation; migration checks; test database migrations; persistence invariants; type check; lint; test; build; browser validation; architecture checks; access catalog checks; documentation checks.
+raw test artifact: test-output-34617682121 (artifact id 10270464206, GitHub digest sha256:e67ac7d28f51a408e64e72c5b9f35e867dec4bc2689a683cc84d10e273cfffff)
+observed test log: apps/web 141 test files / 560 tests passed; apps/api PASS tests/import-exercises-movement-type.integration.test.ts; PASS src/modules/contracts/contract-defaults.movement-type.test.ts; AlunoResumoHubTab.test.tsx 4 tests passed.

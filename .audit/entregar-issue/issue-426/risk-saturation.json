@@ -1,0 +1,241 @@
+{
+  "schema_version": 1,
+  "head_sha": "12517d21609a7b0c8f2a79971ac24efe12e366a3",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "R-OBL-023-02-NEG"
+      ],
+      "dimensions": [
+        {
+          "surface": "tenant-scope-isolation",
+          "reason": "A contract-scoped happy path can still leak or mutate another tenant unless deliberately different contractId values are exercised.",
+          "control_ids": [
+            "R-OBL-023-02-NEG"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "R-OBL-004-01-NEG"
+      ],
+      "dimensions": [
+        {
+          "surface": "current-contract-validity",
+          "reason": "Existing historical movement values must remain valid while the current supported domain adds A without reinterpretation.",
+          "control_ids": [
+            "R-OBL-004-01-NEG"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "R-OBL-012-01-NEG",
+        "R-OBL-013-01-NEG",
+        "R-OBL-022-01-NEG",
+        "R-OBL-023-01-NEG",
+        "R-OBL-027-01-NEG"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "reason": "Reinstall or duplicate catalog processing can create duplicate records or overwrite values unless replay behavior is discriminated.",
+          "control_ids": [
+            "R-OBL-012-01-NEG",
+            "R-OBL-013-01-NEG",
+            "R-OBL-022-01-NEG",
+            "R-OBL-023-01-NEG",
+            "R-OBL-027-01-NEG"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "R-OBL-001-01-NEG",
+        "R-OBL-002-01-NEG",
+        "R-OBL-002-02-NEG",
+        "R-OBL-003-01-NEG",
+        "R-OBL-005-01-NEG",
+        "R-OBL-006-01-NEG",
+        "R-OBL-007-01-NEG",
+        "R-OBL-008-01-NEG",
+        "R-OBL-009-01-NEG",
+        "R-OBL-010-01-NEG",
+        "R-OBL-011-01-NEG",
+        "R-OBL-014-01-NEG",
+        "R-OBL-015-01-NEG",
+        "R-OBL-016-01-NEG",
+        "R-OBL-018-01-NEG",
+        "R-OBL-019-01-NEG",
+        "R-OBL-020-01-NEG",
+        "R-OBL-021-01-NEG",
+        "R-OBL-024-01-NEG",
+        "R-OBL-025-01-NEG",
+        "R-OBL-026-01-NEG",
+        "R-OBL-027-CASE-01-NEG",
+        "R-OBL-027-CASE-02-NEG",
+        "R-OBL-027-CASE-03-NEG",
+        "R-OBL-027-CASE-04-NEG",
+        "R-OBL-027-CASE-05-NEG",
+        "R-OBL-027-CASE-06-NEG",
+        "R-OBL-028-01-NEG"
+      ],
+      "dimensions": [
+        {
+          "surface": "behavioral-contract",
+          "reason": "The requested behavior can appear correct on a happy path while violating preservation, movement-domain, or interface semantics.",
+          "control_ids": [
+            "R-OBL-001-01-NEG",
+            "R-OBL-003-01-NEG",
+            "R-OBL-005-01-NEG",
+            "R-OBL-006-01-NEG",
+            "R-OBL-007-01-NEG",
+            "R-OBL-008-01-NEG",
+            "R-OBL-009-01-NEG",
+            "R-OBL-010-01-NEG",
+            "R-OBL-011-01-NEG",
+            "R-OBL-014-01-NEG",
+            "R-OBL-015-01-NEG",
+            "R-OBL-016-01-NEG",
+            "R-OBL-018-01-NEG",
+            "R-OBL-019-01-NEG",
+            "R-OBL-020-01-NEG",
+            "R-OBL-021-01-NEG",
+            "R-OBL-024-01-NEG",
+            "R-OBL-025-01-NEG",
+            "R-OBL-026-01-NEG",
+            "R-OBL-028-01-NEG"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "canonical-source-consistency",
+          "reason": "Defaults and importer can drift if movement support is encoded in separate whitelists instead of the Prisma enum.",
+          "control_ids": [
+            "R-OBL-002-01-NEG"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "relational-semantic-integrity",
+          "reason": "Catalog and persisted exercise fields can diverge if the canonical write path accepts incompatible movement semantics.",
+          "control_ids": [
+            "R-OBL-002-02-NEG"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "specified-test-matrix",
+          "reason": "A partial green suite can miss creation, backfill, preservation, duplication, idempotency, or unsupported-code scenarios explicitly required by the issue.",
+          "control_ids": [
+            "R-OBL-027-CASE-01-NEG",
+            "R-OBL-027-CASE-02-NEG",
+            "R-OBL-027-CASE-03-NEG",
+            "R-OBL-027-CASE-04-NEG",
+            "R-OBL-027-CASE-05-NEG",
+            "R-OBL-027-CASE-06-NEG"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "R-OBL-017-01-NEG"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "reason": "Durable documentation can drift from the exact movement domain and non-destructive defaults contract even when code is green.",
+          "control_ids": [
+            "R-OBL-017-01-NEG"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}

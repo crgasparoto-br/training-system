@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:e6a9caaf04ec8b78",
+    "audit_report_sha256": "1f46aac6facbea8a901e6f0e866d1978282928a75f558e5bb9dc419d1b28ea8e",
+    "finding_ids": [
+      "A-001"
+    ]
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "The installed delivery controller already contains the post-freeze material-write latch, recovery classifier, result-only parent constraint, and terminal handoff guard. This targeted remediation applies those existing controls to the new exact-head candidate rather than introducing a new systemic rule."
+  },
+  "skill_changes": []
+}

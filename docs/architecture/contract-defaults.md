@@ -28,7 +28,8 @@ A resposta informa, por categoria, quantos padrões foram instalados e quantos j
 - em exercícios padrão já existentes, preenche apenas campos vazios disponíveis no catálogo canônico (`videoUrl`, `loadType`, `movementType`, `countingType`, categoria, grupo muscular e observações);
 - preserva valores existentes e customizações, sem substituir um campo não vazio durante o reparo;
 - combina ocorrências duplicadas do catálogo de forma não destrutiva: a primeira ocorrência mantém os valores já preenchidos e ocorrências posteriores podem somente completar lacunas;
-- ignora códigos de catálogo que não pertencem aos enums suportados pelo produto, em vez de reinterpretá-los silenciosamente;
+- aceita `A = Alternado` como valor canônico de `movementType`, preservando `U`, `I` e `O`;
+- ignora códigos não suportados, incluindo `B` e `-`, em vez de reinterpretá-los silenciosamente;
 - pode ser executada novamente sem duplicar dados;
 - consulta apenas dados do contrato autenticado para decidir o que falta.
 
