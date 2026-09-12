@@ -11,7 +11,7 @@ const RANK = Object.freeze({ fast: 1, standard: 2, critical: 3 });
 // semantic filename guard ahead of the general allowlists so auth/access/session
 // boundaries cannot be downgraded only because their directory looks harmless.
 const CRITICAL_FRONTEND_SECURITY_ENTRYPOINT =
-  /^apps\/web\/src\/(?:components|pages|stores)\/(?:[^/]+\/)*[^/]*(?:auth|access|permission|protected|guard|login|sign-in|signin|session)[^/]*\.[cm]?[jt]sx?$/;
+  /^apps\/web\/src\/(?:components|pages|stores)\/(?:[^/]+\/)*[^/]*(?:auth|access|permission|protected|guard|login|sign-in|signin|register|sign-up|signup|password|session)[^/]*\.[cm]?[jt]sx?$/;
 
 const CRITICAL_PATTERNS = [
   /^\.github\/(workflows|actions)\//,

@@ -41,6 +41,8 @@ test('real frontend auth and access entrypoints are always CRITICAL', () => {
   const sensitivePaths = [
     'apps/web/src/components/ProtectedRoute.tsx',
     'apps/web/src/pages/Login.tsx',
+    'apps/web/src/pages/Register.tsx',
+    'apps/web/src/pages/ForgotPassword.tsx',
     'apps/web/src/stores/useAuthStore.ts'
   ];
 
@@ -55,6 +57,8 @@ test('security-like frontend entrypoints fail critical even in FAST-friendly roo
   const sensitivePaths = [
     'apps/web/src/components/RoleGuard.tsx',
     'apps/web/src/pages/SignIn.tsx',
+    'apps/web/src/pages/SignUp.tsx',
+    'apps/web/src/pages/ResetPassword.tsx',
     'apps/web/src/stores/sessionStore.ts'
   ];
 
