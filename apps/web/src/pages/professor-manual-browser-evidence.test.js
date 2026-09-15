@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import http from 'node:http';
 import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
+import { accessSync, constants, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -62,6 +62,23 @@ function githubIdentity() {
     baseSha: event?.pull_request?.base?.sha || null,
     mergePreviewSha: process.env.GITHUB_SHA || null,
   };
+}
+
+function chromeExecutable() {
+  const candidates = [
+    process.env.CHROME_BIN,
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    try {
+      accessSync(candidate, constants.X_OK);
+      return candidate;
+    } catch {}
+  }
+  throw new Error(`Chrome/Chromium not found: ${candidates.join(', ')}`);
 }
 
 function respond(res, status, payload) {
@@ -271,7 +288,11 @@ suite('Issue #363 / PR #364 - evidencia browser do Manual do Professor', () => {
     try {
       api = await startApi();
       vite = await startVite();
-      browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+      browser = await puppeteer.launch({
+        executablePath: chromeExecutable(),
+        headless: true,
+        args: ['--no-sandbox', '--disable-dev-shm-usage'],
+      });
       const page = await browser.newPage();
       await setSession(page);
 
