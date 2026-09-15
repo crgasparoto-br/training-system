@@ -1,3 +1,3 @@
-Exact-head documentation evidence for Issue 426 at 12517d21609a7b0c8f2a79971ac24efe12e366a3.
-Changed canonical documentation includes IMPORTACAO_EXERCICIOS.md and docs/architecture/contract-defaults.md describing the supported movement domain and non-destructive defaults behavior.
-Validate PR run 34617682121 completed Documentation checks with success on this exact head.
+Material candidate: 3f4140f50337b4abea944043dacc36dd2d7d9805
+Durable documentation in the PR documents the non-destructive import/defaults behavior and MovementType semantics required by issue #426.
+Validate PR #7675 succeeded after the documentation and visual-audit commits were already part of this exact material head.

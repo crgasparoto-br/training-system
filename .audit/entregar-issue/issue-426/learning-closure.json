@@ -5,9 +5,7 @@
     "kind": "independent-rejection",
     "rejection_id": "audit-rejection:e6a9caaf04ec8b78",
     "audit_report_sha256": "1f46aac6facbea8a901e6f0e866d1978282928a75f558e5bb9dc419d1b28ea8e",
-    "finding_ids": [
-      "A-001"
-    ]
+    "finding_ids": ["A-001"]
   },
   "generalized_learning": {
     "promotion_status": "not-required",

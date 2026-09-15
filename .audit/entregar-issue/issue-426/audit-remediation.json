@@ -4,7 +4,7 @@
   "resolution_policy": "all-actionable-items",
   "status": "closed",
   "remediation_mode": "targeted-remediation",
-  "candidate_head_sha": "12517d21609a7b0c8f2a79971ac24efe12e366a3",
+  "candidate_head_sha": "3f4140f50337b4abea944043dacc36dd2d7d9805",
   "source": {
     "rejection_id": "audit-rejection:e6a9caaf04ec8b78",
     "audited_head_sha": "1a0fe9b106e9c98ae7684296a427e51f890975f6",
@@ -20,8 +20,8 @@
       "validations": [
         "post-write-refreeze recovery classification preserved",
         "stale handoff not reused",
-        "exact-head Validate PR #7654 succeeded on material candidate 12517d21609a7b0c8f2a79971ac24efe12e366a3",
-        "fresh result-only child is required to parent directly on material SHA 12517d21609a7b0c8f2a79971ac24efe12e366a3"
+        "exact-head Validate PR #7675 succeeded on material candidate 3f4140f50337b4abea944043dacc36dd2d7d9805",
+        "fresh result-only child is required to parent directly on material SHA 3f4140f50337b4abea944043dacc36dd2d7d9805"
       ]
     }
   ]
