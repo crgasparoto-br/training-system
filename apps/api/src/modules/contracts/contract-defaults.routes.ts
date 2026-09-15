@@ -1,13 +1,18 @@
+import { randomUUID } from 'crypto';
 import { Router, type Request, type Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { masterMiddleware } from '../auth/auth.middleware.js';
 import { cloneContractData } from './contract-data.service.js';
-import { installContractDefaults } from './contract-defaults.service.js';
+import {
+  ContractDefaultsInstallStageError,
+  installContractDefaults,
+} from './contract-defaults.service.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();
+const SLOW_DEFAULTS_INSTALL_MS = 4_000;
 
 const copySchema = z.object({
   sourceContractId: z.string().trim().min(1),
@@ -25,6 +30,28 @@ const legacyCloneSchema = z.object({
 
 const currentContractId = (req: Request) => (req as any).user?.contractId as string | undefined;
 const currentProfessorId = (req: Request) => (req as any).user?.professorId as string | undefined;
+
+const errorDetails = (error: unknown) => {
+  const candidate = error && typeof error === 'object' ? (error as any) : {};
+  const rootCause =
+    error instanceof ContractDefaultsInstallStageError ? error.cause : error;
+  const root = rootCause && typeof rootCause === 'object' ? (rootCause as any) : {};
+
+  return {
+    stage:
+      error instanceof ContractDefaultsInstallStageError
+        ? error.stage
+        : 'install-defaults',
+    stageDurationMs:
+      error instanceof ContractDefaultsInstallStageError
+        ? error.durationMs
+        : undefined,
+    errorName: root.name ?? candidate.name,
+    errorCode: root.code ?? candidate.code,
+    message: root.message ?? candidate.message,
+    stack: root.stack ?? candidate.stack,
+  };
+};
 
 async function copyFromExplicitSource(req: Request, res: Response) {
   const contractId = currentContractId(req);
@@ -62,6 +89,9 @@ async function copyFromExplicitSource(req: Request, res: Response) {
 }
 
 router.post('/install-defaults', masterMiddleware, async (req: Request, res: Response) => {
+  const correlationId = randomUUID();
+  const startedAt = Date.now();
+
   try {
     const contractId = currentContractId(req);
     if (!contractId) {
@@ -69,10 +99,28 @@ router.post('/install-defaults', masterMiddleware, async (req: Request, res: Res
     }
 
     const result = await installContractDefaults(contractId);
+    const durationMs = Date.now() - startedAt;
+    if (durationMs >= SLOW_DEFAULTS_INSTALL_MS) {
+      console.warn('Instalação de padrões acima do limite de observação', {
+        operation: 'contract-defaults.install',
+        stage: 'complete',
+        durationMs,
+        correlationId,
+      });
+    }
     return sendSuccess(res, result, 'Padrões do sistema instalados com sucesso');
-  } catch (error: any) {
-    console.error('Erro ao instalar padrões do sistema:', error);
-    return sendError(res, error.message || 'Erro ao instalar padrões do sistema', 500);
+  } catch (error: unknown) {
+    const durationMs = Date.now() - startedAt;
+    console.error('Erro ao instalar padrões do sistema:', {
+      operation: 'contract-defaults.install',
+      durationMs,
+      correlationId,
+      ...errorDetails(error),
+    });
+    return sendError(res, 'Erro ao instalar padrões do sistema', 500, {
+      code: 'CONTRACT_DEFAULTS_INTERNAL_ERROR',
+      correlationId,
+    });
   }
 });
 

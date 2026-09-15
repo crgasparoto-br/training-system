@@ -20,6 +20,15 @@ jest.mock('../auth/auth.middleware', () => ({
 }));
 
 jest.mock('./contract-defaults.service', () => ({
+  ContractDefaultsInstallStageError: class ContractDefaultsInstallStageError extends Error {
+    constructor(
+      public readonly stage: string,
+      public readonly durationMs: number,
+      public readonly cause: unknown
+    ) {
+      super('Falha ao instalar padrões do sistema');
+    }
+  },
   installContractDefaults: mockInstallContractDefaults,
 }));
 
@@ -85,6 +94,35 @@ describe('contract defaults routes', () => {
 
     expect(response.status).toBe(404);
     expect(mockInstallContractDefaults).not.toHaveBeenCalled();
+  });
+
+  it('não vaza detalhes do Prisma quando a instalação falha internamente', async () => {
+    const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const prismaError = Object.assign(
+      new Error('Invalid prisma.exerciseLibrary.updateMany invocation: Transaction already closed'),
+      { name: 'PrismaClientKnownRequestError', code: 'P2028' }
+    );
+    mockInstallContractDefaults.mockRejectedValueOnce(prismaError);
+
+    const response = await request(app).post('/contracts/install-defaults').send({});
+    const serialized = JSON.stringify(response.body);
+
+    expect(response.status).toBe(500);
+    expect(serialized).toContain('Erro ao instalar padrões do sistema');
+    expect(serialized).toContain('CONTRACT_DEFAULTS_INTERNAL_ERROR');
+    expect(serialized).not.toContain('P2028');
+    expect(serialized).not.toContain('prisma.exerciseLibrary');
+    expect(log).toHaveBeenCalledWith(
+      'Erro ao instalar padrões do sistema:',
+      expect.objectContaining({
+        operation: 'contract-defaults.install',
+        stage: 'install-defaults',
+        errorCode: 'P2028',
+        correlationId: expect.any(String),
+        durationMs: expect.any(Number),
+      })
+    );
+    log.mockRestore();
   });
 
   it('exige origem explícita na rota de cópia entre contratos', async () => {

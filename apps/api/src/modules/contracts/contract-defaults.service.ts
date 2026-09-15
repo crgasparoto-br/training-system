@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   MovementType,
+  Prisma,
   PrismaClient,
   type CountingType,
   type LoadType,
@@ -14,7 +15,10 @@ import { repairPtBrMojibake } from '../../common/pt-br-text.js';
 
 const prisma = new PrismaClient();
 
+const DEFAULTS_INSTALL_TRANSACTION_TIMEOUT_MS = 15_000;
+
 type DefaultsDb = Pick<PrismaClient, 'trainingParameter' | 'assessmentType' | 'exerciseLibrary'>;
+type BulkDefaultsDb = DefaultsDb & Pick<Prisma.TransactionClient, '$executeRaw'>;
 
 type ExerciseCatalogRow = Record<string, unknown>;
 
@@ -28,6 +32,34 @@ type ExistingExerciseDefault = {
   muscleGroup: string | null;
   notes: string | null;
 };
+
+type ExerciseNameRepair = {
+  currentName: string;
+  repairedName: string;
+};
+
+type ExerciseBackfill = {
+  current: ExistingExerciseDefault;
+  canonical: NormalizedExerciseDefault;
+  data: Partial<Omit<ExistingExerciseDefault, 'name'>>;
+};
+
+export type ContractDefaultsInstallStage =
+  | 'concurrency-lock'
+  | 'training-parameters'
+  | 'assessment-types'
+  | 'exercises';
+
+export class ContractDefaultsInstallStageError extends Error {
+  constructor(
+    public readonly stage: ContractDefaultsInstallStage,
+    public readonly durationMs: number,
+    public readonly cause: unknown
+  ) {
+    super('Falha ao instalar padrões do sistema');
+    this.name = 'ContractDefaultsInstallStageError';
+  }
+}
 
 export interface DefaultCategoryInstallResult {
   installed: number;
@@ -221,6 +253,21 @@ export function loadProductExerciseDefaults(): NormalizedExerciseDefault[] {
   return [...defaultsByName.values()];
 }
 
+const supportsBulkSql = (db: DefaultsDb): db is BulkDefaultsDb =>
+  typeof (db as Partial<BulkDefaultsDb>).$executeRaw === 'function';
+
+async function runInstallStage<T>(
+  stage: ContractDefaultsInstallStage,
+  operation: () => Promise<T>
+): Promise<T> {
+  const startedAt = Date.now();
+  try {
+    return await operation();
+  } catch (error) {
+    throw new ContractDefaultsInstallStageError(stage, Date.now() - startedAt, error);
+  }
+}
+
 async function installTrainingParameters(contractId: string, db: DefaultsDb) {
   const existing = await db.trainingParameter.findMany({
     where: { contractId },
@@ -274,14 +321,13 @@ async function installAssessmentTypes(contractId: string, db: DefaultsDb) {
   };
 }
 
-async function repairExistingExerciseNames(
-  contractId: string,
+function collectExerciseNameRepairs(
   defaults: NormalizedExerciseDefault[],
-  existingExercises: ExistingExerciseDefault[],
-  db: DefaultsDb
-) {
+  existingExercises: ExistingExerciseDefault[]
+): ExerciseNameRepair[] {
   const defaultNames = new Set(defaults.map((item) => item.name));
   const existingNames = new Set(existingExercises.map((item) => item.name));
+  const repairs: ExerciseNameRepair[] = [];
 
   for (const item of existingExercises) {
     const repairedName = normalizeExerciseName(item.name);
@@ -293,16 +339,52 @@ async function repairExistingExerciseNames(
       continue;
     }
 
-    const updated = await db.exerciseLibrary.updateMany({
-      where: { contractId, name: item.name },
-      data: { name: repairedName },
-    });
+    repairs.push({ currentName: item.name, repairedName });
+    existingNames.delete(item.name);
+    existingNames.add(repairedName);
+  }
 
-    if (updated.count > 0) {
-      existingNames.delete(item.name);
-      existingNames.add(repairedName);
-      item.name = repairedName;
+  return repairs;
+}
+
+async function applyExerciseNameRepairs(
+  contractId: string,
+  repairs: ExerciseNameRepair[],
+  existingExercises: ExistingExerciseDefault[],
+  db: DefaultsDb
+) {
+  if (repairs.length === 0) return;
+
+  if (supportsBulkSql(db)) {
+    const rows = repairs.map(({ currentName, repairedName }) =>
+      Prisma.sql`(${currentName}, ${repairedName})`
+    );
+    await db.$executeRaw(Prisma.sql`
+      UPDATE "ExerciseLibrary" AS exercise
+      SET "name" = repair."repairedName"
+      FROM (VALUES ${Prisma.join(rows)}) AS repair("currentName", "repairedName")
+      WHERE exercise."contractId" = ${contractId}
+        AND exercise."name" = repair."currentName"
+        AND NOT EXISTS (
+          SELECT 1
+          FROM "ExerciseLibrary" AS conflict
+          WHERE conflict."contractId" = exercise."contractId"
+            AND conflict."name" = repair."repairedName"
+        )
+    `);
+  } else {
+    for (const repair of repairs) {
+      await db.exerciseLibrary.updateMany({
+        where: { contractId, name: repair.currentName },
+        data: { name: repair.repairedName },
+      });
     }
+  }
+
+  const repairedNames = new Map(repairs.map((repair) => [repair.currentName, repair.repairedName]));
+  for (const item of existingExercises) {
+    const repairedName = repairedNames.get(item.name);
+    if (repairedName) item.name = repairedName;
   }
 }
 
@@ -325,6 +407,101 @@ function missingExerciseFields(
   return data;
 }
 
+async function applyExerciseBackfills(
+  contractId: string,
+  backfills: ExerciseBackfill[],
+  db: DefaultsDb
+) {
+  if (backfills.length === 0) return;
+
+  if (supportsBulkSql(db)) {
+    const rows = backfills.map(({ canonical }) =>
+      Prisma.sql`(
+        ${canonical.name},
+        ${canonical.videoUrl ?? null},
+        ${canonical.loadType ?? null},
+        ${canonical.movementType ?? null},
+        ${canonical.countingType ?? null},
+        ${canonical.category},
+        ${canonical.muscleGroup ?? null},
+        ${canonical.notes ?? null}
+      )`
+    );
+
+    await db.$executeRaw(Prisma.sql`
+      UPDATE "ExerciseLibrary" AS exercise
+      SET
+        "videoUrl" = CASE
+          WHEN NULLIF(BTRIM(exercise."videoUrl"), '') IS NULL AND defaults."videoUrl" IS NOT NULL
+            THEN defaults."videoUrl"
+          ELSE exercise."videoUrl"
+        END,
+        "loadType" = CASE
+          WHEN exercise."loadType" IS NULL AND defaults."loadType" IS NOT NULL
+            THEN defaults."loadType"::"LoadType"
+          ELSE exercise."loadType"
+        END,
+        "movementType" = CASE
+          WHEN exercise."movementType" IS NULL AND defaults."movementType" IS NOT NULL
+            THEN defaults."movementType"::"MovementType"
+          ELSE exercise."movementType"
+        END,
+        "countingType" = CASE
+          WHEN exercise."countingType" IS NULL AND defaults."countingType" IS NOT NULL
+            THEN defaults."countingType"::"CountingType"
+          ELSE exercise."countingType"
+        END,
+        "category" = CASE
+          WHEN NULLIF(BTRIM(exercise."category"), '') IS NULL AND defaults."category" IS NOT NULL
+            THEN defaults."category"
+          ELSE exercise."category"
+        END,
+        "muscleGroup" = CASE
+          WHEN NULLIF(BTRIM(exercise."muscleGroup"), '') IS NULL AND defaults."muscleGroup" IS NOT NULL
+            THEN defaults."muscleGroup"
+          ELSE exercise."muscleGroup"
+        END,
+        "notes" = CASE
+          WHEN NULLIF(BTRIM(exercise."notes"), '') IS NULL AND defaults."notes" IS NOT NULL
+            THEN defaults."notes"
+          ELSE exercise."notes"
+        END
+      FROM (VALUES ${Prisma.join(rows)}) AS defaults(
+        "name",
+        "videoUrl",
+        "loadType",
+        "movementType",
+        "countingType",
+        "category",
+        "muscleGroup",
+        "notes"
+      )
+      WHERE exercise."contractId" = ${contractId}
+        AND exercise."name" = defaults."name"
+        AND (
+          (NULLIF(BTRIM(exercise."videoUrl"), '') IS NULL AND defaults."videoUrl" IS NOT NULL) OR
+          (exercise."loadType" IS NULL AND defaults."loadType" IS NOT NULL) OR
+          (exercise."movementType" IS NULL AND defaults."movementType" IS NOT NULL) OR
+          (exercise."countingType" IS NULL AND defaults."countingType" IS NOT NULL) OR
+          (NULLIF(BTRIM(exercise."category"), '') IS NULL AND defaults."category" IS NOT NULL) OR
+          (NULLIF(BTRIM(exercise."muscleGroup"), '') IS NULL AND defaults."muscleGroup" IS NOT NULL) OR
+          (NULLIF(BTRIM(exercise."notes"), '') IS NULL AND defaults."notes" IS NOT NULL)
+        )
+    `);
+
+    for (const { current, data } of backfills) Object.assign(current, data);
+    return;
+  }
+
+  for (const { current, canonical, data } of backfills) {
+    await db.exerciseLibrary.updateMany({
+      where: { contractId, name: canonical.name },
+      data,
+    });
+    Object.assign(current, data);
+  }
+}
+
 async function installExercises(contractId: string, db: DefaultsDb) {
   const defaults = loadProductExerciseDefaults();
   const existing = (await db.exerciseLibrary.findMany({
@@ -341,9 +518,12 @@ async function installExercises(contractId: string, db: DefaultsDb) {
     },
   })) as ExistingExerciseDefault[];
 
-  await repairExistingExerciseNames(contractId, defaults, existing, db);
+  const repairs = collectExerciseNameRepairs(defaults, existing);
+  await applyExerciseNameRepairs(contractId, repairs, existing, db);
+
   const existingByName = new Map(existing.map((item) => [item.name, item]));
   const missing: NormalizedExerciseDefault[] = [];
+  const backfills: ExerciseBackfill[] = [];
 
   for (const canonical of defaults) {
     const current = existingByName.get(canonical.name);
@@ -354,13 +534,11 @@ async function installExercises(contractId: string, db: DefaultsDb) {
 
     const data = missingExerciseFields(current, canonical);
     if (Object.keys(data).length > 0) {
-      await db.exerciseLibrary.updateMany({
-        where: { contractId, name: canonical.name },
-        data,
-      });
-      Object.assign(current, data);
+      backfills.push({ current, canonical, data });
     }
   }
+
+  await applyExerciseBackfills(contractId, backfills, db);
 
   const created = missing.length
     ? await db.exerciseLibrary.createMany({
@@ -389,11 +567,13 @@ async function installContractDefaultsUnlocked(
   contractId: string,
   db: DefaultsDb
 ): Promise<ContractDefaultsInstallResult> {
-  const [trainingParameters, assessmentTypes, exercises] = await Promise.all([
-    installTrainingParameters(contractId, db),
-    installAssessmentTypes(contractId, db),
-    installExercises(contractId, db),
-  ]);
+  const trainingParameters = await runInstallStage('training-parameters', () =>
+    installTrainingParameters(contractId, db)
+  );
+  const assessmentTypes = await runInstallStage('assessment-types', () =>
+    installAssessmentTypes(contractId, db)
+  );
+  const exercises = await runInstallStage('exercises', () => installExercises(contractId, db));
 
   return {
     trainingParameters,
@@ -412,8 +592,19 @@ export async function installContractDefaults(
     return installContractDefaultsUnlocked(contractId, db as DefaultsDb);
   }
 
-  return transactionalDb.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${contractId})::bigint)`;
-    return installContractDefaultsUnlocked(contractId, tx);
-  });
+  // Production crossed Prisma's 5s interactive-transaction boundary. The
+  // primary correction is the set-based exercise repair above; 15s is only a
+  // safety margin around the now-bounded database work, not the fix itself.
+  return transactionalDb.$transaction(
+    async (tx) => {
+      await runInstallStage('concurrency-lock', () =>
+        tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${contractId})::bigint)`
+      );
+      return installContractDefaultsUnlocked(contractId, tx);
+    },
+    {
+      maxWait: 5_000,
+      timeout: DEFAULTS_INSTALL_TRANSACTION_TIMEOUT_MS,
+    }
+  );
 }
