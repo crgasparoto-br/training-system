@@ -14,6 +14,7 @@ const LOAD_TYPES = [
 
 const MOVEMENT_TYPES = [
   { value: 'U', label: 'Unilateral' },
+  { value: 'A', label: 'Alternado' },
   { value: 'I', label: 'Isolado' },
   { value: 'O', label: 'Outros (Bilateral)' },
 ];

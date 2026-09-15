@@ -58,7 +58,7 @@ Referência canônica: `apps/web/src/components/alunos/AlunoDetailsTabs.tsx` (ba
 
 ## Validação permanente — parâmetros de treino
 
-A rota `/settings/parameters` possui um validador permanente em navegador real: `apps/api/scripts/visual-audit-settings-parameters.mjs`. O workflow existente `.github/workflows/validate-pr.yml` executa esse harness depois do build, usando o Chrome instalado via Puppeteer, e publica screenshots, árvore de acessibilidade, diagnósticos e `visual-metrics.json` no artefato `settings-parameters-visual-*`.
+A rota `/settings/parameters` possui um validador permanente em navegador real: `apps/api/scripts/visual-audit-settings-parameters.mjs`. No workflow `.github/workflows/validate-pr.yml`, esse harness roda somente no perfil `CRITICAL`, depois do build e com o Chrome instalado via Puppeteer. Screenshots, árvore de acessibilidade, diagnósticos, `visual-metrics.json` e a evidência exact-head `orquestrador-artifact.json` são publicados juntos no artefato `validate-pr-critical-${head_sha}`; os arquivos visuais ficam sob `artifacts/settings-parameters-visual/**` dentro desse artefato.
 
 O contrato visual da rota cobre:
 

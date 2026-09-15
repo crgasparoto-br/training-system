@@ -1,0 +1,52 @@
+## Objetivo
+Completar os dados do cadastro padrão de exercícios exibido em `/library`, usando como referência a aba **Biblioteca** da **Planilha 46 - Claudinei Gasparoto**, sem sobrescrever dados já customizados pelos contratos.
+
+## Contexto
+O catálogo canônico `apps/api/src/scripts/exercises-data.json` já contém grande parte dos campos da planilha (`videoUrl`, `loadType`, `movementType`, `countingType`), porém `installContractDefaults()` atualmente instala somente nome, categoria, grupo muscular e observações. Consequentemente, os padrões do sistema aparecem com campos vazios na Biblioteca.
+
+A planilha também define `A = Alternado` para movimento, enquanto o modelo anterior aceitava apenas `U | I | O`. Há ainda marcadores fora da validação da própria planilha (`B` e `-`) que não devem ser convertidos silenciosamente.
+
+## Decisão consolidada
+- `A` passa a ser um valor canônico válido de `MovementType`, com significado **Alternado**.
+- Os valores existentes `U`, `I` e `O` permanecem válidos e mantêm sua semântica atual; nenhum dado histórico deve ser reinterpretado para `A`.
+- `B` e `-` permanecem **não suportados**. Não devem ser convertidos, inferidos ou mapeados silenciosamente para outro tipo de movimento.
+- A evolução do banco deve apenas **estender** o enum PostgreSQL `MovementType`, sem reescrever registros existentes.
+- Defaults e importador devem usar o enum suportado pelo produto como fonte de validação, evitando whitelist paralela divergente.
+- Na reinstalação dos padrões, `movementType = A` só pode preencher exercícios padrão cujo campo esteja vazio; valores já preenchidos/customizados permanecem preservados.
+- A interface da Biblioteca deve expor **Alternado** nos mesmos controles já existentes de movimento, sem alterar a estrutura funcional da tela.
+
+Fonte canônica durável relacionada: `docs/architecture/contract-defaults.md`.
+
+## Escopo
+- Fazer o catálogo padrão carregar e instalar vídeo, tipo de carga, tipo de movimento e tipo de contagem quando os valores forem suportados.
+- Reinstalar padrões deve **preencher somente campos vazios** em exercícios padrão já existentes, preservando valores não vazios/customizados.
+- Manter isolamento por `contractId` e idempotência.
+- Para nomes duplicados no catálogo, usar composição não destrutiva: a primeira ocorrência define os valores já presentes e ocorrências posteriores apenas completam campos ausentes.
+- Tratar strings vazias como ausentes.
+- Não converter códigos inválidos (`B`, `-`) para outro significado.
+- Alinhar a interface/importador à semântica da Planilha 46 para `A = Alternado`, preservando compatibilidade com dados legados.
+- Atualizar documentação de importação quando necessário.
+
+## Critérios de aceite
+- Um contrato vazio recebe os exercícios padrão com todos os campos suportados disponíveis no catálogo.
+- Um contrato com exercício padrão existente e campos vazios tem somente esses campos preenchidos na reinstalação.
+- Valores existentes não vazios nunca são sobrescritos pela reinstalação dos padrões.
+- Exercícios customizados permanecem inalterados.
+- Duplicidades do catálogo não criam duplicatas no destino e podem complementar lacunas da primeira ocorrência.
+- O processo continua idempotente e isolado por tenant.
+- `A` é aceito ponta a ponta como **Alternado** no schema, defaults/importador e interface.
+- `U`, `I` e `O` continuam aceitos sem alteração semântica.
+- `B` e `-` não são coercidos silenciosamente.
+- Testes cobrem criação, backfill, preservação, duplicidade, idempotência e a semântica de `A` versus códigos não suportados.
+
+## Implementação relacionada
+PR #430 — `fix: suportar movimento Alternado na biblioteca (#426)`.
+
+A implementação adiciona a migration `20260910150500_add_alternating_movement_type` e foi validada pelo workflow **Validate PR #7644** no SHA `761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f`.
+
+A issue permanece aberta até o fluxo normal de revisão/merge da PR.
+
+## Fora de escopo
+- Corrigir manualmente valores ambíguos da planilha sem evidência (`B` e `-`).
+- Reclassificar valores históricos `U`, `I` ou `O` como `A`.
+- Fazer merge da PR.

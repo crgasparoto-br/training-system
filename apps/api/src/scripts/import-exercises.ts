@@ -77,7 +77,7 @@ function normalizeLoadType(value?: string): LoadType | undefined {
 function normalizeMovementType(value?: string): MovementType | undefined {
   if (!value) return undefined;
   const upper = value.toUpperCase();
-  if (['U', 'I', 'O'].includes(upper)) {
+  if (Object.values(MovementType).includes(upper as MovementType)) {
     return upper as MovementType;
   }
   return undefined;

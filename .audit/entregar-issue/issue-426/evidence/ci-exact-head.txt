@@ -1,0 +1,7 @@
+Material candidate: 3f4140f50337b4abea944043dacc36dd2d7d9805
+Base develop: 0fba4d2870e087775433b844e22f04c0daa84bcf
+GitHub Actions workflow: Validate PR #7675
+Workflow run id: 34693315976
+Conclusion: success
+Exact-head successful jobs: Change Scope; Guardrails; API Unit Tests; Web Unit Tests; Critical Tests; API Build; Web Build.
+Critical Tests executed the full test command with RUN_DATABASE_INTEGRATION_TESTS=true and included the real-browser library alternating movement audit on the material candidate.

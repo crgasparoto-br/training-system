@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "result": "REPROVADA",
+  "validity": "independent",
+  "rejection_id": "audit-rejection:e6a9caaf04ec8b78",
+  "head_sha": "1a0fe9b106e9c98ae7684296a427e51f890975f6",
+  "reason": "handoff-stale",
+  "recovery_scope": "post-write-refreeze",
+  "requires_refreeze": true,
+  "return_control_to": "entregar-issue",
+  "findings": [
+    {
+      "id": "A-001",
+      "title": "Terminal handoff became stale after a post-freeze material write",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "reason": "The certificate targeted material SHA 761ae7db9f0ebe2f5cf54080e57a9b1f55164b5f, while the audited PR head was 1a0fe9b106e9c98ae7684296a427e51f890975f6 after a material test commit. The result-only parent/path contract was therefore no longer valid.",
+      "required_recovery": "Rebuild and refreeze the terminal packet against the current material candidate, then publish a fresh result-only child."
+    }
+  ]
+}

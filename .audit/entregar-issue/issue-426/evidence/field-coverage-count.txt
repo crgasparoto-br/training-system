@@ -1,0 +1,9 @@
+Material candidate: 3f4140f50337b4abea944043dacc36dd2d7d9805
+Quantitative requirement REQ-010 exact-head measurement.
+Supported catalog metadata fields required by the issue and covered by the implementation: 4.
+1. videoUrl
+2. loadType
+3. movementType
+4. countingType
+Observed covered field count: 4/4.
+Validation source: exact-head implementation plus successful Validate PR #7675 (run 34693315976).

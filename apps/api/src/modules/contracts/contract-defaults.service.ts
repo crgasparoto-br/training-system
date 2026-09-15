@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  MovementType,
   PrismaClient,
   type CountingType,
   type LoadType,
-  type MovementType,
 } from '@prisma/client';
 import {
   PRODUCT_ASSESSMENT_TYPES,
@@ -53,7 +53,7 @@ interface NormalizedExerciseDefault {
 }
 
 const LOAD_TYPES = new Set<string>(['H', 'C', 'E', 'A', 'P', 'O']);
-const MOVEMENT_TYPES = new Set<string>(['U', 'I', 'O']);
+const MOVEMENT_TYPES = new Set<string>(Object.values(MovementType));
 const COUNTING_TYPES = new Set<string>(['I', 'T', 'R']);
 
 const normalizeExerciseName = (value: string) =>
