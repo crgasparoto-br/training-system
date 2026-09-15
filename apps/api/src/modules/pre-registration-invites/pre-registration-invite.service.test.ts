@@ -12,6 +12,8 @@ import { createStudentLead } from '../alunos/student-lifecycle.service.js';
 // dependência de banco) vivem em pre-registration-invite-token.test.ts. Este
 // arquivo cobre apenas o comportamento do serviço com Postgres real.
 
+const describeDatabase =
+  process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true' ? describe : describe.skip;
 const prisma = new PrismaClient();
 const unique = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -31,7 +33,7 @@ const makeRateLimitResponse = () => {
   return res;
 };
 
-describe('pre-registration-invite service', () => {
+describeDatabase('pre-registration-invite service', () => {
   const createdContractIds: string[] = [];
 
   const createContract = async () => {
