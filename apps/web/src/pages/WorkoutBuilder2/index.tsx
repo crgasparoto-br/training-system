@@ -9,6 +9,7 @@ import { assessmentService } from '../../services/assessment.service';
 import { periodizationService, ResistedStimulus } from '../../services/periodization.service';
 import { workoutService } from '../../services/workout.service';
 import { isDateWithinRange, parseDateOnly, toDateInputValue, toIsoDateAtNoonUTC } from '../../utils/date';
+import { resolveWorkoutBuilderCyclicSummary } from '../../utils/workout-builder-cyclic-summary';
 import { resolveWorkoutBuilderWeekOptions } from '../../utils/workout-builder-week-options';
 import { workoutBuilderGuideCopy } from '../../i18n/ptBR';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -502,6 +503,12 @@ export default function WorkoutBuilder2() {
           weekOptions: resolvedWeekOptions,
         } = resolveWorkoutBuilderWeekOptions(matrix?.weeksPerMesocycle);
 
+        const groupedCyclic = matrix
+          ? periodizationService.groupCyclicByMesocycleAndWeek(
+              await periodizationService.getCyclicStimulusByMatrix(matrix.id)
+            )
+          : null;
+
         if (matrix) {
           const resistedStimuli = await periodizationService.getResistedStimulusByMatrix(matrix.id);
           const groupedResisted = periodizationService.groupResistedByMesocycleAndWeek(resistedStimuli);
@@ -530,40 +537,12 @@ export default function WorkoutBuilder2() {
           }
         }
 
-        // TODO: Carregar dados da periodização via API
-        // const periodization = await periodizationService.getCyclicStimulus(planId, mesocycleNumber, weekNumber);
-
-        // Mock temporário - simular dados da periodização
-        const mockPeriodization = {
-          totalVolumeMinutes: 284,
-          totalVolumeKm: 0,
-          minutesZ1: 71,  // 25% de 284
-          minutesZ2: 114, // 40% de 284
-          minutesZ3: 57,  // 20% de 284
-          minutesZ4: 28,  // 10% de 284
-          minutesZ5: 14   // 5% de 284
-        };
-
-        // Calcular distribuição percentual
-        const distributionZ1 = mockPeriodization.totalVolumeMinutes > 0
-          ? Math.round((mockPeriodization.minutesZ1 / mockPeriodization.totalVolumeMinutes) * 100)
-          : 0;
-        const distributionZ2 = mockPeriodization.totalVolumeMinutes > 0
-          ? Math.round((mockPeriodization.minutesZ2 / mockPeriodization.totalVolumeMinutes) * 100)
-          : 0;
-        const distributionZ3 = mockPeriodization.totalVolumeMinutes > 0
-          ? Math.round((mockPeriodization.minutesZ3 / mockPeriodization.totalVolumeMinutes) * 100)
-          : 0;
-        const distributionZ4 = mockPeriodization.totalVolumeMinutes > 0
-          ? Math.round((mockPeriodization.minutesZ4 / mockPeriodization.totalVolumeMinutes) * 100)
-          : 0;
-        const distributionZ5 = mockPeriodization.totalVolumeMinutes > 0
-          ? Math.round((mockPeriodization.minutesZ5 / mockPeriodization.totalVolumeMinutes) * 100)
-          : 0;
-
         const weeksPerMesocycle = resolvedWeeksPerMesocycle;
         const templates = await Promise.all(
           resolvedWeekOptions.map(async (weekNumber) => {
+            const cyclicSummary = resolveWorkoutBuilderCyclicSummary(
+              groupedCyclic?.get(mesocycleNumber)?.get(weekNumber) ?? null
+            );
             const weekStartDate = (() => {
               const start = parseDateOnly(plan.startDate) ?? new Date();
               const weekIndex = (mesocycleNumber - 1) * weeksPerMesocycle + (weekNumber - 1);
@@ -584,13 +563,7 @@ export default function WorkoutBuilder2() {
             const mergedTemplate = {
               ...templateFromApi,
               alunoId: plan.alunoId,
-              totalVolumeMin: mockPeriodization.totalVolumeMinutes,
-              totalVolumeKm: mockPeriodization.totalVolumeKm,
-              distributionZ1,
-              distributionZ2,
-              distributionZ3,
-              distributionZ4,
-              distributionZ5,
+              ...cyclicSummary,
               weekStartDate,
               mesocycleNumber,
               weekNumber,
@@ -2042,5 +2015,4 @@ export default function WorkoutBuilder2() {
     </div>
   );
 }
-
 

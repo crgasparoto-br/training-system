@@ -195,16 +195,16 @@ export default function WorkoutBuilderCyclic({
   });
 
   // Estado para Volume Total (virá da periodização)
-  const [volumeTotalMin, setVolumeTotalMin] = useState(templateData?.totalVolumeMin || 284);
-  const [volumeTotalKm, setVolumeTotalKm] = useState(templateData?.totalVolumeKm || 0);
+  const [volumeTotalMin, setVolumeTotalMin] = useState(templateData?.totalVolumeMin ?? 0);
+  const [volumeTotalKm, setVolumeTotalKm] = useState(templateData?.totalVolumeKm ?? 0);
 
   // Distribuição vem da periodização (% Z1, Z2, Z3, Z4, Z5)
   const [distribution, setDistribution] = useState({
-    z1: templateData?.distributionZ1 || 25,
-    z2: templateData?.distributionZ2 || 40,
-    z3: templateData?.distributionZ3 || 20,
-    z4: templateData?.distributionZ4 || 10,
-    z5: templateData?.distributionZ5 || 5
+    z1: templateData?.distributionZ1 ?? 0,
+    z2: templateData?.distributionZ2 ?? 0,
+    z3: templateData?.distributionZ3 ?? 0,
+    z4: templateData?.distributionZ4 ?? 0,
+    z5: templateData?.distributionZ5 ?? 0
   });
 
   // Planejamento (editável)
@@ -472,14 +472,14 @@ export default function WorkoutBuilderCyclic({
       setDayData({});
     }
 
-    setVolumeTotalMin(templateData.totalVolumeMin || 284);
-    setVolumeTotalKm(templateData.totalVolumeKm || 0);
+    setVolumeTotalMin(templateData.totalVolumeMin ?? 0);
+    setVolumeTotalKm(templateData.totalVolumeKm ?? 0);
     setDistribution({
-      z1: templateData.distributionZ1 || 25,
-      z2: templateData.distributionZ2 || 40,
-      z3: templateData.distributionZ3 || 20,
-      z4: templateData.distributionZ4 || 10,
-      z5: templateData.distributionZ5 || 5
+      z1: templateData.distributionZ1 ?? 0,
+      z2: templateData.distributionZ2 ?? 0,
+      z3: templateData.distributionZ3 ?? 0,
+      z4: templateData.distributionZ4 ?? 0,
+      z5: templateData.distributionZ5 ?? 0
     });
 
     lastHydratedKey.current = templateKey;
