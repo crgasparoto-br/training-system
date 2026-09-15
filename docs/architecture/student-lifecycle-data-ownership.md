@@ -89,6 +89,15 @@ mesma transação Prisma: falha no contrato aborta também as alterações cadas
 A lógica de status, ativação e serviço do vínculo continua pertencendo ao domínio
 `StudentContract`; o cadastro não duplica essas regras.
 
+Dentro de uma operação de cadastro que já possui uma transação Prisma ativa,
+consultas e mutações necessárias à mesma conclusão atômica devem reutilizar o
+`TransactionClient` dessa operação. Isso inclui writers canônicos e validações de
+domínio que participam do commit. O fluxo não deve abrir um segundo `PrismaClient`
+para completar uma dependência de banco enquanto a transação principal estiver
+retida. Otimizações podem reduzir leituras redundantes e trabalho não essencial,
+mas não podem mover writers canônicos para depois do commit quando isso permitir
+persistência parcial.
+
 ## Conta global e vínculos tenant-scoped
 
 A mesma conta global pode estar vinculada simultaneamente a um `Aluno` de
