@@ -5,7 +5,7 @@ export interface Exercise {
   name: string;
   videoUrl?: string;
   loadType?: 'H' | 'C' | 'E' | 'A' | 'P' | 'O';
-  movementType?: 'U' | 'I' | 'O';
+  movementType?: 'U' | 'A' | 'I' | 'O';
   countingType?: 'I' | 'T' | 'R';
   category?: string;
   muscleGroup?: string;
@@ -27,7 +27,7 @@ export interface CreateExerciseDTO {
   name: string;
   videoUrl?: string;
   loadType?: 'H' | 'C' | 'E' | 'A' | 'P' | 'O';
-  movementType?: 'U' | 'I' | 'O';
+  movementType?: 'U' | 'A' | 'I' | 'O';
   countingType?: 'I' | 'T' | 'R';
   category?: string;
   muscleGroup?: string;

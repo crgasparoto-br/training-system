@@ -1,0 +1,4 @@
+Historical independent rejection: audit-rejection:e6a9caaf04ec8b78 / finding A-001.
+Recovery floor: post-write-refreeze.
+Current material candidate: 3f4140f50337b4abea944043dacc36dd2d7d9805.
+The prior terminal certificate was not reused after later material commits. The current exact-head candidate passed Validate PR #7675 (run 34693315976). A fresh result-only child must parent directly on 3f4140f50337b4abea944043dacc36dd2d7d9805 and may change only certificate-allowlisted .audit/entregar-issue paths.

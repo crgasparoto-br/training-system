@@ -1,0 +1,4 @@
+Material candidate: 3f4140f50337b4abea944043dacc36dd2d7d9805
+Validate PR #7675 succeeded on the exact material head.
+The issue contract is preserved by the implemented defaults path: supported metadata fills missing fields only, existing non-empty/customized values are preserved, duplicate catalog entries compose non-destructively, and tenant isolation/idempotency remain covered by the PR regression suite.
+No product code was changed during this refreeze.

@@ -1,0 +1,3 @@
+Exact-head migration evidence for Issue 426 at 12517d21609a7b0c8f2a79971ac24efe12e366a3.
+Migration apps/api/prisma/migrations/20260910150500_add_alternating_movement_type/migration.sql extends PostgreSQL MovementType with A; the issue contract forbids rewriting U/I/O history.
+Validate PR run 34617682121 succeeded through migration checks, test database migrations, and persistence invariants on this exact head.
