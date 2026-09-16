@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
@@ -67,14 +68,19 @@ router.get(
   skipStaticAlunoRoute,
   blockAccessMiddleware('students.details.summary'),
   async (req: Request, res: Response) => {
+    const correlationId = randomUUID();
+    const startedAt = Date.now();
+    let stage = 'authorize';
     try {
       const { id } = req.params;
       const { contractId } = getProfessorContext(req);
       if (!contractId || !(await ensureAlunoAccess(req, res, id))) return;
 
+      stage = 'load-administrative-projection';
       const aluno = await studentParqBoundaryService.getAdministrativeAluno(contractId, id);
       if (!aluno) return sendError(res, 'Aluno não encontrado', 404);
 
+      stage = 'calculate-derived-metrics';
       const bmi = aluno.weight !== null && aluno.height !== null
         ? alunoService.calculateBMI(aluno.weight, aluno.height)
         : null;
@@ -88,8 +94,17 @@ router.get(
         'Aluno recuperado com sucesso'
       );
     } catch (error) {
-      console.error('Erro ao obter aluno sanitizado:', error);
-      return sendError(res, 'Erro ao obter aluno', 500);
+      console.error('Erro ao obter aluno sanitizado:', {
+        operation: 'aluno.read',
+        stage,
+        durationMs: Date.now() - startedAt,
+        correlationId,
+        error,
+      });
+      return sendError(res, 'Erro ao obter aluno', 500, {
+        code: 'ALUNO_READ_INTERNAL_ERROR',
+        correlationId,
+      });
     }
   }
 );

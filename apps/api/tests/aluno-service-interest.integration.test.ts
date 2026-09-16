@@ -5,6 +5,7 @@ import {
   UserType,
 } from '@prisma/client';
 import { alunoService } from '../src/modules/alunos/aluno.service.js';
+import { studentParqBoundaryService } from '../src/modules/alunos/student-parq-boundary.service.js';
 
 const runDatabaseIntegrationTests =
   process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true';
@@ -143,6 +144,54 @@ describeDatabase('student service interest with PostgreSQL', () => {
     });
 
     expect(result.aluno.serviceId).toBe(service.id);
+  });
+
+  it('reads a newly created administrative student without requiring PAR-Q onboarding', async () => {
+    const professor = await createProfessor(contractA, 'create-read');
+    const service = await createService(contractA, 'create-read');
+
+    const created = await alunoService.create({
+      name: 'Aluno Criação Leitura',
+      email: `${emailPrefix}create-read@example.com`,
+      professorId: professor.id,
+      serviceId: service.id,
+      schedulePlan: 'free',
+      age: 29,
+      intakeForm: {
+        formResponses: {
+          identification: {
+            cpf: '139.513.548-79',
+            address: 'Rua Canônica',
+            emergencyContactName: 'Contato Seguro',
+          },
+          preferences: { preferredTrainingPeriod: 'morning' },
+          financial: {},
+          ahaResponses: {},
+        },
+      },
+    });
+
+    const read = await studentParqBoundaryService.getAdministrativeAluno(
+      contractA,
+      created.aluno.id
+    );
+
+    expect(read).not.toBeNull();
+    expect(read?.parq).toMatchObject({
+      state: 'NOT_STARTED',
+      latestSubmission: null,
+      requiresProfessionalReview: false,
+    });
+    expect(read?.intakeForm?.formResponses).toMatchObject({
+      identification: {
+        cpf: '13951354879',
+        address: 'Rua Canônica',
+        emergencyContactName: 'Contato Seguro',
+      },
+      preferences: { preferredTrainingPeriod: 'morning' },
+    });
+    expect(JSON.stringify(read)).not.toContain('parqResponses');
+    expect(JSON.stringify(read)).not.toContain('positiveItems');
   });
 
   it('rolls back user and aluno when canonical identity enrichment fails after Aluno creation', async () => {
