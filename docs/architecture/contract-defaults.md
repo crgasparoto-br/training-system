@@ -33,6 +33,8 @@ A resposta informa, por categoria, quantos padrões foram instalados e quantos j
 - pode ser executada novamente sem duplicar dados;
 - consulta apenas dados do contrato autenticado para decidir o que falta.
 
+Chamadas concorrentes para o mesmo contrato devem convergir para o mesmo estado final sem duplicar padrões. A implementação pode substituir o mecanismo interno de lock/transação quando necessário, desde que preserve esse resultado observável e a reexecução continue idempotente. Não existe requisito de produto de manter as três categorias em uma única transação longa apenas por conveniência de implementação.
+
 ### Copiar dados manualmente entre contratos
 
 `POST /api/v1/contracts/copy-data`

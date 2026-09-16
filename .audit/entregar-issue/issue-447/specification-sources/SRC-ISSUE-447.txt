@@ -1,0 +1,161 @@
+<!-- specification_version: 1 -->
+
+## Objetivo
+Corrigir a regressão de produção que provoca erros Prisma `P2028` em duas operações administrativas críticas após a release atual de `main`:
+
+1. criação de aluno em `/alunos/new`;
+2. instalação/reinstalação de padrões em `/settings/contract`.
+
+A correção deve reduzir o trabalho mantido dentro das transações interativas, preservar as invariantes de domínio já aceitas e impedir nova expiração/encerramento prematuro. A solução não pode consistir apenas em aumentar timeout/pool.
+
+## Fontes canônicas
+- `docs/architecture/student-lifecycle-data-ownership.md` — ownership dos dados do aluno, writers canônicos e fronteira transaction-scoped do cadastro.
+- `docs/architecture/contract-defaults.md` — fontes canônicas dos defaults, comportamento não destrutivo, idempotência e convergência sob chamadas concorrentes.
+
+## Decisões consolidadas
+
+### Cadastro de aluno
+- Preservar as fronteiras de ownership e atomicidade já definidas em `docs/architecture/student-lifecycle-data-ownership.md` e #425.
+- `User`, `Aluno`, `StudentOnboardingProcess`, writers canônicos de identidade/preferências/financeiro e vínculo `StudentContract`, quando participantes da mesma operação atômica, não podem ser movidos para depois do commit apenas para escapar do timeout.
+- Validações e mutações de banco necessárias à conclusão atômica continuam reutilizando o mesmo `Prisma.TransactionClient`.
+- Reduzir leituras/escritas repetidas e outros round-trips evitáveis dentro da transação, inclusive múltiplas passagens equivalentes pelo writer de identidade quando o payload puder ser consolidado sem alterar precedência/ownership.
+
+### Instalação de padrões
+- Preservar o resultado concorrente: duas chamadas simultâneas para o mesmo `contractId` devem convergir sem duplicatas e com isolamento tenant-scoped.
+- O mecanismo exato `pg_advisory_xact_lock` dentro de uma única transação longa não é invariável de produto. Pode ser substituído se a nova estratégia preservar a convergência observável protegida pelo teste concorrente.
+- Não manter as três categorias em uma única transação longa apenas para satisfazer o teste estrutural atual. Se o mecanismo mudar, atualizar esse teste para proteger o comportamento necessário, não a implementação antiga.
+- O backfill de exercícios não deve depender de uma sequência não limitada de `updateMany` individuais dentro de uma transação interativa curta. Preferir operação set-based, lote/chunks ou outra estratégia que reduza round-trips sem sobrescrever customizações.
+- Reexecução após falha deve continuar convergente e idempotente. A API não pode retornar sucesso se a operação não concluiu o contrato esperado daquela execução.
+
+### Timeout
+- A correção não pode depender exclusivamente de timeout maior.
+- Se uma transação interativa relevante permanecer, não depender silenciosamente do default de 5 s que já falhou em produção: qualquer timeout explícito deve ser justificado por medição e atuar como margem de segurança complementar à redução do trabalho transacional.
+
+### Tratamento de erro
+- `/alunos` mantém a fronteira segura já introduzida pela #425.
+- `/contracts/install-defaults` não pode continuar devolvendo `error.message` cru em 500. Falhas internas devem retornar mensagem segura ao usuário e manter detalhes Prisma/SQL somente nos logs correlacionáveis.
+
+## Escopo
+
+### Cadastro de aluno
+- Revisar e encurtar a fronteira transacional de `alunoService.create` sem quebrar atomicidade canônica.
+- Eliminar trabalho de banco redundante no caminho de payload completo.
+- Preservar `loadStudentInterestService(tx, ...)` e demais dependências transaction-scoped.
+- Preservar rollback integral das entidades cobertas pela operação atômica.
+- Manter classificação segura de erros e `correlationId`.
+
+### Instalação de padrões
+- Revisar a fronteira de transação/lock de `installContractDefaults()`.
+- Reduzir round-trips do saneamento/backfill de `ExerciseLibrary`.
+- Preservar idempotência, isolamento por `contractId`, não sobrescrita e semântica da #426.
+- Preservar convergência sob concorrência, ainda que o mecanismo de lock/transação seja substituído.
+- Garantir erro público seguro em caso de falha interna.
+
+### Observabilidade
+- Registrar duração total e etapa relevante nas falhas transacionais/slow paths, com correlação suficiente para distinguir criação de aluno de instalação de defaults.
+- Não registrar PII nem expor detalhes técnicos na resposta pública.
+
+## Fora de escopo
+- Reverter entregas funcionais das issues #425 ou #426.
+- Reativar escrita em `AlunoIntakeForm.formResponses`.
+- Reintroduzir um segundo `PrismaClient` dentro da transação de cadastro.
+- Alterar regras de negócio de catálogo de serviços, `StudentContract`, Biblioteca ou contratos além do necessário para resolver a regressão.
+- Sobrescrever valores customizados da Biblioteca.
+- Tratar aumento de timeout/pool como correção suficiente.
+
+## Invariantes estruturais
+
+### `must_behave`
+- Criação válida de aluno conclui sem `P2028` e sem persistência parcial das escritas atômicas.
+- Instalação/reinstalação de padrões conclui sem `P2028`, permanece idempotente e preserva customizações.
+- Chamadas concorrentes de instalação para o mesmo contrato convergem para um único conjunto lógico de defaults, sem duplicatas.
+- Falhas internas retornam resposta pública segura e ficam correlacionáveis no backend.
+
+### `must_not_behave`
+- Não mover writers canônicos do cadastro para depois do commit quando isso permitir estado parcial.
+- Não usar outro `PrismaClient` para dependência de banco pertencente à transação do aluno.
+- Não executar backfill de alto volume como uma sequência ilimitada de updates individuais em uma transação curta.
+- Não expor `error.message`, SQL ou detalhes Prisma ao usuário em `/contracts/install-defaults`.
+- Não preservar o advisory lock transacional atual apenas porque um teste estrutural o fixa, se esse mecanismo impedir a correção.
+
+### `must_reuse`
+- `upsertStudentIdentity` continua sendo o writer canônico de identidade.
+- `loadStudentInterestService`/`assertStudentInterestServiceSelectable` continuam sendo a fronteira de elegibilidade do serviço.
+- Domínio `StudentContract` continua responsável por vínculo/status/ativação quando aplicável.
+- Defaults continuam vindo das fontes versionadas definidas em `docs/architecture/contract-defaults.md`.
+
+### `must_be_single_source`
+- Ownership do aluno permanece em `docs/architecture/student-lifecycle-data-ownership.md`.
+- Regras duráveis de instalação de defaults permanecem em `docs/architecture/contract-defaults.md`.
+
+### `must_not_depend_on`
+- Cadastro não pode depender de segunda conexão Prisma para completar o caminho principal.
+- Correção não pode depender apenas do timeout default/maior para compensar trabalho transacional desnecessário.
+
+### `forbidden_implementation`
+- Aumentar timeout e manter o mesmo caminho custoso sem outra mudança material.
+- Executar `upsertStudentIdentity` fora da transação para evitar `P2028`.
+- Remover o controle de concorrência dos defaults sem substituí-lo por garantia equivalente de convergência.
+- Retornar sucesso depois de uma falha parcial não reconciliada da instalação.
+- Capturar exceção e ocultar o erro sem corrigir a causa.
+
+## Implementações erradas plausíveis e controles discriminantes
+1. **Timeout maior apenas.** O smoke passa, mas a mesma quantidade de round-trips permanece. **Controle:** evidência/teste deve demonstrar redução de trabalho transacional; timeout, se alterado, é adicional.
+2. **Writer canônico movido para fora do cadastro.** O caminho feliz passa, porém uma falha deixa `User`/`Aluno` persistidos. **Controle:** falha injetada durante identidade/respostas administrativas comprova rollback integral.
+3. **Advisory lock removido sem substituto.** Chamadas isoladas passam, mas duas instalações simultâneas duplicam ou retornam contadores inconsistentes. **Controle:** manter teste PostgreSQL concorrente com duas conexões.
+4. **Teste fixa novamente um mecanismo específico.** A solução fica presa a outra transação longa embora o resultado concorrente esteja correto. **Controle:** teste estrutural deve verificar apenas invariantes não capturáveis por integração; concorrência real fica no teste de banco.
+5. **Erro de defaults continua vazando Prisma.** A correção funcional passa, mas a UI exibe mensagem técnica. **Controle:** teste de rota força falha interna e verifica mensagem pública genérica e ausência do texto Prisma.
+
+## Critérios de aceite
+- [ ] `/alunos/new` cria aluno válido em produção sem `P2028`.
+- [ ] Payload com endereço, contato de emergência, serviço, identificação, preferências, financeiro e campos opcionais possui regressão automatizada.
+- [ ] Validação de `serviceId` continua transaction-scoped e não usa cliente Prisma externo.
+- [ ] Falha deliberada em etapa canônica do cadastro comprova rollback integral das escritas pertencentes à operação.
+- [ ] A correção reduz round-trips/trabalho redundante dentro da transação do cadastro; eventual timeout explícito é complementar e justificado.
+- [ ] `/settings/contract` -> **Instalar padrões do sistema** conclui sem `P2028` em contrato já populado.
+- [ ] Teste de backfill usa volume representativo do catálogo canônico existente e exercita múltiplos campos ausentes.
+- [ ] Reinstalação continua idempotente e não sobrescreve valores não vazios/customizados.
+- [ ] Instalação continua isolada por `contractId`.
+- [ ] Duas instalações concorrentes do mesmo contrato convergem sem duplicatas.
+- [ ] Caso o mecanismo de lock/transação seja alterado, testes antigos que fixam `pg_advisory_xact_lock` são ajustados para a nova invariável, sem enfraquecer o teste concorrente real.
+- [ ] Falha interna de `/contracts/install-defaults` não devolve mensagem Prisma/SQL ao frontend.
+- [ ] Logs de falha/slow path registram operação, etapa, duração e identificador de correlação sem PII.
+- [ ] `pnpm validate` passa.
+- [ ] `pnpm build` passa.
+- [ ] Testes PostgreSQL condicionais relevantes passam com `RUN_DATABASE_INTEGRATION_TESTS=true`.
+
+## Considerações de teste
+- Cadastro completo equivalente ao payload real de `AlunoForm`.
+- Regressão estrutural contra retorno de Prisma client externo na criação.
+- Rollback por falha após `Aluno` e antes da conclusão dos writers canônicos.
+- Contrato de defaults vazio e contrato já totalmente populado.
+- Backfill de todos/maioria dos exercícios canônicos com campos ausentes, evitando teste trivial com poucos registros.
+- Execução repetida para provar idempotência.
+- Execução concorrente com duas conexões para o mesmo contrato.
+- Teste de rota para erro interno seguro em `/contracts/install-defaults`.
+- Evitar teste baseado apenas em cronômetro de CI; reproduzir o risco por volume/round-trips determinísticos e validar a configuração transacional explicitamente quando aplicável.
+
+## Impacto na documentação
+- `docs/architecture/student-lifecycle-data-ownership.md`: atualizado na revisão para explicitar a regra durável de reutilização do `TransactionClient` e proibir segundo cliente dentro da conclusão atômica.
+- `docs/architecture/contract-defaults.md`: atualizado na revisão para separar a invariável de convergência concorrente do mecanismo específico de advisory lock/transação longa.
+- Se a implementação alterar comportamento público adicional de retry/erro da API, atualizar a mesma fonte canônica; não criar documento paralelo.
+
+## Evidências/referências
+- #425 / PR #428 — fronteira transacional do cadastro.
+- #426 / PR #430 — backfill não destrutivo e `MovementType.A`.
+- PR #446 — promoção publicada em produção.
+- `apps/api/src/modules/alunos/aluno.service.ts`.
+- `apps/api/src/modules/alunos/student-identity.service.ts`.
+- `apps/api/src/modules/alunos/student-administrative-form-responses.service.ts`.
+- `apps/api/src/modules/contracts/contract-defaults.service.ts`.
+- `apps/api/src/modules/contracts/contract-defaults.routes.ts`.
+- `apps/api/src/modules/contracts/contract-defaults.audit-remediation.test.ts`.
+- `apps/api/src/modules/contracts/contract-defaults.concurrent.integration.test.ts`.
+
+## Prioridade
+**Regressão de produção / alta prioridade.**
+
+Os dois fluxos falham em operações administrativas centrais no ambiente publicado atual.
+
+## Perguntas em aberto
+Nenhuma decisão funcional bloqueante permanece. A implementação pode escolher a técnica de otimização/concorrência desde que preserve as invariantes e controles acima.

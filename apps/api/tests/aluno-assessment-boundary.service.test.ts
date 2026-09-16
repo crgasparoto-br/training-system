@@ -159,7 +159,7 @@ describe('alunoService assessment boundary', () => {
     });
   });
 
-  it('cria aluno com o serviço no mesmo tx, persiste payload completo canônico e não reativa formResponses legado', async () => {
+  it('cria aluno com serviço e formulário completo no mesmo tx usando uma única passagem pelo writer de identidade', async () => {
     await alunoService.create({
       name: 'Aluno Novo',
       email: 'novo@example.com',
@@ -189,13 +189,21 @@ describe('alunoService assessment boundary', () => {
             emergencyContactPhone: '(15) 99999-9999',
             emergencyContactRelationship: 'Cônjuge',
           },
-          financial: { monthlyValue: '' },
-          preferences: {},
+          financial: {
+            monthlyValue: '350,00',
+            discountPercentage: '',
+            paymentDay: '',
+          },
+          preferences: { preferredTrainingTime: 'morning' },
           ahaResponses: {},
         },
       },
     });
 
+    expect(mockPrisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      maxWait: 5_000,
+      timeout: 15_000,
+    });
     expect(mockTx.serviceOption.findFirst).toHaveBeenCalledWith({
       where: { id: 'service-1', contractId: 'contract-1' },
       select: { id: true, isActive: true, parentServiceId: true },
@@ -214,10 +222,13 @@ describe('alunoService assessment boundary', () => {
     expect(mockTx.studentOnboardingProcess.create).toHaveBeenCalledWith({
       data: { alunoId: 'aluno-1', contractId: 'contract-1' },
     });
+    expect(mockTx.studentProfile.upsert).toHaveBeenCalledTimes(1);
     expect(mockTx.studentProfile.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         update: expect.objectContaining({
           identificationData: expect.objectContaining({
+            name: 'Aluno Novo',
+            email: 'novo@example.com',
             cpf: '139.513.548-79',
             socialNetwork: 'linkedin',
             socialAccount: 'aluno-linkedin',
@@ -234,6 +245,22 @@ describe('alunoService assessment boundary', () => {
         }),
       })
     );
+    expect(mockTx.studentProfile.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          contractId: 'contract-1',
+          preferenceData: expect.objectContaining({ preferredTrainingTime: 'morning' }),
+        }),
+      })
+    );
+    expect(mockTx.studentFinancialProfile.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ monthlyAmount: 350 }),
+      })
+    );
+    // The only findUniqueOrThrow during create is the final read model. The
+    // administrative adapter reuses the already-known contractId.
+    expect(mockTx.aluno.findUniqueOrThrow).toHaveBeenCalledTimes(1);
     expect(mockTx.alunoIntakeForm.upsert).not.toHaveBeenCalled();
     expect(mockTx.macronutrients.create).not.toHaveBeenCalled();
     expect(mockTx.progressMetric.create).not.toHaveBeenCalled();

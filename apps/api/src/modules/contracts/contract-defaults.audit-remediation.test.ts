@@ -91,5 +91,57 @@ describe('contract defaults audit remediation', () => {
     ];
     expect(queryParts.join('')).toContain('pg_advisory_xact_lock');
     expect(boundContractId).toBe('target-contract');
+    expect((db as any).$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      maxWait: 5_000,
+      timeout: 15_000,
+    });
+  });
+
+  it('faz o backfill de muitos exercícios em uma única operação set-based dentro do lock', async () => {
+    const defaults = loadProductExerciseDefaults();
+    const createMany = jest.fn(async (args: { data: unknown[] }) => ({ count: args.data.length }));
+    const updateMany = jest.fn(async () => ({ count: 1 }));
+    const tx = {
+      $executeRaw: jest.fn(async () => 1),
+      trainingParameter: {
+        findMany: jest.fn(async () => []),
+        createMany,
+      },
+      assessmentType: {
+        findMany: jest.fn(async () => []),
+        createMany,
+      },
+      exerciseLibrary: {
+        findMany: jest.fn(async () =>
+          defaults.map((item) => ({
+            name: item.name,
+            videoUrl: null,
+            loadType: null,
+            movementType: null,
+            countingType: null,
+            category: null,
+            muscleGroup: null,
+            notes: null,
+          }))
+        ),
+        createMany,
+        updateMany,
+      },
+    };
+    const db = {
+      ...tx,
+      $transaction: jest.fn(async (callback: (client: typeof tx) => Promise<unknown>) =>
+        callback(tx)
+      ),
+    } as unknown as Parameters<typeof installContractDefaults>[1];
+
+    const result = await installContractDefaults('target-contract', db);
+
+    expect(result.exercises.installed).toBe(0);
+    expect(result.exercises.skipped).toBe(defaults.length);
+    expect(updateMany).not.toHaveBeenCalled();
+    // One raw statement acquires the advisory lock and one updates every
+    // eligible exercise, regardless of catalog size.
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
   });
 });

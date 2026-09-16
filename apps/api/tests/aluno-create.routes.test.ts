@@ -122,7 +122,7 @@ describe('POST /alunos creation error boundary', () => {
     );
   });
 
-  it('mantém P2028 como 5xx seguro e correlacionável', async () => {
+  it('mantém P2028 como 5xx seguro, correlacionável e observável por duração', async () => {
     const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     mockAlunoService.create.mockRejectedValue({
       name: 'PrismaClientKnownRequestError',
@@ -144,8 +144,10 @@ describe('POST /alunos creation error boundary', () => {
     expect(consoleError).toHaveBeenCalledWith(
       'Erro ao criar aluno:',
       expect.objectContaining({
+        operation: 'aluno.create',
         correlationId: response.body.details.correlationId,
         stage: 'aluno.create',
+        durationMs: expect.any(Number),
         errorCode: 'P2028',
       })
     );

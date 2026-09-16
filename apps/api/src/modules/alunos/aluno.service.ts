@@ -1,4 +1,4 @@
-﻿import { PrismaClient, type Prisma } from '@prisma/client';
+import { PrismaClient, type Prisma } from '@prisma/client';
 import bcryptjs from 'bcryptjs';
 import crypto from 'crypto';
 import { loadStudentInterestService } from './student-interest-service.service.js';
@@ -9,7 +9,10 @@ import {
   hasCanonicalHealthIntakeValue,
   upsertCanonicalStudentHealthIntake,
 } from './student-health-intake-write.service.js';
-import { upsertStudentAdministrativeFormResponses } from './student-administrative-form-responses.service.js';
+import {
+  buildStudentAdministrativeIdentityPatch,
+  upsertStudentAdministrativeFormResponses,
+} from './student-administrative-form-responses.service.js';
 import { preRegistrationParqService } from '../pre-registration-public/pre-registration-parq.service.js';
 import { assertNoLegacyParqWrite } from './student-parq-legacy-cutover.js';
 import {
@@ -18,6 +21,7 @@ import {
 } from '../agenda/fixed-schedule.service.js';
 
 const prisma = new PrismaClient();
+const STUDENT_CREATE_TRANSACTION_TIMEOUT_MS = 15_000;
 
 const resolveAlunoCompanyContractId = (alunoLike: {
   contractId?: string | null;
@@ -173,193 +177,222 @@ export const alunoService = {
     const tempPassword = `temp-${crypto.randomBytes(4).toString('hex')}`;
     const passwordHash = await bcryptjs.hash(tempPassword, 10);
 
-    const aluno = await prisma.$transaction(async (tx) => {
-      let serviceId: string | undefined;
-      const professor = await tx.professor.findUniqueOrThrow({
-        where: { id: data.professorId },
-        select: { contractId: true },
-      });
+    const aluno = await prisma.$transaction(
+      async (tx) => {
+        let serviceId: string | undefined;
+        const professor = await tx.professor.findUniqueOrThrow({
+          where: { id: data.professorId },
+          select: { contractId: true },
+        });
 
-      if (data.serviceId) {
-        const service = await loadStudentInterestService(
-          tx,
-          professor.contractId,
-          data.serviceId
-        );
-        serviceId = service.id;
-      }
+        if (data.serviceId) {
+          const service = await loadStudentInterestService(
+            tx,
+            professor.contractId,
+            data.serviceId
+          );
+          serviceId = service.id;
+        }
 
-      const user = await tx.user.create({
-        data: {
-          email: data.email,
-          passwordHash,
-          type: 'aluno',
-          profile: {
-            create: {
-              name: data.name,
-              avatar: data.avatar,
-              phone: data.phone,
-              birthDate: data.birthDate,
-              gender: data.gender,
-            },
-          },
-        },
-        include: {
-          profile: true,
-        },
-      });
-
-      const aluno = await tx.aluno.create({
-        data: {
-          userId: user.id,
-          professorId: data.professorId,
-          // Cadastro administrativo legado: sempre cria um aluno já ativo,
-          // com conta e professor completos (issue #268 não altera este
-          // fluxo). contractId é derivado do professor responsável para
-          // preservar o isolamento multi-tenant já existente.
-          contractId: professor.contractId,
-          ...legacyDirectActiveStudentCreationFields(),
-          serviceId,
-          schedulePlan: data.schedulePlan,
-          age: data.age,
-          weight: data.weight,
-          height: data.height,
-          bodyFatPercentage: data.bodyFatPercentage,
-          vo2Max: data.vo2Max,
-          anaerobicThreshold: data.anaerobicThreshold,
-          maxHeartRate: data.maxHeartRate,
-          restingHeartRate: data.restingHeartRate,
-          systolicPressure: data.systolicPressure,
-          diastolicPressure: data.diastolicPressure,
-        },
-        include: {
-          user: {
-            include: {
-              profile: true,
-            },
-          },
-          professor: {
-            include: {
-              user: {
-                include: {
-                  profile: true,
-                },
+        const user = await tx.user.create({
+          data: {
+            email: data.email,
+            passwordHash,
+            type: 'aluno',
+            profile: {
+              create: {
+                name: data.name,
+                avatar: data.avatar,
+                phone: data.phone,
+                birthDate: data.birthDate,
+                gender: data.gender,
               },
             },
           },
-          service: true,
-          macronutrients: true,
-          intakeForm: true,
-        },
-      });
-
-      // Active students created directly by the administrative screen still
-      // need the canonical onboarding row before any health-intake write. The
-      // canonical writer intentionally fails closed when this row is missing.
-      await tx.studentOnboardingProcess.create({
-        data: {
-          alunoId: aluno.id,
-          contractId: professor.contractId,
-        },
-      });
-
-      await upsertStudentIdentity(
-        aluno.id,
-        professor.contractId,
-        {
-          name: data.name,
-          email: data.email,
-          phone: data.phone,
-          birthDate: data.birthDate,
-          gender: data.gender,
-        },
-        {
-          client: tx,
-          sourceType: 'professional',
-          sourceReference: 'legacy_admin_create',
-          syncLegacyProfile: true,
-        }
-      );
-
-      if (data.macronutrients && hasAnyValue(data.macronutrients)) {
-        await tx.macronutrients.create({
-          data: {
-            alunoId: aluno.id,
-            carbohydratesPercentage: data.macronutrients.carbohydratesPercentage ?? 0,
-            proteinsPercentage: data.macronutrients.proteinsPercentage ?? 0,
-            lipidsPercentage: data.macronutrients.lipidsPercentage ?? 0,
-            dailyCalories: data.macronutrients.dailyCalories,
+          include: {
+            profile: true,
           },
         });
-      }
 
-      if (data.intakeForm?.formResponses) {
-        await upsertStudentAdministrativeFormResponses(
-          tx,
-          aluno.id,
-          data.intakeForm.formResponses
-        );
-      }
+        const aluno = await tx.aluno.create({
+          data: {
+            userId: user.id,
+            professorId: data.professorId,
+            // Cadastro administrativo legado: sempre cria um aluno já ativo,
+            // com conta e professor completos (issue #268 não altera este
+            // fluxo). contractId é derivado do professor responsável para
+            // preservar o isolamento multi-tenant já existente.
+            contractId: professor.contractId,
+            ...legacyDirectActiveStudentCreationFields(),
+            serviceId,
+            schedulePlan: data.schedulePlan,
+            age: data.age,
+            weight: data.weight,
+            height: data.height,
+            bodyFatPercentage: data.bodyFatPercentage,
+            vo2Max: data.vo2Max,
+            anaerobicThreshold: data.anaerobicThreshold,
+            maxHeartRate: data.maxHeartRate,
+            restingHeartRate: data.restingHeartRate,
+            systolicPressure: data.systolicPressure,
+            diastolicPressure: data.diastolicPressure,
+          },
+          include: {
+            user: {
+              include: {
+                profile: true,
+              },
+            },
+            professor: {
+              include: {
+                user: {
+                  include: {
+                    profile: true,
+                  },
+                },
+              },
+            },
+            service: true,
+            macronutrients: true,
+            intakeForm: true,
+          },
+        });
 
-      if (data.intakeForm) {
-        if (hasCanonicalHealthIntakeValue(data.intakeForm)) {
-          await upsertCanonicalStudentHealthIntake(tx, {
+        // Active students created directly by the administrative screen still
+        // need the canonical onboarding row before any health-intake write. The
+        // canonical writer intentionally fails closed when this row is missing.
+        await tx.studentOnboardingProcess.create({
+          data: {
             alunoId: aluno.id,
             contractId: professor.contractId,
-            sourceType: 'professional',
-            sourceReference: 'legacy_admin_create',
-            health: data.intakeForm,
-          });
-        }
-      }
-
-      if (data.intakeForm?.assessmentDate) {
-        await tx.progressMetric.create({
-          data: {
-            alunoId: aluno.id,
-            date: data.intakeForm.assessmentDate,
-            weight: data.weight,
-            bodyFatPercentage: data.bodyFatPercentage,
-            vo2MaxEstimated: data.vo2Max,
-            notes: data.intakeForm.observations,
           },
         });
-      }
 
-      if (data.schedulePlan === 'fixed') {
-        await syncStudentFixedSchedule(
-          tx,
-          professor.contractId,
+        const identificationSection = data.intakeForm?.formResponses?.identification;
+        const administrativeIdentityPatch =
+          identificationSection &&
+          typeof identificationSection === 'object' &&
+          !Array.isArray(identificationSection)
+            ? buildStudentAdministrativeIdentityPatch(
+                identificationSection as Record<string, unknown>
+              )
+            : {};
+
+        // The create flow used to invoke the canonical identity writer once for
+        // account data and again through formResponses. Consolidating both
+        // patches keeps one canonical writer and removes repeated DB work while
+        // the same transaction remains authoritative for the whole operation.
+        await upsertStudentIdentity(
           aluno.id,
-          'fixed',
-          data.fixedScheduleSlots ?? [],
-          { confirmKeepFutureBookings: data.confirmKeepFutureBookings }
-        );
-      }
-
-      return tx.aluno.findUniqueOrThrow({
-        where: { id: aluno.id },
-        include: {
-          user: {
-            include: {
-              profile: true,
-            },
+          professor.contractId,
+          {
+            name: data.name,
+            email: data.email,
+            phone: data.phone,
+            birthDate: data.birthDate,
+            gender: data.gender,
+            ...administrativeIdentityPatch,
           },
-          professor: {
-            include: {
-              user: {
-                include: {
-                  profile: true,
+          {
+            client: tx,
+            sourceType: 'professional',
+            sourceReference: 'legacy_admin_create',
+            syncLegacyProfile: true,
+          }
+        );
+
+        if (data.macronutrients && hasAnyValue(data.macronutrients)) {
+          await tx.macronutrients.create({
+            data: {
+              alunoId: aluno.id,
+              carbohydratesPercentage: data.macronutrients.carbohydratesPercentage ?? 0,
+              proteinsPercentage: data.macronutrients.proteinsPercentage ?? 0,
+              lipidsPercentage: data.macronutrients.lipidsPercentage ?? 0,
+              dailyCalories: data.macronutrients.dailyCalories,
+            },
+          });
+        }
+
+        if (data.intakeForm?.formResponses) {
+          await upsertStudentAdministrativeFormResponses(
+            tx,
+            aluno.id,
+            data.intakeForm.formResponses,
+            'legacy_admin_create',
+            {
+              contractId: professor.contractId,
+              identityAlreadyApplied: true,
+            }
+          );
+        }
+
+        if (data.intakeForm) {
+          if (hasCanonicalHealthIntakeValue(data.intakeForm)) {
+            await upsertCanonicalStudentHealthIntake(tx, {
+              alunoId: aluno.id,
+              contractId: professor.contractId,
+              sourceType: 'professional',
+              sourceReference: 'legacy_admin_create',
+              health: data.intakeForm,
+            });
+          }
+        }
+
+        if (data.intakeForm?.assessmentDate) {
+          await tx.progressMetric.create({
+            data: {
+              alunoId: aluno.id,
+              date: data.intakeForm.assessmentDate,
+              weight: data.weight,
+              bodyFatPercentage: data.bodyFatPercentage,
+              vo2MaxEstimated: data.vo2Max,
+              notes: data.intakeForm.observations,
+            },
+          });
+        }
+
+        if (data.schedulePlan === 'fixed') {
+          await syncStudentFixedSchedule(
+            tx,
+            professor.contractId,
+            aluno.id,
+            'fixed',
+            data.fixedScheduleSlots ?? [],
+            { confirmKeepFutureBookings: data.confirmKeepFutureBookings }
+          );
+        }
+
+        return tx.aluno.findUniqueOrThrow({
+          where: { id: aluno.id },
+          include: {
+            user: {
+              include: {
+                profile: true,
+              },
+            },
+            professor: {
+              include: {
+                user: {
+                  include: {
+                    profile: true,
+                  },
                 },
               },
             },
+            service: true,
+            macronutrients: true,
+            intakeForm: true,
           },
-          service: true,
-          macronutrients: true,
-          intakeForm: true,
-        },
-      });
-    });
+        });
+      },
+      {
+        maxWait: 5_000,
+        // Production observed P2028 just beyond Prisma's 5s default. The
+        // duplicate identity pass above is removed first; 15s is only the
+        // complementary safety margin for the still-atomic create operation.
+        timeout: STUDENT_CREATE_TRANSACTION_TIMEOUT_MS,
+      }
+    );
 
     return {
       aluno,
