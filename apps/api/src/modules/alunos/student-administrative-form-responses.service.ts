@@ -3,6 +3,11 @@ import { upsertStudentIdentity } from './student-identity.service.js';
 
 type JsonRecord = Record<string, unknown>;
 
+type StudentAdministrativeWriteOptions = {
+  contractId?: string;
+  identityAlreadyApplied?: boolean;
+};
+
 const asRecord = (value: unknown): JsonRecord | null =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? (value as JsonRecord)
@@ -75,7 +80,7 @@ const identityField = (
  */
 export const buildStudentAdministrativeIdentityPatch = (
   incoming: JsonRecord
-): JsonRecord => {
+): Parameters<typeof upsertStudentIdentity>[2] => {
   const patch: JsonRecord = {};
 
   identityField(patch, incoming, 'cpf');
@@ -102,7 +107,7 @@ export const buildStudentAdministrativeIdentityPatch = (
     patch.socialAccount = optionalText(incoming.instagram);
   }
 
-  return patch;
+  return patch as Parameters<typeof upsertStudentIdentity>[2];
 };
 
 /**
@@ -153,15 +158,20 @@ export async function upsertStudentAdministrativeFormResponses(
   tx: Prisma.TransactionClient,
   alunoId: string,
   incoming?: Record<string, unknown>,
-  sourceReference = 'administrative_registration'
+  sourceReference = 'administrative_registration',
+  options: StudentAdministrativeWriteOptions = {}
 ) {
   if (!incoming) return;
 
-  const aluno = await tx.aluno.findUniqueOrThrow({
-    where: { id: alunoId },
-    select: { contractId: true },
-  });
-  if (!aluno.contractId) {
+  const contractId =
+    options.contractId ??
+    (
+      await tx.aluno.findUniqueOrThrow({
+        where: { id: alunoId },
+        select: { contractId: true },
+      })
+    ).contractId;
+  if (!contractId) {
     throw new Error('Contrato do aluno não encontrado');
   }
 
@@ -171,14 +181,14 @@ export async function upsertStudentAdministrativeFormResponses(
     ? buildStudentAdministrativeIdentityPatch(identification)
     : {};
 
-  if (identification || preferences) {
+  if ((identification || preferences) && !options.identityAlreadyApplied) {
     // Even a preferences-only mutation goes through the identity boundary once
     // so a legacy student without StudentProfile receives the canonical row
     // before preferenceData is updated.
     await upsertStudentIdentity(
       alunoId,
-      aluno.contractId,
-      identityPatch as Parameters<typeof upsertStudentIdentity>[2],
+      contractId,
+      identityPatch,
       {
         client: tx,
         sourceType: 'professional',
@@ -201,7 +211,7 @@ export async function upsertStudentAdministrativeFormResponses(
     await tx.studentProfile.update({
       where: { alunoId },
       data: {
-        contractId: aluno.contractId,
+        contractId,
         sourceType: 'professional',
         sourceReference,
         preferenceData: toInputJson(preferenceData),
@@ -216,7 +226,7 @@ export async function upsertStudentAdministrativeFormResponses(
     where: { alunoId },
   });
   const common = {
-    contractId: aluno.contractId,
+    contractId,
     sourceType: 'professional' as const,
     sourceReference,
     ...(hasOwn(financial, 'specialCondition')

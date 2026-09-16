@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Router, type Request, type Response } from 'express';
 import { CreateAlunoSchema, sendError, sendSuccess } from '@corrida/utils';
 import { z } from 'zod';
@@ -10,12 +11,16 @@ import {
 } from './student-create-error-boundary.js';
 
 const router: Router = Router();
+const SLOW_STUDENT_CREATE_MS = 4_000;
 
 router.post(
   '/',
   authMiddleware,
   professorMiddleware,
   async (req: Request, res: Response) => {
+    const correlationId = randomUUID();
+    const startedAt = Date.now();
+
     try {
       const validatedData = CreateAlunoSchema.parse(req.body);
       const professorId = (req as any).user?.professorId as string | undefined;
@@ -28,6 +33,15 @@ router.post(
         ...validatedData,
         professorId,
       });
+      const durationMs = Date.now() - startedAt;
+      if (durationMs >= SLOW_STUDENT_CREATE_MS) {
+        console.warn('Criação de aluno acima do limite de observação', {
+          operation: 'aluno.create',
+          stage: 'complete',
+          durationMs,
+          correlationId,
+        });
+      }
 
       return sendSuccess(res, aluno, 'Aluno criado com sucesso', 201);
     } catch (error: any) {
@@ -52,6 +66,8 @@ router.post(
       return sendUnexpectedStudentCreationError(res, error, {
         stage: 'aluno.create',
         logMessage: 'Erro ao criar aluno:',
+        durationMs: Date.now() - startedAt,
+        correlationId,
       });
     }
   }

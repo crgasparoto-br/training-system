@@ -64,14 +64,21 @@ export const handleKnownStudentCreationError = (
 export const sendUnexpectedStudentCreationError = (
   res: Response,
   error: unknown,
-  options: { stage: string; logMessage: string }
+  options: {
+    stage: string;
+    logMessage: string;
+    durationMs?: number;
+    correlationId?: string;
+  }
 ) => {
   const candidate = asErrorLike(error);
-  const correlationId = randomUUID();
+  const correlationId = options.correlationId ?? randomUUID();
 
   console.error(options.logMessage, {
+    operation: 'aluno.create',
     correlationId,
     stage: options.stage,
+    durationMs: options.durationMs,
     errorName: candidate.name,
     errorCode: candidate.code,
     message: candidate.message,
