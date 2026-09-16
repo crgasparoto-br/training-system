@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/training-system",
+  "issue": 447,
+  "created_at": "2026-09-16T00:13:27.662627+00:00",
+  "primary_source_id": "SRC-ISSUE-447",
+  "sources": [
+    {
+      "id": "SRC-ISSUE-447",
+      "kind": "issue-body",
+      "path": "specification-sources/SRC-ISSUE-447.txt",
+      "locator": "/tmp/issue447-handoff/issue-447.md",
+      "sha256": "20e78cac5ae35d1e782397f010b5c81cde1ec98638c6c28a01a656c610c8190c",
+      "textual": true,
+      "extract_source_id": null,
+      "required": true,
+      "line_count": 161
+    }
+  ]
+}
