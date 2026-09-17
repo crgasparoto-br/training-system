@@ -28,6 +28,11 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
     _res: express.Response,
     next: express.NextFunction
   ) => next(),
+  academyMasterMiddleware: (
+    _req: express.Request,
+    _res: express.Response,
+    next: express.NextFunction
+  ) => next(),
 }));
 
 jest.mock('../src/modules/access-control/access-control.middleware', () => ({
