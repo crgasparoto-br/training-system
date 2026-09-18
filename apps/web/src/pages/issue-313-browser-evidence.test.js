@@ -18,7 +18,7 @@ const ALUNO_ID = 'lead-313-browser-evidence';
 const DESTINATION_PATH = '/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento';
 const OP_TIMEOUT = 10000;
 const CHROME_START_ATTEMPTS = 3;
-const CHROME_START_TIMEOUT = 12000;
+const CHROME_START_TIMEOUT = 20000;
 const CHROME_RETRY_DELAY_MS = 750;
 const NORMALIZE_JS = `(v)=>(v||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim()`;
 
