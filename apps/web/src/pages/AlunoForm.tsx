@@ -475,10 +475,13 @@ export function AlunoForm() {
 
   const formatPercentageInput = (value: string) => {
     const sanitized = value.replace(/[^\d,]/g, '');
-    const [integerPart, decimalPart] = sanitized.split(',');
+    const [integerPart, decimalPart = ''] = sanitized.split(',');
     const limitedInteger = (integerPart || '').slice(0, 3);
-    const limitedDecimal = (decimalPart || '').slice(0, 2);
-    const normalized = limitedDecimal ? `${limitedInteger},${limitedDecimal}` : limitedInteger;
+    const limitedDecimal = decimalPart.slice(0, 2);
+    const hasDecimalSeparator = sanitized.includes(',');
+    const normalized = hasDecimalSeparator
+      ? `${limitedInteger},${limitedDecimal}`
+      : limitedInteger;
 
     if (!normalized) return '';
 
@@ -1843,7 +1846,7 @@ export function AlunoForm() {
                         label="Desconto (%)"
                         type="text"
                         inputMode="decimal"
-                        placeholder="0"
+                        placeholder="0,00"
                         {...register('intakeForm.financialInfo.discountPercentage', {
                           onChange: (event) => {
                             const formatted = formatPercentageInput(event.target.value);

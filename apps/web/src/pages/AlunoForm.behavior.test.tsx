@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { alunoFormCopy } from '../i18n/ptBR';
@@ -206,6 +207,22 @@ describe('AlunoForm assessment boundary behavior', () => {
     });
     expect(payload.intakeForm).not.toHaveProperty('parqResponses');
     assertAssessmentFieldsAreAbsent(payload);
+  });
+
+  it('aceita desconto com duas casas decimais digitado com vírgula e recalcula o valor', async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Financeiro' }));
+
+    const monthlyValueInput = screen.getByLabelText('Valor Mensal');
+    const discountInput = screen.getByLabelText('Desconto (%)');
+
+    fireEvent.change(monthlyValueInput, { target: { value: '358,00' } });
+    await user.type(discountInput, '16,45');
+
+    expect(discountInput).toHaveValue('16,45');
+    expect(screen.getByLabelText('Valor com Desconto')).toHaveValue('299,11');
   });
 
   it('ignora dados de avaliação retornados pelo PDF e não os mantém no payload', async () => {
