@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthResponse } from '@corrida/types';
+import api from '../services/api';
 import { authService } from '../services/auth.service';
 import { writeDraft } from '../pages/PublicPreRegistration/preRegistrationDraft';
 import { useAuthStore } from './useAuthStore';
@@ -50,5 +51,29 @@ describe('useAuthStore pre-registration draft isolation', () => {
 
     expect(window.sessionStorage.length).toBe(0);
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+
+  it('finishes local logout without waiting for a pending remote request', async () => {
+    useAuthStore.getState().setAuthenticatedSession(authResponse('user-a'));
+    writeDraft({ form: { name: 'Rascunho A' }, step: 'IDENTIFICATION', baseVersion: 1 }, 'student-1');
+    const pendingRequest = new Promise<never>(() => undefined);
+    const postSpy = vi.spyOn(api, 'post').mockReturnValue(
+      pendingRequest as ReturnType<typeof api.post>
+    );
+
+    await useAuthStore.getState().logout();
+
+    expect(postSpy).toHaveBeenCalledWith('/auth/logout', undefined, {
+      headers: { Authorization: 'Bearer token-user-a' },
+    });
+    expect(window.localStorage.getItem('token')).toBeNull();
+    expect(window.localStorage.getItem('user')).toBeNull();
+    expect(window.sessionStorage.length).toBe(0);
+    expect(useAuthStore.getState()).toMatchObject({
+      user: null,
+      token: null,
+      isAuthenticated: false,
+      isLoading: false,
+    });
   });
 });
