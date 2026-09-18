@@ -63,7 +63,6 @@ function runGeneralTestsInBatches() {
 
 if (!databaseIntegration) {
   runGeneralTestsInBatches();
-  runIsolatedDatabaseTests();
   process.exit(0);
 }
 
