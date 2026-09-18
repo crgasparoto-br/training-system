@@ -20,9 +20,9 @@ function record(value: unknown): JsonRecord | null {
     : null;
 }
 
-export function stripLegacyParqFields(value: unknown): unknown {
+export function stripLegacyParqFields(value: unknown, parentKey?: string): unknown {
   if (Array.isArray(value)) {
-    return value.map(stripLegacyParqFields);
+    return value.map((entry) => stripLegacyParqFields(entry, parentKey));
   }
 
   const source = record(value);
@@ -30,8 +30,12 @@ export function stripLegacyParqFields(value: unknown): unknown {
 
   return Object.fromEntries(
     Object.entries(source)
-      .filter(([key]) => !LEGACY_PARQ_KEYS.has(key))
-      .map(([key, entry]) => [key, stripLegacyParqFields(entry)])
+      .filter(
+        ([key]) =>
+          !LEGACY_PARQ_KEYS.has(key) &&
+          !(parentKey === 'questionnaires' && key === 'parq')
+      )
+      .map(([key, entry]) => [key, stripLegacyParqFields(entry, key)])
   );
 }
 
