@@ -241,15 +241,26 @@ describeDatabase('Issue 450 administrative create/read HTTP flow', () => {
       },
     };
 
-    await prisma.alunoIntakeForm.upsert({
-      where: { alunoId },
-      create: {
-        alunoId,
-        formResponses: legacyFormResponses,
-      },
-      update: {
-        formResponses: legacyFormResponses,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        'ALTER TABLE "AlunoIntakeForm" DISABLE TRIGGER "AlunoIntakeForm_read_only_after_issue_272"'
+      );
+      try {
+        await tx.alunoIntakeForm.upsert({
+          where: { alunoId },
+          create: {
+            alunoId,
+            formResponses: legacyFormResponses,
+          },
+          update: {
+            formResponses: legacyFormResponses,
+          },
+        });
+      } finally {
+        await tx.$executeRawUnsafe(
+          'ALTER TABLE "AlunoIntakeForm" ENABLE TRIGGER "AlunoIntakeForm_read_only_after_issue_272"'
+        );
+      }
     });
 
     const precedenceRead = await request(app).get('/api/v1/alunos/' + alunoId);
