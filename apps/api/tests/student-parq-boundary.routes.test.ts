@@ -127,4 +127,36 @@ describe('student PAR-Q HTTP boundary', () => {
     expect(JSON.stringify(response.body.data)).not.toContain('parqResponses');
     expect(mockBlockAccessMiddleware).toHaveBeenCalledWith('students.details.summary');
   });
+
+  it('keeps dependency failures generic and logs a correlated read stage', async () => {
+    const technicalError = new Error('database detail');
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    (studentParqBoundaryService.getAdministrativeAluno as jest.Mock).mockRejectedValue(
+      technicalError
+    );
+
+    const response = await request(app).get('/alunos/aluno-1');
+
+    expect(response.status).toBe(500);
+    expect(response.body).toMatchObject({
+      success: false,
+      error: 'Erro ao obter aluno',
+      details: {
+        code: 'ALUNO_READ_INTERNAL_ERROR',
+        correlationId: expect.any(String),
+      },
+    });
+    expect(JSON.stringify(response.body)).not.toContain('database detail');
+    expect(consoleError).toHaveBeenCalledWith(
+      'Erro ao obter aluno sanitizado:',
+      expect.objectContaining({
+        operation: 'aluno.read',
+        stage: 'load-administrative-projection',
+        durationMs: expect.any(Number),
+        correlationId: response.body.details.correlationId,
+        error: technicalError,
+      })
+    );
+    consoleError.mockRestore();
+  });
 });

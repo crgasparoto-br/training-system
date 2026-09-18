@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "head_sha": "235bfca59c7c78a41bee66ca2e72370fc95f4ec1",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "REQ-014-NEG-1",
+        "REQ-033-NEG-1",
+        "REQ-037-NEG-1",
+        "REQ-040-NEG-1",
+        "REQ-048-NEG-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "authorized-administrative-projection",
+          "reason": "The administrative read must expose only the authorized student projection and summary.",
+          "control_ids": [
+            "REQ-014-NEG-1",
+            "REQ-033-NEG-1",
+            "REQ-037-NEG-1",
+            "REQ-040-NEG-1",
+            "REQ-048-NEG-1"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "REQ-017-NEG-1",
+        "REQ-040-NEG-2",
+        "REQ-046-NEG-1",
+        "REQ-054-NEG-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "tenant-scope-isolation",
+          "reason": "Different contract scopes must remain isolated and non-enumerating at the public read boundary.",
+          "control_ids": [
+            "REQ-017-NEG-1",
+            "REQ-040-NEG-2",
+            "REQ-046-NEG-1",
+            "REQ-054-NEG-1"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "REQ-023-NEG-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "created-student-reference-liveness",
+          "reason": "The identifier returned by creation must remain live and resolvable in the immediately following administrative read.",
+          "control_ids": [
+            "REQ-023-NEG-1"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "REQ-001-NEG-1",
+        "REQ-005-NEG-1",
+        "REQ-011-NEG-1",
+        "REQ-023-NEG-2",
+        "REQ-024-NEG-1",
+        "REQ-044-NEG-1",
+        "REQ-045-NEG-1",
+        "REQ-048-NEG-2",
+        "REQ-050-NEG-1",
+        "REQ-062-NEG-2"
+      ],
+      "dimensions": [
+        {
+          "surface": "immediate-read-sequencing",
+          "reason": "The create then immediate read ordering must preserve the newly persisted student state.",
+          "control_ids": [
+            "REQ-001-NEG-1",
+            "REQ-005-NEG-1",
+            "REQ-011-NEG-1",
+            "REQ-023-NEG-2",
+            "REQ-024-NEG-1",
+            "REQ-044-NEG-1",
+            "REQ-045-NEG-1",
+            "REQ-048-NEG-2",
+            "REQ-050-NEG-1",
+            "REQ-062-NEG-2"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "REQ-016-NEG-1",
+        "REQ-020-NEG-1",
+        "REQ-032-NEG-1",
+        "REQ-063-NEG-2",
+        "REQ-063-NEG-3",
+        "REQ-063-NEG-4"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-read-precedence",
+          "reason": "Canonical service boundaries and canonical-over-legacy precedence must remain structurally enforced.",
+          "control_ids": [
+            "REQ-016-NEG-1",
+            "REQ-020-NEG-1",
+            "REQ-032-NEG-1",
+            "REQ-063-NEG-2"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "delivery-handoff-readiness",
+          "reason": "The delivery must reject an inherited foreign certificate and rebuild a package bound to the current issue and PR.",
+          "control_ids": [
+            "REQ-063-NEG-3"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "terminal-target-binding",
+          "reason": "The result-only child must bind issue and PR separately and remain a direct child of the material candidate with only allowlisted audit paths.",
+          "control_ids": [
+            "REQ-063-NEG-4"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "REQ-062-NEG-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "reason": "Durable documentation must match the implemented administrative PAR-Q read contract.",
+          "control_ids": [
+            "REQ-062-NEG-1"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}

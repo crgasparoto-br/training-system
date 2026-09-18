@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:e43fde45-9c33-4db0-8dbc-27cde46fb44f",
+    "audit_report_sha256": "ca68314a2ee28dcc3b8657f27aa2a1d18f833a714d28d84c4ae5c43b32cb0d7a",
+    "finding_ids": ["A-451-001"]
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "The installed direct delivery controller already contains target binding against the immutable base, inherited-base-artifact detection, separate issue/PR subject binding, handoff recovery classification and terminal result-only parent/allowlist guards. This targeted remediation applies those existing generic controls to the current delivery rather than introducing a new rule."
+  },
+  "skill_changes": []
+}

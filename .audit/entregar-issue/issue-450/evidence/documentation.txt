@@ -1,0 +1,3 @@
+Material head 235bfca59c7c78a41bee66ca2e72370fc95f4ec1.
+docs/product/pre-registration-parq.md was updated to state that an administratively created student may legitimately exist before StudentOnboardingProcess and that, after tenant-scoped student existence validation, administrative reading interprets absence of that process as PAR-Q NOT_STARTED while onboarding-dependent operations still require the process.
+Validate PR run 35294984009 CRITICAL validation completed Documentation checks successfully on the same exact head.
