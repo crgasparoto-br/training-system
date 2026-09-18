@@ -1,6 +1,8 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { adipometryService } from './index.js';
 
+const describeDatabase =
+  process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true' ? describe : describe.skip;
 const prisma = new PrismaClient();
 const suffix = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -134,7 +136,7 @@ async function cleanupFixture(fixture: Fixture) {
   await prisma.companyContract.delete({ where: { id: fixture.contractId } });
 }
 
-describe('adipometry protocol-sex decision provenance on PostgreSQL', () => {
+describeDatabase('adipometry protocol-sex decision provenance on PostgreSQL', () => {
   afterAll(async () => {
     for (const fixture of [...fixtures].reverse()) {
       await cleanupFixture(fixture).catch(() => undefined);
