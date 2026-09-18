@@ -54,7 +54,9 @@ Listagens comerciais exibem somente estado resumido e indicador de análise. Res
 
 ## Fronteiras de leitura
 
-As rotas administrativas usam `studentParqBoundaryService` como adaptador obrigatório entre os serviços legados de aluno e o serviço canônico do PAR-Q:
+As rotas administrativas usam `studentParqBoundaryService` como adaptador obrigatório entre os serviços legados de aluno e o serviço canônico do PAR-Q.
+
+Um aluno criado administrativamente pode existir legitimamente antes de qualquer `StudentOnboardingProcess`. Depois que a existência do aluno no `contractId` corrente é validada, a leitura administrativa interpreta a ausência desse processo como PAR-Q `NOT_STARTED`; ela não converte essa ausência em `404`. Operações que efetivamente dependem de um processo de onboarding continuam exigindo o registro correspondente.
 
 - `GET /api/v1/alunos/:id` e `GET /api/v1/alunos/:id/summary` recebem somente `ParqAdministrativeSummaryDTO` e removem recursivamente `parqResponses`, `questionnaireParq` e `questionnaires.parq` antes da serialização;
 - `GET /api/v1/alunos/:id/intake` exige `students.details.health` e substitui qualquer representação legada pela última submissão retornada por `preRegistrationParqService.overview`;

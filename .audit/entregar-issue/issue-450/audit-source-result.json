@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "result": "REPROVADA",
+  "validity": "independent",
+  "rejection_id": "audit-rejection:e43fde45-9c33-4db0-8dbc-27cde46fb44f",
+  "head_sha": "235bfca59c7c78a41bee66ca2e72370fc95f4ec1",
+  "reason": "handoff-not-produced",
+  "recovery_scope": "handoff-only",
+  "requires_refreeze": false,
+  "delivery_origin": "delivery-v2",
+  "findings": [
+    {
+      "id": "A-451-001",
+      "title": "Handoff da entrega atual não foi produzido",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "reason": "The handoff-ready.json present on the audited head is byte-identical to the immutable base artifact and belongs to Issue 426 / PR 430 rather than Issue 450 / PR 451.",
+      "required_recovery": "Build and publish a fresh current-target result-only handoff for Issue 450 / PR 451 without changing the already-green material head."
+    }
+  ]
+}

@@ -1,0 +1,174 @@
+<!-- specification_version: 2 -->
+
+## Objetivo
+Corrigir a regressão de produção em que o aluno é criado com sucesso, mas a leitura administrativa imediatamente posterior falha ao abrir `/alunos/:id`, exibindo `Erro ao obter aluno`.
+
+A entrega deve fechar o fluxo ponta a ponta:
+
+`criar aluno -> confirmar persistência -> consultar o mesmo aluno -> abrir a tela com os dados persistidos`
+
+## Contexto confirmado em produção
+Em 16/09/2026 foi reproduzido o seguinte comportamento:
+
+1. usuário preenche o cadastro de novo aluno;
+2. salva o aluno;
+3. o aluno é efetivamente criado no banco;
+4. a navegação segue para `/alunos/{id}`;
+5. a consulta administrativa do aluno falha;
+6. a interface exibe `Erro ao obter aluno`.
+
+Foi confirmado manualmente que o registro existe após o erro. Portanto, esta ocorrência é posterior ao commit da criação e não deve ser tratada como repetição automática do `P2028` da issue #447.
+
+## Relação com a regressão anterior
+- #447 / PR #448 corrigiu a transação de criação e a instalação de defaults.
+- PR #449 promoveu essa correção para `main`.
+- Esta issue cobre a etapa seguinte: leitura do aluno recém-criado no mesmo fluxo de usuário.
+
+## Fontes canônicas
+Preservar as regras já definidas em:
+
+- `docs/architecture/student-lifecycle-data-ownership.md` — ownership dos dados do aluno, isolamento tenant-scoped, precedência entre dados canônicos e fallback legado e fronteiras de leitura/escrita;
+- `docs/product/pre-registration-parq.md` — fronteira administrativa do PAR-Q, sanitização e uso obrigatório de `studentParqBoundaryService` nas rotas administrativas.
+
+Esta issue define somente o delta corretivo, evidências e critérios de regressão.
+
+## Evidência de roteamento no código atual
+O caminho efetivo de `GET /api/v1/alunos/:id` não deve ser inferido apenas pelo handler legado em `aluno.routes.ts`.
+
+Em `apps/api/src/modules/alunos/index.ts`, `studentParqBoundaryRoutes` é montado antes de `legacyAlunoRoutes`. Portanto, para `GET /:id`, o primeiro handler aplicável é `student-parq-boundary.routes.ts`, que:
+
+1. autentica professor;
+2. exige `students.details.summary`;
+3. valida acesso ao aluno;
+4. chama `studentParqBoundaryService.getAdministrativeAluno(contractId, id)`;
+5. em exceção retorna `Erro ao obter aluno` e registra `Erro ao obter aluno sanitizado:`.
+
+A investigação deve começar por esse caminho real e só alterar o handler legado se houver evidência de que ele também participa da falha.
+
+## Comportamento canônico relevante
+- `GET /api/v1/alunos/:id` deve atravessar `studentParqBoundaryService` e retornar somente a projeção administrativa autorizada.
+- O aluno recém-criado pode legitimamente ainda não ter preenchido PAR-Q; `NOT_STARTED` é estado válido e a ausência de submissão clínica não pode, por si só, transformar a consulta administrativa em HTTP 500.
+- Dados canônicos de `StudentProfile` têm precedência sobre `AlunoIntakeForm.formResponses`; legado é fallback somente leitura.
+- A consulta deve continuar tenant-scoped. Acesso cross-tenant deve permanecer indistinguível de recurso inexistente.
+
+## Escopo
+### Backend
+- reproduzir a falha pelo handler efetivo de `GET /api/v1/alunos/:id` para um aluno recém-criado;
+- identificar exatamente qual etapa de `studentParqBoundaryService.getAdministrativeAluno()` ou dependência lançada por ela falha;
+- corrigir a causa raiz sem mascarar exceções inesperadas;
+- preservar `studentParqBoundaryService` como fronteira administrativa do PAR-Q;
+- preservar sanitização de campos clínicos/legados e isolamento por `contractId`;
+- preservar precedência `canônico -> fallback legado` na reconstrução de `formResponses`;
+- garantir que aluno sem submissão PAR-Q seja lido normalmente com estado administrativo compatível com `NOT_STARTED`;
+- manter resposta pública segura e detalhes técnicos apenas em logs;
+- adicionar `correlationId`, operação, etapa e duração suficientes para distinguir `aluno.create` de `aluno.read` e localizar falhas internas da leitura.
+
+### Frontend / fluxo
+O código atual já navega após a criação usando `createdAluno.aluno.id`. Portanto:
+
+- não alterar esse contrato sem evidência de erro no payload retornado pelo POST;
+- validar que a tela `/alunos/:id` conclui a carga após o GET 200;
+- não tratar erro real do GET como sucesso silencioso nem apenas remover o alerta;
+- mudanças de frontend ficam condicionadas a evidência de problema adicional depois da correção do backend.
+
+## Teste de regressão obrigatório: POST -> GET
+Adicionar cobertura de integração que execute no mesmo cenário e no mesmo SHA:
+
+1. autenticar perfil autorizado para criação e `students.details.summary`;
+2. executar `POST /api/v1/alunos` com payload representativo de produção;
+3. validar HTTP 201 e obter `response.data.aluno.id`;
+4. confirmar que o aluno pertence ao mesmo `contractId` do ator;
+5. executar imediatamente `GET /api/v1/alunos/{id}`;
+6. exigir HTTP 200;
+7. validar dados administrativos essenciais retornados, incluindo valores vindos de identificação/endereço/contato de emergência/preferências quando presentes no payload;
+8. validar que o retorno não contém campos clínicos proibidos pelo contrato do PAR-Q;
+9. validar que ausência de submissão PAR-Q não causa erro e resulta em resumo administrativo válido;
+10. validar que a resposta usa o dado canônico quando ele coexistir com fallback legado divergente.
+
+O teste deve usar payload completo o suficiente para atravessar os grupos que participaram das regressões recentes: identificação, endereço, contato de emergência, preferências e vínculo administrativo/contratual quando aplicável.
+
+## Cenários discriminantes
+### 1. Aluno recém-criado sem PAR-Q
+**Esperado:** `GET /api/v1/alunos/{id}` retorna 200 e resumo administrativo com estado compatível com `NOT_STARTED`.
+
+### 2. Dado canônico e legado divergentes
+**Esperado:** a resposta administrativa mantém a precedência definida em `student-lifecycle-data-ownership.md`; o fallback legado não sobrescreve valor canônico.
+
+### 3. Acesso cross-tenant
+**Esperado:** continua retornando resposta de recurso inexistente, sem revelar existência ou dados do aluno.
+
+### 4. Falha interna real de dependência
+**Esperado:** retorno público genérico e seguro; logs correlacionáveis contêm operação/etapa e erro técnico, sem PII clínica.
+
+## Invariantes estruturais
+### `must_behave`
+- aluno válido recém-criado é consultável imediatamente no mesmo fluxo;
+- aluno sem PAR-Q concluído continua consultável administrativamente;
+- resposta administrativa mantém dados canônicos e resumo PAR-Q autorizado;
+- a tela abre após a primeira leitura bem-sucedida.
+
+### `must_not_behave`
+- ausência normal de submissão PAR-Q não pode gerar HTTP 500;
+- fallback legado não pode sobrescrever valor canônico existente;
+- erro da consulta não pode ser escondido apenas no frontend;
+- resposta administrativa não pode expor `parqResponses`, `questionnaireParq`, `questionnaires.parq`, respostas detalhadas, `positiveItems` ou `reviewNotes` fora das fronteiras autorizadas.
+
+### `must_reuse`
+- `studentParqBoundaryService` permanece a fronteira administrativa de leitura do PAR-Q;
+- `buildStudentAdministrativeFormResponsesReadModel` permanece responsável pela composição canônico + legado quando aplicável;
+- `preRegistrationParqService` permanece a fonte do estado canônico do PAR-Q, sem inventar uma segunda regra local de estado.
+
+### `must_be_single_source`
+- ownership e precedência dos dados do aluno permanecem em `docs/architecture/student-lifecycle-data-ownership.md`;
+- contrato de leitura/sanitização do PAR-Q permanece em `docs/product/pre-registration-parq.md`.
+
+### `must_not_depend_on`
+- a leitura não pode depender da existência de uma submissão PAR-Q concluída;
+- a correção não pode depender de remover sanitização, autorização ou isolamento tenant-scoped.
+
+### `forbidden_implementation`
+- capturar qualquer erro de `preRegistrationParqService` e converter indiscriminadamente em `NOT_STARTED`;
+- ignorar falha interna e retornar objeto parcial como sucesso sem preservar o contrato esperado;
+- bypassar `studentParqBoundaryService` para fazer o GET funcionar;
+- remover `students.details.summary` ou relaxar checagem de tenant;
+- alterar o POST/transação da #447 sem evidência de relação causal com esta falha.
+
+## Implementações erradas plausíveis e controles discriminantes
+1. **Transformar toda exceção do PAR-Q em `NOT_STARTED`.** O caminho feliz passa, mas falhas de schema, banco ou tenant ficam mascaradas. **Controle:** teste injeta falha interna distinta de ausência legítima e exige 500 seguro + log correlacionável.
+2. **Usar diretamente `alunoService.findById` no handler.** A tela pode voltar a abrir, mas viola a fronteira administrativa/sanitização do PAR-Q. **Controle:** teste HTTP verifica ausência recursiva dos campos clínicos proibidos.
+3. **Preferir `formResponses` legado ao `StudentProfile`.** O GET passa, porém dados recém-salvos podem aparecer antigos ou nulos. **Controle:** fixture com canônico e legado divergentes exige valor canônico.
+4. **Corrigir apenas o alerta no frontend.** A UX parece melhor, mas o GET continua 500. **Controle:** teste de integração exige HTTP 200 antes da validação visual.
+5. **Afrouxar acesso para eliminar falha.** Usuário correto passa, porém há regressão de privacidade. **Controle:** teste cross-tenant permanece 404/recurso inexistente.
+
+## Critérios de aceite
+- [ ] `POST /api/v1/alunos` cria aluno válido e retorna seu ID.
+- [ ] imediatamente após o POST, `GET /api/v1/alunos/{id}` pelo mesmo tenant e perfil autorizado retorna 200.
+- [ ] aluno sem submissão PAR-Q é retornado com estado administrativo válido, sem 500.
+- [ ] `/alunos/{id}` abre sem `Erro ao obter aluno` após a criação.
+- [ ] identificação, endereço, contato de emergência e preferências persistidas aparecem corretamente na primeira leitura quando enviados.
+- [ ] quando canônico e legado coexistem, o canônico prevalece.
+- [ ] a resposta administrativa não expõe campos clínicos proibidos.
+- [ ] acesso cross-tenant continua não revelando o recurso.
+- [ ] falhas internas continuam sem expor Prisma, SQL, stack trace ou dados clínicos ao usuário.
+- [ ] logs de leitura contêm correlação, operação, etapa e duração suficientes para diagnóstico.
+- [ ] existe teste de regressão real `POST -> GET` cobrindo o handler efetivamente montado.
+- [ ] `pnpm validate` passa.
+- [ ] `pnpm build` passa.
+- [ ] testes de integração relevantes passam no mesmo SHA da entrega.
+
+## Fora de escopo
+- reabrir a estratégia transacional da #447 sem evidência causal;
+- aumentar timeout como solução genérica;
+- alterar regra de negócio do cadastro;
+- mudar o modelo canônico de identidade ou PAR-Q;
+- remover controles de acesso, sanitização ou isolamento tenant-scoped;
+- criar uma segunda fonte de verdade para estado do PAR-Q;
+- tratar apenas a apresentação do alerta sem corrigir a consulta.
+
+## Impacto na documentação
+Nenhuma mudança documental é necessária apenas para esta correção se a implementação restaurar o comportamento já definido nas duas fontes canônicas acima.
+
+Se a investigação demonstrar que o contrato documentado está incorreto, a documentação deve ser reconciliada na mesma entrega antes de considerar a issue pronta para merge; não registrar nova regra durável apenas no código ou nesta issue.
+
+## Readiness
+**Pronta para implementação.** A causa técnica exata ainda deve ser diagnosticada no fluxo efetivo, mas as fronteiras, invariantes, fontes canônicas, cenários de regressão e comportamento esperado estão definidos sem exigir nova decisão de produto.

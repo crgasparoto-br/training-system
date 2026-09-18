@@ -1,0 +1,10 @@
+Repository: crgasparoto-br/training-system
+PR: 451
+Material head: 235bfca59c7c78a41bee66ca2e72370fc95f4ec1
+Base: e07e32a40c4b26547fa403f99e52f15bfad479dc
+Validate PR run: 35294984009 (#7715)
+Observed state: completed / success
+CRITICAL validation job: 105445809645 / success
+Exact-head checkout observed in job log: ref 235bfca59c7c78a41bee66ca2e72370fc95f4ec1
+Steps observed passed: database/migration regressions, type check, lint, full tests, build, browser settings validation, architecture checks, access catalog checks, documentation checks.
+Validate repository job: success.

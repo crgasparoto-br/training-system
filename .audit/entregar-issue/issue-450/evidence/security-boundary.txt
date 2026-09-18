@@ -1,0 +1,4 @@
+Material head 235bfca59c7c78a41bee66ca2e72370fc95f4ec1.
+The Issue 450 HTTP regression test uses deliberately different contract ids issue-450-http-contract and issue-450-http-contract-other; a student created in the first contract is queried under the second contract and the observed response is 404 without the student email or name.
+The same exact-head suite asserts the administrative payload omits parqResponses, questionnaireParq, questionnaires.parq, positiveItems and reviewNotes.
+student-parq-boundary.routes.test.ts injects Error('database detail') from getAdministrativeAluno and observes public HTTP 500 with generic 'Erro ao obter aluno', ALUNO_READ_INTERNAL_ERROR and correlationId, while the technical error remains only in the correlated internal log with operation aluno.read, stage and durationMs.

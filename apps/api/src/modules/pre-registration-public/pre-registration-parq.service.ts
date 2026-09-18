@@ -131,10 +131,10 @@ function validateConsentPayload(input: ConsentInput) {
 function statusOf(
   latest: SubmissionRow | undefined,
   draft: DraftRow | undefined,
-  process: ParqProcessStateRow,
+  process: ParqProcessStateRow | null,
   legacy: LegacyStateRow
 ): ParqFlowStatus {
-  if (process.parqModuleStatus === 'IN_PROGRESS' && draft) return 'IN_PROGRESS';
+  if (process?.parqModuleStatus === 'IN_PROGRESS' && draft) return 'IN_PROGRESS';
   if (latest) return latest.positiveCount > 0 ? 'COMPLETED_REVIEW_REQUIRED' : 'COMPLETED_NO_ALERT';
   return legacy.needsRepeat ? 'NEEDS_REPEAT' : 'NOT_STARTED';
 }
@@ -152,11 +152,24 @@ async function assertAlunoInContract(
   if (!rows[0]) throw new ParqServiceError('Cadastro não encontrado.', 'NOT_FOUND');
 }
 
+function readParqProcessState(
+  tx: Prisma.TransactionClient,
+  alunoId: string,
+  contractId: string,
+  required?: true
+): Promise<ParqProcessStateRow>;
+function readParqProcessState(
+  tx: Prisma.TransactionClient,
+  alunoId: string,
+  contractId: string,
+  required: false
+): Promise<ParqProcessStateRow | null>;
 async function readParqProcessState(
   tx: Prisma.TransactionClient,
   alunoId: string,
-  contractId: string
-): Promise<ParqProcessStateRow> {
+  contractId: string,
+  required = true
+): Promise<ParqProcessStateRow | null> {
   const rows = await tx.$queryRaw<ParqProcessStateRow[]>`
     SELECT "parqModuleStatus", "parqConsentVersion", "parqConsentNoticeVersion",
            "parqConsentAcceptedAt", "parqConsentAcceptedByUserId",
@@ -165,8 +178,10 @@ async function readParqProcessState(
     WHERE "alunoId" = ${alunoId} AND "contractId" = ${contractId}
     LIMIT 1
   `;
-  if (!rows[0]) throw new ParqServiceError('Cadastro não encontrado.', 'NOT_FOUND');
-  return rows[0];
+  if (!rows[0] && required) {
+    throw new ParqServiceError('Cadastro não encontrado.', 'NOT_FOUND');
+  }
+  return rows[0] ?? null;
 }
 
 async function readDraft(tx: Prisma.TransactionClient, alunoId: string): Promise<DraftRow | undefined> {
@@ -662,11 +677,14 @@ export const preRegistrationParqService = {
       const [latest, legacy, process, requiresProfessionalReview] = await Promise.all([
         readLatestSubmission(tx, contractId, alunoId),
         readLegacyState(tx, alunoId),
-        readParqProcessState(tx, alunoId, contractId),
+        readParqProcessState(tx, alunoId, contractId, false),
         pendingReviewExists(tx, contractId, alunoId),
       ]);
       const draft = await readDraft(tx, alunoId);
       return {
+        // Administrative creation does not start public onboarding. Once the
+        // tenant-scoped aluno existence check above succeeds, an absent process
+        // is therefore the canonical NOT_STARTED state, not a missing aluno.
         state: statusOf(latest, draft, process, legacy),
         latestSubmission: latest
           ? {
