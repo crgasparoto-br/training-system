@@ -1,0 +1,6 @@
+Material head: 235bfca59c7c78a41bee66ca2e72370fc95f4ec1
+Scenario: injected getAdministrativeAluno dependency failure through student-parq-boundary.routes.test.ts.
+Required diagnostic dimensions observed in internal log: correlationId, operation, stage, durationMs.
+Count of required diagnostic dimensions observed: 4 of 4.
+Public payload contains generic error and correlationId; raw technical error text is absent from the serialized response.
+The exact-head test passed in Validate PR run 35294984009.

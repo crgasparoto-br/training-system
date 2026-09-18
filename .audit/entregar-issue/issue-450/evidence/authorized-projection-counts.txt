@@ -1,0 +1,5 @@
+Material head: 235bfca59c7c78a41bee66ca2e72370fc95f4ec1
+Scenario: Issue 450 immediate POST -> administrative GET.
+Observed authorized PAR-Q summary objects in response: 1.
+Observed forbidden legacy/clinical field names among parqResponses, questionnaireParq, questionnaires.parq, positiveItems, reviewNotes: 0.
+The exact-head CI test apps/api/tests/aluno-create-read-http.integration.test.ts passed in Validate PR run 35294984009.

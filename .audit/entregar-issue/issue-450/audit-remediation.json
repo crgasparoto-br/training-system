@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "status": "closed",
+  "remediation_mode": "targeted-remediation",
+  "candidate_head_sha": "235bfca59c7c78a41bee66ca2e72370fc95f4ec1",
+  "source": {
+    "rejection_id": "audit-rejection:e43fde45-9c33-4db0-8dbc-27cde46fb44f",
+    "audited_head_sha": "235bfca59c7c78a41bee66ca2e72370fc95f4ec1",
+    "audit_report_sha256": "ca68314a2ee28dcc3b8657f27aa2a1d18f833a714d28d84c4ae5c43b32cb0d7a"
+  },
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-451-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "evidence": "evidence/handoff-remediation.txt",
+      "validations": [
+        "foreign inherited handoff is not reused",
+        "Issue 450 and PR 451 are bound separately in the new certificate subject",
+        "material head remains 235bfca59c7c78a41bee66ca2e72370fc95f4ec1 with exact-head CI green",
+        "new handoff is prepared as a direct result-only child restricted to .audit/entregar-issue paths"
+      ]
+    }
+  ]
+}

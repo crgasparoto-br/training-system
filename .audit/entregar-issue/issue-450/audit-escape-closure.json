@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "foreign-inherited-handoff-not-produced",
+      "status": "passed",
+      "escape_class": "delivery-target-binding-gap",
+      "revalidated_head_sha": "235bfca59c7c78a41bee66ca2e72370fc95f4ec1",
+      "source_audit": {
+        "kind": "independent-rejection",
+        "rejection_id": "audit-rejection:e43fde45-9c33-4db0-8dbc-27cde46fb44f",
+        "finding_ids": ["A-451-001"],
+        "audit_report_sha256": "ca68314a2ee28dcc3b8657f27aa2a1d18f833a714d28d84c4ae5c43b32cb0d7a"
+      },
+      "plausible_wrong_implementation": "Treat any handoff-ready.json found on the candidate branch as belonging to the current delivery even when the same bytes were inherited from the immutable base and the subject identifies another issue and pull request.",
+      "literal_case": {
+        "procedure": "Compare the handoff certificate on material head 235bfca59c7c78a41bee66ca2e72370fc95f4ec1 with the same repository path on immutable base e07e32a40c4b26547fa403f99e52f15bfad479dc, then validate repository, issue, PR, base_ref and head_ref against the current target.",
+        "expected": "The inherited Issue 426 / PR 430 certificate is rejected for Issue 450 / PR 451 and a fresh current-target package is required.",
+        "observed": "The current material head 235bfca59c7c78a41bee66ca2e72370fc95f4ec1 is retained as the exact-head candidate; the foreign inherited certificate is not reused and the direct delivery flow builds a new Issue 450 / PR 451 package before publication."
+      },
+      "sibling_cases": [
+        {
+          "id": "foreign-subject-on-same-path",
+          "surface": "delivery-handoff-readiness",
+          "dimension": "foreign-subject-identity",
+          "status": "passed",
+          "evidence": "evidence/handoff-remediation.txt"
+        },
+        {
+          "id": "result-child-parent-allowlist",
+          "surface": "terminal-target-binding",
+          "dimension": "direct-parent-and-allowlist",
+          "status": "passed",
+          "evidence": "evidence/handoff-remediation.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "delivery-handoff-readiness",
+          "dimension": "foreign-inherited-certificate-detection"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "terminal-target-binding",
+          "dimension": "issue-pr-subject-binding"
+        }
+      ],
+      "prevention_change": {
+        "kind": "existing-controller-rule-applied",
+        "evidence": "evidence/handoff-remediation.txt",
+        "description": "Use delivery_target_binding against the immutable base and prohibit foreign or inherited handoff reuse for a new target."
+      },
+      "detection_change": {
+        "kind": "existing-terminal-guard-applied",
+        "evidence": "evidence/handoff-remediation.txt",
+        "description": "Require separate issue/PR subject binding plus direct material-parent and result-only allowlist validation before audit handoff."
+      },
+      "trigger_terms": ["handoff-ready", "inherited-base-artifact", "foreign-target", "result-only-child"],
+      "required_risk_families": ["structural-contract"]
+    }
+  ]
+}

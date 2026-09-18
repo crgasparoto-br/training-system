@@ -1,0 +1,7 @@
+Exact-head CI evidence for Issue 450 on 235bfca59c7c78a41bee66ca2e72370fc95f4ec1.
+GitHub Actions Validate PR run 35294984009, CRITICAL validation job 105445809645.
+Observed in Full tests log:
+- PASS tests/aluno-service-interest.integration.test.ts
+- PASS tests/aluno-create-read-http.integration.test.ts
+- PASS tests/student-parq-boundary.routes.test.ts
+The HTTP integration test performs administrative POST /api/v1/alunos followed immediately by GET /api/v1/alunos/{id}, requires 201 then 200, validates same contract/service, NOT_STARTED PAR-Q, canonical identification/address/emergency contact/preferences, recursive legacy PAR-Q sanitization, canonical-over-legacy precedence, and cross-tenant 404/no-leak behavior.

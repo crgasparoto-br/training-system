@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "235bfca59c7c78a41bee66ca2e72370fc95f4ec1",
+  "base_sha": "e07e32a40c4b26547fa403f99e52f15bfad479dc",
+  "evidence": [
+    {
+      "evidence_id": "EVID-REQ014-AUTHORIZED-PROJECTION-COUNTS",
+      "kind": "quantitative",
+      "path": "evidence/authorized-projection-counts.txt",
+      "sha256": "b261db134e59252b598a9fcc1fcc319c568b4cecd4fabd5651f5b64f00ed6630",
+      "subject_sha": "235bfca59c7c78a41bee66ca2e72370fc95f4ec1",
+      "base_sha": "e07e32a40c4b26547fa403f99e52f15bfad479dc",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue from exact-head Issue 450 HTTP integration evidence",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-REQ056-DIAGNOSTIC-FIELD-COUNTS",
+      "kind": "quantitative",
+      "path": "evidence/diagnostic-field-counts.txt",
+      "sha256": "8a51252ec739c91ff6edac1e1dc0474d687fd16cdfe9ca4cdfcd277c3d6f6465",
+      "subject_sha": "235bfca59c7c78a41bee66ca2e72370fc95f4ec1",
+      "base_sha": "e07e32a40c4b26547fa403f99e52f15bfad479dc",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue from exact-head student PAR-Q boundary failure test",
+      "status": "passed"
+    }
+  ]
+}
