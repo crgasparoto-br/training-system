@@ -2,6 +2,7 @@ import {
   buildStudentAdministrativeFormResponsesReadModel,
   buildStudentAdministrativeIdentityPatch,
   mergeStudentAdministrativeFormResponses,
+  upsertStudentAdministrativeFormResponses,
 } from '../src/modules/alunos/student-administrative-form-responses.service';
 
 describe('administrative student form responses', () => {
@@ -70,6 +71,41 @@ describe('administrative student form responses', () => {
         socialAccount: '@aluno',
         instagram: '@aluno',
       },
+    });
+  });
+
+  it('persists decimal discount received with pt-BR comma without losing precision', async () => {
+    const tx = {
+      aluno: {
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ contractId: 'contract-1' }),
+      },
+      studentFinancialProfile: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        upsert: jest.fn().mockResolvedValue({}),
+      },
+    } as any;
+
+    await upsertStudentAdministrativeFormResponses(tx, 'aluno-1', {
+      financial: { discountPercentage: '16,45' },
+    });
+
+    expect(tx.studentFinancialProfile.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          alunoId: 'aluno-1',
+          discountPercentage: 16.45,
+        }),
+      })
+    );
+  });
+
+  it('recarrega desconto decimal canônico no formato pt-BR', () => {
+    expect(
+      buildStudentAdministrativeFormResponsesReadModel({
+        financial: { discountPercentage: 16.45 },
+      })
+    ).toMatchObject({
+      financial: { discountPercentage: '16,45' },
     });
   });
 

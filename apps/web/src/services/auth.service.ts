@@ -88,9 +88,22 @@ export const authService = {
    * Fazer logout
    */
   async logout(): Promise<void> {
-    await api.post('/auth/logout');
+    const token = localStorage.getItem('token');
+
+    // Logout é local-first: a sessão do navegador não pode depender da
+    // disponibilidade da API para ser encerrada.
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+
+    if (!token) {
+      return;
+    }
+
+    // O backend usa JWT sem estado de sessão. Mantemos a notificação remota
+    // como melhor esforço, preservando o token capturado sem bloquear a UI.
+    void api.post('/auth/logout', undefined, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => undefined);
   },
 
   /**
