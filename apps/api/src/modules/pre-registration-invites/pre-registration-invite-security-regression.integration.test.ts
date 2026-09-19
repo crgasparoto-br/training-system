@@ -2,10 +2,12 @@ import { PrismaClient } from '@prisma/client';
 import { createStudentLead } from '../alunos/student-lifecycle.service.js';
 import { preRegistrationInviteService } from './pre-registration-invite.service.js';
 
+const describeDatabase =
+  process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true' ? describe : describe.skip;
 const prisma = new PrismaClient();
 const unique = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-describe('pre-registration invite security regressions', () => {
+describeDatabase('pre-registration invite security regressions', () => {
   const createdContractIds: string[] = [];
 
   const createLead = async () => {
