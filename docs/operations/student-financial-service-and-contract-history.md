@@ -54,7 +54,9 @@ A migration `20260714203000_enforce_student_contract_service_authority` corrige 
 
 Quando existe contrato selecionado, perfil, formulário, vínculo e ciclo contratual são persistidos em uma única transação Prisma. Antes da edição atômica, o backend valida que o professor autenticado possui acesso ao aluno e que uma eventual troca de responsável é permitida. Se o contrato não existir, pertencer a outro aluno/contrato empresarial, o aluno estiver fora do escopo ou qualquer etapa falhar, nenhuma atualização parcial do perfil é confirmada.
 
-O ciclo aplicado dentro da transação respeita o estado documental:
+O ciclo aplicado dentro da transação respeita o estado documental. Quando o contrato selecionado já é o vínculo `active` do aluno, a edição atualiza somente os dados mutáveis do vínculo e do perfil dentro da mesma transação, sem reaplicar o lifecycle de ativação. Isso preserva inclusive vínculos ativos legados cujo documento eletrônico antecede a exigência de estado `SIGNED`.
+
+Para contratos novos, substitutos ou ainda não ativos:
 
 - documento ainda não assinado: vínculo em preparação ou aguardando assinatura, sem encerrar o vigente;
 - documento assinado com início futuro: vínculo agendado, mantendo o vigente até a data efetiva;
