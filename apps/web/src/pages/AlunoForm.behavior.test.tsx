@@ -354,7 +354,12 @@ describe('AlunoForm assessment boundary behavior', () => {
     });
 
     renderForm();
-    expect(await screen.findByDisplayValue('Aluno Existente')).toBeInTheDocument();
+    const nameInput = await screen.findByLabelText('Nome completo');
+    const emailInput = screen.getByLabelText('E-mail');
+    expect(nameInput).toHaveValue('Aluno Existente');
+    expect(nameInput).not.toBeDisabled();
+    expect(emailInput).toBeDisabled();
+    fireEvent.change(nameInput, { target: { value: 'Aluno Nome Atualizado' } });
     fireEvent.click(screen.getByRole('tab', { name: 'Anamnese Inicial' }));
 
     fireEvent.change(
@@ -368,6 +373,7 @@ describe('AlunoForm assessment boundary behavior', () => {
 
     expect(alunoId).toBe('aluno-1');
     expect(payload).toMatchObject({
+      name: 'Aluno Nome Atualizado',
       serviceId: 'service-1',
       intakeForm: {
         mainGoal: 'Objetivo original',

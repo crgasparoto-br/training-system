@@ -270,6 +270,7 @@ const updateAlunoRecord = async (
   options: StudentFinancialContractOperationOptions
 ) => {
   const {
+    name,
     avatar,
     professorId,
     birthDate,
@@ -326,11 +327,12 @@ const updateAlunoRecord = async (
 
   const aluno = await tx.aluno.update({ where: { id: alunoId }, data: alunoData });
 
-  if (birthDate !== undefined || gender !== undefined) {
+  if (name !== undefined || birthDate !== undefined || gender !== undefined) {
     await upsertStudentIdentity(
       aluno.id,
       options.companyContractId,
       {
+        ...(name !== undefined ? { name } : {}),
         ...(birthDate !== undefined ? { birthDate } : {}),
         ...(gender !== undefined ? { gender } : {}),
       },

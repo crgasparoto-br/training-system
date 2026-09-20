@@ -84,6 +84,7 @@ export interface CreateAlunoDTO {
 }
 
 export interface UpdateAlunoDTO {
+  name?: string;
   avatar?: string;
   professorId?: string;
   serviceId?: string;
@@ -654,6 +655,7 @@ export const alunoService = {
   async update(id: string, data: UpdateAlunoDTO) {
     assertNoLegacyParqWrite(data);
     const {
+      name,
       avatar,
       professorId,
       schedulePlan,
@@ -737,11 +739,12 @@ export const alunoService = {
         data: alunoData,
       });
 
-      if (birthDate !== undefined || gender !== undefined) {
+      if (name !== undefined || birthDate !== undefined || gender !== undefined) {
         await upsertStudentIdentity(
           aluno.id,
           alunoContractId,
           {
+            ...(name !== undefined ? { name } : {}),
             ...(birthDate !== undefined ? { birthDate } : {}),
             ...(gender !== undefined ? { gender } : {}),
           },
