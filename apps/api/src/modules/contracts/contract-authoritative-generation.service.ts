@@ -56,6 +56,18 @@ const amountToWords = (value?: number | null) =>
     ? ''
     : `${currency.format(value)} reais`;
 
+const toFiniteNumber = (value: unknown) => {
+  if (value === undefined || value === null) return undefined;
+
+  if (typeof value === 'object' && value !== null && 'toNumber' in value) {
+    const numericValue = (value as { toNumber: () => number }).toNumber();
+    return Number.isFinite(numericValue) ? numericValue : undefined;
+  }
+
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : undefined;
+};
+
 const toOptionalDate = (value?: string | Date | null) => {
   if (!value) return null;
   const parsed = value instanceof Date ? value : new Date(value);
@@ -125,6 +137,28 @@ async function resolveGenerationData(
       include: {
         user: { include: { profile: true } },
         professor: { select: { contractId: true } },
+        studentFinancialProfile: true,
+        currentStudentContract: {
+          select: {
+            status: true,
+            amount: true,
+            paymentDay: true,
+            notes: true,
+            startDate: true,
+          },
+        },
+        studentContracts: {
+          where: { status: 'active' as const },
+          select: {
+            status: true,
+            amount: true,
+            paymentDay: true,
+            notes: true,
+            startDate: true,
+          },
+          orderBy: { updatedAt: 'desc' as const },
+          take: 1,
+        },
       },
     }),
   ]);
@@ -179,9 +213,39 @@ async function resolveGenerationData(
     throw new Error('Professor responsável não pertence ao contrato autenticado');
   }
 
+  const financialProfile =
+    aluno.studentFinancialProfile?.contractId === companyContractId
+      ? aluno.studentFinancialProfile
+      : null;
+  const activeStudentContract =
+    aluno.currentStudentContract?.status === 'active'
+      ? aluno.currentStudentContract
+      : (aluno.studentContracts[0] ?? null);
+
+  // Preview and real generation intentionally share this exact resolution.
+  // Explicit generation input wins; otherwise use the persisted financial
+  // profile, then the active contract, and only then the commercial catalog.
   const valorMensal =
     input.valorMensal ??
-    (selectedService?.monthlyPrice ? Number(selectedService.monthlyPrice) : undefined);
+    toFiniteNumber(financialProfile?.monthlyAmount) ??
+    toFiniteNumber(activeStudentContract?.amount) ??
+    toFiniteNumber(selectedService?.monthlyPrice);
+  const diaVencimento =
+    input.diaVencimento ??
+    financialProfile?.paymentDay ??
+    activeStudentContract?.paymentDay ??
+    undefined;
+  const horarios =
+    input.horarios ??
+    financialProfile?.notes ??
+    activeStudentContract?.notes ??
+    undefined;
+  const dataInicio =
+    input.dataInicio ??
+    financialProfile?.contractStartDate ??
+    activeStudentContract?.startDate ??
+    undefined;
+
   const serviceContext = await loadContractServiceVariableContext(
     client as PrismaClient,
     companyContractId,
@@ -218,9 +282,9 @@ async function resolveGenerationData(
     contrato: {
       valorMensal: valorMensal !== undefined ? currency.format(valorMensal) : '',
       valorMensalExtenso: amountToWords(valorMensal),
-      diaVencimento: input.diaVencimento || '',
-      horarios: input.horarios || '',
-      dataInicio: formatDate(input.dataInicio),
+      diaVencimento: diaVencimento ?? '',
+      horarios: horarios ?? '',
+      dataInicio: formatDate(dataInicio),
       dataAssinatura: formatDate(input.dataAssinatura || new Date()),
     },
   };
@@ -235,6 +299,11 @@ async function resolveGenerationData(
     documentServiceId,
     effectiveServiceId,
     valorMensal,
+    resolvedContractValues: {
+      diaVencimento,
+      horarios,
+      dataInicio,
+    },
     context,
   };
 }
@@ -311,11 +380,11 @@ export const contractAuthoritativeGenerationService = {
           contractId: created.id,
           serviceId: resolved.effectiveServiceId,
           status: 'draft',
-          startDate: toOptionalDate(input.dataInicio),
+          startDate: toOptionalDate(resolved.resolvedContractValues.dataInicio),
           endDate: persistence.endDate ?? null,
           amount: input.valorMensal ?? resolved.valorMensal ?? null,
-          paymentDay: input.diaVencimento ?? null,
-          notes: input.horarios ?? null,
+          paymentDay: resolved.resolvedContractValues.diaVencimento ?? null,
+          notes: resolved.resolvedContractValues.horarios ?? null,
         },
       });
 

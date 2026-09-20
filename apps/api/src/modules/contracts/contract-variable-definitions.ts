@@ -161,6 +161,14 @@ export const assertUsedContractVariablesFilled = (
   });
 
   if (missing.length > 0) {
-    throw new Error(`Não foi possível preencher as variáveis obrigatórias: ${missing.map((key) => `{{${key}}}`).join(', ')}.`);
+    const missingDetails = missing.map((key) => {
+      const definition = definitionByKey.get(key);
+      return definition ? `${definition.label} ({{${key}}})` : `{{${key}}}`;
+    });
+
+    throw new Error(
+      `Não foi possível preencher dados obrigatórios: ${missingDetails.join(', ')}. ` +
+        'Complete essas informações no cadastro da pessoa ou nos dados financeiros do contrato e tente novamente.'
+    );
   }
 };
