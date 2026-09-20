@@ -266,6 +266,90 @@ describe('student financial contract service', () => {
     });
   });
 
+  it('updates an existing active link without re-running the activation lifecycle', async () => {
+    tx.aluno.findUniqueOrThrow
+      .mockResolvedValueOnce({
+        id: 'student-1',
+        contractId: 'company-1',
+        userId: 'user-1',
+        professorId: 'professor-1',
+        serviceId: 'interest-service',
+      })
+      .mockResolvedValueOnce({
+        id: 'student-1',
+        contractId: 'company-1',
+        serviceId: 'interest-service',
+      })
+      .mockResolvedValueOnce({ id: 'student-1' });
+    tx.aluno.update.mockResolvedValue({ id: 'student-1', userId: 'user-1' });
+    tx.contract.findUnique.mockResolvedValue({
+      id: 'contract-active-legacy',
+      alunoId: 'student-1',
+      companyContractId: 'company-1',
+      serviceId: null,
+    });
+    tx.serviceOption.findFirst.mockResolvedValue({ id: 'interest-service' });
+    tx.studentContract.findUnique.mockResolvedValueOnce({
+      id: 'link-active',
+      alunoId: 'student-1',
+      contractId: 'contract-active-legacy',
+      serviceId: 'interest-service',
+      status: 'active',
+      startDate: new Date('2026-01-01T12:00:00.000Z'),
+      endDate: new Date('2026-12-31T12:00:00.000Z'),
+      signedAt: null,
+    });
+    tx.studentContract.update.mockResolvedValue({
+      id: 'link-active',
+      alunoId: 'student-1',
+      contractId: 'contract-active-legacy',
+      serviceId: 'interest-service',
+      status: 'active',
+      amount: 420,
+      paymentDay: 12,
+    });
+    tx.studentContract.findUniqueOrThrow.mockResolvedValue({
+      id: 'link-active',
+      alunoId: 'student-1',
+      contractId: 'contract-active-legacy',
+      serviceId: 'interest-service',
+      status: 'active',
+      amount: 420,
+      paymentDay: 12,
+    });
+
+    const result = await studentFinancialContractService.updateAlunoWithContract(
+      'student-1',
+      { age: 31 },
+      {
+        contractId: 'contract-active-legacy',
+        amount: 420,
+        paymentDay: 12,
+      },
+      { professorId: 'professor-1', companyContractId: 'company-1' }
+    );
+
+    expect(tx.studentContract.update).toHaveBeenCalledTimes(1);
+    expect(tx.studentContract.update).toHaveBeenCalledWith({
+      where: { id: 'link-active' },
+      data: expect.objectContaining({
+        serviceId: 'interest-service',
+        amount: 420,
+        paymentDay: 12,
+      }),
+    });
+    expect(tx.studentContract.findUnique).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
+    expect(result.studentContract).toEqual(
+      expect.objectContaining({
+        id: 'link-active',
+        status: 'active',
+        amount: 420,
+        paymentDay: 12,
+      })
+    );
+  });
+
   it('rejects a persisted fallback service from another company contract', async () => {
     tx.aluno.findUniqueOrThrow
       .mockResolvedValueOnce({
