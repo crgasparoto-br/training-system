@@ -1,0 +1,42 @@
+## Objetivo
+
+Corrigir o fluxo de **Prévia** em `/settings/contract-templates` para que o usuário sempre perceba claramente o resultado da ação **Gerar prévia**.
+
+## Contexto observado
+
+Na tela de modelos de contrato, o modal permite selecionar um aluno e acionar **Gerar prévia**, porém o usuário pode permanecer sem qualquer retorno visível.
+
+Pelo código atual:
+- em caso de sucesso, o HTML é renderizado em um card abaixo da grade principal, sem rolagem/foco para o resultado;
+- em caso de erro, a mensagem é gravada no aviso global no topo da página, que fica fora do contexto do modal e pode permanecer invisível atrás do overlay.
+
+Assim, tanto um sucesso quanto uma falha podem ser percebidos como “a prévia não foi gerada”.
+
+## Escopo
+
+- Manter a seleção da pessoa dentro do modal de prévia.
+- Exibir erro de geração **dentro do próprio modal**, próximo da ação.
+- Em caso de sucesso, fechar o modal e levar a viewport/foco visualmente para o card da prévia gerada.
+- Preservar o comportamento atual de não criar, enviar ou alterar documentos durante a prévia.
+- Preservar o HTML retornado pela API e o `iframe srcDoc` existente.
+
+## Fora do escopo
+
+- Alterar regras de preenchimento de variáveis do contrato.
+- Alterar persistência ou geração de contrato real.
+- Alterar o endpoint de prévia sem evidência de falha funcional no backend.
+
+## Critérios de aceite
+
+1. Ao gerar uma prévia com sucesso, o card **Prévia** fica imediatamente visível ao usuário sem exigir que ele procure manualmente na página.
+2. Se a API retornar erro, o modal permanece aberto e mostra a mensagem de erro de forma visível.
+3. O erro anterior é limpo ao abrir novamente o modal ou ao tentar gerar uma nova prévia.
+4. O fluxo continua desabilitando a ação enquanto a prévia estiver em processamento.
+5. O comportamento é coberto por teste de interface/função focado na regressão.
+
+## Validação
+
+- teste focado do fluxo de prévia;
+- `pnpm --filter @corrida/web type-check`;
+- `pnpm --filter @corrida/web lint`;
+- gate final do repositório conforme disponibilidade do ambiente.
