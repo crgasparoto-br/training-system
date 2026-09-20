@@ -84,8 +84,13 @@ ser uma fonte canônica.
 
 Quando a tela seleciona um contrato, perfil administrativo e vínculo contratual
 são persistidos pelo endpoint atômico de `student-financial-contract.service.ts`.
-Criação/edição do aluno e `prepareOrActivateStudentContractInTransaction` usam a
-mesma transação Prisma: falha no contrato aborta também as alterações cadastrais.
+Criação/edição do aluno e, quando necessário, `prepareOrActivateStudentContractInTransaction`
+usam a mesma transação Prisma: falha no contrato aborta também as alterações
+cadastrais. Um vínculo existente que já está `active` e corresponde ao contrato
+vigente pode ter seus campos mutáveis atualizados sem reexecutar preparação ou
+ativação; vínculos novos, `draft`, `pending_signature` e substituições continuam
+passando pelo lifecycle. Essa exceção não altera regras de assinatura, vigência,
+substituição nem isolamento por contrato empresarial.
 A lógica de status, ativação e serviço do vínculo continua pertencendo ao domínio
 `StudentContract`; o cadastro não duplica essas regras.
 
