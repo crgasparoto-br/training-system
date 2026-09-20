@@ -280,6 +280,7 @@ describe('alunoService assessment boundary', () => {
       .mockResolvedValueOnce({ id: 'aluno-1' });
 
     await alunoService.update('aluno-1', {
+      name: 'Aluno Renomeado',
       age: 31,
       intakeForm: {
         mainGoal: 'Objetivo atualizado',
@@ -305,6 +306,15 @@ describe('alunoService assessment boundary', () => {
     expect(mockTx.studentFinancialProfile.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         update: expect.objectContaining({ monthlyAmount: 350 }),
+      })
+    );
+    expect(mockTx.studentProfile.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          identificationData: expect.objectContaining({
+            name: 'Aluno Renomeado',
+          }),
+        }),
       })
     );
     expect(mockTx.studentProfile.upsert).toHaveBeenCalledWith(

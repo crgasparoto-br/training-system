@@ -1050,6 +1050,7 @@ export function AlunoForm() {
       const serializedFixedScheduleSlots = serializeFixedScheduleSlots(fixedScheduleSlots);
 
       const updatePayload: UpdateAlunoDTO = {
+        name: data.name,
         avatar: data.avatar || undefined,
         professorId: data.intakeForm.financialInfo.responsibleProfessorId || undefined,
         serviceId: data.serviceId,
@@ -1331,7 +1332,7 @@ export function AlunoForm() {
                         <p className="mt-1 text-sm text-muted-foreground">Informações centrais para identificar e contatar o aluno.</p>
                       </div>
 
-                      <Input label="Nome completo" placeholder="João Silva" error={errors.name?.message} disabled={isEditMode} {...register('name')} />
+                      <Input label="Nome completo" placeholder="João Silva" error={errors.name?.message} {...register('name')} />
 
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <Input label="E-mail" type="email" placeholder="joao@email.com" error={errors.email?.message} disabled={isEditMode} {...register('email')} />
