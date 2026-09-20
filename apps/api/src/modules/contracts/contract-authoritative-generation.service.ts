@@ -220,7 +220,7 @@ async function resolveGenerationData(
   const activeStudentContract =
     aluno.currentStudentContract?.status === 'active'
       ? aluno.currentStudentContract
-      : (aluno.studentContracts[0] ?? null);
+      : (aluno.studentContracts?.[0] ?? null);
 
   // Preview and real generation intentionally share this exact resolution.
   // Explicit generation input wins; otherwise use the persisted financial
