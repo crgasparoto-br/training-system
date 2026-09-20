@@ -76,6 +76,7 @@ export interface CreateAlunoRequest {
 }
 
 export interface UpdateAlunoRequest {
+  name?: string;
   serviceId?: string;
   schedulePlan?: 'free' | 'fixed';
   birthDate?: Date;

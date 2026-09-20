@@ -441,6 +441,7 @@ export const CreateAlunoSchema = z.object({
 });
 
 export const UpdateAlunoSchema = z.object({
+  name: z.string().trim().min(3, 'Nome deve ter no minimo 3 caracteres').optional(),
   avatar: z.preprocess(emptyStringToUndefined, z.string().trim().optional()),
   professorId: z.preprocess(emptyStringToUndefined, z.string().trim().optional()),
   serviceId: z.preprocess(emptyStringToUndefined, z.string().trim().optional()),

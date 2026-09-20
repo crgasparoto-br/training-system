@@ -162,6 +162,7 @@ export interface CreateAlunoDTO {
 }
 
 export interface UpdateAlunoDTO {
+  name?: string;
   avatar?: string;
   serviceId?: string;
   schedulePlan?: 'free' | 'fixed';

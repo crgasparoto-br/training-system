@@ -32,6 +32,13 @@ describe('aluno writable contract after PAR-Q cutover', () => {
     expect(result.success).toBe(false);
   });
 
+  it('accepts a trimmed student name on update and rejects names shorter than 3 characters', () => {
+    expect(UpdateAlunoSchema.parse({ name: '  Aluno Atualizado  ' })).toEqual({
+      name: 'Aluno Atualizado',
+    });
+    expect(UpdateAlunoSchema.safeParse({ name: 'AB' }).success).toBe(false);
+  });
+
   it('preserves unrelated intake fields', () => {
     expect(
       UpdateAlunoSchema.parse({
