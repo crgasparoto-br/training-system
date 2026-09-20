@@ -210,6 +210,8 @@ export default function ContractTemplates() {
   const [previewPartyId, setPreviewPartyId] = useState('');
   const [applicabilityFilter, setApplicabilityFilter] = useState<'ALL' | ContractTemplateApplicability>('ALL');
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const previewResultRef = useRef<HTMLDivElement | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<ContractTemplate>>(emptyTemplate);
   const [previewHtml, setPreviewHtml] = useState('');
@@ -310,6 +312,12 @@ export default function ContractTemplates() {
   }, [previewCollaborators, previewPartyType, previewStudents]);
 
   useEffect(() => {
+    if (!previewHtml) return;
+    previewResultRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    previewResultRef.current?.focus({ preventScroll: true });
+  }, [previewHtml]);
+
+  useEffect(() => {
     if (!previewDialogOpen) return undefined;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -397,6 +405,7 @@ export default function ContractTemplates() {
     const initialType = allowedPreviewPartyTypes[0];
     setPreviewPartyType(initialType);
     setPreviewDialogOpen(true);
+    setPreviewError(null);
     setMessage(null);
   };
 
@@ -406,6 +415,7 @@ export default function ContractTemplates() {
       return;
     }
     setPreviewing(true);
+    setPreviewError(null);
     setMessage(null);
     try {
       const result = previewPartyType === 'STUDENT'
@@ -416,7 +426,7 @@ export default function ContractTemplates() {
       setMessage(`Prévia gerada com os dados de ${selectedPreviewPartyName}.`);
     } catch (error: any) {
       setPreviewHtml('');
-      setMessage(error.response?.data?.error || 'Não foi possível gerar a prévia do contrato.');
+      setPreviewError(error.response?.data?.error || 'Não foi possível gerar a prévia do contrato.');
     } finally {
       setPreviewing(false);
     }
@@ -596,12 +606,24 @@ export default function ContractTemplates() {
       </div>
 
       {previewHtml ? (
-        <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><FileText size={18} /> Prévia</CardTitle></CardHeader>
-          <CardContent>
-            <iframe className="h-[620px] w-full rounded-md border border-border bg-white" srcDoc={previewHtml} title="Prévia do contrato" />
-          </CardContent>
-        </Card>
+        <div
+          ref={previewResultRef}
+          role="region"
+          aria-labelledby="contract-preview-result-title"
+          tabIndex={-1}
+          className="scroll-mt-4 outline-none"
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle id="contract-preview-result-title" className="flex items-center gap-2">
+                <FileText size={18} /> Prévia
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <iframe className="h-[620px] w-full rounded-md border border-border bg-white" srcDoc={previewHtml} title="Prévia do contrato" />
+            </CardContent>
+          </Card>
+        </div>
       ) : null}
 
       {previewDialogOpen ? (
@@ -622,7 +644,10 @@ export default function ContractTemplates() {
                   className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   value={previewPartyType}
                   disabled={previewing}
-                  onChange={(event) => setPreviewPartyType(event.target.value as ContractPartyType)}
+                  onChange={(event) => {
+                    setPreviewPartyType(event.target.value as ContractPartyType);
+                    setPreviewError(null);
+                  }}
                 >
                   <option value="STUDENT">Aluno</option>
                   <option value="COLLABORATOR">Colaborador</option>
@@ -642,6 +667,7 @@ export default function ContractTemplates() {
               onChange={(event) => {
                 setPreviewPartyId(event.target.value);
                 setPreviewHtml('');
+                setPreviewError(null);
               }}
             >
               <option value="">
@@ -661,6 +687,15 @@ export default function ContractTemplates() {
             <p className="mt-3 text-xs text-muted-foreground">
               Nenhum documento será criado, enviado ou alterado durante a prévia.
             </p>
+
+            {previewError ? (
+              <div
+                role="alert"
+                className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+              >
+                {previewError}
+              </div>
+            ) : null}
 
             <div className="mt-5 flex justify-end gap-2">
               <Button variant="outline" onClick={() => setPreviewDialogOpen(false)} disabled={previewing}>Cancelar</Button>
