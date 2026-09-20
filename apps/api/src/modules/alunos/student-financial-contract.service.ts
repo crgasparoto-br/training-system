@@ -688,7 +688,14 @@ const persistStudentContractWithLifecycle = async (
         },
       });
 
-  await prepareOrActivateStudentContractInTransaction(tx, link.id);
+  // An already-active link is the current contract being edited, not a
+  // candidate that needs to enter the activation lifecycle again. Re-running
+  // the lifecycle here can reject legacy active links whose electronic
+  // document predates the SIGNED-state invariant and would roll back otherwise
+  // valid financial/profile edits.
+  if (!existing || existing.status !== 'active') {
+    await prepareOrActivateStudentContractInTransaction(tx, link.id);
+  }
 
   return tx.studentContract.findUniqueOrThrow({
     where: { id: link.id },
