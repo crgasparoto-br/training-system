@@ -1,4 +1,9 @@
 import { Prisma, PrismaClient, type StudentLifecycleEventType } from '@prisma/client';
+import {
+  isStudentMaritalStatus,
+  normalizeStudentMaritalStatus,
+  type StudentMaritalStatus,
+} from '@corrida/types';
 
 const prisma = new PrismaClient();
 
@@ -54,15 +59,7 @@ export interface StudentIdentityData {
   birthDate?: string | Date | null;
   gender?: 'male' | 'female' | 'other' | null;
   rg?: string | null;
-  maritalStatus?:
-    | 'single'
-    | 'married'
-    | 'stable_union'
-    | 'divorced'
-    | 'separated'
-    | 'widowed'
-    | 'other'
-    | null;
+  maritalStatus?: StudentMaritalStatus | null;
   addressStreet?: string | null;
   addressNumber?: string | null;
   addressComplement?: string | null;
@@ -77,8 +74,10 @@ export interface StudentIdentityData {
   guardianEmail?: string | null;
 }
 
-export interface StudentIdentitySnapshot extends Omit<StudentIdentityData, 'birthDate'> {
+export interface StudentIdentitySnapshot extends Omit<StudentIdentityData, 'birthDate' | 'maritalStatus'> {
   birthDate?: string | null;
+  /** Valores históricos fora do enum permanecem no JSON até alteração explícita. */
+  maritalStatus?: StudentMaritalStatus | string | null;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -245,11 +244,25 @@ const mergeIdentity = (
 ): StudentIdentitySnapshot => {
   const next: StudentIdentitySnapshot = { ...current };
 
+  if (typeof next.maritalStatus === 'string') {
+    next.maritalStatus = normalizeStudentMaritalStatus(next.maritalStatus) || null;
+  }
+
   for (const [key, rawValue] of Object.entries(patch)) {
     if (rawValue === undefined) continue;
 
     if (key === 'birthDate') {
       next.birthDate = toIsoDate(rawValue as string | Date | null);
+      continue;
+    }
+
+    if (key === 'maritalStatus') {
+      next.maritalStatus =
+        typeof rawValue === 'string'
+          ? normalizeStudentMaritalStatus(rawValue) || null
+          : rawValue === null
+            ? null
+            : undefined;
       continue;
     }
 
@@ -413,6 +426,13 @@ export async function upsertStudentIdentity(
     (await client.aluno.count({ where: { userId: aluno.userId } })) === 1;
 
   if (legacyProjectionIsUnambiguous && aluno.userId && aluno.user?.profile) {
+    const projectedMaritalStatus =
+      identity.maritalStatus === null
+        ? null
+        : isStudentMaritalStatus(identity.maritalStatus)
+          ? identity.maritalStatus
+          : aluno.user.profile.maritalStatus ?? null;
+
     await client.profile.update({
       where: { userId: aluno.userId },
       data: {
@@ -422,7 +442,7 @@ export async function upsertStudentIdentity(
         gender: identity.gender ?? null,
         cpf: cleanText(identity.cpf) ?? null,
         rg: cleanText(identity.rg) ?? null,
-        maritalStatus: identity.maritalStatus ?? null,
+        maritalStatus: projectedMaritalStatus,
         addressStreet: cleanText(identity.addressStreet) ?? null,
         addressNumber: cleanText(identity.addressNumber) ?? null,
         addressComplement: cleanText(identity.addressComplement) ?? null,

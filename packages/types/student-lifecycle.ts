@@ -18,6 +18,69 @@ export const STUDENT_LIFECYCLE_STATUSES = [
 
 export type StudentLifecycleStatus = (typeof STUDENT_LIFECYCLE_STATUSES)[number];
 
+/** Valores canônicos compartilhados pelo enum Prisma e pelas interfaces de cadastro. */
+export const STUDENT_MARITAL_STATUS_VALUES = [
+  'single',
+  'married',
+  'stable_union',
+  'divorced',
+  'separated',
+  'widowed',
+  'other',
+] as const;
+
+export type StudentMaritalStatus = (typeof STUDENT_MARITAL_STATUS_VALUES)[number];
+
+/** Rótulos de interface para os valores canônicos de estado civil. */
+export const STUDENT_MARITAL_STATUS_LABELS: Record<StudentMaritalStatus, string> = {
+  single: 'Solteiro(a)',
+  married: 'Casado(a)',
+  stable_union: 'União estável',
+  divorced: 'Divorciado(a)',
+  separated: 'Separado(a)',
+  widowed: 'Viúvo(a)',
+  other: 'Outro',
+};
+
+/** Opções atualmente expostas no cadastro administrativo do aluno. */
+export const STUDENT_MARITAL_STATUS_OPTIONS = [
+  { value: 'single', label: STUDENT_MARITAL_STATUS_LABELS.single },
+  { value: 'married', label: STUDENT_MARITAL_STATUS_LABELS.married },
+  { value: 'stable_union', label: STUDENT_MARITAL_STATUS_LABELS.stable_union },
+  { value: 'divorced', label: STUDENT_MARITAL_STATUS_LABELS.divorced },
+  { value: 'separated', label: STUDENT_MARITAL_STATUS_LABELS.separated },
+  { value: 'widowed', label: STUDENT_MARITAL_STATUS_LABELS.widowed },
+  { value: 'other', label: STUDENT_MARITAL_STATUS_LABELS.other },
+] as const satisfies readonly { value: StudentMaritalStatus; label: string }[];
+
+export function isStudentMaritalStatus(value: unknown): value is StudentMaritalStatus {
+  return (
+    typeof value === 'string' &&
+    (STUDENT_MARITAL_STATUS_VALUES as readonly string[]).includes(value)
+  );
+}
+
+/**
+ * Converte rótulos conhecidos para o contrato canônico sem destruir legados
+ * desconhecidos, que devem continuar disponíveis somente como compatibilidade.
+ */
+export function normalizeStudentMaritalStatus(value?: string | null): string {
+  if (value === undefined || value === null || value === '') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (isStudentMaritalStatus(trimmed)) return trimmed;
+
+  const canonical = (Object.entries(STUDENT_MARITAL_STATUS_LABELS) as Array<[
+    StudentMaritalStatus,
+    string
+  ]>).find(([, label]) => label === trimmed)?.[0];
+  return canonical ?? value;
+}
+
+export function studentMaritalStatusLabel(value?: string | null): string | undefined {
+  return isStudentMaritalStatus(value) ? STUDENT_MARITAL_STATUS_LABELS[value] : undefined;
+}
+
 /** Estados que representam um aluno ativo (para filtros de listagem/queries). */
 export const ACTIVE_STUDENT_STATUSES: readonly StudentLifecycleStatus[] = ['ACTIVE_STUDENT'];
 
