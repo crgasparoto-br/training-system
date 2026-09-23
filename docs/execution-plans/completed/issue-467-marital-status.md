@@ -26,6 +26,9 @@ Referências: `docs/architecture/student-lifecycle-data-ownership.md`, `apps/api
 - `apps/api/src/modules/alunos/student-identity.service.ts`: preservação canônica e projeção Prisma segura.
 - `apps/api/tests/student-administrative-form-responses.service.test.ts`: patch administrativo e regressão da projeção.
 - `apps/web/src/pages/AlunoForm.marital-status-legacy.test.tsx`: regressão de leitura/persistência do formulário.
+- `apps/web/src/pages/StudentProfileReview.tsx`: opções da revisão cadastral consumidas do catálogo compartilhado.
+- `apps/web/src/features/collaborators/CollaboratorForm.tsx`: opções do formulário de colaboradores consumidas do catálogo compartilhado.
+- `apps/web/src/services/student-self.service.ts`: tipo de estado civil reexportado do contrato compartilhado.
 
 ## Regras e restrições
 
@@ -65,4 +68,5 @@ Referências: `docs/architecture/student-lifecycle-data-ownership.md`, `apps/api
 
 - O catálogo compartilhado será a única lista de valores/rótulos controlados; o read model continuará aceitando e exibindo valores históricos fora do catálogo.
 - A projeção `Profile` somente recebe valores pertencentes ao enum; valores históricos desconhecidos permanecem na fonte canônica JSON até alteração explícita.
+- As superfícies web relacionadas não mantêm listas concorrentes de valores/rótulos controlados.
 - Nenhuma pendência conhecida antes da validação e auditoria.

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, Clock3, Info } from 'lucide-react';
+import { STUDENT_MARITAL_STATUS_OPTIONS, type StudentMaritalStatus } from '@corrida/types';
 import { buttonClassName, Button } from '../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
@@ -9,7 +10,6 @@ import {
   getStudentSelfServiceErrorKind,
   STUDENT_HOME_ROUTE,
   studentSelfService,
-  type StudentMaritalStatus,
   type StudentProfileReview as StudentProfileReviewData,
   type StudentProfileReviewChanges,
   type StudentSelfProfile,
@@ -73,16 +73,6 @@ const SECTION_LABELS: Record<ReviewSection, string> = {
   anamnesis: 'Histórico e observações',
   other: 'Outras informações',
 };
-
-const MARITAL_STATUS_OPTIONS: Array<{ value: StudentMaritalStatus; label: string }> = [
-  { value: 'single', label: 'Solteiro(a)' },
-  { value: 'married', label: 'Casado(a)' },
-  { value: 'stable_union', label: 'União estável' },
-  { value: 'divorced', label: 'Divorciado(a)' },
-  { value: 'separated', label: 'Separado(a)' },
-  { value: 'widowed', label: 'Viúvo(a)' },
-  { value: 'other', label: 'Outro' },
-];
 
 const textAreaClassName =
   'min-h-28 w-full rounded-lg border border-input bg-card px-4 py-3 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-muted-foreground';
@@ -498,7 +488,7 @@ export function StudentProfileReview() {
                     onChange={(event) => updateField('maritalStatus', event.target.value)}
                   >
                     <option value="">Não informado</option>
-                    {MARITAL_STATUS_OPTIONS.map((option) => (
+                    {STUDENT_MARITAL_STATUS_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
