@@ -139,4 +139,50 @@ describe('SettingsContractTemplates preview', () => {
     await user.selectOptions(screen.getByLabelText('Aluno'), 'student-2');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
+
+  it('limpa o erro anterior ao fechar e reabrir o modal de prévia', async () => {
+    const user = userEvent.setup();
+    previewMock.mockRejectedValueOnce({
+      response: { data: { error: 'Há variáveis obrigatórias sem valor.' } },
+    });
+
+    await openPreview(user);
+    await user.click(screen.getByRole('button', { name: 'Gerar prévia' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Há variáveis obrigatórias sem valor.'
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Prévia' }));
+    await waitFor(() => expect(screen.getByLabelText('Aluno')).toHaveValue('student-1'));
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('mantém a ação de gerar prévia desabilitada enquanto a requisição está pendente', async () => {
+    const user = userEvent.setup();
+    let resolvePreview!: (value: { html: string; context: Record<string, never> }) => void;
+    previewMock.mockImplementationOnce(
+      () =>
+        new Promise<{ html: string; context: Record<string, never> }>((resolve) => {
+          resolvePreview = resolve;
+        })
+    );
+
+    await openPreview(user);
+    const generateButton = screen.getByRole('button', { name: 'Gerar prévia' });
+    await user.click(generateButton);
+
+    await waitFor(() => expect(generateButton).toBeDisabled());
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    resolvePreview({ html: '<p>Contrato preenchido</p>', context: {} });
+
+    expect(await screen.findByTitle('Prévia do contrato')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
 });

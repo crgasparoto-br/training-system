@@ -58,6 +58,9 @@ describe('authoritative contract generation service', () => {
       professorId: 'professor-1',
       contractId: 'company-1',
       professor: { contractId: 'company-1' },
+      studentFinancialProfile: null,
+      currentStudentContract: null,
+      studentContracts: [],
       user: {
         email: 'student@example.com',
         profile: { name: 'Aluno Teste', cpf: '12345678901', rg: null },
@@ -148,6 +151,150 @@ describe('authoritative contract generation service', () => {
       where: { id: 'interest-service', contractId: 'company-1' },
     });
     expect(mockRenderTemplate).toHaveBeenCalled();
+  });
+
+  it('resolves preview variables from persisted student data without creating a document', async () => {
+    prisma.contractTemplate.findFirst.mockResolvedValue({
+      id: 'template-1',
+      name: 'Modelo autoritativo',
+      version: 3,
+      status: 'ACTIVE',
+      serviceId: 'template-service',
+      headerHtml:
+        '<p>{{aluno.cpf}} {{aluno.rg}} {{professor.cref}} {{contrato.valorMensal}} {{contrato.valorMensalExtenso}} {{contrato.diaVencimento}} {{contrato.horarios}} {{contrato.dataInicio}}</p>',
+      footerHtml: '',
+      clauses: [],
+    });
+    prisma.aluno.findUnique.mockResolvedValue({
+      id: 'student-1',
+      serviceId: 'interest-service',
+      professorId: 'professor-1',
+      contractId: 'company-1',
+      professor: { contractId: 'company-1' },
+      studentFinancialProfile: {
+        contractId: 'company-1',
+        monthlyAmount: 321.45,
+        paymentDay: 12,
+        contractStartDate: new Date('2026-09-01T12:00:00.000Z'),
+        notes: null,
+      },
+      currentStudentContract: null,
+      studentContracts: [
+        {
+          status: 'active',
+          amount: 300,
+          paymentDay: 10,
+          notes: 'Terças e quintas, às 7h',
+          startDate: new Date('2026-08-01T12:00:00.000Z'),
+        },
+      ],
+      user: {
+        email: 'student@example.com',
+        profile: {
+          name: 'Aluno Teste',
+          cpf: '123.456.789-01',
+          rg: '12.345.678-9',
+        },
+      },
+    });
+    prisma.professor.findFirst.mockResolvedValue({
+      id: 'professor-1',
+      user: { profile: { name: 'Professor Teste', cref: '012345-G/SP' } },
+    });
+
+    await contractAuthoritativeGenerationService.preview('company-1', {
+      templateId: 'template-1',
+      alunoId: 'student-1',
+    });
+
+    const context = mockRenderTemplate.mock.calls.at(-1)?.[1];
+    expect(context.aluno).toEqual(
+      expect.objectContaining({
+        cpf: '12345678901',
+        rg: '12.345.678-9',
+      })
+    );
+    expect(context.professor.cref).toBe('012345-G/SP');
+    expect(context.contrato.valorMensal).toContain('321,45');
+    expect(context.contrato.valorMensalExtenso).toBe(
+      `${context.contrato.valorMensal} reais`
+    );
+    expect(context.contrato.diaVencimento).toBe(12);
+    expect(context.contrato.horarios).toBe('Terças e quintas, às 7h');
+    expect(context.contrato.dataInicio).toBe('01/09/2026');
+    expect(prisma.contract.create).not.toHaveBeenCalled();
+    expect(prisma.studentContract.create).not.toHaveBeenCalled();
+    expect(prisma.contractAuditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('uses the same persisted financial resolution for real generation', async () => {
+    prisma.aluno.findUnique.mockResolvedValue({
+      id: 'student-1',
+      serviceId: 'interest-service',
+      professorId: 'professor-1',
+      contractId: 'company-1',
+      professor: { contractId: 'company-1' },
+      studentFinancialProfile: {
+        contractId: 'company-1',
+        monthlyAmount: 321.45,
+        paymentDay: 12,
+        contractStartDate: new Date('2026-09-01T12:00:00.000Z'),
+        notes: 'Segundas e quartas, às 18h',
+      },
+      currentStudentContract: null,
+      studentContracts: [],
+      user: {
+        email: 'student@example.com',
+        profile: { name: 'Aluno Teste', cpf: '12345678901', rg: '123456789' },
+      },
+    });
+
+    await contractAuthoritativeGenerationService.generate(
+      'company-1',
+      {
+        templateId: 'template-1',
+        alunoId: 'student-1',
+      },
+      { userId: 'user-1' }
+    );
+
+    expect(prisma.studentContract.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        amount: 321.45,
+        paymentDay: 12,
+        notes: 'Segundas e quartas, às 18h',
+        startDate: new Date('2026-09-01T12:00:00.000Z'),
+      }),
+    });
+  });
+
+  it('reports genuinely missing required data with actionable field names', async () => {
+    prisma.contractTemplate.findFirst.mockResolvedValue({
+      id: 'template-1',
+      name: 'Modelo autoritativo',
+      version: 3,
+      status: 'ACTIVE',
+      serviceId: 'template-service',
+      headerHtml: '<p>{{aluno.rg}} {{professor.cref}}</p>',
+      footerHtml: '',
+      clauses: [],
+    });
+
+    await expect(
+      contractAuthoritativeGenerationService.preview('company-1', {
+        templateId: 'template-1',
+        alunoId: 'student-1',
+      })
+    ).rejects.toThrow('RG do aluno ({{aluno.rg}})');
+
+    await expect(
+      contractAuthoritativeGenerationService.preview('company-1', {
+        templateId: 'template-1',
+        alunoId: 'student-1',
+      })
+    ).rejects.toThrow('CREF do professor ({{professor.cref}})');
+
+    expect(prisma.contract.create).not.toHaveBeenCalled();
   });
 
   it('rejects an aluno from another company before generation', async () => {
