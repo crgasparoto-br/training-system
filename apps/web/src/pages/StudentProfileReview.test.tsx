@@ -110,6 +110,31 @@ describe('StudentProfileReview', () => {
     expect(screen.getByRole('option', { name: 'Viúvo' })).toHaveValue('Viúvo');
   });
 
+  it('não envia legado desconhecido ao salvar somente uma alteração não relacionada', async () => {
+    const user = userEvent.setup();
+    mocks.getProfile.mockResolvedValueOnce({
+      ...profile,
+      profile: { ...profile.profile, maritalStatus: 'Viúvo' },
+    });
+    mocks.completeProfileReview.mockResolvedValue({
+      id: 'review-1',
+      status: 'completed_with_changes',
+      approval: { requiresApproval: false, hasPendingApproval: false },
+    });
+
+    renderPage();
+    const phone = await screen.findByLabelText('Telefone');
+    await user.clear(phone);
+    await user.type(phone, '11988887777');
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações e concluir' }));
+
+    expect(mocks.completeProfileReview).toHaveBeenCalledWith(
+      'review-1',
+      { changes: { profile: { phone: '11988887777' } } },
+      undefined
+    );
+  });
+
   it('conclui sem alterações somente após confirmação da API', async () => {
     const user = userEvent.setup();
     mocks.completeProfileReview.mockResolvedValue({
