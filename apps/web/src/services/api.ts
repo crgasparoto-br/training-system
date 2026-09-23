@@ -7,6 +7,85 @@ import {
 
 const API_URL = import.meta.env.VITE_API_URL;
 const API_TIMEOUT_MS = 30000;
+const DEFAULT_RETRY_DELAY_MS = 1500;
+
+export type ApiFailureKind = 'http' | 'timeout' | 'network' | 'unknown';
+
+export type ApiResilienceEvent = {
+  operation: string;
+  phase: 'retry' | 'terminal';
+  failureKind: ApiFailureKind;
+  attempt: number;
+  status?: number;
+};
+
+export function classifyApiFailure(error: unknown): ApiFailureKind {
+  if (!axios.isAxiosError(error)) {
+    return 'unknown';
+  }
+
+  if (error.response) {
+    return 'http';
+  }
+
+  if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+    return 'timeout';
+  }
+
+  return 'network';
+}
+
+export function reportApiResilienceEvent(event: ApiResilienceEvent) {
+  console.warn('[api-resilience]', event);
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('api-resilience', { detail: event }));
+  }
+}
+
+const wait = (durationMs: number) => new Promise((resolve) => setTimeout(resolve, durationMs));
+
+export async function requestWithTransientRetry<T>(
+  request: () => Promise<T>,
+  options: {
+    operation?: string;
+    maxRetries?: number;
+    delayMs?: number;
+    onRetry?: (event: Omit<ApiResilienceEvent, 'phase'>) => void;
+    onTerminal?: (event: Omit<ApiResilienceEvent, 'phase'>) => void;
+  } = {}
+): Promise<T> {
+  const maxRetries = options.maxRetries ?? 2;
+  const delayMs = options.delayMs ?? DEFAULT_RETRY_DELAY_MS;
+  let attempt = 0;
+
+  while (true) {
+    try {
+      return await request();
+    } catch (error) {
+      const failureKind = classifyApiFailure(error);
+      const isTransient = failureKind === 'timeout' || failureKind === 'network';
+      if (!isTransient || attempt >= maxRetries) {
+        options.onTerminal?.({
+          operation: options.operation ?? 'unknown',
+          failureKind,
+          attempt: attempt + 1,
+          status: axios.isAxiosError(error) ? error.response?.status : undefined,
+        });
+        throw error;
+      }
+
+      attempt += 1;
+      options.onRetry?.({
+        operation: options.operation ?? 'unknown',
+        failureKind,
+        attempt,
+        status: axios.isAxiosError(error) ? error.response?.status : undefined,
+      });
+      await wait(delayMs * attempt);
+    }
+  }
+}
 
 function resolveApiBaseUrl(value?: string) {
   const normalized = value?.replace(/\/+$/, '');

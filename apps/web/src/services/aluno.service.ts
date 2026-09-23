@@ -1,4 +1,7 @@
-import api from './api';
+import api, {
+  reportApiResilienceEvent,
+  requestWithTransientRetry,
+} from './api';
 import type { FixedScheduleSlotInput } from './agenda.service';
 import type { ParqAdministrativeSummaryDTO } from '@corrida/types';
 
@@ -719,8 +722,19 @@ export const alunoService = {
    * Obter aluno por ID
    */
   async getById(id: string): Promise<Aluno> {
-    const response = await api.get<{ success: boolean; data: Aluno }>(`/alunos/${id}`);
-    return response.data.data;
+    try {
+      const response = await requestWithTransientRetry(
+        () => api.get<{ success: boolean; data: Aluno }>(`/alunos/${id}`),
+        {
+          operation: 'aluno.read',
+          onRetry: (event) => reportApiResilienceEvent({ ...event, phase: 'retry' }),
+          onTerminal: (event) => reportApiResilienceEvent({ ...event, phase: 'terminal' }),
+        }
+      );
+      return response.data.data;
+    } catch (error) {
+      throw error;
+    }
   },
 
   async uploadAvatar(file: File): Promise<string> {

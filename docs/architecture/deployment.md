@@ -12,7 +12,7 @@ Este documento registra as regras minimas para publicar o Sistema Acesso.
 ## Variaveis esperadas da API
 
 - `DATABASE_URL`: conexao usada pela API em execucao. Em producao, use uma credencial de aplicacao e, quando disponivel, o endpoint com pool do provedor.
-- `MIGRATION_DATABASE_URL`: conexao direta/privilegiada usada somente pelo `prisma migrate deploy` durante o start. E opcional para compatibilidade, mas recomendada em producao.
+- `MIGRATION_DATABASE_URL`: conexao direta/privilegiada usada somente pelo `pnpm --filter @corrida/api db:deploy` durante o deploy. E opcional para compatibilidade, mas recomendada em producao.
 - `PRISMA_CONNECTION_LIMIT`: limite por instancia de `PrismaClient`. Quando a URL nao possui `connection_limit`, o runtime produtivo usa `1` por padrao.
 - `PRISMA_POOL_TIMEOUT_SECONDS`: tempo maximo de espera por uma conexao livre. Quando a URL nao possui `pool_timeout`, o runtime produtivo usa `15` segundos.
 - `NODE_ENV`: use `production` no ambiente produtivo.
@@ -70,7 +70,16 @@ Configuracao recomendada para evitar que a API consuma o limite da conta de migr
 4. Configure `PRISMA_POOL_TIMEOUT_SECONDS=15`.
 5. Reinicie ou redeploy a API para encerrar pools antigos e aplicar as novas variaveis.
 
-O comando `pnpm start` executa as migrations com `MIGRATION_DATABASE_URL` e inicia a API novamente com a `DATABASE_URL` original. Quando `MIGRATION_DATABASE_URL` nao existe, o start usa `DATABASE_URL` para manter compatibilidade com ambientes antigos.
+O comando `pnpm --filter @corrida/api start` inicia somente a API com a `DATABASE_URL` de runtime. Ele nao executa migrations, para que o wake/restart de um web service nao fique bloqueado por uma operacao de deploy.
+
+Para um deploy Render, use a seguinte separacao:
+
+1. **Build command:** `pnpm build`.
+2. **Pre-deploy command:** `pnpm --filter @corrida/api db:deploy`.
+3. **Start command:** `pnpm --filter @corrida/api start`.
+4. **Compute plan:** use um plano pago/always-on para o servico de API em producao. O plano Free nao atende ao requisito de disponibilidade apos inatividade.
+
+O comando `pnpm --filter @corrida/api start:with-migrations` permanece disponivel apenas para ambientes legados que ainda nao separaram o pre-deploy. Ele nao deve ser usado como start command de producao. Nao use ping ou keep-alive artificial como substituto permanente para o plano adequado.
 
 ### Recuperacao da migration transacional de adipometria
 
