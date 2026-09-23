@@ -8,7 +8,7 @@
     "build": "pnpm --filter @corrida/types build && pnpm --filter @corrida/utils build && pnpm db:generate && tsc && node scripts/copy-runtime-assets.mjs",
     "start": "node scripts/start-api.mjs",
     "start:with-migrations": "node scripts/migrate-and-start.mjs",
-    "db:deploy": "pnpm db:migrate:prod",
+    "db:deploy": "node scripts/deploy-migrations.mjs",
     "test": "node scripts/run-jest-tests.mjs && node --test scripts/lib/*.test.mjs",
     "test:watch": "jest --watch",
     "lint": "eslint src --ext .ts",

@@ -13,12 +13,16 @@ test('produção inicia a API sem executar migrations no caminho de startup', as
   const packageJson = JSON.parse(await read('package.json'));
   const startScript = await read('scripts/start-api.mjs');
   const migrationStartScript = await read('scripts/migrate-and-start.mjs');
+  const deployMigrationsScript = await read('scripts/deploy-migrations.mjs');
 
   assert.equal(packageJson.scripts.start, 'node scripts/start-api.mjs');
   assert.equal(packageJson.scripts['start:with-migrations'], 'node scripts/migrate-and-start.mjs');
-  assert.equal(packageJson.scripts['db:deploy'], 'pnpm db:migrate:prod');
+  assert.equal(packageJson.scripts['db:deploy'], 'node scripts/deploy-migrations.mjs');
   assert.doesNotMatch(startScript, /db:migrate|migrate:prod/);
   assert.match(migrationStartScript, /db:migrate:prod/);
+  assert.match(deployMigrationsScript, /MIGRATION_DATABASE_URL/);
+  assert.match(deployMigrationsScript, /DATABASE_URL/);
+  assert.match(deployMigrationsScript, /db:migrate:prod/);
 });
 
 test('o runbook declara pre-deploy de migrations e start separado', async () => {
