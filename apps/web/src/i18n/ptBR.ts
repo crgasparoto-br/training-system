@@ -593,6 +593,8 @@ export const workoutBuilderGuideCopy = {
 
 export const alunoDetailsCopy = {
   loadError: 'Erro ao carregar aluno',
+  transientLoadError: 'A API está iniciando ou temporariamente indisponível.',
+  transientLoadErrorHint: 'Aguarde alguns instantes e tente novamente. O cadastro do aluno não foi alterado.',
   deleteConfirm: (alunoName: string) =>
     `Excluir "${alunoName}" permanentemente? Esta ação não pode ser desfeita e removerá o cadastro, histórico e avaliações do aluno.`,
   deleteSuccess: 'Aluno excluído com sucesso!',
@@ -619,6 +621,7 @@ export const alunoDetailsCopy = {
   loading: 'Carregando aluno...',
   notFound: 'Aluno não encontrado',
   backToAlunos: 'Voltar para Alunos',
+  retryLoad: 'Tentar novamente',
   edit: 'Editar',
   resetPassword: 'Resetar Senha',
   delete: 'Deletar',

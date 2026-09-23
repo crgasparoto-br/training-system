@@ -35,6 +35,7 @@ import { alunoDetailsCopy } from '../i18n/ptBR';
 import { useAuthStore } from '../stores/useAuthStore';
 import { resolveAssetUrl } from '../utils/assetUrl';
 import { canAccessScreen, canAccessBlock } from '../access/access-control';
+import { classifyApiFailure } from '../services/api';
 import {
   ArrowLeft,
   Edit,
@@ -54,6 +55,8 @@ type AlunoAssessmentPlanSnapshot = {
     isActive: boolean;
   }>;
 };
+
+type AlunoLoadErrorKind = 'transient' | 'application' | null;
 
 type AlunoDetailsFormResponses = {
   identification?: {
@@ -265,6 +268,7 @@ export function AlunoDetails() {
   const [segmentedTimeline, setSegmentedTimeline] =
     useState<StudentSegmentedTimeline | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadErrorKind, setLoadErrorKind] = useState<AlunoLoadErrorKind>(null);
   const [loading, setLoading] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
   const [tempPassword, setTempPassword] = useState<string | null>(initialTempPassword);
@@ -518,6 +522,7 @@ export function AlunoDetails() {
   const loadAluno = async (alunoId: string) => {
     setLoading(true);
     setLoadError(null);
+    setLoadErrorKind(null);
     try {
       const [
         data,
@@ -602,8 +607,13 @@ export function AlunoDetails() {
 
     } catch (error) {
       console.error('Erro ao carregar aluno:', error);
-      const message = (error as any)?.response?.data?.error || alunoDetailsCopy.loadError;
+      const failureKind = classifyApiFailure(error);
+      const isTransientFailure = failureKind === 'timeout' || failureKind === 'network';
+      const message = isTransientFailure
+        ? alunoDetailsCopy.transientLoadError
+        : (error as any)?.response?.data?.error || alunoDetailsCopy.loadError;
       setLoadError(message);
+      setLoadErrorKind(isTransientFailure ? 'transient' : 'application');
       setAluno(null);
       setSegmentedSummary(null);
       setSegmentedProfile(null);
@@ -612,7 +622,6 @@ export function AlunoDetails() {
       setSegmentedIntegrations(null);
       setSegmentedActivities(null);
       setSegmentedTimeline(null);
-      alert(message);
     } finally {
       setLoading(false);
     }
@@ -1172,11 +1181,21 @@ export function AlunoDetails() {
 
   if (!aluno) {
     return (
-      <div className="text-center py-12">
+      <div className="mx-auto max-w-md py-12 text-center" role={loadError ? 'alert' : undefined}>
         <p className="text-muted-foreground">{loadError || alunoDetailsCopy.notFound}</p>
-        <Button onClick={() => navigate('/alunos')} className="mt-4">
-          {alunoDetailsCopy.backToAlunos}
-        </Button>
+        {loadErrorKind === 'transient' ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            {alunoDetailsCopy.transientLoadErrorHint}
+          </p>
+        ) : null}
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {loadErrorKind === 'transient' && id ? (
+            <Button onClick={() => void loadAluno(id)}>{alunoDetailsCopy.retryLoad}</Button>
+          ) : null}
+          <Button variant="outline" onClick={() => navigate('/alunos')}>
+            {alunoDetailsCopy.backToAlunos}
+          </Button>
+        </div>
       </div>
     );
   }
