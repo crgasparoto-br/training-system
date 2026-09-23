@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNo
 import { Link, useLocation } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, Clock3, Info } from 'lucide-react';
 import {
+  isStudentMaritalStatus,
   normalizeStudentMaritalStatus,
   STUDENT_MARITAL_STATUS_OPTIONS,
-  type StudentMaritalStatus,
 } from '@corrida/types';
 import { buttonClassName, Button } from '../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
@@ -152,7 +152,10 @@ function buildChanges(initial: FormValues, current: FormValues): StudentProfileR
   if (current.phone !== initial.phone) profile.phone = toNullableString(current.phone);
   if (current.birthDate !== initial.birthDate) profile.birthDate = current.birthDate || null;
   if (current.maritalStatus !== initial.maritalStatus) {
-    profile.maritalStatus = (current.maritalStatus || null) as StudentMaritalStatus | null;
+    const normalizedMaritalStatus = normalizeStudentMaritalStatus(current.maritalStatus);
+    profile.maritalStatus = isStudentMaritalStatus(normalizedMaritalStatus)
+      ? normalizedMaritalStatus
+      : null;
   }
   if (current.addressStreet !== initial.addressStreet) {
     profile.addressStreet = toNullableString(current.addressStreet);
