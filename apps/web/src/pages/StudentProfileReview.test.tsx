@@ -86,6 +86,30 @@ describe('StudentProfileReview', () => {
     );
   });
 
+  it('normaliza um rótulo localizado conhecido ao carregar o snapshot', async () => {
+    mocks.getProfile.mockResolvedValueOnce({
+      ...profile,
+      profile: { ...profile.profile, maritalStatus: 'Casado(a)' },
+    });
+
+    renderPage();
+
+    expect(await screen.findByLabelText('Estado civil')).toHaveValue('married');
+  });
+
+  it('mantém um valor legado desconhecido visível até alteração explícita', async () => {
+    mocks.getProfile.mockResolvedValueOnce({
+      ...profile,
+      profile: { ...profile.profile, maritalStatus: 'Viúvo' },
+    });
+
+    renderPage();
+
+    const maritalStatus = await screen.findByLabelText('Estado civil');
+    expect(maritalStatus).toHaveValue('Viúvo');
+    expect(screen.getByRole('option', { name: 'Viúvo' })).toHaveValue('Viúvo');
+  });
+
   it('conclui sem alterações somente após confirmação da API', async () => {
     const user = userEvent.setup();
     mocks.completeProfileReview.mockResolvedValue({

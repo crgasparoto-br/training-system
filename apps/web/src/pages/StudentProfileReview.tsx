@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, Clock3, Info } from 'lucide-react';
-import { STUDENT_MARITAL_STATUS_OPTIONS, type StudentMaritalStatus } from '@corrida/types';
+import {
+  normalizeStudentMaritalStatus,
+  STUDENT_MARITAL_STATUS_OPTIONS,
+  type StudentMaritalStatus,
+} from '@corrida/types';
 import { buttonClassName, Button } from '../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
@@ -109,7 +113,7 @@ function toFormValues(profile: StudentSelfProfile): FormValues {
   return {
     phone: profile.profile.phone ?? '',
     birthDate: toDateInputValue(profile.profile.birthDate),
-    maritalStatus: profile.profile.maritalStatus ?? '',
+    maritalStatus: normalizeStudentMaritalStatus(profile.profile.maritalStatus),
     addressStreet: profile.profile.addressStreet ?? '',
     addressNumber: profile.profile.addressNumber ?? '',
     addressComplement: profile.profile.addressComplement ?? '',
@@ -327,6 +331,9 @@ export function StudentProfileReview() {
   );
   const dirty = hasChanges(changes);
   const isSubmitting = completion.status === 'submitting';
+  const hasLegacyMaritalStatus =
+    Boolean(formValues?.maritalStatus) &&
+    !STUDENT_MARITAL_STATUS_OPTIONS.some((option) => option.value === formValues?.maritalStatus);
 
   const updateField = (field: keyof FormValues, value: string) => {
     setCompletion((current) => (current.status === 'failed' ? { status: 'idle' } : current));
@@ -488,6 +495,9 @@ export function StudentProfileReview() {
                     onChange={(event) => updateField('maritalStatus', event.target.value)}
                   >
                     <option value="">Não informado</option>
+                    {hasLegacyMaritalStatus && (
+                      <option value={formValues.maritalStatus}>{formValues.maritalStatus}</option>
+                    )}
                     {STUDENT_MARITAL_STATUS_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
