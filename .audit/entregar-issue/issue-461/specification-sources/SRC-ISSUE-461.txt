@@ -1,42 +1,131 @@
 ## Objetivo
 
-Corrigir o fluxo de **Prévia** em `/settings/contract-templates` para que o usuário sempre perceba claramente o resultado da ação **Gerar prévia**.
+Corrigir o fluxo de **Prévia** em `/settings/contract-templates` para que um modelo de contrato possa ser validado com os dados reais da pessoa selecionada, usando as mesmas fontes autoritativas do fluxo de geração de contrato, sem criar documento real.
+
+Além do feedback visual já existente, esta issue deve tratar a causa funcional que impede a prévia quando variáveis obrigatórias que possuem fonte no sistema não estão sendo resolvidas.
 
 ## Contexto observado
 
-Na tela de modelos de contrato, o modal permite selecionar um aluno e acionar **Gerar prévia**, porém o usuário pode permanecer sem qualquer retorno visível.
+Na tela de configuração de modelos, ao selecionar um aluno e executar **Gerar prévia**, o fluxo pode permanecer bloqueado com erro de variáveis obrigatórias não preenchidas, incluindo o cenário observado com:
 
-Pelo código atual:
-- em caso de sucesso, o HTML é renderizado em um card abaixo da grade principal, sem rolagem/foco para o resultado;
-- em caso de erro, a mensagem é gravada no aviso global no topo da página, que fica fora do contexto do modal e pode permanecer invisível atrás do overlay.
+- `{{professor.cref}}`;
+- `{{aluno.rg}}`;
+- `{{aluno.cpf}}`;
+- `{{contrato.horarios}}`;
+- `{{contrato.valorMensal}}`;
+- `{{contrato.valorMensalExtenso}}`;
+- `{{contrato.diaVencimento}}`.
 
-Assim, tanto um sucesso quanto uma falha podem ser percebidos como “a prévia não foi gerada”.
+O comportamento esperado do módulo está documentado em:
+
+- `docs/CONTRATOS.md`: a prévia deve usar dados reais, o professor responsável do aluno quando não houver professor explícito e deve bloquear documento incompleto quando um valor realmente não puder ser resolvido;
+- `docs/operations/student-financial-service-and-contract-history.md`: `/contracts/preview` deve usar a mesma resolução financeira autoritativa de `/contracts/generate`.
+
+A implementação já presente no `develop` para manter erro dentro do modal, fechar o modal em sucesso e focar/rolar para o card de prévia deve ser preservada e complementada, não duplicada.
 
 ## Escopo
 
-- Manter a seleção da pessoa dentro do modal de prévia.
-- Exibir erro de geração **dentro do próprio modal**, próximo da ação.
-- Em caso de sucesso, fechar o modal e levar a viewport/foco visualmente para o card da prévia gerada.
-- Preservar o comportamento atual de não criar, enviar ou alterar documentos durante a prévia.
-- Preservar o HTML retornado pela API e o `iframe srcDoc` existente.
+- corrigir a resolução das variáveis usadas pela prévia de aluno;
+- reutilizar as mesmas fontes autoritativas e regras de resolução do fluxo real de geração de contrato;
+- preencher, quando existirem no sistema:
+  - dados cadastrais do aluno, como CPF e RG;
+  - professor responsável e respectivo CREF;
+  - dados financeiros/contratuais necessários ao modelo, como valor mensal, dia de vencimento, horários e demais campos já existentes no contexto autoritativo;
+- derivar `contrato.valorMensalExtenso` do mesmo valor mensal resolvido, sem manter uma segunda fonte de verdade;
+- diferenciar **falha de resolução do sistema** de **dado realmente ausente no cadastro**;
+- quando o dado realmente não existir, manter o bloqueio da prévia, mas exibir mensagem útil ao usuário indicando quais informações precisam ser completadas;
+- preservar o comportamento de sucesso/erro do modal e a renderização do HTML no card **Prévia**.
 
-## Fora do escopo
+## Fora de escopo
 
-- Alterar regras de preenchimento de variáveis do contrato.
-- Alterar persistência ou geração de contrato real.
-- Alterar o endpoint de prévia sem evidência de falha funcional no backend.
+- inventar valores, usar placeholders ou preencher dados obrigatórios com conteúdo fictício;
+- permitir geração de prévia/documento com variável obrigatória vazia;
+- criar, enviar, assinar ou persistir documento contratual real durante a prévia;
+- criar uma resolução paralela diferente da usada na geração real;
+- alterar a semântica das variáveis ou introduzir novos tokens sem necessidade comprovada.
+
+## Invariantes
+
+- **must_reuse:** a prévia de aluno deve reutilizar a mesma resolução autoritativa de dados financeiros/contratuais usada por `/contracts/generate`.
+- **must_be_single_source:** `contrato.valorMensalExtenso` deve ser derivado do valor mensal resolvido; não deve possuir fonte independente.
+- **must_not_behave:** a prévia não pode fabricar CPF, RG, CREF, valor, vencimento, horários ou qualquer outro dado faltante.
+- **must_not_behave:** a ação de prévia não pode criar, enviar, assinar ou persistir documento contratual real.
+- **must_reuse:** o HTML retornado pelo endpoint de prévia continua sendo exibido pelo fluxo existente com `iframe srcDoc`.
+- **must_not_behave:** erro da API não pode fechar o modal nem ficar visível apenas em um aviso global fora do contexto da ação.
+
+Uma implementação que apenas esconda a lista de variáveis faltantes, relaxe a validação ou preencha strings genéricas pode fazer a interface parecer funcional, mas viola esta issue. Os testes devem confirmar os valores resolvidos e a ausência de persistência.
+
+## Cenários
+
+### 1. Dados disponíveis
+
+Dado um aluno com os dados usados pelo modelo presentes nas fontes autoritativas, ao clicar em **Gerar prévia**:
+
+- todas as variáveis utilizadas pelo modelo são resolvidas;
+- o endpoint retorna HTML válido;
+- o modal fecha;
+- o card **Prévia** é atualizado e fica imediatamente perceptível por foco/rolagem;
+- nenhum documento real é criado.
+
+### 2. Professor não informado explicitamente
+
+Quando a prévia não informa `professorId`, o contexto deve usar o professor responsável vinculado ao aluno, conforme a regra documentada.
+
+### 3. Dados financeiros existentes
+
+Quando valor mensal, vencimento, horários ou demais informações exigidas pelo modelo já existem nas fontes autoritativas do aluno/contrato, a prévia deve resolvê-los sem exigir que a tela de modelos peça os mesmos dados novamente.
+
+### 4. Dado realmente ausente
+
+Se CPF, RG, CREF ou qualquer outro valor obrigatório usado pelo modelo estiver realmente ausente da fonte autoritativa:
+
+- a prévia permanece bloqueada;
+- o modal permanece aberto;
+- a mensagem informa de forma amigável quais dados precisam ser completados;
+- nenhuma informação fictícia é usada.
+
+### 5. Nova tentativa
+
+Ao corrigir os dados e tentar novamente:
+
+- o erro anterior é limpo antes da nova requisição;
+- a prévia pode ser gerada normalmente se todos os valores estiverem resolvidos.
 
 ## Critérios de aceite
 
-1. Ao gerar uma prévia com sucesso, o card **Prévia** fica imediatamente visível ao usuário sem exigir que ele procure manualmente na página.
-2. Se a API retornar erro, o modal permanece aberto e mostra a mensagem de erro de forma visível.
-3. O erro anterior é limpo ao abrir novamente o modal ou ao tentar gerar uma nova prévia.
-4. O fluxo continua desabilitando a ação enquanto a prévia estiver em processamento.
-5. O comportamento é coberto por teste de interface/função focado na regressão.
+- [ ] Um aluno com todos os dados obrigatórios existentes no sistema consegue gerar a prévia sem erro de variável não preenchida.
+- [ ] `aluno.cpf` e `aluno.rg` são resolvidos a partir do cadastro real do aluno quando preenchidos.
+- [ ] `professor.cref` é resolvido a partir do professor responsável quando não houver professor explícito e o CREF estiver cadastrado.
+- [ ] `contrato.valorMensal`, `contrato.diaVencimento` e `contrato.horarios` reutilizam as fontes autoritativas já usadas pelo fluxo de geração real.
+- [ ] `contrato.valorMensalExtenso` é derivado do mesmo valor mensal resolvido.
+- [ ] Se um dado obrigatório estiver realmente ausente, a prévia não inventa valor e apresenta mensagem acionável ao usuário.
+- [ ] A API e a prévia não divergem da resolução usada em `/contracts/generate`.
+- [ ] Em sucesso, o modal fecha e o card **Prévia** recebe foco/rolagem perceptível.
+- [ ] Em erro, o modal permanece aberto e a mensagem é exibida no contexto da ação.
+- [ ] O erro anterior é limpo ao reabrir o modal e antes de nova tentativa.
+- [ ] A ação permanece desabilitada enquanto a prévia está em processamento.
+- [ ] Nenhum documento real é criado, enviado ou alterado pela prévia.
+- [ ] O HTML retornado continua sendo renderizado pelo `iframe srcDoc` existente.
+- [ ] Testes de backend cobrem resolução de dados existentes e rejeição de dado realmente ausente.
+- [ ] Testes de frontend cobrem sucesso com foco/rolagem e erro mantendo o modal aberto.
+- [ ] Testes existentes continuam passando.
+
+## Considerações de testes
+
+Cobrir pelo menos:
+
+- aluno com CPF/RG e professor responsável com CREF;
+- resolução dos dados financeiros/contratuais usados pelo modelo;
+- derivação de valor mensal por extenso;
+- ausência real de um dos campos obrigatórios, sem fallback fictício;
+- equivalência de resolução entre prévia e geração real;
+- garantia de que a prévia não persiste `GeneratedContract`/vínculo/documento;
+- fluxo visual de sucesso e erro em `apps/web/src/pages/Settings/ContractTemplates.test.tsx`.
 
 ## Validação
 
-- teste focado do fluxo de prévia;
-- `pnpm --filter @corrida/web type-check`;
-- `pnpm --filter @corrida/web lint`;
-- gate final do repositório conforme disponibilidade do ambiente.
+Executar as validações definidas pelo repositório para API e web, incluindo os testes focados do módulo de contratos, type-check, lint e o gate final aplicável.
+
+## Impacto na documentação
+
+A regra funcional já está documentada em `docs/CONTRATOS.md` e `docs/operations/student-financial-service-and-contract-history.md`. Atualizar esses documentos somente se a implementação revelar que a fonte autoritativa ou a regra de resolução precisa mudar; não criar uma segunda definição paralela.
