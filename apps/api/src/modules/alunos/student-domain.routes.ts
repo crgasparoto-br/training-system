@@ -6,9 +6,18 @@ import { blockAccessMiddleware } from '../access-control/access-control.middlewa
 import { alunoService } from './aluno.service.js';
 import { studentDomainService } from './student-domain.service.js';
 import { studentParqBoundaryService } from './student-parq-boundary.service.js';
+import {
+  DATABASE_CONNECTION_UNAVAILABLE_MESSAGE,
+  isDatabaseConnectionUnavailable,
+} from '../../common/database-runtime.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();
+
+const sendStudentDomainLoadError = (res: Response, error: unknown, fallbackMessage: string) =>
+  isDatabaseConnectionUnavailable(error)
+    ? sendError(res, DATABASE_CONNECTION_UNAVAILABLE_MESSAGE, 503)
+    : sendError(res, fallbackMessage, 500);
 
 router.use(authMiddleware);
 router.use(professorMiddleware);
@@ -58,7 +67,7 @@ router.get(
       return sendSuccess(res, summary, 'Resumo consolidado do aluno carregado com sucesso');
     } catch (error) {
       console.error('Erro ao carregar resumo segmentado do aluno:', error);
-      return sendError(res, 'Erro ao carregar resumo segmentado do aluno', 500);
+      return sendStudentDomainLoadError(res, error, 'Erro ao carregar resumo segmentado do aluno');
     }
   }
 );
@@ -96,7 +105,7 @@ router.get(
       );
     } catch (error) {
       console.error('Erro ao carregar perfil segmentado do aluno:', error);
-      return sendError(res, 'Erro ao carregar perfil segmentado do aluno', 500);
+      return sendStudentDomainLoadError(res, error, 'Erro ao carregar perfil segmentado do aluno');
     }
   }
 );
@@ -119,7 +128,7 @@ router.get(
       return sendSuccess(res, intake, 'Anamnese segmentada do aluno carregada com sucesso');
     } catch (error) {
       console.error('Erro ao carregar intake segmentado do aluno:', error);
-      return sendError(res, 'Erro ao carregar intake segmentado do aluno', 500);
+      return sendStudentDomainLoadError(res, error, 'Erro ao carregar intake segmentado do aluno');
     }
   }
 );
@@ -145,7 +154,7 @@ router.get(
       return sendSuccess(res, assessments, 'Avaliações segmentadas do aluno carregadas com sucesso');
     } catch (error) {
       console.error('Erro ao carregar avaliações segmentadas do aluno:', error);
-      return sendError(res, 'Erro ao carregar avaliações segmentadas do aluno', 500);
+      return sendStudentDomainLoadError(res, error, 'Erro ao carregar avaliações segmentadas do aluno');
     }
   }
 );
@@ -171,7 +180,7 @@ router.get(
       return sendSuccess(res, financial, 'Dados financeiros segmentados do aluno carregados com sucesso');
     } catch (error) {
       console.error('Erro ao carregar dados financeiros segmentados do aluno:', error);
-      return sendError(res, 'Erro ao carregar dados financeiros segmentados do aluno', 500);
+      return sendStudentDomainLoadError(res, error, 'Erro ao carregar dados financeiros segmentados do aluno');
     }
   }
 );
@@ -197,7 +206,7 @@ router.get(
       return sendSuccess(res, integrations, 'Integrações do aluno carregadas com sucesso');
     } catch (error) {
       console.error('Erro ao carregar integrações do aluno:', error);
-      return sendError(res, 'Erro ao carregar integrações do aluno', 500);
+      return sendStudentDomainLoadError(res, error, 'Erro ao carregar integrações do aluno');
     }
   }
 );
@@ -223,7 +232,7 @@ router.get(
       return sendSuccess(res, activities, 'Atividades importadas do aluno carregadas com sucesso');
     } catch (error) {
       console.error('Erro ao carregar atividades importadas do aluno:', error);
-      return sendError(res, 'Erro ao carregar atividades importadas do aluno', 500);
+      return sendStudentDomainLoadError(res, error, 'Erro ao carregar atividades importadas do aluno');
     }
   }
 );
@@ -249,7 +258,7 @@ router.get(
       return sendSuccess(res, timeline, 'Linha do tempo do aluno carregada com sucesso');
     } catch (error) {
       console.error('Erro ao carregar linha do tempo do aluno:', error);
-      return sendError(res, 'Erro ao carregar linha do tempo do aluno', 500);
+      return sendStudentDomainLoadError(res, error, 'Erro ao carregar linha do tempo do aluno');
     }
   }
 );
