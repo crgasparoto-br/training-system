@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode, type SelectHTMLAttributes } from 'react';
-import type {
-  BankOption,
-  CollaboratorFunctionOption,
-  HourlyRateLevel,
-  ProfessorSummary,
+import {
+  STUDENT_MARITAL_STATUS_OPTIONS,
+  type BankOption,
+  type CollaboratorFunctionOption,
+  type HourlyRateLevel,
+  type ProfessorSummary,
 } from '@corrida/types';
 import type { FieldErrors, UseFormRegister, UseFormSetValue, UseFormWatch } from 'react-hook-form';
 import { Upload, X } from 'lucide-react';
@@ -209,13 +210,11 @@ export function CollaboratorForm({
                 />
                 <SelectField label="Estado civil" {...register('maritalStatus')} error={errorMessage(errors.maritalStatus)}>
                   <option value="">Selecionar depois</option>
-                  <option value="single">Solteiro(a)</option>
-                  <option value="married">Casado(a)</option>
-                  <option value="stable_union">União estável</option>
-                  <option value="divorced">Divorciado(a)</option>
-                  <option value="separated">Separado(a)</option>
-                  <option value="widowed">Viúvo(a)</option>
-                  <option value="other">Outro</option>
+                  {STUDENT_MARITAL_STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </SelectField>
               </div>
             </div>

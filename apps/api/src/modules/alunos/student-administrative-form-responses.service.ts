@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { normalizeStudentMaritalStatus } from '@corrida/types';
 import { upsertStudentIdentity } from './student-identity.service.js';
 
 type JsonRecord = Record<string, unknown>;
@@ -23,6 +24,12 @@ const hasOwn = (value: JsonRecord, key: string) =>
 
 const optionalText = (value: unknown): string | null =>
   typeof value === 'string' && value.trim() ? value.trim() : null;
+
+const optionalMaritalStatus = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = normalizeStudentMaritalStatus(value.trim());
+  return normalized || null;
+};
 
 const optionalNumber = (value: unknown): number | null => {
   if (value === null || value === undefined || value === '') return null;
@@ -69,7 +76,10 @@ const identityField = (
   canonicalKey: string = incomingKey
 ) => {
   if (hasOwn(incoming, incomingKey)) {
-    target[canonicalKey] = optionalText(incoming[incomingKey]);
+    target[canonicalKey] =
+      canonicalKey === 'maritalStatus'
+        ? optionalMaritalStatus(incoming[incomingKey])
+        : optionalText(incoming[incomingKey]);
   }
 };
 
@@ -193,7 +203,7 @@ export async function upsertStudentAdministrativeFormResponses(
         client: tx,
         sourceType: 'professional',
         sourceReference,
-        syncLegacyProfile: false,
+        syncLegacyProfile: true,
       }
     );
   }

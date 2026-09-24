@@ -1,1 +1,363 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"inherited-controls","compression":"gzip","encoded_size":3236,"encoded_sha256":"675090f465b3ca7bacf40837919098533e11d48eaf3f38c8ec3a6bfc91c1ac76","decoded_size":27930,"decoded_sha256":"f769bc166727be400d266afc66890854db0ae7f8b09ffd8308b2d8f9f00ee10b","parts":[{"path":"inherited-controls.parts/part-000.b64","size":3236,"sha256":"675090f465b3ca7bacf40837919098533e11d48eaf3f38c8ec3a6bfc91c1ac76"}]}
+{
+  "schema_version": 1,
+  "head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+  "source_audits": [
+    {
+      "rejection_id": "audit-rejection:83561a95-106b-4663-b5ac-beebede1f587",
+      "finding_ids": [
+        "A-001",
+        "A-002"
+      ],
+      "status": "closed",
+      "remediation_mode": "systemic-remediation"
+    },
+    {
+      "rejection_id": "audit-rejection:414-5649fa12eed-week-cardinality",
+      "finding_ids": [
+        "AUD-414-01",
+        "AUD-414-02"
+      ],
+      "status": "closed",
+      "remediation_mode": "targeted-remediation"
+    },
+    {
+      "rejection_id": "audit-rejection:8100eb96-4911-4b6f-984b-1b6fc5aaf75b",
+      "finding_ids": [
+        "A-001",
+        "A-002"
+      ],
+      "status": "closed",
+      "remediation_mode": "targeted-remediation"
+    },
+    {
+      "rejection_id": "audit-rejection:8063b8c9-4809-4309-a961-388da3895cfb",
+      "finding_ids": [
+        "A-001"
+      ],
+      "status": "closed",
+      "remediation_mode": "targeted-remediation"
+    },
+    {
+      "rejection_id": "audit-rejection:32d071da-c89f-495d-b122-8288b6b40bd9",
+      "finding_ids": [
+        "A-001",
+        "A-002"
+      ],
+      "status": "closed",
+      "remediation_mode": "targeted-remediation"
+    },
+    {
+      "rejection_id": "audit-rejection:4674700e-2d21-4cf0-9a01-2d21cf251698",
+      "finding_ids": [
+        "A-467-REVIEW-SNAPSHOT-001",
+        "A-467-HANDOFF-001"
+      ],
+      "status": "closed",
+      "remediation_mode": "targeted-remediation"
+    }
+  ],
+  "controls": [
+    {
+      "id": "INH-414-STRUCTURAL-01",
+      "status": "passed",
+      "head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "control_type": "test",
+      "procedure": "Re-execute this inherited control on the current material candidate by combining the exact issue-local changed-path inventory with the repository Validate PR checks that exercise the protected behavior.",
+      "expected": "The protected historical invariant remains satisfied on the current material candidate and no current issue change reintroduces the closed escape class.",
+      "observed": "On material candidate eed10c8ac43146dca93ab72739a29c3c5924453c, the issue-local delta is limited to student creation/service-validation boundaries and tests; the inherited protected surface remains unchanged while the exact-head repository validation exercises the current candidate.",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931"
+    },
+    {
+      "id": "INH-414-WEEK-CARDINALITY-01",
+      "status": "passed",
+      "head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "control_type": "test",
+      "procedure": "Re-execute this inherited control on the current material candidate by combining the exact issue-local changed-path inventory with the repository Validate PR checks that exercise the protected behavior.",
+      "expected": "The protected historical invariant remains satisfied on the current material candidate and no current issue change reintroduces the closed escape class.",
+      "observed": "On material candidate eed10c8ac43146dca93ab72739a29c3c5924453c, the issue-local delta is limited to student creation/service-validation boundaries and tests; the inherited protected surface remains unchanged while the exact-head repository validation exercises the current candidate.",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931"
+    },
+    {
+      "id": "INH-414-MATRIX-REFRESH-01",
+      "status": "passed",
+      "head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "control_type": "test",
+      "procedure": "Re-execute this inherited control on the current material candidate by combining the exact issue-local changed-path inventory with the repository Validate PR checks that exercise the protected behavior.",
+      "expected": "The protected historical invariant remains satisfied on the current material candidate and no current issue change reintroduces the closed escape class.",
+      "observed": "On material candidate eed10c8ac43146dca93ab72739a29c3c5924453c, the issue-local delta is limited to student creation/service-validation boundaries and tests; the inherited protected surface remains unchanged while the exact-head repository validation exercises the current candidate.",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931"
+    },
+    {
+      "id": "INH-416-HANDOFF-REFREEZE-01",
+      "status": "passed",
+      "head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "control_type": "procedure",
+      "procedure": "Re-execute this inherited control on the current material candidate by combining the exact issue-local changed-path inventory with the repository Validate PR checks that exercise the protected behavior.",
+      "expected": "The protected historical invariant remains satisfied on the current material candidate and no current issue change reintroduces the closed escape class.",
+      "observed": "On material candidate eed10c8ac43146dca93ab72739a29c3c5924453c, the issue-local delta is limited to student creation/service-validation boundaries and tests; the inherited protected surface remains unchanged while the exact-head repository validation exercises the current candidate.",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931"
+    },
+    {
+      "id": "INH-416-DATE-CALENDAR-01",
+      "status": "passed",
+      "head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "control_type": "test",
+      "procedure": "Re-execute this inherited control on the current material candidate by combining the exact issue-local changed-path inventory with the repository Validate PR checks that exercise the protected behavior.",
+      "expected": "The protected historical invariant remains satisfied on the current material candidate and no current issue change reintroduces the closed escape class.",
+      "observed": "On material candidate eed10c8ac43146dca93ab72739a29c3c5924453c, the issue-local delta is limited to student creation/service-validation boundaries and tests; the inherited protected surface remains unchanged while the exact-head repository validation exercises the current candidate.",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931"
+    },
+    {
+      "id": "INH-425-TENANT-SERVICE-SCOPE-01",
+      "status": "passed",
+      "head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "control_type": "test",
+      "procedure": "Execute the transaction-scoped service lookup with deliberately different tenant contract scopes and a foreign service id, requiring lookup by both service id and authenticated contract id.",
+      "expected": "A service from another tenant/organization contract is excluded with no fallback or cross-tenant data leak into the target registration.",
+      "observed": "The exact-head service regression requires where={id, contractId}, returns null for the foreign tenant service, rejects it as outside the contract and verifies exactly one scoped lookup with no fallback.",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931",
+      "attack_control_id": "NEG-046-01",
+      "risk_family": "tenant-isolation",
+      "surface": "scope-separation",
+      "dimension": "scope-separation-discriminant"
+    },
+    {
+      "id": "INH-425-REFERENCE-LIVENESS-01",
+      "status": "passed",
+      "head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "control_type": "test",
+      "procedure": "Revalidate the selected service reference at transaction use time for missing/out-of-contract, inactive and child-service states before creation is allowed to proceed.",
+      "expected": "Missing or newly ineligible references are rejected with controlled business errors; only the canonical current-service exception remains allowed.",
+      "observed": "The exact-head service regression rejects missing scoped references, inactive services and child services, and accepts only the explicit current inactive-service exception through the canonical eligibility rule.",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931",
+      "attack_control_id": "NEG-014-01",
+      "risk_family": "reference-liveness",
+      "surface": "reference-validity",
+      "dimension": "reference-validity-discriminant"
+    },
+    {
+      "id": "INH-467-REVIEW-SNAPSHOT-01",
+      "status": "passed",
+      "head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "control_type": "test",
+      "procedure": "Execute the exact-head StudentProfileReview regression matrix with known labels, unknown legacy values and unrelated edits.",
+      "expected": "The shared normalizer is applied on read and unknown legacy values remain visible without silent overwrite.",
+      "observed": "Material candidate eed10c8ac43146dca93ab72739a29c3c5924453c passed known-label, unknown-legacy and unrelated-edit review assertions.",
+      "evidence": ".audit/entregar-issue/evidence/EV-Q-045.txt",
+      "evidence_sha256": "d979b750699d7e0b7af7c2237488fee7ec74a84156fd1c50e9337cb211c49327"
+    }
+  ],
+  "retired_controls": [
+    {
+      "id": "INH-REQ-01",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931",
+      "procedure": "Re-evaluate the historical control disposition against the current requirement closure and current material candidate.",
+      "expected": "The historical control remains explicitly superseded by its active replacement or demonstrably not applicable under the current canonical requirement closure.",
+      "observed": "The current closure preserves the prior disposition; superseded entries still point to active passed replacements and not-applicable entries remain outside the current canonical risk requirements.",
+      "disposition": "superseded",
+      "reason": "This historical control belongs to an earlier encoding/risk-manifest delivery and is retained in lineage without becoming a second active authority for the current training-flow remediation.",
+      "replacement_control_id": "INH-414-STRUCTURAL-01"
+    },
+    {
+      "id": "INH-REQ-02",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931",
+      "procedure": "Re-evaluate the historical control disposition against the current requirement closure and current material candidate.",
+      "expected": "The historical control remains explicitly superseded by its active replacement or demonstrably not applicable under the current canonical requirement closure.",
+      "observed": "The current closure preserves the prior disposition; superseded entries still point to active passed replacements and not-applicable entries remain outside the current canonical risk requirements.",
+      "disposition": "superseded",
+      "reason": "This historical control belongs to an earlier encoding/risk-manifest delivery and is retained in lineage without becoming a second active authority for the current training-flow remediation.",
+      "replacement_control_id": "INH-414-STRUCTURAL-01"
+    },
+    {
+      "id": "INH-REQ-03",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931",
+      "procedure": "Re-evaluate the historical control disposition against the current requirement closure and current material candidate.",
+      "expected": "The historical control remains explicitly superseded by its active replacement or demonstrably not applicable under the current canonical requirement closure.",
+      "observed": "The current closure preserves the prior disposition; superseded entries still point to active passed replacements and not-applicable entries remain outside the current canonical risk requirements.",
+      "disposition": "superseded",
+      "reason": "This historical control belongs to an earlier encoding/risk-manifest delivery and is retained in lineage without becoming a second active authority for the current training-flow remediation.",
+      "replacement_control_id": "INH-414-STRUCTURAL-01"
+    },
+    {
+      "id": "INH-REQ-04",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931",
+      "procedure": "Re-evaluate the historical control disposition against the current requirement closure and current material candidate.",
+      "expected": "The historical control remains explicitly superseded by its active replacement or demonstrably not applicable under the current canonical requirement closure.",
+      "observed": "The current closure preserves the prior disposition; superseded entries still point to active passed replacements and not-applicable entries remain outside the current canonical risk requirements.",
+      "disposition": "not-applicable",
+      "reason": "This historical control belongs to an earlier encoding/risk-manifest delivery and is retained in lineage without becoming a second active authority for the current training-flow remediation."
+    },
+    {
+      "id": "INH-REQ-05",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931",
+      "procedure": "Re-evaluate the historical control disposition against the current requirement closure and current material candidate.",
+      "expected": "The historical control remains explicitly superseded by its active replacement or demonstrably not applicable under the current canonical requirement closure.",
+      "observed": "The current closure preserves the prior disposition; superseded entries still point to active passed replacements and not-applicable entries remain outside the current canonical risk requirements.",
+      "disposition": "not-applicable",
+      "reason": "This historical control belongs to an earlier encoding/risk-manifest delivery and is retained in lineage without becoming a second active authority for the current training-flow remediation."
+    },
+    {
+      "id": "INH-REQ-06",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931",
+      "procedure": "Re-evaluate the historical control disposition against the current requirement closure and current material candidate.",
+      "expected": "The historical control remains explicitly superseded by its active replacement or demonstrably not applicable under the current canonical requirement closure.",
+      "observed": "The current closure preserves the prior disposition; superseded entries still point to active passed replacements and not-applicable entries remain outside the current canonical risk requirements.",
+      "disposition": "not-applicable",
+      "reason": "This historical control belongs to an earlier encoding/risk-manifest delivery and is retained in lineage without becoming a second active authority for the current training-flow remediation."
+    },
+    {
+      "id": "INH-REQ-07",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931",
+      "procedure": "Re-evaluate the historical control disposition against the current requirement closure and current material candidate.",
+      "expected": "The historical control remains explicitly superseded by its active replacement or demonstrably not applicable under the current canonical requirement closure.",
+      "observed": "The current closure preserves the prior disposition; superseded entries still point to active passed replacements and not-applicable entries remain outside the current canonical risk requirements.",
+      "disposition": "not-applicable",
+      "reason": "This historical control belongs to an earlier encoding/risk-manifest delivery and is retained in lineage without becoming a second active authority for the current training-flow remediation."
+    },
+    {
+      "id": "INH-AC-01",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931",
+      "procedure": "Re-evaluate the historical control disposition against the current requirement closure and current material candidate.",
+      "expected": "The historical control remains explicitly superseded by its active replacement or demonstrably not applicable under the current canonical requirement closure.",
+      "observed": "The current closure preserves the prior disposition; superseded entries still point to active passed replacements and not-applicable entries remain outside the current canonical risk requirements.",
+      "disposition": "superseded",
+      "reason": "This historical control belongs to an earlier encoding/risk-manifest delivery and is retained in lineage without becoming a second active authority for the current training-flow remediation.",
+      "replacement_control_id": "INH-414-STRUCTURAL-01"
+    },
+    {
+      "id": "INH-AC-02",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931",
+      "procedure": "Re-evaluate the historical control disposition against the current requirement closure and current material candidate.",
+      "expected": "The historical control remains explicitly superseded by its active replacement or demonstrably not applicable under the current canonical requirement closure.",
+      "observed": "The current closure preserves the prior disposition; superseded entries still point to active passed replacements and not-applicable entries remain outside the current canonical risk requirements.",
+      "disposition": "superseded",
+      "reason": "This historical control belongs to an earlier encoding/risk-manifest delivery and is retained in lineage without becoming a second active authority for the current training-flow remediation.",
+      "replacement_control_id": "INH-414-STRUCTURAL-01"
+    },
+    {
+      "id": "INH-AC-03",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931",
+      "procedure": "Re-evaluate the historical control disposition against the current requirement closure and current material candidate.",
+      "expected": "The historical control remains explicitly superseded by its active replacement or demonstrably not applicable under the current canonical requirement closure.",
+      "observed": "The current closure preserves the prior disposition; superseded entries still point to active passed replacements and not-applicable entries remain outside the current canonical risk requirements.",
+      "disposition": "not-applicable",
+      "reason": "This historical control belongs to an earlier encoding/risk-manifest delivery and is retained in lineage without becoming a second active authority for the current training-flow remediation."
+    },
+    {
+      "id": "INH-AC-04",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931",
+      "procedure": "Re-evaluate the historical control disposition against the current requirement closure and current material candidate.",
+      "expected": "The historical control remains explicitly superseded by its active replacement or demonstrably not applicable under the current canonical requirement closure.",
+      "observed": "The current closure preserves the prior disposition; superseded entries still point to active passed replacements and not-applicable entries remain outside the current canonical risk requirements.",
+      "disposition": "superseded",
+      "reason": "This historical control belongs to an earlier encoding/risk-manifest delivery and is retained in lineage without becoming a second active authority for the current training-flow remediation.",
+      "replacement_control_id": "INH-414-STRUCTURAL-01"
+    },
+    {
+      "id": "INH-AC-05",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931",
+      "procedure": "Re-evaluate the historical control disposition against the current requirement closure and current material candidate.",
+      "expected": "The historical control remains explicitly superseded by its active replacement or demonstrably not applicable under the current canonical requirement closure.",
+      "observed": "The current closure preserves the prior disposition; superseded entries still point to active passed replacements and not-applicable entries remain outside the current canonical risk requirements.",
+      "disposition": "not-applicable",
+      "reason": "This historical control belongs to an earlier encoding/risk-manifest delivery and is retained in lineage without becoming a second active authority for the current training-flow remediation."
+    },
+    {
+      "id": "INH-AC-06",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931",
+      "procedure": "Re-evaluate the historical control disposition against the current requirement closure and current material candidate.",
+      "expected": "The historical control remains explicitly superseded by its active replacement or demonstrably not applicable under the current canonical requirement closure.",
+      "observed": "The current closure preserves the prior disposition; superseded entries still point to active passed replacements and not-applicable entries remain outside the current canonical risk requirements.",
+      "disposition": "not-applicable",
+      "reason": "This historical control belongs to an earlier encoding/risk-manifest delivery and is retained in lineage without becoming a second active authority for the current training-flow remediation."
+    },
+    {
+      "id": "INH-AC-07",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931",
+      "procedure": "Re-evaluate the historical control disposition against the current requirement closure and current material candidate.",
+      "expected": "The historical control remains explicitly superseded by its active replacement or demonstrably not applicable under the current canonical requirement closure.",
+      "observed": "The current closure preserves the prior disposition; superseded entries still point to active passed replacements and not-applicable entries remain outside the current canonical risk requirements.",
+      "disposition": "not-applicable",
+      "reason": "This historical control belongs to an earlier encoding/risk-manifest delivery and is retained in lineage without becoming a second active authority for the current training-flow remediation."
+    },
+    {
+      "id": "INH-AUD-A001",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931",
+      "procedure": "Re-evaluate the historical control disposition against the current requirement closure and current material candidate.",
+      "expected": "The historical control remains explicitly superseded by its active replacement or demonstrably not applicable under the current canonical requirement closure.",
+      "observed": "The current closure preserves the prior disposition; superseded entries still point to active passed replacements and not-applicable entries remain outside the current canonical risk requirements.",
+      "disposition": "superseded",
+      "reason": "This historical control belongs to an earlier encoding/risk-manifest delivery and is retained in lineage without becoming a second active authority for the current training-flow remediation.",
+      "replacement_control_id": "INH-414-STRUCTURAL-01"
+    },
+    {
+      "id": "INH-AUD-A002",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
+      "evidence_sha256": "ea299cfa45f534cc4ad78a944c476e1c2c0c5542c8e72a4bb40d587477478931",
+      "procedure": "Re-evaluate the historical control disposition against the current requirement closure and current material candidate.",
+      "expected": "The historical control remains explicitly superseded by its active replacement or demonstrably not applicable under the current canonical requirement closure.",
+      "observed": "The current closure preserves the prior disposition; superseded entries still point to active passed replacements and not-applicable entries remain outside the current canonical risk requirements.",
+      "disposition": "superseded",
+      "reason": "This historical control belongs to an earlier encoding/risk-manifest delivery and is retained in lineage without becoming a second active authority for the current training-flow remediation.",
+      "replacement_control_id": "INH-414-STRUCTURAL-01"
+    },
+    {
+      "id": "INH-425-PUBLIC-BOUNDARY-01",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence": ".audit/entregar-issue/evidence/EV-Q-009.txt",
+      "evidence_sha256": "73e57cb258d4cd0b6c5e5d1cef7ad5ba06bc8f1b06804e489e27577292c70a0a",
+      "procedure": "Re-evaluate the historical public-boundary control against the current student identity requirement closure.",
+      "expected": "The historical public-boundary control is explicitly not applicable to this student marital-status delivery.",
+      "observed": "The current closure has no public-boundary requirement or surface; the control remains preserved in lineage as not applicable.",
+      "disposition": "not-applicable",
+      "reason": "This inherited control belongs to an earlier public create error-boundary delivery and is outside the current marital-status catalog and identity normalization scope."
+    }
+  ],
+  "unresolved_controls": []
+}

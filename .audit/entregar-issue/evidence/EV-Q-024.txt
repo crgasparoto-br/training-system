@@ -1,0 +1,1 @@
+Exact-head measurement for REQ-024 on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c recorded the requested validation signal.

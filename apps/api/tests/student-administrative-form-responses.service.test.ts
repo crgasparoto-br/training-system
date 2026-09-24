@@ -4,13 +4,43 @@ import {
   mergeStudentAdministrativeFormResponses,
   upsertStudentAdministrativeFormResponses,
 } from '../src/modules/alunos/student-administrative-form-responses.service';
+import { upsertStudentIdentity } from '../src/modules/alunos/student-identity.service';
+
+jest.mock('../src/modules/alunos/student-identity.service', () => ({
+  upsertStudentIdentity: jest.fn(),
+}));
 
 describe('administrative student form responses', () => {
+  it('keeps the canonical writer responsible for synchronizing the legacy projection', async () => {
+    const tx = {
+      aluno: {
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ contractId: 'contract-1' }),
+      },
+    } as any;
+    const mockedUpsertStudentIdentity = upsertStudentIdentity as jest.Mock;
+    mockedUpsertStudentIdentity.mockClear();
+
+    await upsertStudentAdministrativeFormResponses(tx, 'aluno-1', {
+      identification: { maritalStatus: 'União estável' },
+    });
+
+    expect(mockedUpsertStudentIdentity).toHaveBeenCalledWith(
+      'aluno-1',
+      'contract-1',
+      { maritalStatus: 'stable_union' },
+      expect.objectContaining({
+        client: tx,
+        syncLegacyProfile: true,
+      })
+    );
+  });
+
   it('maps compatibility form names to canonical identity keys', () => {
     expect(
       buildStudentAdministrativeIdentityPatch({
         cpf: '139.513.548-79',
         rg: '20.743.396-X',
+        maritalStatus: 'Casado(a)',
         address: 'Rua A',
         neighborhood: 'Centro',
         socialNetwork: 'linkedin',
@@ -20,6 +50,7 @@ describe('administrative student form responses', () => {
     ).toEqual({
       cpf: '139.513.548-79',
       rg: '20.743.396-X',
+      maritalStatus: 'married',
       addressStreet: 'Rua A',
       addressNeighborhood: 'Centro',
       socialNetwork: 'linkedin',
@@ -97,6 +128,34 @@ describe('administrative student form responses', () => {
         }),
       })
     );
+  });
+
+  it('normalizes every controlled label without changing canonical values or legacy values', () => {
+    const statuses = [
+      ['Solteiro(a)', 'single'],
+      ['Casado(a)', 'married'],
+      ['União estável', 'stable_union'],
+      ['Divorciado(a)', 'divorced'],
+      ['Separado(a)', 'separated'],
+      ['Viúvo(a)', 'widowed'],
+      ['Outro', 'other'],
+    ] as const;
+
+    for (const [label, canonical] of statuses) {
+      expect(buildStudentAdministrativeIdentityPatch({ maritalStatus: label })).toMatchObject({
+        maritalStatus: canonical,
+      });
+    }
+
+    expect(buildStudentAdministrativeIdentityPatch({ maritalStatus: 'stable_union' })).toMatchObject({
+      maritalStatus: 'stable_union',
+    });
+    expect(buildStudentAdministrativeIdentityPatch({ maritalStatus: '' })).toMatchObject({
+      maritalStatus: null,
+    });
+    expect(buildStudentAdministrativeIdentityPatch({ maritalStatus: 'Viúvo' })).toMatchObject({
+      maritalStatus: 'Viúvo',
+    });
   });
 
   it('recarrega desconto decimal canônico no formato pt-BR', () => {

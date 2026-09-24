@@ -1,34 +1,35 @@
 {
+  "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "result": "REPROVADA",
   "validity": "independent",
-  "rejection_id": "audit-rejection:32d071da-c89f-495d-b122-8288b6b40bd9",
-  "head_sha": "8d016284e314e30a409e08d4a881346a091c2e93",
+  "rejection_id": "audit-rejection:4674700e-2d21-4cf0-9a01-2d21cf251698",
+  "head_sha": "2d21cf251698b92d8ffee0c6ba1c845930c945a9",
   "identity": {
-    "certified_material_head_sha": "a6614b73240b539ab21ab28414acd8c8b9548809",
-    "published_handoff_head_sha": "8d016284e314e30a409e08d4a881346a091c2e93",
     "repository": "crgasparoto-br/training-system",
-    "pull_request_number": 428,
-    "issue_number": 425
+    "issue_number": 467,
+    "pull_request_number": 470,
+    "material_head_sha": "2d21cf251698b92d8ffee0c6ba1c845930c945a9",
+    "base_sha": "69ccdd213fac28265d83cbee2a3460396f691ab1"
   },
   "findings": [
     {
-      "id": "A-001",
+      "id": "A-467-REVIEW-SNAPSHOT-001",
       "status": "open",
       "disposition": "blocking",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "category": "legacy-variant-gap",
-      "reason": "The selected-contract POST /alunos/financial-contract path retained the legacy error boundary and could return raw 500 details for P2028/P2002/identity-lock cases while the simple POST /alunos path was hardened."
+      "category": "legacy-read-compatibility",
+      "reason": "StudentProfileReview did not canonicalize known labels or preserve unknown legacy values in the review snapshot UI."
     },
     {
-      "id": "A-002",
+      "id": "A-467-HANDOFF-001",
       "status": "open",
       "disposition": "blocking",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "category": "control-propagation-gap",
-      "reason": "The critical evidence package omitted material public-boundary, tenant-isolation and reference-liveness families and did not exercise the selected-contract public route with discriminant negative controls."
+      "category": "delivery-target-binding-gap",
+      "reason": "The handoff certificate on the audited head was inherited from another delivery and was not bound to issue 467 / PR 470."
     }
   ]
 }
