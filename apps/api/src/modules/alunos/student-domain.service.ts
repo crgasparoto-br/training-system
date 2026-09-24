@@ -1,8 +1,8 @@
 import { PARQ_CATALOG_VERSION, PARQ_LEGACY_CATALOG_VERSION } from '@corrida/types';
-import { PrismaClient } from '@prisma/client';
+import { prismaRuntimeClient } from '../../common/prisma-runtime-client.js';
 import { studentContractService } from '../student-contracts/student-contract.service.js';
 
-const prisma = new PrismaClient();
+const prisma = prismaRuntimeClient;
 
 type StudentDomainQueryOptions = {
   companyContractId?: string;
@@ -598,6 +598,10 @@ export const studentDomainService = {
 
   async getProfile(alunoId: string, options: StudentDomainQueryOptions = {}) {
     const aluno = await this.loadAlunoDomainSnapshot(alunoId, options);
+    return this.getProfileFromSnapshot(aluno);
+  },
+
+  getProfileFromSnapshot(aluno: any) {
     if (!aluno) {
       return null;
     }
@@ -619,6 +623,10 @@ export const studentDomainService = {
 
   async getHealthIntake(alunoId: string, options: StudentDomainQueryOptions = {}) {
     const aluno = await this.loadAlunoDomainSnapshot(alunoId, options);
+    return this.getHealthIntakeFromSnapshot(aluno);
+  },
+
+  getHealthIntakeFromSnapshot(aluno: any) {
     if (!aluno) {
       return null;
     }
@@ -657,6 +665,10 @@ export const studentDomainService = {
 
   async listAssessmentRecords(alunoId: string, options: StudentDomainQueryOptions = {}) {
     const aluno = await this.loadAlunoDomainSnapshot(alunoId, options);
+    return this.listAssessmentRecordsFromSnapshot(aluno);
+  },
+
+  listAssessmentRecordsFromSnapshot(aluno: any) {
     if (!aluno) {
       return null;
     }
@@ -678,13 +690,17 @@ export const studentDomainService = {
   },
 
   async getFinancialProfile(alunoId: string, options: StudentDomainQueryOptions = {}) {
-    const [aluno, contracts] = await Promise.all([
-      this.loadAlunoDomainSnapshot(alunoId, options),
-      studentContractService.listByAluno(alunoId, {
-        companyContractId: options.companyContractId,
-      }),
-    ]);
+    const aluno = await this.loadAlunoDomainSnapshot(alunoId, options);
+    if (!aluno) {
+      return null;
+    }
+    const contracts = await studentContractService.listByAluno(alunoId, {
+      companyContractId: options.companyContractId,
+    });
+    return this.getFinancialProfileFromSnapshot(aluno, contracts);
+  },
 
+  getFinancialProfileFromSnapshot(aluno: any, contracts: any[]) {
     if (!aluno) {
       return null;
     }
@@ -717,6 +733,10 @@ export const studentDomainService = {
 
   async getIntegrations(alunoId: string, options: StudentDomainQueryOptions = {}) {
     const aluno = await this.loadAlunoDomainSnapshot(alunoId, options);
+    return this.getIntegrationsFromSnapshot(aluno);
+  },
+
+  getIntegrationsFromSnapshot(aluno: any) {
     if (!aluno) {
       return null;
     }
@@ -740,6 +760,10 @@ export const studentDomainService = {
 
   async listExternalActivities(alunoId: string, options: StudentDomainQueryOptions = {}) {
     const aluno = await this.loadAlunoDomainSnapshot(alunoId, options);
+    return this.listExternalActivitiesFromSnapshot(aluno);
+  },
+
+  listExternalActivitiesFromSnapshot(aluno: any) {
     if (!aluno) {
       return null;
     }
@@ -755,15 +779,19 @@ export const studentDomainService = {
   },
 
   async getSummary(alunoId: string, options: StudentDomainQueryOptions = {}) {
-    const [aluno, profile, intake, assessments, financial, integrations, activities] = await Promise.all([
-      this.loadAlunoDomainSnapshot(alunoId, options),
-      this.getProfile(alunoId, options),
-      this.getHealthIntake(alunoId, options),
-      this.listAssessmentRecords(alunoId, options),
-      this.getFinancialProfile(alunoId, options),
-      this.getIntegrations(alunoId, options),
-      this.listExternalActivities(alunoId, options),
-    ]);
+    const aluno = await this.loadAlunoDomainSnapshot(alunoId, options);
+    if (!aluno) {
+      return null;
+    }
+    const contracts = await studentContractService.listByAluno(alunoId, {
+      companyContractId: options.companyContractId,
+    });
+    const profile = this.getProfileFromSnapshot(aluno);
+    const intake = this.getHealthIntakeFromSnapshot(aluno);
+    const assessments = this.listAssessmentRecordsFromSnapshot(aluno);
+    const financial = this.getFinancialProfileFromSnapshot(aluno, contracts);
+    const integrations = this.getIntegrationsFromSnapshot(aluno);
+    const activities = this.listExternalActivitiesFromSnapshot(aluno);
 
     if (!aluno || !profile || !intake || !assessments || !financial || !integrations || !activities) {
       return null;
@@ -817,15 +845,19 @@ export const studentDomainService = {
   },
 
   async getTimeline(alunoId: string, options: StudentDomainQueryOptions = {}) {
-    const [aluno, profile, intake, assessments, financial, integrations, activities] = await Promise.all([
-      this.loadAlunoDomainSnapshot(alunoId, options),
-      this.getProfile(alunoId, options),
-      this.getHealthIntake(alunoId, options),
-      this.listAssessmentRecords(alunoId, options),
-      this.getFinancialProfile(alunoId, options),
-      this.getIntegrations(alunoId, options),
-      this.listExternalActivities(alunoId, options),
-    ]);
+    const aluno = await this.loadAlunoDomainSnapshot(alunoId, options);
+    if (!aluno) {
+      return null;
+    }
+    const contracts = await studentContractService.listByAluno(alunoId, {
+      companyContractId: options.companyContractId,
+    });
+    const profile = this.getProfileFromSnapshot(aluno);
+    const intake = this.getHealthIntakeFromSnapshot(aluno);
+    const assessments = this.listAssessmentRecordsFromSnapshot(aluno);
+    const financial = this.getFinancialProfileFromSnapshot(aluno, contracts);
+    const integrations = this.getIntegrationsFromSnapshot(aluno);
+    const activities = this.listExternalActivitiesFromSnapshot(aluno);
 
     if (!aluno || !profile || !intake || !assessments || !financial || !integrations || !activities) {
       return null;
