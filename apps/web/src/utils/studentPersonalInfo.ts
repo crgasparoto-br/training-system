@@ -1,11 +1,11 @@
+import {
+  normalizeStudentMaritalStatus,
+  STUDENT_MARITAL_STATUS_OPTIONS,
+} from '@corrida/types';
+
 export const maritalStatusOptions = [
   { value: '', label: 'Não informado' },
-  { value: 'Solteiro(a)', label: 'Solteiro(a)' },
-  { value: 'Casado(a)', label: 'Casado(a)' },
-  { value: 'União estável', label: 'União estável' },
-  { value: 'Divorciado(a)', label: 'Divorciado(a)' },
-  { value: 'Separado(a)', label: 'Separado(a)' },
-  { value: 'Viúvo(a)', label: 'Viúvo(a)' },
+  ...STUDENT_MARITAL_STATUS_OPTIONS,
 ] as const;
 
 export const socialNetworkOptions = [
@@ -70,7 +70,7 @@ export const formatRg = (value: string) => {
   return `${compact.slice(0, 2)}.${compact.slice(2, 5)}.${compact.slice(5, 8)}-${compact.slice(8)}`;
 };
 
-export const normalizeMaritalStatus = (value?: string | null) => value ?? '';
+export const normalizeMaritalStatus = (value?: string | null) => normalizeStudentMaritalStatus(value);
 
 export const normalizeSocialNetwork = (value?: string | null, legacyAccount?: string | null): SocialNetwork => {
   const normalized = value?.trim().toLowerCase();

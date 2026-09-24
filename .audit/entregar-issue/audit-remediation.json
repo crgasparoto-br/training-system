@@ -4,28 +4,49 @@
   "resolution_policy": "all-actionable-items",
   "status": "closed",
   "remediation_mode": "targeted-remediation",
-  "candidate_head_sha": "c04af2bc7915dda11750f002d37ee39167d777d2",
+  "candidate_head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
   "source": {
-    "rejection_id": "audit-rejection:32d071da-c89f-495d-b122-8288b6b40bd9",
-    "audited_head_sha": "8d016284e314e30a409e08d4a881346a091c2e93",
-    "audit_report_sha256": "b39f63004b9357345b6a73032a0c7b19c9a36f2627e2bbe3f8fd41d3eb3494be"
+    "rejection_id": "audit-rejection:4674700e-2d21-4cf0-9a01-2d21cf251698",
+    "audited_head_sha": "2d21cf251698b92d8ffee0c6ba1c845930c945a9",
+    "audit_report_sha256": "ceb98d71b863b0a7e0a17dc9e2324d974a4cc343a3d87a3b81b7d1492b41dfcf"
   },
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-001",
+      "source_id": "A-467-REVIEW-SNAPSHOT-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
-      "validations": ["selected-contract P2002 409", "identity-lock 409", "P2028/P0001 generic 5xx with correlationId", "public PostgreSQL P0001 rollback"]
+      "closure_kind": "behavioral-fix",
+      "changed_files": [
+        "apps/web/src/pages/StudentProfileReview.tsx",
+        "apps/web/src/pages/StudentProfileReview.test.tsx"
+      ],
+      "evidence": [
+        ".audit/entregar-issue/evidence/EV-Q-045.txt"
+      ],
+      "validations": [
+        "known label normalization regression passed",
+        "unknown legacy option remains visible",
+        "unrelated phone edit does not overwrite unknown marital status"
+      ]
     },
     {
       "source_kind": "finding",
-      "source_id": "A-002",
+      "source_id": "A-467-HANDOFF-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt",
-      "validations": ["public-boundary saturated", "tenant-isolation saturated", "reference-liveness saturated", "critical matrix and inherited controls validated"]
+      "closure_kind": "behavioral-fix",
+      "changed_files": [
+        ".audit/entregar-issue/handoff-ready.json"
+      ],
+      "evidence": [
+        ".audit/entregar-issue/evidence/EV-Q-024.txt"
+      ],
+      "validations": [
+        "subject binds issue 467 and PR 470 separately",
+        "material head and direct result-only parent are frozen",
+        "terminal handoff guard is executed before reauditing"
+      ]
     }
   ]
 }

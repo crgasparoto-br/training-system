@@ -1,16 +1,36 @@
 {
   "schema_version": 1,
-  "material_head_sha": "4a45517bcaa557ffd77f3d2aadac004420694917",
-  "base_sha": "4fd8c54ef5b9056a3bfba36e800bcbf6517bfcc6",
+  "material_head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+  "base_sha": "69ccdd213fac28265d83cbee2a3460396f691ab1",
   "evidence": [
     {
-      "evidence_id": "EVID-SOCIAL-COMPAT-COUNT-422-REFREEZE",
+      "evidence_id": "EV-Q-009",
       "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/social-compatibility-count-422-refreeze.txt",
-      "sha256": "47c5cf12e8fc592f4db8c75cd1b6c1c4609b6f758b3ef076dbd06e2488baedb5",
-      "subject_sha": "4a45517bcaa557ffd77f3d2aadac004420694917",
+      "path": ".audit/entregar-issue/evidence/EV-Q-009.txt",
+      "sha256": "73e57cb258d4cd0b6c5e5d1cef7ad5ba06bc8f1b06804e489e27577292c70a0a",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
       "freshness_policy": "exact-material-head",
-      "producer": "entregar-issue exact-head official Validate PR test artifact count",
+      "producer": "issue467 exact-head focused validation",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EV-Q-024",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/EV-Q-024.txt",
+      "sha256": "f371db7f51ba432f2a42ec209ea4a180e0ab3f9e85d27528dd245235093eef3f",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "freshness_policy": "exact-material-head",
+      "producer": "issue467 exact-head focused validation",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EV-Q-045",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/EV-Q-045.txt",
+      "sha256": "d979b750699d7e0b7af7c2237488fee7ec74a84156fd1c50e9337cb211c49327",
+      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "freshness_policy": "exact-material-head",
+      "producer": "issue467 exact-head focused validation",
       "status": "passed"
     }
   ]

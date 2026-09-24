@@ -4,15 +4,9 @@ import type {
   ProfessorManagerInfo,
   ProfessorRole,
 } from './auth.js';
+import type { StudentMaritalStatus } from './student-lifecycle.js';
 
-export type ProfessorMaritalStatus =
-  | 'single'
-  | 'married'
-  | 'stable_union'
-  | 'divorced'
-  | 'separated'
-  | 'widowed'
-  | 'other';
+export type ProfessorMaritalStatus = StudentMaritalStatus;
 
 export type HourlyRateLevelCode = string;
 

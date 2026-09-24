@@ -1,4 +1,7 @@
+import type { StudentMaritalStatus } from '@corrida/types';
 import api from './api';
+
+export type { StudentMaritalStatus } from '@corrida/types';
 
 export const STUDENT_PROFILE_REVIEW_ROUTE = '/student/profile-review';
 export const STUDENT_HOME_ROUTE = '/inicio';
@@ -34,15 +37,6 @@ export interface StudentProfileReview {
   sectionsRequested?: unknown;
   requiresApproval?: boolean;
 }
-
-export type StudentMaritalStatus =
-  | 'single'
-  | 'married'
-  | 'stable_union'
-  | 'divorced'
-  | 'separated'
-  | 'widowed'
-  | 'other';
 
 export interface StudentSelfProfile {
   id: string;

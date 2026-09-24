@@ -1,4 +1,7 @@
-import type { ProfessorMaritalStatus } from '@corrida/types';
+import {
+  STUDENT_MARITAL_STATUS_LABELS,
+  type ProfessorMaritalStatus,
+} from '@corrida/types';
 
 export { formatCollaboratorRateInput } from './collaborator-hourly-rates';
 
@@ -51,16 +54,6 @@ export function normalizeCollaboratorInstagram(value?: string | null) {
   return normalized.startsWith('@') ? normalized : `@${normalized}`;
 }
 
-const maritalStatusLabels: Record<ProfessorMaritalStatus, string> = {
-  single: 'Solteiro(a)',
-  married: 'Casado(a)',
-  stable_union: 'União estável',
-  divorced: 'Divorciado(a)',
-  separated: 'Separado(a)',
-  widowed: 'Viúvo(a)',
-  other: 'Outro',
-};
-
 export function formatMaritalStatus(value?: ProfessorMaritalStatus | null) {
-  return value ? maritalStatusLabels[value] : 'Não informado';
+  return value ? STUDENT_MARITAL_STATUS_LABELS[value] : 'Não informado';
 }

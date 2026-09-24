@@ -1,5 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { AxiosError } from 'axios';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 
 const navigateMock = vi.fn();
@@ -128,8 +129,13 @@ vi.mock('../components/alunos/AlunoRevisoesCadastraisTab', () => ({
 import { AlunoDetails } from './AlunoDetails';
 
 describe('AlunoDetails resiliencia de carregamento', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
 
     getByIdMock.mockResolvedValue({
       id: 'aluno-1',
@@ -150,6 +156,7 @@ describe('AlunoDetails resiliencia de carregamento', () => {
     listByAlunoMock.mockResolvedValue([]);
     getSummaryMock.mockResolvedValue([]);
     assessmentTypeListMock.mockResolvedValue([]);
+    planListByAlunoMock.mockResolvedValue({ plans: [] });
     getAssessmentPlanMock.mockResolvedValue({ items: [] });
     listStudentContractsMock.mockResolvedValue({
       alunoId: 'aluno-1',
@@ -181,5 +188,55 @@ describe('AlunoDetails resiliencia de carregamento', () => {
     });
 
     expect(planListByAlunoMock).toHaveBeenCalledWith('aluno-1');
+  });
+
+  it('oferece retry com mensagem de indisponibilidade transitória sem usar alerta', async () => {
+    getByIdMock
+      .mockRejectedValueOnce(new AxiosError('timeout', 'ECONNABORTED'))
+      .mockResolvedValueOnce({
+        id: 'aluno-1',
+        userId: 'user-1',
+        professorId: 'prof-1',
+        schedulePlan: 'free',
+        age: 29,
+        user: { email: 'aluno@test.com', profile: { name: 'Aluno Teste' } },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    const alertSpy = vi.spyOn(window, 'alert');
+
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'A API está iniciando ou temporariamente indisponível.'
+    );
+    expect(alertSpy).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+
+    await screen.findByText('Aluno Teste');
+    expect(getByIdMock).toHaveBeenCalledTimes(2);
+    alertSpy.mockRestore();
+  });
+
+  it('preserva a mensagem de erro HTTP real sem classificá-la como cold start', async () => {
+    const error = new AxiosError('server error', 'ERR_BAD_RESPONSE');
+    Object.defineProperty(error, 'response', {
+      value: { status: 500, data: { error: 'ALUNO_READ_INTERNAL_ERROR' } },
+    });
+    getByIdMock.mockRejectedValueOnce(error);
+
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('ALUNO_READ_INTERNAL_ERROR');
+    expect(screen.queryByRole('button', { name: 'Tentar novamente' })).not.toBeInTheDocument();
   });
 });
