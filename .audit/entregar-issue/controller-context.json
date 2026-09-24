@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "controller_context_id": "delivery-7dabd03c-7acb-40a3-9c6a-4b3a7310554b",
+  "controller_revision": 1,
+  "controller_cycle": 1,
+  "controller_cycle_limit": 10,
+  "repository": "crgasparoto-br/training-system",
+  "repository_path": "/home/ubuntu/work/training-system",
+  "issue": 467,
+  "work_item_start_sha": "69ccdd213fac28265d83cbee2a3460396f691ab1",
+  "base_ref": "develop",
+  "branch": "fix/467-normalize-marital-status",
+  "pull_request": 470,
+  "identity": {
+    "head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+    "base_sha": "69ccdd213fac28265d83cbee2a3460396f691ab1",
+    "merge_preview_sha": "ca87db76b6ca4083abc53fd9d265491c33715171",
+    "captured_at": "2026-09-23T23:26:06.709457Z",
+    "observed_at": "2026-09-23T23:26:06.709457Z"
+  },
+  "permissions": {
+    "may_write_code": true,
+    "may_update_issue": false,
+    "may_merge": false,
+    "may_execute_destructive_actions": false
+  },
+  "workflow_policy": {
+    "workflow_change_authorized": false,
+    "manual_approval_workflow_authorized": false,
+    "remote_action_mode": "observe-only",
+    "publish_policy": "single-final-candidate"
+  },
+  "workflow_inventory": [],
+  "baseline": {},
+  "source_manifest": {},
+  "artifact_reuse": {
+    "schema_version": 1,
+    "expected_subject": {
+      "repository": "crgasparoto-br/training-system",
+      "issue_number": 467,
+      "pull_request_number": 470,
+      "work_item_kind": "pr",
+      "work_item_number": 470,
+      "pull_request": 470,
+      "base_ref": "develop",
+      "head_ref": "fix/467-normalize-marital-status"
+    },
+    "checked_paths": [
+      "/home/ubuntu/work/training-system/.audit/entregar-issue/handoff-ready.json",
+      "/home/ubuntu/work/training-system/.audit/entregar-issue/specification-snapshot.json"
+    ],
+    "base_origin": {
+      "checked": true,
+      "base_sha": "69ccdd213fac28265d83cbee2a3460396f691ab1",
+      "present_identity_artifacts": [
+        "handoff-ready.json",
+        "specification-snapshot.json"
+      ],
+      "inherited_paths": [],
+      "all_present_identity_artifacts_inherited": false,
+      "comparison_mode": "git-exact-base-sha"
+    },
+    "status": "current-target",
+    "reuse_allowed": true,
+    "requires_fresh_handoff": false,
+    "foreign_target_detected": false,
+    "inherited_from_base": false,
+    "observed_subject": {
+      "repository": "crgasparoto-br/training-system",
+      "issue_number": 467,
+      "pull_request_number": 470,
+      "work_item_kind": "pr",
+      "work_item_number": 470,
+      "pull_request": 470,
+      "base_ref": "develop",
+      "head_ref": "fix/467-normalize-marital-status"
+    },
+    "reasons": [
+      "existing handoff and snapshot are semantically bound to the current target"
+    ]
+  },
+  "metrics": {
+    "issue_full_reads": 0,
+    "documentation_full_scans": 0,
+    "planning_runs": 0,
+    "subskill_calls": 0,
+    "focused_checks": 0,
+    "full_suites": 0,
+    "freezes": 0,
+    "remote_collections": 0,
+    "material_commits": 0,
+    "handoff_commits": 0,
+    "reused_stages": 0,
+    "avoidable_invalidations": 0
+  },
+  "created_at": "2026-09-23T23:26:06.709457Z",
+  "updated_at": "2026-09-23T23:26:06.709457Z"
+}

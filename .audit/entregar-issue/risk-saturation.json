@@ -1,1 +1,397 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"risk-saturation","compression":"gzip","encoded_size":1896,"encoded_sha256":"45a7ce0e3a906c26751ebcc136a3b49acaa150ba42016712cd3ddcb6e4b8a8af","decoded_size":12617,"decoded_sha256":"3ad69836634c50ae9023ded952805b0a69b704eaf3eb374b9f67c8563d1a895d","parts":[{"path":"risk-saturation.parts/part-000.b64","size":1896,"sha256":"45a7ce0e3a906c26751ebcc136a3b49acaa150ba42016712cd3ddcb6e4b8a8af"}]}
+{
+  "schema_version": 1,
+  "head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": false,
+      "reason": "No current Issue 425 requirement, inherited control, or cumulative escape requires an authorization family beyond the separately scoped tenant and public-boundary controls.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": true,
+      "reason": "Required by the canonical specification, active cumulative escape lineage, inherited control, or final exact-head attack matrix; every declared surface has a passed discriminant control.",
+      "control_ids": [
+        "NEG-046-01",
+        "NEG-REQ-027-TENANT-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "scope-separation",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for tenant-isolation:scope-separation remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-046-01"
+          ]
+        },
+        {
+          "surface": "tenant-scope-isolation",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for tenant-isolation:tenant-scope-isolation remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-REQ-027-TENANT-01"
+          ]
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": true,
+      "reason": "Required by the canonical specification, active cumulative escape lineage, inherited control, or final exact-head attack matrix; every declared surface has a passed discriminant control.",
+      "control_ids": [
+        "NEG-REQ-007-PB-01",
+        "NEG-REQ-025-PB-01",
+        "NEG-REQ-027-PB-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "atomic-create-error-response",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for public-boundary:atomic-create-error-response remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-REQ-007-PB-01",
+            "NEG-REQ-025-PB-01",
+            "NEG-REQ-027-PB-01"
+          ]
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Required by the canonical specification, active cumulative escape lineage, inherited control, or final exact-head attack matrix; every declared surface has a passed discriminant control.",
+      "control_ids": [
+        "NEG-014-01",
+        "NEG-027-01",
+        "NEG-REQ-027-REF-01",
+        "NEG-REQ-043-HIST-CANREF-01",
+        "NEG-REQ-043-HIST-REFRESH-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-reference",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for reference-liveness:canonical-reference remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-REQ-043-HIST-CANREF-01"
+          ]
+        },
+        {
+          "surface": "reference-liveness",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for reference-liveness:reference-liveness remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-REQ-043-HIST-REFRESH-01"
+          ]
+        },
+        {
+          "surface": "reference-validity",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for reference-liveness:reference-validity remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-014-01",
+            "NEG-027-01"
+          ]
+        },
+        {
+          "surface": "service-reference-liveness",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for reference-liveness:service-reference-liveness remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-REQ-027-REF-01"
+          ]
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Required by the canonical specification, active cumulative escape lineage, inherited control, or final exact-head attack matrix; every declared surface has a passed discriminant control.",
+      "control_ids": [
+        "NEG-001-01",
+        "NEG-REQ-001-02",
+        "NEG-REQ-008-02",
+        "NEG-REQ-013-01",
+        "NEG-REQ-022-01",
+        "NEG-REQ-026-01",
+        "NEG-REQ-032-01",
+        "NEG-REQ-033-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "temporal-contract",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for temporal-consistency:temporal-contract remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-001-01"
+          ]
+        },
+        {
+          "surface": "transaction-lifetime",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for temporal-consistency:transaction-lifetime remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-REQ-001-02",
+            "NEG-REQ-008-02",
+            "NEG-REQ-013-01",
+            "NEG-REQ-022-01",
+            "NEG-REQ-026-01",
+            "NEG-REQ-032-01",
+            "NEG-REQ-033-02"
+          ]
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": true,
+      "reason": "Required by the canonical specification, active cumulative escape lineage, inherited control, or final exact-head attack matrix; every declared surface has a passed discriminant control.",
+      "control_ids": [
+        "NEG-REQ-043-HIST-WEEK-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "week-destination-mapping",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for temporal-destination:week-destination-mapping remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-REQ-043-HIST-WEEK-01"
+          ]
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": true,
+      "reason": "Required by the canonical specification, active cumulative escape lineage, inherited control, or final exact-head attack matrix; every declared surface has a passed discriminant control.",
+      "control_ids": [
+        "NEG-REQ-026-CONC-01",
+        "NEG-REQ-028-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-email-race",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for concurrency-atomicity:duplicate-email-race remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-REQ-026-CONC-01"
+          ]
+        },
+        {
+          "surface": "identity-lock-conflict",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for concurrency-atomicity:identity-lock-conflict remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-REQ-028-01"
+          ]
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "reason": "Required by the canonical specification, active cumulative escape lineage, inherited control, or final exact-head attack matrix; every declared surface has a passed discriminant control.",
+      "control_ids": [
+        "NEG-REQ-024-01",
+        "NEG-REQ-039-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for idempotency:duplicate-processing remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-REQ-024-01",
+            "NEG-REQ-039-01"
+          ]
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "rollback",
+      "applicable": true,
+      "reason": "Required by the canonical specification, active cumulative escape lineage, inherited control, or final exact-head attack matrix; every declared surface has a passed discriminant control.",
+      "control_ids": [
+        "NEG-REQ-001-01",
+        "NEG-REQ-003-01",
+        "NEG-REQ-004-01",
+        "NEG-REQ-006-01",
+        "NEG-REQ-008-01",
+        "NEG-REQ-009-01",
+        "NEG-REQ-010-01",
+        "NEG-REQ-012-01",
+        "NEG-REQ-020-01",
+        "NEG-REQ-021-01",
+        "NEG-REQ-029-01",
+        "NEG-REQ-033-01",
+        "NEG-REQ-038-ROLLBACK-PB-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "atomic-public-create",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for rollback:atomic-public-create remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-REQ-038-ROLLBACK-PB-01"
+          ]
+        },
+        {
+          "surface": "atomic-rollback",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for rollback:atomic-rollback remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-REQ-001-01",
+            "NEG-REQ-003-01",
+            "NEG-REQ-004-01",
+            "NEG-REQ-006-01",
+            "NEG-REQ-008-01",
+            "NEG-REQ-009-01",
+            "NEG-REQ-010-01",
+            "NEG-REQ-012-01",
+            "NEG-REQ-020-01",
+            "NEG-REQ-021-01",
+            "NEG-REQ-029-01",
+            "NEG-REQ-033-01"
+          ]
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No Issue 425 requirement or inherited escape changes an immutable historical record or requires historical-immutability semantics.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Required by the canonical specification, active cumulative escape lineage, inherited control, or final exact-head attack matrix; every declared surface has a passed discriminant control.",
+      "control_ids": [
+        "NEG-005-01",
+        "NEG-005-02",
+        "NEG-015-01",
+        "NEG-032-01",
+        "NEG-032-02",
+        "NEG-045-01",
+        "NEG-REQ-004-02",
+        "NEG-REQ-018-01",
+        "NEG-REQ-037-01",
+        "NEG-REQ-043-HIST-CANON-01",
+        "NEG-REQ-043-HIST-DATE-SHARED-01",
+        "NEG-REQ-043-HIST-HANDOFF-01",
+        "NEG-REQ-043-HIST-PARENT-01",
+        "NEG-REQ-043-HIST-SPEC-MATRIX-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-source-consistency",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for structural-contract:canonical-source-consistency remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-005-01",
+            "NEG-032-01",
+            "NEG-REQ-004-02",
+            "NEG-REQ-018-01",
+            "NEG-REQ-037-01",
+            "NEG-REQ-043-HIST-CANON-01"
+          ]
+        },
+        {
+          "surface": "git-parent",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for structural-contract:git-parent remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-REQ-043-HIST-PARENT-01"
+          ]
+        },
+        {
+          "surface": "relational-semantic-integrity",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for structural-contract:relational-semantic-integrity remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-005-02",
+            "NEG-015-01",
+            "NEG-032-02"
+          ]
+        },
+        {
+          "surface": "shared-date-normalizer",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for structural-contract:shared-date-normalizer remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-REQ-043-HIST-DATE-SHARED-01"
+          ]
+        },
+        {
+          "surface": "specified-test-matrix",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for structural-contract:specified-test-matrix remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-REQ-043-HIST-SPEC-MATRIX-01"
+          ]
+        },
+        {
+          "surface": "structural-contract-shape",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for structural-contract:structural-contract-shape remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-045-01"
+          ]
+        },
+        {
+          "surface": "terminal-handoff",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for structural-contract:terminal-handoff remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-REQ-043-HIST-HANDOFF-01"
+          ]
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Required by the canonical specification, active cumulative escape lineage, inherited control, or final exact-head attack matrix; every declared surface has a passed discriminant control.",
+      "control_ids": [
+        "NEG-045-02",
+        "NEG-REQ-019-01",
+        "NEG-REQ-043-HIST-DOC-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for documentation:canonical-claims remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-REQ-019-01",
+            "NEG-REQ-043-HIST-DOC-01"
+          ]
+        },
+        {
+          "surface": "documentation-consistency",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls for documentation:documentation-consistency remain executable on material candidate eed10c8ac43146dca93ab72739a29c3c5924453c.",
+          "control_ids": [
+            "NEG-045-02"
+          ]
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}

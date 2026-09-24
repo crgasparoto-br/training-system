@@ -1,0 +1,169 @@
+## Objetivo
+
+Corrigir o salvamento da aba **Identificação** em `/alunos/:id/edit` para que o estado civil exibido em português seja convertido para o valor canônico de `MaritalStatus` antes de chegar ao Prisma, sem perder a compatibilidade de leitura de valores legados.
+
+## Contexto
+
+Em produção, ao salvar alterações cadastrais na aba **Identificação**, a API retornou **"Erro ao atualizar aluno"**.
+
+Os logs do serviço `sistema-acesso-api` mostram a causa exata:
+
+- `PrismaClientValidationError`;
+- falha em `prisma.profile.update()`;
+- `maritalStatus: "Casado(a)"`;
+- mensagem: `Invalid value for argument maritalStatus. Expected MaritalStatus.`;
+- stack passando por `upsertStudentIdentity` e `aluno.service.update`.
+
+A falha é diferente da issue #463. A #463 trata o lifecycle do vínculo financeiro já `active`; este defeito ocorre na fronteira de identidade e na projeção legada `Profile.maritalStatus`.
+
+## Estado atual observado no `develop`
+
+- `apps/web/src/utils/studentPersonalInfo.ts` usa os próprios rótulos localizados como `value` do select, por exemplo `"Casado(a)"`.
+- `normalizeMaritalStatus` atualmente apenas devolve o texto recebido.
+- `student-administrative-form-responses.service.ts` encaminha `maritalStatus` como texto para `upsertStudentIdentity`.
+- `student-identity.service.ts` define o contrato canônico como:
+  - `single`
+  - `married`
+  - `stable_union`
+  - `divorced`
+  - `separated`
+  - `widowed`
+  - `other`
+- `Profile.maritalStatus` é um enum Prisma `MaritalStatus` com esses mesmos valores canônicos.
+- Outros fluxos do sistema, como revisão cadastral e cadastro de colaboradores, já usam valor canônico + rótulo localizado.
+- `docs/architecture/student-lifecycle-data-ownership.md` determina que `StudentProfile.identificationData.maritalStatus` é a fonte canônica e que valores legados não reconhecidos devem permanecer visíveis até alteração explícita.
+
+## Fonte canônica
+
+- `docs/architecture/student-lifecycle-data-ownership.md`
+- `apps/api/src/modules/alunos/student-identity.service.ts`
+- `apps/api/prisma/schema.prisma`
+
+## Escopo
+
+- usar valores canônicos de `MaritalStatus` no fluxo administrativo de edição do aluno;
+- manter os rótulos em português na interface;
+- normalizar valores localizados conhecidos vindos de dados legados para o valor canônico correspondente;
+- garantir que `upsertStudentIdentity` e a projeção legada `Profile.maritalStatus` nunca recebam um rótulo localizado conhecido como se fosse valor do enum;
+- preservar valores legados realmente desconhecidos na leitura até alteração explícita pelo usuário;
+- garantir que salvar outro campo da Identificação não falhe apenas porque o aluno foi carregado com um estado civil legado;
+- manter a escrita de identidade na fronteira canônica existente, sem criar writer paralelo.
+
+## Fora de escopo
+
+- alterar os textos/rótulos de estado civil exibidos ao usuário;
+- fazer backfill em massa de registros antigos;
+- alterar o enum `MaritalStatus`;
+- alterar regras de contrato financeiro ou lifecycle da issue #463;
+- mascarar `PrismaClientValidationError` com `try/catch` ou cast inseguro.
+
+## Mapeamento canônico esperado
+
+| Rótulo exibido/legado conhecido | Valor canônico |
+| --- | --- |
+| Solteiro(a) | `single` |
+| Casado(a) | `married` |
+| União estável | `stable_union` |
+| Divorciado(a) | `divorced` |
+| Separado(a) | `separated` |
+| Viúvo(a) | `widowed` |
+
+O valor vazio continua representando **Não informado** e deve resultar em ausência/`null` conforme o contrato atual.
+
+## Invariantes
+
+- **must_be_single_source:** o vocabulário persistido de estado civil é o contrato canônico de `StudentIdentityData.maritalStatus`/`MaritalStatus`; rótulos da UI não são uma segunda enumeração persistível.
+- **must_reuse:** toda escrita continua passando por `upsertStudentIdentity`; não criar atualização direta de `Profile.maritalStatus` no formulário ou em outro serviço.
+- **must_behave:** opções conhecidas são exibidas em português, mas enviadas/persistidas com valor canônico.
+- **must_not_behave:** `"Casado(a)"`, `"Solteiro(a)"` ou outro rótulo conhecido não pode chegar diretamente ao campo Prisma `Profile.maritalStatus`.
+- **precedence_invariant:** valor canônico válido deve ser preservado; rótulo legado conhecido deve ser normalizado; valor legado desconhecido deve continuar visível sem ser silenciosamente convertido ou descartado até alteração explícita.
+- **forbidden_implementation:** não usar cast como `as MaritalStatus` para aceitar string arbitrária e não capturar/ignorar a validação do Prisma.
+
+Uma implementação errada plausível seria alterar apenas o tipo TypeScript ou suprimir o erro do Prisma. O controle discriminante é salvar um aluno carregado com `"Casado(a)"` e verificar que a persistência recebe `married`, além de manter um valor legado fora da lista intacto quando outro campo for salvo.
+
+## Cenários
+
+### 1. Valor localizado conhecido já carregado
+
+Dado um aluno cujo read model ainda exponha `"Casado(a)"`, ao alterar endereço ou outro campo da Identificação e salvar:
+
+- o request não falha;
+- o estado civil é normalizado para `married` antes da projeção Prisma;
+- as demais alterações são persistidas na mesma operação.
+
+### 2. Valor canônico já existente
+
+Dado `married`, `single` ou outro valor canônico:
+
+- a tela mostra o rótulo português correspondente;
+- o valor canônico não é degradado para texto localizado na persistência.
+
+### 3. Alteração explícita
+
+Ao escolher **União estável**, por exemplo:
+
+- a interface continua exibindo **União estável**;
+- o payload canônico usa `stable_union`;
+- `StudentProfile.identificationData.maritalStatus` e a projeção permitida permanecem consistentes.
+
+### 4. Valor legado desconhecido
+
+Dado um valor histórico fora do catálogo, por exemplo `"Viúvo"`:
+
+- ele continua visível conforme a compatibilidade já documentada;
+- salvar outro campo não deve transformar silenciosamente esse valor em outra opção;
+- ao usuário escolher explicitamente uma opção controlada, passa a valer o valor canônico escolhido.
+
+### 5. Não informado
+
+Ao selecionar **Não informado**:
+
+- a persistência não tenta gravar string vazia no enum Prisma;
+- o comportamento atual de campo ausente/`null` é preservado.
+
+## Critérios de aceite
+
+- [ ] A aba **Identificação** salva sem `PrismaClientValidationError` quando o estado civil exibido é **Casado(a)**.
+- [ ] Todas as opções controladas usam valores canônicos do enum e mantêm rótulos em português.
+- [ ] `"Casado(a)"` é normalizado para `married` e os demais rótulos conhecidos seguem o mapeamento desta issue.
+- [ ] `Profile.maritalStatus` recebe somente valor válido de `MaritalStatus` ou `null`.
+- [ ] `StudentProfile.identificationData.maritalStatus` permanece a fonte canônica.
+- [ ] Salvar endereço, contato de emergência ou outro campo não falha por causa de um valor localizado conhecido já carregado.
+- [ ] Valor canônico já armazenado continua sendo exibido com o rótulo português correto.
+- [ ] Valor legado realmente desconhecido permanece visível até alteração explícita e não é sobrescrito silenciosamente por uma edição não relacionada.
+- [ ] Selecionar **Não informado** não envia string vazia ao enum Prisma.
+- [ ] Não é criado writer paralelo para identidade nem tratamento genérico que esconda erros do Prisma.
+- [ ] Testes existentes continuam passando.
+
+## Considerações de testes
+
+Cobrir pelo menos:
+
+- utilitário de opções/normalização com cada par rótulo -> valor canônico;
+- `AlunoForm` carregando valor canônico e exibindo rótulo localizado;
+- regressão do cenário `"Casado(a)"` + alteração de outro campo + salvar;
+- preservação do teste de valor legado fora da lista em `AlunoForm.marital-status-legacy.test.tsx`;
+- `buildStudentAdministrativeIdentityPatch` ou fronteira equivalente garantindo valor canônico;
+- `upsertStudentIdentity` com `syncLegacyProfile: true` garantindo enum Prisma válido;
+- teste de integração da atualização administrativa do aluno.
+
+## Validação
+
+Executar as validações definidas pelo repositório para web/API, incluindo:
+
+- testes focados de `studentPersonalInfo`;
+- testes focados de `AlunoForm`;
+- testes focados de identidade/form responses;
+- `pnpm --filter @corrida/web type-check`;
+- `pnpm --filter @corrida/web lint`;
+- `pnpm --filter @corrida/api type-check`;
+- `pnpm --filter @corrida/api lint`;
+- gate final aplicável do repositório.
+
+## Impacto na documentação
+
+A regra durável já está centralizada em `docs/architecture/student-lifecycle-data-ownership.md`: estado civil canônico pertence a `StudentProfile.identificationData`, com `Profile.maritalStatus` apenas como projeção/compatibilidade. Atualizar o documento somente se a implementação precisar esclarecer explicitamente o mapeamento entre valor canônico e rótulo de interface; não criar uma segunda fonte de verdade.
+
+## Relação com outras issues
+
+- **#463:** relacionada ao mesmo botão de salvar, porém com causa independente (lifecycle financeiro de vínculo `active`). Esta issue deve ser tratada separadamente para não misturar as duas causas-raiz.

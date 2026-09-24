@@ -1,1 +1,1371 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"requirement-closure","compression":"gzip","encoded_size":9352,"encoded_sha256":"d6596bc9c07b22dcc66383541a639fb34182bb573e1bbfd103621ad09cc28c3d","decoded_size":39208,"decoded_sha256":"f36d5d50911cff9b44bb353b5203c2c4df6cec56e2978ac8862371a8d2440874","parts":[{"path":"requirement-closure.parts/part-000.b64","size":2048,"sha256":"4178c3ba43d69b0ebb63e79094efb1ccd565ed61a7fd02023dda2b8213e78e5d"},{"path":"requirement-closure.parts/part-001.b64","size":2048,"sha256":"b913e423bfc9e8da87e72acbfd0f7fb213ec8dd3626f78a8a1983a8489efa7fe"},{"path":"requirement-closure.parts/part-002.b64","size":2048,"sha256":"f2ba42635c01b95fe274ed6a164c2f22fd4e543560b020deb9eed7ddead20101"},{"path":"requirement-closure.parts/part-003.b64","size":2048,"sha256":"8c9726f3dbd4b6a21e7a9e77c66f62d5d7d4c35e65ada8b1edbef411648d176a"},{"path":"requirement-closure.parts/part-004.b64","size":1160,"sha256":"f779a3d95e8598c88a1ea8d09a5649701720873952efa7b1433fb9494e9cdd2c"}]}
+{
+  "schema_version": 3,
+  "specification_snapshot": {
+    "path": "specification-snapshot.json",
+    "sha256": "a55ad9ea8e72ab5053a9803ae00576c09590a7c38b41bb6f6fe184ef00c9dc4a"
+  },
+  "primary_issue_source_id": "SRC-ISSUE-467",
+  "obligations": [
+    {
+      "id": "OBL-001",
+      "candidate_key": "917dd29920c0234e3e2f8a37a6a2f67887b476c8b678dfb304ff6cfdcd553ced",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 3,
+      "source_text": "Corrigir o salvamento da aba **Identificação** em `/alunos/:id/edit` para que o estado civil exibido em português seja convertido para o valor canônico de `MaritalStatus` antes de chegar ao Prisma, sem perder a compatibilidade de leitura de valores legados.",
+      "flags": [
+        "negative",
+        "temporal",
+        "atomicity",
+        "aftermath",
+        "review-surface",
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-001"
+      ],
+      "inventory_ids": [
+        "INV-001"
+      ],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-002",
+      "candidate_key": "b851b055623d7ef379f3e2a0fb409d984b0238c02cbd20f67fd2d69c318905c1",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 21,
+      "source_text": "`apps/web/src/utils/studentPersonalInfo.ts` usa os próprios rótulos localizados como `value` do select, por exemplo `\"Casado(a)\"`.",
+      "flags": [
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-002"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-003",
+      "candidate_key": "c6f63b8be7866c5d78024e5846316b1a9d02b8d6924e9f897476ce3676727549",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 22,
+      "source_text": "`normalizeMaritalStatus` atualmente apenas devolve o texto recebido.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-003"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-004",
+      "candidate_key": "79bd71d05ef298fb447c4d4ca105d894439b6c3e7794aff58c2dd74c2149d680",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 33,
+      "source_text": "Outros fluxos do sistema, como revisão cadastral e cadastro de colaboradores, já usam valor canônico + rótulo localizado.",
+      "flags": [
+        "atomicity",
+        "aftermath",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-004"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-005",
+      "candidate_key": "275560f6b0ddc2947e0a7f8353c2d487733f695f7a3a0319281a7927a808fa3a",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 34,
+      "source_text": "`docs/architecture/student-lifecycle-data-ownership.md` determina que `StudentProfile.identificationData.maritalStatus` é a fonte canônica e que valores legados não reconhecidos devem permanecer visíveis até alteração explícita.",
+      "flags": [
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-005"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-006",
+      "candidate_key": "10851f583cb1ed3f3f48df2b01f764dd5722e2ab496bdfc8680171049b651704",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 44,
+      "source_text": "usar valores canônicos de `MaritalStatus` no fluxo administrativo de edição do aluno;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-006"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-007",
+      "candidate_key": "e0e4d121e00949f8c84b7e291f1f90e370805048151a738115ecb4b5ff58edc2",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 45,
+      "source_text": "manter os rótulos em português na interface;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-007"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-008",
+      "candidate_key": "171324dd8802c02aa0f9ca174eebb0629b43cc83968dd148665bb440fb1ac04c",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 46,
+      "source_text": "normalizar valores localizados conhecidos vindos de dados legados para o valor canônico correspondente;",
+      "flags": [
+        "atomicity",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-008"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-009",
+      "candidate_key": "c6a4696157affb4a9fa9b6dda0b6d197eaed1703b686699c9742638e7c366d17",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 47,
+      "source_text": "garantir que `upsertStudentIdentity` e a projeção legada `Profile.maritalStatus` nunca recebam um rótulo localizado conhecido como se fosse valor do enum;",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-009"
+      ],
+      "inventory_ids": [
+        "INV-001"
+      ],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-010",
+      "candidate_key": "d67febfb74c9bbccdcf557e4b9f5acdea5d6c41792d241fbe52510f43f3fc9f8",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 48,
+      "source_text": "preservar valores legados realmente desconhecidos na leitura até alteração explícita pelo usuário;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-010"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-011",
+      "candidate_key": "ee76a951d9b3b7cc563cad9b1e7f40993f9e2f4dc4a4c0aa095ea02af48c2fc3",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 49,
+      "source_text": "garantir que salvar outro campo da Identificação não falhe apenas porque o aluno foi carregado com um estado civil legado;",
+      "flags": [
+        "negative",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-011"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-012",
+      "candidate_key": "a7121047ba0cd4743c952fbfac7be025accb05e30f19b7435d7b7681f7c750b9",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 50,
+      "source_text": "manter a escrita de identidade na fronteira canônica existente, sem criar writer paralelo.",
+      "flags": [
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-012"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-013",
+      "candidate_key": "ab802abb8eef49ce64d5af7dcc77dcbb5a1ff7f0f7ab030422c6233ffce132bc",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 62,
+      "source_text": "Rótulo exibido/legado conhecido | Valor canônico",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-013"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-014",
+      "candidate_key": "7e9fa5034c5d600b43438cc8c103a900ce097fe62d3912757cd7d33dce819fa3",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 71,
+      "source_text": "O valor vazio continua representando **Não informado** e deve resultar em ausência/`null` conforme o contrato atual.",
+      "flags": [
+        "negative",
+        "freshness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-014"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-015",
+      "candidate_key": "6e364d3d811d3933a950ec7003c7fde617ead4130d7d0517605de065330aeb73",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 75,
+      "source_text": "**must_be_single_source:** o vocabulário persistido de estado civil é o contrato canônico de `StudentIdentityData.maritalStatus`/`MaritalStatus`; rótulos da UI não são uma segunda enumeração persistível.",
+      "flags": [
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-015"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-016",
+      "candidate_key": "e39e077185a21c2b62245d1ce9765a0e42352cf1c19536c545856ba4c922074c",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 76,
+      "source_text": "**must_reuse:** toda escrita continua passando por `upsertStudentIdentity`; não criar atualização direta de `Profile.maritalStatus` no formulário ou em outro serviço.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-016"
+      ],
+      "inventory_ids": [
+        "INV-001"
+      ],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-017",
+      "candidate_key": "079ab20fc4a287770dc15807e95df046487f17b35970ed53c8e2b9cb5cfb5482",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 77,
+      "source_text": "**must_behave:** opções conhecidas são exibidas em português, mas enviadas/persistidas com valor canônico.",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-017"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-018",
+      "candidate_key": "cf9ebf0c0f585af5bb913c372000d939e55122fd30de1b531d13984d3708fe6a",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 78,
+      "source_text": "**must_not_behave:** `\"Casado(a)\"`, `\"Solteiro(a)\"` ou outro rótulo conhecido não pode chegar diretamente ao campo Prisma `Profile.maritalStatus`.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-018"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-019",
+      "candidate_key": "58b255a3bbbea4b6e9d084ed89183434ffcdbfd68d5be32442582a3b6676f544",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 79,
+      "source_text": "**precedence_invariant:** valor canônico válido deve ser preservado; rótulo legado conhecido deve ser normalizado; valor legado desconhecido deve continuar visível sem ser silenciosamente convertido ou descartado até alteração explícita.",
+      "flags": [
+        "observable",
+        "negative",
+        "atomicity",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-019"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [
+        "OBS-019"
+      ],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-020",
+      "candidate_key": "55514964dcae7ca5e36e61d9c3aef42b18b8e6cd882941e1eec5f3859cb6c24a",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 80,
+      "source_text": "**forbidden_implementation:** não usar cast como `as MaritalStatus` para aceitar string arbitrária e não capturar/ignorar a validação do Prisma.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-020"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-021",
+      "candidate_key": "c5b114c7e43a950624e73ca941594891be1434b938ccfb50d6068841d453c451",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 82,
+      "source_text": "Uma implementação errada plausível seria alterar apenas o tipo TypeScript ou suprimir o erro do Prisma. O controle discriminante é salvar um aluno carregado com `\"Casado(a)\"` e verificar que a persistência recebe `married`, além de manter um valor legado fora da lista intacto quando outro campo for salvo.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-021"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-022",
+      "candidate_key": "fc9f1815e0e845e789afef36c29deb3b5c0c11bbdac9911dea90060b8604451e",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 105,
+      "source_text": "a interface continua exibindo **União estável**;",
+      "flags": [
+        "observable"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-022"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [
+        "OBS-022"
+      ],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-023",
+      "candidate_key": "ced15db6581918a36396fa01d768702b0c62bf738eac9d549de56ba78adb46cd",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 106,
+      "source_text": "o payload canônico usa `stable_union`;",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-023"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-024",
+      "candidate_key": "db72ad19d3380397045198a4290dec8ee6f9ee628355406945d0badc41658c4f",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 107,
+      "source_text": "`StudentProfile.identificationData.maritalStatus` e a projeção permitida permanecem consistentes.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-024"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-025",
+      "candidate_key": "249b24ee8bec45067fc57bf668cc857f41b4b371f1f675a4f1f8662275516020",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 114,
+      "source_text": "salvar outro campo não deve transformar silenciosamente esse valor em outra opção;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-025"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-026",
+      "candidate_key": "02fd6aa9e2ee8a9c1d88db3e155f19a9271331bd83dc60c907d96528160750fc",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 115,
+      "source_text": "ao usuário escolher explicitamente uma opção controlada, passa a valer o valor canônico escolhido.",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-026"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-027",
+      "candidate_key": "f8f6dd286b4fad26a49596978946545765d905d1e542984a32e5a3a73334cc18",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 122,
+      "source_text": "o comportamento atual de campo ausente/`null` é preservado.",
+      "flags": [
+        "freshness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-027"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-028",
+      "candidate_key": "68f605b416634fadb87f2c7cee7031b2bd39c2ba259abbce03d94aa419e9d031",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 126,
+      "source_text": "[ ] A aba **Identificação** salva sem `PrismaClientValidationError` quando o estado civil exibido é **Casado(a)**.",
+      "flags": [
+        "negative",
+        "review-surface",
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-028"
+      ],
+      "inventory_ids": [
+        "INV-001"
+      ],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-029",
+      "candidate_key": "939af83431c8d9aa737ea53bceb18957bcdcc17a037995728e0bcff2d9b9f2b6",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 127,
+      "source_text": "[ ] Todas as opções controladas usam valores canônicos do enum e mantêm rótulos em português.",
+      "flags": [
+        "exhaustive"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-029"
+      ],
+      "inventory_ids": [
+        "INV-001"
+      ],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-030",
+      "candidate_key": "fd1eb4a1fa4c3ee0b7567a887e8132972490e1b8f5b8bb810bb4bddd26cc7aeb",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 128,
+      "source_text": "[ ] `\"Casado(a)\"` é normalizado para `married` e os demais rótulos conhecidos seguem o mapeamento desta issue.",
+      "flags": [
+        "exhaustive"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-030"
+      ],
+      "inventory_ids": [
+        "INV-001"
+      ],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-031",
+      "candidate_key": "a187444405a221f523909fd7d4986ad707fbe7f7cec29f2862e6930d84991f06",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 129,
+      "source_text": "[ ] `Profile.maritalStatus` recebe somente valor válido de `MaritalStatus` ou `null`.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-031"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-032",
+      "candidate_key": "b9ea9bf448ddcb14aa36b905da3402706931ed8300deab2909f43e62d3543068",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 130,
+      "source_text": "[ ] `StudentProfile.identificationData.maritalStatus` permanece a fonte canônica.",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-032"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-033",
+      "candidate_key": "343102536611520a2c4ea05f9e811aa01d9cffefe6ad8360cd04829c874a9c7b",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 131,
+      "source_text": "[ ] Salvar endereço, contato de emergência ou outro campo não falha por causa de um valor localizado conhecido já carregado.",
+      "flags": [
+        "negative",
+        "aftermath",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-033"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-034",
+      "candidate_key": "a2e22bfcec081bb904987bea135743651b8d8093d3d8800b7ca52339b0a204c5",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 132,
+      "source_text": "[ ] Valor canônico já armazenado continua sendo exibido com o rótulo português correto.",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-034"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-035",
+      "candidate_key": "bf4ce572b1b4eacc48ab34b625a495f70cb8796f4da79d758731d38c069c7199",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 133,
+      "source_text": "[ ] Valor legado realmente desconhecido permanece visível até alteração explícita e não é sobrescrito silenciosamente por uma edição não relacionada.",
+      "flags": [
+        "observable",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-035"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [
+        "OBS-035"
+      ],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-036",
+      "candidate_key": "118166d388e47329ff36a704ebf7759d5149a0a90ccda7bab8412f71fea91e79",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 134,
+      "source_text": "[ ] Selecionar **Não informado** não envia string vazia ao enum Prisma.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-036"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-037",
+      "candidate_key": "e2fc94a2950536b5d5589e2c9981ce25307e2d87d9a9e46184f8f84f6ec68c3d",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 135,
+      "source_text": "[ ] Não é criado writer paralelo para identidade nem tratamento genérico que esconda erros do Prisma.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-037"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-038",
+      "candidate_key": "f00b138d82e69d923f7271a27992f35eb4b7c050ef5fe810a0e73797fca9784e",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 136,
+      "source_text": "[ ] Testes existentes continuam passando.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-038"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-039",
+      "candidate_key": "0f21cf47226adb2e111500dca0284863726a88859b3031911744ddc3335daf23",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 143,
+      "source_text": "`AlunoForm` carregando valor canônico e exibindo rótulo localizado;",
+      "flags": [
+        "atomicity",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-039"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-040",
+      "candidate_key": "59d6c0717210373dd8e3d1bf1d132ed5fe01679e2b9a49e9be29534e22f06340",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 145,
+      "source_text": "preservação do teste de valor legado fora da lista em `AlunoForm.marital-status-legacy.test.tsx`;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-040"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-041",
+      "candidate_key": "35f52202cc7b585b2c65818e4524f79ab14c890105bc3ae1542b0d14d912c4c5",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 146,
+      "source_text": "`buildStudentAdministrativeIdentityPatch` ou fronteira equivalente garantindo valor canônico;",
+      "flags": [
+        "exhaustive",
+        "atomicity",
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-041"
+      ],
+      "inventory_ids": [
+        "INV-001"
+      ],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-042",
+      "candidate_key": "1e6839fc5fbfd278aed527d518260a3afa94f8aa7f2e5d1bbb16cf70b95c1258",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 147,
+      "source_text": "`upsertStudentIdentity` com `syncLegacyProfile: true` garantindo enum Prisma válido;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-042"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-043",
+      "candidate_key": "b58254079628aff9d719beedf4d6c0a2345c379ed174a9dbce6a3f48a39d3125",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 152,
+      "source_text": "Executar as validações definidas pelo repositório para web/API, incluindo:",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-043"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-044",
+      "candidate_key": "7e3b96bf8b338854e7071066fb5db34780bfe1d4312dde76ba96c61db97b8bb3",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 161,
+      "source_text": "gate final aplicável do repositório.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-044"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-045",
+      "candidate_key": "36879af90f02f85ec1a9950d4eadd80a140ca8c72ec3529e02d01c5a7cec6b11",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 165,
+      "source_text": "A regra durável já está centralizada em `docs/architecture/student-lifecycle-data-ownership.md`: estado civil canônico pertence a `StudentProfile.identificationData`, com `Profile.maritalStatus` apenas como projeção/compatibilidade. Atualizar o documento somente se a implementação precisar esclarecer explicitamente o mapeamento entre valor canônico e rótulo de interface; não criar uma segunda fonte de verdade.",
+      "flags": [
+        "negative",
+        "atomicity",
+        "forbidden-implementation"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-045"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    },
+    {
+      "id": "OBL-046",
+      "candidate_key": "b9cdb86071d5774259ca5e91e7cb6948301f3dbd50edf716f880ae8028ccfde5",
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "source_line": 169,
+      "source_text": "**#463:** relacionada ao mesmo botão de salvar, porém com causa independente (lifecycle financeiro de vínculo `active`). Esta issue deve ser tratada separadamente para não misturar as duas causas-raiz.",
+      "flags": [
+        "negative",
+        "isolation"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-046"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation and discriminant controls recorded in the delivery package."
+    }
+  ],
+  "source_coverage": [
+    {
+      "source_id": "SRC-ISSUE-467",
+      "source_sha256": "d969781a592bdcf01eaabaab4023c24744251b7e867bd8b89246bbb109ce42ad",
+      "candidate_count": 46,
+      "obligation_ids": [
+        "OBL-001",
+        "OBL-002",
+        "OBL-003",
+        "OBL-004",
+        "OBL-005",
+        "OBL-006",
+        "OBL-007",
+        "OBL-008",
+        "OBL-009",
+        "OBL-010",
+        "OBL-011",
+        "OBL-012",
+        "OBL-013",
+        "OBL-014",
+        "OBL-015",
+        "OBL-016",
+        "OBL-017",
+        "OBL-018",
+        "OBL-019",
+        "OBL-020",
+        "OBL-021",
+        "OBL-022",
+        "OBL-023",
+        "OBL-024",
+        "OBL-025",
+        "OBL-026",
+        "OBL-027",
+        "OBL-028",
+        "OBL-029",
+        "OBL-030",
+        "OBL-031",
+        "OBL-032",
+        "OBL-033",
+        "OBL-034",
+        "OBL-035",
+        "OBL-036",
+        "OBL-037",
+        "OBL-038",
+        "OBL-039",
+        "OBL-040",
+        "OBL-041",
+        "OBL-042",
+        "OBL-043",
+        "OBL-044",
+        "OBL-045",
+        "OBL-046"
+      ],
+      "unmapped_candidate_keys": []
+    }
+  ],
+  "domain_inventories": [
+    {
+      "id": "INV-001",
+      "name": "MaritalStatus canonical values",
+      "closed_world": true,
+      "producer_sources": [
+        "packages/types/student-lifecycle.ts",
+        "apps/api/prisma/schema.prisma"
+      ],
+      "consumer_sources": [
+        "apps/web/src/utils/studentPersonalInfo.ts",
+        "apps/web/src/pages/StudentProfileReview.tsx"
+      ],
+      "values": [
+        {
+          "value": "single",
+          "producer_evidence": [
+            "EV-CATALOG"
+          ],
+          "consumer_evidence": [
+            "EV-CATALOG"
+          ],
+          "scenario_ids": [
+            "SC-001"
+          ]
+        },
+        {
+          "value": "married",
+          "producer_evidence": [
+            "EV-CATALOG"
+          ],
+          "consumer_evidence": [
+            "EV-CATALOG"
+          ],
+          "scenario_ids": [
+            "SC-001"
+          ]
+        },
+        {
+          "value": "stable_union",
+          "producer_evidence": [
+            "EV-CATALOG"
+          ],
+          "consumer_evidence": [
+            "EV-CATALOG"
+          ],
+          "scenario_ids": [
+            "SC-001"
+          ]
+        },
+        {
+          "value": "divorced",
+          "producer_evidence": [
+            "EV-CATALOG"
+          ],
+          "consumer_evidence": [
+            "EV-CATALOG"
+          ],
+          "scenario_ids": [
+            "SC-001"
+          ]
+        },
+        {
+          "value": "separated",
+          "producer_evidence": [
+            "EV-CATALOG"
+          ],
+          "consumer_evidence": [
+            "EV-CATALOG"
+          ],
+          "scenario_ids": [
+            "SC-001"
+          ]
+        },
+        {
+          "value": "widowed",
+          "producer_evidence": [
+            "EV-CATALOG"
+          ],
+          "consumer_evidence": [
+            "EV-CATALOG"
+          ],
+          "scenario_ids": [
+            "SC-001"
+          ]
+        },
+        {
+          "value": "other",
+          "producer_evidence": [
+            "EV-CATALOG"
+          ],
+          "consumer_evidence": [
+            "EV-CATALOG"
+          ],
+          "scenario_ids": [
+            "SC-001"
+          ]
+        }
+      ],
+      "unmapped_values": [],
+      "fallback_policy": "unknown-only",
+      "rationale": "The persisted vocabulary is closed to the Prisma MaritalStatus enum while unknown legacy reads remain visible."
+    }
+  ],
+  "observable_assertions": [
+    {
+      "id": "OBS-019",
+      "description": "The observable behavior for REQ-019 remains explicit and discriminant.",
+      "requirement_ids": [
+        "REQ-019"
+      ],
+      "obligation_ids": [
+        "OBL-019"
+      ],
+      "evidence_ids": [
+        "EV-BEHAVIOR"
+      ],
+      "scenario_ids": [
+        "SC-001"
+      ],
+      "negative_control_evidence": [
+        "NEG-019-01"
+      ]
+    },
+    {
+      "id": "OBS-022",
+      "description": "The observable behavior for REQ-022 remains explicit and discriminant.",
+      "requirement_ids": [
+        "REQ-022"
+      ],
+      "obligation_ids": [
+        "OBL-022"
+      ],
+      "evidence_ids": [
+        "EV-BEHAVIOR"
+      ],
+      "scenario_ids": [
+        "SC-001"
+      ],
+      "negative_control_evidence": [
+        "NEG-022-01"
+      ]
+    },
+    {
+      "id": "OBS-035",
+      "description": "The observable behavior for REQ-035 remains explicit and discriminant.",
+      "requirement_ids": [
+        "REQ-035"
+      ],
+      "obligation_ids": [
+        "OBL-035"
+      ],
+      "evidence_ids": [
+        "EV-BEHAVIOR"
+      ],
+      "scenario_ids": [
+        "SC-001"
+      ],
+      "negative_control_evidence": [
+        "NEG-035-01"
+      ]
+    }
+  ],
+  "read_model_closures": {
+    "status": "passed",
+    "applicability_reason": "The issue explicitly preserves historical/legacy read values and their visible review projection.",
+    "entries": [
+      {
+        "id": "RMC-001",
+        "contract_kind": "read-model",
+        "requirement_ids": [
+          "REQ-001"
+        ],
+        "required_fields": [
+          "identificationData.maritalStatus",
+          "Profile.maritalStatus"
+        ],
+        "producer_evidence": [
+          "EV-READ"
+        ],
+        "public_projection_evidence": [
+          "EV-READ"
+        ],
+        "consumer_evidence": [
+          "EV-READ"
+        ],
+        "visible_surface_evidence": [
+          "EV-READ"
+        ],
+        "scenario_ids": [
+          "SC-001"
+        ],
+        "negative_control_evidence": [
+          "NEG-001-01"
+        ]
+      }
+    ],
+    "unconsumed_outputs": [],
+    "unmapped_required_fields": []
+  },
+  "canonical_source_consistency": {
+    "status": "passed",
+    "applicability_reason": "The issue explicitly requires a single canonical StudentProfile identity vocabulary and writer.",
+    "entries": [
+      {
+        "id": "CSC-001",
+        "semantic_field": "maritalStatus",
+        "canonical_source": "StudentProfile.identificationData.maritalStatus",
+        "alternative_sources": [
+          "Profile.maritalStatus projection",
+          "UI localized labels"
+        ],
+        "surfaces": [
+          "AlunoForm",
+          "StudentProfileReview",
+          "CollaboratorForm",
+          "API identity writer"
+        ],
+        "evidence_ids": [
+          "EV-CATALOG"
+        ],
+        "scenario_ids": [
+          "SC-001"
+        ],
+        "negative_control_evidence": [
+          "NEG-005-01"
+        ],
+        "divergent_fixture": {
+          "canonical_value": "married",
+          "alternative_values": [
+            "Casado(a)",
+            "Viúvo"
+          ]
+        }
+      }
+    ],
+    "unverified_surfaces": [],
+    "missing_divergent_tests": []
+  },
+  "documentation_consistency": {
+    "status": "passed",
+    "applicability_reason": "The issue names an existing architecture document as the durable ownership contract.",
+    "old_contract_terms": [
+      "legacy marital projection contract"
+    ],
+    "new_contract_terms": [
+      "canonical StudentProfile marital-status contract"
+    ],
+    "occurrences": [],
+    "unresolved_contradictions": [],
+    "searched_outside_diff": true,
+    "search_evidence": [
+      "Repository architecture ownership document and all direct consumers were inspected on the exact candidate."
+    ]
+  },
+  "structural_invariant_closures": {
+    "status": "passed",
+    "applicability_reason": "The issue explicitly requires single-source, canonical-path, and forbidden-implementation invariants.",
+    "entries": [
+      {
+        "id": "SIC-001",
+        "kind": "forbidden-implementation",
+        "requirement_ids": [
+          "REQ-045"
+        ],
+        "obligation_ids": [
+          "OBL-045"
+        ],
+        "plausible_wrong_implementation": "Keep a second UI or persistence vocabulary and rely on a cast instead of the canonical writer.",
+        "canonical_path": null,
+        "competing_paths": [
+          "StudentProfileReview local list",
+          "Profile.maritalStatus direct update"
+        ],
+        "evidence_ids": [
+          "EV-STRUCTURAL"
+        ],
+        "scenario_ids": [
+          "SC-001"
+        ],
+        "negative_control_evidence": [
+          "NEG-045-01"
+        ]
+      }
+    ],
+    "unresolved_invariants": []
+  },
+  "scope_reduction_review": {
+    "status": "passed",
+    "matches": []
+  },
+  "pass_c": {
+    "status": "passed",
+    "requirement_ids": [
+      "REQ-001",
+      "REQ-002",
+      "REQ-003",
+      "REQ-004",
+      "REQ-005",
+      "REQ-006",
+      "REQ-007",
+      "REQ-008",
+      "REQ-009",
+      "REQ-010",
+      "REQ-011",
+      "REQ-012",
+      "REQ-013",
+      "REQ-014",
+      "REQ-015",
+      "REQ-016",
+      "REQ-017",
+      "REQ-018",
+      "REQ-019",
+      "REQ-020",
+      "REQ-021",
+      "REQ-022",
+      "REQ-023",
+      "REQ-024",
+      "REQ-025",
+      "REQ-026",
+      "REQ-027",
+      "REQ-028",
+      "REQ-029",
+      "REQ-030",
+      "REQ-031",
+      "REQ-032",
+      "REQ-033",
+      "REQ-034",
+      "REQ-035",
+      "REQ-036",
+      "REQ-037",
+      "REQ-038",
+      "REQ-039",
+      "REQ-040",
+      "REQ-041",
+      "REQ-042",
+      "REQ-043",
+      "REQ-044",
+      "REQ-045",
+      "REQ-046"
+    ],
+    "obligation_ids": [
+      "OBL-001",
+      "OBL-002",
+      "OBL-003",
+      "OBL-004",
+      "OBL-005",
+      "OBL-006",
+      "OBL-007",
+      "OBL-008",
+      "OBL-009",
+      "OBL-010",
+      "OBL-011",
+      "OBL-012",
+      "OBL-013",
+      "OBL-014",
+      "OBL-015",
+      "OBL-016",
+      "OBL-017",
+      "OBL-018",
+      "OBL-019",
+      "OBL-020",
+      "OBL-021",
+      "OBL-022",
+      "OBL-023",
+      "OBL-024",
+      "OBL-025",
+      "OBL-026",
+      "OBL-027",
+      "OBL-028",
+      "OBL-029",
+      "OBL-030",
+      "OBL-031",
+      "OBL-032",
+      "OBL-033",
+      "OBL-034",
+      "OBL-035",
+      "OBL-036",
+      "OBL-037",
+      "OBL-038",
+      "OBL-039",
+      "OBL-040",
+      "OBL-041",
+      "OBL-042",
+      "OBL-043",
+      "OBL-044",
+      "OBL-045",
+      "OBL-046"
+    ],
+    "evidence": [
+      "EV-CATALOG",
+      "EV-BEHAVIOR",
+      "EV-STRUCTURAL"
+    ],
+    "rederived_without_pr_description": true,
+    "reviewed_user_visible_semantics": true,
+    "reviewed_producer_consumer_parity": true,
+    "reviewed_all_specification_sources": true
+  }
+}

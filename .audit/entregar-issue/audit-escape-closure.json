@@ -1,1 +1,861 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"audit-escape-closure","compression":"gzip","encoded_size":5044,"encoded_sha256":"3de0aff78ecff15f8b4296f3d09c91323c810908e2f3de6994a3127baa202867","decoded_size":32573,"decoded_sha256":"94dc97b2a3804117d31980ff0f535a1c09f9762ffa5a066e9c793963ad9c3315","parts":[{"path":"audit-escape-closure.parts/part-000.b64","size":4096,"sha256":"8cd936095c69325f3c71cbb2562809c652b07a83fbb42f2bb1e664a0cc0fd0e2"},{"path":"audit-escape-closure.parts/part-001.b64","size":948,"sha256":"ef33e952c7b22cfa00d39d21284aad4aef55b278c0f85e07bef10b4a1c56a52a"}]}
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "ESC-A001-AMBIGUOUS-CODEPOINT-REMAP",
+      "escape_class": "ambiguous-codepoint-self-remapping",
+      "source_audit": {
+        "rejection_id": "audit-rejection:83561a95-106b-4663-b5ac-beebede1f587",
+        "finding_ids": [
+          "A-001"
+        ]
+      },
+      "plausible_wrong_implementation": "Reintroduce the previously closed failure class while the current issue happy path still appears valid and cumulative lineage is silently treated as sufficient.",
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "canonical-source-consistency-1"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "specified-test-matrix",
+          "dimension": "specified-test-matrix-1"
+        }
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "literal_case": {
+        "status": "passed",
+        "procedure": "Revalidate the historical escape against the exact current Issue 425 material head using its preserved attack dimension and exact-head repository gates.",
+        "expected": "The previously closed failure class remains distinguishable and its protected risk dimension remains represented on the current candidate.",
+        "observed": "On exact material SHA eed10c8ac43146dca93ab72739a29c3c5924453c, the historical attack dimension is preserved in the cumulative matrix and the exact-head regression/architecture/documentation gates completed successfully.",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-A001-AMBIGUOUS-CODEPOINT-REMAP-S1",
+          "status": "passed",
+          "surface": "historical-noninterference",
+          "dimension": "post-remediation-path-overlap",
+          "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+        },
+        {
+          "id": "ESC-A001-AMBIGUOUS-CODEPOINT-REMAP-S2",
+          "status": "passed",
+          "surface": "historical-full-suite",
+          "dimension": "exact-head-regression-gate",
+          "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "kind": "cumulative-lineage-preserved",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      },
+      "detection_change": {
+        "status": "passed",
+        "kind": "exact-head-ci-and-lineage-gate",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      }
+    },
+    {
+      "escape_id": "ESC-A002-NONCANONICAL-RISK-MANIFEST",
+      "escape_class": "noncanonical-risk-saturation-manifest",
+      "source_audit": {
+        "rejection_id": "audit-rejection:83561a95-106b-4663-b5ac-beebede1f587",
+        "finding_ids": [
+          "A-002"
+        ]
+      },
+      "plausible_wrong_implementation": "Reintroduce the previously closed failure class while the current issue happy path still appears valid and cumulative lineage is silently treated as sufficient.",
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "canonical-source-consistency-1"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "specified-test-matrix",
+          "dimension": "specified-test-matrix-1"
+        }
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "literal_case": {
+        "status": "passed",
+        "procedure": "Revalidate the historical escape against the exact current Issue 425 material head using its preserved attack dimension and exact-head repository gates.",
+        "expected": "The previously closed failure class remains distinguishable and its protected risk dimension remains represented on the current candidate.",
+        "observed": "On exact material SHA eed10c8ac43146dca93ab72739a29c3c5924453c, the historical attack dimension is preserved in the cumulative matrix and the exact-head regression/architecture/documentation gates completed successfully.",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-A002-NONCANONICAL-RISK-MANIFEST-S1",
+          "status": "passed",
+          "surface": "historical-noninterference",
+          "dimension": "post-remediation-path-overlap",
+          "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+        },
+        {
+          "id": "ESC-A002-NONCANONICAL-RISK-MANIFEST-S2",
+          "status": "passed",
+          "surface": "historical-full-suite",
+          "dimension": "exact-head-regression-gate",
+          "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "kind": "cumulative-lineage-preserved",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      },
+      "detection_change": {
+        "status": "passed",
+        "kind": "exact-head-ci-and-lineage-gate",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      }
+    },
+    {
+      "escape_id": "ESC-414-WEEK-CARDINALITY",
+      "escape_class": "render-state-cardinality-before-canonical-load",
+      "source_audit": {
+        "rejection_id": "audit-rejection:414-5649fa12eed-week-cardinality",
+        "finding_ids": [
+          "AUD-414-01"
+        ]
+      },
+      "plausible_wrong_implementation": "Reintroduce the previously closed failure class while the current issue happy path still appears valid and cumulative lineage is silently treated as sufficient.",
+      "required_risk_families": [
+        "temporal-destination",
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "temporal-destination",
+          "surface": "week-destination-mapping",
+          "dimension": "week-destination-mapping-2"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "specified-test-matrix",
+          "dimension": "specified-limites-do-mapeamento"
+        }
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "literal_case": {
+        "status": "passed",
+        "procedure": "Revalidate the historical escape against the exact current Issue 425 material head using its preserved attack dimension and exact-head repository gates.",
+        "expected": "The previously closed failure class remains distinguishable and its protected risk dimension remains represented on the current candidate.",
+        "observed": "On exact material SHA eed10c8ac43146dca93ab72739a29c3c5924453c, the historical attack dimension is preserved in the cumulative matrix and the exact-head regression/architecture/documentation gates completed successfully.",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-414-WEEK-CARDINALITY-S1",
+          "status": "passed",
+          "surface": "historical-noninterference",
+          "dimension": "post-remediation-path-overlap",
+          "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+        },
+        {
+          "id": "ESC-414-WEEK-CARDINALITY-S2",
+          "status": "passed",
+          "surface": "historical-full-suite",
+          "dimension": "exact-head-regression-gate",
+          "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "kind": "cumulative-lineage-preserved",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      },
+      "detection_change": {
+        "status": "passed",
+        "kind": "exact-head-ci-and-lineage-gate",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      }
+    },
+    {
+      "escape_id": "ESC-414-PERIODIZATION-REFRESH",
+      "escape_class": "persisted-child-state-with-stale-parent-read-model",
+      "source_audit": {
+        "rejection_id": "audit-rejection:414-5649fa12eed-week-cardinality",
+        "finding_ids": [
+          "AUD-414-02"
+        ]
+      },
+      "plausible_wrong_implementation": "Reintroduce the previously closed failure class while the current issue happy path still appears valid and cumulative lineage is silently treated as sufficient.",
+      "required_risk_families": [
+        "semantic-effect",
+        "reference-liveness"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "semantic-effect",
+          "surface": "producer-consumer-effect",
+          "dimension": "producer-consumer-effect-1"
+        },
+        {
+          "risk_family": "reference-liveness",
+          "surface": "reference-liveness",
+          "dimension": "reference-liveness-1"
+        }
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "literal_case": {
+        "status": "passed",
+        "procedure": "Revalidate the historical escape against the exact current Issue 425 material head using its preserved attack dimension and exact-head repository gates.",
+        "expected": "The previously closed failure class remains distinguishable and its protected risk dimension remains represented on the current candidate.",
+        "observed": "On exact material SHA eed10c8ac43146dca93ab72739a29c3c5924453c, the historical attack dimension is preserved in the cumulative matrix and the exact-head regression/architecture/documentation gates completed successfully.",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-414-PERIODIZATION-REFRESH-S1",
+          "status": "passed",
+          "surface": "historical-noninterference",
+          "dimension": "post-remediation-path-overlap",
+          "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+        },
+        {
+          "id": "ESC-414-PERIODIZATION-REFRESH-S2",
+          "status": "passed",
+          "surface": "historical-full-suite",
+          "dimension": "exact-head-regression-gate",
+          "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "kind": "cumulative-lineage-preserved",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      },
+      "detection_change": {
+        "status": "passed",
+        "kind": "exact-head-ci-and-lineage-gate",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      }
+    },
+    {
+      "escape_id": "A-001",
+      "escape_class": "terminal-certificate-material-drift",
+      "source_audit": {
+        "rejection_id": "audit-rejection:8100eb96-4911-4b6f-984b-1b6fc5aaf75b",
+        "finding_ids": [
+          "A-001"
+        ]
+      },
+      "plausible_wrong_implementation": "Reintroduce the previously closed failure class while the current issue happy path still appears valid and cumulative lineage is silently treated as sufficient.",
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "terminal-handoff",
+          "dimension": "material-head-freshness"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "git-parent",
+          "dimension": "direct-result-only-parent"
+        }
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "literal_case": {
+        "status": "passed",
+        "procedure": "Revalidate the historical escape against the exact current Issue 425 material head using its preserved attack dimension and exact-head repository gates.",
+        "expected": "The previously closed failure class remains distinguishable and its protected risk dimension remains represented on the current candidate.",
+        "observed": "On exact material SHA eed10c8ac43146dca93ab72739a29c3c5924453c, the historical attack dimension is preserved in the cumulative matrix and the exact-head regression/architecture/documentation gates completed successfully.",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "A-001-S1",
+          "status": "passed",
+          "surface": "historical-noninterference",
+          "dimension": "post-remediation-path-overlap",
+          "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+        },
+        {
+          "id": "A-001-S2",
+          "status": "passed",
+          "surface": "historical-full-suite",
+          "dimension": "exact-head-regression-gate",
+          "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "kind": "cumulative-lineage-preserved",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      },
+      "detection_change": {
+        "status": "passed",
+        "kind": "exact-head-ci-and-lineage-gate",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      }
+    },
+    {
+      "escape_id": "A-002",
+      "escape_class": "permissive-date-normalization-bypass",
+      "source_audit": {
+        "rejection_id": "audit-rejection:8100eb96-4911-4b6f-984b-1b6fc5aaf75b",
+        "finding_ids": [
+          "A-002"
+        ]
+      },
+      "plausible_wrong_implementation": "Reintroduce the previously closed failure class while the current issue happy path still appears valid and cumulative lineage is silently treated as sufficient.",
+      "required_risk_families": [
+        "input-parser",
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "input-parser",
+          "surface": "http-date-input",
+          "dimension": "calendar-component-validity"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "shared-date-normalizer",
+          "dimension": "same-rule-across-routes"
+        }
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "literal_case": {
+        "status": "passed",
+        "procedure": "Revalidate the historical escape against the exact current Issue 425 material head using its preserved attack dimension and exact-head repository gates.",
+        "expected": "The previously closed failure class remains distinguishable and its protected risk dimension remains represented on the current candidate.",
+        "observed": "On exact material SHA eed10c8ac43146dca93ab72739a29c3c5924453c, the historical attack dimension is preserved in the cumulative matrix and the exact-head regression/architecture/documentation gates completed successfully.",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "A-002-S1",
+          "status": "passed",
+          "surface": "historical-noninterference",
+          "dimension": "post-remediation-path-overlap",
+          "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+        },
+        {
+          "id": "A-002-S2",
+          "status": "passed",
+          "surface": "historical-full-suite",
+          "dimension": "exact-head-regression-gate",
+          "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "kind": "cumulative-lineage-preserved",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      },
+      "detection_change": {
+        "status": "passed",
+        "kind": "exact-head-ci-and-lineage-gate",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      }
+    },
+    {
+      "escape_id": "ESC-423-POST-WRITE-REFREEZE",
+      "escape_class": "execution-state-gap",
+      "source_audit": {
+        "rejection_id": "audit-rejection:93b1ecfa-2f5b-4b5a-8357-b0517ea9d4a0",
+        "finding_ids": [
+          "A-423-001"
+        ]
+      },
+      "plausible_wrong_implementation": "Reintroduce the previously closed failure class while the current issue happy path still appears valid and cumulative lineage is silently treated as sufficient.",
+      "required_risk_families": [
+        "structural-contract",
+        "documentation"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "canonical-versus-shortcut"
+        },
+        {
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "current-versus-deprecated-reference"
+        }
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "literal_case": {
+        "status": "passed",
+        "procedure": "Revalidate the historical escape against the exact current Issue 425 material head using its preserved attack dimension and exact-head repository gates.",
+        "expected": "The previously closed failure class remains distinguishable and its protected risk dimension remains represented on the current candidate.",
+        "observed": "On exact material SHA eed10c8ac43146dca93ab72739a29c3c5924453c, the historical attack dimension is preserved in the cumulative matrix and the exact-head regression/architecture/documentation gates completed successfully.",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-423-POST-WRITE-REFREEZE-S1",
+          "status": "passed",
+          "surface": "historical-noninterference",
+          "dimension": "post-remediation-path-overlap",
+          "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+        },
+        {
+          "id": "ESC-423-POST-WRITE-REFREEZE-S2",
+          "status": "passed",
+          "surface": "historical-full-suite",
+          "dimension": "exact-head-regression-gate",
+          "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "kind": "cumulative-lineage-preserved",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      },
+      "detection_change": {
+        "status": "passed",
+        "kind": "exact-head-ci-and-lineage-gate",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      }
+    },
+    {
+      "escape_id": "ESC-423-LEGACY-IDENTIFICATION-FALLBACK",
+      "escape_class": "synthetic-fallback-provenance-loss",
+      "remediation_mode": "targeted-remediation",
+      "source_audit": {
+        "rejection_id": "audit-rejection:423-legacy-identification-fallback",
+        "finding_ids": [
+          "A-423-002"
+        ],
+        "audit_report_sha256": "6c0109dfdc43f09f717da3378d6487359278797e7a6f5bfdbb3249428f6f9656"
+      },
+      "plausible_wrong_implementation": "Treat a synthesized compatibility profile with absent/null fields as canonical data, allowing it to overwrite richer legacy fallback values at an administrative read boundary.",
+      "required_risk_families": [
+        "structural-contract",
+        "reference-liveness"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "legacy-versus-canonical"
+        },
+        {
+          "risk_family": "reference-liveness",
+          "surface": "canonical-reference",
+          "dimension": "legacy-versus-canonical"
+        }
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "literal_case": {
+        "status": "passed",
+        "procedure": "Revalidate the historical escape against the exact current Issue 425 material head using its preserved attack dimension and exact-head repository gates.",
+        "expected": "The previously closed failure class remains distinguishable and its protected risk dimension remains represented on the current candidate.",
+        "observed": "On exact material SHA eed10c8ac43146dca93ab72739a29c3c5924453c, the historical attack dimension is preserved in the cumulative matrix and the exact-head regression/architecture/documentation gates completed successfully.",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-423-LEGACY-S1",
+          "status": "passed",
+          "surface": "canonical-source-consistency",
+          "dimension": "explicit-canonical-null-precedence",
+          "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+        },
+        {
+          "id": "ESC-423-LEGACY-S2",
+          "status": "passed",
+          "surface": "canonical-reference",
+          "dimension": "canonical-sibling-plus-legacy-fallback",
+          "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "kind": "boundary-provenance-preserved",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      },
+      "detection_change": {
+        "status": "passed",
+        "kind": "integrated-boundary-regression",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      }
+    },
+    {
+      "escape_id": "ESC-423-HANDOFF-STALE-20260908",
+      "escape_class": "execution-state-gap",
+      "remediation_mode": "targeted-remediation",
+      "source_audit": {
+        "rejection_id": "audit-rejection:8063b8c9-4809-4309-a961-388da3895cfb",
+        "finding_ids": [
+          "A-001"
+        ],
+        "audit_report_sha256": "22d3eb3ddcc0ce36f3ad03c403d2c885dc47c46491a8c3cb12ee55c2c70cc214"
+      },
+      "plausible_wrong_implementation": "Reuse a previously valid handoff certificate after later material commits and treat a green CI run as sufficient even though the certificate still identifies the older material head.",
+      "required_risk_families": [
+        "structural-contract",
+        "documentation"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "material-head-versus-stale-certificate"
+        },
+        {
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "certified-head-versus-current-head"
+        }
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "literal_case": {
+        "status": "passed",
+        "procedure": "Revalidate the historical escape against the exact current Issue 425 material head using its preserved attack dimension and exact-head repository gates.",
+        "expected": "The previously closed failure class remains distinguishable and its protected risk dimension remains represented on the current candidate.",
+        "observed": "On exact material SHA eed10c8ac43146dca93ab72739a29c3c5924453c, the historical attack dimension is preserved in the cumulative matrix and the exact-head regression/architecture/documentation gates completed successfully.",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-423-HANDOFF-STALE-S1",
+          "status": "passed",
+          "surface": "canonical-source-consistency",
+          "dimension": "material-parent-binding",
+          "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+        },
+        {
+          "id": "ESC-423-HANDOFF-STALE-S2",
+          "status": "passed",
+          "surface": "canonical-claims",
+          "dimension": "terminal-child-allowlist",
+          "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "kind": "existing-post-write-refreeze-floor",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      },
+      "detection_change": {
+        "status": "passed",
+        "kind": "terminal-parent-and-allowlist-validation",
+        "evidence": ".audit/entregar-issue/evidence/inherited-controls-425.txt"
+      }
+    },
+    {
+      "escape_id": "ESC-425-ATOMIC-CREATE-ERROR-BOUNDARY",
+      "escape_class": "sibling-public-route-error-boundary-gap",
+      "source_audit": {
+        "rejection_id": "audit-rejection:32d071da-c89f-495d-b122-8288b6b40bd9",
+        "finding_ids": [
+          "A-001"
+        ],
+        "audit_report_sha256": "b39f63004b9357345b6a73032a0c7b19c9a36f2627e2bbe3f8fd41d3eb3494be"
+      },
+      "plausible_wrong_implementation": "Harden one public create route but leave a sibling selected-contract create route returning raw adapter errors or misclassifying concurrent business conflicts.",
+      "required_risk_families": [
+        "public-boundary",
+        "concurrency-atomicity",
+        "rollback"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "public-boundary",
+          "surface": "atomic-create-error-response",
+          "dimension": "unexpected-p0001-redaction"
+        },
+        {
+          "risk_family": "concurrency-atomicity",
+          "surface": "duplicate-email-race",
+          "dimension": "post-prevalidation-p2002"
+        },
+        {
+          "risk_family": "rollback",
+          "surface": "atomic-public-create",
+          "dimension": "p0001-all-writes-rollback"
+        }
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "literal_case": {
+        "status": "passed",
+        "procedure": "Inject P2028/P0001 into POST /alunos/financial-contract and inspect the public response while the PostgreSQL P0001 request also verifies all transaction-owned tables after failure.",
+        "expected": "Unexpected adapter failures return a generic correlatable 5xx with no raw internals and the transaction leaves no partial records.",
+        "observed": "Exact-head tests return ALUNO_CREATE_INTERNAL_ERROR plus correlationId, redact P2028/P0001 and sensitive markers, and the real P0001 request leaves User/Aluno/onboarding/Contract/StudentContract absent.",
+        "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-425-ATOMIC-CREATE-ERROR-BOUNDARY-S1",
+          "status": "passed",
+          "surface": "atomic-create-error-response",
+          "dimension": "p2028-versus-p0001",
+          "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt"
+        },
+        {
+          "id": "ESC-425-ATOMIC-CREATE-ERROR-BOUNDARY-S2",
+          "status": "passed",
+          "surface": "duplicate-email-race",
+          "dimension": "p2002-after-prevalidation",
+          "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt"
+        },
+        {
+          "id": "ESC-425-ATOMIC-CREATE-ERROR-BOUNDARY-S3",
+          "status": "passed",
+          "surface": "atomic-public-create",
+          "dimension": "late-persistence-rollback",
+          "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "kind": "shared-student-create-error-boundary",
+        "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt"
+      },
+      "detection_change": {
+        "status": "passed",
+        "kind": "direct-public-route-and-db-backed-regression",
+        "control_id": "NEG-REQ-025-PB-01",
+        "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt"
+      },
+      "trigger_terms": [
+        "sibling public route",
+        "unexpected persistence error",
+        "P2028",
+        "P0001",
+        "P2002"
+      ]
+    },
+    {
+      "escape_id": "ESC-425-CRITICAL-RISK-SATURATION",
+      "escape_class": "critical-evidence-family-omission",
+      "source_audit": {
+        "rejection_id": "audit-rejection:32d071da-c89f-495d-b122-8288b6b40bd9",
+        "finding_ids": [
+          "A-002"
+        ],
+        "audit_report_sha256": "b39f63004b9357345b6a73032a0c7b19c9a36f2627e2bbe3f8fd41d3eb3494be"
+      },
+      "plausible_wrong_implementation": "Mark a critical persistence delivery saturated using generic behavioral controls while omitting material public-boundary, tenant-isolation, or reference-liveness surfaces exposed by the route.",
+      "required_risk_families": [
+        "public-boundary",
+        "tenant-isolation",
+        "reference-liveness"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "public-boundary",
+          "surface": "atomic-create-error-response",
+          "dimension": "business-error-status-classification"
+        },
+        {
+          "risk_family": "tenant-isolation",
+          "surface": "tenant-scope-isolation",
+          "dimension": "foreign-contract-service-exclusion"
+        },
+        {
+          "risk_family": "reference-liveness",
+          "surface": "service-reference-liveness",
+          "dimension": "service-reference-eligibility-at-submit"
+        }
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "literal_case": {
+        "status": "passed",
+        "procedure": "Regenerate the critical attack matrix from the selected-contract route and service loader, then execute a discriminant control for every newly material family.",
+        "expected": "Public-boundary, tenant-isolation and reference-liveness each have an explicit exact-head surface and passed adversarial control.",
+        "observed": "The final matrix binds direct public error tests, foreign-contract service exclusion and transaction-time eligibility checks to separate canonical families on the exact material head.",
+        "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-425-CRITICAL-RISK-SATURATION-S1",
+          "status": "passed",
+          "surface": "tenant-scope-isolation",
+          "dimension": "foreign-contract-visibility",
+          "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt"
+        },
+        {
+          "id": "ESC-425-CRITICAL-RISK-SATURATION-S2",
+          "status": "passed",
+          "surface": "service-reference-liveness",
+          "dimension": "inactive-or-child-reference",
+          "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt"
+        },
+        {
+          "id": "ESC-425-CRITICAL-RISK-SATURATION-S3",
+          "status": "passed",
+          "surface": "atomic-create-error-response",
+          "dimension": "unexpected-error-redaction",
+          "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "kind": "canonical-risk-family-rederivation",
+        "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt"
+      },
+      "detection_change": {
+        "status": "passed",
+        "kind": "risk-saturation-validator-and-direct-controls",
+        "control_id": "NEG-REQ-027-TENANT-01",
+        "evidence": ".audit/entregar-issue/evidence/remediation-425-final.txt"
+      },
+      "trigger_terms": [
+        "critical persistence route",
+        "tenant contract scope",
+        "reference eligibility",
+        "public error boundary"
+      ]
+    },
+    {
+      "escape_id": "ESC-467-CATALOG-01",
+      "status": "passed",
+      "escape_class": "competing-marital-status-catalog-sources",
+      "source_audit": {
+        "kind": "independent-rejection",
+        "rejection_id": "audit-rejection:issue-467-pr-470-458aa5e791abeeebdea69f0d4a6b805c9f41cd5f",
+        "finding_ids": [
+          "A-001"
+        ]
+      },
+      "plausible_wrong_implementation": "Keep a second literal marital-status list in a related form while the shared catalog changes, allowing labels and values to drift across surfaces.",
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "canonical-source-consistency-1"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "canonical-versus-shortcut"
+        }
+      ],
+      "revalidated_head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "literal_case": {
+        "status": "passed",
+        "procedure": "Search all related web surfaces at the exact material head and compare their options to the shared catalog.",
+        "expected": "StudentProfileReview and CollaboratorForm consume the shared catalog without competing literal option lists.",
+        "observed": "Exact-head focused StudentProfileReview regression and repository validation were executed for material candidate eed10c8ac43146dca93ab72739a29c3c5924453c. No competing option lists remain in the audited surfaces.",
+        "evidence": ".audit/entregar-issue/evidence/EV-Q-009.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-467-CATALOG-S1",
+          "status": "passed",
+          "surface": "canonical-source-consistency",
+          "dimension": "canonical-source-consistency-1",
+          "evidence": ".audit/entregar-issue/evidence/EV-Q-009.txt"
+        },
+        {
+          "id": "ESC-467-CATALOG-S2",
+          "status": "passed",
+          "surface": "canonical-source-consistency",
+          "dimension": "canonical-versus-shortcut",
+          "evidence": ".audit/entregar-issue/evidence/EV-Q-009.txt"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "kind": "shared-catalog-consumption",
+        "evidence": ".audit/entregar-issue/evidence/EV-Q-009.txt"
+      },
+      "detection_change": {
+        "status": "passed",
+        "kind": "global-catalog-search-and-regression",
+        "evidence": ".audit/entregar-issue/evidence/EV-Q-009.txt"
+      }
+    },
+    {
+      "escape_id": "ESC-467-LEGACY-SNAPSHOT-01",
+      "status": "passed",
+      "escape_class": "legacy-marital-status-snapshot-not-canonicalized-in-review-surface",
+      "source_audit": {
+        "kind": "independent-rejection",
+        "rejection_id": "audit-rejection:4674700e-2d21-4cf0-9a01-2d21cf251698",
+        "finding_ids": [
+          "A-467-REVIEW-SNAPSHOT-001",
+          "A-467-HANDOFF-001"
+        ],
+        "audit_report_sha256": "ceb98d71b863b0a7e0a17dc9e2324d974a4cc343a3d87a3b81b7d1492b41dfcf"
+      },
+      "plausible_wrong_implementation": "Render only canonical options and cast the raw review snapshot, causing known or unknown legacy values to disappear from the visible select or be overwritten during an unrelated edit.",
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "legacy-versus-canonical"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "specified-test-matrix",
+          "dimension": "specified-limites-do-mapeamento"
+        }
+      ],
+      "revalidated_head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "prevention_change": {
+        "status": "passed",
+        "procedure": "Read known and unknown legacy values through StudentProfileReview and verify the shared normalizer plus transient option are used.",
+        "expected": "Known labels normalize and unknown legacy values remain visible until explicit selection.",
+        "observed": "Exact-head focused StudentProfileReview regression and repository validation were executed for material candidate eed10c8ac43146dca93ab72739a29c3c5924453c. Casado(a) maps to married and Viúvo remains a visible transient option.",
+        "evidence": ".audit/entregar-issue/evidence/EV-Q-045.txt"
+      },
+      "detection_change": {
+        "status": "passed",
+        "procedure": "Execute the review regression matrix with canonical, known-label, unknown-legacy and unrelated-edit cases.",
+        "expected": "The regression distinguishes the stale snapshot implementation from the corrected behavior.",
+        "observed": "Exact-head focused StudentProfileReview regression and repository validation were executed for material candidate eed10c8ac43146dca93ab72739a29c3c5924453c. The unrelated phone-edit regression excludes the unknown marital status from the outgoing patch.",
+        "evidence": ".audit/entregar-issue/evidence/EV-Q-045.txt"
+      },
+      "literal_case": {
+        "status": "passed",
+        "procedure": "Load Casado(a) and Viúvo snapshots, save an unrelated phone edit, and inspect the review option and payload.",
+        "expected": "Casado(a) maps to married and Viúvo remains visible without silent overwrite.",
+        "observed": "Exact-head focused StudentProfileReview regression and repository validation were executed for material candidate eed10c8ac43146dca93ab72739a29c3c5924453c. Snapshot and unrelated-edit assertions passed at the material head.",
+        "evidence": ".audit/entregar-issue/evidence/EV-Q-045.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-467-LEGACY-SNAPSHOT-S1",
+          "status": "passed",
+          "surface": "canonical-source-consistency",
+          "dimension": "legacy-versus-canonical",
+          "evidence": ".audit/entregar-issue/evidence/EV-Q-045.txt"
+        },
+        {
+          "id": "ESC-467-LEGACY-SNAPSHOT-S2",
+          "status": "passed",
+          "surface": "specified-test-matrix",
+          "dimension": "specified-limites-do-mapeamento",
+          "evidence": ".audit/entregar-issue/evidence/EV-Q-045.txt"
+        }
+      ]
+    }
+  ]
+}
