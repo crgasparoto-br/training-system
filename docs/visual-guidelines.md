@@ -54,6 +54,7 @@ Referência canônica: `apps/web/src/components/alunos/AlunoDetailsTabs.tsx` (ba
 **Status de migração:** as classes utilitárias legadas `ts-tab-button` / `ts-tab-button-active` / `ts-tab-button-inactive`, além da regra genérica `[role='tablist'] > [role='tab']` (`apps/web/src/index.css`), ainda usam o padrão antigo (borda + fundo sólido `bg-primary` no estado ativo). Esse padrão é considerado legado: novas telas não devem usá-lo.
 
 - ✅ Migrado: `apps/web/src/pages/AlunoForm.tsx` (guias do cadastro do aluno, `/alunos/new` e `/alunos/:id/edit`). Como a regra genérica `[role='tablist'] > [role='tab']` tem especificidade maior que utilitárias Tailwind de uma classe só (ex.: `bg-primary/10`), a migração precisou de um seletor com especificidade equivalente para vencer o cascade: `#aluno-form-tablist > [role='tab']` em `index.css`, escopado pelo `id="aluno-form-tablist"` do contêiner `role="tablist"`. Esse é o padrão a repetir ao migrar as demais telas.
+- ✅ Migrado: `apps/web/src/pages/WorkoutBuilder2/WorkoutBuilderResistance.tsx` (seletor de dias do Treinamento Resistido no Workout Builder). Como o componente se repete por semana e não pode usar `id` fixo, o escopo usa atributo: `[role='tablist'][data-tabs='resistance-days'] > [role='tab']` em `index.css`, com a mesma especificidade da regra genérica mais um atributo. Novas abas repetíveis devem seguir esse formato com um valor próprio de `data-tabs`.
 - ⏳ Pendente: `CollaboratorFunctions.tsx`, `ServicesCatalog.tsx`, `WorkoutBuilder/index.tsx`, `PublicPreRegistration.tsx`, `CapacityPrescriptionScreen.tsx` — ainda no padrão legado.
 
 ## Validação permanente — parâmetros de treino
@@ -74,6 +75,18 @@ O contrato visual da rota cobre:
 Execução local equivalente, com dependências e Chrome disponíveis:
 
 `pnpm --filter @corrida/web build && pnpm --filter @corrida/api exec puppeteer browsers install chrome && pnpm --filter @corrida/api exec node scripts/visual-audit-settings-parameters.mjs`
+
+## Workout Builder — Treinamento Resistido
+
+Componente: `apps/web/src/pages/WorkoutBuilder2/WorkoutBuilderResistance.tsx`.
+
+- Um dia por vez: seletor de dias (Seg–Dom, data, contagem de exercícios e cadeado quando somente leitura) acima das seções Mobilidade, Sessão e Resfriamento empilhadas. O dia escolhido é compartilhado entre as semanas visíveis da página.
+- O treino cíclico do dia aparece uma única vez, no cabeçalho do dia.
+- Em telas `xl` (≥1280 px) cada exercício ocupa uma linha com cabeçalho de colunas; abaixo disso vira um bloco com rótulos visíveis por campo, sem overflow horizontal no documento.
+- Dias fora do período do plano ficam dentro de um `fieldset disabled`, o que bloqueia mouse e teclado; não usar apenas `pointer-events-none`/opacidade para bloquear edição.
+- Preenchimento rápido aplica somente os campos preenchidos; campos vazios mantêm o valor atual de cada exercício.
+- Zona de repetições da semana aparece como `placeholder` quando o exercício não tem repetições salvas, nunca como valor.
+- Excluir exercício pede confirmação.
 
 ## Onde trocar o logo
 1. Copie o arquivo oficial para:
