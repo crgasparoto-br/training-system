@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Copy, CheckCircle, Lock, ChevronLeft, ChevronRight, Sparkles, BookOpen } from 'lucide-react';
+import { Activity, ArrowLeft, Copy, Dumbbell, CheckCircle, Lock, ChevronLeft, ChevronRight, Sparkles, BookOpen } from 'lucide-react';
 import WorkoutBuilderCyclic from './WorkoutBuilderCyclic';
 import WorkoutBuilderResistance from './WorkoutBuilderResistance';
 import { planService } from '../../services/plan.service';
@@ -151,8 +151,8 @@ export default function WorkoutBuilder2() {
 
   // Auto-save timer
   const [autoSaveTimers, setAutoSaveTimers] = useState<Record<number, NodeJS.Timeout>>({});
-  const resistanceScrollContainersRef = useRef(new Map<number, HTMLDivElement>());
-  const resistanceIsSyncingRef = useRef(false);
+  // Mantém o mesmo dia aberto no treino resistido de todas as semanas visíveis.
+  const [resistanceSelectedDay, setResistanceSelectedDay] = useState<number | null>(null);
   const workoutGuideBannerRef = useRef<HTMLDivElement | null>(null);
   const workoutGuideWeekHeaderRefs = useRef(new Map<number, HTMLDivElement>());
   const workoutGuideTabsRefs = useRef(new Map<number, HTMLDivElement>());
@@ -1095,33 +1095,6 @@ export default function WorkoutBuilder2() {
   const loadCycleParamMap = useMemo(() => new Map(loadCycleParameters.map((param) => [param.code, param])), [loadCycleParameters]);
   const objectiveParamMap = useMemo(() => new Map(objectiveParameters.map((param) => [param.code, param])), [objectiveParameters]);
 
-  const registerResistanceScrollContainer = (weekNumber: number) => (el: HTMLDivElement | null) => {
-    if (el) {
-      resistanceScrollContainersRef.current.set(weekNumber, el);
-    } else {
-      resistanceScrollContainersRef.current.delete(weekNumber);
-    }
-  };
-
-  const handleResistanceScrollSync = (source: HTMLDivElement) => {
-    if (resistanceIsSyncingRef.current) return;
-    resistanceIsSyncingRef.current = true;
-    try {
-      const left = source.scrollLeft;
-      resistanceScrollContainersRef.current.forEach((el) => {
-        if (el !== source) {
-          el.scrollLeft = left;
-        }
-      });
-    } catch (error) {
-      // ignore sync errors
-    } finally {
-      requestAnimationFrame(() => {
-        resistanceIsSyncingRef.current = false;
-      });
-    }
-  };
-
   const handleRelease = async (weekNumber: number) => {
     const weekTemplate = templateDataByWeek[weekNumber];
     if (!weekTemplate?.id) {
@@ -1980,7 +1953,8 @@ export default function WorkoutBuilder2() {
                           : 'text-gray-600 hover:text-gray-900'
                       }`}
                     >
-                      📊 Treinamento Cíclico
+                      <Activity className="mr-2 inline h-4 w-4 align-[-2px]" aria-hidden="true" />
+                      Treinamento Cíclico
                       {activeTab === 'cyclic' && (
                         <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></div>
                       )}
@@ -1994,7 +1968,8 @@ export default function WorkoutBuilder2() {
                           : 'text-gray-600 hover:text-gray-900'
                       }`}
                     >
-                      💪 Treinamento Resistido
+                      <Dumbbell className="mr-2 inline h-4 w-4 align-[-2px]" aria-hidden="true" />
+                      Treinamento Resistido
                       {activeTab === 'resistance' && (
                         <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></div>
                       )}
@@ -2029,8 +2004,8 @@ export default function WorkoutBuilder2() {
                       planStartDate={planData?.startDate}
                       planEndDate={planData?.endDate}
                       onChange={(data: any) => handleDataChange(weekNumber, data)}
-                      registerScrollContainer={registerResistanceScrollContainer(weekNumber)}
-                      onScrollSync={handleResistanceScrollSync}
+                      selectedDay={resistanceSelectedDay}
+                      onSelectedDayChange={setResistanceSelectedDay}
                     />
                   )}
                 </div>

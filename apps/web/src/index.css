@@ -210,6 +210,28 @@
     @apply bg-primary/10 text-foreground;
   }
 
+  /* Dias do treino resistido (WorkoutBuilder2/WorkoutBuilderResistance.tsx): padrão vigente
+     de abas, com a mesma estratégia de especificidade de #aluno-form-tablist. */
+  [role='tablist'][data-tabs='resistance-days'] {
+    @apply gap-1 pb-0;
+  }
+
+  [role='tablist'][data-tabs='resistance-days'] > [role='tab'] {
+    @apply h-9 rounded-md border-0 bg-transparent px-3 text-muted-foreground shadow-none;
+  }
+
+  [role='tablist'][data-tabs='resistance-days'] > [role='tab']:hover {
+    @apply bg-accent text-accent-foreground;
+  }
+
+  [role='tablist'][data-tabs='resistance-days'] > [role='tab'][aria-selected='true'] {
+    @apply border-0 bg-primary/10 text-foreground shadow-none;
+  }
+
+  [role='tablist'][data-tabs='resistance-days'] > [role='tab'][aria-selected='true']:hover {
+    @apply bg-primary/10 text-foreground;
+  }
+
   #create-collaborator-tab,
   #create-manager-tab,
   [id^='edit-collaborator-tab-'],

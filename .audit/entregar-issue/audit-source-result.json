@@ -1,35 +1,38 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "result": "REPROVADA",
-  "validity": "independent",
-  "rejection_id": "audit-rejection:4674700e-2d21-4cf0-9a01-2d21cf251698",
-  "head_sha": "2d21cf251698b92d8ffee0c6ba1c845930c945a9",
+  "rejection_id": "audit-rejection:pr475-d7366984-01",
+  "head_sha": "d7366984bf51797584d60e81299f084a595e2aea",
   "identity": {
+    "head_sha": "d7366984bf51797584d60e81299f084a595e2aea",
     "repository": "crgasparoto-br/training-system",
-    "issue_number": 467,
-    "pull_request_number": 470,
-    "material_head_sha": "2d21cf251698b92d8ffee0c6ba1c845930c945a9",
-    "base_sha": "69ccdd213fac28265d83cbee2a3460396f691ab1"
+    "pull_request_number": 475
   },
   "findings": [
     {
-      "id": "A-467-REVIEW-SNAPSHOT-001",
-      "status": "open",
+      "id": "A-001",
       "disposition": "blocking",
+      "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "category": "legacy-read-compatibility",
-      "reason": "StudentProfileReview did not canonicalize known labels or preserve unknown legacy values in the review snapshot UI."
+      "title": "Novos exercícios ainda transformam a zona de repetições em valor salvo"
     },
     {
-      "id": "A-467-HANDOFF-001",
-      "status": "open",
+      "id": "A-002",
       "disposition": "blocking",
+      "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "category": "delivery-target-binding-gap",
-      "reason": "The handoff certificate on the audited head was inherited from another delivery and was not bound to issue 467 / PR 470."
+      "title": "Handoff certificado da PR #475 não foi produzido"
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "R-001",
+      "actionable": true,
+      "status": "open",
+      "remediation_mode": "targeted-remediation",
+      "title": "Restaurar limpeza do preenchimento rápido ao reabrir o modal"
     }
   ]
 }
