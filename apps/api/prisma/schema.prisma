@@ -1930,8 +1930,9 @@ model WorkoutExercise {
   exerciseId    String
   section       String
   exerciseOrder Int
-  system        String?
-  sets          Int?
+  system           String?
+  groupBreakBefore Boolean            @default(false)
+  sets             Int?
   reps          Int?
   intervalSec   Int?
   cParam        Int?

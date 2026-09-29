@@ -62,6 +62,7 @@ export interface WorkoutExercise {
   section: string;
   exerciseOrder: number;
   system?: string;
+  groupBreakBefore?: boolean;
   sets?: number;
   reps?: number;
   intervalSec?: number;
@@ -146,6 +147,7 @@ export interface AddExerciseDTO {
   section: string;
   exerciseOrder: number;
   system?: string;
+  groupBreakBefore?: boolean;
   sets?: number;
   reps?: number;
   intervalSec?: number;
@@ -159,6 +161,7 @@ export interface UpdateExerciseDTO {
   section?: string;
   exerciseOrder?: number;
   system?: string;
+  groupBreakBefore?: boolean;
   sets?: number;
   reps?: number;
   intervalSec?: number;
