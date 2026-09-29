@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Activity, ArrowLeft, Copy, Dumbbell, CheckCircle, Lock, ChevronLeft, ChevronRight, Sparkles, BookOpen } from 'lucide-react';
 import WorkoutBuilderCyclic from './WorkoutBuilderCyclic';
 import WorkoutBuilderResistance from './WorkoutBuilderResistance';
+import WeeklySummaryCards from './WeeklySummaryCards';
 import { planService } from '../../services/plan.service';
 import { alunoService, type Aluno } from '../../services/aluno.service';
 import { assessmentService } from '../../services/assessment.service';
@@ -69,6 +70,7 @@ export default function WorkoutBuilder2() {
           name: exercise.exercise?.name ?? '',
           category: exercise.exercise?.category ?? exercise.exerciseCategory,
           system: exercise.system ?? null,
+          groupBreakBefore: exercise.groupBreakBefore ?? false,
           sets: exercise.sets ?? null,
           reps: exercise.reps ?? null,
           interval: exercise.intervalSec ?? null,
@@ -791,6 +793,7 @@ export default function WorkoutBuilder2() {
                     section,
                     exerciseOrder: index + 1,
                     system: exercise.system ?? undefined,
+                    groupBreakBefore: exercise.groupBreakBefore ?? false,
                     sets: exercise.sets ?? undefined,
                     reps: exercise.reps ?? undefined,
                     intervalSec: exercise.interval ?? undefined,
@@ -1017,6 +1020,7 @@ export default function WorkoutBuilder2() {
                     section: exercise.section,
                     exerciseOrder: exercise.exerciseOrder,
                     system: exercise.system ?? undefined,
+                    groupBreakBefore: exercise.groupBreakBefore ?? false,
                     sets: exercise.sets ?? undefined,
                     reps: exercise.reps ?? undefined,
                     intervalSec: exercise.intervalSec ?? undefined,
@@ -1814,124 +1818,34 @@ export default function WorkoutBuilder2() {
                 </div>
 
                 <div className={visibility.resistedSummary ? '' : 'hidden'}>
-                  <h3 className="text-base font-semibold text-gray-800 mb-3">Resumo da Semana</h3>
-                  <div className="rounded-md border border-gray-200 bg-white px-3 py-2 shadow-sm">
-                    <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1">
-                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                        <span className="text-sm font-medium text-gray-600">% Carga TR</span>
-                        <span className="inline-flex items-center rounded-full bg-gray-900 px-2 py-0.5 text-sm font-semibold text-white">
-                          {resistedSummaryByWeek[weekNumber]?.loadPercentage ?? '-'}
-                          {resistedSummaryByWeek[weekNumber]?.loadPercentage === null ||
-                          resistedSummaryByWeek[weekNumber]?.loadPercentage === undefined
-                            ? ''
-                            : '%'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                        <span className="text-sm font-medium text-gray-600">Séries Grandes Músculos</span>
-                        <span className="inline-flex items-center rounded-full bg-gray-900 px-2 py-0.5 text-sm font-semibold text-white">
-                          {resistedSummaryByWeek[weekNumber]?.seriesReference ?? '-'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                        <span className="text-sm font-medium text-gray-600">Zona de Repetições</span>
-                        <span className="inline-flex max-w-[260px] items-center rounded-full bg-gray-100 px-2 py-0.5 text-sm font-semibold text-gray-800">
-                          {resistedSummaryByWeek[weekNumber]?.repZone ?? '-'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                        <span className="text-sm font-medium text-gray-600">Repetições em Reserva</span>
-                        <span className="inline-flex items-center rounded-full bg-gray-900 px-2 py-0.5 text-sm font-semibold text-white">
-                          {resistedSummaryByWeek[weekNumber]?.repReserve ?? '-'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                        <span className="text-sm font-medium text-gray-600">Montagem</span>
-                        <span
-                          className="inline-flex max-w-[260px] items-center rounded-full bg-gray-100 px-2 py-0.5 text-sm font-semibold text-gray-800"
-                          title={
-                            resistedSummaryByWeek[weekNumber]?.assembly
-                              ? `${assemblyParamMap.get(resistedSummaryByWeek[weekNumber]?.assembly)?.description || resistedSummaryByWeek[weekNumber]?.assembly || ''}`.trim()
-                              : ''
-                          }
-                        >
-                          {resistedSummaryByWeek[weekNumber]?.assembly
-                            ? `${assemblyParamMap.get(resistedSummaryByWeek[weekNumber]?.assembly)?.description || resistedSummaryByWeek[weekNumber]?.assembly || ''}`.trim()
-                            : '-'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                        <span className="text-sm font-medium text-gray-600">Método</span>
-                        <span
-                          className="inline-flex max-w-[260px] items-center rounded-full bg-gray-100 px-2 py-0.5 text-sm font-semibold text-gray-800"
-                          title={
-                            resistedSummaryByWeek[weekNumber]?.method
-                              ? `${methodParamMap.get(resistedSummaryByWeek[weekNumber]?.method)?.description || resistedSummaryByWeek[weekNumber]?.method || ''}`.trim()
-                              : ''
-                          }
-                        >
-                          {resistedSummaryByWeek[weekNumber]?.method
-                            ? `${methodParamMap.get(resistedSummaryByWeek[weekNumber]?.method)?.description || resistedSummaryByWeek[weekNumber]?.method || ''}`.trim()
-                            : '-'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                        <span className="text-sm font-medium text-gray-600">Microciclo</span>
-                        <span
-                          className="inline-flex max-w-[260px] items-center rounded-full bg-gray-100 px-2 py-0.5 text-sm font-semibold text-gray-800"
-                          title={
-                            resistedSummaryByWeek[weekNumber]?.loadCycle
-                              ? `${loadCycleParamMap.get(resistedSummaryByWeek[weekNumber]?.loadCycle)?.description || resistedSummaryByWeek[weekNumber]?.loadCycle || ''}`.trim()
-                              : ''
-                          }
-                        >
-                          {resistedSummaryByWeek[weekNumber]?.loadCycle
-                            ? `${loadCycleParamMap.get(resistedSummaryByWeek[weekNumber]?.loadCycle)?.description || resistedSummaryByWeek[weekNumber]?.loadCycle || ''}`.trim()
-                            : '-'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                        <span className="text-sm font-medium text-gray-600">Divisão do Treino</span>
-                        <span className="inline-flex max-w-[260px] items-center rounded-full bg-gray-100 px-2 py-0.5 text-sm font-semibold text-gray-800">
-                          {resistedSummaryByWeek[weekNumber]?.trainingDivision ?? '-'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                        <span className="text-sm font-medium text-gray-600">Frequência Semanal</span>
-                        <span className="inline-flex items-center rounded-full bg-gray-900 px-2 py-0.5 text-sm font-semibold text-white">
-                          {resistedSummaryByWeek[weekNumber]?.weeklyFrequency ?? '-'}
-                          {resistedSummaryByWeek[weekNumber]?.weeklyFrequency === null ||
-                          resistedSummaryByWeek[weekNumber]?.weeklyFrequency === undefined
-                            ? ''
-                            : 'x/sem'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                        <span className="text-sm font-medium text-gray-600">Objetivo do Mesociclo</span>
-                        <span
-                          className="inline-flex max-w-[320px] items-center rounded-full bg-gray-100 px-2 py-0.5 text-sm font-semibold text-gray-800"
-                          title={
-                            resistedSummaryByWeek[weekNumber]?.objective
-                              ? `${objectiveParamMap.get(resistedSummaryByWeek[weekNumber]?.objective)?.description || resistedSummaryByWeek[weekNumber]?.objective || ''}`.trim()
-                              : ''
-                          }
-                        >
-                          {resistedSummaryByWeek[weekNumber]?.objective
-                            ? `${objectiveParamMap.get(resistedSummaryByWeek[weekNumber]?.objective)?.description || resistedSummaryByWeek[weekNumber]?.objective || ''}`.trim()
-                            : '-'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                  <h3 className="mb-3 text-base font-semibold text-foreground">Resumo da Semana</h3>
+                  <WeeklySummaryCards
+                    summary={resistedSummaryByWeek[weekNumber] ?? null}
+                    assemblyLabel={
+                      resistedSummaryByWeek[weekNumber]?.assembly
+                        ? assemblyParamMap.get(resistedSummaryByWeek[weekNumber]?.assembly)?.description ||
+                          resistedSummaryByWeek[weekNumber]?.assembly
+                        : undefined
+                    }
+                    methodLabel={
+                      resistedSummaryByWeek[weekNumber]?.method
+                        ? methodParamMap.get(resistedSummaryByWeek[weekNumber]?.method)?.description ||
+                          resistedSummaryByWeek[weekNumber]?.method
+                        : undefined
+                    }
+                    loadCycleLabel={
+                      resistedSummaryByWeek[weekNumber]?.loadCycle
+                        ? loadCycleParamMap.get(resistedSummaryByWeek[weekNumber]?.loadCycle)?.description ||
+                          resistedSummaryByWeek[weekNumber]?.loadCycle
+                        : undefined
+                    }
+                    objectiveLabel={
+                      resistedSummaryByWeek[weekNumber]?.objective
+                        ? objectiveParamMap.get(resistedSummaryByWeek[weekNumber]?.objective)?.description ||
+                          resistedSummaryByWeek[weekNumber]?.objective
+                        : undefined
+                    }
+                  />
                 </div>
               </div>
 

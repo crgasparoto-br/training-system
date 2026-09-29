@@ -92,6 +92,7 @@ export interface CreateWorkoutExerciseDTO {
   section: string;
   exerciseOrder: number;
   system?: string;
+  groupBreakBefore?: boolean;
   sets?: number;
   reps?: number;
   intervalSec?: number;
@@ -693,6 +694,7 @@ export const workoutService = {
             section: exercise.section,
             exerciseOrder: exercise.exerciseOrder,
             system: exercise.system,
+            groupBreakBefore: exercise.groupBreakBefore,
             sets: exercise.sets,
             reps: exercise.reps,
             intervalSec: exercise.intervalSec,
@@ -819,6 +821,7 @@ export const workoutService = {
           section: exercise.section,
         exerciseOrder: exercise.exerciseOrder,
         system: exercise.system,
+        groupBreakBefore: exercise.groupBreakBefore,
         sets: exercise.sets,
         reps: exercise.reps,
         intervalSec: exercise.intervalSec,
