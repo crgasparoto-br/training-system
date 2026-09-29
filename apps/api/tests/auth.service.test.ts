@@ -30,6 +30,12 @@ const mockDb = new PrismaClient() as unknown as {
   };
 };
 
+const spyOnPasswordCompare = () =>
+  jest.spyOn(bcryptjs, 'compare') as unknown as jest.SpyInstance<
+    Promise<boolean>,
+    [string, string]
+  >;
+
 describe('AuthService', () => {
   let authService: AuthService;
 
@@ -89,9 +95,7 @@ describe('AuthService', () => {
         passwordHash: 'old-hash',
         isActive: true,
       });
-      jest.spyOn(bcryptjs, 'compare')
-        .mockResolvedValueOnce(true)
-        .mockResolvedValueOnce(false);
+      spyOnPasswordCompare().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
       jest.spyOn(bcryptjs, 'hash').mockResolvedValue('new-hash' as never);
 
       await expect(
@@ -116,7 +120,7 @@ describe('AuthService', () => {
         passwordHash: 'old-hash',
         isActive: true,
       });
-      jest.spyOn(bcryptjs, 'compare').mockResolvedValueOnce(false);
+      spyOnPasswordCompare().mockResolvedValueOnce(false);
 
       await expect(
         authService.changePassword('student-1', {
