@@ -363,6 +363,13 @@ export default function WorkoutBuilderResistance({
     quickFillTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setQuickFillDay(dayOfWeek);
     setQuickFillSection(section);
+    setQuickFillValues({
+      sets: '',
+      intervalBetweenExercises: '',
+      intervalBetweenSeries: '',
+      cParam: '',
+      eParam: ''
+    });
     setQuickFillOpen(true);
   };
 
@@ -598,10 +605,7 @@ export default function WorkoutBuilderResistance({
                   ? (isCyclic ? '-' : (resistedSummary?.method ?? ''))
                   : '',
             sets: null,
-            reps:
-              selectedSection === 'sessao' && !isCyclic && resistedSummary?.repZone !== null && resistedSummary?.repZone !== undefined
-                ? Number(resistedSummary.repZone)
-                : null,
+            reps: null,
             interval: null,
             cParam: null,
             eParam: null,
@@ -644,10 +648,7 @@ export default function WorkoutBuilderResistance({
             ? (isCyclic ? '-' : (resistedSummary?.method ?? ''))
             : '',
       sets: null,
-      reps:
-        selectedSection === 'sessao' && !isCyclic && resistedSummary?.repZone !== null && resistedSummary?.repZone !== undefined
-          ? Number(resistedSummary.repZone)
-          : null,
+      reps: null,
       interval: null,
       cParam: null,
       eParam: null,

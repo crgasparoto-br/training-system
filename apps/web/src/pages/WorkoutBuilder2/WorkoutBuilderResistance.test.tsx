@@ -15,7 +15,36 @@ vi.mock('../../services/library.service', () => ({
 }));
 
 vi.mock('../../components/ExerciseSelectorModal', () => ({
-  ExerciseSelectorModal: () => null,
+  ExerciseSelectorModal: ({
+    isOpen,
+    onSelect,
+    onSelectMany,
+  }: {
+    isOpen: boolean;
+    onSelect: (exercise: { id: string; name: string; category: string }) => void;
+    onSelectMany: (exercises: Array<{ id: string; name: string; category: string }>) => void;
+  }) =>
+    isOpen ? (
+      <div>
+        <button
+          type="button"
+          onClick={() => onSelect({ id: 'new-1', name: 'Supino reto', category: 'Resistido' })}
+        >
+          Selecionar exercício individual
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onSelectMany([
+              { id: 'new-2', name: 'Puxada alta', category: 'Resistido' },
+              { id: 'new-3', name: 'Leg press', category: 'Resistido' },
+            ])
+          }
+        >
+          Selecionar dois exercícios
+        </button>
+      </div>
+    ) : null,
 }));
 
 import WorkoutBuilderResistance from './WorkoutBuilderResistance';
@@ -143,6 +172,61 @@ describe('WorkoutBuilderResistance', () => {
 
     fireEvent.click(deleteButton);
     expect(lastSessao(onChange).map((item) => item.name)).toEqual(['Remada curvada']);
+  });
+
+  it('mantém a zona semanal apenas como placeholder ao adicionar um exercício', () => {
+    const onChange = renderResistance();
+    const sessao = screen.getByRole('region', { name: /Sessão/ });
+
+    fireEvent.click(within(sessao).getByRole('button', { name: 'Adicionar exercício' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Selecionar exercício individual' }));
+
+    expect(lastSessao(onChange).at(-1)).toEqual(
+      expect.objectContaining({ name: 'Supino reto', reps: null })
+    );
+    const reps = screen.getByRole('spinbutton', { name: 'Repetições de Supino reto' });
+    expect(reps).toHaveValue(null);
+    expect(reps).toHaveAttribute('placeholder', '12');
+  });
+
+  it('mantém a zona semanal apenas como placeholder ao adicionar vários exercícios', () => {
+    const onChange = renderResistance();
+    const sessao = screen.getByRole('region', { name: /Sessão/ });
+
+    fireEvent.click(within(sessao).getByRole('button', { name: 'Adicionar exercício' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Selecionar dois exercícios' }));
+
+    const added = lastSessao(onChange).slice(-2);
+    expect(added).toEqual([
+      expect.objectContaining({ name: 'Puxada alta', reps: null }),
+      expect.objectContaining({ name: 'Leg press', reps: null }),
+    ]);
+    expect(screen.getByRole('spinbutton', { name: 'Repetições de Puxada alta' })).toHaveAttribute(
+      'placeholder',
+      '12'
+    );
+    expect(screen.getByRole('spinbutton', { name: 'Repetições de Leg press' })).toHaveAttribute(
+      'placeholder',
+      '12'
+    );
+  });
+
+  it('reabre o preenchimento rápido com os campos limpos', () => {
+    renderResistance();
+    let sessao = screen.getByRole('region', { name: /Sessão/ });
+
+    fireEvent.click(within(sessao).getByRole('button', { name: 'Preenchimento rápido' }));
+    let dialog = screen.getByRole('dialog', { name: 'Preenchimento rápido' });
+    fireEvent.change(within(dialog).getByLabelText('C'), { target: { value: '5' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Aplicar' }));
+
+    sessao = screen.getByRole('region', { name: /Sessão/ });
+    fireEvent.click(within(sessao).getByRole('button', { name: 'Preenchimento rápido' }));
+    dialog = screen.getByRole('dialog', { name: 'Preenchimento rápido' });
+
+    expect(within(dialog).getByLabelText('C')).toHaveValue(null);
+    expect(within(dialog).getByLabelText('Séries')).toHaveValue(null);
+    expect(within(dialog).getByLabelText('E')).toHaveValue(null);
   });
 
   it('navega entre os dias pelo teclado', () => {
