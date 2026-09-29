@@ -127,7 +127,7 @@ export interface AuthResponse {
     email: string;
     name: string;
     type: 'professor' | 'aluno';
-    mustChangePassword: boolean;
+    mustChangePassword?: boolean;
     profile?: {
       name: string;
       avatar?: string | null;

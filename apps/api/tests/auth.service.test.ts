@@ -82,6 +82,53 @@ describe('AuthService', () => {
     });
   });
 
+  describe('changePassword', () => {
+    it('deve limpar mustChangePassword ao trocar a senha com a credencial atual', async () => {
+      mockDb.user.findUnique.mockResolvedValue({
+        id: 'student-1',
+        passwordHash: 'old-hash',
+        isActive: true,
+      });
+      jest.spyOn(bcryptjs, 'compare')
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+      jest.spyOn(bcryptjs, 'hash').mockResolvedValue('new-hash' as never);
+
+      await expect(
+        authService.changePassword('student-1', {
+          currentPassword: 'senha-temporaria',
+          password: 'senha-definitiva',
+        })
+      ).resolves.toEqual({ message: 'Senha atualizada com sucesso' });
+
+      expect(mockDb.user.update).toHaveBeenCalledWith({
+        where: { id: 'student-1' },
+        data: {
+          passwordHash: 'new-hash',
+          mustChangePassword: false,
+        },
+      });
+    });
+
+    it('nao altera a conta quando a senha atual estiver incorreta', async () => {
+      mockDb.user.findUnique.mockResolvedValue({
+        id: 'student-1',
+        passwordHash: 'old-hash',
+        isActive: true,
+      });
+      jest.spyOn(bcryptjs, 'compare').mockResolvedValueOnce(false);
+
+      await expect(
+        authService.changePassword('student-1', {
+          currentPassword: 'senha-errada',
+          password: 'senha-definitiva',
+        })
+      ).rejects.toThrow('Senha atual incorreta');
+
+      expect(mockDb.user.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('verifyToken', () => {
     it('deve verificar token válido', () => {
       expect(authService).toBeDefined();

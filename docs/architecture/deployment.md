@@ -19,8 +19,10 @@ Este documento registra as regras minimas para publicar o Sistema Acesso.
 - `FRONTEND_URL`: origem publica do frontend usada em links seguros enviados ao aluno.
 - `CORS_ORIGINS`: obrigatoria em producao e deve listar somente origins produtivas explicitamente permitidas. Origins locais nao sao incluidas por padrao em `NODE_ENV=production`.
 - `JWT_SECRET`: obrigatoria em producao. Nao use placeholders como `dev-secret` ou `your-super-secret-jwt-key-change-in-production`.
-- `SENDGRID_API_KEY`: credencial opcional para email transacional da revisao cadastral.
+- `SENDGRID_API_KEY`: credencial do SendGrid usada por email transacional, incluindo recuperacao de senha.
 - `SENDGRID_FROM_EMAIL`: remetente verificado usado pelo SendGrid.
+- `PASSWORD_RESET_SECRET`: segredo dedicado para tokens de recuperacao de senha. Em producao, configure um valor forte e diferente de placeholders.
+- `PASSWORD_RESET_EXPIRES_IN`: validade dos tokens de recuperacao, por exemplo `1h`.
 - `SENDGRID_EVENT_WEBHOOK_PUBLIC_KEY`: chave publica usada para validar callbacks assinados de entrega do SendGrid. Sem confirmacao configurada, o canal fica `not_configured` e nao e marcado como entregue.
 - `TWILIO_ACCOUNT_SID`: conta Twilio usada pelo canal WhatsApp opcional.
 - `TWILIO_AUTH_TOKEN`: segredo Twilio usado no envio e na validacao do callback de status.

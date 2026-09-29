@@ -397,7 +397,14 @@ export class AuthService {
     const frontendBaseUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
     const resetUrl = `${frontendBaseUrl}/forgot-password?token=${encodeURIComponent(resetToken)}`;
 
-    await sendPasswordResetEmail(user.email, resetUrl);
+    try {
+      await sendPasswordResetEmail(user.email, resetUrl);
+    } catch (error) {
+      console.error('[auth] Falha ao enviar recuperacao de senha', {
+        userId: user.id,
+        error: error instanceof Error ? error.message : 'erro desconhecido',
+      });
+    }
 
     return {
       message: genericMessage,
