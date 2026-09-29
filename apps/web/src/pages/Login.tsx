@@ -42,7 +42,13 @@ export function Login() {
 
     try {
       await login(data);
-      navigate(safeReturnPath(searchParams.get('returnTo')), { replace: true });
+      const authenticatedUser = useAuthStore.getState().user;
+      navigate(
+        authenticatedUser?.mustChangePassword
+          ? '/change-password'
+          : safeReturnPath(searchParams.get('returnTo')),
+        { replace: true }
+      );
     } finally {
       setIsLoading(false);
     }

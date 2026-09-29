@@ -102,6 +102,15 @@ export interface ResetPasswordResponse {
   message: string;
 }
 
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  password: string;
+}
+
+export interface ChangePasswordResponse {
+  message: string;
+}
+
 export interface RegisterRequest {
   email: string;
   password: string;
@@ -118,6 +127,7 @@ export interface AuthResponse {
     email: string;
     name: string;
     type: 'professor' | 'aluno';
+    mustChangePassword: boolean;
     profile?: {
       name: string;
       avatar?: string | null;

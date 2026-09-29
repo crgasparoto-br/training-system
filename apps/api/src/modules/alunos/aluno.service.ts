@@ -199,6 +199,7 @@ export const alunoService = {
           data: {
             email: data.email,
             passwordHash,
+            mustChangePassword: true,
             type: 'aluno',
             profile: {
               create: {
@@ -1047,7 +1048,10 @@ export const alunoService = {
 
     await prisma.user.update({
       where: { id: aluno.user.id },
-      data: { passwordHash },
+      data: {
+        passwordHash,
+        mustChangePassword: true,
+      },
     });
 
     await prisma.aluno.update({
