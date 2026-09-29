@@ -41,8 +41,7 @@ export function Login() {
     clearError();
 
     try {
-      await login(data);
-      const authenticatedUser = useAuthStore.getState().user;
+      const authenticatedUser = await login(data);
       navigate(
         authenticatedUser?.mustChangePassword
           ? '/change-password'
