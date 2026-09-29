@@ -1,6 +1,8 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { periodizationService, ResistedStimulus, TrainingParameter } from '../../services/periodization.service';
-import { Plus, ChevronUp, ChevronDown, Copy, Trash2 } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Copy, Lock, Plus, Trash2 } from 'lucide-react';
+import { Button, buttonClassName } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
 import { ExerciseSelectorModal } from '../../components/ExerciseSelectorModal';
 import { libraryService, type Exercise } from '../../services/library.service';
 import { isDateWithinRange, parseDateOnly } from '../../utils/date';
@@ -9,8 +11,9 @@ interface WorkoutBuilderResistanceProps {
   templateData: any;
   resistedSummary: ResistedStimulus | null;
   onChange: (data: any) => void;
-  registerScrollContainer?: (el: HTMLDivElement | null) => void;
-  onScrollSync?: (source: HTMLDivElement) => void;
+  /** Dia (1=Seg ... 7=Dom) exibido; compartilhado entre semanas quando controlado pela página. */
+  selectedDay?: number | null;
+  onSelectedDayChange?: (dayOfWeek: number) => void;
   planStartDate?: string | Date | null;
   planEndDate?: string | Date | null;
   weekStartDateOverride?: string | null;
@@ -19,6 +22,20 @@ interface WorkoutBuilderResistanceProps {
 }
 
 type SectionKey = 'mobilidade' | 'sessao' | 'resfriamento';
+
+const SECTIONS: Array<{ key: SectionKey; title: string; accent: string }> = [
+  { key: 'mobilidade', title: 'Mobilidade | Aquecimento | Ativação | Técnico', accent: 'bg-purple-400' },
+  { key: 'sessao', title: 'Sessão', accent: 'bg-emerald-500' },
+  { key: 'resfriamento', title: 'Resfriamento | Finalização', accent: 'bg-sky-400' }
+];
+
+type NumericField = 'sets' | 'reps' | 'interval' | 'cParam' | 'eParam';
+
+// Coluna única em telas largas; abaixo de xl cada exercício vira um bloco com rótulos visíveis.
+const ROW_GRID =
+  'xl:grid-cols-[minmax(11rem,1fr)_8.5rem_repeat(5,3.25rem)_3.5rem_4.5rem_8.75rem] xl:items-center xl:gap-x-2';
+
+const parseQuickFillValue = (value: string) => (value.trim() === '' ? undefined : Number(value));
 
 interface SelectedExercise {
   id: string;
@@ -39,8 +56,8 @@ export default function WorkoutBuilderResistance({
   templateData,
   resistedSummary,
   onChange,
-  registerScrollContainer,
-  onScrollSync,
+  selectedDay: selectedDayProp,
+  onSelectedDayChange,
   planStartDate,
   planEndDate,
   weekStartDateOverride,
@@ -48,7 +65,9 @@ export default function WorkoutBuilderResistance({
   weekEditable = true
 }: WorkoutBuilderResistanceProps) {
   const lastHydratedKey = useRef<string | null>(null);
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const quickFillTriggerRef = useRef<HTMLElement | null>(null);
+  const dayTabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const idPrefix = useId();
   const startWeekday = useMemo(() => {
     const start = parseDateOnly(weekStartDateOverride ?? templateData?.weekStartDate) ?? new Date();
     const startJsDay = start.getDay();
@@ -76,7 +95,8 @@ export default function WorkoutBuilderResistance({
   };
 
   const days = useMemo(() => {
-    const labels = ['Segunda-Feira', 'Terça-Feira', 'Quarta-Feira', 'Quinta-Feira', 'Sexta-Feira', 'Sábado', 'Domingo'];
+    const labels = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'];
+    const shortLabels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
     return labels.map((label, index) => {
       const dayOfWeek = index + 1;
@@ -87,6 +107,7 @@ export default function WorkoutBuilderResistance({
       return {
         dayOfWeek,
         label,
+        shortLabel: shortLabels[index],
         date: `${day}/${month}`
       };
     });
@@ -339,6 +360,7 @@ export default function WorkoutBuilderResistance({
   };
 
   const openQuickFillModal = (dayOfWeek: number, section: SectionKey) => {
+    quickFillTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setQuickFillDay(dayOfWeek);
     setQuickFillSection(section);
     setQuickFillValues({
@@ -351,17 +373,19 @@ export default function WorkoutBuilderResistance({
     setQuickFillOpen(true);
   };
 
+  const closeQuickFillModal = () => {
+    setQuickFillOpen(false);
+    quickFillTriggerRef.current?.focus();
+  };
+
+  // Campos vazios preservam o valor atual de cada exercício.
   const applyQuickFill = () => {
     if (!quickFillDay || !quickFillSection) return;
-    const sets = quickFillValues.sets ? Number(quickFillValues.sets) : null;
-    const intervalBetweenExercises = quickFillValues.intervalBetweenExercises
-      ? Number(quickFillValues.intervalBetweenExercises)
-      : null;
-    const intervalBetweenSeries = quickFillValues.intervalBetweenSeries
-      ? Number(quickFillValues.intervalBetweenSeries)
-      : null;
-    const cParam = quickFillValues.cParam ? Number(quickFillValues.cParam) : null;
-    const eParam = quickFillValues.eParam ? Number(quickFillValues.eParam) : null;
+    const sets = parseQuickFillValue(quickFillValues.sets);
+    const intervalBetweenExercises = parseQuickFillValue(quickFillValues.intervalBetweenExercises);
+    const intervalBetweenSeries = parseQuickFillValue(quickFillValues.intervalBetweenSeries);
+    const cParam = parseQuickFillValue(quickFillValues.cParam);
+    const eParam = parseQuickFillValue(quickFillValues.eParam);
 
     setExercisesByDay((prev) => {
       const currentDay = prev[quickFillDay] || {
@@ -389,10 +413,10 @@ export default function WorkoutBuilderResistance({
           : intervalBetweenSeries;
         return {
           ...exercise,
-          sets,
-          interval,
-          cParam,
-          eParam
+          sets: sets ?? exercise.sets,
+          interval: interval ?? exercise.interval,
+          cParam: cParam ?? exercise.cParam,
+          eParam: eParam ?? exercise.eParam
         };
       });
 
@@ -402,7 +426,7 @@ export default function WorkoutBuilderResistance({
       return updated;
     });
 
-    setQuickFillOpen(false);
+    closeQuickFillModal();
   };
 
   const applyIntervalRulesIfConfigured = (sectionExercises: SelectedExercise[]) => {
@@ -538,6 +562,8 @@ export default function WorkoutBuilderResistance({
   };
 
   const deleteExercise = (dayOfWeek: number, section: SectionKey, index: number) => {
+    const target = exercisesByDay[dayOfWeek]?.[section]?.[index];
+    if (target && !window.confirm(`Excluir "${target.name}" deste dia?`)) return;
     setExercisesByDay((prev) => {
       const currentDay = prev[dayOfWeek];
       if (!currentDay) return prev;
@@ -579,10 +605,7 @@ export default function WorkoutBuilderResistance({
                   ? (isCyclic ? '-' : (resistedSummary?.method ?? ''))
                   : '',
             sets: null,
-            reps:
-              selectedSection === 'sessao' && !isCyclic && resistedSummary?.repZone !== null && resistedSummary?.repZone !== undefined
-                ? Number(resistedSummary.repZone)
-                : null,
+            reps: null,
             interval: null,
             cParam: null,
             eParam: null,
@@ -625,10 +648,7 @@ export default function WorkoutBuilderResistance({
             ? (isCyclic ? '-' : (resistedSummary?.method ?? ''))
             : '',
       sets: null,
-      reps:
-        selectedSection === 'sessao' && !isCyclic && resistedSummary?.repZone !== null && resistedSummary?.repZone !== undefined
-          ? Number(resistedSummary.repZone)
-          : null,
+      reps: null,
       interval: null,
       cParam: null,
       eParam: null,
@@ -667,363 +687,431 @@ export default function WorkoutBuilderResistance({
     });
   };
 
-  const renderDayExerciseCell = (dayOfWeek: number, section: SectionKey, editable: boolean) => {
-    const sectionExercises = exercisesByDay[dayOfWeek]?.[section] || [];
+  const getCyclicLocation = (dayOfWeek: number) => {
+    const workoutDays = templateData?.workoutDays;
+    const formatLocation = (entry?: any) => {
+      if (!entry?.location) return '';
+      const sessions = Number(entry?.numSessions);
+      if (Number.isFinite(sessions) && sessions > 0) {
+        return `${entry.location} ${sessions}x`;
+      }
+      return entry.location;
+    };
+    if (Array.isArray(workoutDays)) {
+      const entry = workoutDays.find((day: any) => day.dayOfWeek === dayOfWeek);
+      return formatLocation(entry);
+    }
+    return formatLocation(workoutDays?.[dayOfWeek]);
+  };
+
+  const countDayExercises = (dayOfWeek: number) =>
+    SECTIONS.reduce((total, section) => total + (exercisesByDay[dayOfWeek]?.[section.key]?.length ?? 0), 0);
+
+  // Sem escolha explícita, abre o primeiro dia com exercícios ou, na falta, o primeiro dia editável.
+  const defaultDay =
+    days.find((day) => countDayExercises(day.dayOfWeek) > 0)?.dayOfWeek ??
+    days.find((day) => isDayEditable(day.dayOfWeek))?.dayOfWeek ??
+    1;
+
+  const [internalDay, setInternalDay] = useState<number | null>(null);
+  const activeDay = selectedDayProp ?? internalDay ?? defaultDay;
+  const activeDayInfo = days[activeDay - 1] ?? days[0];
+  const activeDayEditable = isDayEditable(activeDayInfo.dayOfWeek);
+
+  const selectDay = (dayOfWeek: number) => {
+    setInternalDay(dayOfWeek);
+    onSelectedDayChange?.(dayOfWeek);
+  };
+
+  const handleDayTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const offsets: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1 };
+    let nextIndex: number | null = null;
+    if (event.key in offsets) nextIndex = (index + offsets[event.key] + days.length) % days.length;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = days.length - 1;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    selectDay(days[nextIndex].dayOfWeek);
+    dayTabRefs.current[nextIndex]?.focus();
+  };
+
+  const numericInputClassName =
+    'h-10 w-full rounded-md border border-input bg-card px-1.5 text-center text-sm tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring xl:h-8';
+  const fieldLabelClassName = 'mb-1 block text-xs text-muted-foreground xl:sr-only';
+
+  const renderSection = (dayOfWeek: number, section: (typeof SECTIONS)[number]) => {
+    const sectionExercises = exercisesByDay[dayOfWeek]?.[section.key] || [];
     const groupData =
-      section === 'sessao'
+      section.key === 'sessao'
         ? buildSystemGroups(sectionExercises, resistedSummary?.method ?? '')
         : { meta: [], warnings: [] };
-    const getCyclicLocation = () => {
-      const workoutDays = templateData?.workoutDays;
-      const formatLocation = (entry?: any) => {
-        if (!entry?.location) return '';
-        const sessions = Number(entry?.numSessions);
-        if (Number.isFinite(sessions) && sessions > 0) {
-          return `${entry.location} ${sessions}x`;
-        }
-        return entry.location;
-      };
-      if (Array.isArray(workoutDays)) {
-        const entry = workoutDays.find((day: any) => day.dayOfWeek === dayOfWeek);
-        return formatLocation(entry);
-      }
-      return formatLocation(workoutDays?.[dayOfWeek]);
-    };
+    const headingId = `${idPrefix}-${dayOfWeek}-${section.key}`;
+
+    const renderNumericField = (
+      exercise: SelectedExercise,
+      field: NumericField,
+      label: string,
+      value: number | '' | null | undefined,
+      onValueChange: (value: number | null) => void,
+      placeholder?: string
+    ) => (
+      <label>
+        <span className={fieldLabelClassName}>{label}</span>
+        <input
+          type="number"
+          min={0}
+          inputMode="numeric"
+          value={value ?? ''}
+          placeholder={placeholder}
+          aria-label={`${label} de ${exercise.name}`}
+          data-field={field}
+          onChange={(e) => onValueChange(e.target.value ? Number(e.target.value) : null)}
+          className={numericInputClassName}
+        />
+      </label>
+    );
 
     return (
-    <div className={`rounded-md border border-gray-200 bg-white ${editable ? '' : 'opacity-60 pointer-events-none'}`}>
-      {section === 'sessao' && (
-        <div className="border-b border-gray-200 px-3 py-2">
-          <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-            <div className="text-xs font-medium text-gray-500">Planejamento do Treinamento Cíclico</div>
-            <div className="text-base font-semibold text-gray-800">
-              {getCyclicLocation() || '-'}
-            </div>
+      <section key={section.key} aria-labelledby={headingId} className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h5 id={headingId} className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <span aria-hidden="true" className={`h-4 w-1 rounded-full ${section.accent}`} />
+            {section.title}
+            <span className="font-normal text-muted-foreground">({sectionExercises.length})</span>
+          </h5>
+          <div className="flex flex-wrap items-center gap-2">
+            {sectionExercises.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => openQuickFillModal(dayOfWeek, section.key)}
+              >
+                Preenchimento rápido
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => openExerciseModal(dayOfWeek, section.key)}
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Adicionar exercício
+            </Button>
           </div>
-          {groupData.warnings.length > 0 && (
-            <div className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700">
+        </div>
+
+        {groupData.warnings.length > 0 && (
+          <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <div>
               {groupData.warnings.map((warning, idx) => (
-                <div key={`${warning.systemKey}-${idx}`}>
-                  {`${warning.label} incompleto: faltam ${warning.missing} exercício(s) para fechar o grupo.`}
-                </div>
+                <p key={`${warning.systemKey}-${idx}`}>
+                  {`${warning.label} incompleto: ${
+                    warning.missing === 1 ? 'falta 1 exercício' : `faltam ${warning.missing} exercícios`
+                  } para fechar o grupo.`}
+                </p>
               ))}
             </div>
-          )}
-        </div>
-      )}
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-2 py-2 text-left font-medium text-gray-600">n</th>
-              <th className="px-2 py-2 text-left font-medium text-gray-600 min-w-[180px]">Exercício</th>
-              <th className="px-2 py-2 text-left font-medium text-gray-600">Sistema</th>
-              <th className="px-2 py-2 text-center font-medium text-gray-600">S</th>
-              <th className="px-2 py-2 text-center font-medium text-gray-600">Rep</th>
-              <th className="px-2 py-2 text-center font-medium text-gray-600">Int</th>
-              <th className="px-2 py-2 text-center font-medium text-gray-600">C</th>
-              <th className="px-2 py-2 text-center font-medium text-gray-600">E</th>
-              <th className="px-2 py-2 text-center font-medium text-gray-600">Crg</th>
-              <th className="px-2 py-2 text-center font-medium text-gray-600">Aj</th>
-              <th className="px-2 py-2 text-center font-medium text-gray-600">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sectionExercises.length === 0 ? (
-              <tr>
-                <td colSpan={11} className="px-2 py-4 text-center text-gray-400">
-                  Nenhum exercício adicionado
-                </td>
-              </tr>
-            ) : (
-              sectionExercises.map((exercise, index) => {
+          </div>
+        )}
+
+        {sectionExercises.length === 0 ? (
+          <p className="rounded-md border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+            Nenhum exercício nesta seção.
+          </p>
+        ) : (
+          <div className="rounded-md border border-border">
+            <div
+              aria-hidden="true"
+              className={`hidden border-b border-border bg-muted px-3 py-2 text-xs font-medium text-muted-foreground xl:grid ${ROW_GRID}`}
+            >
+              <span>Exercício</span>
+              <span>Sistema</span>
+              <abbr title="Séries" className="text-center no-underline">S</abbr>
+              <abbr title="Repetições" className="text-center no-underline">Rep</abbr>
+              <abbr title="Intervalo" className="text-center no-underline">Int</abbr>
+              <span className="text-center">C</span>
+              <span className="text-center">E</span>
+              <abbr title="Carga calculada" className="text-center no-underline">Crg</abbr>
+              <abbr title="Ajuste" className="text-center no-underline">Aj</abbr>
+              <span className="text-right">Ações</span>
+            </div>
+            <ol className="divide-y divide-border">
+              {sectionExercises.map((exercise, index) => {
                 const groupMeta = groupData.meta[index];
-                const hasGroup = (groupMeta?.size ?? 1) > 1;
-                const isGroupStart = groupMeta?.indexInGroup === 0;
-                const isGroupEnd = groupMeta?.indexInGroup === (groupMeta?.size ?? 0) - 1;
-                const groupBorderShared = hasGroup ? 'border-emerald-300/70' : '';
-                const groupBorderTop = hasGroup && isGroupStart ? `border-t ${groupBorderShared}`.trim() : '';
-                const groupBorderBottom = hasGroup && isGroupEnd ? `border-b ${groupBorderShared}`.trim() : '';
-                const groupBorderLeft = hasGroup ? `border-l ${groupBorderShared}`.trim() : '';
-                const groupBorderRight = hasGroup ? `border-r ${groupBorderShared}`.trim() : '';
-                const groupCornerLeft = hasGroup
-                  ? `${isGroupStart ? 'rounded-tl-md' : ''} ${isGroupEnd ? 'rounded-bl-md' : ''} overflow-hidden`
-                      .trim()
-                  : '';
-                const groupCornerRight = hasGroup
-                  ? `${isGroupStart ? 'rounded-tr-md' : ''} ${isGroupEnd ? 'rounded-br-md' : ''} overflow-hidden`
-                      .trim()
-                  : '';
                 const isCyclicExercise = isCyclicCategory(exercise.category);
                 const rowClassName = isCyclicExercise
-                  ? 'bg-blue-50'
+                  ? 'bg-sky-50'
                   : groupMeta
                     ? groupMeta.isComplete
                       ? groupMeta.groupNumber % 2 === 0
                         ? 'bg-emerald-50'
-                        : 'bg-emerald-100'
+                        : 'bg-emerald-100/70'
                       : 'bg-red-50'
                     : '';
-                const inputClassName = `w-14 rounded border border-gray-200 px-2 py-1 text-sm text-center ${
-                  isCyclicExercise ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
-                }`;
+                const repZone =
+                  section.key === 'sessao' &&
+                  resistedSummary?.repZone !== null &&
+                  resistedSummary?.repZone !== undefined
+                    ? String(resistedSummary.repZone)
+                    : undefined;
+                const iconButtonClassName = buttonClassName({
+                  variant: 'ghost',
+                  size: 'icon',
+                  className: 'h-10 w-10 text-muted-foreground xl:h-8 xl:w-8'
+                });
 
                 return (
-                  <tr key={exercise.id} className={rowClassName}>
-                  <td className={`px-2 py-2 text-left text-gray-700 ${groupBorderTop} ${groupBorderBottom} ${groupBorderLeft} ${groupCornerLeft}`}>{index + 1}</td>
-                  <td className={`px-2 py-2 text-left text-gray-700 ${groupBorderTop} ${groupBorderBottom}`}>{exercise.name}</td>
-                  <td className={`px-2 py-2 text-left ${groupBorderTop} ${groupBorderBottom}`}>
-                    {section === 'sessao' && isCyclicExercise ? (
-                      <span className="text-sm text-gray-500">-</span>
-                    ) : section === 'mobilidade' || section === 'sessao' ? (
-                      <div className="space-y-1">
-                        <select
-                          value={
-                            exercise.system || (section === 'sessao' ? (resistedSummary?.method ?? '') : 'SER')
-                          }
-                          onChange={(e) => updateExerciseField(dayOfWeek, section, exercise.id, 'system', e.target.value)}
-                          className="w-full min-w-[160px] rounded border border-gray-200 px-2 py-1 text-sm"
+                  <li
+                    key={exercise.id}
+                    className={`grid grid-cols-2 gap-x-3 gap-y-2 px-3 py-3 xl:py-2 ${ROW_GRID} ${rowClassName}`}
+                  >
+                    <div className="col-span-2 min-w-0 xl:col-span-1">
+                      <p className="text-sm text-foreground">
+                        <span className="mr-1 tabular-nums text-muted-foreground">{index + 1}.</span>
+                        {exercise.name}
+                      </p>
+                      {groupMeta && (
+                        <span
+                          className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                            groupMeta.isComplete ? 'bg-emerald-200/70 text-emerald-800' : 'bg-red-100 text-red-700'
+                          }`}
                         >
-                          {methodParameters.length === 0 ? (
-                            <option value="SER">SER - Séries</option>
-                          ) : (
-                            methodParameters.map((param) => (
-                              <option key={param.id} value={param.code}>
-                                {param.description}
-                              </option>
-                            ))
-                          )}
-                        </select>
-                        {section === 'sessao' && groupData.meta[index] && (
-                          <div
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                              groupData.meta[index]?.isComplete
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : 'bg-red-100 text-red-700'
-                            }`}
-                          >
-                            {`${groupData.meta[index]?.label} ${groupData.meta[index]?.groupNumber} - ${groupData.meta[index]?.indexInGroup + 1}/${groupData.meta[index]?.size}`}
-                          </div>
-                        )}
-                      </div>
+                          {`${groupMeta.label} ${groupMeta.groupNumber} · ${groupMeta.indexInGroup + 1}/${groupMeta.size}${
+                            groupMeta.isComplete ? '' : ' · incompleto'
+                          }`}
+                        </span>
+                      )}
+                    </div>
+
+                    {isCyclicExercise ? (
+                      <p className="col-span-2 text-sm text-muted-foreground xl:col-span-8">
+                        Exercício cíclico: parâmetros definidos no treino cíclico.
+                      </p>
                     ) : (
-                      <input
-                        type="text"
-                        value={exercise.system ?? ''}
-                        onChange={(e) => updateExerciseField(dayOfWeek, section, exercise.id, 'system', e.target.value)}
-                        className="w-full rounded border border-gray-200 px-2 py-1 text-sm"
-                      />
+                      <>
+                        <div className="col-span-2 xl:col-span-1">
+                          {section.key === 'resfriamento' ? (
+                            <label>
+                              <span className={fieldLabelClassName}>Sistema</span>
+                              <input
+                                type="text"
+                                value={exercise.system ?? ''}
+                                aria-label={`Sistema de ${exercise.name}`}
+                                onChange={(e) =>
+                                  updateExerciseField(dayOfWeek, section.key, exercise.id, 'system', e.target.value)
+                                }
+                                className="h-10 w-full rounded-md border border-input bg-card px-2 text-sm xl:h-8"
+                              />
+                            </label>
+                          ) : (
+                            <label>
+                              <span className={fieldLabelClassName}>Sistema</span>
+                              <select
+                                value={exercise.system || (section.key === 'sessao' ? (resistedSummary?.method ?? '') : 'SER')}
+                                aria-label={`Sistema de ${exercise.name}`}
+                                onChange={(e) =>
+                                  updateExerciseField(dayOfWeek, section.key, exercise.id, 'system', e.target.value)
+                                }
+                                className="h-10 w-full rounded-md border border-input bg-card px-2 text-sm xl:h-8"
+                              >
+                                {methodParameters.length === 0 ? (
+                                  <option value="SER">Séries</option>
+                                ) : (
+                                  methodParameters.map((param) => (
+                                    <option key={param.id} value={param.code}>
+                                      {param.description}
+                                    </option>
+                                  ))
+                                )}
+                              </select>
+                            </label>
+                          )}
+                        </div>
+
+                        <div className="col-span-2 grid grid-cols-3 gap-2 sm:grid-cols-7 xl:contents">
+                          {renderNumericField(exercise, 'sets', 'Séries', exercise.sets, (value) =>
+                            updateExerciseField(dayOfWeek, section.key, exercise.id, 'sets', value)
+                          )}
+                          {renderNumericField(
+                            exercise,
+                            'reps',
+                            'Repetições',
+                            exercise.reps,
+                            (repsValue) => {
+                              const referenceId = exercise.exerciseId ?? exercise.id;
+                              updateExerciseFields(dayOfWeek, section.key, exercise.id, {
+                                reps: repsValue,
+                                load: calculateLoad(maxLoads[referenceId], repsValue)
+                              });
+                            },
+                            repZone
+                          )}
+                          {renderNumericField(exercise, 'interval', 'Intervalo', exercise.interval, (value) =>
+                            updateExerciseField(dayOfWeek, section.key, exercise.id, 'interval', value)
+                          )}
+                          {renderNumericField(exercise, 'cParam', 'C', exercise.cParam, (value) =>
+                            updateExerciseField(dayOfWeek, section.key, exercise.id, 'cParam', value)
+                          )}
+                          {renderNumericField(exercise, 'eParam', 'E', exercise.eParam, (value) =>
+                            updateExerciseField(dayOfWeek, section.key, exercise.id, 'eParam', value)
+                          )}
+                          <div>
+                            <span className={fieldLabelClassName}>Carga</span>
+                            <output
+                              aria-label={`Carga calculada de ${exercise.name}`}
+                              className="flex h-10 items-center justify-center text-sm tabular-nums text-foreground xl:h-8"
+                            >
+                              {exercise.load ?? '–'}
+                            </output>
+                          </div>
+                          <label>
+                            <span className={fieldLabelClassName}>Ajuste</span>
+                            <input
+                              type="text"
+                              value={exercise.adjustment ?? ''}
+                              aria-label={`Ajuste de ${exercise.name}`}
+                              onChange={(e) =>
+                                updateExerciseField(dayOfWeek, section.key, exercise.id, 'adjustment', e.target.value)
+                              }
+                              className="h-10 w-full rounded-md border border-input bg-card px-2 text-sm xl:h-8"
+                            />
+                          </label>
+                        </div>
+                      </>
                     )}
-                  </td>
-                  <td className={`px-2 py-2 text-center ${groupBorderTop} ${groupBorderBottom}`}>
-                    <input
-                      type="number"
-                      value={exercise.sets ?? ''}
-                      onChange={(e) => updateExerciseField(dayOfWeek, section, exercise.id, 'sets', e.target.value ? Number(e.target.value) : null)}
-                      disabled={isCyclicExercise}
-                      className={inputClassName}
-                    />
-                  </td>
-                  <td className={`px-2 py-2 text-center ${groupBorderTop} ${groupBorderBottom}`}>
-                    <input
-                      type="number"
-                      value={
-                        exercise.reps ??
-                        (!isCyclicExercise &&
-                        section === 'sessao' &&
-                        resistedSummary?.repZone !== null &&
-                        resistedSummary?.repZone !== undefined
-                          ? Number(resistedSummary.repZone)
-                          : '')
-                      }
-                      onChange={(e) => {
-                        const repsValue = e.target.value ? Number(e.target.value) : null;
-                        const referenceId = exercise.exerciseId ?? exercise.id;
-                        const maxLoad = maxLoads[referenceId];
-                        const computedLoad = calculateLoad(maxLoad, repsValue);
-                        updateExerciseFields(dayOfWeek, section, exercise.id, {
-                          reps: repsValue,
-                          load: computedLoad
-                        });
-                      }}
-                      disabled={isCyclicExercise}
-                      className={inputClassName}
-                    />
-                  </td>
-                  <td className={`px-2 py-2 text-center ${groupBorderTop} ${groupBorderBottom}`}>
-                    <input
-                      type="number"
-                      value={exercise.interval ?? ''}
-                      onChange={(e) => updateExerciseField(dayOfWeek, section, exercise.id, 'interval', e.target.value ? Number(e.target.value) : null)}
-                      disabled={isCyclicExercise}
-                      className={inputClassName}
-                    />
-                  </td>
-                  <td className={`px-2 py-2 text-center ${groupBorderTop} ${groupBorderBottom}`}>
-                    <input
-                      type="number"
-                      value={exercise.cParam ?? ''}
-                      onChange={(e) => updateExerciseField(dayOfWeek, section, exercise.id, 'cParam', e.target.value ? Number(e.target.value) : null)}
-                      disabled={isCyclicExercise}
-                      className={inputClassName}
-                    />
-                  </td>
-                  <td className={`px-2 py-2 text-center ${groupBorderTop} ${groupBorderBottom}`}>
-                    <input
-                      type="number"
-                      value={exercise.eParam ?? ''}
-                      onChange={(e) => updateExerciseField(dayOfWeek, section, exercise.id, 'eParam', e.target.value ? Number(e.target.value) : null)}
-                      disabled={isCyclicExercise}
-                      className={inputClassName}
-                    />
-                  </td>
-                  <td className={`px-2 py-2 text-center ${groupBorderTop} ${groupBorderBottom}`}>
-                    <input
-                      type="number"
-                      value={exercise.load ?? ''}
-                      readOnly
-                      className={`w-16 rounded border border-gray-200 bg-gray-100 px-2 py-1 text-sm text-center ${
-                        isCyclicExercise ? 'text-gray-400' : ''
-                      }`}
-                    />
-                  </td>
-                  <td className={`px-2 py-2 text-center ${groupBorderTop} ${groupBorderBottom}`}>
-                    <input
-                      type="text"
-                      value={exercise.adjustment ?? ''}
-                      onChange={(e) => updateExerciseField(dayOfWeek, section, exercise.id, 'adjustment', e.target.value)}
-                      disabled={isCyclicExercise}
-                      className={inputClassName}
-                    />
-                  </td>
-                  <td className={`px-2 py-2 text-center ${groupBorderTop} ${groupBorderBottom} ${groupBorderRight} ${groupCornerRight}`}>
-                    <div className="flex items-center justify-center gap-1">
+
+                    <div className="col-span-2 flex items-center justify-end gap-0.5 xl:col-span-1">
                       <button
                         type="button"
-                        onClick={() => moveExercise(dayOfWeek, section, index, 'up')}
-                        className="rounded p-1 text-gray-500 hover:bg-gray-100"
+                        onClick={() => moveExercise(dayOfWeek, section.key, index, 'up')}
+                        disabled={index === 0}
+                        className={iconButtonClassName}
+                        aria-label={`Mover ${exercise.name} para cima`}
                         title="Mover para cima"
                       >
-                        <ChevronUp className="h-4 w-4" />
+                        <ChevronUp className="h-4 w-4" aria-hidden="true" />
                       </button>
                       <button
                         type="button"
-                        onClick={() => moveExercise(dayOfWeek, section, index, 'down')}
-                        className="rounded p-1 text-gray-500 hover:bg-gray-100"
+                        onClick={() => moveExercise(dayOfWeek, section.key, index, 'down')}
+                        disabled={index === sectionExercises.length - 1}
+                        className={iconButtonClassName}
+                        aria-label={`Mover ${exercise.name} para baixo`}
                         title="Mover para baixo"
                       >
-                        <ChevronDown className="h-4 w-4" />
+                        <ChevronDown className="h-4 w-4" aria-hidden="true" />
                       </button>
                       <button
                         type="button"
-                        onClick={() => duplicateExercise(dayOfWeek, section, index)}
-                        className="rounded p-1 text-gray-500 hover:bg-gray-100"
+                        onClick={() => duplicateExercise(dayOfWeek, section.key, index)}
+                        className={iconButtonClassName}
+                        aria-label={`Duplicar ${exercise.name}`}
                         title="Duplicar"
                       >
-                        <Copy className="h-4 w-4" />
+                        <Copy className="h-4 w-4" aria-hidden="true" />
                       </button>
                       <button
                         type="button"
-                        onClick={() => deleteExercise(dayOfWeek, section, index)}
-                        className="rounded p-1 text-red-600 hover:bg-red-50"
+                        onClick={() => deleteExercise(dayOfWeek, section.key, index)}
+                        className={`${iconButtonClassName} ml-1 !text-destructive hover:!bg-red-50`}
+                        aria-label={`Excluir ${exercise.name}`}
                         title="Excluir"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </button>
                     </div>
-                  </td>
-                </tr>
+                  </li>
                 );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-      <div className="border-t border-gray-200 px-2 py-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => openExerciseModal(dayOfWeek, section)}
-            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Adicionar Exercício
-          </button>
-          <button
-            type="button"
-            onClick={() => openQuickFillModal(dayOfWeek, section)}
-            className="text-sm text-blue-600 hover:text-blue-700"
-            title="Preenchimento rápido de Int, C e E"
-          >
-            Preenchimento rápido (Int/C/E)
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+              })}
+            </ol>
+          </div>
+        )}
+      </section>
+    );
   };
 
-  useEffect(() => {
-    if (registerScrollContainer) {
-      registerScrollContainer(scrollContainerRef.current);
-      return () => registerScrollContainer(null);
-    }
-  }, [registerScrollContainer]);
+  const quickFillSectionTitle = SECTIONS.find((section) => section.key === quickFillSection)?.title ?? '';
+  const quickFillDayLabel = quickFillDay ? days[quickFillDay - 1]?.label : '';
+  const cyclicLocation = getCyclicLocation(activeDayInfo.dayOfWeek);
+  const panelId = `${idPrefix}-panel`;
 
   return (
-    <div className="space-y-6">
-      {/* Tabela Semanal - Layout Colunar */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Treinamento Resistido - Semana</h3>
+    <div className="space-y-5">
+      <div className="relative overflow-x-auto rounded-lg border border-border bg-card px-2 py-1">
+        <div role="tablist" aria-label="Dias da semana" data-tabs="resistance-days">
+          {days.map((day, index) => {
+            const isActive = day.dayOfWeek === activeDayInfo.dayOfWeek;
+            const count = countDayExercises(day.dayOfWeek);
+            const editable = isDayEditable(day.dayOfWeek);
+            return (
+              <button
+                key={day.dayOfWeek}
+                ref={(el) => {
+                  dayTabRefs.current[index] = el;
+                }}
+                type="button"
+                role="tab"
+                id={`${idPrefix}-tab-${day.dayOfWeek}`}
+                aria-selected={isActive}
+                aria-controls={panelId}
+                tabIndex={isActive ? 0 : -1}
+                title={`${day.label}, ${day.date}`}
+                onClick={() => selectDay(day.dayOfWeek)}
+                onKeyDown={(event) => handleDayTabKeyDown(event, index)}
+              >
+                <span>{day.shortLabel}</span>
+                <span className="text-xs tabular-nums">{day.date}</span>
+                {count > 0 && (
+                  <span className="rounded-full bg-muted px-1.5 text-xs tabular-nums text-foreground">
+                    {count}
+                    <span className="sr-only">{count === 1 ? ' exercício' : ' exercícios'}</span>
+                  </span>
+                )}
+                {!editable && (
+                  <>
+                    <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span className="sr-only">somente leitura</span>
+                  </>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div
+        role="tabpanel"
+        id={panelId}
+        aria-labelledby={`${idPrefix}-tab-${activeDayInfo.dayOfWeek}`}
+        className="space-y-5"
+      >
+        <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+          <h4 className="text-base font-semibold text-foreground">
+            {activeDayInfo.label}, {activeDayInfo.date}
+          </h4>
+          <p className="text-sm text-muted-foreground">
+            Treino cíclico:{' '}
+            <span className="font-medium text-foreground">{cyclicLocation || 'não planejado'}</span>
+          </p>
         </div>
 
-        <div
-          className="overflow-x-auto overflow-y-hidden"
-          ref={scrollContainerRef}
-          onScroll={(event) => {
-            if (onScrollSync) {
-              onScrollSync(event.currentTarget);
-            }
-          }}
+        {!activeDayEditable && (
+          <p className="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
+            <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
+            Dia fora do período do plano: somente leitura.
+          </p>
+        )}
+
+        <fieldset
+          disabled={!activeDayEditable}
+          aria-label={`Exercícios de ${activeDayInfo.label}`}
+          className={`m-0 min-w-0 space-y-6 border-0 p-0 ${activeDayEditable ? '' : 'opacity-70'}`}
         >
-          <table className="min-w-full border-collapse">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 border-b border-gray-200 min-w-[280px]">
-                  Treinamentos
-                </th>
-                {days.map((day) => (
-                  <th
-                    key={day.dayOfWeek}
-                    className="px-4 py-3 text-center text-xs font-semibold text-gray-700 border-b border-gray-200 min-w-[160px]"
-                  >
-                    <div className="font-medium text-gray-900">{day.label}</div>
-                    <div className="text-[11px] text-gray-500">{day.date}</div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="bg-white">
-              {[
-                { key: 'mobilidade', title: 'MOBILIDADE | AQUECIMENTO | ATIVAÇÃO | TÉCNICO', bg: 'bg-purple-50' },
-                { key: 'sessao', title: 'SESSÃO', bg: 'bg-green-50' },
-                { key: 'resfriamento', title: 'RESFRIAMENTO | FINALIZAÇÃO', bg: 'bg-blue-50' }
-              ].map((section) => (
-                <tr key={section.key} className="border-b border-gray-200">
-                  <td className={`px-4 py-3 text-xs font-semibold text-gray-800 ${section.bg}`}>
-                    {section.title}
-                  </td>
-                  {days.map((day) => (
-                    <td key={day.dayOfWeek} className="px-4 py-3 align-top">
-                      {renderDayExerciseCell(day.dayOfWeek, section.key as SectionKey, isDayEditable(day.dayOfWeek))}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          {SECTIONS.map((section) => renderSection(activeDayInfo.dayOfWeek, section))}
+        </fieldset>
       </div>
 
       <ExerciseSelectorModal
@@ -1035,82 +1123,86 @@ export default function WorkoutBuilderResistance({
       />
 
       {quickFillOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setQuickFillOpen(false)} />
-          <div className="relative w-full max-w-md rounded-lg bg-white p-5 shadow-lg">
-            <h4 className="text-base font-semibold text-gray-900 mb-4">Preenchimento rápido</h4>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs text-gray-500">S</label>
-                <input
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') closeQuickFillModal();
+          }}
+        >
+          <div className="absolute inset-0 bg-black/40" aria-hidden="true" onClick={closeQuickFillModal} />
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={`${idPrefix}-quickfill-title`}
+            aria-describedby={`${idPrefix}-quickfill-desc`}
+            className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-card p-5 shadow-lg"
+            onSubmit={(event) => {
+              event.preventDefault();
+              applyQuickFill();
+            }}
+          >
+            <h4 id={`${idPrefix}-quickfill-title`} className="text-base font-semibold text-foreground">
+              Preenchimento rápido
+            </h4>
+            <p id={`${idPrefix}-quickfill-desc`} className="mt-1 text-sm text-muted-foreground">
+              Aplica os valores a todos os exercícios de {quickFillSectionTitle} em {quickFillDayLabel}. Campos
+              vazios mantêm os valores atuais.
+            </p>
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              <Input
+                label="Séries"
+                type="number"
+                min={0}
+                autoFocus
+                value={quickFillValues.sets}
+                onChange={(e) => setQuickFillValues((prev) => ({ ...prev, sets: e.target.value }))}
+              />
+              <Input
+                label="C"
+                type="number"
+                min={0}
+                value={quickFillValues.cParam}
+                onChange={(e) => setQuickFillValues((prev) => ({ ...prev, cParam: e.target.value }))}
+              />
+              <Input
+                label="E"
+                type="number"
+                min={0}
+                value={quickFillValues.eParam}
+                onChange={(e) => setQuickFillValues((prev) => ({ ...prev, eParam: e.target.value }))}
+              />
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <Input
+                label="Intervalo entre séries"
+                type="number"
+                min={0}
+                value={quickFillValues.intervalBetweenSeries}
+                onChange={(e) =>
+                  setQuickFillValues((prev) => ({ ...prev, intervalBetweenSeries: e.target.value }))
+                }
+              />
+              {quickFillSection === 'sessao' && (
+                <Input
+                  label="Intervalo dentro do grupo"
                   type="number"
-                  value={quickFillValues.sets}
-                  onChange={(e) => setQuickFillValues((prev) => ({ ...prev, sets: e.target.value }))}
-                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm text-center"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">Int Ex</label>
-                <input
-                  type="number"
+                  min={0}
                   value={quickFillValues.intervalBetweenExercises}
                   onChange={(e) =>
                     setQuickFillValues((prev) => ({ ...prev, intervalBetweenExercises: e.target.value }))
                   }
-                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm text-center"
                 />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">Int Séries</label>
-                <input
-                  type="number"
-                  value={quickFillValues.intervalBetweenSeries}
-                  onChange={(e) =>
-                    setQuickFillValues((prev) => ({ ...prev, intervalBetweenSeries: e.target.value }))
-                  }
-                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm text-center"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">C</label>
-                <input
-                  type="number"
-                  value={quickFillValues.cParam}
-                  onChange={(e) => setQuickFillValues((prev) => ({ ...prev, cParam: e.target.value }))}
-                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm text-center"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">E</label>
-                <input
-                  type="number"
-                  value={quickFillValues.eParam}
-                  onChange={(e) => setQuickFillValues((prev) => ({ ...prev, eParam: e.target.value }))}
-                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm text-center"
-                />
-              </div>
-              <div className="col-span-1" aria-hidden="true" />
+              )}
             </div>
             <div className="mt-5 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setQuickFillOpen(false)}
-                className="rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-              >
+              <Button type="button" variant="outline" onClick={closeQuickFillModal}>
                 Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={applyQuickFill}
-                className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
-              >
-                Aplicar
-              </button>
+              </Button>
+              <Button type="submit">Aplicar</Button>
             </div>
-          </div>
+          </form>
         </div>
       )}
     </div>
   );
 }
-

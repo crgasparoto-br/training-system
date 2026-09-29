@@ -3,16 +3,16 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:4674700e-2d21-4cf0-9a01-2d21cf251698",
-    "audit_report_sha256": "ceb98d71b863b0a7e0a17dc9e2324d974a4cc343a3d87a3b81b7d1492b41dfcf",
+    "rejection_id": "audit-rejection:pr475-d7366984-01",
+    "audit_report_sha256": "6f2d295a72006cf4c26f9fe2744e06f6f46871061e33364a2e2af81f645731bc",
     "finding_ids": [
-      "A-467-REVIEW-SNAPSHOT-001",
-      "A-467-HANDOFF-001"
+      "A-001",
+      "A-002"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The findings are closed by the existing shared-catalog, legacy-read-compatibility and result-only handoff controls; no new global Skill rule is required beyond applying those controls to this delivery."
+    "reason": "Both findings are targeted implementation/delivery-state defects closed by local code regressions and target-bound handoff reconstruction; no repository-independent global Skill rule is required."
   },
   "skill_changes": []
 }
