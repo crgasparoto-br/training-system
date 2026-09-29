@@ -6,6 +6,7 @@ vi.mock('../../services/periodization.service', () => ({
     getParametersByCategory: vi.fn().mockResolvedValue([
       { id: 'SER', category: 'metodo', code: 'SER', description: 'Séries', order: 1, active: true },
       { id: 'BS', category: 'metodo', code: 'BS', description: 'Bi-Set', order: 2, active: true },
+      { id: 'CIR', category: 'metodo', code: 'CIR', description: 'Circuito', order: 3, active: true },
     ]),
   },
 }));
@@ -227,6 +228,49 @@ describe('WorkoutBuilderResistance', () => {
     expect(within(dialog).getByLabelText('C')).toHaveValue(null);
     expect(within(dialog).getByLabelText('Séries')).toHaveValue(null);
     expect(within(dialog).getByLabelText('E')).toHaveValue(null);
+  });
+
+  it('permite dividir e recompor circuitos em blocos explícitos', () => {
+    const onChange = vi.fn();
+    const circuitTemplate = {
+      ...templateData,
+      id: 'tpl-circuit',
+      resistedExercises: {
+        1: {
+          mobilidade: [],
+          sessao: [
+            exercise('c1', 'Afundo com salto', { system: 'CIR' }),
+            exercise('c2', 'Leg Press', { system: 'CIR' }),
+            exercise('c3', 'Remada baixa', { system: 'CIR' }),
+            exercise('c4', 'Supino', { system: 'CIR' }),
+          ],
+          resfriamento: [],
+        },
+      },
+    };
+
+    render(
+      <WorkoutBuilderResistance
+        templateData={circuitTemplate}
+        resistedSummary={{ id: 'r', matrixId: 'm', mesocycleNumber: 5, weekNumber: 2, method: 'CIR' } as any}
+        onChange={onChange}
+      />
+    );
+
+    expect(screen.getByText('Circuito 1 · 1/4')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar novo bloco antes de Remada baixa' }));
+
+    const split = onChange.mock.calls.at(-1)?.[0].resistedExercises[1].sessao;
+    expect(split[2]).toEqual(expect.objectContaining({ name: 'Remada baixa', groupBreakBefore: true }));
+    expect(screen.getByText('Circuito 1 · 1/2')).toBeInTheDocument();
+    expect(screen.getByText('Circuito 2 · 1/2')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unir Remada baixa ao bloco anterior' }));
+
+    const joined = onChange.mock.calls.at(-1)?.[0].resistedExercises[1].sessao;
+    expect(joined[2]).toEqual(expect.objectContaining({ name: 'Remada baixa', groupBreakBefore: false }));
+    expect(screen.getByText('Circuito 1 · 1/4')).toBeInTheDocument();
   });
 
   it('navega entre os dias pelo teclado', () => {

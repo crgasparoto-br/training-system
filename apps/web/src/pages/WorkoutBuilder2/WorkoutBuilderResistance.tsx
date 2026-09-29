@@ -1,6 +1,6 @@
 ﻿import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { periodizationService, ResistedStimulus, TrainingParameter } from '../../services/periodization.service';
-import { AlertTriangle, ChevronDown, ChevronUp, Copy, Lock, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Copy, Lock, Minus, Plus, Trash2 } from 'lucide-react';
 import { Button, buttonClassName } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { ExerciseSelectorModal } from '../../components/ExerciseSelectorModal';
@@ -43,6 +43,7 @@ interface SelectedExercise {
   name: string;
   category?: string;
   system?: string;
+  groupBreakBefore?: boolean;
   sets?: number | null;
   reps?: number | null;
   interval?: number | null;
@@ -187,12 +188,23 @@ export default function WorkoutBuilderResistance({
     return normalizeSystemText(category) === 'ciclico';
   };
 
-  const getSystemGroupSize = (systemCode?: string) => {
+  const getSystemKey = (systemCode?: string) => {
     const resolved = resolveSystemLabel(systemCode);
-    const text = normalizeSystemText(`${systemCode ?? ''} ${resolved ?? ''}`);
-    if (/\bbi\s*set\b/.test(text) || /\bbiset\b/.test(text)) return 2;
-    if (/\btri\s*set\b/.test(text) || /\btriset\b/.test(text)) return 3;
-    if (/\bquad(?:ri)?\s*set\b/.test(text) || /\bquadset\b/.test(text)) return 4;
+    return normalizeSystemText(`${systemCode ?? ''} ${resolved ?? ''}`);
+  };
+
+  const isCircuitSystem = (systemCode?: string) => {
+    const code = normalizeSystemText(systemCode ?? '');
+    const text = getSystemKey(systemCode);
+    return code === 'cir' || code === 'circuito' || /\bcircuit(?:o)?\b/.test(text);
+  };
+
+  const getSystemGroupSize = (systemCode?: string) => {
+    const code = normalizeSystemText(systemCode ?? '');
+    const text = getSystemKey(systemCode);
+    if (code === 'bs' || /\bbi\s*set\b/.test(text) || /\bbiset\b/.test(text)) return 2;
+    if (code === 'ts' || /\btri\s*set\b/.test(text) || /\btriset\b/.test(text)) return 3;
+    if (code === 'qs' || /\bquad(?:ri)?\s*set\b/.test(text) || /\bquadset\b/.test(text)) return 4;
     return 1;
   };
 
@@ -235,6 +247,45 @@ export default function WorkoutBuilderResistance({
     while (i < list.length) {
       const currentSystem = resolveSystemValue(list[i]?.system);
       const size = getSystemGroupSize(currentSystem);
+
+      if (isCircuitSystem(currentSystem)) {
+        const systemKey = getSystemKey(currentSystem);
+        let j = i + 1;
+        while (j < list.length) {
+          const nextSystem = resolveSystemValue(list[j]?.system);
+          if (!isCircuitSystem(nextSystem) || getSystemKey(nextSystem) !== systemKey) break;
+          j += 1;
+        }
+
+        let blockStart = i;
+        let groupNumber = 1;
+        const assignCircuitBlock = (start: number, end: number, blockNumber: number) => {
+          const blockSize = end - start;
+          for (let cursor = start; cursor < end; cursor += 1) {
+            meta[cursor] = {
+              size: blockSize,
+              indexInGroup: cursor - start,
+              groupNumber: blockNumber,
+              isComplete: true,
+              label: 'Circuito',
+              groupKey: `${systemKey}-${blockNumber - 1}`
+            };
+          }
+        };
+
+        for (let cursor = i + 1; cursor < j; cursor += 1) {
+          if (list[cursor]?.groupBreakBefore) {
+            assignCircuitBlock(blockStart, cursor, groupNumber);
+            blockStart = cursor;
+            groupNumber += 1;
+          }
+        }
+        assignCircuitBlock(blockStart, j, groupNumber);
+
+        i = j;
+        continue;
+      }
+
       if (size <= 1) {
         i += 1;
         continue;
@@ -479,7 +530,7 @@ export default function WorkoutBuilderResistance({
     section: SectionKey,
     exerciseId: string,
     field: keyof SelectedExercise,
-    value: string | number | null
+    value: string | number | boolean | null
   ) => {
     setExercisesByDay((prev) => {
       const currentDay = prev[dayOfWeek] || {
@@ -488,9 +539,14 @@ export default function WorkoutBuilderResistance({
         resfriamento: []
       };
 
-      const updatedSection = currentDay[section].map((exercise) =>
-        exercise.id === exerciseId ? { ...exercise, [field]: value } : exercise
-      );
+      const updatedSection = currentDay[section].map((exercise) => {
+        if (exercise.id !== exerciseId) return exercise;
+        const updatedExercise = { ...exercise, [field]: value } as SelectedExercise;
+        if (field === 'system' && typeof value === 'string' && !isCircuitSystem(value)) {
+          updatedExercise.groupBreakBefore = false;
+        }
+        return updatedExercise;
+      });
 
       let finalSection = updatedSection;
       if (section === 'sessao' && field === 'system') {
@@ -550,7 +606,7 @@ export default function WorkoutBuilderResistance({
 
       const list = [...currentDay[section]];
       const original = list[index];
-      const copy = { ...original, id: `${original.id}-${Date.now()}` };
+      const copy = { ...original, id: `${original.id}-${Date.now()}`, groupBreakBefore: false };
       list.splice(index + 1, 0, copy);
 
       const finalList = section === 'sessao' ? applyIntervalRulesIfConfigured(list) : list;
@@ -568,7 +624,19 @@ export default function WorkoutBuilderResistance({
       const currentDay = prev[dayOfWeek];
       if (!currentDay) return prev;
 
-      const list = currentDay[section].filter((_, idx) => idx !== index);
+      const currentList = currentDay[section];
+      const removed = currentList[index];
+      const nextExercise = currentList[index + 1];
+      const preserveCircuitBoundary =
+        Boolean(removed?.groupBreakBefore) &&
+        Boolean(nextExercise) &&
+        isCircuitSystem(removed?.system || resistedSummary?.method || '') &&
+        getSystemKey(removed?.system || resistedSummary?.method || '') ===
+          getSystemKey(nextExercise?.system || resistedSummary?.method || '');
+      const list = currentList.filter((_, idx) => idx !== index);
+      if (preserveCircuitBoundary && list[index]) {
+        list[index] = { ...list[index], groupBreakBefore: true };
+      }
       const finalList = section === 'sessao' ? applyIntervalRulesIfConfigured(list) : list;
       const updatedDay = { ...currentDay, [section]: finalList };
       const updated = { ...prev, [dayOfWeek]: updatedDay };
@@ -604,6 +672,7 @@ export default function WorkoutBuilderResistance({
                 : selectedSection === 'sessao'
                   ? (isCyclic ? '-' : (resistedSummary?.method ?? ''))
                   : '',
+            groupBreakBefore: false,
             sets: null,
             reps: null,
             interval: null,
@@ -647,6 +716,7 @@ export default function WorkoutBuilderResistance({
           : selectedSection === 'sessao'
             ? (isCyclic ? '-' : (resistedSummary?.method ?? ''))
             : '',
+      groupBreakBefore: false,
       sets: null,
       reps: null,
       interval: null,
@@ -846,9 +916,13 @@ export default function WorkoutBuilderResistance({
                   ? 'bg-sky-50'
                   : groupMeta
                     ? groupMeta.isComplete
-                      ? groupMeta.groupNumber % 2 === 0
-                        ? 'bg-emerald-50'
-                        : 'bg-emerald-100/70'
+                      ? groupMeta.label === 'Circuito'
+                        ? groupMeta.groupNumber % 2 === 0
+                          ? 'bg-sky-50'
+                          : 'bg-emerald-50'
+                        : groupMeta.groupNumber % 2 === 0
+                          ? 'bg-emerald-50'
+                          : 'bg-emerald-100/70'
                       : 'bg-red-50'
                     : '';
                 const repZone =
@@ -857,6 +931,15 @@ export default function WorkoutBuilderResistance({
                   resistedSummary?.repZone !== undefined
                     ? String(resistedSummary.repZone)
                     : undefined;
+                const effectiveSystem = (exercise.system || resistedSummary?.method || '').trim();
+                const previousExercise = sectionExercises[index - 1];
+                const previousSystem = (previousExercise?.system || resistedSummary?.method || '').trim();
+                const canToggleCircuitBreak =
+                  section.key === 'sessao' &&
+                  index > 0 &&
+                  isCircuitSystem(effectiveSystem) &&
+                  isCircuitSystem(previousSystem) &&
+                  getSystemKey(effectiveSystem) === getSystemKey(previousSystem);
                 const iconButtonClassName = buttonClassName({
                   variant: 'ghost',
                   size: 'icon',
@@ -876,7 +959,11 @@ export default function WorkoutBuilderResistance({
                       {groupMeta && (
                         <span
                           className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                            groupMeta.isComplete ? 'bg-emerald-200/70 text-emerald-800' : 'bg-red-100 text-red-700'
+                            groupMeta.isComplete
+                              ? groupMeta.label === 'Circuito'
+                                ? 'bg-sky-100 text-sky-800'
+                                : 'bg-emerald-200/70 text-emerald-800'
+                              : 'bg-red-100 text-red-700'
                           }`}
                         >
                           {`${groupMeta.label} ${groupMeta.groupNumber} · ${groupMeta.indexInGroup + 1}/${groupMeta.size}${
@@ -984,6 +1071,37 @@ export default function WorkoutBuilderResistance({
                     )}
 
                     <div className="col-span-2 flex items-center justify-end gap-0.5 xl:col-span-1">
+                      {canToggleCircuitBreak && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateExerciseField(
+                              dayOfWeek,
+                              section.key,
+                              exercise.id,
+                              'groupBreakBefore',
+                              !(exercise.groupBreakBefore ?? false)
+                            )
+                          }
+                          className={iconButtonClassName}
+                          aria-label={
+                            exercise.groupBreakBefore
+                              ? `Unir ${exercise.name} ao bloco anterior`
+                              : `Iniciar novo bloco antes de ${exercise.name}`
+                          }
+                          title={
+                            exercise.groupBreakBefore
+                              ? 'Unir ao bloco anterior'
+                              : 'Iniciar novo bloco'
+                          }
+                        >
+                          {exercise.groupBreakBefore ? (
+                            <Minus className="h-4 w-4" aria-hidden="true" />
+                          ) : (
+                            <Plus className="h-4 w-4" aria-hidden="true" />
+                          )}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => moveExercise(dayOfWeek, section.key, index, 'up')}
