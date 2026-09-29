@@ -1,0 +1,18 @@
+## Objetivo
+
+Fechar a remediação targeted da auditoria independente da PR #475 (`audit-rejection:pr475-d7366984-01`) no Treinamento Resistido, preservando o comportamento já entregue.
+
+## Requisitos
+
+- Novos exercícios resistidos adicionados individualmente ou em lote à **Sessão** devem nascer com `reps=null` quando não houver repetição informada; `resistedSummary.repZone` deve continuar apenas como placeholder do campo Rep.
+- O **Preenchimento rápido** deve abrir com Séries, intervalos, C e E vazios em toda nova abertura; campos deixados vazios ao aplicar continuam preservando os valores atuais.
+- A remediação deve preservar layout, permissões, persistência e demais regras do Workout Builder, com regressões cobrindo inclusão individual, inclusão múltipla e reabertura do modal.
+
+## Critérios de aceite
+
+- O SHA corretivo passa type-check, lint, testes, build, `arch:check`, `access:check`, `docs:check` e o gate final da PR.
+- A PR #475 recebe handoff certificado para a Issue #476, sem reutilizar como prova o pacote herdado da PR #470 / Issue #467.
+
+## Fora de escopo
+
+Alterar o significado de C, E ou Int, redesenhar o layout ou mudar regras de negócio/permissões.

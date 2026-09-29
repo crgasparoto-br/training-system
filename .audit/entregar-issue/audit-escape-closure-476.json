@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "A-001",
+      "escape_class": "default-value-vs-placeholder-drift",
+      "source_audit": {
+        "head_sha": "d7366984bf51797584d60e81299f084a595e2aea",
+        "rejection_id": "audit-rejection:pr475-d7366984-01",
+        "finding_id": "A-001",
+        "audit_report_sha256": "6f2d295a72006cf4c26f9fe2744e06f6f46871061e33364a2e2af81f645731bc"
+      },
+      "plausible_wrong_implementation": "Render a placeholder for existing null values but still initialize newly created rows with the weekly suggested value.",
+      "literal_case": {
+        "procedure": "Add one resisted exercise with weekly repZone 12 and inspect emitted reps and rendered Rep input.",
+        "status": "passed",
+        "evidence": "WorkoutBuilderResistance.test.tsx single-add regression",
+        "observed": "On material head b9a7b1d8c4e064bc75ebf06f28d66a4e7cd003b7, the added row emits reps null and renders placeholder 12."
+      },
+      "sibling_cases": [
+        {
+          "id": "multi-add",
+          "surface": "exercise-multi-select",
+          "dimension": "multiple-created-rows",
+          "status": "passed",
+          "evidence": "Multi-add regression verifies two rows remain reps:null with placeholder 12."
+        },
+        {
+          "id": "existing-null",
+          "surface": "exercise-existing-row",
+          "dimension": "hydrated-null-value",
+          "status": "passed",
+          "evidence": "Existing placeholder regression verifies hydrated reps:null is not converted to a saved value."
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "state-integrity",
+          "surface": "exercise-creation",
+          "dimension": "suggestion-vs-persisted-default"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "WorkoutBuilderResistance creation producers",
+        "evidence": "Single and multi-select constructors now set reps:null."
+      },
+      "detection_change": {
+        "skill_or_gate": "component regression suite",
+        "control_id": "NC-REP-PLACEHOLDER-NEW-ROWS",
+        "evidence": "Single and multi-add regressions fail if repZone becomes persisted reps."
+      },
+      "trigger_terms": [
+        "placeholder",
+        "default value",
+        "new row",
+        "suggested value"
+      ],
+      "required_risk_families": [
+        "state-integrity"
+      ],
+      "revalidated_head_sha": "b9a7b1d8c4e064bc75ebf06f28d66a4e7cd003b7",
+      "status": "passed"
+    },
+    {
+      "escape_id": "A-002",
+      "escape_class": "inherited-handoff-target-binding-gap",
+      "source_audit": {
+        "head_sha": "d7366984bf51797584d60e81299f084a595e2aea",
+        "rejection_id": "audit-rejection:pr475-d7366984-01",
+        "finding_id": "A-002",
+        "audit_report_sha256": "6f2d295a72006cf4c26f9fe2744e06f6f46871061e33364a2e2af81f645731bc"
+      },
+      "plausible_wrong_implementation": "Treat any handoff-ready.json found on the branch as current even when it is byte-identical to a base artifact for another target.",
+      "literal_case": {
+        "procedure": "Compare inherited handoff subject to current issue/PR identity before any reuse.",
+        "status": "passed",
+        "evidence": "Current delivery rebuilds specification snapshot for Issue #476 / PR #475.",
+        "observed": "On material head b9a7b1d8c4e064bc75ebf06f28d66a4e7cd003b7, the foreign package is excluded from reuse and a fresh target-bound package is prepared."
+      },
+      "sibling_cases": [
+        {
+          "id": "foreign-subject",
+          "surface": "handoff-subject",
+          "dimension": "issue-pr-identity",
+          "status": "passed",
+          "evidence": "Old subject #467/#470 is rejected for current #476/#475."
+        },
+        {
+          "id": "base-inheritance",
+          "surface": "handoff-origin",
+          "dimension": "same-artifact-as-base",
+          "status": "passed",
+          "evidence": "Inherited package is treated as historical rather than evidence of the current delivery."
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "delivery-identity",
+          "surface": "handoff",
+          "dimension": "target-binding"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "current delivery handoff reconstruction",
+        "evidence": "Fresh snapshot, closure, remediation and evidence files are generated from Issue #476 and material head."
+      },
+      "detection_change": {
+        "skill_or_gate": "delivery_target_binding + terminal handoff guard",
+        "control_id": "NC-HANDOFF-TARGET-BINDING",
+        "evidence": "Target identity, parent and result-only allowlist are validated before independent audit."
+      },
+      "trigger_terms": [
+        "handoff inherited from base",
+        "foreign target",
+        "result-only child"
+      ],
+      "required_risk_families": [
+        "delivery-identity"
+      ],
+      "revalidated_head_sha": "b9a7b1d8c4e064bc75ebf06f28d66a4e7cd003b7",
+      "status": "passed"
+    }
+  ]
+}
