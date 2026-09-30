@@ -6,7 +6,7 @@ import { StudentProfileReviewEntry } from '../components/student/StudentProfileR
 import { useAuthStore } from '../stores/useAuthStore';
 import { PRE_REGISTRATION_UI_ENABLED } from '../config/pre-registration-rollout';
 import { useLeadOnboardingSummary } from '../hooks/useLeadOnboardingSummary';
-import { getStudentContractId } from '../services/student-self.service';
+import { getStudentContractId, withStudentContractContext } from '../services/student-self.service';
 import { isGenericHomeFallback, LeadOnboardingHome } from './LeadOnboardingHome';
 
 type CurrentUser = AuthResponse['user'] | null | undefined;
@@ -179,6 +179,23 @@ function StudentHome({ contractId }: { contractId?: string }) {
       </div>
 
       <StudentProfileReviewEntry contractId={contractId} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Meus Treinos</CardTitle>
+          <CardDescription>
+            Consulte os treinos que seu professor já liberou para você, incluindo sessões e exercícios.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link
+            to={withStudentContractContext('/student/workouts', contractId)}
+            className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            Ver meus treinos
+          </Link>
+        </CardContent>
+      </Card>
     </div>
   );
 }

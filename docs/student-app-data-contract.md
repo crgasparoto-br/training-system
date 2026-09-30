@@ -498,11 +498,37 @@ Exibir:
 
 ### Meus Treinos
 
-Consumir inicialmente:
-- `GET /api/v1/student/me/summary` (ultimo treino)
+Rotas web:
+- `/student/workouts`
+- `/student/workouts/:workoutTemplateId`
 
-Evolucao futura:
-- endpoint dedicado para plano e execucoes de treino
+Consumir:
+- `GET /api/v1/student/me/workouts`: lista todos os `WorkoutTemplate` com `released=true` pertencentes ao aluno e ao contrato autenticados. A resposta é ordenada por `weekStartDate` e `id`, preservando histórico e permitindo que o cliente destaque o treino atual/próximo.
+- `GET /api/v1/student/me/workouts/:workoutTemplateId`: retorna o detalhe somente quando o template está liberado e pertence ao mesmo aluno/contrato. ID inexistente, não liberado ou de outro contexto responde de forma indistinguível como treino não encontrado.
+
+Contrato de autorização:
+- o cliente não envia nem escolhe `alunoId`;
+- a API reutiliza a resolução de vínculo do namespace `student/me` e revalida `x-contract-id` quando houver múltiplos vínculos;
+- `WorkoutTemplate.released === true` é a única fonte de verdade de visibilidade; `releasedAt` é apenas metadado;
+- o plano precisa pertencer ao aluno resolvido e o `contractId` é validado através do vínculo do aluno ao plano;
+- nenhuma filtragem de autorização é delegada ao frontend.
+
+Listagem:
+- identifica template, plano, mesociclo, semana, início da semana, `releasedAt` e resumo dos dias;
+- coleção vazia é estado normal e retorna `200` com `[]`;
+- a experiência web separa atual/próximo do histórico sem remover treinos liberados antigos.
+
+Detalhe somente leitura:
+- dias/sessões com data, duração, local, método, orientações e estado operacional já persistido;
+- exercícios com nome, seção, séries, repetições, carga, intervalo e observações de execução;
+- não expõe objetivo interno do professor nem campos administrativos do Workout Builder.
+
+Estados de UI:
+- carregamento explícito;
+- vazio quando ainda não existe treino liberado;
+- erro recuperável com ação de tentar novamente;
+- detalhe com retorno para a lista;
+- layout responsivo para desktop e mobile. A home do aluno possui acesso direto a **Meus Treinos**.
 
 ### Agenda
 
