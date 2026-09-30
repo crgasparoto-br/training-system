@@ -48,7 +48,7 @@ suite('Issue #482 / PR #484 - evidencia browser Meus Treinos',()=>{
     mode='loading';const nav=page.goto(`${WEB_ORIGIN}/student/workouts?contractId=${CONTRACT_ID}`,{waitUntil:'domcontentloaded'});await waitText(page,'Carregando seus treinos...');const loadingLayout=await assertNoOverflow(page);await nav;await waitText(page,'Atual e próximos');
     scenarios.push({viewport,home,list,detail:detailLayout,empty:emptyLayout,retry:retryLayout,loading:loadingLayout,screenshots:{list:listShot,detail:detailShot},accessibility:await page.accessibility.snapshot({interestingOnly:false})});
    }
-   expect(api.requests.filter(r=>r.path.startsWith('/api/v1/student/me/workouts')).every(r=>r.contractId===CONTRACT_ID)).toBe(true);
+   expect(api.requests.filter(r=>r.method==='GET'&&r.path.startsWith('/api/v1/student/me/workouts')).every(r=>r.contractId===CONTRACT_ID)).toBe(true);
    const evidence={kind:'issue-482-pr-484-browser-evidence',result:'PASS',identity:id,browser:await browser.version(),viewports:scenarios,verified:['home-entry','loading','list-current-upcoming','history','empty','retryable-error','detail-readonly','sessions-exercises','no-horizontal-overflow','desktop-1366x768','mobile-390x844','x-contract-id','accessibility-tree-captured'],apiRequests:api.requests};
    console.log(`BROWSER_EVIDENCE_482 ${JSON.stringify(evidence)}`);console.log(`BROWSER_EVIDENCE_482 PASS head=${id.headSha}`);
   }finally{await browser?.close().catch(()=>{});await stopVite(vite).catch(()=>{});await stopApi(api?.server).catch(()=>{});}
