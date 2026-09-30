@@ -217,6 +217,11 @@ export const ResetPasswordSchema = z.object({
   password: z.string().min(8, 'Senha deve ter no minimo 8 caracteres'),
 });
 
+export const ChangePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Senha atual e obrigatoria'),
+  password: z.string().min(8, 'Senha deve ter no minimo 8 caracteres'),
+});
+
 export const RegisterSchema = z.object({
   email: z.string().email('Email invalido'),
   password: z.string().min(8, 'Senha deve ter no minimo 8 caracteres'),

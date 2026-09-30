@@ -30,6 +30,12 @@ const mockDb = new PrismaClient() as unknown as {
   };
 };
 
+const spyOnPasswordCompare = () =>
+  jest.spyOn(bcryptjs, 'compare') as unknown as jest.SpyInstance<
+    Promise<boolean>,
+    [string, string]
+  >;
+
 describe('AuthService', () => {
   let authService: AuthService;
 
@@ -78,6 +84,51 @@ describe('AuthService', () => {
       ).rejects.toThrow('desativado');
 
       expect(compareSpy).not.toHaveBeenCalled();
+      expect(mockDb.user.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('changePassword', () => {
+    it('deve limpar mustChangePassword ao trocar a senha com a credencial atual', async () => {
+      mockDb.user.findUnique.mockResolvedValue({
+        id: 'student-1',
+        passwordHash: 'old-hash',
+        isActive: true,
+      });
+      spyOnPasswordCompare().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+      jest.spyOn(bcryptjs, 'hash').mockResolvedValue('new-hash' as never);
+
+      await expect(
+        authService.changePassword('student-1', {
+          currentPassword: 'senha-temporaria',
+          password: 'senha-definitiva',
+        })
+      ).resolves.toEqual({ message: 'Senha atualizada com sucesso' });
+
+      expect(mockDb.user.update).toHaveBeenCalledWith({
+        where: { id: 'student-1' },
+        data: {
+          passwordHash: 'new-hash',
+          mustChangePassword: false,
+        },
+      });
+    });
+
+    it('nao altera a conta quando a senha atual estiver incorreta', async () => {
+      mockDb.user.findUnique.mockResolvedValue({
+        id: 'student-1',
+        passwordHash: 'old-hash',
+        isActive: true,
+      });
+      spyOnPasswordCompare().mockResolvedValueOnce(false);
+
+      await expect(
+        authService.changePassword('student-1', {
+          currentPassword: 'senha-errada',
+          password: 'senha-definitiva',
+        })
+      ).rejects.toThrow('Senha atual incorreta');
+
       expect(mockDb.user.update).not.toHaveBeenCalled();
     });
   });

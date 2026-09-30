@@ -111,3 +111,15 @@ As acoes sensiveis de colaboradores devem usar `blockKey` dedicado no backend e 
 - `collaborators.actions.uploadSignedContract`
 
 Esses blocos exigem tambem acesso de tela em `collaborators.registration` e devem permanecer alinhados com defaults em `DEFAULT_ACCESS_BY_PROFILE_CODE`.
+
+
+## Senha temporaria e primeiro acesso do aluno
+
+- O backend persiste `User.mustChangePassword` como fonte unica de verdade.
+- Criacao administrativa de aluno e reset administrativo de senha marcam esse estado como `true`.
+- Contas existentes recebem `false` por default de migration e nao sao bloqueadas retroativamente.
+- Login e `GET /api/v1/auth/me` expõem o mesmo estado.
+- Enquanto o estado estiver ativo, o middleware autenticado permite apenas `/api/v1/auth/me`, `/api/v1/auth/change-password` e `/api/v1/auth/logout`; qualquer outra rota autenticada e bloqueada no backend.
+- A troca autenticada exige a senha atual, uma nova senha com pelo menos 8 caracteres e uma senha diferente da atual. Em sucesso, atualiza o hash e limpa `mustChangePassword`.
+- A recuperacao publica continua usando `POST /api/v1/auth/forgot-password` e `POST /api/v1/auth/reset-password`. O token e assinado com segredo derivado do hash atual; por isso, qualquer troca de senha invalida tokens anteriores. A redefinicao bem-sucedida tambem limpa `mustChangePassword`.
+- A solicitacao publica de recuperacao mantem resposta generica para evitar enumeracao de contas.

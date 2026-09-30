@@ -13,7 +13,7 @@ interface AuthState {
   error: string | null;
 
   // Actions
-  login: (data: LoginRequest) => Promise<void>;
+  login: (data: LoginRequest) => Promise<User>;
   register: (data: RegisterRequest) => Promise<void>;
   setAuthenticatedSession: (response: AuthResponse) => void;
   logout: () => Promise<void>;
@@ -49,6 +49,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const response = await authService.login(data);
       get().setAuthenticatedSession(response);
+      return response.user;
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || error.message || 'Erro ao fazer login';
       set({ error: errorMessage, isLoading: false });

@@ -26,6 +26,10 @@ export function ProtectedRoute({ children, requireProfessor = false, screenKey, 
     return <Navigate to="/login" replace />;
   }
 
+  if (user?.mustChangePassword) {
+    return <Navigate to="/change-password" replace />;
+  }
+
   if (requireProfessor && user?.type !== 'professor') {
     return <Navigate to="/dashboard" replace />;
   }

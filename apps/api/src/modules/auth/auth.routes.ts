@@ -2,7 +2,13 @@
 import { authService } from './auth.service.js';
 import { authMiddleware } from './auth.middleware.js';
 import { getProfessionalActorAccessControl } from '../access-control/professional-actor.service.js';
-import { ForgotPasswordSchema, LoginSchema, RegisterSchema, ResetPasswordSchema } from '@corrida/utils';
+import {
+  ChangePasswordSchema,
+  ForgotPasswordSchema,
+  LoginSchema,
+  RegisterSchema,
+  ResetPasswordSchema,
+} from '@corrida/utils';
 import { sendSuccess, sendError } from '@corrida/utils';
 
 const router: Router = Router();
@@ -72,6 +78,20 @@ router.post('/reset-password', async (req: Request, res: Response) => {
       return sendError(res, validation.error.errors.map((e) => e.message).join(', '), 400);
     }
     const result = await authService.resetPassword(validation.data);
+    return sendSuccess(res, result, result.message);
+  } catch (error: any) {
+    return sendError(res, error.message, 400);
+  }
+});
+
+router.post('/change-password', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    if (!req.user) return sendError(res, 'Nao autenticado', 401);
+    const validation = ChangePasswordSchema.safeParse(req.body);
+    if (!validation.success) {
+      return sendError(res, validation.error.errors.map((e) => e.message).join(', '), 400);
+    }
+    const result = await authService.changePassword(req.user.userId, validation.data);
     return sendSuccess(res, result, result.message);
   } catch (error: any) {
     return sendError(res, error.message, 400);

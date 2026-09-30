@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import { Login } from './pages/Login';
 import { ForgotPassword } from './pages/ForgotPassword';
+import { ChangePassword } from './pages/ChangePassword';
 import { Register } from './pages/Register';
 import { Home } from './pages/Home';
 import { StudentProfileReview } from './pages/StudentProfileReview';
@@ -80,8 +81,9 @@ function withPreRegistrationRollout(
   );
 }
 function DefaultAuthorizedRoute() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.mustChangePassword) return <Navigate to="/change-password" replace />;
   return <Navigate to="/inicio" replace />;
 }
 function StudentProfileReviewRoute() {
@@ -106,6 +108,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/change-password" element={<ChangePassword />} />
           <Route path="/register" element={<Register />} />
           <Route path="/assinatura/contrato/:token" element={<PublicContractSignature />} />
           <Route path="/privacidade" element={<PrivacyNotice />} />

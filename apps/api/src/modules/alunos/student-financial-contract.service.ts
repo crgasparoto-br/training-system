@@ -151,6 +151,7 @@ const createAlunoRecord = async (
     data: {
       email: data.email,
       passwordHash,
+      mustChangePassword: true,
       type: 'aluno',
       profile: {
         create: {
