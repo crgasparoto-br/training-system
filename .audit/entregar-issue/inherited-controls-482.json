@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "head_sha": "5ac4547eb94abe644c7e3cfb0504610de64a8ebc",
+  "source_audits": [
+    {
+      "kind": "independent-rejection",
+      "rejection_id": "audit-rejection:issue482-pr484-handoff-not-produced-67ceacd0",
+      "finding_ids": [
+        "A-482-001"
+      ]
+    },
+    {
+      "kind": "independent-rejection",
+      "rejection_id": "audit-rejection:issue482-pr484-post-write-refreeze-5ac4547e",
+      "finding_ids": [
+        "A-482-002"
+      ]
+    }
+  ],
+  "controls": [
+    {
+      "id": "IC-DELIVERY-TARGET-BINDING-001",
+      "status": "passed",
+      "head_sha": "5ac4547eb94abe644c7e3cfb0504610de64a8ebc",
+      "subject_sha": "5ac4547eb94abe644c7e3cfb0504610de64a8ebc",
+      "control_type": "procedure",
+      "risk_family": "structural-contract",
+      "surface": "delivery-target-binding",
+      "dimension": "delivery-target-binding-primary",
+      "attack_control_id": "NC-REGRESSION-001-03",
+      "evidence": "evidence/target-binding-control.txt",
+      "evidence_sha256": "3e1c8aa6632cec25ed7af6c08a717eaea3437ce69fc6549d0283b284e14c8afa",
+      "procedure": "Reject inherited/foreign subjects and bind the current package to repository, issue, PR, base and head before publication.",
+      "expected": "A foreign inherited certificate cannot satisfy readiness for Issue 482 / PR 484.",
+      "observed": "The current package is rebuilt for Issue 482 / PR 484 and does not reuse the foreign Issue 476 / PR 475 certificate."
+    },
+    {
+      "id": "IC-POST-WRITE-REFREEZE-001",
+      "status": "passed",
+      "head_sha": "5ac4547eb94abe644c7e3cfb0504610de64a8ebc",
+      "subject_sha": "5ac4547eb94abe644c7e3cfb0504610de64a8ebc",
+      "control_type": "procedure",
+      "risk_family": "structural-contract",
+      "surface": "terminal-handoff-identity",
+      "dimension": "post-write-refreeze-primary",
+      "attack_control_id": "NC-REGRESSION-001-03",
+      "evidence": "evidence/post-write-refreeze.txt",
+      "evidence_sha256": "30017841531e67b10c70571b8527fcb552700d7ce9ac7fd711ca82a3b214d75e",
+      "procedure": "Detect material writes after a certified handoff, preserve the audit recovery floor, re-freeze the current material head, require exact-head CI and generate a fresh result-only child.",
+      "expected": "A handoff for an ancestor material head is never reused after product/test code changes.",
+      "observed": "Prior certified material 67ceacd0c60703c77091978440ec09ed7f635c28 was invalidated after material writes; 5ac4547eb94abe644c7e3cfb0504610de64a8ebc is now the refrozen exact-head candidate with green CRITICAL CI."
+    }
+  ],
+  "retired_controls": [],
+  "unresolved_controls": []
+}

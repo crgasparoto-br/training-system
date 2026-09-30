@@ -17,6 +17,7 @@ import {
   hasCanonicalHealthIntakeMutation,
   upsertCanonicalStudentHealthIntake,
 } from '../modules/alunos/student-health-intake-write.service.js';
+import { studentWorkoutService } from '../modules/workout/student-workout.service.js';
 
 const prisma = new PrismaClient();
 
@@ -636,6 +637,65 @@ router.get('/me/profile-review', async (req: Request, res: Response) => {
     }
     console.error('Erro ao buscar revisão cadastral pendente:', error);
     return sendError(res, 'Erro ao buscar revisão cadastral', 500);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/v1/student/me/workouts
+// Lista somente treinos liberados do aluno no contexto autenticado.
+// ---------------------------------------------------------------------------
+router.get('/me/workouts', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId as string;
+    const aluno = await requireAlunoByUserId(req, userId);
+    const workouts = await studentWorkoutService.listReleasedForStudent(
+      aluno.id,
+      aluno.contractId
+    );
+
+    return sendSuccess(res, workouts);
+  } catch (error: any) {
+    if (error instanceof StudentAccountContextError) {
+      const status = error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404;
+      return sendError(res, error.message, status);
+    }
+    if (error?.status === 404) {
+      return sendError(res, error.message, 404);
+    }
+    console.error('Erro ao buscar treinos liberados do aluno:', error);
+    return sendError(res, 'Erro ao buscar treinos', 500);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/v1/student/me/workouts/:workoutTemplateId
+// Retorna detalhe somente de treino liberado pertencente ao mesmo aluno/contrato.
+// ---------------------------------------------------------------------------
+router.get('/me/workouts/:workoutTemplateId', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId as string;
+    const aluno = await requireAlunoByUserId(req, userId);
+    const workout = await studentWorkoutService.getReleasedForStudent(
+      req.params.workoutTemplateId,
+      aluno.id,
+      aluno.contractId
+    );
+
+    if (!workout) {
+      return sendError(res, 'Treino não encontrado', 404);
+    }
+
+    return sendSuccess(res, workout);
+  } catch (error: any) {
+    if (error instanceof StudentAccountContextError) {
+      const status = error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404;
+      return sendError(res, error.message, status);
+    }
+    if (error?.status === 404) {
+      return sendError(res, 'Treino não encontrado', 404);
+    }
+    console.error('Erro ao buscar detalhe do treino liberado:', error);
+    return sendError(res, 'Erro ao buscar treino', 500);
   }
 });
 

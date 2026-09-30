@@ -1,0 +1,6 @@
+Material head: 5ac4547eb94abe644c7e3cfb0504610de64a8ebc
+Observed canonical documentation:
+- docs/student-app-data-contract.md documents /student/workouts routes and both /api/v1/student/me/workouts endpoints.
+- It states released===true is the visibility source of truth and releasedAt is metadata.
+- It documents student/contract authorization, x-contract-id, history retention, read-only detail, and loading/empty/retryable-error states.
+- Exact-head CI Documentation checks completed successfully in Validate PR run 36716196399.

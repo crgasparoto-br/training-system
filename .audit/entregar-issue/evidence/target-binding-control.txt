@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "expected_subject": {
+    "repository": "crgasparoto-br/training-system",
+    "issue_number": 482,
+    "pull_request_number": 484,
+    "work_item_kind": "pr",
+    "work_item_number": 484,
+    "pull_request": 484,
+    "base_ref": "develop",
+    "head_ref": "feat/482-student-released-workouts"
+  },
+  "base_origin": {
+    "checked": true,
+    "base_sha": "d625324c5e1a1fa3d7948b561d151acb98e1991f",
+    "historical_foreign_package": "Issue 476 / PR 475",
+    "reuse_allowed": false
+  },
+  "previous_certified_material_head_sha": "67ceacd0c60703c77091978440ec09ed7f635c28",
+  "current_material_head_sha": "5ac4547eb94abe644c7e3cfb0504610de64a8ebc",
+  "audit_floor": {
+    "recovery_scope": "post-write-refreeze",
+    "requires_refreeze": true,
+    "rejection_id": "audit-rejection:issue482-pr484-post-write-refreeze-5ac4547e",
+    "finding_id": "A-482-002"
+  },
+  "material_drift": {
+    "detected": true,
+    "material_paths": [
+      "apps/api/src/modules/workout/student-workout.service.ts",
+      "apps/api/tests/student-workout.service.test.ts",
+      "apps/web/src/services/student-workout.service.ts"
+    ]
+  },
+  "current_package_subject_matches_target": true,
+  "status": "post-write-refreeze-applied",
+  "reuse_allowed": false,
+  "requires_fresh_handoff": true,
+  "reason": "Material writes occurred after the previous certified material head; current package is rebuilt for Issue 482 / PR 484 on the exact green head."
+}
