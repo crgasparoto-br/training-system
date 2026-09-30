@@ -1,5 +1,6 @@
-Material head: 67ceacd0c60703c77091978440ec09ed7f635c28
+Material head: 5ac4547eb94abe644c7e3cfb0504610de64a8ebc
 Observed regression boundary:
-- PR #484 changes only the dedicated student workout service/routes, student UI/routes/services/tests, Home entry, execution plan and student app data contract.
-- No professor workout-builder service or release mutation path is modified by the issue-local diff.
-- Exact-head CI completed typecheck, lint, non-database tests, build, architecture, access and docs checks successfully.
+- Issue-local product changes remain confined to the dedicated student workout service/routes, student UI/routes/services/tests, Home entry, execution plan and student app data contract.
+- The post-audit material delta narrows the public workout detail DTO and adds a regression test asserting internal Workout Builder fields are absent.
+- No professor workout-builder service or release mutation path is modified by the issue-local product diff.
+- Exact-head CI run 36716196399 completed CRITICAL validation, full tests, build, architecture, access and documentation checks successfully.

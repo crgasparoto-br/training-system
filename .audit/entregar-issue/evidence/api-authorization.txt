@@ -1,8 +1,9 @@
-Material head: 67ceacd0c60703c77091978440ec09ed7f635c28
+Material head: 5ac4547eb94abe644c7e3cfb0504610de64a8ebc
 Observed source boundary:
 - /api/v1/student/me/workouts and /api/v1/student/me/workouts/:workoutTemplateId derive userId from authenticated request context.
 - requireAlunoByUserId normalizes x-contract-id and calls resolveActiveStudentMembership.
 - resolveActiveStudentMembership requires ACTIVE_STUDENT and refuses silent tenant selection when multiple active memberships exist.
 - The workout service filters released=true and plan.alunoId=<resolved student> and plan.aluno.contractId=<resolved contract> in both list and detail queries.
 - The detail lookup combines the requested template id with the same release/student/contract filter and returns the same public 404 message when no authorized released record is found.
+- The public detail DTO now omits internal Workout Builder fields and the focused service test asserts those fields are absent.
 No alunoId is accepted from query/body as an authority input for these endpoints.

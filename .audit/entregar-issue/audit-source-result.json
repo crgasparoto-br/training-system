@@ -1,19 +1,20 @@
 {
   "contract_version": "2026-08-20.3",
   "status": "rejected",
-  "rejection_id": "audit-rejection:issue482-pr484-handoff-not-produced-67ceacd0",
-  "head_sha": "67ceacd0c60703c77091978440ec09ed7f635c28",
+  "rejection_id": "audit-rejection:issue482-pr484-post-write-refreeze-5ac4547e",
+  "head_sha": "5ac4547eb94abe644c7e3cfb0504610de64a8ebc",
   "findings": [
     {
-      "id": "A-482-001",
+      "id": "A-482-002",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
       "category": "delivery-not-ready",
-      "reason": "handoff-not-produced",
-      "recovery_scope": "handoff-only",
-      "summary": "The inherited handoff on the candidate is byte-identical to the base artifact and belongs to Issue 476 / PR 475 instead of Issue 482 / PR 484."
+      "reason": "post-write-refreeze-required",
+      "recovery_scope": "post-write-refreeze",
+      "requires_refreeze": true,
+      "summary": "Material API/test/frontend commits were added after the previous certified material head, invalidating the result-only handoff identity."
     }
   ],
   "recommendations": []

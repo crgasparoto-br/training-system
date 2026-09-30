@@ -1,4 +1,4 @@
-Material head: 67ceacd0c60703c77091978440ec09ed7f635c28
+Material head: 5ac4547eb94abe644c7e3cfb0504610de64a8ebc
 Observed source of truth:
 - releasedStudentWorkoutWhere sets WorkoutTemplate.released=true.
 - releasedAt is selected only as response metadata and is not present in the authorization/visibility predicate.

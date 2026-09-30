@@ -4,27 +4,29 @@
   "resolution_policy": "all-actionable-items",
   "status": "closed",
   "remediation_mode": "targeted-remediation",
-  "candidate_head_sha": "67ceacd0c60703c77091978440ec09ed7f635c28",
+  "candidate_head_sha": "5ac4547eb94abe644c7e3cfb0504610de64a8ebc",
   "source": {
-    "rejection_id": "audit-rejection:issue482-pr484-handoff-not-produced-67ceacd0",
-    "audited_head_sha": "67ceacd0c60703c77091978440ec09ed7f635c28",
-    "audit_report_sha256": "8da73ba685888d123422015e666e946079753a5762777d57225c9fce098e8634"
+    "rejection_id": "audit-rejection:issue482-pr484-post-write-refreeze-5ac4547e",
+    "audited_head_sha": "5ac4547eb94abe644c7e3cfb0504610de64a8ebc",
+    "audit_report_sha256": "c3faa95909f131a22c62824a02d06cedf6c80b98ce3af4225955b6272a97d7e3"
   },
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-482-001",
+      "source_id": "A-482-002",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "evidence": [
-        "evidence/target-binding-control.txt",
-        "specification-snapshot.json",
-        "requirement-attack-matrix.json"
+        "evidence/post-write-refreeze.txt",
+        "evidence/ci-run-36716196399.txt",
+        "requirement-attack-matrix.json",
+        "risk-saturation.json"
       ],
       "validations": [
-        "delivery_target_binding classified the inherited package as non-reusable and required fresh handoff",
-        "current Issue 482 specification snapshot rebuilt from canonical issue source",
-        "critical requirement attack matrix and risk saturation validated on the unchanged material head"
+        "post-write-refreeze floor preserved from the independent audit",
+        "critical evidence re-anchored to the current material head",
+        "Validate PR exact-head CRITICAL run completed successfully",
+        "fresh result-only handoff prepared for Issue 482 / PR 484"
       ]
     }
   ]
