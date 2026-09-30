@@ -1,0 +1,6 @@
+Material head: 67ceacd0c60703c77091978440ec09ed7f635c28
+Observed source of truth:
+- releasedStudentWorkoutWhere sets WorkoutTemplate.released=true.
+- releasedAt is selected only as response metadata and is not present in the authorization/visibility predicate.
+- The focused API service test explicitly asserts call.where.released === true and call.where.releasedAt is undefined.
+- List ordering is weekStartDate asc, then id asc, and the query has no historical cutoff.

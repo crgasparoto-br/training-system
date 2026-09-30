@@ -1,0 +1,9 @@
+Material head: 67ceacd0c60703c77091978440ec09ed7f635c28
+Observed student UI behavior:
+- Dedicated aluno-only routes exist for /student/workouts and /student/workouts/:workoutTemplateId.
+- Student workout service preserves x-contract-id for both list and detail requests.
+- StudentWorkouts renders explicit loading, retryable error, empty, list/history and detail states.
+- splitStudentWorkouts keeps past released workouts in history and current/future workouts in the primary section.
+- Detail is read-only and displays sessions/exercises without edit actions.
+- Responsive grid classes cover mobile-first single-column and md/sm layouts.
+- Student home includes a Meus Treinos entry preserving contract context.

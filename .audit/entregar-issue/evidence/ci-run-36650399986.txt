@@ -1,0 +1,16 @@
+Repository: crgasparoto-br/training-system
+Material head: 67ceacd0c60703c77091978440ec09ed7f635c28
+Workflow run: 36650399986 (Validate PR)
+Conclusion: success
+Observed jobs:
+- Delivery V2 risk: success
+- Merge preview compatibility: success
+- STANDARD validation: success
+  - Type check: success
+  - Lint: success
+  - Non-database tests: success
+  - Build: success
+  - pnpm arch:check: success
+  - pnpm access:check: success
+  - pnpm docs:check: success
+- Validate repository: success

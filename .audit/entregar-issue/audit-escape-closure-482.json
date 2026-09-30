@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "ESC-HANDOFF-TARGET-001",
+      "status": "passed",
+      "escape_class": "inherited-foreign-handoff-reuse",
+      "source_audit": {
+        "head_sha": "67ceacd0c60703c77091978440ec09ed7f635c28",
+        "rejection_id": "audit-rejection:issue482-pr484-handoff-not-produced-67ceacd0",
+        "finding_id": "A-482-001",
+        "audit_report_sha256": "8da73ba685888d123422015e666e946079753a5762777d57225c9fce098e8634"
+      },
+      "plausible_wrong_implementation": "Treat any inherited handoff-ready.json on the branch as current delivery evidence without checking the certificate subject and specification snapshot against the actual issue and PR.",
+      "literal_case": {
+        "procedure": "Compare the candidate and immutable base identity artifacts, then bind their subject to repository training-system, Issue 482 and PR 484 before any reuse.",
+        "status": "passed",
+        "evidence": "evidence/target-binding-control.txt",
+        "observed": "On material head 67ceacd0c60703c77091978440ec09ed7f635c28 the inherited identity artifacts were classified as foreign base history and reuse was rejected for the current target."
+      },
+      "sibling_cases": [
+        {
+          "id": "foreign-subject",
+          "surface": "delivery-target-binding",
+          "dimension": "foreign-subject-on-inherited-base",
+          "status": "passed",
+          "evidence": "evidence/target-binding-control.txt"
+        },
+        {
+          "id": "snapshot-subject",
+          "surface": "audit-subject-snapshot",
+          "dimension": "current-subject-and-snapshot-match",
+          "status": "passed",
+          "evidence": "specification-snapshot.json"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "delivery-target-binding",
+          "dimension": "delivery-target-binding-primary"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "audit-subject-snapshot",
+          "dimension": "audit-subject-snapshot-primary"
+        }
+      ],
+      "prevention_change": {
+        "kind": "existing-control-applied",
+        "evidence": "evidence/target-binding-control.txt",
+        "description": "Inherited foreign package is marked non-reusable before package construction."
+      },
+      "detection_change": {
+        "kind": "current-target-terminal-validation",
+        "control_id": "NC-REGRESSION-001-03",
+        "evidence": "requirement-attack-matrix.json",
+        "description": "Current delivery package must bind issue, PR, branch and specification snapshot before publication."
+      },
+      "trigger_terms": [
+        "handoff-ready",
+        "inherited-base-artifact",
+        "foreign-target",
+        "specification-snapshot"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "67ceacd0c60703c77091978440ec09ed7f635c28"
+    }
+  ]
+}

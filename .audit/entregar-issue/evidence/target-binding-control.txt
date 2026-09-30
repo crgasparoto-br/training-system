@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "expected_subject": {
+    "repository": "crgasparoto-br/training-system",
+    "issue_number": 482,
+    "pull_request_number": 484,
+    "work_item_kind": "pr",
+    "work_item_number": 484,
+    "pull_request": 484,
+    "base_ref": "develop",
+    "head_ref": "feat/482-student-released-workouts"
+  },
+  "checked_paths": [
+    "/mnt/data/issue482-delivery/current-audit/handoff-ready.json",
+    "/mnt/data/issue482-delivery/current-audit/specification-snapshot.json"
+  ],
+  "base_origin": {
+    "checked": true,
+    "base_sha": "d625324c5e1a1fa3d7948b561d151acb98e1991f",
+    "present_identity_artifacts": [
+      "handoff-ready.json",
+      "specification-snapshot.json"
+    ],
+    "inherited_paths": [
+      "handoff-ready.json",
+      "specification-snapshot.json"
+    ],
+    "all_present_identity_artifacts_inherited": true,
+    "comparison_mode": "materialized-base"
+  },
+  "status": "inherited-base-artifact",
+  "reuse_allowed": false,
+  "requires_fresh_handoff": true,
+  "foreign_target_detected": true,
+  "inherited_from_base": true,
+  "observed_subject": {
+    "repository": "crgasparoto-br/training-system",
+    "issue_number": 476,
+    "pull_request_number": 475,
+    "work_item_kind": "pr",
+    "work_item_number": 475,
+    "pull_request": 475,
+    "base_ref": "develop",
+    "head_ref": "fix/workout-builder-resistance-ui"
+  },
+  "reasons": [
+    "subject.work_item_number differs: observed=475 expected=484",
+    "subject.issue_number differs: observed=476 expected=482",
+    "subject.pull_request_number differs: observed=475 expected=484",
+    "subject.pull_request differs: observed=475 expected=484",
+    "subject.head_ref differs: observed='fix/workout-builder-resistance-ui' expected='feat/482-student-released-workouts'",
+    "snapshot.issue differs: observed=476 expected=482",
+    "foreign identity artifacts are byte-identical to the exact base SHA; treat them as inherited history, never as output of the current delivery"
+  ]
+}

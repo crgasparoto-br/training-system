@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "head_sha": "67ceacd0c60703c77091978440ec09ed7f635c28",
+  "source_audits": [
+    {
+      "kind": "independent-rejection",
+      "rejection_id": "audit-rejection:issue482-pr484-handoff-not-produced-67ceacd0",
+      "finding_ids": [
+        "A-482-001"
+      ]
+    }
+  ],
+  "controls": [
+    {
+      "id": "IC-DELIVERY-TARGET-BINDING-001",
+      "status": "passed",
+      "head_sha": "67ceacd0c60703c77091978440ec09ed7f635c28",
+      "subject_sha": "67ceacd0c60703c77091978440ec09ed7f635c28",
+      "control_type": "procedure",
+      "risk_family": "structural-contract",
+      "surface": "delivery-target-binding",
+      "dimension": "delivery-target-binding-primary",
+      "attack_control_id": "NC-REGRESSION-001-03",
+      "evidence": "evidence/target-binding-control.txt",
+      "evidence_sha256": "52551cb81e3c593293426794fbdb58842fb3622734c92067bdf525221b833218",
+      "procedure": "Compare head and immutable-base delivery identity artifacts, reject byte-identical foreign subjects, and require repository/issue/PR/branch binding before reusing any handoff package.",
+      "expected": "An inherited certificate for another issue or PR is rejected and cannot satisfy readiness for the current delivery.",
+      "observed": "The exact current delivery target was compared against inherited Issue 476/PR 475 identity and the classifier returned inherited-base-artifact with reuse_allowed=false."
+    }
+  ],
+  "retired_controls": [],
+  "unresolved_controls": []
+}
