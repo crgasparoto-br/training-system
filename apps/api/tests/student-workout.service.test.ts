@@ -63,4 +63,32 @@ describe('student released workout service', () => {
     expect(call.where.released).toBe(true);
     expect(call.where.releasedAt).toBeUndefined();
   });
+
+  it('não expõe campos internos do Workout Builder no detalhe do aluno', async () => {
+    await service.getReleasedForStudent('template-1', 'aluno-1', 'contract-1');
+
+    const call = findFirst.mock.calls[0][0];
+    const exerciseSelect = call.select.workoutDays.select.exercises.select;
+    const daySelect = call.select.workoutDays.select;
+
+    expect(exerciseSelect.exerciseOrder).toBeUndefined();
+    expect(exerciseSelect.groupBreakBefore).toBeUndefined();
+    expect(exerciseSelect.cParam).toBeUndefined();
+    expect(exerciseSelect.eParam).toBeUndefined();
+    expect(exerciseSelect.exerciseId).toBeUndefined();
+    expect(exerciseSelect.exercise).toEqual({ select: { name: true } });
+
+    expect(daySelect.stimulusDurationMin).toBeUndefined();
+    expect(daySelect.intensity1).toBeUndefined();
+    expect(daySelect.intensity2).toBeUndefined();
+    expect(daySelect.numSessions).toBeUndefined();
+    expect(daySelect.numSets).toBeUndefined();
+    expect(daySelect.sessionTime).toBeUndefined();
+    expect(daySelect.cyclicTimeMin).toBeUndefined();
+    expect(daySelect.resistanceTimeMin).toBeUndefined();
+    expect(daySelect.paceMax).toBeUndefined();
+    expect(daySelect.paceMin).toBeUndefined();
+    expect(daySelect.startedAt).toBeUndefined();
+    expect(daySelect.finishedAt).toBeUndefined();
+  });
 });
