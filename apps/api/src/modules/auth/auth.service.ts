@@ -10,6 +10,8 @@ import type {
   ForgotPasswordResponse,
   ResetPasswordRequest,
   ResetPasswordResponse,
+  ChangePasswordRequest,
+  ChangePasswordResponse,
 } from '@corrida/types';
 import type { SignOptions } from 'jsonwebtoken';
 import { sendPasswordResetEmail } from './password-reset-mail.service.js';
@@ -219,6 +221,7 @@ export class AuthService {
         email: user.email,
         name: user.profile?.name || '',
         type: user.type,
+        mustChangePassword: user.mustChangePassword,
         profile: user.profile ? {
           name: user.profile.name || '',
           avatar: user.profile.avatar || null,
@@ -326,6 +329,7 @@ export class AuthService {
         email: user.email,
         name: user.profile?.name || '',
         type: user.type,
+        mustChangePassword: user.mustChangePassword,
         profile: user.profile ? {
           name: user.profile.name || '',
           avatar: user.profile.avatar || null,
@@ -393,7 +397,14 @@ export class AuthService {
     const frontendBaseUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
     const resetUrl = `${frontendBaseUrl}/forgot-password?token=${encodeURIComponent(resetToken)}`;
 
-    await sendPasswordResetEmail(user.email, resetUrl);
+    try {
+      await sendPasswordResetEmail(user.email, resetUrl);
+    } catch (error) {
+      console.error('[auth] Falha ao enviar recuperacao de senha', {
+        userId: user.id,
+        error: error instanceof Error ? error.message : 'erro desconhecido',
+      });
+    }
 
     return {
       message: genericMessage,
@@ -438,11 +449,58 @@ export class AuthService {
       where: { id: user.id },
       data: {
         passwordHash,
+        mustChangePassword: false,
       },
     });
 
     return {
       message: 'Senha redefinida com sucesso',
+    };
+  }
+
+  async changePassword(
+    userId: string,
+    data: ChangePasswordRequest
+  ): Promise<ChangePasswordResponse> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        passwordHash: true,
+        isActive: true,
+      },
+    });
+
+    if (!user || !user.isActive) {
+      throw new Error('Usuario nao encontrado ou inativo');
+    }
+
+    const currentPasswordMatches = await bcryptjs.compare(
+      data.currentPassword,
+      user.passwordHash
+    );
+
+    if (!currentPasswordMatches) {
+      throw new Error('Senha atual incorreta');
+    }
+
+    const samePassword = await bcryptjs.compare(data.password, user.passwordHash);
+    if (samePassword) {
+      throw new Error('Informe uma senha diferente da senha atual');
+    }
+
+    const passwordHash = await bcryptjs.hash(data.password, 10);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        mustChangePassword: false,
+      },
+    });
+
+    return {
+      message: 'Senha atualizada com sucesso',
     };
   }
 
@@ -547,6 +605,7 @@ export class AuthService {
       email: user.email,
       name: user.profile?.name || '',
       type: user.type,
+      mustChangePassword: user.mustChangePassword,
       profile: user.profile,
       aluno: user.alunos.length === 1 ? user.alunos[0] : null,
       alunos: user.alunos,

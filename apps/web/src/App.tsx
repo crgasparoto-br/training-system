@@ -5,9 +5,11 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import { Login } from './pages/Login';
 import { ForgotPassword } from './pages/ForgotPassword';
+import { ChangePassword } from './pages/ChangePassword';
 import { Register } from './pages/Register';
 import { Home } from './pages/Home';
 import { StudentProfileReview } from './pages/StudentProfileReview';
+import { StudentWorkouts } from './pages/StudentWorkouts';
 import { CollaboratorsList } from './pages/CollaboratorsList';
 import { CollaboratorDetails } from './pages/CollaboratorDetails';
 import { CollaboratorFormPage } from './pages/CollaboratorFormPage';
@@ -80,8 +82,9 @@ function withPreRegistrationRollout(
   );
 }
 function DefaultAuthorizedRoute() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.mustChangePassword) return <Navigate to="/change-password" replace />;
   return <Navigate to="/inicio" replace />;
 }
 function StudentProfileReviewRoute() {
@@ -89,6 +92,12 @@ function StudentProfileReviewRoute() {
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (user?.type !== 'aluno') return <Navigate to="/inicio" replace />;
   return <StudentProfileReview />;
+}
+function StudentWorkoutsRoute() {
+  const { isAuthenticated, user } = useAuthStore();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.type !== 'aluno') return <Navigate to="/inicio" replace />;
+  return <StudentWorkouts />;
 }
 function StudentsRoute() {
   const { isAuthenticated, user } = useAuthStore();
@@ -106,6 +115,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/change-password" element={<ChangePassword />} />
           <Route path="/register" element={<Register />} />
           <Route path="/assinatura/contrato/:token" element={<PublicContractSignature />} />
           <Route path="/privacidade" element={<PrivacyNotice />} />
@@ -121,6 +131,8 @@ function App() {
             <Route index element={<DefaultAuthorizedRoute />} />
             <Route path="inicio" element={<Home />} />
             <Route path="student/profile-review" element={<StudentProfileReviewRoute />} />
+            <Route path="student/workouts" element={<StudentWorkoutsRoute />} />
+            <Route path="student/workouts/:workoutTemplateId" element={<StudentWorkoutsRoute />} />
             <Route path="professores" element={<Navigate to="/professores/new" replace />} />
             <Route path="professores/new" element={withAccess('collaborators.registration', <CollaboratorCreateRoute />)} />
             <Route path="alunos" element={<StudentsRoute />} />

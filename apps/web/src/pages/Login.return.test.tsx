@@ -55,6 +55,19 @@ describe('Login local return path', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/pre-cadastro', { replace: true });
   });
 
+  it('redirects to mandatory password change before applying returnTo', async () => {
+    mocks.login.mockResolvedValueOnce({
+      id: 'student-1',
+      email: 'aluno@example.com',
+      name: 'Aluno',
+      type: 'aluno',
+      mustChangePassword: true,
+    });
+
+    await submitAt('/login?returnTo=%2Fpre-cadastro');
+    expect(mocks.navigate).toHaveBeenCalledWith('/change-password', { replace: true });
+  });
+
   it('rejects protocol-relative return paths', async () => {
     await submitAt('/login?returnTo=%2F%2Fevil.example');
     expect(mocks.navigate).toHaveBeenCalledWith('/', { replace: true });

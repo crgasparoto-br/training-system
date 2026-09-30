@@ -1,0 +1,175 @@
+## Objetivo
+
+Permitir que o aluno autenticado consulte, em experiência própria e somente leitura, os treinos que o professor já liberou para ele, preservando isolamento por aluno, contrato e tenant.
+
+## Contexto
+
+O domínio atual de `WorkoutTemplate` já possui a fonte de verdade de liberação:
+
+- `released = true`;
+- `releasedAt` registra o momento da liberação.
+
+O serviço atual também já usa `template.released = true` ao localizar treino por aluno/data.
+
+A documentação `docs/student-app-data-contract.md` prevê **Meus Treinos**, mas ainda classifica o endpoint dedicado como evolução futura. Por isso o professor consegue liberar o treino, porém o aluno não possui hoje uma tela/contrato dedicado para consultá-lo.
+
+## Fonte de verdade
+
+- O treino é considerado liberado quando `WorkoutTemplate.released === true`.
+- `releasedAt` é metadado da liberação e deve acompanhar o treino quando disponível.
+- O vínculo do treino com o aluno deve ser derivado do plano/template persistido; o cliente não escolhe o `alunoId`.
+- O contexto autenticado de aluno deve reutilizar a resolução já existente em `/api/v1/student/me`, incluindo `x-contract-id` quando necessário.
+
+## Escopo
+
+### Backend
+
+Implementar:
+
+- `GET /api/v1/student/me/workouts`
+  - lista os treinos liberados do aluno no contexto autenticado;
+- `GET /api/v1/student/me/workouts/:workoutTemplateId`
+  - retorna o detalhe de um treino liberado pertencente ao mesmo aluno/contrato.
+
+A API deve:
+- resolver o aluno pelo usuário autenticado;
+- validar vínculo ativo e `contractId`;
+- filtrar por `WorkoutTemplate.released = true`;
+- retornar somente templates cujo plano pertença ao aluno resolvido;
+- nunca retornar treino não liberado;
+- nunca aceitar `alunoId` arbitrário como autoridade de acesso;
+- aplicar autorização também no endpoint de detalhe, não apenas na listagem.
+
+### Ordenação e recorte
+
+Na listagem:
+- ordenar cronologicamente por `weekStartDate` de forma determinística;
+- treinos atuais/futuros devem aparecer antes do histórico na experiência principal;
+- o frontend pode separar atual/próximo e histórico sem redefinir autorização;
+- nenhum treino liberado deve desaparecer apenas porque sua semana já terminou, salvo regra explícita de paginação/recorte documentada pela implementação.
+
+### Payload mínimo
+
+A listagem deve permitir identificar:
+- `id` do template;
+- identificação do plano;
+- mesociclo/semana;
+- `weekStartDate`;
+- `releasedAt`;
+- resumo dos dias/sessões necessário para compor a listagem.
+
+O detalhe deve retornar, quando existente e permitido:
+- dias de treino;
+- data da sessão;
+- duração;
+- local;
+- método;
+- orientações;
+- exercícios;
+- séries;
+- repetições;
+- carga;
+- intervalo;
+- observações destinadas à execução;
+- estado atual da sessão já suportado pelo domínio.
+
+Não retornar dados administrativos, internos ou de outros alunos.
+
+### Frontend
+
+Criar rota/tela própria **Meus Treinos** para usuário `aluno`.
+
+A tela deve:
+- listar os treinos liberados;
+- destacar treino atual/próximo;
+- permitir abrir o detalhe;
+- exibir dias/sessões e exercícios;
+- possuir estado vazio quando não houver treino liberado;
+- possuir estado de erro recuperável;
+- funcionar em desktop e mobile;
+- não reutilizar tela administrativa de edição do professor.
+
+### Home do aluno
+
+Adicionar acesso claro a **Meus Treinos** na experiência do aluno.
+
+Quando houver próximo treino liberado, a home pode exibir seu resumo e um link para **Meus Treinos**. Quando não houver, ausência de treino é estado vazio, não erro.
+
+## Fora de escopo
+
+- Criar ou editar treino pelo aluno.
+- Alterar o fluxo de montagem/liberação usado pelo professor.
+- Criar novas ações de execução, conclusão, PSR/PSE ou feedback; ações existentes não devem ser ampliadas por esta issue.
+- Tornar endpoints administrativos do professor reutilizáveis pelo aluno sem autorização específica.
+
+## Invariantes
+
+- **must_be_single_source:** `WorkoutTemplate.released` é a fonte de verdade da visibilidade.
+  - Implementação errada plausível: considerar apenas `releasedAt != null`.
+  - Controle: template com `released=false` nunca aparece, mesmo que haja dado histórico inconsistente em `releasedAt`.
+- **must_reuse:** reutilizar a resolução de identidade/contrato do namespace `student/me`.
+  - Implementação errada plausível: receber `alunoId` por query string e confiar nele.
+  - Controle: chamada com ID de outro aluno não altera o escopo retornado.
+- **must_not_behave:** listagem e detalhe não podem expor treino de outro aluno, contrato ou tenant.
+- **must_not_behave:** treino em elaboração (`released=false`) não pode aparecer por filtragem apenas no frontend.
+- **forbidden_implementation:** buscar todos os treinos no backend e deixar o frontend filtrar os liberados.
+
+## Tratamento de erros
+
+- Nenhum treino liberado: `200` com coleção vazia.
+- ID de detalhe inexistente, não liberado ou fora do contexto autorizado: resposta pública que não revele dados do treino de outro aluno.
+- Contexto contratual obrigatório e ausente: preservar o comportamento já adotado pelos endpoints `student/me`.
+- Falha transitória de carregamento: frontend mostra erro recuperável sem converter em estado vazio.
+
+## Critérios de aceite
+
+- [ ] `GET /api/v1/student/me/workouts` retorna somente templates com `released=true` do aluno autenticado.
+- [ ] `GET /api/v1/student/me/workouts/:id` retorna detalhe somente quando o treino é liberado e pertence ao mesmo contexto.
+- [ ] Professor libera um treino e ele passa a ficar disponível ao aluno sem intervenção administrativa adicional.
+- [ ] Treino não liberado nunca aparece na listagem nem no detalhe.
+- [ ] Conhecer o ID de um treino de outro aluno não concede acesso.
+- [ ] `x-contract-id` e múltiplos vínculos seguem a mesma regra dos demais endpoints `student/me`.
+- [ ] Listagem possui ordenação cronológica determinística.
+- [ ] Existe rota/tela **Meus Treinos** acessível ao aluno.
+- [ ] O aluno consegue visualizar sessões e exercícios do treino liberado em modo somente leitura.
+- [ ] A tela possui estados de carregamento, vazio e erro.
+- [ ] A tela funciona em desktop e mobile.
+- [ ] A home do aluno possui acesso claro para **Meus Treinos**.
+- [ ] Fluxo administrativo de montagem/liberação do professor não sofre regressão.
+- [ ] `docs/student-app-data-contract.md` documenta os endpoints implementados e deixa de classificá-los como evolução futura.
+
+## Considerações de testes
+
+### Backend
+- treino próprio liberado;
+- treino próprio não liberado;
+- detalhe próprio liberado;
+- detalhe não liberado;
+- ID pertencente a outro aluno;
+- isolamento por contrato/tenant;
+- múltiplos vínculos;
+- coleção vazia;
+- ordenação determinística.
+
+### Frontend
+- lista com treino atual/próximo;
+- histórico;
+- detalhe;
+- estado vazio;
+- falha de API;
+- navegação a partir da home;
+- responsividade.
+
+## Impacto na documentação
+
+Atualizar `docs/student-app-data-contract.md`, que é a fonte versionada atual da experiência `student/me`, documentando listagem, detalhe, payload permitido, isolamento e estados de UI.
+
+## Áreas relevantes
+
+- `apps/api/src/routes/student.routes.ts`
+- `apps/api/src/modules/workout/workout.service.ts`
+- serviços de contexto do aluno em `apps/api/src/modules/alunos/`
+- `apps/web/src/pages/Home.tsx`
+- `apps/web/src/services/workout.service.ts`
+- schemas Prisma de `TrainingPlan`, `WorkoutTemplate`, `WorkoutDay`, `WorkoutExercise`
+- `docs/student-app-data-contract.md`

@@ -66,7 +66,7 @@ export const authCopy = {
     emailLabel: 'E-mail da conta',
     emailPlaceholder: 'voce@exemplo.com',
     submit: 'Gerar link de redefinição',
-    successTitle: 'Solicitação enviada',
+    successTitle: 'Solicitação recebida',
     successHint:
       'Se existir uma conta com este e-mail, enviaremos as instruções de redefinição para a caixa de entrada.',
     backToLogin: 'Voltar para o login',

@@ -1,210 +1,27 @@
 {
-  "schema_version": 3,
-  "specification_snapshot": {
-    "path": "/tmp/delivery476/specification-snapshot.json",
-    "sha256": "ba0b92f00fbfdde4c59461664b72fc306adff9fe1df139d7ae26f5b7571010d4"
-  },
-  "primary_issue_source_id": "SRC-ISSUE-476",
-  "obligations": [
+  "schema_version": 2,
+  "artifact_format": "base64-shards-v1",
+  "artifact_kind": "requirement-closure",
+  "compression": "gzip",
+  "encoded_size": 9160,
+  "encoded_sha256": "818f961952af00692387c1b183e137360be54869c8a18aa8c558f7d801e4fb76",
+  "decoded_size": 33860,
+  "decoded_sha256": "d21282d4e91bfe4f826a69129a6db7486a27b1c112ca00ed2355c6e906620d3f",
+  "parts": [
     {
-      "id": "OBL-001",
-      "candidate_key": "eb1da42ec715d0d7153bc120dd5895ed47f564fb7531b006dd6ae58711bc5a33",
-      "source_id": "SRC-ISSUE-476",
-      "source_sha256": "ac524a3965cf08dc19aa4cfb5799178b0913119e06ce4345485cd618bd0daa2f",
-      "source_line": 3,
-      "source_text": "Fechar a remediação targeted da auditoria independente da PR #475 (`audit-rejection:pr475-d7366984-01`) no Treinamento Resistido, preservando o comportamento já entregue.",
-      "flags": [],
-      "disposition": "covered",
-      "requirement_ids": [
-        "REQ-001"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "Closed by exact-head code/test/CI or target-bound handoff evidence."
+      "path": "requirement-closure.parts/part-000.b64",
+      "size": 4096,
+      "sha256": "e3232c8abb9c29470239a28e4e30748576f86245d7577a670e6d77921b263232"
     },
     {
-      "id": "OBL-002",
-      "candidate_key": "44f17b7b8d5036ff9da12ab44bb97782568de234dfadb5128624aec3b950055e",
-      "source_id": "SRC-ISSUE-476",
-      "source_sha256": "ac524a3965cf08dc19aa4cfb5799178b0913119e06ce4345485cd618bd0daa2f",
-      "source_line": 7,
-      "source_text": "Novos exercícios resistidos adicionados individualmente ou em lote à **Sessão** devem nascer com `reps=null` quando não houver repetição informada; `resistedSummary.repZone` deve continuar apenas como placeholder do campo Rep.",
-      "flags": [
-        "negative"
-      ],
-      "disposition": "covered",
-      "requirement_ids": [
-        "REQ-002"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "Closed by exact-head code/test/CI or target-bound handoff evidence."
+      "path": "requirement-closure.parts/part-001.b64",
+      "size": 4096,
+      "sha256": "d41b3f150147e8b975a9bc44fa606b94a24cf61d0c23d15d478faddb60d99ede"
     },
     {
-      "id": "OBL-003",
-      "candidate_key": "50065dd68674c5e48e85236d14ff4cb5d4b83459a7e8b2136b8e4ca03808dc4b",
-      "source_id": "SRC-ISSUE-476",
-      "source_sha256": "ac524a3965cf08dc19aa4cfb5799178b0913119e06ce4345485cd618bd0daa2f",
-      "source_line": 8,
-      "source_text": "O **Preenchimento rápido** deve abrir com Séries, intervalos, C e E vazios em toda nova abertura; campos deixados vazios ao aplicar continuam preservando os valores atuais.",
-      "flags": [
-        "exhaustive"
-      ],
-      "disposition": "covered",
-      "requirement_ids": [
-        "REQ-003"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "Closed by exact-head code/test/CI or target-bound handoff evidence."
-    },
-    {
-      "id": "OBL-004",
-      "candidate_key": "58d710a81e83bd75357b5365a6fc077f1bd5452708698640e0c3999807fc4989",
-      "source_id": "SRC-ISSUE-476",
-      "source_sha256": "ac524a3965cf08dc19aa4cfb5799178b0913119e06ce4345485cd618bd0daa2f",
-      "source_line": 9,
-      "source_text": "A remediação deve preservar layout, permissões, persistência e demais regras do Workout Builder, com regressões cobrindo inclusão individual, inclusão múltipla e reabertura do modal.",
-      "flags": [
-        "exhaustive"
-      ],
-      "disposition": "covered",
-      "requirement_ids": [
-        "REQ-004"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "Closed by exact-head code/test/CI or target-bound handoff evidence."
-    },
-    {
-      "id": "OBL-005",
-      "candidate_key": "3db4970892b822647d51be6dfc1cfab19cb7deba1f017b3fb06185969f823307",
-      "source_id": "SRC-ISSUE-476",
-      "source_sha256": "ac524a3965cf08dc19aa4cfb5799178b0913119e06ce4345485cd618bd0daa2f",
-      "source_line": 13,
-      "source_text": "O SHA corretivo passa type-check, lint, testes, build, `arch:check`, `access:check`, `docs:check` e o gate final da PR.",
-      "flags": [],
-      "disposition": "covered",
-      "requirement_ids": [
-        "REQ-005"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "Closed by exact-head code/test/CI or target-bound handoff evidence."
-    },
-    {
-      "id": "OBL-006",
-      "candidate_key": "a6ad79b5852059159eddbc5b209c58cc2a0aee7b433b031f407be992e9cb8e9f",
-      "source_id": "SRC-ISSUE-476",
-      "source_sha256": "ac524a3965cf08dc19aa4cfb5799178b0913119e06ce4345485cd618bd0daa2f",
-      "source_line": 14,
-      "source_text": "A PR #475 recebe handoff certificado para a Issue #476, sem reutilizar como prova o pacote herdado da PR #470 / Issue #467.",
-      "flags": [
-        "negative",
-        "structural"
-      ],
-      "disposition": "covered",
-      "requirement_ids": [
-        "REQ-006"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "Closed by exact-head code/test/CI or target-bound handoff evidence."
+      "path": "requirement-closure.parts/part-002.b64",
+      "size": 968,
+      "sha256": "1bc1d9d38adf657567f25cf5be799f4d0d085d741090083b64278ad5bb1a1311"
     }
-  ],
-  "source_coverage": [
-    {
-      "source_id": "SRC-ISSUE-476",
-      "source_sha256": "ac524a3965cf08dc19aa4cfb5799178b0913119e06ce4345485cd618bd0daa2f",
-      "candidate_count": 6,
-      "obligation_ids": [
-        "OBL-001",
-        "OBL-002",
-        "OBL-003",
-        "OBL-004",
-        "OBL-005",
-        "OBL-006"
-      ],
-      "unmapped_candidate_keys": []
-    }
-  ],
-  "domain_inventories": [],
-  "observable_assertions": [],
-  "structural_invariant_closures": {
-    "status": "passed",
-    "applicability_reason": "Current-target handoff is required.",
-    "entries": [
-      {
-        "id": "STRUCT-HANDOFF",
-        "obligation_ids": [
-          "OBL-006"
-        ],
-        "plausible_wrong_implementation": "Reuse inherited Issue #467 / PR #470 handoff.",
-        "negative_control_evidence": "Inherited package is foreign; replacement is bound to Issue #476 / PR #475."
-      }
-    ],
-    "unresolved_invariants": []
-  },
-  "read_model_closures": {
-    "status": "not-applicable",
-    "applicability_reason": "No read-model contract changed.",
-    "entries": [],
-    "unconsumed_outputs": [],
-    "unmapped_required_fields": []
-  },
-  "canonical_source_consistency": {
-    "status": "not-applicable",
-    "applicability_reason": "Single canonical issue source.",
-    "entries": [],
-    "unverified_surfaces": [],
-    "missing_divergent_tests": []
-  },
-  "documentation_consistency": {
-    "status": "passed",
-    "applicability_reason": "Behavioral remediation preserves documented UI contract.",
-    "old_contract_terms": [],
-    "new_contract_terms": [],
-    "occurrences": [],
-    "unresolved_contradictions": [],
-    "searched_outside_diff": true,
-    "search_evidence": [
-      "Exact-head CI 36541963260 passed docs:check on b9a7b1d8c4e064bc75ebf06f28d66a4e7cd003b7."
-    ]
-  },
-  "scope_reduction_review": {
-    "status": "passed",
-    "matches": []
-  },
-  "pass_c": {
-    "status": "passed",
-    "requirement_ids": [
-      "REQ-001",
-      "REQ-002",
-      "REQ-003",
-      "REQ-004",
-      "REQ-005",
-      "REQ-006"
-    ],
-    "obligation_ids": [
-      "OBL-001",
-      "OBL-002",
-      "OBL-003",
-      "OBL-004",
-      "OBL-005",
-      "OBL-006"
-    ],
-    "evidence": [
-      "Exact-head CI 36541963260 passed all required STANDARD gates on b9a7b1d8c4e064bc75ebf06f28d66a4e7cd003b7."
-    ],
-    "rederived_without_pr_description": true,
-    "reviewed_user_visible_semantics": true,
-    "reviewed_producer_consumer_parity": true,
-    "reviewed_all_specification_sources": true
-  }
+  ]
 }

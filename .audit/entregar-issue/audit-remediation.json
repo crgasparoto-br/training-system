@@ -3,48 +3,30 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "status": "closed",
-  "candidate_head_sha": "b9a7b1d8c4e064bc75ebf06f28d66a4e7cd003b7",
   "remediation_mode": "targeted-remediation",
+  "candidate_head_sha": "5ac4547eb94abe644c7e3cfb0504610de64a8ebc",
   "source": {
-    "rejection_id": "audit-rejection:pr475-d7366984-01",
-    "audited_head_sha": "d7366984bf51797584d60e81299f084a595e2aea",
-    "audit_report_sha256": "6f2d295a72006cf4c26f9fe2744e06f6f46871061e33364a2e2af81f645731bc"
+    "rejection_id": "audit-rejection:issue482-pr484-post-write-refreeze-5ac4547e",
+    "audited_head_sha": "5ac4547eb94abe644c7e3cfb0504610de64a8ebc",
+    "audit_report_sha256": "c3faa95909f131a22c62824a02d06cedf6c80b98ce3af4225955b6272a97d7e3"
   },
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-001",
+      "source_id": "A-482-002",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "evidence": [
-        "Both single and multi-add producers now create resisted exercises with reps:null; repZone remains a placeholder."
+        "evidence/post-write-refreeze.txt",
+        "evidence/ci-run-36716196399.txt",
+        "requirement-attack-matrix.json",
+        "risk-saturation.json"
       ],
       "validations": [
-        "Non-database tests and full Validate PR run 36541963260 passed on b9a7b1d8c4e064bc75ebf06f28d66a4e7cd003b7."
-      ]
-    },
-    {
-      "source_kind": "finding",
-      "source_id": "A-002",
-      "remediation_mode": "targeted-remediation",
-      "status": "fixed",
-      "evidence": [
-        "A fresh Issue #476 / PR #475 handoff package is rebuilt from current sources; inherited Issue #467 / PR #470 artifacts are not reused as current evidence."
-      ],
-      "validations": [
-        "Delivery target binding and terminal result-only validation are mandatory before handoff publication."
-      ]
-    },
-    {
-      "source_kind": "recommendation",
-      "source_id": "R-001",
-      "remediation_mode": "targeted-remediation",
-      "status": "fixed",
-      "evidence": [
-        "openQuickFillModal clears all quick-fill fields before setting the dialog open."
-      ],
-      "validations": [
-        "New reopen regression test and full Validate PR run 36541963260 passed on b9a7b1d8c4e064bc75ebf06f28d66a4e7cd003b7."
+        "post-write-refreeze floor preserved from the independent audit",
+        "critical evidence re-anchored to the current material head",
+        "Validate PR exact-head CRITICAL run completed successfully",
+        "fresh result-only handoff prepared for Issue 482 / PR 484"
       ]
     }
   ]

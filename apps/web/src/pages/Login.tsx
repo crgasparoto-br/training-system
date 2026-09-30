@@ -41,8 +41,13 @@ export function Login() {
     clearError();
 
     try {
-      await login(data);
-      navigate(safeReturnPath(searchParams.get('returnTo')), { replace: true });
+      const authenticatedUser = await login(data);
+      navigate(
+        authenticatedUser?.mustChangePassword
+          ? '/change-password'
+          : safeReturnPath(searchParams.get('returnTo')),
+        { replace: true }
+      );
     } finally {
       setIsLoading(false);
     }

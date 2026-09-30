@@ -7,6 +7,8 @@ import type {
   ForgotPasswordResponse,
   ResetPasswordRequest,
   ResetPasswordResponse,
+  ChangePasswordRequest,
+  ChangePasswordResponse,
 } from '@corrida/types';
 
 type AuthUser = AuthResponse['user'];
@@ -74,6 +76,14 @@ export const authService = {
       data
     );
     return extractApiData<ResetPasswordResponse>(response.data);
+  },
+
+  /**
+   * Trocar a senha autenticada
+   */
+  async changePassword(data: ChangePasswordRequest): Promise<ChangePasswordResponse> {
+    const response = await api.post('/auth/change-password', data);
+    return extractApiData<ChangePasswordResponse>(response.data);
   },
 
   /**

@@ -85,7 +85,7 @@ function sendProfessorUnavailable(res: Response) {
 /**
  * Middleware para verificar autenticação.
  */
-export function authMiddleware(req: Request, res: Response, next: NextFunction) {
+export async function authMiddleware(req: Request, res: Response, next: NextFunction) {
   try {
     const authHeader = req.headers.authorization;
 
@@ -99,6 +99,40 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
     const token = authHeader.substring(7);
     const decoded = authService.verifyToken(token);
     req.user = decoded;
+
+    if (decoded.type === 'aluno') {
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: {
+          isActive: true,
+          mustChangePassword: true,
+        },
+      });
+
+      if (!user?.isActive) {
+        return res.status(401).json({
+          success: false,
+          error: 'Usuario nao encontrado ou inativo',
+        });
+      }
+
+      const allowedWhileChangingPassword = new Set([
+        '/api/v1/auth/me',
+        '/api/v1/auth/change-password',
+        '/api/v1/auth/logout',
+      ]);
+
+      if (
+        user.mustChangePassword &&
+        !allowedWhileChangingPassword.has(req.originalUrl.split('?')[0])
+      ) {
+        return res.status(403).json({
+          success: false,
+          error: 'Defina uma nova senha antes de continuar',
+          code: 'PASSWORD_CHANGE_REQUIRED',
+        });
+      }
+    }
 
     next();
   } catch (error) {

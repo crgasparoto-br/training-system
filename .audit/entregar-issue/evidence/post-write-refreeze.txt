@@ -1,0 +1,12 @@
+Independent rejection: audit-rejection:issue482-pr484-post-write-refreeze-5ac4547e
+Finding: A-482-002
+Previous certified material head: 67ceacd0c60703c77091978440ec09ed7f635c28
+Current material head after post-write refreeze: 5ac4547eb94abe644c7e3cfb0504610de64a8ebc
+Recovery floor: post-write-refreeze; requires_refreeze=true
+Observed material paths after the prior handoff:
+- apps/api/src/modules/workout/student-workout.service.ts
+- apps/api/tests/student-workout.service.test.ts
+- apps/web/src/services/student-workout.service.ts
+The material delta narrows the student-facing DTO and adds a negative regression test for internal Workout Builder fields.
+Validate PR run 36716196399 completed successfully on the exact current material head, including CRITICAL validation and full tests.
+A fresh Issue 482 / PR 484 critical handoff package is rebuilt from this exact material head; the prior 67ceacd0 certificate is not reused as terminal evidence.
