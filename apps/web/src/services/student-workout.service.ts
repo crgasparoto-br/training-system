@@ -32,34 +32,19 @@ export interface StudentWorkoutSummary {
 
 export interface StudentWorkoutExercise {
   id: string;
-  exerciseId: string;
   section: string;
-  exerciseOrder: number;
   system: string | null;
-  groupBreakBefore: boolean;
   sets: number | null;
   reps: number | null;
   intervalSec: number | null;
-  cParam: number | null;
-  eParam: number | null;
   load: number | null;
   exerciseNotes: string | null;
   exercise: {
-    id: string;
     name: string;
-    videoUrl: string | null;
-    category: string | null;
-    muscleGroup: string | null;
   };
 }
 
 export interface StudentWorkoutDetailDay extends StudentWorkoutListDay {
-  stimulusDurationMin: number | null;
-  intensity1: number | null;
-  intensity2: number | null;
-  numSessions: number | null;
-  numSets: number | null;
-  sessionTime: number | null;
   restTime: number | null;
   targetHrMin: string | null;
   targetHrMax: string | null;
@@ -68,12 +53,6 @@ export interface StudentWorkoutDetailDay extends StudentWorkoutListDay {
   detailNotes: string | null;
   complementNotes: string | null;
   generalGuidelines: string | null;
-  cyclicTimeMin: number | null;
-  resistanceTimeMin: number | null;
-  paceMax: number | null;
-  paceMin: number | null;
-  startedAt: string | null;
-  finishedAt: string | null;
   exercises: StudentWorkoutExercise[];
 }
 
