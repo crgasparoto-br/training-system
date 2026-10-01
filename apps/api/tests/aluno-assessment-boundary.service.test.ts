@@ -229,7 +229,7 @@ describe('alunoService assessment boundary', () => {
           identificationData: expect.objectContaining({
             name: 'Aluno Novo',
             email: 'novo@example.com',
-            cpf: '139.513.548-79',
+            cpf: '13951354879',
             socialNetwork: 'linkedin',
             socialAccount: 'aluno-linkedin',
             addressStreet: 'Rua A',
