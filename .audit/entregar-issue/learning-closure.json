@@ -3,14 +3,14 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:issue482-pr484-post-write-refreeze-5ac4547e",
-    "audit_report_sha256": "c3faa95909f131a22c62824a02d06cedf6c80b98ce3af4225955b6272a97d7e3",
+    "rejection_id": "audit-rejection:383-published-head-mismatch-becc08d",
+    "audit_report_sha256": "062a522f58c62c56be51a98efa7b94961e3001afaeae00b49dca89e7ecad1da8",
     "finding_ids": [
-      "A-482-002"
+      "A-383-03"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The installed post-write-refreeze and terminal handoff controls already define the generic prevention and detection rule. This rejection is closed by applying that existing control to the current PR identity, without adding repository-specific global policy."
+    "reason": "The installed result-only handoff contract already separates material identity from post-publication remote identity and the completion guard already enforces published/current head equality; this remediation applies those existing controls to the current delivery without introducing repository-specific policy."
   }
 }

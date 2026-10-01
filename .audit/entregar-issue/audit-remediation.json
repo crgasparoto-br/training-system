@@ -4,29 +4,28 @@
   "resolution_policy": "all-actionable-items",
   "status": "closed",
   "remediation_mode": "targeted-remediation",
-  "candidate_head_sha": "5ac4547eb94abe644c7e3cfb0504610de64a8ebc",
+  "candidate_head_sha": "d011846598ad0dadbafd5772429e4102ed6dafb4",
   "source": {
-    "rejection_id": "audit-rejection:issue482-pr484-post-write-refreeze-5ac4547e",
-    "audited_head_sha": "5ac4547eb94abe644c7e3cfb0504610de64a8ebc",
-    "audit_report_sha256": "c3faa95909f131a22c62824a02d06cedf6c80b98ce3af4225955b6272a97d7e3"
+    "rejection_id": "audit-rejection:383-published-head-mismatch-becc08d",
+    "audited_head_sha": "becc08dab05d86c13ed8d88bf7cdba121329ea9f",
+    "audit_report_sha256": "062a522f58c62c56be51a98efa7b94961e3001afaeae00b49dca89e7ecad1da8"
   },
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-482-002",
+      "source_id": "A-383-03",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "evidence": [
-        "evidence/post-write-refreeze.txt",
-        "evidence/ci-run-36716196399.txt",
-        "requirement-attack-matrix.json",
-        "risk-saturation.json"
+        "handoff-ready.json",
+        "terminal-handoff-proof.json",
+        "fresh GitHub PR/head/parent/path read"
       ],
       "validations": [
-        "post-write-refreeze floor preserved from the independent audit",
-        "critical evidence re-anchored to the current material head",
-        "Validate PR exact-head CRITICAL run completed successfully",
-        "fresh result-only handoff prepared for Issue 482 / PR 484"
+        "material head remains d011846598ad0dadbafd5772429e4102ed6dafb4 and is not rewritten",
+        "candidate handoff is a direct result-only child of the frozen material head",
+        "published_handoff_head_sha is captured from the created Git commit and compared with a fresh current_head_sha after publication",
+        "completion guard requires published_handoff_head_sha == current_head_sha and published_handoff_head_sha != material_head_sha"
       ]
     }
   ]

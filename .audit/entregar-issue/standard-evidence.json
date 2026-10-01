@@ -1,118 +1,102 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "head_sha": "07129ae5071b8c0f06f8509ddf1ddf17884df0f9",
+  "head_sha": "b9a7b1d8c4e064bc75ebf06f28d66a4e7cd003b7",
   "requirements": [
     {
       "requirement_id": "REQ-001",
       "positive_evidence": [
-        "PR #493 exact-head diff at 07129ae5071b8c0f06f8509ddf1ddf17884df0f9 implements REQ-001; Validate PR run 36883745066 completed success."
+        "Targeted audit rejection is closed by the material patch and exact-head validation."
       ],
       "primary_negative_control": {
         "id": "NC-001",
         "status": "passed",
-        "procedure": "Call upsertStudentIdentity with a masked valid CPF and inspect all writer projections.",
-        "expected": "All persisted projections represent the same document as digits only.",
-        "observed": "Unit regression asserts StudentProfile, Aluno and Profile values are digits-only."
+        "procedure": "Re-evaluate prior A-001/A-002 and R-001 against current head.",
+        "expected": "All actionable audit items are closed.",
+        "observed": "Remediation ledger closes A-001, A-002 and R-001."
       },
       "regression_evidence": [
-        "Exact-head CI run 36883745066 passed STANDARD validation including non-database tests, build, arch:check, access:check and docs:check for REQ-001."
+        "Remediation ledger closes A-001, A-002 and R-001."
       ]
     },
     {
       "requirement_id": "REQ-002",
       "positive_evidence": [
-        "PR #493 exact-head diff at 07129ae5071b8c0f06f8509ddf1ddf17884df0f9 implements REQ-002; Validate PR run 36883745066 completed success."
+        "Single and multi add initialize reps:null; Rep renders repZone only as placeholder."
       ],
       "primary_negative_control": {
         "id": "NC-002",
         "status": "passed",
-        "procedure": "Use masked valid cpf and guardianCpf values in the identity writer.",
-        "expected": "Both valid documents are stored as 11 digits.",
-        "observed": "student-identity.service.test.ts asserts 52998224725 and 13951354879."
+        "procedure": "Add one and two resisted exercises with repZone 12.",
+        "expected": "Persisted reps stay null; placeholder is 12.",
+        "observed": "Both regression tests passed in CI."
       },
       "regression_evidence": [
-        "Exact-head CI run 36883745066 passed STANDARD validation including non-database tests, build, arch:check, access:check and docs:check for REQ-002."
+        "Both regression tests passed in CI."
       ]
     },
     {
       "requirement_id": "REQ-003",
       "positive_evidence": [
-        "PR #493 exact-head diff at 07129ae5071b8c0f06f8509ddf1ddf17884df0f9 implements REQ-003; Validate PR run 36883745066 completed success."
+        "openQuickFillModal resets all quick-fill fields before opening."
       ],
       "primary_negative_control": {
         "id": "NC-003",
         "status": "passed",
-        "procedure": "Send invalid CPF with surrounding spaces and then send cpf null.",
-        "expected": "Invalid value is trimmed without normalized projection; null clears projections.",
-        "observed": "Dedicated tests assert invalid preservation, normalized null and explicit clearing."
+        "procedure": "Apply C=5, close, reopen quick fill.",
+        "expected": "Reopened fields are empty; blank apply fields preserve current values.",
+        "observed": "Reopen/reset and preserve-current tests passed."
       },
       "regression_evidence": [
-        "Exact-head CI run 36883745066 passed STANDARD validation including non-database tests, build, arch:check, access:check and docs:check for REQ-003."
+        "Reopen/reset and preserve-current tests passed."
       ]
     },
     {
       "requirement_id": "REQ-004",
       "positive_evidence": [
-        "PR #493 exact-head diff at 07129ae5071b8c0f06f8509ddf1ddf17884df0f9 implements REQ-004; Validate PR run 36883745066 completed success."
+        "Material diff is limited to WorkoutBuilderResistance source and tests; no permission/data-contract files changed."
       ],
       "primary_negative_control": {
         "id": "NC-004",
         "status": "passed",
-        "procedure": "Resubmit the same valid CPF using a mask while stored normalized value already matches.",
-        "expected": "No IDENTIFIER_NORMALIZED_CHANGED event is emitted and pre-registration raw blocking path remains separate.",
-        "observed": "Unit regression asserts lifecycle event create is not called for mask-only resend."
+        "procedure": "Compare d736698..b9a7b1d and run access/docs/architecture gates.",
+        "expected": "Only targeted source/tests change and all preservation gates pass.",
+        "observed": "Two-file remediation delta; arch/access/docs gates green."
       },
       "regression_evidence": [
-        "Exact-head CI run 36883745066 passed STANDARD validation including non-database tests, build, arch:check, access:check and docs:check for REQ-004."
+        "Two-file remediation delta; arch/access/docs gates green."
       ]
     },
     {
       "requirement_id": "REQ-005",
       "positive_evidence": [
-        "PR #493 exact-head diff at 07129ae5071b8c0f06f8509ddf1ddf17884df0f9 implements REQ-005; Validate PR run 36883745066 completed success."
+        "GitHub Actions run 36541963260 is success for exact material head."
       ],
       "primary_negative_control": {
         "id": "NC-005",
         "status": "passed",
-        "procedure": "Create/read an administrative student whose valid CPF was entered masked.",
-        "expected": "Readback exposes the stored digits-only value while historical masked records remain readable.",
-        "observed": "HTTP integration expectation was updated to 13951354879 and CI passed."
+        "procedure": "Inspect exact-head Validate PR jobs.",
+        "expected": "Type-check, lint, tests, build, arch/access/docs and final gate succeed.",
+        "observed": "All required jobs and final Validate repository succeeded."
       },
       "regression_evidence": [
-        "Exact-head CI run 36883745066 passed STANDARD validation including non-database tests, build, arch:check, access:check and docs:check for REQ-005."
+        "All required jobs and final Validate repository succeeded."
       ]
     },
     {
       "requirement_id": "REQ-006",
       "positive_evidence": [
-        "PR #493 exact-head diff at 07129ae5071b8c0f06f8509ddf1ddf17884df0f9 implements REQ-006; Validate PR run 36883745066 completed success."
+        "Fresh certificate subject is Issue #476 / PR #475 and material head b9a7b1d."
       ],
       "primary_negative_control": {
         "id": "NC-006",
         "status": "passed",
-        "procedure": "Compare documentation and exact-head CI gates after changing the storage rule.",
-        "expected": "Ownership documentation describes digits-only valid CPF and relevant gates stay green.",
-        "observed": "student-lifecycle-data-ownership.md updated; Validate PR STANDARD validation succeeded."
+        "procedure": "Reject inherited #467/#470 subject and validate replacement target binding.",
+        "expected": "Foreign inherited package is not reused; new subject matches current target.",
+        "observed": "Replacement certificate generated for #476/#475; inherited blob treated as foreign base artifact."
       },
       "regression_evidence": [
-        "Exact-head CI run 36883745066 passed STANDARD validation including non-database tests, build, arch:check, access:check and docs:check for REQ-006."
-      ]
-    },
-    {
-      "requirement_id": "REQ-007",
-      "positive_evidence": [
-        "PR #493 exact-head diff at 07129ae5071b8c0f06f8509ddf1ddf17884df0f9 implements REQ-007; Validate PR run 36883745066 completed success."
-      ],
-      "primary_negative_control": {
-        "id": "NC-007",
-        "status": "passed",
-        "procedure": "Exercise valid cpf, guardianCpf, invalid cpf, null clearing, mask-only resend and administrative readback.",
-        "expected": "Each discriminant case fails if formatting or event semantics regress.",
-        "observed": "Focused tests in student-identity.service.test.ts plus integration expectations cover the listed cases and exact-head CI is green."
-      },
-      "regression_evidence": [
-        "Exact-head CI run 36883745066 passed STANDARD validation including non-database tests, build, arch:check, access:check and docs:check for REQ-007."
+        "Replacement certificate generated for #476/#475; inherited blob treated as foreign base artifact."
       ]
     }
   ]
