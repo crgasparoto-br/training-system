@@ -10,6 +10,7 @@ import { Register } from './pages/Register';
 import { Home } from './pages/Home';
 import { StudentProfileReview } from './pages/StudentProfileReview';
 import { StudentWorkouts } from './pages/StudentWorkouts';
+import { StudentTraining } from './pages/StudentTraining';
 import { CollaboratorsList } from './pages/CollaboratorsList';
 import { CollaboratorDetails } from './pages/CollaboratorDetails';
 import { CollaboratorFormPage } from './pages/CollaboratorFormPage';
@@ -99,6 +100,12 @@ function StudentWorkoutsRoute() {
   if (user?.type !== 'aluno') return <Navigate to="/inicio" replace />;
   return <StudentWorkouts />;
 }
+function StudentTrainingRoute() {
+  const { isAuthenticated, user } = useAuthStore();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.type !== 'aluno') return <Navigate to="/inicio" replace />;
+  return <StudentTraining />;
+}
 function StudentsRoute() {
   const { isAuthenticated, user } = useAuthStore();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
@@ -131,6 +138,7 @@ function App() {
             <Route index element={<DefaultAuthorizedRoute />} />
             <Route path="inicio" element={<Home />} />
             <Route path="student/profile-review" element={<StudentProfileReviewRoute />} />
+            <Route path="student/training" element={<StudentTrainingRoute />} />
             <Route path="student/workouts" element={<StudentWorkoutsRoute />} />
             <Route path="student/workouts/:workoutTemplateId" element={<StudentWorkoutsRoute />} />
             <Route path="professores" element={<Navigate to="/professores/new" replace />} />

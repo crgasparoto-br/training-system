@@ -182,6 +182,23 @@ function StudentHome({ contractId }: { contractId?: string }) {
 
       <Card>
         <CardHeader>
+          <CardTitle>Treino de hoje</CardTitle>
+          <CardDescription>
+            Veja o que fazer hoje e a sua rotina da semana, com exercícios, cargas e orientações.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link
+            to={withStudentContractContext('/student/training', contractId)}
+            className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            Ver treino de hoje
+          </Link>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Meus Treinos</CardTitle>
           <CardDescription>
             Consulte os treinos que seu professor já liberou para você, incluindo sessões e exercícios.
