@@ -180,11 +180,22 @@ describeDatabase('Issue 450 administrative create/read HTTP flow', () => {
 
     const persisted = await prisma.aluno.findUnique({
       where: { id: alunoId },
-      select: { contractId: true, serviceId: true },
+      select: {
+        contractId: true,
+        serviceId: true,
+        leadCpf: true,
+        leadCpfNormalized: true,
+        studentProfile: { select: { identificationData: true } },
+      },
     });
     expect(persisted).toMatchObject({
       contractId,
       serviceId: service.id,
+      leadCpf: '13951354879',
+      leadCpfNormalized: '13951354879',
+      studentProfile: {
+        identificationData: expect.objectContaining({ cpf: '13951354879' }),
+      },
     });
 
     const read = await request(app).get('/api/v1/alunos/' + alunoId);
