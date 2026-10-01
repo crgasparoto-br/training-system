@@ -118,6 +118,18 @@ Para treino ciclico estruturado:
 
 A experiencia guiada deve usar o lifecycle canonico da sessao e nao criar estado paralelo no frontend.
 
+### Semantica canonica de pausa
+
+- `paused` representa uma pausa **explicita** da sessao e congela relogios operacionais da execucao, incluindo descanso resistido e etapas ciclicas temporais.
+- Background, suspensao do navegador ou refresh **nao** significam pausa. Sem comando explicito de pausa, o tempo continua correndo por wall-clock a partir dos timestamps persistidos.
+- Ao retomar, o relogio operacional continua do tempo restante preservado no momento da pausa. Exemplo: descanso de 60 s pausado apos 25 s deve retomar com 35 s restantes.
+- Nenhum cronometro, etapa, rodada ou serie pode avancar automaticamente enquanto a sessao estiver `paused`.
+- `startedAt` permanece o primeiro inicio da sessao e nao e regravado em retomadas. `finishedAt` so existe em estado terminal.
+- A persistencia deve permitir reconstruir intervalos de pausa e distinguir tempo corrido de parede de tempo efetivamente ativo quando essa diferenca for relevante para a execucao.
+- Retry de `pause` ou `resume` deve ser idempotente.
+- A pausa e seu tempo restante devem ser reconstruiveis em outro cliente/dispositivo autorizado; memoria do navegador nao pode ser a fonte de verdade.
+
+
 ### Historico e evolucao
 
 Deve reunir:
@@ -332,9 +344,27 @@ Antes de iniciar, o aluno pode registrar:
 - disponibilidade de tempo;
 - observacao livre curta.
 
-O check-in pode gerar alertas para o professor e orientacoes seguras para o aluno. Ele nao pode reduzir, trocar ou cancelar automaticamente a prescricao.
+### Contrato canonico do primeiro recorte
 
-Quando houver alerta critico, o sistema deve impedir que a experiencia sugira normalidade e deve orientar o aluno a procurar o professor ou atendimento apropriado conforme regra aprovada.
+- **PSR:** inteiro de `0` a `10`, reutilizando a semantica ja adotada pelo produto sem inventar rotulos intermediarios ausentes.
+- **Qualidade do sono:** inteiro de `0` a `10`, em que `0` representa qualidade pessima e `10` qualidade excelente.
+- **Fadiga:** inteiro de `0` a `10`, em que `0` representa nenhuma fadiga e `10` fadiga extrema.
+- **Motivacao:** inteiro de `0` a `10`, em que `0` representa nenhuma motivacao e `10` motivacao muito alta.
+- **Disponibilidade de tempo:** minutos inteiros.
+- **Dor/desconforto:** reutiliza a regra de triagem ja adotada no feedback pos-treino: `0-2` faixa verde, `3-4` atencao e `>4` alerta para acompanhamento. A faixa nao altera automaticamente o treino.
+- Sono, fadiga, motivacao e PSR permanecem sinais independentes. O primeiro recorte nao cria score composto de prontidao nem thresholds clinicos adicionais sem regra aprovada.
+
+### Politica temporal e idempotencia
+
+- Enquanto a sessao estiver `not_started`, o check-in pode ser criado e alterado.
+- Na primeira transicao da sessao para `in_progress`, o check-in vigente fica imutavel e permanece disponivel para consulta.
+- Depois do inicio, nao existe criacao tardia, sobrescrita silenciosa ou backfill no fluxo comum.
+- Eventual correcao historica futura deve usar mecanismo auditavel separado.
+- Cada sessao possui no maximo um check-in canonico. Retry da mesma operacao logica nao pode duplicar check-in nem evento associado.
+
+O check-in pode gerar alertas para o professor e orientacoes seguras para o aluno. Ele nao pode reduzir, trocar, cancelar ou modificar automaticamente a prescricao ou o treino liberado.
+
+Quando houver alerta critico definido por regra aprovada, o sistema deve impedir que a experiencia sugira normalidade e deve orientar o aluno a procurar o professor ou atendimento apropriado conforme a regra vigente.
 
 ## Execucao e feedback pos-treino
 
@@ -355,6 +385,21 @@ Dados esperados:
 - observacao do professor.
 
 O sistema deve preservar rascunho e falhas recuperaveis sem perder o que o aluno ja registrou.
+
+### Lifecycle canonico do feedback pos-treino
+
+- Antes da confirmacao, o cliente pode manter rascunho local/recuperavel sem torna-lo fonte canonica.
+- O primeiro envio confirmado cria a revisao canonica inicial do feedback.
+- Feedback confirmado e imutavel no fluxo comum: correcao posterior cria nova revisao vinculada a anterior; nao existe `UPDATE` destrutivo do historico.
+- Apenas a revisao vigente e projetada como feedback atual, mas revisoes anteriores permanecem consultaveis para auditoria.
+- Toda correcao exige motivo e registra ator, data/hora, revisao-base e campos alterados.
+- A correcao nao pode trocar a sessao, aluno, `contractId` ou origem operacional do feedback.
+- Retry da criacao ou correcao e idempotente e nao duplica feedback, timeline, alertas ou efeitos derivados.
+- Duas correcoes concorrentes sobre a mesma revisao-base retornam conflito deterministico; nao existe politica de last-write-wins.
+- Alertas, timeline, indicadores e decisoes derivadas devem apontar para a revisao correspondente ou ser reconciliados de forma deterministica, sem duplicacao.
+- O professor nao pode reescrever silenciosamente a percepcao original do aluno. Complemento tecnico do professor deve permanecer como dado atribuido ao professor; uma correcao sobre resposta do aluno, quando autorizada, deve preservar autoria e trilha de revisao.
+- A capacidade do aluno de corrigir o proprio feedback depende de permissao explicita do produto/backend; ausencia dessa permissao mantem o feedback somente leitura para o aluno apos confirmacao.
+
 
 ## Evolucao e apoio a decisao
 
