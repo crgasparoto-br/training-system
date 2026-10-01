@@ -1,27 +1,414 @@
 {
-  "schema_version": 2,
-  "artifact_format": "base64-shards-v1",
-  "artifact_kind": "requirement-closure",
-  "compression": "gzip",
-  "encoded_size": 9160,
-  "encoded_sha256": "818f961952af00692387c1b183e137360be54869c8a18aa8c558f7d801e4fb76",
-  "decoded_size": 33860,
-  "decoded_sha256": "d21282d4e91bfe4f826a69129a6db7486a27b1c112ca00ed2355c6e906620d3f",
-  "parts": [
+  "schema_version": 1,
+  "specification_snapshot": {
+    "path": "specification-snapshot.json",
+    "sha256": "b2db4aa402f49206a53edf44a260c1f43e31d6dc96e2eda15d49cd556644f6d4"
+  },
+  "primary_issue_source_id": "SRC-ISSUE-383",
+  "obligations": [
     {
-      "path": "requirement-closure.parts/part-000.b64",
-      "size": 4096,
-      "sha256": "e3232c8abb9c29470239a28e4e30748576f86245d7577a670e6d77921b263232"
+      "id": "OBL-001",
+      "candidate_key": "b825efb964b107a5edbab51229acaa7fae1438c0fc4ff6e9d8ef7e475e80c001",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 5,
+      "source_text": "Fechar o gate clínico/documental remanescente da Adipometria após a conclusão da epic #245, verificando o comportamento efetivamente entregue e alinhando documentação, protocolos habilitados, vetores de teste e roadmap sem reabrir ou duplicar a implementação já concluída.",
+      "flags": [
+        "negative",
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-001"
+      ]
     },
     {
-      "path": "requirement-closure.parts/part-001.b64",
-      "size": 4096,
-      "sha256": "d41b3f150147e8b975a9bc44fa606b94a24cf61d0c23d15d478faddb60d99ede"
+      "id": "OBL-002",
+      "candidate_key": "2293e6dec9a0ebb7b5b660f8699a8f98f5a5ca2430d796c85169e3cfc599766d",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 9,
+      "source_text": "A epic #245 está encerrada, enquanto o índice documental ainda registra a fundação ADPT como em validação com gate clínico pendente. Esta issue existe para resolver essa divergência de forma explícita e verificável.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-002"
+      ]
     },
     {
-      "path": "requirement-closure.parts/part-002.b64",
-      "size": 968,
-      "sha256": "1bc1d9d38adf657567f25cf5be799f4d0d085d741090083b64278ad5bb1a1311"
+      "id": "OBL-003",
+      "candidate_key": "e567a7696f305dfb0d952ec3549c2a1a363e77f346aba9f7019e61c19fa0c09e",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 13,
+      "source_text": "comparar implementação atual com `docs/product/adipometry-protocol.md`, documentação de API/banco/web e plano de execução;",
+      "flags": [
+        "freshness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-003"
+      ]
+    },
+    {
+      "id": "OBL-004",
+      "candidate_key": "bbac2d869782ed41de6286ee23e4a9de4cc9aa7dfb6296843aa9c71e4bfa8c66",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 14,
+      "source_text": "identificar quais protocolos estão efetivamente `approved`, habilitados e finalizáveis;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-004"
+      ]
+    },
+    {
+      "id": "OBL-005",
+      "candidate_key": "3b3ab3004c5bcaacc985e647795adabd462ae7d8e72278480d8db7d70b2f73f6",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 15,
+      "source_text": "confirmar referência bibliográfica, população, critérios de aplicação, equações completas, dobras usadas, unidades, limites, precisão e arredondamento;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-005"
+      ]
+    },
+    {
+      "id": "OBL-006",
+      "candidate_key": "c8695c90a929328c7ab31846bd80f47ecbac65b369db32db9c9dcce593c0b453",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 16,
+      "source_text": "validar vetores de teste dos protocolos habilitados;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-006"
+      ]
+    },
+    {
+      "id": "OBL-007",
+      "candidate_key": "ba1f6d4fabe34fcafe02d736e116c816661de23277b92fa0f1bf7d36556664f5",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 17,
+      "source_text": "confirmar comportamento para perfil incompatível ou com dado demográfico ausente;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-007"
+      ]
+    },
+    {
+      "id": "OBL-008",
+      "candidate_key": "71d67939d5a2b3e3aba0bfc9612a022afc0d839c7529eb08e6ab149cea977cc7",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 18,
+      "source_text": "garantir que Slaughter permaneça indisponível enquanto sua definição não estiver completa e aprovada;",
+      "flags": [
+        "negative",
+        "freshness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-008"
+      ]
+    },
+    {
+      "id": "OBL-009",
+      "candidate_key": "213f061c0a54409a199d9a51c6e0fb59bea26ab0be4337425a9a72fe0e48e3d6",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 19,
+      "source_text": "confirmar política de correção de avaliação concluída;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-009"
+      ]
+    },
+    {
+      "id": "OBL-010",
+      "candidate_key": "a39ba969141cb8c5de397b1642d25ffe24c263e12e25fdfa93b71d9173a35654",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 20,
+      "source_text": "atualizar roadmap e índice documental para refletir o estado real;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-010"
+      ]
+    },
+    {
+      "id": "OBL-011",
+      "candidate_key": "233223b4c6335f9aa643691cf73071673d2c4999c851d890a1ed61f4d23cd22b",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 21,
+      "source_text": "registrar qualquer lacuna material restante como issue específica, sem mascará-la como concluída.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-011"
+      ]
+    },
+    {
+      "id": "OBL-012",
+      "candidate_key": "3a33ed18f5a312ca77e5dd053f042d28d8698cca9b73de06f5b6545483cd3648",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 25,
+      "source_text": "Nenhum protocolo incompleto ou não aprovado pode permitir cálculo final/finalização.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "freshness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-012"
+      ]
+    },
+    {
+      "id": "OBL-013",
+      "candidate_key": "6442a55351300a8c840c5d6bceaf1069a833885c12458f49a2e9c91e58239a2d",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 26,
+      "source_text": "Não existe fallback silencioso para outra fórmula clínica.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-013"
+      ]
+    },
+    {
+      "id": "OBL-014",
+      "candidate_key": "087c632e82035cc71ce288cf18059a59985f47c345f24c668c56b6be19d616e7",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 27,
+      "source_text": "Avaliações concluídas preservam protocolo, versão, entradas e snapshot reproduzível.",
+      "flags": [
+        "freshness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-014"
+      ]
+    },
+    {
+      "id": "OBL-015",
+      "candidate_key": "6a6b8fbe6a4ef3e332c552663f86c78c02b69c479d4aadfb4dbc92ba6295ab11",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 28,
+      "source_text": "Esta issue não autoriza mudança clínica sem fonte e aprovação rastreáveis.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-015"
+      ]
+    },
+    {
+      "id": "OBL-016",
+      "candidate_key": "18868a23dd36fce335fb8d1e14a9a77f8e933064cf719ce1065bd90d8162da77",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 32,
+      "source_text": "[ ] Implementação e documentação dos protocolos habilitados são consistentes.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-016"
+      ]
+    },
+    {
+      "id": "OBL-017",
+      "candidate_key": "ce6b206d892d4fa9e8e40dd114cea6cae44abc648c8d8b90756f599cc8eed759",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 33,
+      "source_text": "[ ] Cada protocolo habilitado possui referência, população, fórmula, mapeamento de dobras, unidades, limites, precisão, arredondamento e vetores de teste.",
+      "flags": [
+        "exhaustive"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-017"
+      ]
+    },
+    {
+      "id": "OBL-018",
+      "candidate_key": "e7f3e676d05a8b6278848f2cbcc3a0eb4b65de704da7fcbe0aa5fc21ae0cfeb4",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 34,
+      "source_text": "[ ] Protocolos incompletos permanecem bloqueados de finalização.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-018"
+      ]
+    },
+    {
+      "id": "OBL-019",
+      "candidate_key": "53cc398f55df62553ec04a4978aadac76650e4b061e4dd8fa8df80e6ba86cbbd",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 35,
+      "source_text": "[ ] Slaughter não é disponibilizado sem definição completa e aprovada.",
+      "flags": [
+        "negative",
+        "freshness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-019"
+      ]
+    },
+    {
+      "id": "OBL-020",
+      "candidate_key": "3b30f4c7ab8de36669630c999f9c7f50e3747edc93ae023f83123f2caf41b6a5",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 36,
+      "source_text": "[ ] Política de correção e imutabilidade está documentada e coberta por testes.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-020"
+      ]
+    },
+    {
+      "id": "OBL-021",
+      "candidate_key": "8e8e01137de633325ca282cd913693028cf8889cfd8b78a086d9592dfb825efa",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 37,
+      "source_text": "[ ] Roadmap deixa de indicar estado incompatível com o comportamento efetivamente entregue.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-021"
+      ]
+    },
+    {
+      "id": "OBL-022",
+      "candidate_key": "a96401578568835c07f169f67d737464f192d5a1043842b141a642bfce8aa780",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 38,
+      "source_text": "[ ] Eventuais lacunas remanescentes viram issues específicas com escopo próprio.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-022"
+      ]
+    },
+    {
+      "id": "OBL-023",
+      "candidate_key": "e441643573d1597d6dc8dd534342cbc19c1ae92c9772420eddd75be6618c1844",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 39,
+      "source_text": "[ ] `pnpm docs:check`, testes ADPT aplicáveis e `pnpm validate` passam.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-023"
+      ]
+    },
+    {
+      "id": "OBL-024",
+      "candidate_key": "caa280b66981526e6f1a35ef06e752d3a79747ad1b766547eac867bcd76a0968",
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "source_line": 50,
+      "source_text": "Usar como fontes a epic #245 e suas entregas #246–#249, além do código e testes atuais da branch `develop`.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-024"
+      ]
     }
-  ]
+  ],
+  "source_coverage": [
+    {
+      "source_id": "SRC-ISSUE-383",
+      "source_sha256": "37a0b0bd216bd5a83658b7c20136930bebb9559e7e65146a757e5c3983747c00",
+      "candidate_count": 24,
+      "unmapped_candidate_keys": []
+    }
+  ],
+  "domain_inventories": [],
+  "observable_assertions": [],
+  "structural_invariant_closures": {
+    "status": "passed",
+    "applicability_reason": "Structural and canonical-path invariants are closed against the frozen material head and current documentation contract.",
+    "entries": [],
+    "unresolved_invariants": []
+  },
+  "read_model_closures": {
+    "status": "passed",
+    "applicability_reason": "Historical and correction semantics are represented by the existing immutable ADPT revision model and verified by the green exact-head test suite."
+  },
+  "canonical_source_consistency": {
+    "status": "passed",
+    "applicability_reason": "Canonical protocol, migration-derived definition, roadmap and database documentation were reconciled against the same frozen candidate."
+  },
+  "documentation_consistency": {
+    "status": "passed",
+    "applicability_reason": "Normative documentation claims were reconciled in the candidate and pnpm docs:check passed in exact-head CI."
+  },
+  "scope_reduction_review": {
+    "status": "passed",
+    "matches": [],
+    "rationale": "The remediation does not reduce scope; it refreshes delivery evidence for the already frozen Issue 383 candidate."
+  },
+  "pass_c": {
+    "status": "passed",
+    "reviewed_all_specification_sources": true,
+    "obligation_ids": [
+      "OBL-001",
+      "OBL-002",
+      "OBL-003",
+      "OBL-004",
+      "OBL-005",
+      "OBL-006",
+      "OBL-007",
+      "OBL-008",
+      "OBL-009",
+      "OBL-010",
+      "OBL-011",
+      "OBL-012",
+      "OBL-013",
+      "OBL-014",
+      "OBL-015",
+      "OBL-016",
+      "OBL-017",
+      "OBL-018",
+      "OBL-019",
+      "OBL-020",
+      "OBL-021",
+      "OBL-022",
+      "OBL-023",
+      "OBL-024"
+    ],
+    "rationale": "All extracted normative obligations from the Issue 383 body were mapped and reviewed for the frozen candidate."
+  },
+  "contract_version": "2026-08-20.3"
 }
