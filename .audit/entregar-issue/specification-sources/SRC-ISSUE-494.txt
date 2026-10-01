@@ -1,0 +1,23 @@
+## Objetivo
+
+Corrigir o armazenamento de CPF no writer de identidade do aluno para evitar formatos mistos entre o perfil do estudante, o registro do aluno e a projeção de perfil.
+
+## Requisitos
+
+- Quando `cpf` ou `guardianCpf` for válido, armazenar somente os 11 dígitos nas projeções atualizadas pelo writer de identidade.
+- Quando `cpf` for inválido, preservar o texto informado após remover espaços externos e deixar a projeção normalizada vazia; `cpf: null` deve limpar os valores correspondentes.
+- Reenviar o mesmo CPF com outra máscara não deve gerar `IDENTIFIER_NORMALIZED_CHANGED`; o caminho de CPF bloqueante do pré-cadastro deve continuar preservando o valor bruto pendente.
+- A leitura administrativa deve refletir o valor persistido sem máscara para novos registros. Registros históricos não exigem backfill e a interface continua responsável pela máscara visual.
+- A documentação de ownership/armazenamento deve registrar a nova regra, e os testes e gates de validação relevantes devem permanecer verdes.
+
+## Fora de escopo
+
+Backfill de registros históricos, mudança de máscara do frontend, mudança de regras de unicidade e remodelagem do domínio de identidade.
+
+## Evidência esperada
+
+A regressão deve demonstrar CPF válido sem máscara nas projeções atualizadas, `guardianCpf` sem máscara, preservação de CPF inválido, limpeza por `null`, ausência de evento no reenvio semanticamente igual e leitura administrativa coerente.
+
+## Implementação relacionada
+
+PR #493.
