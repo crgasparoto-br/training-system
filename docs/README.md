@@ -78,6 +78,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`execution-plans/TEMPLATE.md`](execution-plans/TEMPLATE.md): estrutura obrigatoria para novas iniciativas grandes.
 - [`execution-plans/active/`](execution-plans/active/): somente trabalho realmente em andamento ou rollout ainda pendente.
 - [`execution-plans/active/2026-10-epic-386-guided-training-execution.md`](execution-plans/active/2026-10-epic-386-guided-training-execution.md): plano de implementacao da epic #386, modo guiado resistido, descanso e executor ciclico.
+- [`execution-plans/active/2026-10-issue-387-weekly-routine-today-workout.md`](execution-plans/active/2026-10-issue-387-weekly-routine-today-workout.md): rotina semanal e Treino de hoje (#387), leitura do grafo liberado sem lifecycle paralelo.
 - [`execution-plans/completed/`](execution-plans/completed/): planos concluidos mantidos por valor de auditoria ou decisao.
 
 Planos ativos relevantes:
