@@ -332,9 +332,27 @@ Antes de iniciar, o aluno pode registrar:
 - disponibilidade de tempo;
 - observacao livre curta.
 
-O check-in pode gerar alertas para o professor e orientacoes seguras para o aluno. Ele nao pode reduzir, trocar ou cancelar automaticamente a prescricao.
+### Contrato canonico do primeiro recorte
 
-Quando houver alerta critico, o sistema deve impedir que a experiencia sugira normalidade e deve orientar o aluno a procurar o professor ou atendimento apropriado conforme regra aprovada.
+- **PSR:** inteiro de `0` a `10`, reutilizando a semantica ja adotada pelo produto sem inventar rotulos intermediarios ausentes.
+- **Qualidade do sono:** inteiro de `0` a `10`, em que `0` representa qualidade pessima e `10` qualidade excelente.
+- **Fadiga:** inteiro de `0` a `10`, em que `0` representa nenhuma fadiga e `10` fadiga extrema.
+- **Motivacao:** inteiro de `0` a `10`, em que `0` representa nenhuma motivacao e `10` motivacao muito alta.
+- **Disponibilidade de tempo:** minutos inteiros.
+- **Dor/desconforto:** reutiliza a regra de triagem ja adotada no feedback pos-treino: `0-2` faixa verde, `3-4` atencao e `>4` alerta para acompanhamento. A faixa nao altera automaticamente o treino.
+- Sono, fadiga, motivacao e PSR permanecem sinais independentes. O primeiro recorte nao cria score composto de prontidao nem thresholds clinicos adicionais sem regra aprovada.
+
+### Politica temporal e idempotencia
+
+- Enquanto a sessao estiver `not_started`, o check-in pode ser criado e alterado.
+- Na primeira transicao da sessao para `in_progress`, o check-in vigente fica imutavel e permanece disponivel para consulta.
+- Depois do inicio, nao existe criacao tardia, sobrescrita silenciosa ou backfill no fluxo comum.
+- Eventual correcao historica futura deve usar mecanismo auditavel separado.
+- Cada sessao possui no maximo um check-in canonico. Retry da mesma operacao logica nao pode duplicar check-in nem evento associado.
+
+O check-in pode gerar alertas para o professor e orientacoes seguras para o aluno. Ele nao pode reduzir, trocar, cancelar ou modificar automaticamente a prescricao ou o treino liberado.
+
+Quando houver alerta critico definido por regra aprovada, o sistema deve impedir que a experiencia sugira normalidade e deve orientar o aluno a procurar o professor ou atendimento apropriado conforme a regra vigente.
 
 ## Execucao e feedback pos-treino
 
