@@ -197,7 +197,7 @@ Outros protocolos futuros:
 
 ### 5. Treinamento operacional existente
 
-**Maturidade: Modulos operacionais existentes e publicacao controlada pela Montagem Consolidada implementada; experiencia diaria integrada ainda parcial.**
+**Maturidade: Modulos operacionais existentes e publicacao controlada pela Montagem Consolidada implementada; epics #386/#397 e recortes guiados #487-#489 especificados, implementacao da experiencia diaria ainda parcial.**
 
 Entregue:
 
@@ -208,9 +208,11 @@ Entregue:
 
 Pendente:
 
-- completar a experiencia de rotina semanal e `Treino de hoje` na Central consumindo a saida operacional ja ligada a Prescricao/Montagem Consolidada;
+- executar #387-#391 para rotina semanal, Treino de hoje, check-in, lifecycle, feedback e retorno a Central;
+- executar #398-#400 para estruturar etapas ciclicas, series resistidas e agrupamentos no grafo canonico;
+- executar #487 para modo guiado resistido, #488 para descanso por timestamps e #489 para executor ciclico guiado;
+- executar #401 para planejado versus executado por unidade de treino;
 - acoes para copiar, mover, revisar e publicar sem perder o aluno selecionado;
-- planejado versus executado;
 - provas-alvo e eventos esportivos;
 - videos e orientacoes vinculados ao treino;
 - aplicacao em massa com individualizacao, excecoes e revisao antes de publicar.
