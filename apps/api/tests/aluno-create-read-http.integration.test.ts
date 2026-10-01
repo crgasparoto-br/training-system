@@ -197,7 +197,8 @@ describeDatabase('Issue 450 administrative create/read HTTP flow', () => {
       intakeForm: {
         formResponses: {
           identification: {
-            cpf: '139.513.548-79',
+            // CPF válido é persistido sem máscara na identidade canônica.
+            cpf: '13951354879',
             address: 'Rua Canônica',
             emergencyContactName: 'Contato Seguro',
           },
@@ -268,7 +269,7 @@ describeDatabase('Issue 450 administrative create/read HTTP flow', () => {
     expect(precedenceRead.status).toBe(200);
     expect(precedenceRead.body.data.intakeForm.formResponses).toMatchObject({
       identification: {
-        cpf: '139.513.548-79',
+        cpf: '13951354879',
         address: 'Rua Canônica',
         emergencyContactName: 'Contato Seguro',
       },
