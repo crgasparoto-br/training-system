@@ -96,9 +96,9 @@ Planos ativos relevantes:
 - [`execution-plans/active/2026-07-issue-275-pre-registration-qa-rollout.md`](execution-plans/active/2026-07-issue-275-pre-registration-qa-rollout.md)
 - [`execution-plans/active/2026-08-issue-319-consolidated-operational-integration.md`](execution-plans/active/2026-08-issue-319-consolidated-operational-integration.md)
 - [`execution-plans/active/2026-08-issue-320-consolidated-operational-release.md`](execution-plans/active/2026-08-issue-320-consolidated-operational-release.md)
-- [`execution-plans/issue-246-adipometry-foundation.md`](execution-plans/issue-246-adipometry-foundation.md) — fundação estrutural em validação; gate clínico ainda pendente.
-
 Registros concluidos preservados:
+
+- [`execution-plans/issue-246-adipometry-foundation.md`](execution-plans/issue-246-adipometry-foundation.md) — registro histórico da fundação ADPT; o contrato clínico de Guedes está reconciliado e sua habilitação exige aprovação clínica ativa por contrato, enquanto Slaughter permanece indisponível.
 
 - [`execution-plans/completed/2026-05-harness-engineering-foundation.md`](execution-plans/completed/2026-05-harness-engineering-foundation.md)
 - [`execution-plans/completed/2026-07-epic-172-completion-assessment.md`](execution-plans/completed/2026-07-epic-172-completion-assessment.md)

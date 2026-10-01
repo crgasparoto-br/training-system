@@ -3,7 +3,7 @@
 ## Status do documento
 
 - Fonte de verdade para estado funcional, prioridades e evolucao do produto.
-- Estado revisado em 2026-09-03 no contexto da issue #382, reconciliando o ciclo de vida da Antropometria, requisitos explicitos de conclusao, historico imutavel/correcao auditada, comparacao, grafico, timeline e controles de permissao/`contractId` com a implementacao corrente.
+- Estado revisado em 2026-10-01 no contexto das issues #382 e #383, preservando o ciclo de vida reconciliado da Antropometria e alinhando a Adipometria entregue pela epic #245 ao modelo real de governanca clinica por contrato.
 - Issues e PRs continuam sendo a fonte de execucao.
 - Codigo, migrations e testes definem o comportamento efetivamente entregue.
 - Documentos detalhados de produto e planos ativos complementam este roadmap; nao devem competir com ele como roadmap geral.
@@ -150,7 +150,7 @@ Pendente:
 
 ### 4. Avaliacao Fisica
 
-**Maturidade: Antropometria implementada funcionalmente para ciclo de vida, historico e comparacao; contrato de laudos ainda pendente. Demais protocolos em evolucao.**
+**Maturidade: Antropometria implementada funcionalmente para ciclo de vida, historico e comparacao, com contrato de laudos ainda pendente. Adipometria implementada e reconciliada documentalmente, com habilitacao clinica governada por contrato. Demais protocolos permanecem futuros.**
 
 Antropometria entregue:
 
@@ -177,12 +177,12 @@ Pendente para concluir Antropometria:
 
 Adipometria:
 
-- epic #245 criada;
-- #246 formaliza protocolo, modelo historico e persistencia;
-- #247 implementa API, calculos, autorizacao e auditoria;
-- #248 cria o fluxo guiado do professor;
-- #249 integra historico e comparacao a Central do Aluno;
-- calculo e finalizacao dependem de protocolo clinico completo, aprovado e testavel.
+- epic #245 e entregas #246-#249 concluidas, cobrindo fundacao, governanca clinica, API, calculo, fluxo guiado, historico e comparacao na Central;
+- `GUEDES_1991_ADULT_YOUNG` v1 e o candidato clinico completo e executavel: referencia, populacao de 18 a 30 anos, equacoes, dobras por sexo de protocolo, unidades, limites, precisao, arredondamento e vetores canonicos estao versionados e testados;
+- o protocolo permanece `DRAFT` globalmente por desenho e so se torna efetivamente `APPROVED` no contrato com responsavel tecnico vigente e `AdipometryProtocolApproval` ativa para o mesmo hash e snapshot;
+- ausencia ou revogacao da aprovacao, perfil incompativel, dado demografico obrigatorio ausente ou entrada fora do contrato bloqueiam calculo/finalizacao, sem fallback para outra formula;
+- avaliacoes concluidas sao imutaveis; correcao cria nova revisao auditada e preserva protocolo, versao, entradas, aprovacao e snapshot reproduzivel;
+- `SLAUGHTER` permanece `DISABLED` e incompleto, portanto nao pode ser selecionado, aprovado nem usado para finalizar novas avaliacoes.
 
 Outros protocolos futuros:
 
@@ -446,7 +446,7 @@ Nao incorporar:
 ### Prioridade 1 - dados confiaveis do aluno
 
 - completar o contrato de laudos da Antropometria sem reabrir o ciclo de vida ja entregue;
-- executar Adipometria pela epic #245;
+- manter a Adipometria entregue pela epic #245 sob governanca clinica por contrato, sem liberar protocolos incompletos ou sem aprovacao ativa;
 - consolidar PRNT e objetivos;
 - integrar os demais eventos da jornada a timeline.
 

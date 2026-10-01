@@ -168,11 +168,14 @@ mínima de três dígitos. Chaves estrangeiras compostas vinculam aluno, profess
 Antropometria de apoio, correção e auditoria ao mesmo contrato, impedindo a
 combinação de identificadores válidos de tenants distintos.
 
-Somente protocolo estruturalmente completo e `APPROVED` permite conclusão. A
-avaliação concluída preserva entradas, resultados, versão e snapshot coerentes e é
-imutável. Correção cria nova avaliação, liga a original atomicamente e produz
-trilha append-only. Guedes e Slaughter permanecem indisponíveis até a aprovação
-clínica documentada em `docs/product/adipometry-protocol.md`.
+Somente protocolo estruturalmente completo com aprovação clínica ativa no mesmo
+`contractId` permite conclusão. `GUEDES_1991_ADULT_YOUNG` permanece `DRAFT`
+globalmente e só se torna efetivamente aprovado por contrato via
+`AdipometryProtocolApproval`; o estado global sozinho nunca libera cálculo. A
+avaliação concluída preserva entradas, resultados, versão, aprovação e snapshot
+coerentes e é imutável. Correção cria nova revisão auditada e preserva a anterior.
+Slaughter permanece `DISABLED` e incompleto, sem seleção, aprovação operacional ou
+fallback. O contrato clínico canônico está em `docs/product/adipometry-protocol.md`.
 
 Os gates PostgreSQL oficiais são:
 
