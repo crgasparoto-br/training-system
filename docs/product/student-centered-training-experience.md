@@ -386,6 +386,21 @@ Dados esperados:
 
 O sistema deve preservar rascunho e falhas recuperaveis sem perder o que o aluno ja registrou.
 
+### Lifecycle canonico do feedback pos-treino
+
+- Antes da confirmacao, o cliente pode manter rascunho local/recuperavel sem torna-lo fonte canonica.
+- O primeiro envio confirmado cria a revisao canonica inicial do feedback.
+- Feedback confirmado e imutavel no fluxo comum: correcao posterior cria nova revisao vinculada a anterior; nao existe `UPDATE` destrutivo do historico.
+- Apenas a revisao vigente e projetada como feedback atual, mas revisoes anteriores permanecem consultaveis para auditoria.
+- Toda correcao exige motivo e registra ator, data/hora, revisao-base e campos alterados.
+- A correcao nao pode trocar a sessao, aluno, `contractId` ou origem operacional do feedback.
+- Retry da criacao ou correcao e idempotente e nao duplica feedback, timeline, alertas ou efeitos derivados.
+- Duas correcoes concorrentes sobre a mesma revisao-base retornam conflito deterministico; nao existe politica de last-write-wins.
+- Alertas, timeline, indicadores e decisoes derivadas devem apontar para a revisao correspondente ou ser reconciliados de forma deterministica, sem duplicacao.
+- O professor nao pode reescrever silenciosamente a percepcao original do aluno. Complemento tecnico do professor deve permanecer como dado atribuido ao professor; uma correcao sobre resposta do aluno, quando autorizada, deve preservar autoria e trilha de revisao.
+- A capacidade do aluno de corrigir o proprio feedback depende de permissao explicita do produto/backend; ausencia dessa permissao mantem o feedback somente leitura para o aluno apos confirmacao.
+
+
 ## Evolucao e apoio a decisao
 
 A visao do aluno deve priorizar indicadores compreensiveis:
