@@ -4,12 +4,12 @@ Este documento descreve a fundação histórica própria da ADPT. Registros gen�
 
 ## Estruturas canônicas
 
-- `AdipometryProtocol`: catálogo clínico versionado. A identidade é `(id, code, version)` e somente uma versão `APPROVED` pode sustentar conclusão.
+- `AdipometryProtocol`: catálogo clínico global versionado. `GUEDES_1991_ADULT_YOUNG` permanece `DRAFT` globalmente por desenho; a conclusão exige uma aprovação clínica ativa do mesmo contrato, código, versão, referência, hash e snapshot. Versões `DISABLED` não podem sustentar novas conclusões.
 - `AdipometrySequence`: contador transacional por `contractId` e `alunoId`.
 - `AdipometryAssessment`: rascunho ou avaliação concluída, com cinco dobras tipadas, resultados derivados, protocolo e snapshot reproduzível.
 - `AdipometryAuditEvent`: trilha append-only das criações, atualizações, conclusões e correções persistidas.
 
-Os quatro modelos também existem em `apps/api/prisma/schema.prisma`, com relações inversas em contrato, aluno, professor, usuário e Antropometria de apoio. As regras que o Prisma não representa — checks, triggers, funções e índices parciais — permanecem nas migrations.
+Os modelos estruturais também existem em `apps/api/prisma/schema.prisma`, com relações inversas em contrato, aluno, professor, usuário e Antropometria de apoio. A governança clínica acrescenta `AdipometryClinicalResponsibility` e `AdipometryProtocolApproval`, que preservam responsabilidade técnica, aprovação, referência, hash e definição por contrato. As regras que o Prisma não representa — checks, triggers, funções e índices parciais — permanecem nas migrations.
 
 ## Criação concorrente e código
 
@@ -35,9 +35,11 @@ A largura cresce com a sequência. A constraint `AdipometryAssessment_code_match
 
 Assim, identificadores válidos de contratos diferentes não podem ser combinados. Consultas e mutações da API continuam obrigadas a filtrar `contractId`; as constraints são a última linha de defesa, não substituem autorização.
 
-## Aprovação e desativação de protocolo
+## Definição global, aprovação por contrato e desativação
 
-Uma versão somente pode receber estado `APPROVED` quando `isValidAdipometryProtocolDefinition` confirma um contrato clínico completo e versionado, incluindo:
+O validador estrutural legado do estado global `APPROVED` continua protegido para compatibilidade, mas ele não é o mecanismo de habilitação do protocolo Guedes atual. `GUEDES_1991_ADULT_YOUNG` permanece `DRAFT` no catálogo global e só pode calcular/concluir quando `isValidAdipometryContractProtocolDefinition` valida a definição e existe `AdipometryProtocolApproval` ativa no mesmo contrato para a mesma identidade e o mesmo snapshot. A governança completa está em `docs/database/adipometry-governance.md`.
+
+No caminho estrutural legado, uma versão somente recebe estado global `APPROVED` quando `isValidAdipometryProtocolDefinition` confirma um contrato clínico completo e versionado, incluindo:
 
 - `schemaVersion` igual ou superior a `2`;
 - população com faixa etária, sexo e maturação;
@@ -59,7 +61,7 @@ O instante `clinicalApproval.approvedAt` deve conter `Z` ou offset explícito. O
 
 A definição clínica aprovada é imutável. A única alteração permitida é a transição operacional `APPROVED → DISABLED`, mantendo definição, referência e aprovação intactas. `DISABLED` é terminal: não pode ser reativado, alterado ou excluído. Avaliações históricas que usaram a versão permanecem válidas, mas novas conclusões são bloqueadas.
 
-Guedes permanece `DRAFT` e Slaughter permanece `DISABLED`; nenhum protocolo clínico real é aprovado pelas migrations.
+`GUEDES_1991_ADULT_YOUNG` permanece `DRAFT` globalmente e clinicamente completo; migrations não aprovam nenhum contrato automaticamente. O protocolo torna-se efetivamente utilizável somente após aprovação clínica ativa por contrato, com referência, hash e snapshot reproduzíveis. Slaughter permanece `DISABLED` e incompleto; não pode receber aprovação operacional nem sustentar nova finalização.
 
 ## Ator transacional e auditoria
 

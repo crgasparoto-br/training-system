@@ -1,0 +1,50 @@
+Parent: #381
+
+## Objetivo
+
+Fechar o gate clínico/documental remanescente da Adipometria após a conclusão da epic #245, verificando o comportamento efetivamente entregue e alinhando documentação, protocolos habilitados, vetores de teste e roadmap sem reabrir ou duplicar a implementação já concluída.
+
+## Contexto
+
+A epic #245 está encerrada, enquanto o índice documental ainda registra a fundação ADPT como em validação com gate clínico pendente. Esta issue existe para resolver essa divergência de forma explícita e verificável.
+
+## Escopo
+
+- comparar implementação atual com `docs/product/adipometry-protocol.md`, documentação de API/banco/web e plano de execução;
+- identificar quais protocolos estão efetivamente `approved`, habilitados e finalizáveis;
+- confirmar referência bibliográfica, população, critérios de aplicação, equações completas, dobras usadas, unidades, limites, precisão e arredondamento;
+- validar vetores de teste dos protocolos habilitados;
+- confirmar comportamento para perfil incompatível ou com dado demográfico ausente;
+- garantir que Slaughter permaneça indisponível enquanto sua definição não estiver completa e aprovada;
+- confirmar política de correção de avaliação concluída;
+- atualizar roadmap e índice documental para refletir o estado real;
+- registrar qualquer lacuna material restante como issue específica, sem mascará-la como concluída.
+
+## Invariantes
+
+- Nenhum protocolo incompleto ou não aprovado pode permitir cálculo final/finalização.
+- Não existe fallback silencioso para outra fórmula clínica.
+- Avaliações concluídas preservam protocolo, versão, entradas e snapshot reproduzível.
+- Esta issue não autoriza mudança clínica sem fonte e aprovação rastreáveis.
+
+## Critérios de aceite
+
+- [ ] Implementação e documentação dos protocolos habilitados são consistentes.
+- [ ] Cada protocolo habilitado possui referência, população, fórmula, mapeamento de dobras, unidades, limites, precisão, arredondamento e vetores de teste.
+- [ ] Protocolos incompletos permanecem bloqueados de finalização.
+- [ ] Slaughter não é disponibilizado sem definição completa e aprovada.
+- [ ] Política de correção e imutabilidade está documentada e coberta por testes.
+- [ ] Roadmap deixa de indicar estado incompatível com o comportamento efetivamente entregue.
+- [ ] Eventuais lacunas remanescentes viram issues específicas com escopo próprio.
+- [ ] `pnpm docs:check`, testes ADPT aplicáveis e `pnpm validate` passam.
+
+## Fora de escopo
+
+- reconstruir a epic #245;
+- criar nova tela ADPT se a existente já satisfizer o contrato;
+- inventar fórmula, referência bibliográfica ou regra clínica;
+- implementar Bioimpedância, Ultrassonografia ou outro protocolo.
+
+## Dependências
+
+Usar como fontes a epic #245 e suas entregas #246–#249, além do código e testes atuais da branch `develop`.
