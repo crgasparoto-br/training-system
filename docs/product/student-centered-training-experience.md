@@ -88,6 +88,36 @@ Deve ser a saida operacional da Montagem Consolidada e apresentar:
 
 Nao deve exibir formula clinica, justificativa tecnica completa, conflito interno ou configuracao de prescricao.
 
+### Modo guiado de execucao
+
+Ao iniciar o treino, a experiencia deve mudar de uma ficha ampla para um fluxo guiado que apresenta predominantemente a unidade que o aluno precisa executar agora.
+
+Para treino resistido:
+
+- mostrar exercicio, serie/rodada, repeticoes ou faixa, carga, RIR/RPE, tempo/cadencia e orientacao quando aplicaveis;
+- permitir confirmar ou ajustar carga e repeticoes realizadas sem modificar o valor prescrito;
+- avancar pela ordem persistida da sessao;
+- em superserie, bi-set, tri-set e circuito, percorrer todos os itens da rodada antes do descanso final, salvo intervalo intermediario explicitamente prescrito;
+- reconstruir a posicao atual a partir do estado persistido apos refresh ou retomada.
+
+Para descanso resistido:
+
+- preservar o intervalo planejado como parte do planejamento historico;
+- registrar o descanso efetivamente realizado separadamente;
+- permitir extensao manual, inicialmente em incrementos de 15 segundos, e pular o descanso sem alterar a prescricao;
+- usar timestamps persistidos para reconstruir o tempo restante; ticks do navegador nao sao fonte de verdade;
+- som e vibracao podem ser usados como ajuda opcional quando a plataforma e a permissao do dispositivo permitirem.
+
+Para treino ciclico estruturado:
+
+- mostrar uma etapa por vez com tipo, rodada, duracao/distancia e alvo aplicavel;
+- diferenciar trabalho, recuperacao, aquecimento e desaquecimento;
+- preservar a ordem e as repeticoes definidas no planejamento estruturado;
+- reconstruir temporizadores por timestamps persistidos depois de refresh ou background;
+- manter valores executados separados dos planejados.
+
+A experiencia guiada deve usar o lifecycle canonico da sessao e nao criar estado paralelo no frontend.
+
 ### Historico e evolucao
 
 Deve reunir:
