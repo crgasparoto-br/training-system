@@ -1,59 +1,58 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-10-01T18:06:50.518645+00:00",
+  "created_at": "2026-10-01T20:34:00Z",
   "identity": {
-    "head_sha": "d011846598ad0dadbafd5772429e4102ed6dafb4",
-    "material_head_sha": "d011846598ad0dadbafd5772429e4102ed6dafb4",
-    "base_sha": "393a9cc9f3c27409fa59fdfdc5f162dd28ed93e8",
-    "merge_preview_sha": "1c1b6a969711c6f02ebc86bc52f410c7fd814058",
-    "material_merge_preview_sha": "1c1b6a969711c6f02ebc86bc52f410c7fd814058"
+    "head_sha": "e23c8d334b82063d95ef6c1af130ea105d672604",
+    "material_head_sha": "e23c8d334b82063d95ef6c1af130ea105d672604",
+    "base_sha": "4f281f503aecc632375b306197da0f6b20be2678",
+    "merge_preview_sha": "6f5e692513bb46cf858f4bce678efcfa5b289cb0",
+    "material_merge_preview_sha": "6f5e692513bb46cf858f4bce678efcfa5b289cb0"
   },
   "subject": {
     "repository": "crgasparoto-br/training-system",
-    "issue_number": 383,
-    "pull_request_number": 486,
+    "issue_number": 494,
+    "pull_request_number": 493,
     "work_item_kind": "pr",
-    "work_item_number": 486,
-    "pull_request": 486,
+    "work_item_number": 493,
+    "pull_request": 493,
     "base_ref": "develop",
-    "head_ref": "fix/383-adipometry-clinical-gate"
+    "head_ref": "fix/student-identity-cpf-normalization"
   },
   "scope": {
     "schema_version": 1,
-    "work_item_start_sha": "393a9cc9f3c27409fa59fdfdc5f162dd28ed93e8",
-    "material_head_sha": "d011846598ad0dadbafd5772429e4102ed6dafb4",
+    "work_item_start_sha": "4f281f503aecc632375b306197da0f6b20be2678",
+    "material_head_sha": "e23c8d334b82063d95ef6c1af130ea105d672604",
     "issue_changed_paths": [
-      "apps/api/src/modules/adipometry/adipometry-canonical-definition-contract.test.ts",
-      "docs/README.md",
-      "docs/architecture/database.md",
-      "docs/database/adipometry.md",
-      "docs/execution-plans/active/2026-07-student-central-roadmap.md",
-      "docs/execution-plans/issue-246-adipometry-foundation.md",
-      "docs/product/adipometry-protocol.md",
-      "docs/product/roadmap.md"
+      "apps/api/src/modules/alunos/student-identity.service.ts",
+      "apps/api/src/modules/alunos/student-lifecycle.service.test.ts",
+      "apps/api/tests/aluno-assessment-boundary.service.test.ts",
+      "apps/api/tests/aluno-create-read-http.integration.test.ts",
+      "apps/api/tests/aluno-service-interest.integration.test.ts",
+      "apps/api/tests/student-identity.service.test.ts",
+      "docs/architecture/student-lifecycle-data-ownership.md"
     ],
-    "issue_delta_sha256": "d019f9b42a9fab4a1c8caa98792490668924d67ff54e8776c61a0f558d092abb"
+    "issue_delta_sha256": "527578233d2d7279ad07fd7eb77cdd56e86b3d943b67b3d9b5bf82ec436ac893"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
     "allowed_paths": [
-      ".audit/entregar-issue/audit-escape-closure-383.json",
-      ".audit/entregar-issue/audit-remediation.json",
-      ".audit/entregar-issue/audit-source-result.json",
       ".audit/entregar-issue/handoff-ready.json",
-      ".audit/entregar-issue/learning-closure.json",
-      ".audit/entregar-issue/requirement-closure.json",
       ".audit/entregar-issue/specification-snapshot.json",
-      ".audit/entregar-issue/specification-sources/SRC-ISSUE-383.txt"
+      ".audit/entregar-issue/requirement-closure.json",
+      ".audit/entregar-issue/standard-evidence.json",
+      ".audit/entregar-issue/audit-source-result.json",
+      ".audit/entregar-issue/audit-remediation.json",
+      ".audit/entregar-issue/learning-closure.json",
+      ".audit/entregar-issue/audit-escape-closure-494.json"
     ]
   },
   "contract_version": "2026-08-20.3",
-  "evidence_profile": "light",
+  "evidence_profile": "standard",
   "remediation_mode": "targeted-remediation",
   "producer": {
     "skill": "entregar-issue",
-    "skill_sha256": "3c33df8a2d4a08bdfd3380d31ba99411fb0a9da3efeb0c647fac184858472f38"
+    "skill_sha256": "f1d1a237b569cd52b1b7d1b65eb8b6f3cd02d68dffafedc8f8185633ea5fc2a1"
   },
   "validators": {
     "validate_specification_coverage.py": "01709833e61dfcf4cbb81b25f75b52c486dc65e9d498df19a35da7062f7a196b",
@@ -77,9 +76,9 @@
   "artifacts": {
     "specification_snapshot": {
       "name": "specification-snapshot.json",
-      "sha256": "b2db4aa402f49206a53edf44a260c1f43e31d6dc96e2eda15d49cd556644f6d4",
-      "logical_sha256": "b2db4aa402f49206a53edf44a260c1f43e31d6dc96e2eda15d49cd556644f6d4",
-      "logical_size": 598,
+      "sha256": "6a5beea55e7067ec22f7687572088344fde02b4859e99173cb9c0257a60db583",
+      "logical_sha256": "6a5beea55e7067ec22f7687572088344fde02b4859e99173cb9c0257a60db583",
+      "logical_size": 577,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -87,39 +86,19 @@
     },
     "requirement_closure": {
       "name": "requirement-closure.json",
-      "sha256": "da3d16021e608e7ef76a61f9c349a3506561e9e898438bebbdce20a753cbba74",
-      "logical_sha256": "da3d16021e608e7ef76a61f9c349a3506561e9e898438bebbdce20a753cbba74",
-      "logical_size": 15080,
+      "sha256": "43cb30fd8f0bd8161e2fde3b4ac77232971dc8cb9d2300b7ac7cc4185604c5de",
+      "logical_sha256": "43cb30fd8f0bd8161e2fde3b4ac77232971dc8cb9d2300b7ac7cc4185604c5de",
+      "logical_size": 9141,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
       }
     },
-    "audit_escape_closure": {
-      "name": "audit-escape-closure-383.json",
-      "sha256": "f9c3d4fcf59f83be568efa5356bacd692fc50b5a308c2e8fe25b6bd41c185ffb",
-      "logical_sha256": "f9c3d4fcf59f83be568efa5356bacd692fc50b5a308c2e8fe25b6bd41c185ffb",
-      "logical_size": 7971,
-      "artifact_transport": {
-        "format": "plain-json",
-        "version": 1
-      }
-    },
-    "learning_closure": {
-      "name": "learning-closure.json",
-      "sha256": "1a171e9be768c14fcb94af8f1bebba41ffcd17b6f904996e6d152cddbea3aaa8",
-      "logical_sha256": "1a171e9be768c14fcb94af8f1bebba41ffcd17b6f904996e6d152cddbea3aaa8",
-      "logical_size": 747,
-      "artifact_transport": {
-        "format": "plain-json",
-        "version": 1
-      }
-    },
-    "audit_remediation": {
-      "name": "audit-remediation.json",
-      "sha256": "06be03b5c7051535a77d93b5d3f7bdaa7dde19476ffe310b3bfdb46861a1f4a2",
-      "logical_sha256": "06be03b5c7051535a77d93b5d3f7bdaa7dde19476ffe310b3bfdb46861a1f4a2",
-      "logical_size": 1304,
+    "standard_evidence": {
+      "name": "standard-evidence.json",
+      "sha256": "383dafe1f3e3fd16fec3604a81ce84daa6bcc779b7255d96266feedb417c08fe",
+      "logical_sha256": "383dafe1f3e3fd16fec3604a81ce84daa6bcc779b7255d96266feedb417c08fe",
+      "logical_size": 6031,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -127,9 +106,39 @@
     },
     "audit_source_result": {
       "name": "audit-source-result.json",
-      "sha256": "062a522f58c62c56be51a98efa7b94961e3001afaeae00b49dca89e7ecad1da8",
-      "logical_sha256": "062a522f58c62c56be51a98efa7b94961e3001afaeae00b49dca89e7ecad1da8",
-      "logical_size": 815,
+      "sha256": "229b0bbee1b54df142332648c9b684a83cbd5062493583ff9ea7ec3e2779b0b2",
+      "logical_sha256": "229b0bbee1b54df142332648c9b684a83cbd5062493583ff9ea7ec3e2779b0b2",
+      "logical_size": 772,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "audit_remediation": {
+      "name": "audit-remediation.json",
+      "sha256": "a7ea43944fec3adb90901890c385ea370f3419fc8ce1bae8bf53008db98a185a",
+      "logical_sha256": "a7ea43944fec3adb90901890c385ea370f3419fc8ce1bae8bf53008db98a185a",
+      "logical_size": 1614,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "learning_closure": {
+      "name": "learning-closure.json",
+      "sha256": "d4f702d73b6d99314e18217901da4112ee24e4352a69a57ed3640789934bbd70",
+      "logical_sha256": "d4f702d73b6d99314e18217901da4112ee24e4352a69a57ed3640789934bbd70",
+      "logical_size": 712,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "audit_escape_closure": {
+      "name": "audit-escape-closure-494.json",
+      "sha256": "245134b6ab91764fdc5aa2a14974f8d5fdbad0cba8c3774495e710894e50c5ec",
+      "logical_sha256": "245134b6ab91764fdc5aa2a14974f8d5fdbad0cba8c3774495e710894e50c5ec",
+      "logical_size": 2880,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1

@@ -4,28 +4,29 @@
   "resolution_policy": "all-actionable-items",
   "status": "closed",
   "remediation_mode": "targeted-remediation",
-  "candidate_head_sha": "d011846598ad0dadbafd5772429e4102ed6dafb4",
+  "candidate_head_sha": "e23c8d334b82063d95ef6c1af130ea105d672604",
   "source": {
-    "rejection_id": "audit-rejection:383-published-head-mismatch-becc08d",
-    "audited_head_sha": "becc08dab05d86c13ed8d88bf7cdba121329ea9f",
-    "audit_report_sha256": "062a522f58c62c56be51a98efa7b94961e3001afaeae00b49dca89e7ecad1da8"
+    "rejection_id": "audit-rejection:pr493-mergeability-9a9b4d4",
+    "audited_head_sha": "9a9b4d41a412c335d1ec1e0932f308ea5e54b6e5",
+    "audit_report_sha256": "229b0bbee1b54df142332648c9b684a83cbd5062493583ff9ea7ec3e2779b0b2"
   },
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-383-03",
+      "source_id": "A-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
+      "closure_kind": "behavioral-fix",
+      "changed_files": [],
       "evidence": [
-        "handoff-ready.json",
-        "terminal-handoff-proof.json",
-        "fresh GitHub PR/head/parent/path read"
+        "PR #493 fresh remote metadata reports mergeable=true and mergeable_state=clean on material head e23c8d334b82063d95ef6c1af130ea105d672604.",
+        "Validate PR run 36921124825 completed success for the exact material head.",
+        "The effective develop..material diff contains exactly the seven Issue #494 product/test/documentation paths."
       ],
       "validations": [
-        "material head remains d011846598ad0dadbafd5772429e4102ed6dafb4 and is not rewritten",
-        "candidate handoff is a direct result-only child of the frozen material head",
-        "published_handoff_head_sha is captured from the created Git commit and compared with a fresh current_head_sha after publication",
-        "completion guard requires published_handoff_head_sha == current_head_sha and published_handoff_head_sha != material_head_sha"
+        "develop advanced to 4f281f503aecc632375b306197da0f6b20be2678 and was reconciled into the existing PR without dropping the Issue #494 material changes.",
+        "Merge preview 6f5e692513bb46cf858f4bce678efcfa5b289cb0 is current for the reconciled material candidate.",
+        "Delivery V2 risk, merge preview compatibility, STANDARD validation, type-check, lint, non-database tests, build, arch:check, access:check, docs:check and Validate repository all passed."
       ]
     }
   ]

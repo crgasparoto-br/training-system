@@ -1,20 +1,20 @@
 {
   "contract_version": "2026-08-20.3",
   "status": "rejected",
-  "rejection_id": "audit-rejection:383-published-head-mismatch-becc08d",
-  "head_sha": "becc08dab05d86c13ed8d88bf7cdba121329ea9f",
+  "rejection_id": "audit-rejection:pr493-mergeability-9a9b4d4",
+  "head_sha": "9a9b4d41a412c335d1ec1e0932f308ea5e54b6e5",
   "findings": [
     {
-      "id": "A-383-03",
+      "id": "A-001",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
       "category": "delivery-not-ready",
-      "reason": "handoff-stale",
-      "recovery_scope": "handoff-only",
-      "requires_refreeze": false,
-      "summary": "The published result-only child must be proven by terminal remote binding that keeps material_head_sha separate from published_handoff_head_sha/current_head_sha; the certificate identity.head_sha remains the material compatibility alias."
+      "reason": "pr-not-mergeable",
+      "recovery_scope": "post-write-refreeze",
+      "requires_refreeze": true,
+      "summary": "PR #493 was not mergeable after develop advanced; the published delivery required reconciliation with the current develop base, a new material freeze, exact-SHA CI, and a fresh result-only handoff."
     }
   ],
   "recommendations": []
