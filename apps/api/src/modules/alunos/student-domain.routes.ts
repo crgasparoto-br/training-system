@@ -7,6 +7,10 @@ import { alunoService } from './aluno.service.js';
 import { studentDomainService } from './student-domain.service.js';
 import { studentParqBoundaryService } from './student-parq-boundary.service.js';
 import {
+  trainingRoutineService,
+  TrainingRoutineInputError,
+} from '../workout/training-routine.service.js';
+import {
   DATABASE_CONNECTION_UNAVAILABLE_MESSAGE,
   isDatabaseConnectionUnavailable,
 } from '../../common/database-runtime.js';
@@ -68,6 +72,40 @@ router.get(
     } catch (error) {
       console.error('Erro ao carregar resumo segmentado do aluno:', error);
       return sendStudentDomainLoadError(res, error, 'Erro ao carregar resumo segmentado do aluno');
+    }
+  }
+);
+
+// Rotina semanal e Treino de hoje do aluno selecionado na Central, somente leitura (#387).
+router.get(
+  '/:id/training-routine',
+  blockAccessMiddleware('students.details.trainingPlans'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { contractId } = getProfessorContext(req);
+      if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
+      if (!(await ensureAlunoAccess(req, res, id))) return;
+      // A responsabilidade do professor não substitui o isolamento por contrato.
+      if (!(await alunoService.belongsToContract(id, contractId))) {
+        return sendError(res, 'Aluno não encontrado ou não pertence ao seu acesso', 404);
+      }
+
+      const date = typeof req.query.date === 'string' ? req.query.date : undefined;
+      const routine = await trainingRoutineService.getRoutine({
+        alunoId: id,
+        contractId,
+        audience: 'professor',
+        date,
+      });
+
+      return sendSuccess(res, routine, 'Rotina de treino carregada com sucesso');
+    } catch (error) {
+      if (error instanceof TrainingRoutineInputError) {
+        return sendError(res, error.message, 400);
+      }
+      console.error('Erro ao carregar rotina de treino do aluno:', error);
+      return sendStudentDomainLoadError(res, error, 'Erro ao carregar rotina de treino do aluno');
     }
   }
 );

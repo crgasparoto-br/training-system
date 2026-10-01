@@ -24,3 +24,4 @@ export * from './adipometry-web.js';
 export * from './adipometry-runtime.js';
 export * from './adipometry-profile-contract.js';
 export * from './adipometry-governance.js';
+export * from './training-routine.js';

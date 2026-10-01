@@ -18,6 +18,10 @@ import {
   upsertCanonicalStudentHealthIntake,
 } from '../modules/alunos/student-health-intake-write.service.js';
 import { studentWorkoutService } from '../modules/workout/student-workout.service.js';
+import {
+  trainingRoutineService,
+  TrainingRoutineInputError,
+} from '../modules/workout/training-routine.service.js';
 
 const prisma = new PrismaClient();
 
@@ -696,6 +700,39 @@ router.get('/me/workouts/:workoutTemplateId', async (req: Request, res: Response
     }
     console.error('Erro ao buscar detalhe do treino liberado:', error);
     return sendError(res, 'Erro ao buscar treino', 500);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/v1/student/me/training-routine?date=YYYY-MM-DD
+// Rotina semanal e Treino de hoje do aluno autenticado, somente leitura (#387).
+// ---------------------------------------------------------------------------
+router.get('/me/training-routine', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId as string;
+    const aluno = await requireAlunoByUserId(req, userId);
+    const date = typeof req.query.date === 'string' ? req.query.date : undefined;
+    const routine = await trainingRoutineService.getRoutine({
+      alunoId: aluno.id,
+      contractId: aluno.contractId,
+      audience: 'student',
+      date,
+    });
+
+    return sendSuccess(res, routine);
+  } catch (error: any) {
+    if (error instanceof TrainingRoutineInputError) {
+      return sendError(res, error.message, 400);
+    }
+    if (error instanceof StudentAccountContextError) {
+      const status = error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404;
+      return sendError(res, error.message, status);
+    }
+    if (error?.status === 404) {
+      return sendError(res, error.message, 404);
+    }
+    console.error('Erro ao buscar rotina semanal do aluno:', error);
+    return sendError(res, 'Erro ao buscar rotina de treino', 500);
   }
 });
 
