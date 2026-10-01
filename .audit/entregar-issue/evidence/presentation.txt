@@ -1,0 +1,4 @@
+Exact-head presentation evidence for PR #492:
+- TrainingRoutinePanel test verifies objective, estimated duration, ordered exercise blocks, sets/reps/load/rest parameters, guidance and safety region.
+- service tests verify warmup/main/cooldown/other ordering and resistance/cyclic/flexibility modality derivation.
+- weekly routine test verifies seven days, today marker, recovery label and pending-release label.

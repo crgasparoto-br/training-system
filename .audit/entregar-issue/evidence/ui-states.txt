@@ -1,0 +1,4 @@
+Exact-head UI/resilience evidence for PR #492:
+- TrainingRoutinePanel tests distinguish released, not_released, none, access-denied and retryable error states.
+- panel error handling is local; AlunoResumoHubTab test verifies other summary blocks remain rendered when routine loading fails.
+- browser evidence covers home entry, released today, preparation, no session, error/retry, access denied and disabled execution controls in 1440x900, 1366x768 and 390x844 viewports, with no horizontal overflow.

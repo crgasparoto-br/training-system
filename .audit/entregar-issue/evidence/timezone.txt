@@ -1,0 +1,5 @@
+Exact-head temporal evidence for PR #492:
+- backend uses DEFAULT_CONTRACT_TIME_ZONE and computes civil date with Intl.DateTimeFormat rather than browser/process timezone.
+- execution plan documents America/Sao_Paulo and Monday-Sunday week semantics.
+- training-routine.service.test.ts verifies todayInTimeZone(...,'America/Sao_Paulo') returns 2026-10-01 for the boundary fixture and verifies navigation to another civil week while today remains 2026-10-01.
+- web shiftDateOnly tests use Date.UTC and verify week shifts independently of browser timezone.

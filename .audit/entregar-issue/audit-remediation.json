@@ -4,29 +4,30 @@
   "resolution_policy": "all-actionable-items",
   "status": "closed",
   "remediation_mode": "targeted-remediation",
-  "candidate_head_sha": "5ac4547eb94abe644c7e3cfb0504610de64a8ebc",
+  "candidate_head_sha": "ac44b66a3d72c47810609e0b1ec1f54a908a1b75",
   "source": {
-    "rejection_id": "audit-rejection:issue482-pr484-post-write-refreeze-5ac4547e",
-    "audited_head_sha": "5ac4547eb94abe644c7e3cfb0504610de64a8ebc",
-    "audit_report_sha256": "c3faa95909f131a22c62824a02d06cedf6c80b98ce3af4225955b6272a97d7e3"
+    "rejection_id": "audit-rejection:training-system-pr492-handoff-not-produced",
+    "audited_head_sha": "ac44b66a3d72c47810609e0b1ec1f54a908a1b75",
+    "audit_report_sha256": "69098f99f0f38d2780c564fe270063a523160a2f450d4965e9032d6422430438"
   },
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-482-002",
+      "source_id": "A-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "evidence": [
-        "evidence/post-write-refreeze.txt",
-        "evidence/ci-run-36716196399.txt",
+        "specification-snapshot.json",
+        "requirement-closure.json",
         "requirement-attack-matrix.json",
-        "risk-saturation.json"
+        "risk-saturation.json",
+        "evidence/ci-run-36874946600.txt"
       ],
       "validations": [
-        "post-write-refreeze floor preserved from the independent audit",
-        "critical evidence re-anchored to the current material head",
-        "Validate PR exact-head CRITICAL run completed successfully",
-        "fresh result-only handoff prepared for Issue 482 / PR 484"
+        "current target artifacts reconstructed for Issue #387 / PR #492",
+        "critical handoff readiness passed for material head ac44b66a3d72c47810609e0b1ec1f54a908a1b75",
+        "exact-head material CI remains completed/success",
+        "no material refreeze required because the product SHA did not change"
       ]
     }
   ]

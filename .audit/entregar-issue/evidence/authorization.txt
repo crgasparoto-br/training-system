@@ -1,0 +1,6 @@
+Exact-head authorization evidence for PR #492:
+- GET /student/me/training-routine derives alunoId from the authenticated membership and x-contract-id; a client-supplied alunoId query value is ignored by the route test.
+- a multi-membership student without selected contract receives 409 and getRoutine is not called.
+- GET /alunos/:id/training-routine requires students.details.trainingPlans, professor responsibility, and belongsToContract for the token contract.
+- out-of-scope professor and cross-contract student cases return 404 and do not call getRoutine.
+- service release query is restricted by both contractId and alunoId.
