@@ -118,6 +118,18 @@ Para treino ciclico estruturado:
 
 A experiencia guiada deve usar o lifecycle canonico da sessao e nao criar estado paralelo no frontend.
 
+### Semantica canonica de pausa
+
+- `paused` representa uma pausa **explicita** da sessao e congela relogios operacionais da execucao, incluindo descanso resistido e etapas ciclicas temporais.
+- Background, suspensao do navegador ou refresh **nao** significam pausa. Sem comando explicito de pausa, o tempo continua correndo por wall-clock a partir dos timestamps persistidos.
+- Ao retomar, o relogio operacional continua do tempo restante preservado no momento da pausa. Exemplo: descanso de 60 s pausado apos 25 s deve retomar com 35 s restantes.
+- Nenhum cronometro, etapa, rodada ou serie pode avancar automaticamente enquanto a sessao estiver `paused`.
+- `startedAt` permanece o primeiro inicio da sessao e nao e regravado em retomadas. `finishedAt` so existe em estado terminal.
+- A persistencia deve permitir reconstruir intervalos de pausa e distinguir tempo corrido de parede de tempo efetivamente ativo quando essa diferenca for relevante para a execucao.
+- Retry de `pause` ou `resume` deve ser idempotente.
+- A pausa e seu tempo restante devem ser reconstruiveis em outro cliente/dispositivo autorizado; memoria do navegador nao pode ser a fonte de verdade.
+
+
 ### Historico e evolucao
 
 Deve reunir:
