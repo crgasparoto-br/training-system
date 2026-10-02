@@ -101,7 +101,7 @@ export interface TrainingRoutineSessionDetail extends TrainingRoutineSessionSumm
   guidelines: string[];
   cyclic: TrainingRoutineCyclicTargets | null;
   blocks: TrainingRoutineBlock[];
-  preWorkoutCheckIn: PreWorkoutCheckInView | null;
+  preWorkoutCheckIn?: PreWorkoutCheckInView | null;
   /** Presente somente na visão do professor. */
   technical?: TrainingRoutineTechnicalContext;
 }
