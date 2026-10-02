@@ -178,11 +178,15 @@ export function createPreWorkoutCheckInService(client: PrismaClient = prisma) {
         select: { id: true, status: true, templateId: true },
       });
       if (!session) throw new PreWorkoutCheckInNotFoundError('Sessão de treino não encontrada');
-      const release = await client.consolidatedPrescriptionOperationalRelease.findFirst({
-        where: { workoutTemplateId: session.templateId, alunoId: input.alunoId, contractId: input.contractId },
-        select: { id: true },
-      });
-      if (!release) throw new PreWorkoutCheckInNotFoundError('Sessão de treino não encontrada');
+      const release = await client.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT rel."id"
+        FROM "ConsolidatedPrescriptionOperationalRelease" rel
+        WHERE rel."workoutTemplateId" = ${session.templateId}
+          AND rel."alunoId" = ${input.alunoId}
+          AND rel."contractId" = ${input.contractId}
+        LIMIT 1
+      `);
+      if (!release[0]) throw new PreWorkoutCheckInNotFoundError('Sessão de treino não encontrada');
       const checkIn = await client.preWorkoutCheckIn.findFirst({
         where: { workoutDayId: input.sessionId, alunoId: input.alunoId, contractId: input.contractId },
       });
