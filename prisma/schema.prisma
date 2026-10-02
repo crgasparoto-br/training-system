@@ -1441,10 +1441,49 @@ model WorkoutDay {
   status              WorkoutDayStatus  @default(planned)
   template            WorkoutTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
   exercises           WorkoutExercise[]
+  preWorkoutCheckIn   PreWorkoutCheckIn?
 
   @@unique([templateId, dayOfWeek])
   @@index([templateId])
   @@index([workoutDate])
+}
+
+model PreWorkoutCheckIn {
+  id                String                       @id @default(cuid())
+  workoutDayId      String                       @unique
+  alunoId           String
+  contractId        String
+  psr               Int?
+  sleepQuality      Int?
+  fatigue           Int?
+  painLevel         Int?
+  motivation        Int?
+  availableMinutes  Int?
+  notes             String?
+  ruleSetVersion    String
+  ruleSnapshot      Json
+  createdByUserId   String?
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+  workoutDay        WorkoutDay                   @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  operations        PreWorkoutCheckInOperation[]
+
+  @@index([alunoId, createdAt])
+  @@index([contractId, createdAt])
+}
+
+model PreWorkoutCheckInOperation {
+  id                 String            @id @default(cuid())
+  checkInId          String
+  operationKey       String
+  payloadFingerprint String
+  action             String
+  lifecycleEventId   String?
+  createdAt          DateTime          @default(now())
+  checkIn            PreWorkoutCheckIn @relation(fields: [checkInId], references: [id], onDelete: Cascade)
+
+  @@unique([checkInId, operationKey])
+  @@index([createdAt])
 }
 
 model WorkoutExercise {
