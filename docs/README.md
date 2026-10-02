@@ -78,7 +78,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`execution-plans/TEMPLATE.md`](execution-plans/TEMPLATE.md): estrutura obrigatoria para novas iniciativas grandes.
 - [`execution-plans/active/`](execution-plans/active/): somente trabalho realmente em andamento ou rollout ainda pendente.
 - [`execution-plans/active/2026-10-epic-386-guided-training-execution.md`](execution-plans/active/2026-10-epic-386-guided-training-execution.md): plano de implementacao da epic #386, modo guiado resistido, descanso e executor ciclico.
-- [`execution-plans/active/2026-10-issue-387-weekly-routine-today-workout.md`](execution-plans/active/2026-10-issue-387-weekly-routine-today-workout.md): rotina semanal e Treino de hoje (#387), leitura do grafo liberado sem lifecycle paralelo.
+- [`execution-plans/active/2026-10-issue-387-weekly-routine-today-workout.md`](execution-plans/active/2026-10-issue-387-weekly-routine-today-workout.md): rotina semanal e Treino de hoje (#387), leitura exclusiva da saída liberada pela Montagem Consolidada sem lifecycle paralelo.
 - [`execution-plans/completed/`](execution-plans/completed/): planos concluidos mantidos por valor de auditoria ou decisao.
 
 Planos ativos relevantes:
@@ -98,9 +98,9 @@ Planos ativos relevantes:
 - [`execution-plans/active/2026-07-issue-275-pre-registration-qa-rollout.md`](execution-plans/active/2026-07-issue-275-pre-registration-qa-rollout.md)
 - [`execution-plans/active/2026-08-issue-319-consolidated-operational-integration.md`](execution-plans/active/2026-08-issue-319-consolidated-operational-integration.md)
 - [`execution-plans/active/2026-08-issue-320-consolidated-operational-release.md`](execution-plans/active/2026-08-issue-320-consolidated-operational-release.md)
-- [`execution-plans/issue-246-adipometry-foundation.md`](execution-plans/issue-246-adipometry-foundation.md) — fundação estrutural em validação; gate clínico ainda pendente.
-
 Registros concluidos preservados:
+
+- [`execution-plans/issue-246-adipometry-foundation.md`](execution-plans/issue-246-adipometry-foundation.md) — registro histórico da fundação ADPT; o contrato clínico de Guedes está reconciliado e sua habilitação exige aprovação clínica ativa por contrato, enquanto Slaughter permanece indisponível.
 
 - [`execution-plans/completed/2026-05-harness-engineering-foundation.md`](execution-plans/completed/2026-05-harness-engineering-foundation.md)
 - [`execution-plans/completed/2026-07-epic-172-completion-assessment.md`](execution-plans/completed/2026-07-epic-172-completion-assessment.md)

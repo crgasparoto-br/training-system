@@ -182,3 +182,85 @@ describe('upsertStudentIdentity marital-status boundary', () => {
     );
   });
 });
+
+describe('upsertStudentIdentity CPF boundary', () => {
+  it('persists a valid masked CPF without mask in every canonical projection', async () => {
+    const client = makeClient();
+
+    const identity = await upsertStudentIdentity(
+      'aluno-1',
+      'contract-1',
+      { cpf: ' 529.982.247-25 ', guardianCpf: '139.513.548-79' },
+      {
+        client: client as never,
+        syncLegacyProfile: true,
+        emitAuditEvent: false,
+      }
+    );
+
+    expect(identity.cpf).toBe('52998224725');
+    expect(identity.guardianCpf).toBe('13951354879');
+    expect(client.aluno.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ leadCpf: '52998224725', leadCpfNormalized: '52998224725' }),
+      })
+    );
+    expect(client.studentProfile.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          identificationData: expect.objectContaining({
+            cpf: '52998224725',
+            guardianCpf: '13951354879',
+          }),
+        }),
+      })
+    );
+    expect(client.profile.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ cpf: '52998224725' }) })
+    );
+  });
+
+  it('keeps an invalid CPF as typed, without normalized projection', async () => {
+    const client = makeClient();
+
+    const identity = await upsertStudentIdentity(
+      'aluno-1',
+      'contract-1',
+      { cpf: ' 111.111.111-11 ' },
+      { client: client as never, emitAuditEvent: false }
+    );
+
+    expect(identity.cpf).toBe('111.111.111-11');
+    expect(client.aluno.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ leadCpf: '111.111.111-11', leadCpfNormalized: null }),
+      })
+    );
+  });
+
+  it('clears CPF on explicit null', async () => {
+    const client = makeClient({ leadCpf: '52998224725', leadCpfNormalized: '52998224725' });
+
+    const identity = await upsertStudentIdentity(
+      'aluno-1',
+      'contract-1',
+      { cpf: null },
+      { client: client as never, emitAuditEvent: false }
+    );
+
+    expect(identity.cpf).toBeNull();
+    expect(client.aluno.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ leadCpf: null, leadCpfNormalized: null }) })
+    );
+  });
+
+  it('does not report an identifier change when the same CPF is resubmitted with mask', async () => {
+    const client = makeClient({ leadCpf: '52998224725', leadCpfNormalized: '52998224725' });
+
+    await upsertStudentIdentity('aluno-1', 'contract-1', { cpf: '529.982.247-25' }, {
+      client: client as never,
+    });
+
+    expect(client.studentLifecycleEvent.create).not.toHaveBeenCalled();
+  });
+});

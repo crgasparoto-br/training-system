@@ -540,12 +540,12 @@ Consumir:
 
 Contrato de autorização:
 - mesmo contrato de Meus Treinos: o cliente não envia `alunoId`, a API resolve o vínculo do `student/me` e revalida `x-contract-id` (`409` quando o contexto contratual é obrigatório);
-- somente `WorkoutTemplate.released = true` do aluno e contrato resolvidos; sessões não liberadas aparecem apenas como contagem (`pendingReleaseCount`) e estado `today.state = not_released`.
+- somente `WorkoutTemplate.released = true` que também possua `ConsolidatedPrescriptionOperationalRelease` do aluno e contrato resolvidos; template liberado apenas pelo Workout Builder não é publicado nesta projeção; sessões `released=false` aparecem apenas como contagem (`pendingReleaseCount`) e estado `today.state = not_released`.
 
 Resposta (`TrainingRoutineView`, tipo compartilhado em `packages/types/training-routine.ts`):
 - `week`, `days[]` com `isToday`, sessões resumidas e `pendingReleaseCount`;
 - `today.state`: `released`, `not_released` ou `none`, com sessões detalhadas: objetivo prático, duração, local, método, modalidades, parâmetros aeróbios (tempo, FC, velocidade, pace), blocos ordenados de exercícios (séries, repetições, carga, descanso, sistema, observação) e orientações;
-- `origin.kind`: `consolidated` ou `manual`, com `releasedAt`; o aluno não recebe IDs da Montagem nem contexto técnico do professor;
+- `origin.kind`: sempre `consolidated`, com `releasedAt`; o aluno não recebe IDs da Montagem nem contexto técnico do professor;
 - `execution.available = false` até o contrato canônico de execução (#389) existir.
 
 Estados de UI: carregamento, sem treino hoje, treino em preparação, erro recuperável com tentar novamente e contrato não selecionado. Ações de iniciar e "não vou conseguir treinar" ficam desabilitadas com explicação enquanto `execution.available` for `false`.

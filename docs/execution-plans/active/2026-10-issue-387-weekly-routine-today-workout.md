@@ -8,8 +8,8 @@ Permitir que aluno e professor consultem a rotina semanal e o Treino de hoje a p
 
 - Epic #386; plano da epic em `docs/execution-plans/active/2026-10-epic-386-guided-training-execution.md`.
 - Base: `develop`. Branch: `feat/387-weekly-routine-today-workout`.
-- Fonte de visibilidade: `WorkoutTemplate.released = true`, a mesma de Meus Treinos (#482).
-- Decisão do produto (2026-10-01): treinos liberados pela Montagem Consolidada e pelo Workout Builder aparecem; cada sessão expõe `origin.kind` (`consolidated` ou `manual`).
+- Fonte de visibilidade: `WorkoutTemplate.released = true` combinado obrigatoriamente com um `ConsolidatedPrescriptionOperationalRelease` do mesmo aluno/contrato.
+- Decisão do produto reafirmada pela auditoria independente: somente a saída operacional rastreável até a Montagem Consolidada publica a rotina e o Treino de hoje; liberação manual do Workout Builder não participa desta projeção.
 - Decisão do produto (2026-10-01): a entrega cobre a Central do Aluno (professor) e a área do aluno.
 - O card anterior da Central lia `Microcycle`, aposentado pela #414; foi substituído.
 
@@ -51,7 +51,7 @@ Permitir que aluno e professor consultem a rotina semanal e o Treino de hoje a p
 ## Criterios de aceite
 
 - [x] Rotina semanal lista sessões vigentes em ordem temporal estável.
-- [x] Treino de hoje derivado somente de templates liberados.
+- [x] Treino de hoje derivado somente de templates liberados com release da Montagem Consolidada do mesmo aluno/contrato.
 - [x] Objetivo, duração, ordem, parâmetros e orientações apresentados.
 - [x] Origem rastreável até a Montagem Consolidada quando existir release.
 - [x] Estados sem treino, não liberado, erro e sem permissão distintos.
@@ -67,13 +67,13 @@ Permitir que aluno e professor consultem a rotina semanal e o Treino de hoje a p
 2. Perfil sem o bloco: painel mostra "Sem permissão" e os demais cards continuam.
 3. Aluno abre `/inicio` -> "Ver treino de hoje": ver treino liberado, dia em preparação e recuperação.
 4. Template de hoje com `released=false`: estado "em preparação", sem conteúdo.
-5. Template liberado pela Montagem: professor vê origem consolidada; aluno vê só "liberado pelo seu professor".
+5. Template liberado pela Montagem: professor vê origem consolidada; aluno vê só "liberado pelo seu professor". Template apenas `released=true` sem release consolidado não aparece.
 6. Botões de execução desabilitados com explicação; nenhuma requisição de escrita na aba de rede.
 7. Repetir em 1440x900, 1366x768 e 390x844.
 
 ## Evidencia de navegador
 
-`apps/web/src/pages/issue-387-browser-evidence.test.js` roda no GitHub Actions e localmente com `ISSUE_387_BROWSER_EVIDENCE=1` (screenshots opcionais via `EVIDENCE_SCREENSHOT_DIR`). Cobre, na área do aluno, entrada pela home, Treino de hoje liberado, em preparação, sem treino, erro com nova tentativa e sem permissão em 1440x900, 1366x768 e 390x844, verificando ausência de overflow horizontal, controles de execução desabilitados, somente requisições `GET` e `x-contract-id`. A visão da Central (professor) é coberta por testes de componente; validação visual dela em navegador permanece manual.
+`apps/web/src/pages/issue-387-browser-evidence.test.js` roda no GitHub Actions e localmente com `ISSUE_387_BROWSER_EVIDENCE=1` (screenshots opcionais via `EVIDENCE_SCREENSHOT_DIR`). Cobre a área do aluno e a rota real `/central-do-aluno/:id` do professor, incluindo treino liberado, em preparação, sem treino, erro localizado, ausência de permissão, navegação entre semanas por teclado, ausência de overflow em desktop/mobile, somente requisições de leitura e preservação do contexto contratual do aluno.
 
 ## Decisoes e pendencias
 

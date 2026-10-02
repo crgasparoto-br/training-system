@@ -47,6 +47,15 @@ const makeRow = (overrides: Row = {}): Row => ({
   ...overrides,
 });
 
+const makeRelease = (overrides: Row = {}): Row => ({
+  id: 'release-1',
+  assemblyId: 'assembly-1',
+  workoutTemplateId: 'template-1',
+  sourceAssemblyVersion: 3,
+  releasedAssemblyVersion: 4,
+  ...overrides,
+});
+
 const exercise = (id: string, section: string, order: number) => ({
   id,
   section,
@@ -80,7 +89,7 @@ describe('training routine service (#387)', () => {
     releasedRows = [];
     pendingRows = [];
     capacityRows = [];
-    releaseRows = [];
+    releaseRows = [makeRelease()];
     findMany.mockImplementation((args: any) =>
       Promise.resolve(args.where.template.released ? releasedRows : pendingRows)
     );
@@ -174,10 +183,40 @@ describe('training routine service (#387)', () => {
     expect(releaseSql?.slice(1)).toEqual(expect.arrayContaining(['contract-1', 'aluno-1']));
   });
 
-  it('marca treino liberado pelo Workout Builder como origem manual', async () => {
+  it('não publica no Treino de hoje template liberado apenas pelo Workout Builder', async () => {
     releasedRows = [makeRow()];
-    const routine = await service.getRoutine({ alunoId: 'aluno-1', contractId: 'contract-1', audience: 'professor', now });
-    expect(routine.today.sessions[0].origin).toEqual({ kind: 'manual', releasedAt: '2026-09-28T12:00:00.000Z' });
+    releaseRows = [];
+
+    const routine = await service.getRoutine({
+      alunoId: 'aluno-1',
+      contractId: 'contract-1',
+      audience: 'professor',
+      now,
+    });
+
+    expect(routine.today).toEqual({ date: '2026-10-01', state: 'none', sessions: [] });
+    expect(routine.days[3].sessions).toEqual([]);
+  });
+
+  it('não inclui na rotina semanal template manual liberado em outro dia', async () => {
+    releasedRows = [
+      makeRow({
+        id: 'day-manual-week',
+        workoutDate: new Date('2026-10-03T00:00:00.000Z'),
+        dayOfWeek: 5,
+      }),
+    ];
+    releaseRows = [];
+
+    const routine = await service.getRoutine({
+      alunoId: 'aluno-1',
+      contractId: 'contract-1',
+      audience: 'student',
+      now,
+    });
+
+    expect(routine.days[5].sessions).toEqual([]);
+    expect(routine.today.state).toBe('none');
   });
 
   it('organiza exercícios em aquecimento, principal, finalização e demais blocos', async () => {

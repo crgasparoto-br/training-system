@@ -3,14 +3,14 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:issue482-pr484-post-write-refreeze-5ac4547e",
-    "audit_report_sha256": "c3faa95909f131a22c62824a02d06cedf6c80b98ce3af4225955b6272a97d7e3",
+    "rejection_id": "audit-rejection:pr493-mergeability-9a9b4d4",
+    "audit_report_sha256": "229b0bbee1b54df142332648c9b684a83cbd5062493583ff9ea7ec3e2779b0b2",
     "finding_ids": [
-      "A-482-002"
+      "A-001"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The installed post-write-refreeze and terminal handoff controls already define the generic prevention and detection rule. This rejection is closed by applying that existing control to the current PR identity, without adding repository-specific global policy."
+    "reason": "The installed delivery contract already requires fresh base/head/mergeability checks, conflict reconciliation, post-write refreeze, exact-SHA CI and terminal result-only binding. This remediation applies those existing controls after develop advanced; no new global Skill rule is required."
   }
 }

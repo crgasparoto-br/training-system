@@ -2,9 +2,9 @@
 
 ## Estado
 
-**Fundação estrutural validada internamente. Gate clínico pendente.**
+**Fundação estrutural concluída; contrato clínico reconciliado pela #383.**
 
-A entrega não fecha a issue enquanto fórmula, população, limites, arredondamento, vetores e aprovador clínico do primeiro protocolo não estiverem formalmente definidos. A aprovação operacional final também exige auditoria independente do SHA congelado.
+O gate de definição do primeiro protocolo foi fechado posteriormente pela governança clínica da epic #245. `GUEDES_1991_ADULT_YOUNG` possui fórmula, população, limites, precisão, arredondamento, referência e vetores canônicos completos. Seu estado global `DRAFT` é intencional: a habilitação operacional ocorre somente por aprovação clínica ativa em cada contrato. Slaughter continua `DISABLED` e não faz parte do conjunto finalizável.
 
 ## Entrega estrutural
 
@@ -23,8 +23,8 @@ A entrega não fecha a issue enquanto fórmula, população, limites, arredondam
 
 ## Decisões vigentes
 
-1. Guedes permanece `DRAFT` e Slaughter `DISABLED`.
-2. Nenhum cálculo clínico é habilitado sem aprovação formal.
+1. `GUEDES_1991_ADULT_YOUNG` permanece `DRAFT` globalmente, mas é um candidato clínico completo; Slaughter permanece `DISABLED` e incompleto.
+2. Nenhum cálculo ou finalização é habilitado sem `AdipometryProtocolApproval` ativa no mesmo contrato, código, versão, referência, hash e snapshot.
 3. As cinco dobras são colunas tipadas.
 4. Medidas usam `Decimal(8,2)` e resultados `Decimal(8,4)`; arredondamento pertence ao protocolo.
 5. Correção cria novo registro e preserva a versão anterior.
@@ -70,17 +70,18 @@ pnpm docs:check
 
 `verify-adipometry-audit-remediation.sh` executa o novo gate demográfico mesmo quando o gate v2 pode ser reutilizado para o mesmo SHA.
 
-## Gate clínico pendente
+## Gate clínico reconciliado
 
-A habilitação do primeiro protocolo e o encerramento da issue dependem de:
+A #383 confirma que o gate de definição está fechado para `GUEDES_1991_ADULT_YOUNG` e separado do gate operacional por contrato:
 
-- fórmula e referência completas;
-- população e aplicabilidade aprovadas;
-- unidades, limites, alertas, bloqueios, precisão e arredondamento;
-- tratamento clínico aprovado para sexo, idade e maturação;
-- no mínimo dois vetores independentes;
-- nome, data, identificador e artefato hasheado da aprovação clínica.
+- fórmula e referência completas estão versionadas em `docs/product/adipometry-protocol.md` e na migration canônica;
+- população de 18 a 30 anos, sexo de protocolo e maturação `NOT_REQUIRED` são explícitos;
+- dobras usadas por sexo, unidades, limites, alertas, bloqueios, precisão e `HALF_UP` são parte do snapshot;
+- vetores masculino, feminino e de arredondamento são canônicos e exercitados por testes;
+- perfil incompatível, dado obrigatório ausente e aprovação ausente/revogada bloqueiam conclusão sem fallback;
+- avaliações concluídas são imutáveis e correções criam novas revisões auditadas;
+- a migration não concede aprovação automática a nenhum contrato;
+- Slaughter permanece `DISABLED` enquanto sua definição clínica estiver incompleta.
+## Continuação entregue
 
-## Continuação prevista
-
-Endpoints, autorização, serviço de cálculo, tela, comparação visual e laudo permanecem nas issues filhas do épico #245. Esses trabalhos devem consumir os contratos desta fundação, injetar o ator autenticado e nunca aceitar resultados ou demografia calculada pelo cliente como autoridade.
+As issues #247, #248 e #249 concluíram API/autorização/cálculo, fluxo guiado e integração de histórico/comparação da ADPT. Evoluções futuras devem continuar consumindo esta fundação, preservar a aprovação clínica por contrato, injetar o ator autenticado e nunca aceitar resultados ou demografia calculada pelo cliente como autoridade.

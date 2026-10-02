@@ -30,8 +30,8 @@ export interface TrainingRoutineConsolidatedRelease {
 }
 
 export interface TrainingRoutineOrigin {
-  /** `consolidated`: liberado pela Montagem Consolidada; `manual`: liberado pelo Workout Builder. */
-  kind: 'consolidated' | 'manual';
+  /** A #387 publica somente sessões liberadas pela Montagem Consolidada. */
+  kind: 'consolidated';
   releasedAt: string | null;
   /** Presente somente na visão do professor e quando `kind = consolidated`. */
   consolidatedRelease?: TrainingRoutineConsolidatedRelease;

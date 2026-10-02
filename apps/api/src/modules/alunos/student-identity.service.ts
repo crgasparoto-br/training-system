@@ -266,6 +266,12 @@ const mergeIdentity = (
       continue;
     }
 
+    if ((key === 'cpf' || key === 'guardianCpf') && typeof rawValue === 'string') {
+      (next as Record<string, unknown>)[key] =
+        normalizeStudentCpf(rawValue) ?? cleanText(rawValue);
+      continue;
+    }
+
     if (typeof rawValue === 'string' || rawValue === null) {
       (next as Record<string, unknown>)[key] = cleanText(rawValue);
       continue;

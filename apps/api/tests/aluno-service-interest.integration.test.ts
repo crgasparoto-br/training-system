@@ -184,7 +184,7 @@ describeDatabase('student service interest with PostgreSQL', () => {
     });
     expect(read?.intakeForm?.formResponses).toMatchObject({
       identification: {
-        cpf: '139.513.548-79',
+        cpf: '13951354879',
         address: 'Rua Canônica',
         emergencyContactName: 'Contato Seguro',
       },

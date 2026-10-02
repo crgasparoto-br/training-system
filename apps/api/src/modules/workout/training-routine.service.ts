@@ -222,16 +222,14 @@ function toSummary(
   row: SessionRow,
   audience: TrainingRoutineAudience,
   capacities: string[],
-  release: ReleaseRow | undefined
+  release: ReleaseRow
 ): TrainingRoutineSessionSummary {
-  const consolidatedRelease: TrainingRoutineConsolidatedRelease | undefined = release
-    ? {
-        releaseId: release.id,
-        assemblyId: release.assemblyId,
-        sourceAssemblyVersion: release.sourceAssemblyVersion,
-        releasedAssemblyVersion: release.releasedAssemblyVersion,
-      }
-    : undefined;
+  const consolidatedRelease: TrainingRoutineConsolidatedRelease = {
+    releaseId: release.id,
+    assemblyId: release.assemblyId,
+    sourceAssemblyVersion: release.sourceAssemblyVersion,
+    releasedAssemblyVersion: release.releasedAssemblyVersion,
+  };
 
   return {
     sessionId: row.id,
@@ -248,9 +246,9 @@ function toSummary(
     method: cleanText(row.method),
     status: row.status as TrainingRoutineSessionStatus,
     origin: {
-      kind: release ? 'consolidated' : 'manual',
+      kind: 'consolidated',
       releasedAt: row.template.releasedAt?.toISOString() ?? null,
-      ...(audience === 'professor' && consolidatedRelease ? { consolidatedRelease } : {}),
+      ...(audience === 'professor' ? { consolidatedRelease } : {}),
     },
   };
 }
@@ -259,7 +257,7 @@ function toDetail(
   row: SessionRow,
   audience: TrainingRoutineAudience,
   capacities: string[],
-  release: ReleaseRow | undefined
+  release: ReleaseRow
 ): TrainingRoutineSessionDetail {
   const detail: TrainingRoutineSessionDetail = {
     ...toSummary(row, audience, capacities, release),
@@ -337,14 +335,19 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
         capacitiesByDay.set(block.workoutDayId, [...(capacitiesByDay.get(block.workoutDayId) ?? []), block.capacity]);
       }
       const releaseByTemplate = new Map(releaseRows.map((release) => [release.workoutTemplateId, release]));
+      // A projeção #387 publica exclusivamente a saída operacional rastreável
+      // até a Montagem Consolidada. Um template released=true sem release
+      // consolidado (por exemplo, liberação manual do Workout Builder) não
+      // participa da rotina semanal nem do Treino de hoje.
+      const visibleRows = rows.filter((row) => releaseByTemplate.has(row.template.id));
       const pendingByDate = new Map<string, number>();
       for (const pending of pendingRows) {
         const key = toDateOnly(pending.workoutDate);
         pendingByDate.set(key, (pendingByDate.get(key) ?? 0) + 1);
       }
-      const rowsOn = (key: string) => rows.filter((row) => toDateOnly(row.workoutDate) === key);
+      const rowsOn = (key: string) => visibleRows.filter((row) => toDateOnly(row.workoutDate) === key);
       const context = (row: SessionRow) =>
-        [query.audience, capacitiesByDay.get(row.id) ?? [], releaseByTemplate.get(row.template.id)] as const;
+        [query.audience, capacitiesByDay.get(row.id) ?? [], releaseByTemplate.get(row.template.id)!] as const;
 
       const days: TrainingRoutineDay[] = week.days.map((date) => {
         const key = toDateOnly(date);
