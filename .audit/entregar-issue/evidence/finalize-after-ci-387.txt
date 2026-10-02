@@ -1,0 +1,7 @@
+finalize-after-ci recovery for current target
+base_sha=8faf1e9eb0f1e68482dea62aa8c50af51b801acf
+material_head_sha=ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f
+previous handoff in base belongs to issue 494 / PR 493 and is not reused
+current target=issue 387 / PR 492
+CI 36954523799=completed/success
+No product files are changed by the result-only child.

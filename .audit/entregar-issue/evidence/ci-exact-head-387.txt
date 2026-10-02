@@ -1,0 +1,8 @@
+repository=crgasparoto-br/training-system
+issue=387
+pr=492
+material_head_sha=ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f
+workflow=Validate PR
+run_id=36954523799
+status=completed
+conclusion=success

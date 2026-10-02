@@ -1,1 +1,12 @@
-{"contract_version":"2026-08-20.3","status":"rejected","rejection_id":"audit-rejection:pr493-readback-evidence-46e22bb","head_sha":"46e22bb5d90e9d22b42b6b9f5d4da63780236471","findings":[{"id":"A-002","disposition":"blocking","status":"open","actionable":true,"remediation_mode":"targeted-remediation","category":"execution-state-gap","reason":"database-integration-test-not-reached","summary":"The administrative readback database integration test was declared but not reached because audited STANDARD validation used RUN_DATABASE_INTEGRATION_TESTS=false."}],"recommendations":[]}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "status": "not-applicable",
+  "reason": "no-independent-rejection-for-current-target",
+  "identity": {
+    "repository": "crgasparoto-br/training-system",
+    "issue_number": 387,
+    "pull_request_number": 492,
+    "head_sha": "ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f"
+  }
+}

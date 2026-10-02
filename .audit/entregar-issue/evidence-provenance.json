@@ -1,26 +1,24 @@
 {
   "schema_version": 1,
-  "material_head_sha": "ac44b66a3d72c47810609e0b1ec1f54a908a1b75",
-  "base_sha": "5b78c9d2d57e79662ca28d43d5ec62286095b3c4",
+  "material_head_sha": "ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f",
+  "base_sha": "8faf1e9eb0f1e68482dea62aa8c50af51b801acf",
   "evidence": [
     {
-      "evidence_id": "E-WEEK-QUANT",
-      "kind": "quantitative",
-      "path": "evidence/release-source.txt",
-      "sha256": "3fec6f84e1494e15a0056891d41b4576e8cf8e5a9832f040ec8ec546aebaf124",
-      "subject_sha": "ac44b66a3d72c47810609e0b1ec1f54a908a1b75",
+      "evidence_id": "E-CI-387",
+      "kind": "ci-exact-head",
+      "path": "evidence/ci-exact-head-387.txt",
+      "subject_sha": "ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f",
       "freshness_policy": "exact-material-head",
-      "producer": "GitHub Actions exact-head tests for PR #492",
+      "producer": "GitHub Actions",
       "status": "passed"
     },
     {
-      "evidence_id": "E-PRESENTATION-QUANT",
-      "kind": "quantitative",
-      "path": "evidence/presentation.txt",
-      "sha256": "668be94e40350704b392c41c88a06844d036bebe4c8f18251103ba875816dfcc",
-      "subject_sha": "ac44b66a3d72c47810609e0b1ec1f54a908a1b75",
+      "evidence_id": "E-FINALIZE-387",
+      "kind": "delivery-finalization",
+      "path": "evidence/finalize-after-ci-387.txt",
+      "subject_sha": "ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f",
       "freshness_policy": "exact-material-head",
-      "producer": "GitHub Actions exact-head tests for PR #492",
+      "producer": "entregar-issue",
       "status": "passed"
     }
   ]

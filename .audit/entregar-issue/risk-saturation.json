@@ -1,217 +1,87 @@
 {
   "schema_version": 1,
-  "head_sha": "ac44b66a3d72c47810609e0b1ec1f54a908a1b75",
+  "head_sha": "ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f",
   "families": [
     {
       "family": "authorization",
+      "status": "passed",
       "applicable": true,
-      "reason": "All declared material surfaces have exact-head adversarial controls that passed for PR #492.",
       "control_ids": [
         "N-AUTH-1",
         "N-STATE-1"
       ],
-      "dimensions": [
-        {
-          "surface": "access-state-boundary",
-          "reason": "Access denial must remain distinct from transient loading/error states.",
-          "control_ids": [
-            "N-STATE-1"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "session-target-binding",
-          "reason": "Student identity and contract target must derive from authenticated session context.",
-          "control_ids": [
-            "N-AUTH-1"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "dimensions": []
     },
     {
       "family": "tenant-isolation",
+      "status": "passed",
       "applicable": true,
-      "reason": "All declared material surfaces have exact-head adversarial controls that passed for PR #492.",
       "control_ids": [
-        "N-AUTH-2"
+        "N-AUTH-1"
       ],
-      "dimensions": [
-        {
-          "surface": "tenant-scope-isolation",
-          "reason": "Professor/student access must not leak data across deliberately distinct contract scopes.",
-          "control_ids": [
-            "N-AUTH-2"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "dimensions": []
     },
     {
       "family": "public-boundary",
+      "status": "passed",
       "applicable": true,
-      "reason": "All declared material surfaces have exact-head adversarial controls that passed for PR #492.",
       "control_ids": [
-        "N-AUTH-3"
+        "N-DEGRADE-1"
       ],
-      "dimensions": [
-        {
-          "surface": "request-target-override",
-          "reason": "Client input must not override the authenticated student target.",
-          "control_ids": [
-            "N-AUTH-3"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "dimensions": []
     },
     {
       "family": "reference-liveness",
+      "status": "passed",
       "applicable": true,
-      "reason": "All declared material surfaces have exact-head adversarial controls that passed for PR #492.",
       "control_ids": [
         "N-WEEK-1"
       ],
-      "dimensions": [
-        {
-          "surface": "released-plan-reference",
-          "reason": "Today and weekly cards must continue to point to the currently released operational planning reference.",
-          "control_ids": [
-            "N-WEEK-1"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "dimensions": []
     },
     {
       "family": "temporal-consistency",
+      "status": "passed",
       "applicable": true,
-      "reason": "All declared material surfaces have exact-head adversarial controls that passed for PR #492.",
       "control_ids": [
-        "N-EXEC-4",
-        "N-TIME-1"
+        "N-TIME-1",
+        "N-EXEC-4"
       ],
-      "dimensions": [
-        {
-          "surface": "civil-date-boundary",
-          "reason": "Today/week selection can drift at midnight if browser or process timezone is used instead of the product civil timezone.",
-          "control_ids": [
-            "N-TIME-1"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "execution-contract-availability",
-          "reason": "Mutation availability must remain false until the canonical execution contract is actually available.",
-          "control_ids": [
-            "N-EXEC-4"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
-    },
-    {
-      "family": "temporal-destination",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
-    },
-    {
-      "family": "concurrency-atomicity",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
-    },
-    {
-      "family": "idempotency",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
-    },
-    {
-      "family": "rollback",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
-    },
-    {
-      "family": "historical-immutability",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "dimensions": []
     },
     {
       "family": "structural-contract",
+      "status": "passed",
       "applicable": true,
-      "reason": "All declared material surfaces have exact-head adversarial controls that passed for PR #492.",
       "control_ids": [
-        "N-EXEC-2",
-        "N-EXEC-3",
         "N-RELEASE-2",
-        "N-VAL-2"
+        "N-EXEC-2",
+        "N-EXEC-4"
       ],
-      "dimensions": [
-        {
-          "surface": "canonical-source-consistency",
-          "reason": "The feature must consume the canonical released workout graph and consolidated release source consistently.",
-          "control_ids": [
-            "N-EXEC-2",
-            "N-RELEASE-2"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "relational-semantic-integrity",
-          "reason": "Planning state and execution state could diverge if a parallel producer persisted an incompatible linked status.",
-          "control_ids": [
-            "N-EXEC-3"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "validation-matrix",
-          "reason": "Required API/web/visual/structural/access/documentation validations can drift or be skipped independently.",
-          "control_ids": [
-            "N-VAL-2"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "dimensions": []
     },
     {
       "family": "documentation",
+      "status": "passed",
       "applicable": true,
-      "reason": "All declared material surfaces have exact-head adversarial controls that passed for PR #492.",
       "control_ids": [
         "N-VAL-1"
       ],
-      "dimensions": [
-        {
-          "surface": "canonical-claims",
-          "reason": "Documentation must match the implemented read-only, access, release and timezone contracts.",
-          "control_ids": [
-            "N-VAL-1"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "dimensions": []
+    },
+    {
+      "family": "concurrency-atomicity",
+      "status": "not-applicable",
+      "applicable": false,
+      "control_ids": [],
+      "dimensions": []
+    },
+    {
+      "family": "idempotency",
+      "status": "not-applicable",
+      "applicable": false,
+      "control_ids": [],
+      "dimensions": []
     }
   ],
   "material_families_missing_controls": []

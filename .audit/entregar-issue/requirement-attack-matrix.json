@@ -1,1 +1,70 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"requirement-attack-matrix","compression":"gzip","encoded_size":14380,"encoded_sha256":"fb27744efeff268fea55886dcc7279558c7d50a8cfc8c0d24bf633dd2e1f3e2b","decoded_size":59085,"decoded_sha256":"b5853ee25afbc81e822335d9d0ffccb7b6c58acb92b43bc2323a2990a7a1dbf9","parts":[{"path":"requirement-attack-matrix.parts/part-000.b64","size":12288,"sha256":"5cb05a457a00babdfa8307892a5a458cba3988b8631eca9195dcfb2fb54b11dd"},{"path":"requirement-attack-matrix.parts/part-001.b64","size":2092,"sha256":"5865527c726a784556bf11a30e98e969a1a14547270c8b968ada4baa60cd3a9c"}]}
+{
+  "schema_version": 1,
+  "head_sha": "ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f",
+  "requirements": [
+    {
+      "requirement_id": "REQ-001",
+      "risk_family": "reference-liveness",
+      "surface": "released-plan-reference",
+      "plausible_wrong_implementation": "Read retired Microcycle or unreleased template",
+      "control_id": "N-WEEK-1",
+      "status": "passed"
+    },
+    {
+      "requirement_id": "REQ-002",
+      "risk_family": "structural-contract",
+      "surface": "canonical-release-source",
+      "plausible_wrong_implementation": "Select today from non-released planning",
+      "control_id": "N-RELEASE-2",
+      "status": "passed"
+    },
+    {
+      "requirement_id": "REQ-004",
+      "risk_family": "structural-contract",
+      "surface": "origin-traceability",
+      "plausible_wrong_implementation": "Lose release origin or expose internal technical details",
+      "control_id": "N-EXEC-2",
+      "status": "passed"
+    },
+    {
+      "requirement_id": "REQ-005",
+      "risk_family": "authorization",
+      "surface": "access-state-boundary",
+      "plausible_wrong_implementation": "Render forbidden state as generic empty/error",
+      "control_id": "N-STATE-1",
+      "status": "passed"
+    },
+    {
+      "requirement_id": "REQ-007",
+      "risk_family": "tenant-isolation",
+      "surface": "session-target-binding",
+      "plausible_wrong_implementation": "Trust client alunoId/contractId over authenticated context",
+      "control_id": "N-AUTH-1",
+      "status": "passed"
+    },
+    {
+      "requirement_id": "REQ-008",
+      "risk_family": "structural-contract",
+      "surface": "execution-boundary",
+      "plausible_wrong_implementation": "Persist local/temporary execution state before #389",
+      "control_id": "N-EXEC-4",
+      "status": "passed"
+    },
+    {
+      "requirement_id": "REQ-009",
+      "risk_family": "public-boundary",
+      "surface": "localized-degradation",
+      "plausible_wrong_implementation": "Let training failure crash the whole Central",
+      "control_id": "N-DEGRADE-1",
+      "status": "passed"
+    },
+    {
+      "requirement_id": "REQ-010",
+      "risk_family": "temporal-consistency",
+      "surface": "civil-date-boundary",
+      "plausible_wrong_implementation": "Use browser/process timezone for today selection",
+      "control_id": "N-TIME-1",
+      "status": "passed"
+    }
+  ]
+}

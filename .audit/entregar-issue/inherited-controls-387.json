@@ -1,8 +1,19 @@
 {
   "schema_version": 1,
-  "head_sha": "ac44b66a3d72c47810609e0b1ec1f54a908a1b75",
-  "source_audits": [],
-  "controls": [],
-  "retired_controls": [],
+  "head_sha": "ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f",
+  "controls": [
+    {
+      "id": "INH-387-HANDOFF-TARGET",
+      "status": "passed",
+      "source": "delivery target binding",
+      "evidence": "Foreign/inherited handoff from base is not reused; current package binds issue 387 / PR 492."
+    },
+    {
+      "id": "INH-387-EXACT-HEAD",
+      "status": "passed",
+      "source": "finalize-after-ci",
+      "evidence": "Validate PR 36954523799 is green on ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f."
+    }
+  ],
   "unresolved_controls": []
 }
