@@ -11,6 +11,8 @@ import type {
   TrainingRoutineView,
 } from '@corrida/types';
 import { Button } from '../ui/Button';
+import { PreWorkoutCheckInCard } from './PreWorkoutCheckInCard';
+import type { UpsertPreWorkoutCheckInPayload, PreWorkoutCheckInView } from '@corrida/types';
 import {
   getTrainingRoutineErrorKind,
   shiftDateOnly,
@@ -127,10 +129,12 @@ function TodaySession({
   session,
   audience,
   executionAvailable,
+  saveCheckIn,
 }: {
   session: TrainingRoutineSessionDetail;
   audience: TrainingRoutineAudience;
   executionAvailable: boolean;
+  saveCheckIn?: (sessionId: string, payload: UpsertPreWorkoutCheckInPayload) => Promise<PreWorkoutCheckInView>;
 }) {
   const headingId = useId();
   const executionNoteId = useId();
@@ -227,6 +231,13 @@ function TodaySession({
           </div>
         </section>
       )}
+
+      <PreWorkoutCheckInCard
+        audience={audience}
+        sessionStatus={session.status}
+        initialCheckIn={session.preWorkoutCheckIn}
+        save={saveCheckIn ? (payload) => saveCheckIn(session.sessionId, payload) : undefined}
+      />
 
       <section aria-label="Segurança" className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm text-amber-900">
         <h4 className="flex items-center gap-1.5 font-semibold">
@@ -380,6 +391,7 @@ export type TrainingRoutinePanelProps = {
   canView?: boolean;
   headingLevel?: 'h1' | 'h2';
   title?: string;
+  saveCheckIn?: (sessionId: string, payload: UpsertPreWorkoutCheckInPayload) => Promise<PreWorkoutCheckInView>;
 };
 
 export function TrainingRoutinePanel({
@@ -388,6 +400,7 @@ export function TrainingRoutinePanel({
   canView = true,
   headingLevel = 'h2',
   title = 'Treino de hoje',
+  saveCheckIn,
 }: TrainingRoutinePanelProps) {
   const [routine, setRoutine] = useState<TrainingRoutineView | null>(null);
   const [referenceDate, setReferenceDate] = useState<string | undefined>(undefined);
@@ -474,6 +487,7 @@ export function TrainingRoutinePanel({
                 session={session}
                 audience={audience}
                 executionAvailable={routine.execution.available}
+                saveCheckIn={saveCheckIn}
               />
             ))
           ) : (
