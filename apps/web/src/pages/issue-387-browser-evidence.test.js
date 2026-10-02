@@ -262,11 +262,11 @@ suite('Issue #387 - evidencia browser Treino de hoje', () => {
 
       mode = 'not_released';
       await gotoCentral(page);
-      await waitText(page, 'Seu treino de hoje ainda está sendo preparado');
+      await waitText(page, 'Sessão de hoje ainda não liberada');
 
       mode = 'none';
       await gotoCentral(page);
-      await waitText(page, 'Nenhum treino para hoje');
+      await waitText(page, 'Nenhuma sessão liberada para hoje');
 
       mode = 'error';
       await gotoCentral(page);
