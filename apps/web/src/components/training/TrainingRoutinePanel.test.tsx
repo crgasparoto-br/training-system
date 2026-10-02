@@ -20,7 +20,7 @@ const session = (overrides: Partial<TrainingRoutineSessionDetail> = {}): Trainin
   location: 'Academia',
   method: 'Seriado',
   status: 'planned',
-  origin: { kind: 'manual', releasedAt: '2026-09-28T12:00:00.000Z' },
+  origin: { kind: 'consolidated', releasedAt: '2026-09-28T12:00:00.000Z' },
   objective: 'Ganhar força',
   guidelines: ['Beba água durante o treino.'],
   cyclic: null,

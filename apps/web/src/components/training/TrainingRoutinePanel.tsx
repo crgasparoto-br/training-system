@@ -109,9 +109,9 @@ function OriginNote({ session, audience }: { session: TrainingRoutineSessionDeta
   const release = session.origin.consolidatedRelease;
   return (
     <p className="text-xs text-muted-foreground">
-      {session.origin.kind === 'consolidated' && release
+      {release
         ? `Origem: Montagem Consolidada, versão ${release.sourceAssemblyVersion} aprovada e liberada${releasedAt} (registro ${release.releaseId}).`
-        : `Origem: liberação manual no Workout Builder${releasedAt}, sem vínculo com a Montagem Consolidada.`}
+        : `Origem: Montagem Consolidada${releasedAt}.`}
       {` Plano: ${session.planName} · mesociclo ${session.mesocycleNumber}, semana ${session.weekNumber}.`}
     </p>
   );
