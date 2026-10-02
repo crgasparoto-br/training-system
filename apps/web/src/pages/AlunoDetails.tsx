@@ -1404,6 +1404,7 @@ export function AlunoDetails() {
           assessmentSummary={assessmentSummary}
           plans={plans}
           activeStudentContract={activeStudentContract}
+          canViewTraining={canViewTrainingPlansTab}
         />
       )}
 

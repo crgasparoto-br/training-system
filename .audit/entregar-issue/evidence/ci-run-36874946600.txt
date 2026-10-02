@@ -1,0 +1,7 @@
+PR #492 exact material head: ac44b66a3d72c47810609e0b1ec1f54a908a1b75
+GitHub Actions run: 36874946600 / Validate PR / run 7869
+Status: completed
+Conclusion: success
+Risk job classified the delivery as CRITICAL.
+Successful CRITICAL validation included type check, lint, full tests, build, browser settings validation, architecture checks, access catalog checks, documentation checks, and artifact upload.
+No material commit after this exact-head run was observed before handoff reconstruction.

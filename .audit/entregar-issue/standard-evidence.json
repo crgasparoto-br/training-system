@@ -1,1 +1,177 @@
-{"schema_version":1,"contract_version":"2026-08-20.3","head_sha":"de9f6999dccecae966406ff4a1777a4103e5f6bd","requirements":[{"requirement_id":"REQ-001","positive_evidence":["Exact-material PR CRITICAL run 36926810904 completed success on de9f6999dccecae966406ff4a1777a4103e5f6bd."],"primary_negative_control":{"id":"NC-001","status":"passed","procedure":"Exercise the exact discriminating regression for REQ-001.","expected":"REQ-001 remains correct.","observed":"Exact-material CRITICAL validation passed the relevant focused/unit/integration coverage."},"regression_evidence":["Postgres 16 CRITICAL validation ran with RUN_DATABASE_INTEGRATION_TESTS=true on exact material head."]},{"requirement_id":"REQ-002","positive_evidence":["Exact-material PR CRITICAL run 36926810904 completed success on de9f6999dccecae966406ff4a1777a4103e5f6bd."],"primary_negative_control":{"id":"NC-002","status":"passed","procedure":"Exercise the exact discriminating regression for REQ-002.","expected":"REQ-002 remains correct.","observed":"Exact-material CRITICAL validation passed the relevant focused/unit/integration coverage."},"regression_evidence":["Postgres 16 CRITICAL validation ran with RUN_DATABASE_INTEGRATION_TESTS=true on exact material head."]},{"requirement_id":"REQ-003","positive_evidence":["Exact-material PR CRITICAL run 36926810904 completed success on de9f6999dccecae966406ff4a1777a4103e5f6bd."],"primary_negative_control":{"id":"NC-003","status":"passed","procedure":"Exercise the exact discriminating regression for REQ-003.","expected":"REQ-003 remains correct.","observed":"Exact-material CRITICAL validation passed the relevant focused/unit/integration coverage."},"regression_evidence":["Postgres 16 CRITICAL validation ran with RUN_DATABASE_INTEGRATION_TESTS=true on exact material head."]},{"requirement_id":"REQ-004","positive_evidence":["Exact-material PR CRITICAL run 36926810904 completed success on de9f6999dccecae966406ff4a1777a4103e5f6bd."],"primary_negative_control":{"id":"NC-004","status":"passed","procedure":"Exercise the exact discriminating regression for REQ-004.","expected":"REQ-004 remains correct.","observed":"Exact-material CRITICAL validation passed the relevant focused/unit/integration coverage."},"regression_evidence":["Postgres 16 CRITICAL validation ran with RUN_DATABASE_INTEGRATION_TESTS=true on exact material head."]},{"requirement_id":"REQ-005","positive_evidence":["Exact-material PR CRITICAL run 36926810904 completed success on de9f6999dccecae966406ff4a1777a4103e5f6bd."],"primary_negative_control":{"id":"NC-005","status":"passed","procedure":"Create with masked CPF, inspect persisted projections, then GET /alunos/:id.","expected":"Persisted and readback CPF are digits-only.","observed":"PASS apps/api/tests/aluno-create-read-http.integration.test.ts with leadCpf, leadCpfNormalized, StudentProfile CPF and HTTP readback asserted as 13951354879."},"regression_evidence":["Postgres 16 CRITICAL validation ran with RUN_DATABASE_INTEGRATION_TESTS=true on exact material head."]},{"requirement_id":"REQ-006","positive_evidence":["Exact-material PR CRITICAL run 36926810904 completed success on de9f6999dccecae966406ff4a1777a4103e5f6bd."],"primary_negative_control":{"id":"NC-006","status":"passed","procedure":"Exercise the exact discriminating regression for REQ-006.","expected":"REQ-006 remains correct.","observed":"Exact-material CRITICAL validation passed the relevant focused/unit/integration coverage."},"regression_evidence":["Postgres 16 CRITICAL validation ran with RUN_DATABASE_INTEGRATION_TESTS=true on exact material head."]},{"requirement_id":"REQ-007","positive_evidence":["Exact-material PR CRITICAL run 36926810904 completed success on de9f6999dccecae966406ff4a1777a4103e5f6bd."],"primary_negative_control":{"id":"NC-007","status":"passed","procedure":"Exercise the exact discriminating regression for REQ-007.","expected":"REQ-007 remains correct.","observed":"Exact-material CRITICAL validation passed the relevant focused/unit/integration coverage."},"regression_evidence":["Postgres 16 CRITICAL validation ran with RUN_DATABASE_INTEGRATION_TESTS=true on exact material head."]}]}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "head_sha": "ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f",
+  "requirements": [
+    {
+      "requirement_id": "REQ-001",
+      "positive_evidence": [
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pnpm validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
+      ],
+      "primary_negative_control": {
+        "id": "N-WEEK-1",
+        "status": "passed",
+        "procedure": "Released-plan reference and week ordering regression",
+        "expected": "Lista sessões vigentes a partir do grafo operacional liberado, em ordem estável.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
+      },
+      "regression_evidence": [
+        "Validate PR run 36954523799 exact-head success."
+      ]
+    },
+    {
+      "requirement_id": "REQ-002",
+      "positive_evidence": [
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pnpm validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
+      ],
+      "primary_negative_control": {
+        "id": "N-RELEASE-2",
+        "status": "passed",
+        "procedure": "Unreleased sessions expose count only and never become today content",
+        "expected": "Deriva o Treino de hoje somente de WorkoutTemplate/release operacional liberado.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
+      },
+      "regression_evidence": [
+        "Validate PR run 36954523799 exact-head success."
+      ]
+    },
+    {
+      "requirement_id": "REQ-003",
+      "positive_evidence": [
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pnpm validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
+      ],
+      "primary_negative_control": {
+        "id": "N-PRESENT-1",
+        "status": "passed",
+        "procedure": "Presenter regression verifies practical fields without technical leakage",
+        "expected": "Apresenta objetivo, duração, ordem, aquecimento/blocos/finalização, parâmetros e orientações aplicáveis.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
+      },
+      "regression_evidence": [
+        "Validate PR run 36954523799 exact-head success."
+      ]
+    },
+    {
+      "requirement_id": "REQ-004",
+      "positive_evidence": [
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pn`m validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
+      ],
+      "primary_negative_control": {
+        "id": "N-EXEC-2",
+        "status": "passed",
+        "procedure": "Canonical release/origin consistency",
+        "expected": "Preserva referência à origem/release consolidado e não expõe justificativas técnicas internas ao aluno.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
+      },
+      "regression_evidence": [
+        "Validate PR run 36954523799 exact-head success."
+      ]
+    },
+    {
+      "requirement_id": "REQ-005",
+      "positive_evidence": [
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pn`m validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
+      ],
+      "primary_negative_control": {
+        "id": "N-STATE-1",
+        "status": "passed",
+        "procedure": "Access denial/loading/error/empty states remain discriminated",
+        "expected": "Distingue vazio, ainda não liberado, carregamento, erro localizado e acesso negado.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
+      },
+      "regression_evidence": [
+        "Validate PR run 36954523799 exact-head success."
+      ]
+    },
+    {
+      "requirement_id": "REQ-006",
+      "positive_evidence": [
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pnpm validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
+      ],
+      "primary_negative_control": {
+        "id": "N-NAV-1",
+        "status": "passed",
+        "procedure": "contractId/session context preserved across student navigation",
+        "expected": "Preserva aluno/contractId e referência estável da sessão ao navegar e retornar.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
+      },
+      "regression_evidence": [
+        "Validate PR run 36954523799 exact-head success."
+      ]
+    },
+    {
+      "requirement_id": "REQ-007",
+      "positive_evidence": [
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pnpm validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
+      ],
+      "primary_negative_control": {
+        "id": "N-AUTH-1",
+        "status": "passed",
+        "procedure": "Session target binding plus cross-contract denial and client override rejection",
+        "expected": "Valida permissões/contractId no backend e não aceita override do aluno autenticado pelo cliente.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
+      },
+      "regression_evidence": [
+        "Validate PR run 36954523799 exact-head success."
+      ]
+    },
+    {
+      "requirement_id": "REQ-008",
+      "positive_evidence": [
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pnpm validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
+      ],
+      "primary_negative_control": {
+        "id": "N-EXEC-4",
+        "status": "passed",
+        "procedure": "Mutation contract unavailable => zero state-changing requests and disabled controls",
+        "expected": "Não cria endpoint mutável, persistência paralela nem sucesso apenas local; controles ficam indisponíveis até o contrato canônico.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
+      },
+      "regression_evidence": [
+        "Validate PR run 36954523799 exact-head success."
+      ]
+    },
+    {
+      "requirement_id": "REQ-009",
+      "positive_evidence": [
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pn`m validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
+      ],
+      "primary_negative_control": {
+        "id": "N-DEGRADE-1",
+        "status": "passed",
+        "procedure": "Routine request failure leaves sibling Central blocks available",
+        "expected": "Falha da área de treino não derruba os demais blocos da Central.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
+      },
+      "regression_evidence": [
+        "Validate PR run 36954523799 exact-head success."
+      ]
+    },
+    {
+      "requirement_id": "REQ-010",
+      "positive_evidence": [
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pn`m validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
+      ],
+      "primary_negative_control": {
+        "id": "N-TIME-1",
+        "status": "passed",
+        "procedure": "Backend civil-time boundary plus browser evidence at desktop/tablet/mobile",
+        "expected": "Fluxo funciona em desktop/mobile/teclado/leitor de tela e usa America/Sao_Paulo no backend para hoje/semana.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
+      },
+      "regression_evidence": [
+        "Validate PR run 36954523799 exact-head success."
+      ]
+    }
+  ]
+}

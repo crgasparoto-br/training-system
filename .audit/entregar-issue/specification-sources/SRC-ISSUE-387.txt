@@ -1,0 +1,74 @@
+Parent: #386
+
+## Objetivo
+
+Expor na Central do Aluno a rotina semanal e o **Treino de hoje** consumindo exclusivamente a saída operacional já liberada pela Montagem Consolidada e pelo grafo canônico `TrainingPlan -> WorkoutTemplate -> WorkoutDay -> WorkoutExercise`.
+
+## Escopo
+
+- apresentar dias planejados, modalidade/capacidade, duração estimada, recuperação e status da sessão;
+- selecionar o Treino de hoje considerando o planejamento operacional vigente e o contexto do aluno;
+- exibir objetivo prático, duração, ordem, aquecimento, blocos principais, finalização, exercícios e orientações;
+- mostrar carga, repetições, tempo, distância, pace, velocidade, zona ou esforço-alvo quando aplicável;
+- exibir alertas de segurança em linguagem adequada ao aluno;
+- disponibilizar a entrada de UX para iniciar, pausar, concluir ou registrar impossibilidade somente sobre o lifecycle canônico da execução; esta issue não cria persistência paralela nem define um lifecycle alternativo;
+- preservar `alunoId`, `contractId`, identificador estável da sessão operacional e referência ao release/montagem de origem;
+- suportar estados de vazio, treino não liberado, carregamento, erro localizado e acesso negado.
+
+## Fronteira com a #389
+
+A divisão de responsabilidade é obrigatória:
+
+- **#387** é dona da consulta/apresentação da rotina e do Treino de hoje, do contexto estável da sessão e dos entrypoints de interação;
+- **#389** é dona da persistência da execução e da máquina de estados `not_started/in_progress/paused/completed/partial/not_performed`.
+
+Enquanto o contrato mutável da #389 não estiver disponível, a #387 não deve simular conclusão, persistir estado apenas no frontend, gravar estado em tabela auxiliar nem criar endpoint temporário concorrente. Controles de mutação só podem ser habilitados quando apontarem para o contrato canônico de execução; a ausência desse contrato não bloqueia a entrega da leitura e apresentação do Treino de hoje.
+
+## Contrato de projeção de status
+
+A rotina semanal e os cards podem apresentar rótulos derivados para o usuário, mas **não** podem persistir uma segunda autoridade de estado. O lifecycle operacional permanece na #389 e o planejamento liberado permanece no grafo canônico. Estados de agenda/planejamento que não façam parte da máquina da #389, como reagendamento ou suspensão quando existirem em fonte canônica própria, devem ser apenas consumidos/projetados por esta issue.
+
+A seleção de **Treino de hoje** deve usar a mesma referência temporal adotada pelo planejamento operacional. Se o repositório não possuir uma regra canônica para timezone/virada do dia, essa decisão deve ser explicitada antes de implementar a seleção por data; não deve ser inferida do timezone do navegador.
+
+## Invariantes
+
+- Capacidades isoladas não podem publicar Treino de hoje.
+- Treino exibido deve apontar para a saída operacional liberada e rastreável até a Montagem Consolidada.
+- O estado da sessão possui uma única autoridade; #387 não mantém lifecycle paralelo ao definido pela #389.
+- Não expor conflitos internos, fórmulas clínicas ou justificativas técnicas completas ao aluno.
+- Falha da área de treino não pode indisponibilizar toda a Central quando houver degradação segura.
+
+## Cenários obrigatórios
+
+- rotina semanal com sessões vigentes;
+- Treino de hoje liberado;
+- semana sem sessão para o dia atual;
+- sessão existente porém ainda não liberada;
+- usuário sem permissão;
+- tentativa de interação antes de o contrato mutável da #389 estar disponível, sem persistência ou sucesso fictício;
+- retorno para a Central preservando o mesmo aluno;
+- falha localizada da área de treino sem indisponibilizar os demais blocos.
+
+## Critérios de aceite
+
+- [ ] Rotina semanal lista sessões vigentes em ordem temporal estável.
+- [ ] Treino de hoje é derivado somente de planejamento operacional liberado.
+- [ ] A interface apresenta objetivo, duração, ordem, parâmetros aplicáveis e orientações práticas.
+- [ ] Origem operacional permanece rastreável até a Montagem Consolidada.
+- [ ] Estados sem treino, não liberado, erro e falta de permissão são distintos.
+- [ ] O aluno selecionado é preservado em toda navegação.
+- [ ] Permissões e isolamento por `contractId` são validados no backend.
+- [ ] Nenhuma ação desta issue cria ou atualiza estado de execução fora do contrato canônico da #389.
+- [ ] Controles de mutação, quando habilitados, usam a sessão operacional estável e o entrypoint canônico de execução; não existe sucesso apenas local no frontend.
+- [ ] Fluxo é utilizável em desktop/mobile, teclado e leitor de tela.
+
+## Fora de escopo
+
+- persistir valores executados ou implementar a máquina de estados da sessão, tratados na #389;
+- feedback pós-treino;
+- templates gerais;
+- smartwatch e integrações externas.
+
+## Validação esperada
+
+Testes de API/web afetados, validação visual dos estados principais, teste estrutural que impeça lifecycle/persistência paralelos à #389, checks de acesso/documentação e `pnpm validate`.

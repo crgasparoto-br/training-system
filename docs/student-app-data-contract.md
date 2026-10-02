@@ -530,6 +530,27 @@ Estados de UI:
 - detalhe com retorno para a lista;
 - layout responsivo para desktop e mobile. A home do aluno possui acesso direto a **Meus Treinos**.
 
+### Treino de hoje e rotina semanal
+
+Rota web:
+- `/student/training` (acesso pela home do aluno; preserva `?contractId=` nos links de ida e volta).
+
+Consumir:
+- `GET /api/v1/student/me/training-routine?date=YYYY-MM-DD`: rotina da semana (segunda a domingo) que contém `date` e o Treino de hoje. `date` é opcional; sem ele a API usa a data atual em `America/Sao_Paulo`. Data inválida responde `400`.
+
+Contrato de autorização:
+- mesmo contrato de Meus Treinos: o cliente não envia `alunoId`, a API resolve o vínculo do `student/me` e revalida `x-contract-id` (`409` quando o contexto contratual é obrigatório);
+- somente `WorkoutTemplate.released = true` que também possua `ConsolidatedPrescriptionOperationalRelease` do aluno e contrato resolvidos; template liberado apenas pelo Workout Builder não é publicado nesta projeção; sessões `released=false` aparecem apenas como contagem (`pendingReleaseCount`) e estado `today.state = not_released`.
+
+Resposta (`TrainingRoutineView`, tipo compartilhado em `packages/types/training-routine.ts`):
+- `week`, `days[]` com `isToday`, sessões resumidas e `pendingReleaseCount`;
+- `today.state`: `released`, `not_released` ou `none`, com sessões detalhadas: objetivo prático, duração, local, método, modalidades, parâmetros aeróbios (tempo, distância, FC, velocidade, pace), blocos ordenados de exercícios (séries, repetições, carga, descanso, sistema, observação) e orientações;
+- `origin.kind`: sempre `consolidated`, com `releasedAt`; o aluno não recebe IDs da Montagem nem contexto técnico do professor;
+- `status` é somente uma projeção de leitura no vocabulário canônico da #389 (`planned` legado é exposto como `not_started`), sem criar autoridade ou transição paralela;
+- `execution.available = false` até o contrato canônico de execução (#389) existir.
+
+Estados de UI: carregamento, sem treino hoje, treino em preparação, erro recuperável com tentar novamente e contrato não selecionado. Ações de iniciar e "não vou conseguir treinar" ficam desabilitadas com explicação enquanto `execution.available` for `false`.
+
 ### Agenda
 
 Consumir inicialmente:

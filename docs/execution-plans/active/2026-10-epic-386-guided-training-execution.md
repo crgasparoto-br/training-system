@@ -69,7 +69,7 @@ Invariantes:
 
 ### Base da experiencia
 
-- #387 - rotina semanal e Treino de hoje;
+- #387 - rotina semanal e Treino de hoje; contrato de leitura implementado (`docs/execution-plans/active/2026-10-issue-387-weekly-routine-today-workout.md`), controles de execucao aguardam a #389;
 - #388 - check-in pre-treino;
 - #389 - execucao e lifecycle da sessao;
 - #390 - feedback pos-treino;

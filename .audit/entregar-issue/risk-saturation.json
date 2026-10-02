@@ -1,17 +1,1 @@
-{
-  "schema_version": 2,
-  "artifact_format": "base64-shards-v1",
-  "artifact_kind": "risk-saturation",
-  "compression": "gzip",
-  "encoded_size": 2036,
-  "encoded_sha256": "6ba348105ac92ffac0603f0ca8c72d4c5b285623dbb265f4bd2d5dcc7102710c",
-  "decoded_size": 5958,
-  "decoded_sha256": "65e0e4022849cfacdf4449cb15c28214b0d1b29a63ce2a9ace63651d9eef154d",
-  "parts": [
-    {
-      "path": "risk-saturation.parts/part-000.b64",
-      "size": 2036,
-      "sha256": "6ba348105ac92ffac0603f0ca8c72d4c5b285623dbb265f4bd2d5dcc7102710c"
-    }
-  ]
-}
+{"schema_version":1,"head_sha":"1a94260c34b96611f3be6912a7a00b57829f831f","families":[{"family":"authorization","applicable":true,"status":"passed","control_ids":["POS-REQ-007","NEG-REQ-007"]},{"family":"tenant-isolation","applicable":true,"status":"passed","control_ids":["POS-REQ-006","NEG-REQ-006"]},{"family":"public-boundary","applicable":true,"status":"passed","control_ids":["POS-REQ-003","NEG-REQ-004","NEG-REQ-005"]},{"family":"reference-liveness","applicable":false,"status":"not-applicable","control_ids":[]},{"family":"temporal-consistency","applicable":true,"status":"passed","control_ids":["POS-REQ-010","NEG-REQ-010"]},{"family":"temporal-destination","applicable":false,"status":"not-applicable","control_ids":[]},{"family":"concurrency-atomicity","applicable":false,"status":"not-applicable","control_ids":[]},{"family":"idempotency","applicable":false,"status":"not-applicable","control_ids":[]},{"family":"rollback","applicable":true,"status":"passed","control_ids":["POS-REQ-009","NEG-REQ-009"]},{"family":"historical-immutability","applicable":false,"status":"not-applicable","control_ids":[]},{"family":"structural-contract","applicable":true,"status":"passed","control_ids":["POS-REQ-001","NEG-REQ-002","NEG-REQ-008"]},{"family":"documentation","applicable":true,"status":"passed","control_ids":["POS-REQ-DOC","NEG-REQ-DOC"]}],"material_families_missing_controls":[]}

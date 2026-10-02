@@ -1,36 +1,24 @@
 {
   "schema_version": 1,
-  "material_head_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
-  "base_sha": "69ccdd213fac28265d83cbee2a3460396f691ab1",
+  "material_head_sha": "ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f",
+  "base_sha": "8faf1e9eb0f1e68482dea62aa8c50af51b801acf",
   "evidence": [
     {
-      "evidence_id": "EV-Q-009",
-      "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/EV-Q-009.txt",
-      "sha256": "73e57cb258d4cd0b6c5e5d1cef7ad5ba06bc8f1b06804e489e27577292c70a0a",
-      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence_id": "E-CI-387",
+      "kind": "ci-exact-head",
+      "path": "evidence/ci-exact-head-387.txt",
+      "subject_sha": "ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f",
       "freshness_policy": "exact-material-head",
-      "producer": "issue467 exact-head focused validation",
+      "producer": "GitHub Actions",
       "status": "passed"
     },
     {
-      "evidence_id": "EV-Q-024",
-      "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/EV-Q-024.txt",
-      "sha256": "f371db7f51ba432f2a42ec209ea4a180e0ab3f9e85d27528dd245235093eef3f",
-      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
+      "evidence_id": "E-FINALIZE-387",
+      "kind": "delivery-finalization",
+      "path": "evidence/finalize-after-ci-387.txt",
+      "subject_sha": "ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f",
       "freshness_policy": "exact-material-head",
-      "producer": "issue467 exact-head focused validation",
-      "status": "passed"
-    },
-    {
-      "evidence_id": "EV-Q-045",
-      "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/EV-Q-045.txt",
-      "sha256": "d979b750699d7e0b7af7c2237488fee7ec74a84156fd1c50e9337cb211c49327",
-      "subject_sha": "eed10c8ac43146dca93ab72739a29c3c5924453c",
-      "freshness_policy": "exact-material-head",
-      "producer": "issue467 exact-head focused validation",
+      "producer": "entregar-issue",
       "status": "passed"
     }
   ]

@@ -44,6 +44,19 @@ A integração operacional da issue #319 adicionou preparação e rastreabilidad
 
 Os contratos permanentes estão em `docs/product/consolidated-prescription-operational-integration.md` e `docs/product/consolidated-prescription-operational-release.md`.
 
+## Rotina semanal e Treino de hoje (#387)
+
+`apps/api/src/modules/workout/training-routine.service.ts` é a única leitura da rotina semanal e do Treino de hoje. Ele é somente leitura e não grava estado de sessão; o lifecycle de execução pertence à #389.
+
+- `GET /api/v1/student/me/training-routine`: aluno autenticado, contexto resolvido pelo `student/me` e `x-contract-id`;
+- `GET /api/v1/alunos/:id/training-routine`: professor na Central, exige `students.details.trainingPlans` (tela pai `students.details`), responsabilidade sobre o aluno (master: contrato) e `Aluno.contractId` igual ao do token; fora do escopo responde `404`;
+- as consultas começam em `WorkoutTemplate.released = true`, `TrainingPlan.alunoId` e `Aluno.contractId`, mas só publicam sessões cujo template possua `ConsolidatedPrescriptionOperationalRelease` do mesmo aluno/contrato; um template `released=true` sem release consolidado é ignorado por esta projeção;
+- a resposta usa o mapeamento público `TrainingRoutineView` (`packages/types/training-routine.ts`); a visão do aluno omite IDs da Montagem e o contexto técnico do professor;
+- parâmetros cíclicos preservam tempo, distância, FC, velocidade e pace quando disponíveis; `WorkoutDay.status=planned` é projetado como `not_started`, usando o vocabulário público da #389 sem autorizar transições;
+- `execution.available` permanece `false` até existir o contrato canônico da #389.
+
+As regras de produto estão em `docs/product/student-centered-training-experience.md`.
+
 ## Adipometria (ADPT)
 
 O módulo `apps/api/src/modules/adipometry` é montado em `/api/v1/adipometry`.

@@ -41,6 +41,12 @@ A matriz de regressao do fluxo esta em `docs/profile-review-e2e-validation.md`. 
 - `pnpm test`
 - `pnpm access:check`
 
+## Treino de hoje e rotina semanal
+
+`components/training/TrainingRoutinePanel.tsx` renderiza a rotina semanal e o Treino de hoje para o aluno (`/student/training`) e para o professor na aba Aluno 360 da Central. O painel recebe a função de carregamento e trata localmente carregamento, vazio, sessão não liberada, permissão negada e erro com nova tentativa, sem derrubar os demais blocos da Central. Na Central ele só consulta a API quando o perfil possui `students.details.trainingPlans`.
+
+O painel e `services/training-routine.service.ts` são somente leitura. Controles de execução ficam desabilitados enquanto a API declarar `execution.available = false`; não há estado de sessão local nem chamada a endpoints de execução. O card legado baseado em `Microcycle` foi removido da Central.
+
 ## Mapa corporal de desconforto
 
 `BodyDiscomfortMap` compoe a ilustracao, as areas clicaveis e os marcadores visiveis no mesmo SVG com `viewBox="0 0 400 600"`. Todos escalam juntos; nao posicionar marcadores por pixels de tela ou em uma camada HTML independente. As coordenadas de `bodyRegions.ts` foram calibradas para `body-front.png` e `body-back-clinical.png`; ao trocar uma ilustracao, revisar ambas as vistas em desktop e mobile.

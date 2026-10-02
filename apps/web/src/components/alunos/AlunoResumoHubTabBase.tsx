@@ -1,10 +1,13 @@
+import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/Card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/Accordion';
 import { Button } from '../ui/Button';
 import { isDateWithinRange, formatDateBR } from '../../utils/date';
 import type { Aluno, StudentContractLink, StudentSegmentedSummary } from '../../services/aluno.service';
-import type { Microcycle, TrainingPlan } from '../../services/plan.service';
+import type { TrainingPlan } from '../../services/plan.service';
+import { TrainingRoutinePanel } from '../training/TrainingRoutinePanel';
+import { trainingRoutineService } from '../../services/training-routine.service';
 import type { Assessment, AssessmentSummary } from '../../services/assessment.service';
 
 type AlunoResumoHubTabProps = {
@@ -14,13 +17,8 @@ type AlunoResumoHubTabProps = {
   plans: TrainingPlan[];
   activeStudentContract?: StudentContractLink | null;
   segmentedSummary?: StudentSegmentedSummary | null;
-};
-
-type ScheduledSession = {
-  plan: TrainingPlan;
-  session: Microcycle;
-  date: Date;
-  mesocycleFocus?: string | null;
+  /** `students.details.trainingPlans`: a rotina só é consultada quando o bloco está liberado. */
+  canViewTraining?: boolean;
 };
 
 type SummaryCardTone = 'ok' | 'pending' | 'attention' | 'neutral';
@@ -82,37 +80,7 @@ const getRecordText = (record: Record<string, unknown> | null | undefined, keys:
 
 const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
-const addDays = (date: Date, days: number) => {
-  const nextDate = new Date(date);
-  nextDate.setDate(nextDate.getDate() + days);
-  return nextDate;
-};
-
-const isSameDay = (left: Date, right: Date) =>
-  startOfDay(left).getTime() === startOfDay(right).getTime();
-
-const formatDuration = (minutes?: number | null) => {
-  if (!minutes) return 'Tempo não informado';
-  if (minutes < 60) return `${minutes} min`;
-
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}min` : `${hours}h`;
-};
-
 const formatNullableDate = (value?: string | null) => (value ? formatDateBR(value) : 'Não informada');
-
-const sessionTypeLabels: Record<string, string> = {
-  easy_run: 'Corrida leve',
-  tempo_run: 'Corrida tempo',
-  interval: 'Intervalado',
-  long_run: 'Corrida longa',
-  recovery: 'Recuperação',
-  strength: 'Fortalecimento',
-  rest: 'Descanso',
-};
-
-const dayLabels = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 const studentContractStatusLabel: Record<string, string> = {
   draft: 'Rascunho',
@@ -144,45 +112,6 @@ const summaryToneBadgeClass: Record<SummaryCardTone, string> = {
   pending: 'border-amber-200 bg-amber-100 text-amber-700',
   attention: 'border-red-200 bg-red-100 text-red-700',
   neutral: 'border-border bg-background text-muted-foreground',
-};
-
-const formatSessionTitle = (session: Microcycle) =>
-  sessionTypeLabels[session.sessionType] || 'Sessão de treino';
-
-const formatSessionTarget = (session: Microcycle) => {
-  const details = [formatDuration(session.durationMinutes)];
-
-  if (session.distanceKm) details.push(`${session.distanceKm.toLocaleString('pt-BR')} km`);
-  if (session.intensityPercentage) details.push(`${session.intensityPercentage}% intensidade`);
-  if (session.heartRateZone) details.push(`Zona ${session.heartRateZone}`);
-
-  return details.join(' • ');
-};
-
-const buildScheduledSessions = (plans: TrainingPlan[]) => {
-  const sessions: ScheduledSession[] = [];
-
-  plans.forEach((plan) => {
-    plan.macrocycles?.forEach((macrocycle) => {
-      macrocycle.mesocycles?.forEach((mesocycle) => {
-        const mesocycleStart = safeDate(mesocycle.startDate);
-        const mesocycleEnd = safeDate(mesocycle.endDate);
-
-        if (!mesocycleStart || !mesocycleEnd) return;
-
-        mesocycle.microcycles?.forEach((session) => {
-          const daysUntilSession = (session.dayOfWeek - mesocycleStart.getDay() + 7) % 7;
-          const sessionDate = startOfDay(addDays(mesocycleStart, daysUntilSession));
-
-          if (sessionDate <= startOfDay(mesocycleEnd)) {
-            sessions.push({ plan, session, date: sessionDate, mesocycleFocus: mesocycle.focus });
-          }
-        });
-      });
-    });
-  });
-
-  return sessions.sort((left, right) => left.date.getTime() - right.date.getTime());
 };
 
 const getAssessmentResponsibleName = (assessment: Assessment) =>
@@ -239,15 +168,15 @@ export function AlunoResumoHubTab({
   plans,
   activeStudentContract,
   segmentedSummary,
+  canViewTraining = true,
 }: AlunoResumoHubTabProps) {
   const now = new Date();
   const today = startOfDay(now);
+  const loadTrainingRoutine = useCallback(
+    (date?: string) => trainingRoutineService.getForAluno(aluno.id, { date }),
+    [aluno.id]
+  );
   const activePlan = plans.find((plan) => isDateWithinRange(now, plan.startDate, plan.endDate));
-  const scheduledSessions = buildScheduledSessions(plans);
-  const todaySessions = scheduledSessions.filter((item) => isSameDay(item.date, today));
-  const upcomingSessions = scheduledSessions
-    .filter((item) => startOfDay(item.date).getTime() > today.getTime())
-    .slice(0, 4);
   const assessmentsByDate = [...assessments].sort((left, right) => {
     const leftDate = safeDate(left.assessmentDate)?.getTime() ?? 0;
     const rightDate = safeDate(right.assessmentDate)?.getTime() ?? 0;
@@ -400,16 +329,6 @@ export function AlunoResumoHubTab({
       empty: !observations && !allergies,
     },
   ];
-  const todayStatusTitle = todaySessions.length
-    ? 'Treino planejado para hoje'
-    : activePlan
-      ? 'Sem sessão planejada para hoje'
-      : 'Sem treino liberado hoje';
-  const todayStatusDescription = todaySessions.length
-    ? 'Use as orientações abaixo para acompanhar a execução operacional do aluno.'
-    : activePlan
-      ? 'Existe plano ativo, mas nenhuma sessão do plano cai na data de hoje.'
-      : 'Nenhum plano ativo foi encontrado para a data de hoje.';
   const prntEvidenceParts = [
     hasPrntIntake ? `Anamnese em ${formatDateBR(displayIntakeDate as string)}` : 'Anamnese pendente',
     hasPrntGoal ? `Objetivo: ${displayMainGoal}` : 'Objetivo pendente',
@@ -494,67 +413,12 @@ export function AlunoResumoHubTab({
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader>
-          <CardTitle>Aluno selecionado</CardTitle>
-          <CardDescription>
-            Resumo operacional para navegar entre treino de hoje, prontuário, avaliação, prescrição futura e histórico sem perder o contexto do aluno.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-            <div className="rounded-lg border border-border bg-background p-4">
-              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Treino de hoje</p>
-                  <h3 className="mt-2 text-lg font-semibold text-foreground">{todayStatusTitle}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{todayStatusDescription}</p>
-                </div>
-                <span className="inline-flex w-fit rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground">
-                  {formatDateBR(now.toISOString())}
-                </span>
-              </div>
-              <div className="mt-4 space-y-3">
-                {todaySessions.length > 0 ? (
-                  todaySessions.map(({ session, plan, mesocycleFocus }) => (
-                    <div key={session.id} className="rounded-lg border border-border bg-muted/30 p-3">
-                      <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-                        <p className="text-sm font-semibold text-foreground">{formatSessionTitle(session)}</p>
-                        <p className="text-xs text-muted-foreground">{plan.name}</p>
-                      </div>
-                      <p className="mt-1 text-sm text-muted-foreground">{formatSessionTarget(session)}</p>
-                      {mesocycleFocus && <p className="mt-2 text-xs text-muted-foreground">Objetivo do mesociclo: {mesocycleFocus}</p>}
-                      {session.instructions && <p className="mt-2 text-sm text-foreground">{session.instructions}</p>}
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3 text-sm text-muted-foreground">
-                    Quando a montagem consolidada existir, este bloco deve exibir somente treinos liberados e validados pelo professor.
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="rounded-lg border border-border bg-background p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Próximas sessões</p>
-              <div className="mt-3 space-y-3">
-                {upcomingSessions.length > 0 ? (
-                  upcomingSessions.map(({ session, plan, date }) => (
-                    <div key={`${session.id}-${date.toISOString()}`} className="flex gap-3 rounded-lg border border-border bg-muted/20 p-3">
-                      <div className="min-w-20 text-xs font-medium text-muted-foreground">
-                        {dayLabels[date.getDay()]}<br />{formatDateBR(date.toISOString())}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground">{formatSessionTitle(session)}</p>
-                        <p className="text-xs text-muted-foreground">{plan.name}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{formatSessionTarget(session)}</p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground">Nenhuma sessão futura encontrada nos planos carregados deste aluno.</p>
-                )}
-              </div>
-            </div>
-          </div>
+        <CardContent className="p-4 sm:p-6">
+          <TrainingRoutinePanel
+            audience="professor"
+            canView={canViewTraining}
+            load={loadTrainingRoutine}
+          />
         </CardContent>
       </Card>
 
