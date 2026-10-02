@@ -57,6 +57,18 @@ Os contratos permanentes estão em `docs/product/consolidated-prescription-opera
 
 As regras de produto estão em `docs/product/student-centered-training-experience.md`.
 
+## Check-in pré-treino (#388)
+
+O check-in usa `PreWorkoutCheckIn` como fonte canônica única por `WorkoutDay`. A escrita do aluno ocorre em `PUT /api/v1/student/me/training-sessions/:sessionId/check-in`; aluno, contrato e ator são derivados da sessão autenticada e nunca do body.
+
+- a sessão precisa pertencer ao aluno/contrato autenticado, estar liberada pela Montagem Consolidada e permanecer em `WorkoutDay.status=planned` (projeção pública `not_started`);
+- a transação serializável bloqueia a linha de `WorkoutDay` antes da revalidação definitiva, serializando a corrida entre salvar check-in e iniciar a sessão;
+- `PreWorkoutCheckInOperation` registra `operationKey` e fingerprint do payload para retry idempotente; reutilizar a mesma chave com dados diferentes é conflito;
+- o snapshot de regra persiste a versão `pre-workout-check-in-v1`; somente dor/desconforto possui triagem canônica nesta entrega;
+- `StudentLifecycleEvent` recebe apenas IDs, ação e versão da regra. Os valores do check-in não são duplicados na timeline;
+- a rotina compartilhada projeta linguagem prática ao aluno e contexto técnico/versionamento apenas ao professor autorizado;
+- não existe score composto de prontidão, bloqueio clínico nem alteração automática da prescrição ou do treino.
+
 ## Adipometria (ADPT)
 
 O módulo `apps/api/src/modules/adipometry` é montado em `/api/v1/adipometry`.
