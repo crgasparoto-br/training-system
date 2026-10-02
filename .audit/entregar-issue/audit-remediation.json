@@ -1,7 +1,1 @@
-{
-  "schema_version": 1,
-  "contract_version": "2026-08-20.3",
-  "status": "not-applicable",
-  "candidate_head_sha": "ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f",
-  "reason": "current target has no independent rejection to remediate; this commit only repairs inherited/stale delivery handoff"
-}
+{"schema_version":1,"contract_version":"2026-08-20.3","status":"closed","candidate_head_sha":"1a94260c34b96611f3be6912a7a00b57829f831f","rejection_id":"audit-rejection:17c16d95-fb8a-4244-aef0-52816001fa85","items":[{"finding_id":"AUD-492-001","status":"fixed","remediation_mode":"targeted-remediation","action":"Refreeze the current material head after post-handoff material drift and publish a fresh exact-head result-only handoff.","evidence":["evidence/ci-exact-head-387.txt","handoff-ready.json"],"subject_sha":"1a94260c34b96611f3be6912a7a00b57829f831f"}]}
