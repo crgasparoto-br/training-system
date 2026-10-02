@@ -73,8 +73,10 @@ const exercise = (id: string, section: string, order: number) => ({
 describe('training routine service (#387)', () => {
   const findMany = jest.fn();
   const queryRaw = jest.fn();
+  const preWorkoutCheckInFindMany = jest.fn();
   const client = {
     workoutDay: { findMany },
+    preWorkoutCheckIn: { findMany: preWorkoutCheckInFindMany },
     $queryRaw: queryRaw,
   } as unknown as PrismaClient;
   const service = createTrainingRoutineService(client);
@@ -91,6 +93,7 @@ describe('training routine service (#387)', () => {
     pendingRows = [];
     capacityRows = [];
     releaseRows = [makeRelease()];
+    preWorkoutCheckInFindMany.mockResolvedValue([]);
     findMany.mockImplementation((args: any) =>
       Promise.resolve(args.where.template.released ? releasedRows : pendingRows)
     );
