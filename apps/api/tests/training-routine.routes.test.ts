@@ -4,6 +4,8 @@ const request = require('supertest');
 
 const mockAlunoFindFirst = jest.fn();
 const mockGetRoutine = jest.fn();
+const mockGetCheckIn = jest.fn();
+const mockSaveCheckIn = jest.fn();
 const mockResolveActiveStudentMembership = jest.fn();
 const mockBlockAccessMiddleware = jest.fn(
   () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
@@ -35,6 +37,20 @@ jest.mock('../src/modules/workout/training-routine.service', () => {
   return {
     trainingRoutineService: { getRoutine: mockGetRoutine },
     TrainingRoutineInputError,
+  };
+});
+
+jest.mock('../src/modules/workout/pre-workout-check-in.service', () => {
+  class PreWorkoutCheckInInputError extends Error {}
+  class PreWorkoutCheckInNotFoundError extends Error {}
+  class PreWorkoutCheckInConflictError extends Error {
+    code = 'PRE_WORKOUT_CHECK_IN_LOCKED';
+  }
+  return {
+    preWorkoutCheckInService: { getForSession: mockGetCheckIn, saveForStudent: mockSaveCheckIn },
+    PreWorkoutCheckInInputError,
+    PreWorkoutCheckInNotFoundError,
+    PreWorkoutCheckInConflictError,
   };
 });
 
@@ -89,6 +105,8 @@ describe('training routine HTTP boundaries (#387)', () => {
 
   beforeEach(() => {
     mockGetRoutine.mockReset().mockResolvedValue(routine);
+    mockGetCheckIn.mockReset().mockResolvedValue(null);
+    mockSaveCheckIn.mockReset().mockResolvedValue({ id: 'checkin-1', editable: true });
     mockAlunoFindFirst.mockReset();
     mockResolveActiveStudentMembership.mockReset();
     (alunoService.belongsToContract as jest.Mock).mockReset().mockResolvedValue(true);
@@ -142,6 +160,55 @@ describe('training routine HTTP boundaries (#387)', () => {
       expect(response.status).toBe(500);
       expect(JSON.stringify(response.body)).not.toContain('10.0.0.1');
       consoleError.mockRestore();
+    });
+  });
+
+  describe('pre-workout check-in student boundary (#388)', () => {
+    beforeEach(() => {
+      mockUser = { userId: 'user-1', type: 'aluno' };
+      mockResolveActiveStudentMembership.mockResolvedValue({ id: 'aluno-1', contractId: 'contract-1' });
+      mockAlunoFindFirst.mockResolvedValue({ id: 'aluno-1', contractId: 'contract-1', user: { id: 'user-1' } });
+    });
+
+    it('deriva aluno, contrato e ator da sessão e não aceita tenant/aluno do body', async () => {
+      const response = await request(app)
+        .put('/student/me/training-sessions/day-1/check-in')
+        .set('x-contract-id', 'contract-1')
+        .send({
+          operationKey: 'operation-123',
+          psr: 8,
+          alunoId: 'aluno-outro',
+          contractId: 'contract-outro',
+        });
+
+      expect(response.status).toBe(400);
+      expect(mockSaveCheckIn).not.toHaveBeenCalled();
+
+      const valid = await request(app)
+        .put('/student/me/training-sessions/day-1/check-in')
+        .set('x-contract-id', 'contract-1')
+        .send({ operationKey: 'operation-123', psr: 8 });
+
+      expect(valid.status).toBe(200);
+      expect(mockSaveCheckIn).toHaveBeenCalledWith({
+        sessionId: 'day-1',
+        alunoId: 'aluno-1',
+        contractId: 'contract-1',
+        actorUserId: 'user-1',
+        payload: { operationKey: 'operation-123', psr: 8 },
+      });
+    });
+
+    it('não grava se o vínculo contratual não puder ser resolvido', async () => {
+      mockResolveActiveStudentMembership.mockRejectedValue(
+        new StudentAccountContextError('Selecione o contrato', 'STUDENT_CONTRACT_CONTEXT_REQUIRED')
+      );
+      const response = await request(app)
+        .put('/student/me/training-sessions/day-1/check-in')
+        .send({ operationKey: 'operation-123', fatigue: 3 });
+
+      expect(response.status).toBe(409);
+      expect(mockSaveCheckIn).not.toHaveBeenCalled();
     });
   });
 
