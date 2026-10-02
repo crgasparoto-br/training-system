@@ -55,14 +55,14 @@ const session = {
   sessionId: 'day-today', workoutTemplateId: 'template-1', trainingPlanId: 'plan-1',
   planName: 'Plano Performance com nome longo para validar responsividade', date: TODAY, dayOfWeek: 3,
   mesocycleNumber: 2, weekNumber: 4, modalities: ['resistance', 'cyclic'], durationMin: 75,
-  location: 'Academia principal', method: 'Forca', status: 'planned',
+  location: 'Academia principal', method: 'Forca', status: 'not_started',
   origin: { kind: 'consolidated', releasedAt: '2026-09-27T10:00:00.000Z' },
 };
 const detail = {
   ...session,
   objective: 'Ganhar forca nas pernas com tecnica controlada',
   guidelines: ['Pare se sentir dor.', 'Hidrate-se entre os blocos.'],
-  cyclic: { durationMin: 20, heartRate: { min: '120', max: '150' }, speed: null, pace: { min: '6:00', max: '6:30' } },
+  cyclic: { durationMin: 20, distanceKm: 5, heartRate: { min: '120', max: '150' }, speed: null, pace: { min: '6:00', max: '6:30' } },
   blocks: [
     { key: 'warmup', exercises: [{ id: 'ex-0', order: 1, name: 'Mobilidade de quadril', system: null, sets: 2, reps: 10, loadKg: null, intervalSec: 30, notes: null }] },
     { key: 'main', exercises: [{ id: 'ex-1', order: 1, name: 'Agachamento livre', system: 'Series', sets: 4, reps: 10, loadKg: 20, intervalSec: 60, notes: 'Movimento controlado' }] },

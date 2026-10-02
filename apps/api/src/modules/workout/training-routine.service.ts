@@ -8,8 +8,8 @@ import type {
   TrainingRoutineDay,
   TrainingRoutineModality,
   TrainingRoutineRange,
+  TrainingRoutineExecutionProjectionStatus,
   TrainingRoutineSessionDetail,
-  TrainingRoutineSessionStatus,
   TrainingRoutineSessionSummary,
   TrainingRoutineView,
 } from '@corrida/types';
@@ -75,6 +75,7 @@ const sessionSelect = {
       trainingMethod: true,
       trainingDivision: true,
       repReserve: true,
+      totalVolumeKm: true,
       plan: { select: { id: true, name: true } },
     },
   },
@@ -170,12 +171,18 @@ const toRange = (
 function buildCyclicTargets(row: SessionRow): TrainingRoutineCyclicTargets | null {
   const targets: TrainingRoutineCyclicTargets = {
     durationMin: row.cyclicTimeMin ?? row.stimulusDurationMin ?? null,
+    distanceKm: row.template.totalVolumeKm ?? null,
     heartRate: toRange(row.targetHrMin, row.targetHrMax),
     speed: toRange(row.targetSpeedMin, row.targetSpeedMax),
     pace: toRange(row.paceMin, row.paceMax),
   };
   const hasTargets =
-    targets.durationMin !== null || targets.heartRate || targets.speed || targets.pace || row.vo2maxPct !== null;
+    targets.durationMin !== null ||
+    targets.distanceKm !== null ||
+    targets.heartRate ||
+    targets.speed ||
+    targets.pace ||
+    row.vo2maxPct !== null;
   return hasTargets ? targets : null;
 }
 
@@ -218,6 +225,17 @@ function buildBlocks(row: SessionRow): TrainingRoutineBlock[] {
   }));
 }
 
+function projectExecutionStatus(status: SessionRow['status']): TrainingRoutineExecutionProjectionStatus {
+  switch (status) {
+    case 'planned':
+      return 'not_started';
+    case 'in_progress':
+      return 'in_progress';
+    case 'completed':
+      return 'completed';
+  }
+}
+
 function toSummary(
   row: SessionRow,
   audience: TrainingRoutineAudience,
@@ -244,7 +262,7 @@ function toSummary(
     durationMin: resolveDuration(row),
     location: cleanText(row.location),
     method: cleanText(row.method),
-    status: row.status as TrainingRoutineSessionStatus,
+    status: projectExecutionStatus(row.status),
     origin: {
       kind: 'consolidated',
       releasedAt: row.template.releasedAt?.toISOString() ?? null,

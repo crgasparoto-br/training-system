@@ -19,7 +19,7 @@ const session = (overrides: Partial<TrainingRoutineSessionDetail> = {}): Trainin
   durationMin: 60,
   location: 'Academia',
   method: 'Seriado',
-  status: 'planned',
+  status: 'not_started',
   origin: { kind: 'consolidated', releasedAt: '2026-09-28T12:00:00.000Z' },
   objective: 'Ganhar força',
   guidelines: ['Beba água durante o treino.'],
@@ -76,6 +76,28 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(screen.getByText(/Treino liberado pelo seu professor/)).toBeInTheDocument();
   });
 
+  it('apresenta distância prescrita quando a projeção operacional consolidada a fornece', async () => {
+    const cyclicSession = session({
+      modalities: ['cyclic'],
+      cyclic: {
+        durationMin: 30,
+        distanceKm: 5,
+        heartRate: null,
+        speed: null,
+        pace: null,
+      },
+    });
+    render(
+      <TrainingRoutinePanel
+        audience="student"
+        load={vi.fn().mockResolvedValue(routine({ today: { date: '2026-10-01', state: 'released', sessions: [cyclicSession] } }))}
+      />
+    );
+
+    expect(await screen.findByText('Distância prevista')).toBeInTheDocument();
+    expect(screen.getByText('5 km')).toBeInTheDocument();
+  });
+
   it('mostra a rotina semanal com hoje, recuperação e treino em preparação distintos', async () => {
     render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(routine())} />);
 
@@ -99,7 +121,7 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(screen.getByText(/registro do treino pelo aplicativo ainda não está disponível/)).toBeInTheDocument();
     await userEvent.click(start).catch(() => undefined);
     expect(load).toHaveBeenCalledTimes(1);
-    expect(screen.getAllByText('Planejado').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Não iniciado').length).toBeGreaterThan(0);
   });
 
   it('distingue sessão ainda não liberada de dia sem treino', async () => {

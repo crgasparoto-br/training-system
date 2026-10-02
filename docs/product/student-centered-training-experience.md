@@ -96,10 +96,10 @@ A rotina semanal e o Treino de hoje sao uma leitura do grafo operacional liberad
 - **Origem**: cada sessao informa `origin.kind = consolidated`. A visao do professor recebe release, montagem e versoes; a do aluno recebe somente a origem e a data de liberacao.
 - **Semana**: semana civil de segunda a domingo que contem a data de referencia; sessoes em ordem `workoutDate`, `dayOfWeek`, `id`. Dia sem sessao consolidada liberada nem pendente e apresentado como recuperacao.
 - **Hoje**: data civil no fuso `America/Sao_Paulo`, calculada no backend. Estados distintos: `released`, `not_released` (existe sessao `released=false`) e `none`. Falta de permissao e erro de carregamento sao estados da interface, distintos destes.
-- **Modalidade**: derivada de dados persistidos, nunca de texto livre: exercicios -> musculacao; tempo/FC/velocidade/pace/VO2 -> aerobio; `WorkoutDayCapacityOperationalBlock` -> flexibilidade/equilibrio.
+- **Modalidade**: derivada de dados persistidos, nunca de texto livre: exercicios -> musculacao; tempo/distancia/FC/velocidade/pace/VO2 -> aerobio; `WorkoutDayCapacityOperationalBlock` -> flexibilidade/equilibrio.
 - **Blocos**: `WorkoutExercise.section` `mobilidade`/`aquecimento` -> aquecimento; `sessao`/`principal` -> parte principal; `resfriamento`/`finalizacao` -> finalizacao; demais secoes -> outros, preservando a ordem persistida.
 - **Aluno x professor**: o aluno ve objetivo pratico (`studentGoal`), parametros, orientacoes e alerta de seguranca generico. Objetivo do professor (`coachGoal`), metodo, divisao, RIR e VO2 ficam no contexto tecnico restrito ao professor.
-- **Execucao**: o status exibido e o `WorkoutDay.status` persistido. A resposta declara `execution.available = false` ate a #389 publicar o contrato canonico; enquanto isso as acoes de iniciar e registrar impossibilidade aparecem desabilitadas, sem persistencia, sucesso local ou endpoint temporario.
+- **Execucao**: o status exibido e uma projecao somente leitura no vocabulario publico canonico da #389; `WorkoutDay.status = planned` legado e exposto como `not_started`. A #387 nao define transicoes nem cria autoridade concorrente. A resposta declara `execution.available = false` ate a #389 publicar o contrato canonico; enquanto isso as acoes de iniciar e registrar impossibilidade aparecem desabilitadas, sem persistencia, sucesso local ou endpoint temporario.
 
 ### Modo guiado de execucao
 

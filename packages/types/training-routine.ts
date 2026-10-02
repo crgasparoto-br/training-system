@@ -8,8 +8,14 @@
 
 export type TrainingRoutineAudience = 'student' | 'professor';
 
-/** Estado persistido do lifecycle canônico, apenas exibido por este contrato. */
-export type TrainingRoutineSessionStatus = 'planned' | 'in_progress' | 'completed';
+/** Projeção somente leitura no vocabulário público canônico da #389; não autoriza transições. */
+export type TrainingRoutineExecutionProjectionStatus =
+  | 'not_started'
+  | 'in_progress'
+  | 'paused'
+  | 'completed'
+  | 'partial'
+  | 'not_performed';
 
 export type TrainingRoutineModality = 'resistance' | 'cyclic' | 'flexibility' | 'balance';
 
@@ -51,7 +57,7 @@ export interface TrainingRoutineSessionSummary {
   durationMin: number | null;
   location: string | null;
   method: string | null;
-  status: TrainingRoutineSessionStatus;
+  status: TrainingRoutineExecutionProjectionStatus;
   origin: TrainingRoutineOrigin;
 }
 
@@ -74,6 +80,7 @@ export interface TrainingRoutineBlock {
 
 export interface TrainingRoutineCyclicTargets {
   durationMin: number | null;
+  distanceKm: number | null;
   heartRate: TrainingRoutineRange | null;
   speed: TrainingRoutineRange | null;
   pace: TrainingRoutineRange | null;

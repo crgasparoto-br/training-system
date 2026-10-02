@@ -6,8 +6,8 @@ import type {
   TrainingRoutineDay,
   TrainingRoutineExercise,
   TrainingRoutineModality,
+  TrainingRoutineExecutionProjectionStatus,
   TrainingRoutineSessionDetail,
-  TrainingRoutineSessionStatus,
   TrainingRoutineView,
 } from '@corrida/types';
 import { Button } from '../ui/Button';
@@ -32,16 +32,22 @@ export const modalityLabels: Record<TrainingRoutineModality, string> = {
   balance: 'Equilíbrio',
 };
 
-export const sessionStatusLabels: Record<TrainingRoutineSessionStatus, string> = {
-  planned: 'Planejado',
+export const sessionStatusLabels: Record<TrainingRoutineExecutionProjectionStatus, string> = {
+  not_started: 'Não iniciado',
   in_progress: 'Em andamento',
+  paused: 'Pausado',
   completed: 'Concluído',
+  partial: 'Parcial',
+  not_performed: 'Não realizado',
 };
 
-const sessionStatusClass: Record<TrainingRoutineSessionStatus, string> = {
-  planned: 'border-border bg-background text-muted-foreground',
+const sessionStatusClass: Record<TrainingRoutineExecutionProjectionStatus, string> = {
+  not_started: 'border-border bg-background text-muted-foreground',
   in_progress: 'border-amber-200 bg-amber-50 text-amber-800',
+  paused: 'border-amber-200 bg-amber-50 text-amber-800',
   completed: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+  partial: 'border-orange-200 bg-orange-50 text-orange-800',
+  not_performed: 'border-border bg-muted/40 text-muted-foreground',
 };
 
 const blockLabels: Record<TrainingRoutineBlockKey, string> = {
@@ -93,7 +99,7 @@ function exercisePrescription(item: TrainingRoutineExercise) {
   return parts.join(' · ');
 }
 
-function StatusBadge({ status }: { status: TrainingRoutineSessionStatus }) {
+function StatusBadge({ status }: { status: TrainingRoutineExecutionProjectionStatus }) {
   return (
     <span className={`inline-flex w-fit shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium ${sessionStatusClass[status]}`}>
       {sessionStatusLabels[status]}
@@ -132,6 +138,7 @@ function TodaySession({
   const cyclicItems = session.cyclic
     ? [
         { label: 'Tempo do aeróbio', value: formatDuration(session.cyclic.durationMin) },
+        { label: 'Distância prevista', value: session.cyclic.distanceKm !== null ? `${session.cyclic.distanceKm.toLocaleString('pt-BR')} km` : null },
         { label: 'Frequência cardíaca alvo', value: formatRange(session.cyclic.heartRate, 'bpm') },
         { label: 'Velocidade alvo', value: formatRange(session.cyclic.speed, 'km/h') },
         { label: 'Ritmo (pace) alvo', value: formatRange(session.cyclic.pace, 'min/km') },
@@ -257,7 +264,7 @@ function TodaySession({
 
       <footer className="space-y-3 border-t border-border pt-3">
         <OriginNote session={session} audience={audience} />
-        {audience === 'student' && session.status !== 'completed' && (
+        {audience === 'student' && !['completed', 'partial', 'not_performed'].includes(session.status) && (
           <div className="space-y-2">
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button type="button" disabled={!executionAvailable} aria-describedby={executionNoteId} className="w-full sm:w-auto">

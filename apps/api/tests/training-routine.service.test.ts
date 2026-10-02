@@ -41,6 +41,7 @@ const makeRow = (overrides: Row = {}): Row => ({
     trainingMethod: 'Hipertrofia',
     trainingDivision: 'AB',
     repReserve: 2,
+    totalVolumeKm: null,
     plan: { id: 'plan-1', name: 'Plano 2026' },
   },
   exercises: [],
@@ -136,7 +137,7 @@ describe('training routine service (#387)', () => {
       trainingPlanId: 'plan-1',
       objective: 'Ganhar força',
       guidelines: ['Hidrate-se'],
-      status: 'planned',
+      status: 'not_started',
     });
   });
 
@@ -240,10 +241,10 @@ describe('training routine service (#387)', () => {
     expect(routine.today.sessions[0].modalities).toEqual(['resistance']);
   });
 
-  it('identifica modalidades pelos dados persistidos da sessão e dos blocos estruturados', async () => {
-    releasedRows = [
-      makeRow({ sessionDurationMin: null, cyclicTimeMin: 30, resistanceTimeMin: 20, targetHrMin: '140', targetHrMax: '150' }),
-    ];
+  it('identifica modalidades e preserva distância da projeção operacional consolidada', async () => {
+    const cyclicRow = makeRow({ sessionDurationMin: null, cyclicTimeMin: 30, resistanceTimeMin: 20, targetHrMin: '140', targetHrMax: '150' });
+    cyclicRow.template.totalVolumeKm = 5;
+    releasedRows = [cyclicRow];
     capacityRows = [{ workoutDayId: 'day-1', capacity: 'flexibility' }];
 
     const routine = await service.getRoutine({ alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now });
@@ -253,10 +254,21 @@ describe('training routine service (#387)', () => {
     expect(session.durationMin).toBe(50);
     expect(session.cyclic).toEqual({
       durationMin: 30,
+      distanceKm: 5,
       heartRate: { min: '140', max: '150' },
       speed: null,
       pace: null,
     });
+  });
+
+  it('projeta o status legado no vocabulário canônico da #389 sem criar segunda autoridade', async () => {
+    releasedRows = [makeRow({ status: 'planned' })];
+    const notStarted = await service.getRoutine({ alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now });
+    expect(notStarted.today.sessions[0].status).toBe('not_started');
+
+    releasedRows = [makeRow({ status: 'in_progress' })];
+    const inProgress = await service.getRoutine({ alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now });
+    expect(inProgress.today.sessions[0].status).toBe('in_progress');
   });
 
   it('declara o contrato de execução como indisponível até a #389', async () => {

@@ -52,7 +52,7 @@ Permitir que aluno e professor consultem a rotina semanal e o Treino de hoje a p
 
 - [x] Rotina semanal lista sessões vigentes em ordem temporal estável.
 - [x] Treino de hoje derivado somente de templates liberados com release da Montagem Consolidada do mesmo aluno/contrato.
-- [x] Objetivo, duração, ordem, parâmetros e orientações apresentados.
+- [x] Objetivo, duração, ordem, parâmetros e orientações apresentados, incluindo distância quando disponível na projeção operacional.
 - [x] Origem rastreável até a Montagem Consolidada quando existir release.
 - [x] Estados sem treino, não liberado, erro e sem permissão distintos.
 - [x] Aluno preservado na navegação (Central inline; aluno preserva `contractId`).
@@ -78,5 +78,5 @@ Permitir que aluno e professor consultem a rotina semanal e o Treino de hoje a p
 ## Decisoes e pendencias
 
 - Semana civil segunda a domingo; "hoje" calculado em `America/Sao_Paulo` no backend.
-- Professor não recebe os controles de execução; o painel mostra o status persistido.
+- Professor não recebe os controles de execução; o painel mostra uma projeção somente leitura no vocabulário canônico da #389 (`planned` legado -> `not_started`), sem definir transições.
 - Pendente: habilitar os controles quando a #389 publicar o contrato canônico e mudar `execution.available`.
