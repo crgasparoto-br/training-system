@@ -235,7 +235,7 @@ function TodaySession({
       <PreWorkoutCheckInCard
         audience={audience}
         sessionStatus={session.status}
-        initialCheckIn={session.preWorkoutCheckIn}
+        initialCheckIn={session.preWorkoutCheckIn ?? null}
         save={saveCheckIn ? (payload) => saveCheckIn(session.sessionId, payload) : undefined}
       />
 
