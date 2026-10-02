@@ -14,6 +14,7 @@ import type {
   TrainingRoutineView,
 } from '@corrida/types';
 import { DEFAULT_CONTRACT_TIME_ZONE } from '../contracts/contract-date-input.js';
+import { projectPreWorkoutCheckIn } from './pre-workout-check-in.service.js';
 
 /**
  * Leitura da rotina semanal e do Treino de hoje (issue #387).
@@ -275,7 +276,8 @@ function toDetail(
   row: SessionRow,
   audience: TrainingRoutineAudience,
   capacities: string[],
-  release: ReleaseRow
+  release: ReleaseRow,
+  checkIn: Awaited<ReturnType<PrismaClient['preWorkoutCheckIn']['findFirst']>>
 ): TrainingRoutineSessionDetail {
   const detail: TrainingRoutineSessionDetail = {
     ...toSummary(row, audience, capacities, release),
@@ -285,6 +287,9 @@ function toDetail(
       .filter((value): value is string => value !== null),
     cyclic: buildCyclicTargets(row),
     blocks: buildBlocks(row),
+    preWorkoutCheckIn: checkIn
+      ? projectPreWorkoutCheckIn(checkIn, audience, projectExecutionStatus(row.status))
+      : null,
   };
 
   if (audience === 'professor') {
@@ -358,6 +363,16 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
       // consolidado (por exemplo, liberação manual do Workout Builder) não
       // participa da rotina semanal nem do Treino de hoje.
       const visibleRows = rows.filter((row) => releaseByTemplate.has(row.template.id));
+      const checkInRows = visibleRows.length
+        ? await client.preWorkoutCheckIn.findMany({
+            where: {
+              workoutDayId: { in: visibleRows.map((row) => row.id) },
+              alunoId: query.alunoId,
+              contractId: query.contractId,
+            },
+          })
+        : [];
+      const checkInBySession = new Map(checkInRows.map((checkIn) => [checkIn.workoutDayId, checkIn]));
       const pendingByDate = new Map<string, number>();
       for (const pending of pendingRows) {
         const key = toDateOnly(pending.workoutDate);
@@ -389,7 +404,9 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
         today: {
           date: today,
           state: todayRows.length > 0 ? 'released' : todayPending > 0 ? 'not_released' : 'none',
-          sessions: todayRows.map((row) => toDetail(row, ...context(row))),
+          sessions: todayRows.map((row) =>
+            toDetail(row, ...context(row), checkInBySession.get(row.id) ?? null)
+          ),
         },
         // O contrato mutável canônico da #389 ainda não existe; nenhuma ação pode ser habilitada.
         execution: { available: false, reason: 'execution_contract_pending' },
