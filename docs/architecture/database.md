@@ -94,7 +94,7 @@ Snapshots de desconforto corporal ficam em `ProntuarioDiscomfortSnapshot` e `Pro
 
 ## Check-in pré-treino (#388)
 
-`PreWorkoutCheckIn` mantém no máximo um registro canônico por `WorkoutDay` e referencia explicitamente `alunoId` e `contractId`. `PreWorkoutCheckInOperation` é o ledger de idempotência por check-in, com chave lógica e fingerprint do conteúdo aplicado. As migrations espelhadas em `apps/api/prisma` e `prisma` adicionam FKs e checks das escalas já definidas pelo produto.
+`PreWorkoutCheckIn` mantém no máximo um registro canônico por `WorkoutDay` e declara relações Prisma explícitas para `Aluno` e `Contract`, além de `workoutDay`. `PreWorkoutCheckInOperation` é o ledger de idempotência por check-in, com chave lógica e fingerprint do patch normalizado submetido. As migrations espelhadas em `apps/api/prisma` e `prisma` adicionam FKs e checks das escalas já definidas pelo produto; a FK de `contractId` referencia a tabela física `GeneratedContract`, correspondente ao model Prisma `Contract`.
 
 A imutabilidade depois do início não depende de flag paralela no check-in: ela deriva do lifecycle canônico de `WorkoutDay`. A escrita bloqueia a linha da sessão e revalida `planned` dentro da mesma transação que grava check-in, operação e evento da timeline.
 

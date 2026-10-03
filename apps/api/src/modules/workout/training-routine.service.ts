@@ -38,6 +38,8 @@ export type TrainingRoutineQuery = {
   alunoId: string;
   contractId: string;
   audience: TrainingRoutineAudience;
+  /** Dados sensíveis do check-in só são projetados ao professor com concessão explícita. */
+  includePreWorkoutCheckIn?: boolean;
   /** Data local `YYYY-MM-DD`; quando ausente usa a data atual no fuso do produto. */
   date?: string;
   now?: Date;
@@ -277,7 +279,8 @@ function toDetail(
   audience: TrainingRoutineAudience,
   capacities: string[],
   release: ReleaseRow,
-  checkIn: Awaited<ReturnType<PrismaClient['preWorkoutCheckIn']['findFirst']>>
+  checkIn: Awaited<ReturnType<PrismaClient['preWorkoutCheckIn']['findFirst']>>,
+  includePreWorkoutCheckIn: boolean
 ): TrainingRoutineSessionDetail {
   const detail: TrainingRoutineSessionDetail = {
     ...toSummary(row, audience, capacities, release),
@@ -287,9 +290,13 @@ function toDetail(
       .filter((value): value is string => value !== null),
     cyclic: buildCyclicTargets(row),
     blocks: buildBlocks(row),
-    preWorkoutCheckIn: checkIn
-      ? projectPreWorkoutCheckIn(checkIn, audience, projectExecutionStatus(row.status))
-      : null,
+    ...(includePreWorkoutCheckIn
+      ? {
+          preWorkoutCheckIn: checkIn
+            ? projectPreWorkoutCheckIn(checkIn, audience, projectExecutionStatus(row.status))
+            : null,
+        }
+      : {}),
   };
 
   if (audience === 'professor') {
@@ -363,7 +370,9 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
       // consolidado (por exemplo, liberação manual do Workout Builder) não
       // participa da rotina semanal nem do Treino de hoje.
       const visibleRows = rows.filter((row) => releaseByTemplate.has(row.template.id));
-      const checkInRows = visibleRows.length
+      const canProjectPreWorkoutCheckIn =
+        query.audience === 'student' || query.includePreWorkoutCheckIn === true;
+      const checkInRows = canProjectPreWorkoutCheckIn && visibleRows.length
         ? await client.preWorkoutCheckIn.findMany({
             where: {
               workoutDayId: { in: visibleRows.map((row) => row.id) },
@@ -405,7 +414,12 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
           date: today,
           state: todayRows.length > 0 ? 'released' : todayPending > 0 ? 'not_released' : 'none',
           sessions: todayRows.map((row) =>
-            toDetail(row, ...context(row), checkInBySession.get(row.id) ?? null)
+            toDetail(
+              row,
+              ...context(row),
+              checkInBySession.get(row.id) ?? null,
+              canProjectPreWorkoutCheckIn
+            )
           ),
         },
         // O contrato mutável canônico da #389 ainda não existe; nenhuma ação pode ser habilitada.

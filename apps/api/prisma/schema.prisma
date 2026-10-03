@@ -249,6 +249,7 @@ model Contract {
   auditLogs            ContractAuditLog[]
   studentContracts     StudentContract[]
   collaboratorContract CollaboratorContract?
+  preWorkoutCheckIns   PreWorkoutCheckIn[]
 
   @@index([companyContractId, status])
   @@index([alunoId])
@@ -523,6 +524,7 @@ model Aluno {
   executions                            TrainingExecution[]
   trainingPlans                         TrainingPlan[]
   workoutExecutions                     WorkoutExecution[]
+  preWorkoutCheckIns                    PreWorkoutCheckIn[]
   studentProfile                        StudentProfile?
   studentHealthIntake                   StudentHealthIntake?
   studentAssessmentRecords              StudentAssessmentRecord[]
@@ -1944,6 +1946,8 @@ model PreWorkoutCheckIn {
   createdAt         DateTime                     @default(now())
   updatedAt         DateTime                     @updatedAt
   workoutDay        WorkoutDay                   @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  aluno             Aluno                        @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract          Contract                     @relation(fields: [contractId], references: [id], onDelete: Cascade)
   operations        PreWorkoutCheckInOperation[]
 
   @@index([alunoId, createdAt])

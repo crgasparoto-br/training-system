@@ -3,6 +3,7 @@ import express from 'express';
 const request = require('supertest');
 
 const mockAlunoFindFirst = jest.fn();
+const mockAccessPermissionFindFirst = jest.fn();
 const mockGetRoutine = jest.fn();
 const mockGetCheckIn = jest.fn();
 const mockSaveCheckIn = jest.fn();
@@ -15,6 +16,7 @@ let mockUser: Record<string, unknown> = {};
 jest.mock('@prisma/client', () => ({
   PrismaClient: jest.fn(() => ({
     aluno: { findFirst: mockAlunoFindFirst },
+    accessPermission: { findFirst: mockAccessPermissionFindFirst },
   })),
   Prisma: { join: jest.fn() },
 }));
@@ -108,6 +110,7 @@ describe('training routine HTTP boundaries (#387)', () => {
     mockGetCheckIn.mockReset().mockResolvedValue(null);
     mockSaveCheckIn.mockReset().mockResolvedValue({ id: 'checkin-1', editable: true });
     mockAlunoFindFirst.mockReset();
+    mockAccessPermissionFindFirst.mockReset().mockResolvedValue(null);
     mockResolveActiveStudentMembership.mockReset();
     (alunoService.belongsToContract as jest.Mock).mockReset().mockResolvedValue(true);
     (alunoService.belongsToProfessor as jest.Mock).mockReset().mockResolvedValue(true);
@@ -219,6 +222,7 @@ describe('training routine HTTP boundaries (#387)', () => {
         type: 'professor',
         professorId: 'professor-1',
         professorRole: 'professor',
+        collaboratorFunctionId: 'function-1',
         contractId: 'contract-1',
       };
     });
@@ -230,11 +234,36 @@ describe('training routine HTTP boundaries (#387)', () => {
       expect(mockBlockAccessMiddleware).toHaveBeenCalledWith('students.details.trainingPlans');
       expect(alunoService.belongsToProfessor).toHaveBeenCalledWith('aluno-1', 'professor-1');
       expect(alunoService.belongsToContract).toHaveBeenCalledWith('aluno-1', 'contract-1');
+      expect(mockAccessPermissionFindFirst).toHaveBeenCalledWith({
+        where: {
+          collaboratorFunctionId: 'function-1',
+          screenKey: 'students.details',
+          blockKey: 'students.details.preWorkoutCheckIn',
+          canView: true,
+        },
+        select: { id: true },
+      });
       expect(mockGetRoutine).toHaveBeenCalledWith({
         alunoId: 'aluno-1',
         contractId: 'contract-1',
         audience: 'professor',
         date: '2026-10-01',
+        includePreWorkoutCheckIn: false,
+      });
+    });
+
+    it('inclui o check-in sensível somente com concessão explícita', async () => {
+      mockAccessPermissionFindFirst.mockResolvedValue({ id: 'permission-1' });
+
+      const response = await request(app).get('/alunos/aluno-1/training-routine');
+
+      expect(response.status).toBe(200);
+      expect(mockGetRoutine).toHaveBeenCalledWith({
+        alunoId: 'aluno-1',
+        contractId: 'contract-1',
+        audience: 'professor',
+        date: undefined,
+        includePreWorkoutCheckIn: true,
       });
     });
 

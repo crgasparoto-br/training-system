@@ -210,7 +210,7 @@ export function createPreWorkoutCheckInService(client: PrismaClient = prisma) {
         });
         const values = mergeValues(existing ? toValues(existing) : null, patch);
         if (!Object.values(values).some((value) => value !== null)) throw new PreWorkoutCheckInInputError('Informe pelo menos um dado do check-in');
-        const payloadFingerprint = createHash('sha256').update(JSON.stringify(values)).digest('hex');
+        const payloadFingerprint = createHash('sha256').update(JSON.stringify(patch)).digest('hex');
 
         if (existing) {
           const priorOperation = await tx.preWorkoutCheckInOperation.findUnique({

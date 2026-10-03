@@ -189,6 +189,36 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(screen.queryByRole('button', { name: 'Iniciar treino' })).not.toBeInTheDocument();
   });
 
+  it('oculta o bloco de check-in do professor quando a API não autoriza a projeção sensível', async () => {
+    const professorSession = session();
+    render(
+      <TrainingRoutinePanel
+        audience="professor"
+        load={vi.fn().mockResolvedValue(
+          routine({ audience: 'professor', today: { date: '2026-10-01', state: 'released', sessions: [professorSession] } })
+        )}
+      />
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Musculação' })).toBeInTheDocument();
+    expect(screen.queryByText('Check-in pré-treino')).not.toBeInTheDocument();
+  });
+
+  it('mantém o bloco de check-in visível ao professor autorizado mesmo quando não há registro', async () => {
+    const professorSession = session({ preWorkoutCheckIn: null });
+    render(
+      <TrainingRoutinePanel
+        audience="professor"
+        load={vi.fn().mockResolvedValue(
+          routine({ audience: 'professor', today: { date: '2026-10-01', state: 'released', sessions: [professorSession] } })
+        )}
+      />
+    );
+
+    expect(await screen.findByText('Check-in pré-treino')).toBeInTheDocument();
+    expect(screen.getByText('Nenhum check-in registrado para esta sessão.')).toBeInTheDocument();
+  });
+
   it('navega entre semanas pela data de referência', async () => {
     const load = vi.fn().mockResolvedValue(routine());
     render(<TrainingRoutinePanel audience="student" load={load} />);

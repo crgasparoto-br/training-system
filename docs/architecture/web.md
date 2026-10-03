@@ -49,7 +49,7 @@ O painel e `services/training-routine.service.ts` são somente leitura. Controle
 
 ## Check-in pré-treino
 
-O `TrainingRoutinePanel` projeta o check-in da #388 no mesmo card da sessão. Para o aluno em `not_started`, `PreWorkoutCheckInCard` permite preenchimento parcial e salva pela fronteira `student/me`; depois do início a mesma visão fica somente leitura. A Central do Aluno usa o mesmo componente em modo professor, sem ação de escrita.
+O `TrainingRoutinePanel` projeta o check-in da #388 no mesmo card da sessão. Para o aluno em `not_started`, `PreWorkoutCheckInCard` permite preenchimento parcial e salva pela fronteira `student/me`; depois do início a mesma visão fica somente leitura. Na Central do Aluno, o modo professor só renderiza esse bloco quando a API inclui explicitamente `preWorkoutCheckIn`, o que exige a concessão sensível `students.details.preWorkoutCheckIn`; sem essa concessão o campo e o bloco visual são omitidos.
 
 Em falha recuperável, os campos digitados permanecem no estado local e o mesmo `operationKey` é reutilizado enquanto o payload não mudar. A interface não calcula regra clínica nem score localmente: mensagens e triagem exibidas vêm do snapshot retornado pela API.
 

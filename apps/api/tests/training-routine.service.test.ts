@@ -187,6 +187,96 @@ describe('training routine service (#387)', () => {
     expect(releaseSql?.slice(1)).toEqual(expect.arrayContaining(['contract-1', 'aluno-1']));
   });
 
+  it('não consulta nem projeta check-in sensível ao professor sem concessão explícita', async () => {
+    releasedRows = [makeRow()];
+    preWorkoutCheckInFindMany.mockResolvedValue([
+      {
+        id: 'checkin-1',
+        workoutDayId: 'day-1',
+        alunoId: 'aluno-1',
+        contractId: 'contract-1',
+        psr: 7,
+        sleepQuality: 8,
+        fatigue: 3,
+        painLevel: 4,
+        motivation: 9,
+        availableMinutes: 45,
+        notes: 'Observação sensível',
+        ruleSetVersion: 'pre-workout-check-in-v1',
+        ruleSnapshot: {
+          version: 'pre-workout-check-in-v1',
+          painTriage: 'attention',
+          studentMessage: 'Atenção',
+          technicalMessage: 'Mensagem técnica',
+          blocksWorkout: false,
+          changesWorkoutAutomatically: false,
+        },
+        createdByUserId: 'user-1',
+        createdAt: new Date('2026-10-01T12:00:00.000Z'),
+        updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+      },
+    ]);
+
+    const routine = await service.getRoutine({
+      alunoId: 'aluno-1',
+      contractId: 'contract-1',
+      audience: 'professor',
+      now,
+    });
+
+    expect(preWorkoutCheckInFindMany).not.toHaveBeenCalled();
+    expect(routine.today.sessions[0]).not.toHaveProperty('preWorkoutCheckIn');
+    expect(JSON.stringify(routine)).not.toContain('Observação sensível');
+  });
+
+  it('projeta o check-in ao professor quando a concessão explícita foi validada', async () => {
+    releasedRows = [makeRow()];
+    preWorkoutCheckInFindMany.mockResolvedValue([
+      {
+        id: 'checkin-1',
+        workoutDayId: 'day-1',
+        alunoId: 'aluno-1',
+        contractId: 'contract-1',
+        psr: 7,
+        sleepQuality: 8,
+        fatigue: 3,
+        painLevel: 4,
+        motivation: 9,
+        availableMinutes: 45,
+        notes: 'Contexto autorizado',
+        ruleSetVersion: 'pre-workout-check-in-v1',
+        ruleSnapshot: {
+          version: 'pre-workout-check-in-v1',
+          painTriage: 'attention',
+          studentMessage: 'Atenção',
+          technicalMessage: 'Mensagem técnica',
+          blocksWorkout: false,
+          changesWorkoutAutomatically: false,
+        },
+        createdByUserId: 'user-1',
+        createdAt: new Date('2026-10-01T12:00:00.000Z'),
+        updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+      },
+    ]);
+
+    const routine = await service.getRoutine({
+      alunoId: 'aluno-1',
+      contractId: 'contract-1',
+      audience: 'professor',
+      includePreWorkoutCheckIn: true,
+      now,
+    });
+
+    expect(preWorkoutCheckInFindMany).toHaveBeenCalledTimes(1);
+    expect(routine.today.sessions[0].preWorkoutCheckIn).toMatchObject({
+      values: { notes: 'Contexto autorizado' },
+      technical: {
+        ruleSetVersion: 'pre-workout-check-in-v1',
+        technicalMessage: 'Mensagem técnica',
+      },
+    });
+  });
+
   it('não publica no Treino de hoje template liberado apenas pelo Workout Builder', async () => {
     releasedRows = [makeRow()];
     releaseRows = [];

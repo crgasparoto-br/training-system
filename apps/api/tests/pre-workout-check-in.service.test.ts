@@ -141,7 +141,9 @@ describe('pre-workout check-in service (#388)', () => {
     checkInFindFirst.mockResolvedValue(existing);
     operationFindUnique.mockResolvedValue({
       id: 'operation-1',
-      payloadFingerprint: createHash('sha256').update(JSON.stringify(values)).digest('hex'),
+      payloadFingerprint: createHash('sha256')
+        .update(JSON.stringify({ psr: 7, painLevel: 3, availableMinutes: 45 }))
+        .digest('hex'),
     });
 
     const result = await save();
@@ -153,11 +155,32 @@ describe('pre-workout check-in service (#388)', () => {
     expect(lifecycleCreate).not.toHaveBeenCalled();
   });
 
+  it('retry da mesma operação permanece idempotente após atualização interveniente', async () => {
+    const existingAfterOtherUpdate = makeCheckIn({ fatigue: 6 });
+    checkInFindFirst.mockResolvedValue(existingAfterOtherUpdate);
+    operationFindUnique.mockResolvedValue({
+      id: 'operation-1',
+      payloadFingerprint: createHash('sha256')
+        .update(JSON.stringify({ psr: 7, painLevel: 3, availableMinutes: 45 }))
+        .digest('hex'),
+    });
+
+    const result = await save();
+
+    expect(result.values.fatigue).toBe(6);
+    expect(checkInCreate).not.toHaveBeenCalled();
+    expect(checkInUpdate).not.toHaveBeenCalled();
+    expect(operationCreate).not.toHaveBeenCalled();
+    expect(lifecycleCreate).not.toHaveBeenCalled();
+  });
+
   it('reutilizar a mesma operationKey com conteúdo diferente falha sem efeitos', async () => {
     checkInFindFirst.mockResolvedValue(makeCheckIn());
     operationFindUnique.mockResolvedValue({
       id: 'operation-1',
-      payloadFingerprint: createHash('sha256').update(JSON.stringify(values)).digest('hex'),
+      payloadFingerprint: createHash('sha256')
+        .update(JSON.stringify({ psr: 7, painLevel: 3, availableMinutes: 45 }))
+        .digest('hex'),
     });
 
     await expect(save({ psr: 8 })).rejects.toMatchObject({

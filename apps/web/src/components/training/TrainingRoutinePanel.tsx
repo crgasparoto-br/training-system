@@ -232,12 +232,14 @@ function TodaySession({
         </section>
       )}
 
-      <PreWorkoutCheckInCard
-        audience={audience}
-        sessionStatus={session.status}
-        initialCheckIn={session.preWorkoutCheckIn ?? null}
-        save={saveCheckIn ? (payload) => saveCheckIn(session.sessionId, payload) : undefined}
-      />
+      {(audience === 'student' || Object.prototype.hasOwnProperty.call(session, 'preWorkoutCheckIn')) && (
+        <PreWorkoutCheckInCard
+          audience={audience}
+          sessionStatus={session.status}
+          initialCheckIn={session.preWorkoutCheckIn ?? null}
+          save={saveCheckIn ? (payload) => saveCheckIn(session.sessionId, payload) : undefined}
+        />
+      )}
 
       <section aria-label="Segurança" className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm text-amber-900">
         <h4 className="flex items-center gap-1.5 font-semibold">

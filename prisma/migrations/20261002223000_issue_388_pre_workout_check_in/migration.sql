@@ -38,7 +38,7 @@ CREATE INDEX "PreWorkoutCheckInOperation_createdAt_idx" ON "PreWorkoutCheckInOpe
 
 ALTER TABLE "PreWorkoutCheckIn" ADD CONSTRAINT "PreWorkoutCheckIn_workoutDayId_fkey" FOREIGN KEY ("workoutDayId") REFERENCES "WorkoutDay"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "PreWorkoutCheckIn" ADD CONSTRAINT "PreWorkoutCheckIn_alunoId_fkey" FOREIGN KEY ("alunoId") REFERENCES "Aluno"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "PreWorkoutCheckIn" ADD CONSTRAINT "PreWorkoutCheckIn_contractId_fkey" FOREIGN KEY ("contractId") REFERENCES "Contract"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "PreWorkoutCheckIn" ADD CONSTRAINT "PreWorkoutCheckIn_contractId_fkey" FOREIGN KEY ("contractId") REFERENCES "GeneratedContract"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "PreWorkoutCheckInOperation" ADD CONSTRAINT "PreWorkoutCheckInOperation_checkInId_fkey" FOREIGN KEY ("checkInId") REFERENCES "PreWorkoutCheckIn"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "PreWorkoutCheckIn"

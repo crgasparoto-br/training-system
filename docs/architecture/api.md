@@ -63,10 +63,10 @@ O check-in usa `PreWorkoutCheckIn` como fonte canônica única por `WorkoutDay`.
 
 - a sessão precisa pertencer ao aluno/contrato autenticado, estar liberada pela Montagem Consolidada e permanecer em `WorkoutDay.status=planned` (projeção pública `not_started`);
 - a transação serializável bloqueia a linha de `WorkoutDay` antes da revalidação definitiva, serializando a corrida entre salvar check-in e iniciar a sessão;
-- `PreWorkoutCheckInOperation` registra `operationKey` e fingerprint do payload para retry idempotente; reutilizar a mesma chave com dados diferentes é conflito;
+- `PreWorkoutCheckInOperation` registra `operationKey` e fingerprint do patch normalizado submetido, independente do estado mutável atual; reutilizar a mesma chave com dados diferentes é conflito;
 - o snapshot de regra persiste a versão `pre-workout-check-in-v1`; somente dor/desconforto possui triagem canônica nesta entrega;
 - `StudentLifecycleEvent` recebe apenas IDs, ação e versão da regra. Os valores do check-in não são duplicados na timeline;
-- a rotina compartilhada projeta linguagem prática ao aluno e contexto técnico/versionamento apenas ao professor autorizado;
+- a rotina compartilhada projeta linguagem prática ao aluno; para professor, os valores sensíveis e o contexto técnico do check-in só são carregados quando existe concessão explícita do bloco `students.details.preWorkoutCheckIn`, separada de `students.details.trainingPlans`;
 - não existe score composto de prontidão, bloqueio clínico nem alteração automática da prescrição ou do treino.
 
 ## Adipometria (ADPT)
