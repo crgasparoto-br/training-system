@@ -1,0 +1,89 @@
+# [treino][check-in] Implementar check-in pré-treino
+
+Parent: #386
+Depends on: #387
+
+## Objetivo
+
+Implementar o check-in pré-treino da sessão do aluno, registrando percepção de recuperação e condições relevantes antes do início sem alterar automaticamente prescrição, montagem ou treino liberado.
+
+## Escopo
+
+- persistir recuperação percebida/PSR, qualidade do sono, fadiga, dor ou desconforto, motivação, disponibilidade de tempo e observação curta;
+- vincular o check-in ao aluno, `contractId`, sessão operacional e horário;
+- permitir retomada segura quando o envio falhar ou a sessão ainda não tiver sido iniciada;
+- produzir alertas ou orientações somente a partir de regras aprovadas, diferenciando informação, alerta e bloqueio quando existir regra explícita;
+- apresentar ao aluno linguagem prática e ao professor o contexto técnico autorizado;
+- registrar evento rastreável para timeline/consulta futura;
+- validar permissões e isolamento no backend.
+
+## Contratos canônicos
+
+Fonte durável: `docs/product/student-centered-training-experience.md#check-in-pre-treino` (reconciliação documental na PR #491).
+
+- **PSR:** inteiro de `0` a `10`, reutilizando a semântica já adotada pelo produto sem inventar rótulos intermediários ausentes.
+- **Qualidade do sono:** inteiro de `0` a `10`, em que `0` = qualidade péssima e `10` = qualidade excelente.
+- **Fadiga:** inteiro de `0` a `10`, em que `0` = nenhuma fadiga e `10` = fadiga extrema.
+- **Motivação:** inteiro de `0` a `10`, em que `0` = nenhuma motivação e `10` = motivação muito alta.
+- **Disponibilidade de tempo:** minutos inteiros.
+- **Dor/desconforto:** reutiliza a triagem do feedback pós-treino: `0–2` faixa verde, `3–4` atenção e `>4` alerta para acompanhamento, sem alteração automática do treino.
+- Sono, fadiga, motivação e PSR permanecem sinais independentes; o primeiro recorte não cria score composto de prontidão nem thresholds clínicos adicionais sem regra aprovada.
+- O check-in é informativo e pode orientar/alertar, mas **não** reduz, troca, cancela ou modifica automaticamente o treino.
+- Quando houver alerta crítico definido por regra aprovada, a experiência não pode sugerir normalidade e deve orientar procura do professor/atendimento apropriado conforme a regra vigente.
+
+## Política temporal e idempotência
+
+- Enquanto a sessão estiver `not_started`, o check-in pode ser criado e alterado.
+- Na primeira transição para `in_progress`, o check-in vigente torna-se imutável e permanece disponível para consulta.
+- Depois do início, o fluxo comum não permite criação tardia, overwrite silencioso ou backfill.
+- Eventual correção histórica futura deve usar mecanismo auditável separado.
+- Cada sessão possui no máximo um check-in canônico; retry da mesma operação lógica não duplica check-in nem evento associado.
+
+## Invariantes
+
+- Check-in não altera automaticamente volume, carga, exercício, sessão, prescrição ou Montagem Consolidada.
+- Alerta crítico não pode ser apresentado como condição normal.
+- Dados sensíveis devem ficar restritos ao público autorizado.
+- O mesmo check-in não deve ser duplicado por repetição idempotente da mesma operação.
+- Uma implementação não pode inventar escala, limiar clínico ou regra de bloqueio para campo que ainda não possua definição canônica.
+- Após a primeira transição para `in_progress`, o fluxo comum não pode criar, alterar ou sobrescrever o check-in; correção futura, se existir, deve ser auditável e separada.
+
+## Cenários obrigatórios
+
+- check-in completo;
+- check-in parcial quando permitido;
+- dor/desconforto relevante;
+- falha de persistência e nova tentativa com a mesma chave/operação lógica;
+- usuário sem permissão;
+- sessão de outro contrato;
+- sessão já iniciada/concluída, em que o check-in permanece somente leitura no fluxo comum;
+- acesso do aluno aos próprios dados e do professor ao contexto autorizado;
+- regra indisponível para um campo opcional sem transformar ausência de regra em aprovação clínica.
+
+## Critérios de aceite
+
+- [ ] PSR é persistido como valor 0–10 e reutiliza a semântica já existente, sem criar escala paralela.
+- [ ] Sono, fadiga e motivação são persistidos em escala 0–10 com as âncoras definidas; disponibilidade de tempo é persistida em minutos inteiros.
+- [ ] Dor/desconforto usa a triagem canônica 0–2 / 3–4 / >4 apenas para sinalização, sem alteração automática do treino.
+- [ ] Não existe score composto de prontidão nem threshold clínico adicional no primeiro recorte.
+- [ ] Check-in permanece vinculado à sessão operacional correta.
+- [ ] Regras de alerta são executadas no backend ou camada de domínio testável e possuem fonte/versionamento rastreável.
+- [ ] Nenhuma regra altera o treino automaticamente.
+- [ ] Falha recuperável não apaga valores já informados na interface.
+- [ ] Reenvio da mesma operação lógica não duplica check-in nem evento associado.
+- [ ] Permissões e `contractId` são cobertos por testes.
+- [ ] Evento de check-in pode alimentar timeline sem duplicar a fonte canônica.
+- [ ] Interface é responsiva e acessível.
+- [ ] Criação e alteração são permitidas somente em `not_started`; após a primeira transição para `in_progress`, o check-in fica somente leitura no fluxo comum.
+- [ ] Cada sessão possui no máximo um check-in canônico e retries não duplicam persistência, timeline ou alertas.
+
+## Fora de escopo
+
+- decisão sugerida pós-treino;
+- integração com sono/recuperação de smartwatch;
+- alteração automática do treino;
+- diagnóstico clínico.
+
+## Validação esperada
+
+Testes unitários das regras efetivamente aprovadas, testes de API/web, checks de acesso/documentação e `pnpm validate`.
