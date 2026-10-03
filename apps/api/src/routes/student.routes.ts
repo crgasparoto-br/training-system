@@ -22,6 +22,12 @@ import {
   trainingRoutineService,
   TrainingRoutineInputError,
 } from '../modules/workout/training-routine.service.js';
+import {
+  preWorkoutCheckInService,
+  PreWorkoutCheckInConflictError,
+  PreWorkoutCheckInInputError,
+  PreWorkoutCheckInNotFoundError,
+} from '../modules/workout/pre-workout-check-in.service.js';
 
 const prisma = new PrismaClient();
 
@@ -733,6 +739,84 @@ router.get('/me/training-routine', async (req: Request, res: Response) => {
     }
     console.error('Erro ao buscar rotina semanal do aluno:', error);
     return sendError(res, 'Erro ao buscar rotina de treino', 500);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET/PUT /api/v1/student/me/training-sessions/:sessionId/check-in
+// Check-in pré-treino canônico da sessão liberada (#388).
+// ---------------------------------------------------------------------------
+const preWorkoutCheckInSchema = z
+  .object({
+    operationKey: z.string().trim().min(8).max(128),
+    psr: z.number().int().min(0).max(10).nullable().optional(),
+    sleepQuality: z.number().int().min(0).max(10).nullable().optional(),
+    fatigue: z.number().int().min(0).max(10).nullable().optional(),
+    painLevel: z.number().int().min(0).nullable().optional(),
+    motivation: z.number().int().min(0).max(10).nullable().optional(),
+    availableMinutes: z.number().int().min(0).nullable().optional(),
+    notes: z.string().trim().max(500).nullable().optional(),
+  })
+  .strict();
+
+router.get('/me/training-sessions/:sessionId/check-in', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId as string;
+    const aluno = await requireAlunoByUserId(req, userId);
+    const checkIn = await preWorkoutCheckInService.getForSession({
+      sessionId: req.params.sessionId,
+      alunoId: aluno.id,
+      contractId: aluno.contractId,
+      audience: 'student',
+    });
+    return sendSuccess(res, checkIn);
+  } catch (error: any) {
+    if (error instanceof StudentAccountContextError) {
+      const status = error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404;
+      return sendError(res, error.message, status);
+    }
+    if (error instanceof PreWorkoutCheckInNotFoundError) {
+      return sendError(res, 'Sessão de treino não encontrada', 404);
+    }
+    console.error('Erro ao buscar check-in pré-treino:', error);
+    return sendError(res, 'Erro ao buscar check-in pré-treino', 500);
+  }
+});
+
+router.put('/me/training-sessions/:sessionId/check-in', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId as string;
+    const aluno = await requireAlunoByUserId(req, userId);
+    const payload = preWorkoutCheckInSchema.parse(req.body);
+    const checkIn = await preWorkoutCheckInService.saveForStudent({
+      sessionId: req.params.sessionId,
+      alunoId: aluno.id,
+      contractId: aluno.contractId,
+      actorUserId: userId,
+      payload,
+    });
+    return sendSuccess(res, checkIn, 'Check-in salvo com sucesso');
+  } catch (error: any) {
+    if (error instanceof z.ZodError || error instanceof PreWorkoutCheckInInputError) {
+      return sendError(
+        res,
+        error instanceof z.ZodError ? 'Dados inválidos' : error.message,
+        400,
+        error instanceof z.ZodError ? error.errors : undefined
+      );
+    }
+    if (error instanceof StudentAccountContextError) {
+      const status = error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404;
+      return sendError(res, error.message, status);
+    }
+    if (error instanceof PreWorkoutCheckInNotFoundError) {
+      return sendError(res, 'Sessão de treino não encontrada', 404);
+    }
+    if (error instanceof PreWorkoutCheckInConflictError) {
+      return sendError(res, error.message, 409, { code: error.code });
+    }
+    console.error('Erro ao salvar check-in pré-treino:', error);
+    return sendError(res, 'Erro ao salvar check-in pré-treino', 500);
   }
 });
 

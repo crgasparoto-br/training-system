@@ -1,1 +1,16 @@
-{"schema_version":1,"classification":"implementation-only","source_event":{"kind":"independent-rejection","rejection_id":"audit-rejection:17c16d95-fb8a-4244-aef0-52816001fa85","finding_ids":["AUD-492-001"]},"generalized_learning":{"promotion_status":"not-required","reason":"The installed delivery controller already contains a generic post-write-refreeze, stale-handoff recovery, terminal handoff and completion-guard rule; this cycle applies those existing controls to the current target rather than introducing a new global rule."}}
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:fb40a406-c061-40e4-8d66-d8bcc0d897dd",
+    "finding_ids": [
+      "A-388-001"
+    ]
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "The rejection is a target-specific handoff publication omission; the governing delivery skill already contains a permanent inherited-base-artifact completion guard."
+  },
+  "skill_changes": []
+}

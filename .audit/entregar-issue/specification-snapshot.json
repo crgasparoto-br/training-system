@@ -1,1 +1,17 @@
-{"schema_version":1,"repository":"crgasparoto-br/training-system","issue":387,"canonical_locator":"https://github.com/crgasparoto-br/training-system/issues/387","material_head_sha":"1a94260c34b96611f3be6912a7a00b57829f831f","base_sha":"8faf1e9eb0f1e68482dea62aa8c50af51b801acf","sources":[{"id":"SRC-ISSUE-387","path":"specification-sources/SRC-ISSUE-387.txt","textual":true,"kind":"github-issue"}]}
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/training-system",
+  "issue": 388,
+  "canonical_locator": "https://github.com/crgasparoto-br/training-system/issues/388",
+  "material_head_sha": "1afe52c371e397d8184c5ecaa236291e6ea14e17",
+  "base_sha": "a6c3a20f595537f62e12356a4840cbdf3819c94a",
+  "sources": [
+    {
+      "id": "SRC-ISSUE-388",
+      "path": "specification-sources/SRC-ISSUE-388.txt",
+      "textual": true,
+      "kind": "github-issue",
+      "sha256": "02c414a08bd377adaf257f43775ae7fb1bdea1d5c54e4c62155ece0aff65a547"
+    }
+  ]
+}

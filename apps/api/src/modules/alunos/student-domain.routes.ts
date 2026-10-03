@@ -29,8 +29,26 @@ router.use(professorMiddleware);
 const getProfessorContext = (req: Request) => ({
   professorId: (req as any).user.professorId as string | undefined,
   professorRole: (req as any).user.professorRole as 'master' | 'professor' | undefined,
+  collaboratorFunctionId: (req as any).user.collaboratorFunctionId as string | undefined,
   contractId: (req as any).user.contractId as string | undefined,
 });
+
+const canViewSensitivePreWorkoutCheckIn = async (req: Request) => {
+  const { collaboratorFunctionId } = getProfessorContext(req);
+  if (!collaboratorFunctionId) return false;
+
+  const permission = await prisma.accessPermission.findFirst({
+    where: {
+      collaboratorFunctionId,
+      screenKey: 'students.details',
+      blockKey: 'students.details.preWorkoutCheckIn',
+      canView: true,
+    },
+    select: { id: true },
+  });
+
+  return Boolean(permission);
+};
 
 const ensureAlunoAccess = async (req: Request, res: Response, alunoId: string) => {
   const { professorId, professorRole, contractId } = getProfessorContext(req);
@@ -92,11 +110,13 @@ router.get(
       }
 
       const date = typeof req.query.date === 'string' ? req.query.date : undefined;
+      const includePreWorkoutCheckIn = await canViewSensitivePreWorkoutCheckIn(req);
       const routine = await trainingRoutineService.getRoutine({
         alunoId: id,
         contractId,
         audience: 'professor',
         date,
+        includePreWorkoutCheckIn,
       });
 
       return sendSuccess(res, routine, 'Rotina de treino carregada com sucesso');

@@ -1,1 +1,28 @@
-{"schema_version":1,"contract_version":"2026-08-20.3","status":"closed","candidate_head_sha":"1a94260c34b96611f3be6912a7a00b57829f831f","rejection_id":"audit-rejection:17c16d95-fb8a-4244-aef0-52816001fa85","items":[{"finding_id":"AUD-492-001","status":"fixed","remediation_mode":"targeted-remediation","action":"Refreeze the current material head after post-handoff material drift and publish a fresh exact-head result-only handoff.","evidence":["evidence/ci-exact-head-387.txt","handoff-ready.json"],"subject_sha":"1a94260c34b96611f3be6912a7a00b57829f831f"}]}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "status": "closed",
+  "candidate_head_sha": "1afe52c371e397d8184c5ecaa236291e6ea14e17",
+  "remediation_mode": "targeted-remediation",
+  "source": {
+    "rejection_id": "audit-rejection:fb40a406-c061-40e4-8d66-d8bcc0d897dd",
+    "audited_head_sha": "1afe52c371e397d8184c5ecaa236291e6ea14e17",
+    "audit_report_sha256": "3ae853698f3760caf53485b18d1dd224ff6c1585c0c405d1fb9d28f9055a5bc3"
+  },
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-388-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "handoff-rebuild",
+      "evidence": [
+        "Target-specific neutral package rebuilt for repository training-system, Issue 388, PR 495, preserving material head 1afe52c371e397d8184c5ecaa236291e6ea14e17."
+      ],
+      "validations": [
+        "Package artifacts are generated from SRC-ISSUE-388 and validated locally before publication; terminal target binding is rechecked after publication."
+      ]
+    }
+  ]
+}
