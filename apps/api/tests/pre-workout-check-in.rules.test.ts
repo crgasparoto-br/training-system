@@ -30,16 +30,18 @@ describe('pre-workout check-in rules (#388)', () => {
     for (const schema of schemas) {
       const model = schema.match(/model PreWorkoutCheckIn \{[\s\S]*?\n\}/)?.[0] ?? '';
       expect(model).toMatch(/aluno\s+Aluno\s+@relation\(fields: \[alunoId\], references: \[id\], onDelete: Cascade\)/);
-      expect(model).toMatch(/contract\s+Contract\s+@relation\(fields: \[contractId\], references: \[id\], onDelete: Cascade\)/);
+      expect(model).toMatch(/contract\s+CompanyContract\s+@relation\(fields: \[contractId\], references: \[id\], onDelete: Cascade\)/);
+      const companyContract = schema.match(/model CompanyContract \{[\s\S]*?\n\}/)?.[0] ?? '';
+      expect(companyContract).toContain('@@map("Contract")');
       expect(schema.match(/preWorkoutCheckIns\s+PreWorkoutCheckIn\[\]/g)).toHaveLength(2);
     }
 
     for (const migration of migrations) {
       expect(migration).toContain(
-        'CONSTRAINT "PreWorkoutCheckIn_contractId_fkey" FOREIGN KEY ("contractId") REFERENCES "GeneratedContract"("id")'
+        'CONSTRAINT "PreWorkoutCheckIn_contractId_fkey" FOREIGN KEY ("contractId") REFERENCES "Contract"("id")'
       );
       expect(migration).not.toContain(
-        'CONSTRAINT "PreWorkoutCheckIn_contractId_fkey" FOREIGN KEY ("contractId") REFERENCES "Contract"("id")'
+        'CONSTRAINT "PreWorkoutCheckIn_contractId_fkey" FOREIGN KEY ("contractId") REFERENCES "GeneratedContract"("id")'
       );
     }
   });
