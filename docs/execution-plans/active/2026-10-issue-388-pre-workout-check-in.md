@@ -37,3 +37,24 @@ Implementar o check-in pré-treino canônico para sessões liberadas, preservand
 ## Estado
 
 Implementação em andamento na branch `feat/388-pre-workout-check-in`. Auditoria independente permanece obrigatória após CI verde.
+
+## Remediação da auditoria de 2026-10-05
+
+Referência: `audit-rejection:aeeb98b9-69e6-49e9-accf-3b18e6d495e4`, PR #495.
+
+- **A-388-003:** regenerar o fechamento de requisitos a partir da fonte canônica e validar bytes, decodificação e hashes antes e depois da publicação. O arquivo corrompido anterior não serve como fonte de reconstrução.
+- **A-388-004:** vincular controles a evidências por cenário. `pre-workout-check-in.persistence.integration.test.ts` executa o serviço Prisma e a migration reais em schema PostgreSQL isolado, com fixtures explícitas das relações anteriores ao check-in. Verifica valores persistidos, isolamento, reenvio, concorrência, imutabilidade, ausência de backfill e rollback após erro real de inserção na timeline.
+- **A-388-005:** tratar o envelope `error`/`details.code`. Somente HTTP 409 com `PRE_WORKOUT_CHECK_IN_LOCKED` confirma o bloqueio; o formulário desabilita campos e remove a ação de envio, preservando o rascunho explicitamente não salvo. Conflitos de idempotência não inventam estado de sessão. Falhas recuperáveis preservam os valores e a chave da operação.
+
+### Comandos e alcance das evidências
+
+```bash
+pnpm --filter @corrida/web exec vitest run src/services/pre-workout-check-in.service.test.ts src/components/training/PreWorkoutCheckInCard.test.tsx --no-file-parallelism
+ISSUE_388_BROWSER_EVIDENCE=1 pnpm --filter @corrida/web exec vitest run src/components/training/issue-388-browser-evidence.test.js --no-file-parallelism
+RUN_DATABASE_INTEGRATION_TESTS=true pnpm --filter @corrida/api exec jest --runInBand tests/pre-workout-check-in.persistence.integration.test.ts
+pnpm validate
+```
+
+O teste de banco exige URL local cujo nome de banco contenha `test`; cria e remove apenas seu schema temporário. O teste de navegador usa Chromium, componente/CSS/serviço web de produção e respostas HTTP controladas: comprova interação real, não substitui a evidência de persistência. Cobre desktop e mobile, teclado, sucesso completo/parcial, erro temporário e retry com a mesma chave, página desatualizada, conflitos distintos e somente leitura para aluno/professor.
+
+`artifacts/issue-388/database.json`, `browser.json` e capturas PNG são gerados pelos testes. Os registros JSON por cenário também são emitidos nos logs do workflow existente `Validate PR`, sem alterar sua configuração. As capturas locais ao runner não devem ser declaradas como anexos persistidos. Cada JSON registra `subjectSha` e observações dos cenários realmente alcançados. Uma execução interrompida ou vermelha não aprova cenários restantes. O certificado final deve referenciar somente evidências aprovadas do SHA material congelado; a declaração genérica de CI verde não fecha os controles.

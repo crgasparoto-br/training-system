@@ -53,6 +53,8 @@ O `TrainingRoutinePanel` projeta o check-in da #388 no mesmo card da sessão. Pa
 
 Em falha recuperável, os campos digitados permanecem no estado local e o mesmo `operationKey` é reutilizado enquanto o payload não mudar. A interface não calcula regra clínica nem score localmente: mensagens e triagem exibidas vêm do snapshot retornado pela API.
 
+O erro canônico usa `error` e `details.code`. HTTP 409 com `PRE_WORKOUT_CHECK_IN_LOCKED` torna o formulário somente leitura mesmo quando a página ainda projeta `not_started`: desabilitar campos, remover envio e identificar o rascunho como não salvo. Essa reconciliação usa a decisão do backend, não inicia nem simula a sessão. `PRE_WORKOUT_CHECK_IN_IDEMPOTENCY_CONFLICT` e outros HTTP 409 não equivalem a treino iniciado. Erros temporários mantêm edição e reenvio seguro. Submissões concorrentes na mesma instância do formulário são evitadas enquanto a primeira chamada está em andamento.
+
 ## Mapa corporal de desconforto
 
 `BodyDiscomfortMap` compoe a ilustracao, as areas clicaveis e os marcadores visiveis no mesmo SVG com `viewBox="0 0 400 600"`. Todos escalam juntos; nao posicionar marcadores por pixels de tela ou em uma camada HTML independente. As coordenadas de `bodyRegions.ts` foram calibradas para `body-front.png` e `body-back-clinical.png`; ao trocar uma ilustracao, revisar ambas as vistas em desktop e mobile.

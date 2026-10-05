@@ -7,7 +7,7 @@ import type {
   UpsertPreWorkoutCheckInPayload,
 } from '@corrida/types';
 import { Button } from '../ui/Button';
-import { getPreWorkoutCheckInSaveError } from '../../services/pre-workout-check-in.service';
+import { getPreWorkoutCheckInSaveFailure } from '../../services/pre-workout-check-in.service';
 
 const emptyValues: PreWorkoutCheckInValues = {
   psr: null,
@@ -46,9 +46,11 @@ export function PreWorkoutCheckInCard({ audience, sessionStatus, initialCheckIn,
   const [checkIn, setCheckIn] = useState(initialCheckIn);
   const [values, setValues] = useState<PreWorkoutCheckInValues>(initialCheckIn?.values ?? emptyValues);
   const [saving, setSaving] = useState(false);
+  const [sessionLocked, setSessionLocked] = useState(false);
+  const submissionInFlight = useRef(false);
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const pendingOperation = useRef<{ fingerprint: string; key: string } | null>(null);
-  const editable = audience === 'student' && sessionStatus === 'not_started' && (checkIn?.editable ?? true);
+  const editable = !sessionLocked && audience === 'student' && sessionStatus === 'not_started' && (checkIn?.editable ?? true);
 
   useEffect(() => {
     setCheckIn(initialCheckIn);
@@ -95,7 +97,8 @@ export function PreWorkoutCheckInCard({ audience, sessionStatus, initialCheckIn,
   };
 
   const submit = async () => {
-    if (!save || !editable) return;
+    if (!save || !editable || submissionInFlight.current) return;
+    submissionInFlight.current = true;
     const payloadValues = { ...values, notes: values.notes?.trim() || null };
     const fingerprint = JSON.stringify(payloadValues);
     if (!pendingOperation.current || pendingOperation.current.fingerprint !== fingerprint) {
@@ -113,8 +116,11 @@ export function PreWorkoutCheckInCard({ audience, sessionStatus, initialCheckIn,
       setValues(saved.values);
       setMessage({ kind: 'success', text: 'Check-in salvo. Você pode ajustá-lo até iniciar o treino.' });
     } catch (error) {
-      setMessage({ kind: 'error', text: getPreWorkoutCheckInSaveError(error) });
+      const failure = getPreWorkoutCheckInSaveFailure(error);
+      if (failure.kind === 'session-locked') setSessionLocked(true);
+      setMessage({ kind: 'error', text: failure.message });
     } finally {
+      submissionInFlight.current = false;
       setSaving(false);
     }
   };
@@ -173,7 +179,9 @@ export function PreWorkoutCheckInCard({ audience, sessionStatus, initialCheckIn,
 
       {!editable && (
         <p className="mt-3 text-sm text-muted-foreground" role="status">
-          {checkIn
+          {sessionLocked
+            ? 'As alterações desta tela não foram salvas. Recarregue a página para consultar o check-in registrado.'
+            : checkIn
             ? 'Este check-in está somente leitura porque o treino já foi iniciado ou encerrado.'
             : 'Não houve check-in registrado antes do início desta sessão.'}
         </p>
