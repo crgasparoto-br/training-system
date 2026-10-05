@@ -1,16 +1,1 @@
-{
-  "schema_version": 1,
-  "artifact_format": "base64-shards-v1",
-  "compression": "gzip",
-  "encoded_size": 5164,
-  "decoded_size": 22356,
-  "decoded_sha256": "7e446a08f8860aa903b7b97d84c794fd4ae141619f8b56fffc9111c9140520b1",
-  "encoded_sha256": "9c9d076f0205a3fb58bbce4a85917ac30f16ba9e9f18c41d8f58f3be6b39d60e",
-  "parts": [
-    {
-      "path": "requirement-closure.parts/part-0000.b64",
-      "size": 5164,
-      "sha256": "9c9d076f0205a3fb58bbce4a85917ac30f16ba9e9f18c41d8f58f3be6b39d60e"
-    }
-  ]
-}
+{"schema_version":1,"artifact_format":"base64-shards-v1","compression":"gzip","encoded_size":2840,"decoded_size":7922,"decoded_sha256":"b8f1d9929ef5adb7d8d95f76e03ff5d820f7077e074e4c8c84f167a0a9faae18","encoded_sha256":"6dc5f4414269e0aaf35039d35e7c8217fe46cd1d174e6c20e3078a6d1830c518","parts":[{"path":"requirement-closure.parts/part-0000.b64","size":2840,"sha256":"6dc5f4414269e0aaf35039d35e7c8217fe46cd1d174e6c20e3078a6d1830c518"}]}

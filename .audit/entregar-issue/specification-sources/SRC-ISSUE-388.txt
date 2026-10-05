@@ -1,5 +1,3 @@
-# [treino][check-in] Implementar check-in pré-treino
-
 Parent: #386
 Depends on: #387
 
