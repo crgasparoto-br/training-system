@@ -139,6 +139,44 @@ const resolveUtcDate = (input: string | Date, endOfDay: boolean) => {
   return new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
 };
 
+
+export class WorkoutPlanningLockedError extends Error {
+  readonly statusCode = 409;
+  readonly code = 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START';
+
+  constructor() {
+    super('O planejamento desta sessão não pode ser alterado depois que a execução foi iniciada.');
+  }
+}
+
+export class LegacyWorkoutLifecycleDisabledError extends Error {
+  readonly statusCode = 409;
+  readonly code = 'WORKOUT_SESSION_EXECUTION_CANONICAL_ENDPOINT_REQUIRED';
+
+  constructor() {
+    super('Use o contrato canônico de execução da sessão para alterar o estado do treino.');
+  }
+}
+
+async function assertWorkoutDayPlanningMutable(workoutDayId: string) {
+  const execution = await prisma.workoutSessionExecution.findUnique({
+    where: { workoutDayId },
+    select: { status: true },
+  });
+  if (execution && execution.status !== 'not_started') throw new WorkoutPlanningLockedError();
+}
+
+async function assertWorkoutTemplatePlanningMutable(templateId: string) {
+  const started = await prisma.workoutSessionExecution.findFirst({
+    where: {
+      workoutDay: { templateId },
+      status: { not: 'not_started' },
+    },
+    select: { id: true },
+  });
+  if (started) throw new WorkoutPlanningLockedError();
+}
+
 /**
  * Service de Montagem e ExecuÃ§Ã£o de Treinos
  */
@@ -314,6 +352,7 @@ export const workoutService = {
    * Atualizar template
    */
   async updateTemplate(id: string, data: Partial<CreateWorkoutTemplateDTO>) {
+    await assertWorkoutTemplatePlanningMutable(id);
     const template = await prisma.workoutTemplate.update({
       where: { id },
       data: normalizeWorkoutTemplateUpdateData(data),
@@ -326,6 +365,7 @@ export const workoutService = {
    * Deletar template
    */
   async deleteTemplate(id: string) {
+    await assertWorkoutTemplatePlanningMutable(id);
     return await prisma.workoutTemplate.delete({
       where: { id },
     });
@@ -453,6 +493,7 @@ export const workoutService = {
    * Atualizar dia de treino
    */
   async updateWorkoutDay(id: string, data: WorkoutDayUpdateData) {
+    await assertWorkoutDayPlanningMutable(id);
     return await prisma.workoutDay.update({
       where: { id },
       data,
@@ -463,19 +504,16 @@ export const workoutService = {
     id: string,
     data: { status?: 'planned' | 'in_progress' | 'completed'; psrResponse?: number | null; pseResponse?: number | null }
   ) {
-    const payload: any = { ...data };
-
-    if (data.status === 'in_progress') {
-      payload.startedAt = new Date();
-    }
-
-    if (data.status === 'completed') {
-      payload.finishedAt = new Date();
+    if (data.status !== undefined) {
+      throw new LegacyWorkoutLifecycleDisabledError();
     }
 
     await prisma.workoutDay.update({
       where: { id },
-      data: payload,
+      data: {
+        ...(data.psrResponse !== undefined ? { psrResponse: data.psrResponse } : {}),
+        ...(data.pseResponse !== undefined ? { pseResponse: data.pseResponse } : {}),
+      },
     });
 
     return await this.getWorkoutDay(id);
@@ -544,6 +582,7 @@ export const workoutService = {
    * Deletar dia de treino
    */
   async deleteWorkoutDay(id: string) {
+    await assertWorkoutDayPlanningMutable(id);
     return await prisma.workoutDay.delete({
       where: { id },
     });
@@ -569,6 +608,7 @@ export const workoutService = {
    * Adicionar exercÃ­cio ao dia de treino
    */
   async addExerciseToDay(data: CreateWorkoutExerciseDTO) {
+    await assertWorkoutDayPlanningMutable(data.workoutDayId);
     return await prisma.workoutExercise.create({
       data,
       include: {
@@ -582,6 +622,12 @@ export const workoutService = {
    * Atualizar exercÃ­cio do treino
    */
   async updateWorkoutExercise(id: string, data: Partial<CreateWorkoutExerciseDTO>) {
+    const current = await prisma.workoutExercise.findUnique({ where: { id }, select: { workoutDayId: true } });
+    if (!current) throw new Error('Workout exercise not found');
+    await assertWorkoutDayPlanningMutable(current.workoutDayId);
+    if (data.workoutDayId && data.workoutDayId !== current.workoutDayId) {
+      await assertWorkoutDayPlanningMutable(data.workoutDayId);
+    }
     return await prisma.workoutExercise.update({
       where: { id },
       data,
@@ -840,6 +886,9 @@ export const workoutService = {
    * Remover exercÃ­cio do treino
    */
   async removeExerciseFromDay(id: string) {
+    const current = await prisma.workoutExercise.findUnique({ where: { id }, select: { workoutDayId: true } });
+    if (!current) throw new Error('Workout exercise not found');
+    await assertWorkoutDayPlanningMutable(current.workoutDayId);
     return await prisma.workoutExercise.delete({
       where: { id },
     });
