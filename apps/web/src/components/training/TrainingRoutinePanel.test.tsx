@@ -21,6 +21,19 @@ const session = (overrides: Partial<TrainingRoutineSessionDetail> = {}): Trainin
   method: 'Seriado',
   status: 'not_started',
   origin: { kind: 'consolidated', releasedAt: '2026-09-28T12:00:00.000Z' },
+  execution: {
+    sessionId: 'day-1',
+    status: 'not_started',
+    version: 0,
+    startedAt: null,
+    finishedAt: null,
+    currentPauseStartedAt: null,
+    pausedDurationMs: 0,
+    interruptionReason: null,
+    origin: { releaseId: 'release-1', workoutTemplateId: 'template-1', trainingPlanId: 'plan-1' },
+    sessionValues: {},
+    items: [],
+  },
   objective: 'Ganhar força',
   guidelines: ['Beba água durante o treino.'],
   cyclic: null,
@@ -56,7 +69,7 @@ const routine = (overrides: Partial<TrainingRoutineView> = {}): TrainingRoutineV
     pendingReleaseCount: date === '2026-10-03' ? 1 : 0,
   })),
   today: { date: '2026-10-01', state: 'released', sessions: [session()] },
-  execution: { available: false, reason: 'execution_contract_pending' },
+  execution: { available: true, reason: null },
   ...overrides,
 });
 
@@ -110,18 +123,41 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(within(items[0]).getByText(/Recuperação/)).toBeInTheDocument();
   });
 
-  it('mantém os controles de execução desabilitados sem contrato canônico e não chama mutação', async () => {
+  it('inicia a sessão pelo contrato canônico e recarrega o estado persistido', async () => {
     const load = vi.fn().mockResolvedValue(routine());
-    render(<TrainingRoutinePanel audience="student" load={load} />);
+    const transitionExecution = vi.fn().mockResolvedValue({
+      ...session().execution,
+      status: 'in_progress',
+      version: 1,
+      startedAt: '2026-10-01T12:00:00.000Z',
+    });
+    render(<TrainingRoutinePanel audience="student" load={load} transitionExecution={transitionExecution} />);
 
-    const start = await screen.findByRole('button', { name: 'Iniciar treino' });
-    const skip = screen.getByRole('button', { name: 'Não vou conseguir treinar' });
-    expect(start).toBeDisabled();
-    expect(skip).toBeDisabled();
-    expect(screen.getByText(/registro do treino pelo aplicativo ainda não está disponível/)).toBeInTheDocument();
-    await userEvent.click(start).catch(() => undefined);
-    expect(load).toHaveBeenCalledTimes(1);
-    expect(screen.getAllByText('Não iniciado').length).toBeGreaterThan(0);
+    await userEvent.click(await screen.findByRole('button', { name: 'Iniciar treino' }));
+
+    expect(transitionExecution).toHaveBeenCalledTimes(1);
+    expect(transitionExecution).toHaveBeenCalledWith(
+      'day-1',
+      expect.objectContaining({ expectedVersion: 0, targetStatus: 'in_progress' })
+    );
+    expect(transitionExecution.mock.calls[0][1].operationKey).toMatch(/^workout-day-1-in_progress-/);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+  });
+
+  it('preserva o motivo após falha recuperável e orienta reconciliação em conflito 409', async () => {
+    const load = vi.fn().mockResolvedValue(routine());
+    const transitionExecution = vi.fn().mockRejectedValue({ response: { status: 409 } });
+    render(<TrainingRoutinePanel audience="student" load={load} transitionExecution={transitionExecution} />);
+
+    await userEvent.type(
+      await screen.findByPlaceholderText(/indisposição, falta de tempo/i),
+      'indisposição'
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Não vou conseguir treinar' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/outro dispositivo/i);
+    expect(screen.getByDisplayValue('indisposição')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Atualizar estado' })).toBeInTheDocument();
   });
 
   it('distingue sessão ainda não liberada de dia sem treino', async () => {
@@ -227,13 +263,13 @@ describe('TrainingRoutinePanel (#387)', () => {
     await waitFor(() => expect(load).toHaveBeenLastCalledWith('2026-10-05'));
   });
 
-  it('não contém caminhos de mutação nem estado de execução local', () => {
-    const sources = ['./TrainingRoutinePanel.tsx', '../../services/training-routine.service.ts'].map((file) =>
-      readFileSync(resolve(__dirname, file), 'utf8')
-    );
-    for (const source of sources) {
-      expect(source).not.toMatch(/api\.(post|put|patch|delete)\b/);
-      expect(source).not.toMatch(/\/executions\b|\/status\b|localStorage|sessionStorage/);
-    }
+  it('mantém a autoridade no backend sem persistência paralela no navegador', () => {
+    const panelSource = readFileSync(resolve(__dirname, './TrainingRoutinePanel.tsx'), 'utf8');
+    const serviceSource = readFileSync(resolve(__dirname, '../../services/training-routine.service.ts'), 'utf8');
+
+    expect(panelSource).not.toMatch(/localStorage|sessionStorage/);
+    expect(serviceSource).toContain('/execution/transition');
+    expect(serviceSource).toContain('/execution/values');
+    expect(serviceSource).not.toMatch(/\/executions\/workout-day\/.*\/status/);
   });
 });
