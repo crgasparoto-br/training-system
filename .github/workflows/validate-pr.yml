@@ -300,7 +300,12 @@ jobs:
       - name: Lint
         run: pnpm lint
       - name: Full tests
-        run: pnpm test
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ci
+          # Keep diagnostic output even on failure; pipefail preserves the test gate.
+          pnpm test 2>&1 | tee artifacts/ci/full-tests.log
       - name: Build
         run: pnpm build
       - name: Validate settings parameters in real browser
@@ -320,6 +325,8 @@ jobs:
           path: |
             orquestrador-artifact.json
             artifacts/settings-parameters-visual/**
+            artifacts/ci/full-tests.log
+            artifacts/issue-388/**
           if-no-files-found: error
           retention-days: 30
 
