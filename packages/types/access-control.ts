@@ -110,6 +110,7 @@ export const ACCESS_BLOCK_CATALOG = [
   { key: 'students.details.assessments', screenKey: 'students.details', label: 'Aba Avaliacoes Fisicas' },
   { key: 'students.details.profileReviews', screenKey: 'students.details', label: 'Aba Revisoes Cadastrais' },
   { key: 'students.details.trainingPlans', screenKey: 'students.details', label: 'Aba Treinos / Planos' },
+  { key: 'students.details.preWorkoutCheckIn', screenKey: 'students.details', label: 'Check-in pré-treino: dados sensíveis' },
   { key: 'plans.capacityPrescriptions.view', screenKey: 'plans', label: 'Prescrição por capacidades: consultar' },
   { key: 'plans.capacityPrescriptions.manage', screenKey: 'plans', label: 'Prescrição por capacidades: criar versão' },
   { key: 'plans.consolidatedPrescriptions.view', screenKey: 'plans', label: 'Montagem consolidada: consultar' },

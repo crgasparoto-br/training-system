@@ -375,6 +375,14 @@ Antes de iniciar, o aluno pode registrar:
 - Eventual correcao historica futura deve usar mecanismo auditavel separado.
 - Cada sessao possui no maximo um check-in canonico. Retry da mesma operacao logica nao pode duplicar check-in nem evento associado.
 
+### Implementação canônica (#388)
+
+- `PreWorkoutCheckIn` é a fonte única por sessão operacional e mantém os valores separados do `WorkoutDay`.
+- A escrita do aluno é idempotente por chave lógica; a identidade do retry é calculada a partir do patch normalizado submetido, sem depender de campos alterados posteriormente por outra operação. Cada operação persistida alimenta a timeline apenas com referência e versão da regra.
+- A imutabilidade é derivada do lifecycle da própria sessão: `planned` equivale a `not_started`; qualquer estado posterior torna o check-in somente leitura.
+- A regra persistida `pre-workout-check-in-v1` implementa exclusivamente a triagem de dor/desconforto definida acima. Não existe score composto de prontidão, threshold adicional, bloqueio automático nem mutação de treino/prescrição.
+- A visão do aluno recebe orientação prática. A visão do professor só recebe valores e contexto técnico do check-in quando houver concessão explícita do bloco sensível `students.details.preWorkoutCheckIn`; a permissão genérica `students.details.trainingPlans` não autoriza esses dados.
+
 O check-in pode gerar alertas para o professor e orientacoes seguras para o aluno. Ele nao pode reduzir, trocar, cancelar ou modificar automaticamente a prescricao ou o treino liberado.
 
 Quando houver alerta critico definido por regra aprovada, o sistema deve impedir que a experiencia sugira normalidade e deve orientar o aluno a procurar o professor ou atendimento apropriado conforme a regra vigente.

@@ -1,0 +1,6 @@
+material_head_sha=667f3d564339791c2538937f1f2b2b48299f85aa
+recovery_scope=post-write-refreeze
+requires_refreeze=true
+source_audit_rejection_id=audit-rejection:dc1b9944-7cac-4715-a85d-0683080679f3
+source_finding=A-388-002
+observed_current_fixes=patch fingerprint uses normalized submitted patch; professor check-in projection is separately permission-gated; Prisma check-in contract relation targets CompanyContract mapped to physical Contract table

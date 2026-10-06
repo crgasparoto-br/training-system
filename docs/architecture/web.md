@@ -47,6 +47,14 @@ A matriz de regressao do fluxo esta em `docs/profile-review-e2e-validation.md`. 
 
 O painel e `services/training-routine.service.ts` são somente leitura. Controles de execução ficam desabilitados enquanto a API declarar `execution.available = false`; não há estado de sessão local nem chamada a endpoints de execução. O card legado baseado em `Microcycle` foi removido da Central.
 
+## Check-in pré-treino
+
+O `TrainingRoutinePanel` projeta o check-in da #388 no mesmo card da sessão. Para o aluno em `not_started`, `PreWorkoutCheckInCard` permite preenchimento parcial e salva pela fronteira `student/me`; depois do início a mesma visão fica somente leitura. Na Central do Aluno, o modo professor só renderiza esse bloco quando a API inclui explicitamente `preWorkoutCheckIn`, o que exige a concessão sensível `students.details.preWorkoutCheckIn`; sem essa concessão o campo e o bloco visual são omitidos.
+
+Em falha recuperável, os campos digitados permanecem no estado local e o mesmo `operationKey` é reutilizado enquanto o payload não mudar. A interface não calcula regra clínica nem score localmente: mensagens e triagem exibidas vêm do snapshot retornado pela API.
+
+O erro canônico usa `error` e `details.code`. HTTP 409 com `PRE_WORKOUT_CHECK_IN_LOCKED` torna o formulário somente leitura mesmo quando a página ainda projeta `not_started`: desabilitar campos, remover envio e identificar o rascunho como não salvo. Essa reconciliação usa a decisão do backend, não inicia nem simula a sessão. `PRE_WORKOUT_CHECK_IN_IDEMPOTENCY_CONFLICT` e outros HTTP 409 não equivalem a treino iniciado. Erros temporários mantêm edição e reenvio seguro. Submissões concorrentes na mesma instância do formulário são evitadas enquanto a primeira chamada está em andamento.
+
 ## Mapa corporal de desconforto
 
 `BodyDiscomfortMap` compoe a ilustracao, as areas clicaveis e os marcadores visiveis no mesmo SVG com `viewBox="0 0 400 600"`. Todos escalam juntos; nao posicionar marcadores por pixels de tela ou em uma camada HTML independente. As coordenadas de `bodyRegions.ts` foram calibradas para `body-front.png` e `body-back-clinical.png`; ao trocar uma ilustracao, revisar ambas as vistas em desktop e mobile.

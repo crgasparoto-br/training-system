@@ -1,3 +1,5 @@
+import type { PreWorkoutCheckInView } from './pre-workout-check-in.js';
+
 /**
  * Contrato de leitura da rotina semanal e do Treino de hoje (issue #387).
  *
@@ -99,6 +101,7 @@ export interface TrainingRoutineSessionDetail extends TrainingRoutineSessionSumm
   guidelines: string[];
   cyclic: TrainingRoutineCyclicTargets | null;
   blocks: TrainingRoutineBlock[];
+  preWorkoutCheckIn?: PreWorkoutCheckInView | null;
   /** Presente somente na visão do professor. */
   technical?: TrainingRoutineTechnicalContext;
 }
