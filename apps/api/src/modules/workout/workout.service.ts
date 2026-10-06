@@ -217,6 +217,7 @@ export const workoutService = {
       const incomingStart = data.weekStartDate?.getTime?.() ?? null;
 
       if (existingStart && incomingStart && existingStart !== incomingStart) {
+        await assertWorkoutTemplatePlanningMutable(existing.id);
         const weekStartDate = data.weekStartDate;
         await prisma.$transaction(async (tx) => {
           await tx.workoutTemplate.update({
