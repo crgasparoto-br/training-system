@@ -198,24 +198,49 @@ async function lockWorkoutTemplatePlanningMutable(
   if (started) throw new WorkoutPlanningLockedError();
 }
 
-function withWorkoutDayPlanningMutation<T>(
+async function withWorkoutDayPlanningMutation<T>(
   workoutDayId: string,
   mutation: (tx: Prisma.TransactionClient) => Promise<T>
 ) {
-  return prisma.$transaction(async (tx) => {
-    await lockWorkoutDayPlanningMutable(tx, workoutDayId);
-    return mutation(tx);
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await lockWorkoutDayPlanningMutable(tx, workoutDayId);
+      return mutation(tx);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+      const execution = await prisma.workoutSessionExecution.findUnique({
+        where: { workoutDayId },
+        select: { status: true },
+      });
+      if (execution && execution.status !== 'not_started') throw new WorkoutPlanningLockedError();
+    }
+    throw error;
+  }
 }
 
-function withWorkoutTemplatePlanningMutation<T>(
+async function withWorkoutTemplatePlanningMutation<T>(
   templateId: string,
   mutation: (tx: Prisma.TransactionClient) => Promise<T>
 ) {
-  return prisma.$transaction(async (tx) => {
-    await lockWorkoutTemplatePlanningMutable(tx, templateId);
-    return mutation(tx);
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await lockWorkoutTemplatePlanningMutable(tx, templateId);
+      return mutation(tx);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+      const started = await prisma.workoutSessionExecution.findFirst({
+        where: {
+          workoutDay: { templateId },
+          status: { not: 'not_started' },
+        },
+        select: { id: true },
+      });
+      if (started) throw new WorkoutPlanningLockedError();
+    }
+    throw error;
+  }
 }
 
 /**
