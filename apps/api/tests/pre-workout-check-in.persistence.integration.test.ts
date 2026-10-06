@@ -110,7 +110,13 @@ integration('Issue #388 - PostgreSQL check-in persistence', () => {
   });
 
   it('foreign student, foreign tenant, missing session and revoked release fail without effects', async () => {
-    for (const scope of [{ sessionId: 'day-b' }, { alunoId: 'aluno-b' }, { contractId: 'contract-b' }, { sessionId: 'absent' }]) {
+    const invalidScopes: Array<Record<string, string>> = [
+      { sessionId: 'day-b' },
+      { alunoId: 'aluno-b' },
+      { contractId: 'contract-b' },
+      { sessionId: 'absent' },
+    ];
+    for (const scope of invalidScopes) {
       await expect(save({}, scope)).rejects.toMatchObject({ code: 'PRE_WORKOUT_CHECK_IN_SESSION_NOT_FOUND' });
     }
     await db.$executeRaw`DELETE FROM "ConsolidatedPrescriptionOperationalRelease" WHERE id = 'release-a'`;
