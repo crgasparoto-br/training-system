@@ -24,8 +24,6 @@ type LockedReleasedSession = {
   releaseId: string;
 };
 
-type ExecutionRow = Awaited<ReturnType<PrismaClient['workoutSessionExecution']['findUnique']>>;
-type ExecutionWithRelations = NonNullable<Awaited<ReturnType<typeof readExecution>>>;
 
 export class WorkoutSessionExecutionNotFoundError extends Error {
   readonly statusCode = 404;
@@ -145,7 +143,7 @@ async function lockReleasedSession(
       AND wt."released" = TRUE
       AND tp."alunoId" = ${alunoId}
       AND a."contractId" = ${contractId}
-    ORDER BY rel."releasedAt" DESC, rel."id" DESC
+    ORDER BY rel."id" DESC
     LIMIT 1
     FOR UPDATE OF wd
   `);
@@ -182,8 +180,34 @@ function defaultView(session: LockedReleasedSession): TrainingSessionExecutionVi
   };
 }
 
+type ExecutionProjectionRow = {
+  workoutDayId: string;
+  status: TrainingSessionExecutionStatus;
+  version: number;
+  startedAt: Date | null;
+  finishedAt: Date | null;
+  currentPauseStartedAt: Date | null;
+  pausedDurationMs: bigint;
+  interruptionReason: string | null;
+  originReleaseId: string;
+  originWorkoutTemplateId: string;
+  originTrainingPlanId: string;
+  sessionValues: Prisma.JsonValue;
+  items: Array<{
+    plannedUnitId: string;
+    setNumber: number;
+    loadKg: number | null;
+    repetitions: number | null;
+    durationSec: number | null;
+    distanceKm: number | null;
+    pace: string | null;
+    heartRateBpm: number | null;
+    heartRateZone: string | null;
+  }>;
+};
+
 export function projectWorkoutSessionExecution(
-  row: NonNullable<ExecutionWithRelations>,
+  row: ExecutionProjectionRow,
   sessionId = row.workoutDayId
 ): TrainingSessionExecutionView {
   return {
