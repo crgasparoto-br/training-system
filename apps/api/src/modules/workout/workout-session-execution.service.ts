@@ -339,7 +339,8 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
     };
     const payloadFingerprint = fingerprint(normalizedOperation);
 
-    return client.$transaction(async (tx) => {
+    try {
+      return await client.$transaction(async (tx) => {
       const locked = await lockReleasedSession(tx, input.sessionId, input.alunoId, input.contractId);
       if (!locked) throw new WorkoutSessionExecutionNotFoundError('Sessão de treino não encontrada.');
 
@@ -500,7 +501,16 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
       const updated = await readExecution(tx, input.sessionId);
       if (!updated) throw new WorkoutSessionExecutionNotFoundError('Execução de treino não encontrada.');
       return projectWorkoutSessionExecution(updated);
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+        throw new WorkoutSessionExecutionConflictError(
+          'A sessão mudou em outro cliente. Atualize o estado antes de tentar novamente.',
+          'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT'
+        );
+      }
+      throw error;
+    }
   }
 
   return {
