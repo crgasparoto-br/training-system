@@ -52,6 +52,19 @@ const session = (overrides: Partial<TrainingRoutineSessionDetail> = {}): Trainin
     },
   ],
   ...overrides,
+  execution: overrides.execution ?? {
+    sessionId: 'day-1',
+    status: 'not_started',
+    version: 0,
+    startedAt: null,
+    finishedAt: null,
+    currentPauseStartedAt: null,
+    pausedDurationMs: 0,
+    interruptionReason: null,
+    origin: { releaseId: 'release-1', workoutTemplateId: 'template-1', trainingPlanId: 'plan-1' },
+    sessionValues: {},
+    items: [],
+  },
 });
 
 const routine = (overrides: Partial<TrainingRoutineView> = {}): TrainingRoutineView => ({
