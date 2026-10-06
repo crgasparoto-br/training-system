@@ -364,9 +364,9 @@ describe('training routine service (#387)', () => {
     expect(inProgress.today.sessions[0].status).toBe('in_progress');
   });
 
-  it('declara o contrato de execução como indisponível até a #389', async () => {
+  it('declara o contrato canônico de execução como disponível após a #389', async () => {
     const routine = await service.getRoutine({ alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now });
-    expect(routine.execution).toEqual({ available: false, reason: 'execution_contract_pending' });
+    expect(routine.execution).toEqual({ available: true, reason: null });
   });
 
   it('usa a data civil do fuso do produto e aceita navegar para outra semana', async () => {
