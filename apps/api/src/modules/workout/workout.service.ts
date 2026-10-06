@@ -158,16 +158,37 @@ export class LegacyWorkoutLifecycleDisabledError extends Error {
   }
 }
 
-async function assertWorkoutDayPlanningMutable(workoutDayId: string) {
-  const execution = await prisma.workoutSessionExecution.findUnique({
+async function lockWorkoutDayPlanningMutable(
+  tx: Prisma.TransactionClient,
+  workoutDayId: string
+) {
+  await tx.$queryRaw(Prisma.sql`
+    SELECT wd."id"
+    FROM "WorkoutDay" wd
+    WHERE wd."id" = ${workoutDayId}
+    FOR UPDATE
+  `);
+
+  const execution = await tx.workoutSessionExecution.findUnique({
     where: { workoutDayId },
     select: { status: true },
   });
   if (execution && execution.status !== 'not_started') throw new WorkoutPlanningLockedError();
 }
 
-async function assertWorkoutTemplatePlanningMutable(templateId: string) {
-  const started = await prisma.workoutSessionExecution.findFirst({
+async function lockWorkoutTemplatePlanningMutable(
+  tx: Prisma.TransactionClient,
+  templateId: string
+) {
+  await tx.$queryRaw(Prisma.sql`
+    SELECT wd."id"
+    FROM "WorkoutDay" wd
+    WHERE wd."templateId" = ${templateId}
+    ORDER BY wd."id"
+    FOR UPDATE
+  `);
+
+  const started = await tx.workoutSessionExecution.findFirst({
     where: {
       workoutDay: { templateId },
       status: { not: 'not_started' },
@@ -175,6 +196,26 @@ async function assertWorkoutTemplatePlanningMutable(templateId: string) {
     select: { id: true },
   });
   if (started) throw new WorkoutPlanningLockedError();
+}
+
+function withWorkoutDayPlanningMutation<T>(
+  workoutDayId: string,
+  mutation: (tx: Prisma.TransactionClient) => Promise<T>
+) {
+  return prisma.$transaction(async (tx) => {
+    await lockWorkoutDayPlanningMutable(tx, workoutDayId);
+    return mutation(tx);
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+function withWorkoutTemplatePlanningMutation<T>(
+  templateId: string,
+  mutation: (tx: Prisma.TransactionClient) => Promise<T>
+) {
+  return prisma.$transaction(async (tx) => {
+    await lockWorkoutTemplatePlanningMutable(tx, templateId);
+    return mutation(tx);
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
 /**
@@ -217,9 +258,8 @@ export const workoutService = {
       const incomingStart = data.weekStartDate?.getTime?.() ?? null;
 
       if (existingStart && incomingStart && existingStart !== incomingStart) {
-        await assertWorkoutTemplatePlanningMutable(existing.id);
         const weekStartDate = data.weekStartDate;
-        await prisma.$transaction(async (tx) => {
+        await withWorkoutTemplatePlanningMutation(existing.id, async (tx) => {
           await tx.workoutTemplate.update({
             where: { id: existing.id },
             data: { weekStartDate },
@@ -353,11 +393,12 @@ export const workoutService = {
    * Atualizar template
    */
   async updateTemplate(id: string, data: Partial<CreateWorkoutTemplateDTO>) {
-    await assertWorkoutTemplatePlanningMutable(id);
-    const template = await prisma.workoutTemplate.update({
-      where: { id },
-      data: normalizeWorkoutTemplateUpdateData(data),
-    });
+    const template = await withWorkoutTemplatePlanningMutation(id, (tx) =>
+      tx.workoutTemplate.update({
+        where: { id },
+        data: normalizeWorkoutTemplateUpdateData(data),
+      })
+    );
 
     return serializeWorkoutTemplate(template);
   },
@@ -366,10 +407,11 @@ export const workoutService = {
    * Deletar template
    */
   async deleteTemplate(id: string) {
-    await assertWorkoutTemplatePlanningMutable(id);
-    return await prisma.workoutTemplate.delete({
-      where: { id },
-    });
+    return withWorkoutTemplatePlanningMutation(id, (tx) =>
+      tx.workoutTemplate.delete({
+        where: { id },
+      })
+    );
   },
 
   /**
@@ -494,11 +536,12 @@ export const workoutService = {
    * Atualizar dia de treino
    */
   async updateWorkoutDay(id: string, data: WorkoutDayUpdateData) {
-    await assertWorkoutDayPlanningMutable(id);
-    return await prisma.workoutDay.update({
-      where: { id },
-      data,
-    });
+    return withWorkoutDayPlanningMutation(id, (tx) =>
+      tx.workoutDay.update({
+        where: { id },
+        data,
+      })
+    );
   },
 
   async updateWorkoutDayStatus(
@@ -583,10 +626,11 @@ export const workoutService = {
    * Deletar dia de treino
    */
   async deleteWorkoutDay(id: string) {
-    await assertWorkoutDayPlanningMutable(id);
-    return await prisma.workoutDay.delete({
-      where: { id },
-    });
+    return withWorkoutDayPlanningMutation(id, (tx) =>
+      tx.workoutDay.delete({
+        where: { id },
+      })
+    );
   },
 
   /**
@@ -609,14 +653,15 @@ export const workoutService = {
    * Adicionar exercÃ­cio ao dia de treino
    */
   async addExerciseToDay(data: CreateWorkoutExerciseDTO) {
-    await assertWorkoutDayPlanningMutable(data.workoutDayId);
-    return await prisma.workoutExercise.create({
-      data,
-      include: {
-        exercise: true,
-        workoutDay: true,
-      },
-    });
+    return withWorkoutDayPlanningMutation(data.workoutDayId, (tx) =>
+      tx.workoutExercise.create({
+        data,
+        include: {
+          exercise: true,
+          workoutDay: true,
+        },
+      })
+    );
   },
 
   /**
@@ -625,14 +670,19 @@ export const workoutService = {
   async updateWorkoutExercise(id: string, data: Partial<CreateWorkoutExerciseDTO>) {
     const current = await prisma.workoutExercise.findUnique({ where: { id }, select: { workoutDayId: true } });
     if (!current) throw new Error('Workout exercise not found');
-    await assertWorkoutDayPlanningMutable(current.workoutDayId);
-    if (data.workoutDayId && data.workoutDayId !== current.workoutDayId) {
-      await assertWorkoutDayPlanningMutable(data.workoutDayId);
-    }
-    return await prisma.workoutExercise.update({
-      where: { id },
-      data,
-    });
+
+    const targetWorkoutDayId = data.workoutDayId ?? current.workoutDayId;
+    const workoutDayIds = [...new Set([current.workoutDayId, targetWorkoutDayId])].sort();
+
+    return prisma.$transaction(async (tx) => {
+      for (const workoutDayId of workoutDayIds) {
+        await lockWorkoutDayPlanningMutable(tx, workoutDayId);
+      }
+      return tx.workoutExercise.update({
+        where: { id },
+        data,
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   },
 
   /**
@@ -889,10 +939,11 @@ export const workoutService = {
   async removeExerciseFromDay(id: string) {
     const current = await prisma.workoutExercise.findUnique({ where: { id }, select: { workoutDayId: true } });
     if (!current) throw new Error('Workout exercise not found');
-    await assertWorkoutDayPlanningMutable(current.workoutDayId);
-    return await prisma.workoutExercise.delete({
-      where: { id },
-    });
+    return withWorkoutDayPlanningMutation(current.workoutDayId, (tx) =>
+      tx.workoutExercise.delete({
+        where: { id },
+      })
+    );
   },
 
   /**
@@ -903,14 +954,29 @@ export const workoutService = {
     section: string,
     exerciseIds: string[]
   ) {
-    const updates = exerciseIds.map((id, index) =>
-      prisma.workoutExercise.update({
-        where: { id },
-        data: { exerciseOrder: index + 1 },
-      })
-    );
+    const uniqueIds = [...new Set(exerciseIds)];
+    if (uniqueIds.length !== exerciseIds.length) {
+      throw new Error('Duplicate workout exercise id');
+    }
 
-    return await prisma.$transaction(updates);
+    return withWorkoutDayPlanningMutation(workoutDayId, async (tx) => {
+      const owned = await tx.workoutExercise.findMany({
+        where: { id: { in: uniqueIds }, workoutDayId, section },
+        select: { id: true },
+      });
+      if (owned.length !== uniqueIds.length) {
+        throw new Error('One or more workout exercises do not belong to the requested day/section');
+      }
+
+      return Promise.all(
+        exerciseIds.map((id, index) =>
+          tx.workoutExercise.update({
+            where: { id },
+            data: { exerciseOrder: index + 1 },
+          })
+        )
+      );
+    });
   },
 
   /**
