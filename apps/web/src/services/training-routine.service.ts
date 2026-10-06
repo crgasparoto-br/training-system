@@ -1,4 +1,9 @@
-import type { TrainingRoutineView } from '@corrida/types';
+import type {
+  TrainingRoutineView,
+  TrainingSessionExecutionTransitionPayload,
+  TrainingSessionExecutionValuesPayload,
+  TrainingSessionExecutionView,
+} from '@corrida/types';
 import api from './api';
 
 type ApiEnvelope<T> = {
@@ -26,6 +31,32 @@ export const trainingRoutineService = {
     const response = await api.get<ApiEnvelope<TrainingRoutineView>>(
       `/alunos/${encodeURIComponent(alunoId)}/training-routine`,
       options.date ? { params: { date: options.date } } : undefined
+    );
+    return response.data.data;
+  },
+
+  async transitionForStudent(
+    sessionId: string,
+    payload: TrainingSessionExecutionTransitionPayload,
+    options: { contractId?: string } = {}
+  ): Promise<TrainingSessionExecutionView> {
+    const response = await api.post<ApiEnvelope<TrainingSessionExecutionView>>(
+      `/student/me/training-sessions/${encodeURIComponent(sessionId)}/execution/transition`,
+      payload,
+      options.contractId ? { headers: { 'x-contract-id': options.contractId } } : undefined
+    );
+    return response.data.data;
+  },
+
+  async saveExecutionValuesForStudent(
+    sessionId: string,
+    payload: TrainingSessionExecutionValuesPayload,
+    options: { contractId?: string } = {}
+  ): Promise<TrainingSessionExecutionView> {
+    const response = await api.put<ApiEnvelope<TrainingSessionExecutionView>>(
+      `/student/me/training-sessions/${encodeURIComponent(sessionId)}/execution/values`,
+      payload,
+      options.contractId ? { headers: { 'x-contract-id': options.contractId } } : undefined
     );
     return response.data.data;
   },
