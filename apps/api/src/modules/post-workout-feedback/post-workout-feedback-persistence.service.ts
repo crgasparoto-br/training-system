@@ -67,9 +67,14 @@ async function lockExecution(tx:Prisma.TransactionClient,sessionId:string,alunoI
   return rows[0]??null;
 }
 const valuesOf=(row:PostWorkoutFeedbackRevision)=>row.values as unknown as CanonicalPostWorkoutFeedbackValues;
+function valuesForAudience(row:PostWorkoutFeedbackRevision,audience:TrainingRoutineAudience):CanonicalPostWorkoutFeedbackValues{
+  const values={...valuesOf(row)};
+  if(audience==='student')values.professorTechnicalNotes=null;
+  return values;
+}
 export function projectPostWorkoutFeedback(row:PostWorkoutFeedbackRevision,status:WorkoutSessionExecutionStatus,audience:TrainingRoutineAudience,current=true):CanonicalPostWorkoutFeedbackRevisionView{
   if(!TERMINAL.has(status))throw new PostWorkoutFeedbackConflictError('A sessão ainda não aceita feedback pós-treino.','POST_WORKOUT_FEEDBACK_SESSION_NOT_TERMINAL');
-  return{id:row.id,sessionId:row.workoutDayId,executionId:row.executionId,executionStatus:status as 'completed'|'partial',scopeKey:row.scopeKey,capacity:row.capacity as PhysicalCapacityType|null,revisionNumber:row.revisionNumber,previousRevisionId:row.previousRevisionId,correctionReason:row.correctionReason,perceptionAuthor:row.perceptionAuthorActor as PostWorkoutFeedbackActor,revisedBy:row.revisedByActor as PostWorkoutFeedbackActor,createdAt:row.createdAt.toISOString(),values:valuesOf(row),signals:row.signals as unknown as PostWorkoutFeedbackSignal[],current,...(audience==='professor'?{technical:{ruleSetVersion:row.ruleSetVersion,originReleaseId:row.originReleaseId,originWorkoutTemplateId:row.originWorkoutTemplateId,originTrainingPlanId:row.originTrainingPlanId}}:{})};
+  return{id:row.id,sessionId:row.workoutDayId,executionId:row.executionId,executionStatus:status as 'completed'|'partial',scopeKey:row.scopeKey,capacity:row.capacity as PhysicalCapacityType|null,revisionNumber:row.revisionNumber,previousRevisionId:row.previousRevisionId,correctionReason:row.correctionReason,perceptionAuthor:row.perceptionAuthorActor as PostWorkoutFeedbackActor,revisedBy:row.revisedByActor as PostWorkoutFeedbackActor,createdAt:row.createdAt.toISOString(),values:valuesForAudience(row,audience),signals:row.signals as unknown as PostWorkoutFeedbackSignal[],current,...(audience==='professor'?{technical:{ruleSetVersion:row.ruleSetVersion,originReleaseId:row.originReleaseId,originWorkoutTemplateId:row.originWorkoutTemplateId,originTrainingPlanId:row.originTrainingPlanId}}:{})};
 }
 export function createPostWorkoutFeedbackPersistenceService(client:PrismaClient=prisma){
   async function currentRows(sessionId:string,alunoId:string,contractId:string){
@@ -93,7 +98,7 @@ export function createPostWorkoutFeedbackPersistenceService(client:PrismaClient=
         if(!execution)throw new PostWorkoutFeedbackNotFoundError('Sessão executada não encontrada.');
         if(!TERMINAL.has(execution.status))throw new PostWorkoutFeedbackConflictError('O feedback só pode ser confirmado após uma execução concluída ou parcial.','POST_WORKOUT_FEEDBACK_SESSION_NOT_TERMINAL');
         const prior=await tx.postWorkoutFeedbackOperation.findUnique({where:{workoutDayId_scopeKey_operationKey:{workoutDayId:input.sessionId,scopeKey:scope.scopeKey,operationKey:key}},include:{resultingRevision:true}});
-        if(prior){if(prior.payloadFingerprint!==fingerprint)throw new PostWorkoutFeedbackConflictError('A mesma chave de operação já foi usada com dados diferentes.','POST_WORKOUT_FEEDBACK_IDEMPOTENCY_CONFLICT');return projectPostWorkoutFeedback(prior.resultingRevision,execution.status,'student',true);}
+        if(prior){if(prior.payloadFingerprint!==fingerprint)throw new PostWorkoutFeedbackConflictError('A mesma chave de operação já foi usada com dados diferentes.','POST_WORKOUT_FEEDBACK_IDEMPOTENCY_CONFLICT');const current=await tx.postWorkoutFeedbackRevision.findFirst({where:{workoutDayId:input.sessionId,scopeKey:scope.scopeKey},orderBy:{revisionNumber:'desc'},select:{id:true}});return projectPostWorkoutFeedback(prior.resultingRevision,execution.status,'student',current?.id===prior.resultingRevisionId);}
         const existing=await tx.postWorkoutFeedbackRevision.findFirst({where:{workoutDayId:input.sessionId,scopeKey:scope.scopeKey},orderBy:{revisionNumber:'desc'}});
         if(existing)throw new PostWorkoutFeedbackConflictError('Este feedback já foi confirmado e está somente leitura.','POST_WORKOUT_FEEDBACK_ALREADY_CONFIRMED');
         const signals=evaluatePostWorkoutFeedbackSignals(values);
@@ -111,7 +116,7 @@ export function createPostWorkoutFeedbackPersistenceService(client:PrismaClient=
         if(!TERMINAL.has(execution.status))throw new PostWorkoutFeedbackConflictError('A sessão ainda não aceita correção de feedback.','POST_WORKOUT_FEEDBACK_SESSION_NOT_TERMINAL');
         const base=await tx.postWorkoutFeedbackRevision.findFirst({where:{id:input.payload.baseRevisionId,workoutDayId:input.sessionId,alunoId:input.alunoId,contractId:input.contractId}});if(!base)throw new PostWorkoutFeedbackNotFoundError('Revisão de feedback não encontrada.');
         const prior=await tx.postWorkoutFeedbackOperation.findUnique({where:{workoutDayId_scopeKey_operationKey:{workoutDayId:input.sessionId,scopeKey:base.scopeKey,operationKey:key}},include:{resultingRevision:true}});
-        if(prior){if(prior.payloadFingerprint!==fingerprint)throw new PostWorkoutFeedbackConflictError('A mesma chave de operação já foi usada com dados diferentes.','POST_WORKOUT_FEEDBACK_IDEMPOTENCY_CONFLICT');return projectPostWorkoutFeedback(prior.resultingRevision,execution.status,'professor',true);}
+        if(prior){if(prior.payloadFingerprint!==fingerprint)throw new PostWorkoutFeedbackConflictError('A mesma chave de operação já foi usada com dados diferentes.','POST_WORKOUT_FEEDBACK_IDEMPOTENCY_CONFLICT');const latest=await tx.postWorkoutFeedbackRevision.findFirst({where:{workoutDayId:input.sessionId,scopeKey:base.scopeKey},orderBy:{revisionNumber:'desc'},select:{id:true}});return projectPostWorkoutFeedback(prior.resultingRevision,execution.status,'professor',latest?.id===prior.resultingRevisionId);}
         const current=await tx.postWorkoutFeedbackRevision.findFirst({where:{workoutDayId:input.sessionId,scopeKey:base.scopeKey},orderBy:{revisionNumber:'desc'}});
         if(!current||current.id!==base.id)throw new PostWorkoutFeedbackConflictError('O feedback foi revisado por outro cliente. Atualize antes de corrigir.','POST_WORKOUT_FEEDBACK_REVISION_CONFLICT');
         const values=merge(valuesOf(base),patch);const signals=evaluatePostWorkoutFeedbackSignals(values);
