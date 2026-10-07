@@ -406,19 +406,39 @@ describeDatabase('post-workout feedback persistence - issue 390', () => {
     });
     expect(history[1]).toMatchObject({ id: base.id, revisionNumber: 1, current: false });
     expect(history[1].values.observations).toBe('Percepção original do aluno.');
+    expect(history[0].technical).toMatchObject({ originTrainingPlanId: expect.any(String) });
+    const studentView = await feedbackService.getForSession({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      audience: 'student',
+    });
+    expect(studentView[0]).not.toHaveProperty('technical');
   });
 
-  it('rejeita feedback antes de estado terminal e fora do contrato do aluno', async () => {
+  it('rejeita sessão não iniciada, aceita execução parcial e isola outro contrato', async () => {
     const fixture = await seedReleasedWorkout('feedback-boundary');
-    await transition(fixture, 'issue390-boundary-start', 0, 'in_progress');
 
     await expect(feedbackService.createForStudent({
       sessionId: fixture.dayId,
       alunoId: fixture.alunoId,
       contractId: fixture.contractId,
       actorUserId: fixture.alunoUserId,
-      payload: { operationKey: 'issue390-not-terminal', values: { pse: 5 } },
-    })).rejects.toMatchObject({ code: 'POST_WORKOUT_FEEDBACK_SESSION_NOT_TERMINAL' });
+      payload: { operationKey: 'issue390-not-started', values: { pse: 5 } },
+    })).rejects.toBeInstanceOf(PostWorkoutFeedbackNotFoundError);
+
+    await transition(fixture, 'issue390-boundary-start', 0, 'in_progress');
+    await transition(fixture, 'issue390-boundary-partial', 1, 'partial', 'Sessão encerrada antes do fim');
+
+    const partial = await feedbackService.createForStudent({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: { operationKey: 'issue390-partial-feedback', values: { pse: 5, fatigueLevel: 'high' } },
+    });
+    expect(partial.executionStatus).toBe('partial');
+    expect(partial.signals.map((signal) => signal.code)).toContain('fatigue_high');
 
     await expect(feedbackService.getForSession({
       sessionId: fixture.dayId,
