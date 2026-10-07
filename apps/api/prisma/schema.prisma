@@ -1923,6 +1923,7 @@ model WorkoutDay {
   exercises           WorkoutExercise[]
   preWorkoutCheckIn   PreWorkoutCheckIn?
   execution           WorkoutSessionExecution?
+  postWorkoutFeedbackRevisions PostWorkoutFeedbackRevision[]
 
   @@unique([templateId, dayOfWeek])
   @@index([templateId])
@@ -2048,6 +2049,7 @@ model WorkoutSessionExecution {
   operations              WorkoutSessionExecutionOperation[]
   pauseIntervals          WorkoutSessionPauseInterval[]
   items                   WorkoutSessionExecutionItem[]
+  postWorkoutFeedbackRevisions PostWorkoutFeedbackRevision[]
 
   @@index([alunoId, contractId, status])
   @@index([originReleaseId])
@@ -2101,6 +2103,59 @@ model WorkoutSessionExecutionItem {
 
   @@unique([executionId, plannedUnitId, setNumber])
   @@index([plannedUnitId])
+}
+
+
+model PostWorkoutFeedbackRevision {
+  id                      String                  @id @default(cuid())
+  workoutDayId            String
+  executionId             String
+  alunoId                 String
+  contractId              String
+  scopeKey                String                  @default("session")
+  capacity                String?
+  revisionNumber          Int
+  previousRevisionId      String?
+  perceptionAuthorActor   String
+  perceptionAuthorUserId  String?
+  revisedByActor          String
+  revisedByUserId         String?
+  correctionReason        String?
+  values                  Json
+  signals                 Json
+  ruleSetVersion          String
+  originReleaseId         String
+  originWorkoutTemplateId String
+  originTrainingPlanId    String
+  createdAt               DateTime                @default(now())
+  workoutDay              WorkoutDay              @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  execution               WorkoutSessionExecution @relation(fields: [executionId], references: [id], onDelete: Restrict)
+  previousRevision        PostWorkoutFeedbackRevision?  @relation("PostWorkoutFeedbackRevisionChain", fields: [previousRevisionId], references: [id], onDelete: Restrict)
+  nextRevisions           PostWorkoutFeedbackRevision[] @relation("PostWorkoutFeedbackRevisionChain")
+  operations              PostWorkoutFeedbackOperation[]
+
+  @@unique([workoutDayId, scopeKey, revisionNumber])
+  @@index([workoutDayId, scopeKey, createdAt])
+  @@index([executionId])
+  @@index([alunoId, contractId, createdAt])
+}
+
+model PostWorkoutFeedbackOperation {
+  id                  String                      @id @default(cuid())
+  workoutDayId        String
+  scopeKey            String
+  operationKey        String
+  payloadFingerprint  String
+  action              String
+  baseRevisionId      String?
+  resultingRevisionId String
+  lifecycleEventId    String?
+  createdAt           DateTime                    @default(now())
+  resultingRevision   PostWorkoutFeedbackRevision @relation(fields: [resultingRevisionId], references: [id], onDelete: Cascade)
+
+  @@unique([workoutDayId, scopeKey, operationKey])
+  @@index([resultingRevisionId])
+  @@index([createdAt])
 }
 
 model StudentProfile {

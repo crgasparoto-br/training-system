@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient, type PostWorkoutFeedbackRevision, type WorkoutSessionExecutionStatus } from '@prisma/client';
 import type {
   TrainingRoutineAudience,
   TrainingRoutineBlock,
@@ -17,6 +17,7 @@ import type {
 import { DEFAULT_CONTRACT_TIME_ZONE } from '../contracts/contract-date-input.js';
 import { projectPreWorkoutCheckIn } from './pre-workout-check-in.service.js';
 import { projectWorkoutSessionExecution } from './workout-session-execution.service.js';
+import { projectPostWorkoutFeedback } from '../post-workout-feedback/post-workout-feedback-persistence.service.js';
 
 /**
  * Leitura da rotina semanal e do Treino de hoje (issue #387).
@@ -42,6 +43,7 @@ export type TrainingRoutineQuery = {
   audience: TrainingRoutineAudience;
   /** Dados sensíveis do check-in só são projetados ao professor com concessão explícita. */
   includePreWorkoutCheckIn?: boolean;
+  includePostWorkoutFeedback?: boolean;
   /** Data local `YYYY-MM-DD`; quando ausente usa a data atual no fuso do produto. */
   date?: string;
   now?: Date;
@@ -330,7 +332,9 @@ function toDetail(
   capacities: string[],
   release: ReleaseRow,
   checkIn: Awaited<ReturnType<PrismaClient['preWorkoutCheckIn']['findFirst']>>,
-  includePreWorkoutCheckIn: boolean
+  includePreWorkoutCheckIn: boolean,
+  feedback: Array<PostWorkoutFeedbackRevision & { execution: { status: WorkoutSessionExecutionStatus } }>,
+  includePostWorkoutFeedback: boolean
 ): TrainingRoutineSessionDetail {
   const execution = buildExecution(row, release);
   const detail: TrainingRoutineSessionDetail = {
@@ -342,13 +346,8 @@ function toDetail(
       .filter((value): value is string => value !== null),
     cyclic: buildCyclicTargets(row),
     blocks: buildBlocks(row),
-    ...(includePreWorkoutCheckIn
-      ? {
-          preWorkoutCheckIn: checkIn
-            ? projectPreWorkoutCheckIn(checkIn, audience, execution.status)
-            : null,
-        }
-      : {}),
+    ...(includePreWorkoutCheckIn ? { preWorkoutCheckIn: checkIn ? projectPreWorkoutCheckIn(checkIn, audience, execution.status) : null } : {}),
+    ...(includePostWorkoutFeedback ? { postWorkoutFeedback: feedback.map((row) => projectPostWorkoutFeedback(row, row.execution.status, audience, true)) } : {}),
   };
 
   if (audience === 'professor') {
@@ -424,6 +423,7 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
       const visibleRows = rows.filter((row) => releaseByTemplate.has(row.template.id));
       const canProjectPreWorkoutCheckIn =
         query.audience === 'student' || query.includePreWorkoutCheckIn === true;
+      const canProjectPostWorkoutFeedback = query.audience === 'student' || query.includePostWorkoutFeedback === true;
       const checkInRows = canProjectPreWorkoutCheckIn && visibleRows.length
         ? await client.preWorkoutCheckIn.findMany({
             where: {
@@ -434,6 +434,9 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
           })
         : [];
       const checkInBySession = new Map(checkInRows.map((checkIn) => [checkIn.workoutDayId, checkIn]));
+      const feedbackRows = canProjectPostWorkoutFeedback && visibleRows.length ? await client.postWorkoutFeedbackRevision.findMany({where:{workoutDayId:{in:visibleRows.map((row)=>row.id)},alunoId:query.alunoId,contractId:query.contractId},include:{execution:{select:{status:true}}},orderBy:[{workoutDayId:'asc'},{scopeKey:'asc'},{revisionNumber:'desc'}]}) : [];
+      const latestFeedbackBySession = new Map<string, typeof feedbackRows>(); const latestScopes = new Set<string>();
+      for (const feedback of feedbackRows) { const key = `${feedback.workoutDayId}:${feedback.scopeKey}`; if (latestScopes.has(key)) continue; latestScopes.add(key); latestFeedbackBySession.set(feedback.workoutDayId,[...(latestFeedbackBySession.get(feedback.workoutDayId) ?? []),feedback]); }
       const pendingByDate = new Map<string, number>();
       for (const pending of pendingRows) {
         const key = toDateOnly(pending.workoutDate);
@@ -470,7 +473,9 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
               row,
               ...context(row),
               checkInBySession.get(row.id) ?? null,
-              canProjectPreWorkoutCheckIn
+              canProjectPreWorkoutCheckIn,
+              latestFeedbackBySession.get(row.id) ?? [],
+              canProjectPostWorkoutFeedback
             )
           ),
         },

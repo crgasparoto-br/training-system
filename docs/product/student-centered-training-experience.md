@@ -432,6 +432,18 @@ O sistema deve preservar rascunho e falhas recuperaveis sem perder o que o aluno
 - O professor nao pode reescrever silenciosamente a percepcao original do aluno. Complemento tecnico do professor deve permanecer como dado atribuido ao professor; uma correcao sobre resposta do aluno, quando autorizada, deve preservar autoria e trilha de revisao.
 - A capacidade do aluno de corrigir o proprio feedback depende de permissao explicita do produto/backend; ausencia dessa permissao mantem o feedback somente leitura para o aluno apos confirmacao.
 
+### Implementação canônica do feedback pós-treino (#390)
+
+- A fonte canônica é uma sequência append-only de `PostWorkoutFeedbackRevision`, separada por sessão e, quando informado, por capacidade. A maior revisão de cada escopo é vigente e as anteriores permanecem auditáveis.
+- O feedback só pode ser confirmado quando `WorkoutSessionExecution` da #389 estiver em `completed` ou `partial`; ele nunca cria outra autoridade para o estado da sessão.
+- Criação e correção exigem `operationKey`. Retry idêntico reutiliza o resultado; chave reutilizada com conteúdo diferente gera conflito.
+- Correção é profissional neste recorte, exige `students.details.postWorkoutFeedback`, motivo e `baseRevisionId`; base obsoleta gera conflito determinístico.
+- PSE, PSR, dores antes/durante/depois e dificuldade são campos distintos de 0 a 10. Ausência de dor permanece `null`.
+- Fadiga, energia e sono preservam escalas categóricas independentes. Dor usa somente 0–2 verde, 3–4 atenção e >4 alerta.
+- Tontura, fadiga alta e dor podem sinalizar acompanhamento, mas nenhum sinal altera, bloqueia ou decide prescrição ou treino automaticamente.
+- A timeline recebe apenas referências, regra e códigos de sinal; valores sensíveis permanecem na fonte canônica e a visão técnica exige permissão explícita.
+
+
 
 ## Evolucao e apoio a decisao
 
