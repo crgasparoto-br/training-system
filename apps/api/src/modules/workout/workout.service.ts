@@ -158,6 +158,17 @@ export class LegacyWorkoutLifecycleDisabledError extends Error {
   }
 }
 
+function isSerializableTransactionConflict(error: unknown) {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (error.code === 'P2034') return true;
+  if (error.code !== 'P2010') return false;
+
+  const meta = error.meta as { code?: unknown; message?: unknown } | undefined;
+  return meta?.code === '40001'
+    || (typeof meta?.message === 'string'
+      && /could not serialize access|serialization failure/i.test(meta.message));
+}
+
 async function lockWorkoutDayPlanningMutable(
   tx: Prisma.TransactionClient,
   workoutDayId: string
@@ -208,7 +219,7 @@ async function withWorkoutDayPlanningMutation<T>(
       return mutation(tx);
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+    if (isSerializableTransactionConflict(error)) {
       const execution = await prisma.workoutSessionExecution.findUnique({
         where: { workoutDayId },
         select: { status: true },
@@ -229,7 +240,7 @@ async function withWorkoutTemplatePlanningMutation<T>(
       return mutation(tx);
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+    if (isSerializableTransactionConflict(error)) {
       const started = await prisma.workoutSessionExecution.findFirst({
         where: {
           workoutDay: { templateId },
