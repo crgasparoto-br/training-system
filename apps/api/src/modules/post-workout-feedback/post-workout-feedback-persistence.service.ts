@@ -101,7 +101,7 @@ export function createPostWorkoutFeedbackPersistenceService(client:PrismaClient=
         const op=await tx.postWorkoutFeedbackOperation.create({data:{workoutDayId:input.sessionId,scopeKey:scope.scopeKey,operationKey:key,payloadFingerprint:fingerprint,action:'create',resultingRevisionId:revision.id}});
         const event=await tx.studentLifecycleEvent.create({data:{alunoId:input.alunoId,contractId:input.contractId,eventType:'STATUS_CHANGED',actorUserId:input.actorUserId,metadata:{eventKey:`post-workout-feedback:${revision.id}`,domain:'post_workout_feedback',action:'created',workoutDayId:input.sessionId,executionId:execution.id,revisionId:revision.id,revisionNumber:1,scopeKey:scope.scopeKey,ruleSetVersion:POST_WORKOUT_FEEDBACK_RULE_SET_VERSION,signalCodes:signals.map((s)=>s.code)}},select:{id:true}});
         await tx.postWorkoutFeedbackOperation.update({where:{id:op.id},data:{lifecycleEventId:event.id}});return projectPostWorkoutFeedback(revision,execution.status,'student',true);
-      },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+      },{isolationLevel:Prisma.TransactionIsolationLevel.ReadCommitted});
     },
     async correctForProfessor(input:{sessionId:string;alunoId:string;contractId:string;actorUserId:string;payload:CorrectCanonicalPostWorkoutFeedbackPayload}){
       const key=opKey(input.payload.operationKey);const reason=normalizeText(input.payload.reason,500);if(!reason)throw new PostWorkoutFeedbackInputError('Motivo da correção é obrigatório.');
@@ -119,7 +119,7 @@ export function createPostWorkoutFeedbackPersistenceService(client:PrismaClient=
         const op=await tx.postWorkoutFeedbackOperation.create({data:{workoutDayId:input.sessionId,scopeKey:base.scopeKey,operationKey:key,payloadFingerprint:fingerprint,action:'correct',baseRevisionId:base.id,resultingRevisionId:revision.id}});
         const event=await tx.studentLifecycleEvent.create({data:{alunoId:input.alunoId,contractId:input.contractId,eventType:'STATUS_CHANGED',actorUserId:input.actorUserId,metadata:{eventKey:`post-workout-feedback:${revision.id}`,domain:'post_workout_feedback',action:'corrected',workoutDayId:input.sessionId,executionId:execution.id,revisionId:revision.id,previousRevisionId:base.id,revisionNumber:revision.revisionNumber,scopeKey:base.scopeKey,correctionReason:reason,changedFields:Object.keys(patch),ruleSetVersion:POST_WORKOUT_FEEDBACK_RULE_SET_VERSION,signalCodes:signals.map((s)=>s.code)}},select:{id:true}});
         await tx.postWorkoutFeedbackOperation.update({where:{id:op.id},data:{lifecycleEventId:event.id}});return projectPostWorkoutFeedback(revision,execution.status,'professor',true);
-      },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+      },{isolationLevel:Prisma.TransactionIsolationLevel.ReadCommitted});
     },
   };
 }

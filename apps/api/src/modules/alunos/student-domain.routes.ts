@@ -137,6 +137,36 @@ router.get(
 );
 
 
+
+router.get(
+  '/:id/training-sessions/:sessionId/feedback/revisions',
+  blockAccessMiddleware('students.details.postWorkoutFeedback'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id, sessionId } = req.params;
+      const { contractId } = getProfessorContext(req);
+      if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
+      if (!(await ensureAlunoAccess(req, res, id))) return;
+      if (!(await alunoService.belongsToContract(id, contractId))) {
+        return sendError(res, 'Aluno não encontrado ou não pertence ao seu acesso', 404);
+      }
+      const revisions = await postWorkoutFeedbackPersistenceService.getForSession({
+        sessionId,
+        alunoId: id,
+        contractId,
+        audience: 'professor',
+        includeHistory: true,
+      });
+      return sendSuccess(res, revisions, 'Histórico do feedback pós-treino carregado com sucesso');
+    } catch (error: any) {
+      if (error instanceof PostWorkoutFeedbackNotFoundError) return sendError(res, error.message, 404);
+      if (error instanceof PostWorkoutFeedbackConflictError) return sendError(res, error.message, 409, { code: error.code });
+      console.error('Erro ao carregar histórico do feedback pós-treino:', error);
+      return sendStudentDomainLoadError(res, error, 'Erro ao carregar histórico do feedback pós-treino');
+    }
+  }
+);
+
 const postWorkoutCorrectionSchema=z.object({operationKey:z.string().trim().min(8).max(128),baseRevisionId:z.string().trim().min(1),reason:z.string().trim().min(1).max(500),values:z.object({pse:z.number().int().min(0).max(10).nullable().optional(),psr:z.number().int().min(0).max(10).nullable().optional(),painBefore:z.number().int().min(0).max(10).nullable().optional(),painDuring:z.number().int().min(0).max(10).nullable().optional(),painAfter:z.number().int().min(0).max(10).nullable().optional(),painLocation:z.string().trim().max(160).nullable().optional(),difficulty:z.number().int().min(0).max(10).nullable().optional(),fatigueLevel:z.enum(['low','medium','high']).nullable().optional(),energyLevel:z.enum(['good','medium','poor']).nullable().optional(),sleepQuality:z.enum(['good','medium','poor']).nullable().optional(),dizziness:z.boolean().nullable().optional(),observations:z.string().trim().max(1000).nullable().optional(),professorTechnicalNotes:z.string().trim().max(1000).nullable().optional()}).strict()}).strict();
 router.post('/:id/training-sessions/:sessionId/feedback/corrections',blockAccessMiddleware('students.details.postWorkoutFeedback'),async(req:Request,res:Response)=>{try{const {id,sessionId}=req.params;const {contractId}=getProfessorContext(req);const actorUserId=(req as any).user.userId as string|undefined;if(!contractId||!actorUserId)return sendError(res,'Contexto do professor não encontrado',404);if(!(await ensureAlunoAccess(req,res,id)))return;if(!(await alunoService.belongsToContract(id,contractId)))return sendError(res,'Aluno não encontrado ou não pertence ao seu acesso',404);const payload=postWorkoutCorrectionSchema.parse(req.body);return sendSuccess(res,await postWorkoutFeedbackPersistenceService.correctForProfessor({sessionId,alunoId:id,contractId,actorUserId,payload}),'Correção do feedback registrada como nova revisão');}catch(error:any){if(error instanceof z.ZodError||error instanceof PostWorkoutFeedbackInputError)return sendError(res,error instanceof z.ZodError?'Dados inválidos':error.message,400,error instanceof z.ZodError?error.errors:{code:error.code});if(error instanceof PostWorkoutFeedbackNotFoundError)return sendError(res,error.message,404);if(error instanceof PostWorkoutFeedbackConflictError)return sendError(res,error.message,409,{code:error.code});console.error('Erro ao corrigir feedback pós-treino:',error);return sendStudentDomainLoadError(res,error,'Erro ao corrigir feedback pós-treino');}});
 
