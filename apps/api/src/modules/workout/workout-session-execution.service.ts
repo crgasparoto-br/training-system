@@ -112,6 +112,17 @@ function fingerprint(value: unknown) {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
+function isSerializableTransactionConflict(error: unknown) {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (error.code === 'P2034') return true;
+  if (error.code !== 'P2010') return false;
+
+  const meta = error.meta as { code?: unknown; message?: unknown } | undefined;
+  return meta?.code === '40001'
+    || (typeof meta?.message === 'string'
+      && /could not serialize access|serialization failure/i.test(meta.message));
+}
+
 function legacyProjection(status: TrainingSessionExecutionStatus): 'planned' | 'in_progress' | 'completed' {
   if (status === 'not_started') return 'planned';
   if (status === 'in_progress' || status === 'paused') return 'in_progress';
@@ -503,7 +514,7 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
       return projectWorkoutSessionExecution(updated);
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+      if (isSerializableTransactionConflict(error)) {
         throw new WorkoutSessionExecutionConflictError(
           'A sessão mudou em outro cliente. Atualize o estado antes de tentar novamente.',
           'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT'
