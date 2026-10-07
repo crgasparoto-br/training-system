@@ -80,8 +80,8 @@ describe('segmented aluno routes', () => {
 
   beforeEach(() => {
     mockStudentProfileFindFirst.mockReset();
-    mockBlockAccessMiddleware.mockClear();
-    mockExplicitBlockAccessMiddleware.mockClear();
+    // Access middleware factories are invoked once when the router is registered.
+    // Preserve those calls so route-boundary assertions verify the actual registration.
     (alunoService.belongsToContract as jest.Mock).mockReset();
     (alunoService.belongsToProfessor as jest.Mock).mockReset();
     (studentParqBoundaryService.getAdministrativeSummary as jest.Mock).mockReset();
