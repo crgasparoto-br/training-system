@@ -14,6 +14,7 @@ import { workoutService } from '../src/modules/workout/workout.service.js';
 import {
   createPostWorkoutFeedbackPersistenceService,
   PostWorkoutFeedbackConflictError,
+  PostWorkoutFeedbackInputError,
   PostWorkoutFeedbackNotFoundError,
 } from '../src/modules/post-workout-feedback/post-workout-feedback-persistence.service.js';
 
@@ -461,6 +462,88 @@ describeDatabase('post-workout feedback persistence - issue 390', () => {
       },
     });
     expect(replayedCorrection).toMatchObject({ id: winningRevision.id, current: false });
+  });
+
+  it('rejeita correções sem mudança material e audita somente campos alterados', async () => {
+    const fixture = await seedReleasedWorkout('feedback-material-correction');
+    await completeSession(fixture, 'issue390-material-correction');
+    const base = await feedbackService.createForStudent({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue390-material-base',
+        values: { pse: 6, painDuring: 4, observations: 'Original' },
+      },
+    });
+
+    const correction = (operationKey: string, values: Record<string, unknown>) =>
+      feedbackService.correctForProfessor({
+        sessionId: fixture.dayId,
+        alunoId: fixture.alunoId,
+        contractId: fixture.contractId,
+        actorUserId: fixture.professorUserId,
+        payload: {
+          operationKey,
+          baseRevisionId: base.id,
+          reason: 'Correção material auditável',
+          values,
+        },
+      } as Parameters<typeof feedbackService.correctForProfessor>[0]);
+
+    await expect(correction('issue390-empty-correction', {})).rejects.toBeInstanceOf(PostWorkoutFeedbackInputError);
+    await expect(correction('issue390-same-correction', { pse: 6 })).rejects.toBeInstanceOf(PostWorkoutFeedbackInputError);
+
+    expect(await prisma.postWorkoutFeedbackRevision.count({ where: { workoutDayId: fixture.dayId } })).toBe(1);
+    expect(await prisma.postWorkoutFeedbackOperation.count({ where: { workoutDayId: fixture.dayId } })).toBe(1);
+    expect(await prisma.studentLifecycleEvent.count({
+      where: {
+        alunoId: fixture.alunoId,
+        metadata: { path: ['domain'], equals: 'post_workout_feedback' },
+      },
+    })).toBe(1);
+
+    const payload = {
+      operationKey: 'issue390-material-change',
+      baseRevisionId: base.id,
+      reason: 'Correção material auditável',
+      values: { pse: 6, painDuring: 5, observations: 'Original' },
+    };
+    const corrected = await feedbackService.correctForProfessor({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.professorUserId,
+      payload,
+    });
+    expect(corrected.values).toMatchObject({ pse: 6, painDuring: 5, observations: 'Original' });
+
+    const event = await prisma.studentLifecycleEvent.findFirst({
+      where: {
+        alunoId: fixture.alunoId,
+        metadata: { path: ['revisionId'], equals: corrected.id },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect((event?.metadata as { changedFields?: string[] } | null)?.changedFields).toEqual(['painDuring']);
+
+    const replay = await feedbackService.correctForProfessor({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.professorUserId,
+      payload,
+    });
+    expect(replay.id).toBe(corrected.id);
+    expect(await prisma.postWorkoutFeedbackRevision.count({ where: { workoutDayId: fixture.dayId } })).toBe(2);
+    expect(await prisma.postWorkoutFeedbackOperation.count({ where: { workoutDayId: fixture.dayId } })).toBe(2);
+    expect(await prisma.studentLifecycleEvent.count({
+      where: {
+        alunoId: fixture.alunoId,
+        metadata: { path: ['domain'], equals: 'post_workout_feedback' },
+      },
+    })).toBe(2);
   });
 
   it('rejeita sessão não iniciada, aceita execução parcial e isola outro contrato', async () => {
