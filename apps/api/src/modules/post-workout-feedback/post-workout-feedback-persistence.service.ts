@@ -47,6 +47,9 @@ export function normalizePostWorkoutFeedbackValues(patch:Partial<CanonicalPostWo
   };
 }
 function merge(current:CanonicalPostWorkoutFeedbackValues|null,patch:Partial<CanonicalPostWorkoutFeedbackValues>):CanonicalPostWorkoutFeedbackValues{return {...(current??emptyValues()),...patch};}
+export function getMaterialPostWorkoutFeedbackPatch(current:CanonicalPostWorkoutFeedbackValues,patch:Partial<CanonicalPostWorkoutFeedbackValues>):Partial<CanonicalPostWorkoutFeedbackValues>{
+  return Object.fromEntries(Object.entries(patch).filter(([key,value])=>current[key as keyof CanonicalPostWorkoutFeedbackValues]!==value)) as Partial<CanonicalPostWorkoutFeedbackValues>;
+}
 function maxPain(v:CanonicalPostWorkoutFeedbackValues){const xs=[v.painBefore,v.painDuring,v.painAfter].filter((x):x is number=>typeof x==='number');return xs.length?Math.max(...xs):null;}
 export function evaluatePostWorkoutFeedbackSignals(v:CanonicalPostWorkoutFeedbackValues):PostWorkoutFeedbackSignal[]{
   const out:PostWorkoutFeedbackSignal[]=[];const pain=maxPain(v);
@@ -110,11 +113,14 @@ export function createPostWorkoutFeedbackPersistenceService(client:PrismaClient=
     },
     async correctForProfessor(input:{sessionId:string;alunoId:string;contractId:string;actorUserId:string;payload:CorrectCanonicalPostWorkoutFeedbackPayload}){
       const key=opKey(input.payload.operationKey);const reason=normalizeText(input.payload.reason,500);if(!reason)throw new PostWorkoutFeedbackInputError('Motivo da correção é obrigatório.');
-      const patch=normalizePostWorkoutFeedbackValues(input.payload.values);const fingerprint=fp({action:'correct',baseRevisionId:input.payload.baseRevisionId,reason,values:patch});
+      const requestedPatch=normalizePostWorkoutFeedbackValues(input.payload.values);
       return client.$transaction(async(tx)=>{
         const execution=await lockExecution(tx,input.sessionId,input.alunoId,input.contractId);if(!execution)throw new PostWorkoutFeedbackNotFoundError('Sessão executada não encontrada.');
         if(!TERMINAL.has(execution.status))throw new PostWorkoutFeedbackConflictError('A sessão ainda não aceita correção de feedback.','POST_WORKOUT_FEEDBACK_SESSION_NOT_TERMINAL');
         const base=await tx.postWorkoutFeedbackRevision.findFirst({where:{id:input.payload.baseRevisionId,workoutDayId:input.sessionId,alunoId:input.alunoId,contractId:input.contractId}});if(!base)throw new PostWorkoutFeedbackNotFoundError('Revisão de feedback não encontrada.');
+        const patch=getMaterialPostWorkoutFeedbackPatch(valuesOf(base),requestedPatch);
+        if(Object.keys(patch).length===0)throw new PostWorkoutFeedbackInputError('A correção deve alterar pelo menos um campo do feedback.');
+        const fingerprint=fp({action:'correct',baseRevisionId:input.payload.baseRevisionId,reason,values:patch});
         const prior=await tx.postWorkoutFeedbackOperation.findUnique({where:{workoutDayId_scopeKey_operationKey:{workoutDayId:input.sessionId,scopeKey:base.scopeKey,operationKey:key}},include:{resultingRevision:true}});
         if(prior){if(prior.payloadFingerprint!==fingerprint)throw new PostWorkoutFeedbackConflictError('A mesma chave de operação já foi usada com dados diferentes.','POST_WORKOUT_FEEDBACK_IDEMPOTENCY_CONFLICT');const latest=await tx.postWorkoutFeedbackRevision.findFirst({where:{workoutDayId:input.sessionId,scopeKey:base.scopeKey},orderBy:{revisionNumber:'desc'},select:{id:true}});return projectPostWorkoutFeedback(prior.resultingRevision,execution.status,'professor',latest?.id===prior.resultingRevisionId);}
         const current=await tx.postWorkoutFeedbackRevision.findFirst({where:{workoutDayId:input.sessionId,scopeKey:base.scopeKey},orderBy:{revisionNumber:'desc'}});
