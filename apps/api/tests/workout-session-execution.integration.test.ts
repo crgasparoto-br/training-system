@@ -414,6 +414,53 @@ describeDatabase('post-workout feedback persistence - issue 390', () => {
       audience: 'student',
     });
     expect(studentView[0]).not.toHaveProperty('technical');
+    expect(studentView[0].values.professorTechnicalNotes).toBeNull();
+
+    const replayedCreate = await feedbackService.createForStudent({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue390-correction-base',
+        values: { pse: 6, painDuring: 5, observations: 'Percepção original do aluno.' },
+      },
+    });
+    expect(replayedCreate).toMatchObject({ id: base.id, current: false });
+    expect(replayedCreate.values.professorTechnicalNotes).toBeNull();
+
+    const winningIndex = results.findIndex((result) => result.status === 'fulfilled');
+    const winningRevision = (results[winningIndex] as PromiseFulfilledResult<Awaited<ReturnType<typeof feedbackService.correctForProfessor>>>).value;
+    const winningOperationKey = winningIndex === 0 ? 'issue390-correction-a' : 'issue390-correction-b';
+    const winningDifficulty = winningIndex === 0 ? 7 : 8;
+
+    const laterRevision = await feedbackService.correctForProfessor({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.professorUserId,
+      payload: {
+        operationKey: 'issue390-correction-later',
+        baseRevisionId: winningRevision.id,
+        reason: 'Segunda correção técnica auditável',
+        values: { pse: 7 },
+      },
+    });
+    expect(laterRevision.current).toBe(true);
+
+    const replayedCorrection = await feedbackService.correctForProfessor({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.professorUserId,
+      payload: {
+        operationKey: winningOperationKey,
+        baseRevisionId: base.id,
+        reason: 'Correção técnica auditável',
+        values: { difficulty: winningDifficulty, professorTechnicalNotes: `Complemento técnico ${winningDifficulty}` },
+      },
+    });
+    expect(replayedCorrection).toMatchObject({ id: winningRevision.id, current: false });
   });
 
   it('rejeita sessão não iniciada, aceita execução parcial e isola outro contrato', async () => {
