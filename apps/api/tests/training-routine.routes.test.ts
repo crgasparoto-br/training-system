@@ -11,6 +11,9 @@ const mockResolveActiveStudentMembership = jest.fn();
 const mockBlockAccessMiddleware = jest.fn(
   () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
 );
+const mockExplicitBlockAccessMiddleware = jest.fn(
+  () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
+);
 let mockUser: Record<string, unknown> = {};
 
 jest.mock('@prisma/client', () => ({
@@ -32,6 +35,7 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
 
 jest.mock('../src/modules/access-control/access-control.middleware', () => ({
   blockAccessMiddleware: mockBlockAccessMiddleware,
+  explicitBlockAccessMiddleware: mockExplicitBlockAccessMiddleware,
 }));
 
 jest.mock('../src/modules/workout/training-routine.service', () => {
@@ -269,6 +273,10 @@ describe('training routine HTTP boundaries (#387)', () => {
         includePreWorkoutCheckIn: true,
         includePostWorkoutFeedback: false,
       });
+    });
+
+    it('mantém o boundary explícito disponível para as rotas sensíveis de feedback', async () => {
+      expect(mockExplicitBlockAccessMiddleware).toHaveBeenCalledWith('students.details.postWorkoutFeedback');
     });
 
     it('projeta feedback pós-treino somente com concessão sensível própria', async () => {
