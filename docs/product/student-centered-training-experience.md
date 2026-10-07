@@ -99,7 +99,7 @@ A rotina semanal e o Treino de hoje sao uma leitura do grafo operacional liberad
 - **Modalidade**: derivada de dados persistidos, nunca de texto livre: exercicios -> musculacao; tempo/distancia/FC/velocidade/pace/VO2 -> aerobio; `WorkoutDayCapacityOperationalBlock` -> flexibilidade/equilibrio.
 - **Blocos**: `WorkoutExercise.section` `mobilidade`/`aquecimento` -> aquecimento; `sessao`/`principal` -> parte principal; `resfriamento`/`finalizacao` -> finalizacao; demais secoes -> outros, preservando a ordem persistida.
 - **Aluno x professor**: o aluno ve objetivo pratico (`studentGoal`), parametros, orientacoes e alerta de seguranca generico. Objetivo do professor (`coachGoal`), metodo, divisao, RIR e VO2 ficam no contexto tecnico restrito ao professor.
-- **Execucao**: o status exibido e uma projecao somente leitura no vocabulario publico canonico da #389; `WorkoutDay.status = planned` legado e exposto como `not_started`. A #387 nao define transicoes nem cria autoridade concorrente. A resposta declara `execution.available = false` ate a #389 publicar o contrato canonico; enquanto isso as acoes de iniciar e registrar impossibilidade aparecem desabilitadas, sem persistencia, sucesso local ou endpoint temporario.
+- **Execucao**: a #389 publica a autoridade canonica `WorkoutSessionExecution`, versionada por sessao e vinculada de forma imutavel ao release/template/plano que originou a execucao. O `WorkoutDay.status` legado permanece somente como projecao de compatibilidade; quando existe `WorkoutSessionExecution`, ela e a unica autoridade para `not_started | in_progress | paused | completed | partial | not_performed`. A rotina declara `execution.available = true` e cada sessao de hoje inclui estado, versao, timestamps, pausas acumuladas, motivo terminal e valores executados separados do planejado.
 
 ### Modo guiado de execucao
 
@@ -141,6 +141,17 @@ A experiencia guiada deve usar o lifecycle canonico da sessao e nao criar estado
 - A persistencia deve permitir reconstruir intervalos de pausa e distinguir tempo corrido de parede de tempo efetivamente ativo quando essa diferenca for relevante para a execucao.
 - Retry de `pause` ou `resume` deve ser idempotente.
 - A pausa e seu tempo restante devem ser reconstruiveis em outro cliente/dispositivo autorizado; memoria do navegador nao pode ser a fonte de verdade.
+
+#### Persistencia canonica da execucao (#389)
+
+- Identidade publica da sessao: `WorkoutDay.id`; a persistencia mutavel fica em `WorkoutSessionExecution`, com `version` para concorrencia otimista.
+- Transicoes permitidas: `not_started -> in_progress | not_performed`; `in_progress -> paused | completed | partial`; `paused -> in_progress | partial`. Estados terminais nao reabrem.
+- `startedAt` e gravado apenas no primeiro inicio; `finishedAt` apenas ao entrar em estado terminal. Pausas explicitas geram intervalos duraveis e acumulam `pausedDurationMs`.
+- Toda escrita exige `operationKey` e `expectedVersion`. Replay da mesma chave com o mesmo payload retorna o estado persistido sem duplicar evento; chave reutilizada com outro payload ou versao obsoleta responde conflito `409`.
+- A transicao, seus valores executados, a projecao legada e o evento derivado de timeline sao escritos na mesma transacao serializavel. O evento nao e fonte de verdade.
+- Valores executados de exercicio referenciam `WorkoutExercise.id` em `plannedUnitId`; carga, repeticoes, tempo, distancia, pace e frequencia cardiaca/zona ficam separados dos valores prescritos.
+- `not_performed` so e valido antes do primeiro inicio e exige motivo. `partial` tambem exige motivo.
+- Alteracoes posteriores no planejamento nao reescrevem o snapshot de origem da execucao; a sessao preserva `originReleaseId`, `originWorkoutTemplateId` e `originTrainingPlanId`.
 
 
 ### Historico e evolucao

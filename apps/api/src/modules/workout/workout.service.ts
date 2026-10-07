@@ -1,6 +1,6 @@
 ﻿import { PrismaClient } from '@prisma/client';
 
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -139,6 +139,121 @@ const resolveUtcDate = (input: string | Date, endOfDay: boolean) => {
   return new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
 };
 
+
+export class WorkoutPlanningLockedError extends Error {
+  readonly statusCode = 409;
+  readonly code = 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START';
+
+  constructor() {
+    super('O planejamento desta sessão não pode ser alterado depois que a execução foi iniciada.');
+  }
+}
+
+export class LegacyWorkoutLifecycleDisabledError extends Error {
+  readonly statusCode = 409;
+  readonly code = 'WORKOUT_SESSION_EXECUTION_CANONICAL_ENDPOINT_REQUIRED';
+
+  constructor() {
+    super('Use o contrato canônico de execução da sessão para alterar o estado do treino.');
+  }
+}
+
+function isSerializableTransactionConflict(error: unknown) {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (error.code === 'P2034') return true;
+  if (error.code !== 'P2010') return false;
+
+  const meta = error.meta as { code?: unknown; message?: unknown } | undefined;
+  return meta?.code === '40001'
+    || (typeof meta?.message === 'string'
+      && /could not serialize access|serialization failure/i.test(meta.message));
+}
+
+async function lockWorkoutDayPlanningMutable(
+  tx: Prisma.TransactionClient,
+  workoutDayId: string
+) {
+  await tx.$queryRaw(Prisma.sql`
+    SELECT wd."id"
+    FROM "WorkoutDay" wd
+    WHERE wd."id" = ${workoutDayId}
+    FOR UPDATE
+  `);
+
+  const execution = await tx.workoutSessionExecution.findUnique({
+    where: { workoutDayId },
+    select: { status: true },
+  });
+  if (execution && execution.status !== 'not_started') throw new WorkoutPlanningLockedError();
+}
+
+async function lockWorkoutTemplatePlanningMutable(
+  tx: Prisma.TransactionClient,
+  templateId: string
+) {
+  await tx.$queryRaw(Prisma.sql`
+    SELECT wd."id"
+    FROM "WorkoutDay" wd
+    WHERE wd."templateId" = ${templateId}
+    ORDER BY wd."id"
+    FOR UPDATE
+  `);
+
+  const started = await tx.workoutSessionExecution.findFirst({
+    where: {
+      workoutDay: { templateId },
+      status: { not: 'not_started' },
+    },
+    select: { id: true },
+  });
+  if (started) throw new WorkoutPlanningLockedError();
+}
+
+async function withWorkoutDayPlanningMutation<T>(
+  workoutDayId: string,
+  mutation: (tx: Prisma.TransactionClient) => Promise<T>
+) {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await lockWorkoutDayPlanningMutable(tx, workoutDayId);
+      return mutation(tx);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  } catch (error) {
+    if (isSerializableTransactionConflict(error)) {
+      const execution = await prisma.workoutSessionExecution.findUnique({
+        where: { workoutDayId },
+        select: { status: true },
+      });
+      if (execution && execution.status !== 'not_started') throw new WorkoutPlanningLockedError();
+    }
+    throw error;
+  }
+}
+
+async function withWorkoutTemplatePlanningMutation<T>(
+  templateId: string,
+  mutation: (tx: Prisma.TransactionClient) => Promise<T>
+) {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await lockWorkoutTemplatePlanningMutable(tx, templateId);
+      return mutation(tx);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  } catch (error) {
+    if (isSerializableTransactionConflict(error)) {
+      const started = await prisma.workoutSessionExecution.findFirst({
+        where: {
+          workoutDay: { templateId },
+          status: { not: 'not_started' },
+        },
+        select: { id: true },
+      });
+      if (started) throw new WorkoutPlanningLockedError();
+    }
+    throw error;
+  }
+}
+
 /**
  * Service de Montagem e ExecuÃ§Ã£o de Treinos
  */
@@ -180,7 +295,7 @@ export const workoutService = {
 
       if (existingStart && incomingStart && existingStart !== incomingStart) {
         const weekStartDate = data.weekStartDate;
-        await prisma.$transaction(async (tx) => {
+        await withWorkoutTemplatePlanningMutation(existing.id, async (tx) => {
           await tx.workoutTemplate.update({
             where: { id: existing.id },
             data: { weekStartDate },
@@ -314,10 +429,12 @@ export const workoutService = {
    * Atualizar template
    */
   async updateTemplate(id: string, data: Partial<CreateWorkoutTemplateDTO>) {
-    const template = await prisma.workoutTemplate.update({
-      where: { id },
-      data: normalizeWorkoutTemplateUpdateData(data),
-    });
+    const template = await withWorkoutTemplatePlanningMutation(id, (tx) =>
+      tx.workoutTemplate.update({
+        where: { id },
+        data: normalizeWorkoutTemplateUpdateData(data),
+      })
+    );
 
     return serializeWorkoutTemplate(template);
   },
@@ -326,9 +443,11 @@ export const workoutService = {
    * Deletar template
    */
   async deleteTemplate(id: string) {
-    return await prisma.workoutTemplate.delete({
-      where: { id },
-    });
+    return withWorkoutTemplatePlanningMutation(id, (tx) =>
+      tx.workoutTemplate.delete({
+        where: { id },
+      })
+    );
   },
 
   /**
@@ -363,13 +482,15 @@ export const workoutService = {
    * Liberar template para o aluno
    */
   async releaseTemplate(id: string) {
-    const template = await prisma.workoutTemplate.update({
-      where: { id },
-      data: {
-        released: true,
-        releasedAt: new Date(),
-      },
-    });
+    const template = await withWorkoutTemplatePlanningMutation(id, (tx) =>
+      tx.workoutTemplate.update({
+        where: { id },
+        data: {
+          released: true,
+          releasedAt: new Date(),
+        },
+      })
+    );
 
     return serializeWorkoutTemplate(template);
   },
@@ -410,17 +531,19 @@ export const workoutService = {
    * Criar dia de treino
    */
   async createWorkoutDay(data: WorkoutDayCreateData) {
-    return await prisma.workoutDay.create({
-      data,
-      include: {
-        template: true,
-        exercises: {
-          include: {
-            exercise: true,
+    return withWorkoutTemplatePlanningMutation(data.templateId, (tx) =>
+      tx.workoutDay.create({
+        data,
+        include: {
+          template: true,
+          exercises: {
+            include: {
+              exercise: true,
+            },
           },
         },
-      },
-    });
+      })
+    );
   },
 
   /**
@@ -453,29 +576,28 @@ export const workoutService = {
    * Atualizar dia de treino
    */
   async updateWorkoutDay(id: string, data: WorkoutDayUpdateData) {
-    return await prisma.workoutDay.update({
-      where: { id },
-      data,
-    });
+    return withWorkoutDayPlanningMutation(id, (tx) =>
+      tx.workoutDay.update({
+        where: { id },
+        data,
+      })
+    );
   },
 
   async updateWorkoutDayStatus(
     id: string,
     data: { status?: 'planned' | 'in_progress' | 'completed'; psrResponse?: number | null; pseResponse?: number | null }
   ) {
-    const payload: any = { ...data };
-
-    if (data.status === 'in_progress') {
-      payload.startedAt = new Date();
-    }
-
-    if (data.status === 'completed') {
-      payload.finishedAt = new Date();
+    if (data.status !== undefined) {
+      throw new LegacyWorkoutLifecycleDisabledError();
     }
 
     await prisma.workoutDay.update({
       where: { id },
-      data: payload,
+      data: {
+        ...(data.psrResponse !== undefined ? { psrResponse: data.psrResponse } : {}),
+        ...(data.pseResponse !== undefined ? { pseResponse: data.pseResponse } : {}),
+      },
     });
 
     return await this.getWorkoutDay(id);
@@ -544,9 +666,11 @@ export const workoutService = {
    * Deletar dia de treino
    */
   async deleteWorkoutDay(id: string) {
-    return await prisma.workoutDay.delete({
-      where: { id },
-    });
+    return withWorkoutDayPlanningMutation(id, (tx) =>
+      tx.workoutDay.delete({
+        where: { id },
+      })
+    );
   },
 
   /**
@@ -569,23 +693,36 @@ export const workoutService = {
    * Adicionar exercÃ­cio ao dia de treino
    */
   async addExerciseToDay(data: CreateWorkoutExerciseDTO) {
-    return await prisma.workoutExercise.create({
-      data,
-      include: {
-        exercise: true,
-        workoutDay: true,
-      },
-    });
+    return withWorkoutDayPlanningMutation(data.workoutDayId, (tx) =>
+      tx.workoutExercise.create({
+        data,
+        include: {
+          exercise: true,
+          workoutDay: true,
+        },
+      })
+    );
   },
 
   /**
    * Atualizar exercÃ­cio do treino
    */
   async updateWorkoutExercise(id: string, data: Partial<CreateWorkoutExerciseDTO>) {
-    return await prisma.workoutExercise.update({
-      where: { id },
-      data,
-    });
+    const current = await prisma.workoutExercise.findUnique({ where: { id }, select: { workoutDayId: true } });
+    if (!current) throw new Error('Workout exercise not found');
+
+    const targetWorkoutDayId = data.workoutDayId ?? current.workoutDayId;
+    const workoutDayIds = [...new Set([current.workoutDayId, targetWorkoutDayId])].sort();
+
+    return prisma.$transaction(async (tx) => {
+      for (const workoutDayId of workoutDayIds) {
+        await lockWorkoutDayPlanningMutable(tx, workoutDayId);
+      }
+      return tx.workoutExercise.update({
+        where: { id },
+        data,
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   },
 
   /**
@@ -626,9 +763,11 @@ export const workoutService = {
     });
 
     if (existingTarget && existingTarget.id !== source.id) {
-      await prisma.workoutTemplate.delete({
-        where: { id: existingTarget.id },
-      });
+      await withWorkoutTemplatePlanningMutation(existingTarget.id, (tx) =>
+        tx.workoutTemplate.delete({
+          where: { id: existingTarget.id },
+        })
+      );
     }
 
     // Criar novo template
@@ -783,55 +922,59 @@ export const workoutService = {
       throw new Error('Workout day not found');
     }
 
-    const newDay = await prisma.workoutDay.create({
-      data: {
-        templateId: source.templateId,
-        dayOfWeek: targetDayOfWeek,
-        workoutDate: targetDate,
-        sessionDurationMin: source.sessionDurationMin,
-        cyclicTimeMin: source.cyclicTimeMin,
-        resistanceTimeMin: source.resistanceTimeMin,
-        stimulusDurationMin: source.stimulusDurationMin,
-        location: source.location,
-        method: source.method,
-        intensity1: source.intensity1,
-        intensity2: source.intensity2,
-        numSessions: source.numSessions,
-        numSets: source.numSets,
-        sessionTime: source.sessionTime,
-        restTime: source.restTime,
-        vo2maxIntervalPct: source.vo2maxIntervalPct,
-        iextIintTime: source.iextIintTime,
-        vo2maxPct: source.vo2maxPct,
-        targetHrMin: source.targetHrMin,
-        targetHrMax: source.targetHrMax,
-        targetSpeedMin: source.targetSpeedMin,
-        targetSpeedMax: source.targetSpeedMax,
-        detailNotes: source.detailNotes,
-        complementNotes: source.complementNotes,
-        generalGuidelines: source.generalGuidelines,
-      },
-    });
-
-    for (const exercise of source.exercises) {
-      await prisma.workoutExercise.create({
+    const newDay = await withWorkoutTemplatePlanningMutation(source.templateId, async (tx) => {
+      const created = await tx.workoutDay.create({
         data: {
-          workoutDayId: newDay.id,
-          exerciseId: exercise.exerciseId,
-          section: exercise.section,
-        exerciseOrder: exercise.exerciseOrder,
-        system: exercise.system,
-        groupBreakBefore: exercise.groupBreakBefore,
-        sets: exercise.sets,
-        reps: exercise.reps,
-        intervalSec: exercise.intervalSec,
-        cParam: exercise.cParam,
-        eParam: exercise.eParam,
-        load: exercise.load,
-        exerciseNotes: exercise.exerciseNotes,
-      },
+          templateId: source.templateId,
+          dayOfWeek: targetDayOfWeek,
+          workoutDate: targetDate,
+          sessionDurationMin: source.sessionDurationMin,
+          cyclicTimeMin: source.cyclicTimeMin,
+          resistanceTimeMin: source.resistanceTimeMin,
+          stimulusDurationMin: source.stimulusDurationMin,
+          location: source.location,
+          method: source.method,
+          intensity1: source.intensity1,
+          intensity2: source.intensity2,
+          numSessions: source.numSessions,
+          numSets: source.numSets,
+          sessionTime: source.sessionTime,
+          restTime: source.restTime,
+          vo2maxIntervalPct: source.vo2maxIntervalPct,
+          iextIintTime: source.iextIintTime,
+          vo2maxPct: source.vo2maxPct,
+          targetHrMin: source.targetHrMin,
+          targetHrMax: source.targetHrMax,
+          targetSpeedMin: source.targetSpeedMin,
+          targetSpeedMax: source.targetSpeedMax,
+          detailNotes: source.detailNotes,
+          complementNotes: source.complementNotes,
+          generalGuidelines: source.generalGuidelines,
+        },
+      });
+
+      for (const exercise of source.exercises) {
+        await tx.workoutExercise.create({
+          data: {
+            workoutDayId: created.id,
+            exerciseId: exercise.exerciseId,
+            section: exercise.section,
+            exerciseOrder: exercise.exerciseOrder,
+            system: exercise.system,
+            groupBreakBefore: exercise.groupBreakBefore,
+            sets: exercise.sets,
+            reps: exercise.reps,
+            intervalSec: exercise.intervalSec,
+            cParam: exercise.cParam,
+            eParam: exercise.eParam,
+            load: exercise.load,
+            exerciseNotes: exercise.exerciseNotes,
+          },
+        });
+      }
+
+      return created;
     });
-    }
 
     return await this.getWorkoutDay(newDay.id);
   },
@@ -840,9 +983,13 @@ export const workoutService = {
    * Remover exercÃ­cio do treino
    */
   async removeExerciseFromDay(id: string) {
-    return await prisma.workoutExercise.delete({
-      where: { id },
-    });
+    const current = await prisma.workoutExercise.findUnique({ where: { id }, select: { workoutDayId: true } });
+    if (!current) throw new Error('Workout exercise not found');
+    return withWorkoutDayPlanningMutation(current.workoutDayId, (tx) =>
+      tx.workoutExercise.delete({
+        where: { id },
+      })
+    );
   },
 
   /**
@@ -853,14 +1000,29 @@ export const workoutService = {
     section: string,
     exerciseIds: string[]
   ) {
-    const updates = exerciseIds.map((id, index) =>
-      prisma.workoutExercise.update({
-        where: { id },
-        data: { exerciseOrder: index + 1 },
-      })
-    );
+    const uniqueIds = [...new Set(exerciseIds)];
+    if (uniqueIds.length !== exerciseIds.length) {
+      throw new Error('Duplicate workout exercise id');
+    }
 
-    return await prisma.$transaction(updates);
+    return withWorkoutDayPlanningMutation(workoutDayId, async (tx) => {
+      const owned = await tx.workoutExercise.findMany({
+        where: { id: { in: uniqueIds }, workoutDayId, section },
+        select: { id: true },
+      });
+      if (owned.length !== uniqueIds.length) {
+        throw new Error('One or more workout exercises do not belong to the requested day/section');
+      }
+
+      return Promise.all(
+        exerciseIds.map((id, index) =>
+          tx.workoutExercise.update({
+            where: { id },
+            data: { exerciseOrder: index + 1 },
+          })
+        )
+      );
+    });
   },
 
   /**

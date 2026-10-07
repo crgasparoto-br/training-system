@@ -12,9 +12,11 @@ import type {
   TrainingRoutineSessionDetail,
   TrainingRoutineSessionSummary,
   TrainingRoutineView,
+  TrainingSessionExecutionView,
 } from '@corrida/types';
 import { DEFAULT_CONTRACT_TIME_ZONE } from '../contracts/contract-date-input.js';
 import { projectPreWorkoutCheckIn } from './pre-workout-check-in.service.js';
+import { projectWorkoutSessionExecution } from './workout-session-execution.service.js';
 
 /**
  * Leitura da rotina semanal e do Treino de hoje (issue #387).
@@ -56,6 +58,36 @@ const sessionSelect = {
   location: true,
   method: true,
   status: true,
+  execution: {
+    select: {
+      workoutDayId: true,
+      status: true,
+      version: true,
+      startedAt: true,
+      finishedAt: true,
+      currentPauseStartedAt: true,
+      pausedDurationMs: true,
+      interruptionReason: true,
+      originReleaseId: true,
+      originWorkoutTemplateId: true,
+      originTrainingPlanId: true,
+      sessionValues: true,
+      items: {
+        orderBy: [{ plannedUnitId: 'asc' as const }, { setNumber: 'asc' as const }, { id: 'asc' as const }],
+        select: {
+          plannedUnitId: true,
+          setNumber: true,
+          loadKg: true,
+          repetitions: true,
+          durationSec: true,
+          distanceKm: true,
+          pace: true,
+          heartRateBpm: true,
+          heartRateZone: true,
+        },
+      },
+    },
+  },
   targetHrMin: true,
   targetHrMax: true,
   targetSpeedMin: true,
@@ -228,15 +260,33 @@ function buildBlocks(row: SessionRow): TrainingRoutineBlock[] {
   }));
 }
 
-function projectExecutionStatus(status: SessionRow['status']): TrainingRoutineExecutionProjectionStatus {
+function projectLegacyExecutionStatus(status: SessionRow['status']): TrainingRoutineExecutionProjectionStatus {
   switch (status) {
-    case 'planned':
-      return 'not_started';
-    case 'in_progress':
-      return 'in_progress';
-    case 'completed':
-      return 'completed';
+    case 'planned': return 'not_started';
+    case 'in_progress': return 'in_progress';
+    case 'completed': return 'completed';
   }
+}
+
+function buildExecution(row: SessionRow, release: ReleaseRow): TrainingSessionExecutionView {
+  if (row.execution) return projectWorkoutSessionExecution(row.execution);
+  return {
+    sessionId: row.id,
+    status: projectLegacyExecutionStatus(row.status),
+    version: 0,
+    startedAt: null,
+    finishedAt: null,
+    currentPauseStartedAt: null,
+    pausedDurationMs: 0,
+    interruptionReason: null,
+    origin: {
+      releaseId: release.id,
+      workoutTemplateId: row.template.id,
+      trainingPlanId: row.template.plan.id,
+    },
+    sessionValues: {},
+    items: [],
+  };
 }
 
 function toSummary(
@@ -265,7 +315,7 @@ function toSummary(
     durationMin: resolveDuration(row),
     location: cleanText(row.location),
     method: cleanText(row.method),
-    status: projectExecutionStatus(row.status),
+    status: buildExecution(row, release).status,
     origin: {
       kind: 'consolidated',
       releasedAt: row.template.releasedAt?.toISOString() ?? null,
@@ -282,8 +332,10 @@ function toDetail(
   checkIn: Awaited<ReturnType<PrismaClient['preWorkoutCheckIn']['findFirst']>>,
   includePreWorkoutCheckIn: boolean
 ): TrainingRoutineSessionDetail {
+  const execution = buildExecution(row, release);
   const detail: TrainingRoutineSessionDetail = {
     ...toSummary(row, audience, capacities, release),
+    execution,
     objective: cleanText(row.template.studentGoal),
     guidelines: [row.generalGuidelines, row.detailNotes, row.complementNotes]
       .map(cleanText)
@@ -293,7 +345,7 @@ function toDetail(
     ...(includePreWorkoutCheckIn
       ? {
           preWorkoutCheckIn: checkIn
-            ? projectPreWorkoutCheckIn(checkIn, audience, projectExecutionStatus(row.status))
+            ? projectPreWorkoutCheckIn(checkIn, audience, execution.status)
             : null,
         }
       : {}),
@@ -422,8 +474,7 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
             )
           ),
         },
-        // O contrato mutável canônico da #389 ainda não existe; nenhuma ação pode ser habilitada.
-        execution: { available: false, reason: 'execution_contract_pending' },
+        execution: { available: true, reason: null },
       };
     },
   };

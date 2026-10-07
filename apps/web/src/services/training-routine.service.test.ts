@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ get: vi.fn() }));
+const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn() }));
 
 vi.mock('./api', () => ({
-  default: { get: mocks.get },
-  api: { get: mocks.get },
+  default: { get: mocks.get, post: mocks.post, put: mocks.put },
+  api: { get: mocks.get, post: mocks.post, put: mocks.put },
 }));
 
 import { getTrainingRoutineErrorKind, shiftDateOnly, trainingRoutineService } from './training-routine.service';
@@ -12,7 +12,10 @@ import { getTrainingRoutineErrorKind, shiftDateOnly, trainingRoutineService } fr
 describe('trainingRoutineService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.get.mockResolvedValue({ data: { data: { alunoId: 'aluno-1' } } });
+    const response = { data: { data: { alunoId: 'aluno-1' } } };
+    mocks.get.mockResolvedValue(response);
+    mocks.post.mockResolvedValue(response);
+    mocks.put.mockResolvedValue(response);
   });
 
   it('usa student/me e preserva x-contract-id sem enviar alunoId', async () => {
@@ -29,8 +32,53 @@ describe('trainingRoutineService', () => {
     expect(mocks.get).toHaveBeenCalledWith('/alunos/aluno-1/training-routine', { params: { date: '2026-10-05' } });
   });
 
-  it('expõe apenas leitura', () => {
-    expect(Object.keys(trainingRoutineService).sort()).toEqual(['getForAluno', 'getForStudent']);
+  it('expõe leitura e mutações canônicas de execução', async () => {
+    expect(Object.keys(trainingRoutineService).sort()).toEqual([
+      'getForAluno',
+      'getForStudent',
+      'saveExecutionValuesForStudent',
+      'transitionForStudent',
+    ]);
+
+    await trainingRoutineService.transitionForStudent(
+      'day-1',
+      {
+        operationKey: 'operation-123',
+        expectedVersion: 0,
+        targetStatus: 'in_progress',
+      },
+      { contractId: 'contract-1' }
+    );
+
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/student/me/training-sessions/day-1/execution/transition',
+      {
+        operationKey: 'operation-123',
+        expectedVersion: 0,
+        targetStatus: 'in_progress',
+      },
+      { headers: { 'x-contract-id': 'contract-1' } }
+    );
+
+    await trainingRoutineService.saveExecutionValuesForStudent(
+      'day-1',
+      {
+        operationKey: 'operation-456',
+        expectedVersion: 1,
+        sessionValues: { distanceKm: 5 },
+      },
+      { contractId: 'contract-1' }
+    );
+
+    expect(mocks.put).toHaveBeenCalledWith(
+      '/student/me/training-sessions/day-1/execution/values',
+      {
+        operationKey: 'operation-456',
+        expectedVersion: 1,
+        sessionValues: { distanceKm: 5 },
+      },
+      { headers: { 'x-contract-id': 'contract-1' } }
+    );
   });
 
   it('classifica permissão, contexto contratual e falha temporária', () => {

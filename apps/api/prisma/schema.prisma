@@ -1922,6 +1922,7 @@ model WorkoutDay {
   template            WorkoutTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
   exercises           WorkoutExercise[]
   preWorkoutCheckIn   PreWorkoutCheckIn?
+  execution           WorkoutSessionExecution?
 
   @@unique([templateId, dayOfWeek])
   @@index([templateId])
@@ -1988,6 +1989,7 @@ model WorkoutExercise {
   executions    WorkoutExecution[]
   exercise      ExerciseLibrary    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
   workoutDay    WorkoutDay         @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  executionItems WorkoutSessionExecutionItem[]
 
   @@index([workoutDayId])
   @@index([workoutDayId, section, exerciseOrder])
@@ -2012,6 +2014,93 @@ model WorkoutExecution {
   @@index([workoutExerciseId])
   @@index([executionDate])
   @@index([alunoId], map: "WorkoutExecution_athleteId_idx")
+}
+
+
+enum WorkoutSessionExecutionStatus {
+  not_started
+  in_progress
+  paused
+  completed
+  partial
+  not_performed
+}
+
+model WorkoutSessionExecution {
+  id                      String                        @id @default(cuid())
+  workoutDayId            String                        @unique
+  alunoId                 String
+  contractId              String
+  originReleaseId         String
+  originWorkoutTemplateId String
+  originTrainingPlanId    String
+  status                  WorkoutSessionExecutionStatus @default(not_started)
+  version                 Int                           @default(0)
+  startedAt               DateTime?
+  finishedAt              DateTime?
+  interruptionReason      String?
+  currentPauseStartedAt   DateTime?
+  pausedDurationMs        BigInt                        @default(0)
+  sessionValues           Json                          @default("{}")
+  createdAt               DateTime                      @default(now())
+  updatedAt               DateTime                      @updatedAt
+  workoutDay              WorkoutDay                    @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  operations              WorkoutSessionExecutionOperation[]
+  pauseIntervals          WorkoutSessionPauseInterval[]
+  items                   WorkoutSessionExecutionItem[]
+
+  @@index([alunoId, contractId, status])
+  @@index([originReleaseId])
+  @@index([updatedAt])
+}
+
+model WorkoutSessionExecutionOperation {
+  id                 String                         @id @default(cuid())
+  executionId        String
+  operationKey       String
+  payloadFingerprint String
+  action             String
+  targetStatus       WorkoutSessionExecutionStatus?
+  expectedVersion    Int
+  resultingVersion   Int
+  lifecycleEventId   String?
+  createdAt          DateTime                       @default(now())
+  execution          WorkoutSessionExecution        @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@unique([executionId, operationKey])
+  @@index([createdAt])
+}
+
+model WorkoutSessionPauseInterval {
+  id          String                  @id @default(cuid())
+  executionId String
+  startedAt   DateTime
+  endedAt     DateTime?
+  createdAt   DateTime                @default(now())
+  execution   WorkoutSessionExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@index([executionId, startedAt])
+}
+
+model WorkoutSessionExecutionItem {
+  id             String                  @id @default(cuid())
+  executionId    String
+  plannedUnitId  String
+  setNumber      Int                     @default(0)
+  loadKg         Float?
+  repetitions    Int?
+  durationSec    Int?
+  distanceKm     Float?
+  pace           String?
+  heartRateBpm   Int?
+  heartRateZone  String?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  execution      WorkoutSessionExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  plannedUnit    WorkoutExercise          @relation(fields: [plannedUnitId], references: [id], onDelete: Restrict)
+
+  @@unique([executionId, plannedUnitId, setNumber])
+  @@index([plannedUnitId])
 }
 
 model StudentProfile {

@@ -1,4 +1,5 @@
-﻿import api from './api';
+﻿import type { TrainingSessionExecutionView } from '@corrida/types';
+import api from './api';
 
 export type WorkoutDayStatus = 'planned' | 'in_progress' | 'completed';
 
@@ -121,8 +122,34 @@ export const executionsService = {
       pseResponse?: number | null;
     }
   ): Promise<WorkoutDayDetail> {
-    const response = await api.put<WorkoutDayDetail>(`/executions/workout-day/${id}/status`, data);
-    return response.data;
+    if (data.status) {
+      type Envelope<T> = { success: boolean; data: T };
+      const currentResponse = await api.get<Envelope<TrainingSessionExecutionView>>(
+        `/student/me/training-sessions/${encodeURIComponent(id)}/execution`
+      );
+      const current = currentResponse.data.data;
+      const targetStatus = data.status === 'planned' ? 'not_started' : data.status;
+
+      if (current.status !== targetStatus) {
+        await api.post<Envelope<TrainingSessionExecutionView>>(
+          `/student/me/training-sessions/${encodeURIComponent(id)}/execution/transition`,
+          {
+            operationKey: `legacy-web-${id}-${targetStatus}-${Date.now()}`,
+            expectedVersion: current.version,
+            targetStatus,
+          }
+        );
+      }
+    }
+
+    if (data.psrResponse !== undefined || data.pseResponse !== undefined) {
+      await api.put<WorkoutDayDetail>(`/executions/workout-day/${id}/status`, {
+        psrResponse: data.psrResponse,
+        pseResponse: data.pseResponse,
+      });
+    }
+
+    return this.getWorkoutDay(id);
   },
 
   async recordExecution(

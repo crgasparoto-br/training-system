@@ -19,6 +19,63 @@ export type TrainingRoutineExecutionProjectionStatus =
   | 'partial'
   | 'not_performed';
 
+export type TrainingSessionExecutionStatus = TrainingRoutineExecutionProjectionStatus;
+
+export interface TrainingSessionExecutionSessionValues {
+  durationSec?: number | null;
+  distanceKm?: number | null;
+  pace?: string | null;
+  heartRateBpm?: number | null;
+  heartRateZone?: string | null;
+}
+
+export interface TrainingSessionExecutionItemValue {
+  plannedUnitId: string;
+  setNumber?: number;
+  loadKg?: number | null;
+  repetitions?: number | null;
+  durationSec?: number | null;
+  distanceKm?: number | null;
+  pace?: string | null;
+  heartRateBpm?: number | null;
+  heartRateZone?: string | null;
+}
+
+export interface TrainingSessionExecutionView {
+  /** Identidade pública estável: o próprio WorkoutDay.id. */
+  sessionId: string;
+  status: TrainingSessionExecutionStatus;
+  version: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+  currentPauseStartedAt: string | null;
+  pausedDurationMs: number;
+  interruptionReason: string | null;
+  origin: {
+    releaseId: string;
+    workoutTemplateId: string;
+    trainingPlanId: string;
+  };
+  sessionValues: TrainingSessionExecutionSessionValues;
+  items: TrainingSessionExecutionItemValue[];
+}
+
+export interface TrainingSessionExecutionTransitionPayload {
+  operationKey: string;
+  expectedVersion: number;
+  targetStatus: TrainingSessionExecutionStatus;
+  reason?: string | null;
+  sessionValues?: TrainingSessionExecutionSessionValues;
+  items?: TrainingSessionExecutionItemValue[];
+}
+
+export interface TrainingSessionExecutionValuesPayload {
+  operationKey: string;
+  expectedVersion: number;
+  sessionValues?: TrainingSessionExecutionSessionValues;
+  items?: TrainingSessionExecutionItemValue[];
+}
+
 export type TrainingRoutineModality = 'resistance' | 'cyclic' | 'flexibility' | 'balance';
 
 export type TrainingRoutineTodayState = 'released' | 'not_released' | 'none';
@@ -97,6 +154,7 @@ export interface TrainingRoutineTechnicalContext {
 }
 
 export interface TrainingRoutineSessionDetail extends TrainingRoutineSessionSummary {
+  execution: TrainingSessionExecutionView;
   objective: string | null;
   guidelines: string[];
   cyclic: TrainingRoutineCyclicTargets | null;

@@ -6,7 +6,7 @@ import { getStudentContractId, withStudentContractContext } from '../services/st
 import { trainingRoutineService } from '../services/training-routine.service';
 import { preWorkoutCheckInService } from '../services/pre-workout-check-in.service';
 
-/** Treino de hoje e rotina semanal do aluno autenticado (#387), somente leitura. */
+/** Treino de hoje, rotina semanal e lifecycle canônico da sessão (#387/#389). */
 export function StudentTraining() {
   const location = useLocation();
   const contractId = getStudentContractId(location.search);
@@ -17,6 +17,11 @@ export function StudentTraining() {
   const saveCheckIn = useCallback(
     (sessionId: string, payload: Parameters<typeof preWorkoutCheckInService.saveForStudent>[1]) =>
       preWorkoutCheckInService.saveForStudent(sessionId, payload, { contractId }),
+    [contractId]
+  );
+  const transitionExecution = useCallback(
+    (sessionId: string, payload: Parameters<typeof trainingRoutineService.transitionForStudent>[1]) =>
+      trainingRoutineService.transitionForStudent(sessionId, payload, { contractId }),
     [contractId]
   );
 
@@ -33,7 +38,13 @@ export function StudentTraining() {
           Ver todos os treinos liberados
         </Link>
       </div>
-      <TrainingRoutinePanel audience="student" load={load} headingLevel="h1" saveCheckIn={saveCheckIn} />
+      <TrainingRoutinePanel
+        audience="student"
+        load={load}
+        headingLevel="h1"
+        saveCheckIn={saveCheckIn}
+        transitionExecution={transitionExecution}
+      />
     </div>
   );
 }

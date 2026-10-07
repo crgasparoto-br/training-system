@@ -9,6 +9,9 @@ import type {
   TrainingRoutineExecutionProjectionStatus,
   TrainingRoutineSessionDetail,
   TrainingRoutineView,
+  TrainingSessionExecutionStatus,
+  TrainingSessionExecutionTransitionPayload,
+  TrainingSessionExecutionView,
 } from '@corrida/types';
 import { Button } from '../ui/Button';
 import { PreWorkoutCheckInCard } from './PreWorkoutCheckInCard';
@@ -20,11 +23,10 @@ import {
 } from '../../services/training-routine.service';
 
 /**
- * Rotina semanal e Treino de hoje (#387), somente leitura.
+ * Rotina semanal, Treino de hoje e controles do lifecycle canônico (#387/#389).
  *
- * Os controles de execução são apenas a entrada de UX: permanecem desabilitados
- * enquanto a API não declarar o contrato canônico de execução (#389). Nenhum
- * estado de sessão é criado ou simulado no frontend.
+ * O frontend não simula transições: envia versão esperada e chave idempotente,
+ * e reconcilia a tela com o estado persistido retornado pela API.
  */
 
 export const modalityLabels: Record<TrainingRoutineModality, string> = {
@@ -130,15 +132,63 @@ function TodaySession({
   audience,
   executionAvailable,
   saveCheckIn,
+  transitionExecution,
+  onExecutionChanged,
 }: {
   session: TrainingRoutineSessionDetail;
   audience: TrainingRoutineAudience;
   executionAvailable: boolean;
   saveCheckIn?: (sessionId: string, payload: UpsertPreWorkoutCheckInPayload) => Promise<PreWorkoutCheckInView>;
+  transitionExecution?: (sessionId: string, payload: TrainingSessionExecutionTransitionPayload) => Promise<TrainingSessionExecutionView>;
+  onExecutionChanged?: () => Promise<void>;
 }) {
   const headingId = useId();
   const executionNoteId = useId();
+  const [executionReason, setExecutionReason] = useState('');
+  const [executionError, setExecutionError] = useState<string | null>(null);
+  const [executionBusy, setExecutionBusy] = useState(false);
+  const operationRef = useRef<{ signature: string; key: string } | null>(null);
   const duration = formatDuration(session.durationMin);
+
+  const transition = async (targetStatus: TrainingSessionExecutionStatus) => {
+    if (!transitionExecution || executionBusy) return;
+    const requiresReason = targetStatus === 'partial' || targetStatus === 'not_performed';
+    const reason = executionReason.trim();
+    if (requiresReason && !reason) {
+      setExecutionError('Informe o motivo antes de encerrar o treino dessa forma.');
+      return;
+    }
+
+    const signature = `${session.execution.version}:${targetStatus}:${reason}`;
+    if (!operationRef.current || operationRef.current.signature !== signature) {
+      operationRef.current = {
+        signature,
+        key: `workout-${session.sessionId}-${targetStatus}-${Date.now()}`,
+      };
+    }
+
+    setExecutionBusy(true);
+    setExecutionError(null);
+    try {
+      await transitionExecution(session.sessionId, {
+        operationKey: operationRef.current.key,
+        expectedVersion: session.execution.version,
+        targetStatus,
+        ...(requiresReason ? { reason } : {}),
+      });
+      operationRef.current = null;
+      if (onExecutionChanged) await onExecutionChanged();
+    } catch (error) {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      setExecutionError(
+        status === 409
+          ? 'O estado deste treino mudou em outro dispositivo. Atualize o estado antes de tentar novamente.'
+          : 'Não foi possível salvar a alteração. Seus dados nesta tela foram preservados; tente novamente.'
+      );
+    } finally {
+      setExecutionBusy(false);
+    }
+  };
   const cyclicItems = session.cyclic
     ? [
         { label: 'Tempo do aeróbio', value: formatDuration(session.cyclic.durationMin) },
@@ -278,26 +328,73 @@ function TodaySession({
       <footer className="space-y-3 border-t border-border pt-3">
         <OriginNote session={session} audience={audience} />
         {audience === 'student' && !['completed', 'partial', 'not_performed'].includes(session.status) && (
-          <div className="space-y-2">
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button type="button" disabled={!executionAvailable} aria-describedby={executionNoteId} className="w-full sm:w-auto">
-                Iniciar treino
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!executionAvailable}
-                aria-describedby={executionNoteId}
-                className="w-full sm:w-auto"
-              >
-                Não vou conseguir treinar
-              </Button>
+          <div className="space-y-3">
+            <label className="block text-sm text-foreground">
+              <span className="font-medium">Motivo (necessário para treino parcial ou não realizado)</span>
+              <textarea
+                value={executionReason}
+                onChange={(event) => setExecutionReason(event.target.value)}
+                rows={2}
+                maxLength={500}
+                disabled={executionBusy}
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                placeholder="Ex.: indisposição, falta de tempo ou interrupção da sessão"
+              />
+            </label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              {session.status === 'not_started' && (
+                <>
+                  <Button type="button" disabled={!executionAvailable || executionBusy} onClick={() => void transition('in_progress')} className="w-full sm:w-auto">
+                    Iniciar treino
+                  </Button>
+                  <Button type="button" variant="outline" disabled={!executionAvailable || executionBusy} onClick={() => void transition('not_performed')} className="w-full sm:w-auto">
+                    Não vou conseguir treinar
+                  </Button>
+                </>
+              )}
+              {session.status === 'in_progress' && (
+                <>
+                  <Button type="button" variant="outline" disabled={!executionAvailable || executionBusy} onClick={() => void transition('paused')} className="w-full sm:w-auto">
+                    Pausar treino
+                  </Button>
+                  <Button type="button" disabled={!executionAvailable || executionBusy} onClick={() => void transition('completed')} className="w-full sm:w-auto">
+                    Concluir treino
+                  </Button>
+                  <Button type="button" variant="outline" disabled={!executionAvailable || executionBusy} onClick={() => void transition('partial')} className="w-full sm:w-auto">
+                    Encerrar como parcial
+                  </Button>
+                </>
+              )}
+              {session.status === 'paused' && (
+                <>
+                  <Button type="button" disabled={!executionAvailable || executionBusy} onClick={() => void transition('in_progress')} className="w-full sm:w-auto">
+                    Retomar treino
+                  </Button>
+                  <Button type="button" variant="outline" disabled={!executionAvailable || executionBusy} onClick={() => void transition('partial')} className="w-full sm:w-auto">
+                    Encerrar como parcial
+                  </Button>
+                </>
+              )}
             </div>
             {!executionAvailable && (
               <p id={executionNoteId} className="text-xs text-muted-foreground">
-                O registro do treino pelo aplicativo ainda não está disponível. Siga as orientações acima e combine o
-                registro com seu professor.
+                O registro do treino pelo aplicativo não está disponível neste contexto.
               </p>
+            )}
+            {session.status === 'paused' && (
+              <p className="text-xs text-muted-foreground">
+                O treino está pausado. O tempo operacional permanece congelado até a retomada.
+              </p>
+            )}
+            {executionError && (
+              <div role="alert" className="rounded-md border border-amber-200 bg-amber-50/60 p-3 text-sm text-amber-900">
+                <p>{executionError}</p>
+                {executionError.includes('outro dispositivo') && onExecutionChanged && (
+                  <Button type="button" variant="outline" size="sm" className="mt-2" disabled={executionBusy} onClick={() => void onExecutionChanged()}>
+                    Atualizar estado
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -394,6 +491,7 @@ export type TrainingRoutinePanelProps = {
   headingLevel?: 'h1' | 'h2';
   title?: string;
   saveCheckIn?: (sessionId: string, payload: UpsertPreWorkoutCheckInPayload) => Promise<PreWorkoutCheckInView>;
+  transitionExecution?: (sessionId: string, payload: TrainingSessionExecutionTransitionPayload) => Promise<TrainingSessionExecutionView>;
 };
 
 export function TrainingRoutinePanel({
@@ -403,6 +501,7 @@ export function TrainingRoutinePanel({
   headingLevel = 'h2',
   title = 'Treino de hoje',
   saveCheckIn,
+  transitionExecution,
 }: TrainingRoutinePanelProps) {
   const [routine, setRoutine] = useState<TrainingRoutineView | null>(null);
   const [referenceDate, setReferenceDate] = useState<string | undefined>(undefined);
@@ -490,6 +589,8 @@ export function TrainingRoutinePanel({
                 audience={audience}
                 executionAvailable={routine.execution.available}
                 saveCheckIn={saveCheckIn}
+                transitionExecution={transitionExecution}
+                onExecutionChanged={() => fetchRoutine(referenceDate)}
               />
             ))
           ) : (
