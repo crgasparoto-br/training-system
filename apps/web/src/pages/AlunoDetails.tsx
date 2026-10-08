@@ -1091,6 +1091,29 @@ export function AlunoDetails() {
     }
   }, [activeTab, visibleTabs]);
 
+  useEffect(() => {
+    if (!id || !canViewAuditTab || activeTab !== 'auditoria') return;
+
+    let cancelled = false;
+    const refreshTimeline = async () => {
+      try {
+        const timeline = await alunoService.getSegmentedTimeline(id);
+        if (!cancelled && timeline.alunoId === id) {
+          setSegmentedTimeline(timeline);
+        }
+      } catch {
+        // Falha localizada: preserva a timeline já carregada e permite nova tentativa por foco/retorno.
+      }
+    };
+
+    void refreshTimeline();
+    window.addEventListener('focus', refreshTimeline);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', refreshTimeline);
+    };
+  }, [activeTab, canViewAuditTab, id]);
+
   // Show access denied message if no tabs are visible
   const hasAnyAccessibleTab = visibleTabs.length > 0;
 
