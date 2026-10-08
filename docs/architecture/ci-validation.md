@@ -43,3 +43,12 @@ The legacy `.delivery-v2/` package and lock are retained temporarily for rollbac
 2. Open a PR against `develop`; confirm the CRITICAL path executes its PostgreSQL, migrations, authentication/access, full tests, browser, merge-preview, and exact-head gates.
 3. Verify the required GitHub status context remains exactly `Validate repository` and is successful for the exact PR head SHA. Recheck branch protection before promotion to `main`.
 4. If a regression occurs, revert the workflow, classifier, tests, and local policy changes together to the previous known-good commit via a new PR. The retained `.delivery-v2/` files support investigation but must never be treated as proof that the new workflow passed. Do not bypass required checks or merge automatically.
+
+
+### Evidence matrix and branch protection checklist
+
+A successful CRITICAL run on the migration PR demonstrates the CRITICAL path only. The classifier unit tests cover FAST, STANDARD, CRITICAL, combined path precedence, explicit promotion and fail-closed behavior, but do not substitute for end-to-end FAST and STANDARD workflow runs. Before merging, create representative non-sensitive FAST and STANDARD PRs targeting `develop` (or use existing qualifying runs); verify that each selects only its corresponding gate, that merge preview passes, and that `Validate repository` succeeds on the exact PR head SHA. Record links to both runs in the migration PR.
+
+Branch protection/rulesets must be reviewed in GitHub repository Settings > Rules > Rulesets (and legacy Branches rules when applicable) for both `develop` and `main`. Confirm the required status check is spelled **`Validate repository`** and is reported by the expected GitHub Actions app; do not add per-profile job names as mandatory contexts, because two profiles are skipped by design. Confirm the rule applies to the intended branches and prevents unvalidated merging. Capture the rule identifier or a settings screenshot in the PR review; a passing job alone cannot establish which status contexts branch protection requires.
+
+After each amendment to the PR, re-check the **new** head SHA and its workflow run; a prior green SHA is not sufficient. Changes to this document or the classifier also require the CRITICAL path. Do not remove `.delivery-v2/` as part of this evidence-only follow-up; treat its eventual removal as a separate reviewed change.
