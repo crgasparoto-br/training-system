@@ -1,8 +1,12 @@
 const findUniqueMock = jest.fn();
+const lifecycleFindManyMock = jest.fn();
 const mockPrisma = {
   aluno: {
     findUnique: findUniqueMock,
     findFirst: findUniqueMock,
+  },
+  studentLifecycleEvent: {
+    findMany: lifecycleFindManyMock,
   },
 };
 
@@ -130,6 +134,8 @@ const createStudentContract = (overrides: Record<string, unknown> = {}) => ({
 describe('studentDomainService', () => {
   beforeEach(() => {
     findUniqueMock.mockReset();
+    lifecycleFindManyMock.mockReset();
+    lifecycleFindManyMock.mockResolvedValue([]);
     (studentContractService.listByAluno as jest.Mock).mockReset();
   });
 
@@ -247,6 +253,67 @@ describe('studentDomainService', () => {
       serviceName: 'Premium',
     });
     expect(result?.items.some((item) => item.type === 'intake_recorded' || item.type === 'intake_updated')).toBe(false);
+  });
+
+  it('projects canonical training lifecycle events into the student timeline without sensitive feedback values', async () => {
+    findUniqueMock.mockResolvedValue({
+      ...createAlunoSnapshot(),
+      studentExternalAccounts: [],
+      studentExternalActivities: [],
+    });
+    (studentContractService.listByAluno as jest.Mock).mockResolvedValue([]);
+    lifecycleFindManyMock.mockResolvedValue([
+      {
+        id: 'evt-feedback',
+        alunoId: 'aluno-1',
+        contractId: 'contract-1',
+        eventType: 'STATUS_CHANGED',
+        actorUserId: 'student-user-1',
+        createdAt: '2026-05-12T10:15:00.000Z',
+        metadata: {
+          eventKey: 'post-workout-feedback:rev-1',
+          domain: 'post_workout_feedback',
+          action: 'created',
+          workoutDayId: 'day-1',
+          revisionNumber: 1,
+          signalCodes: ['pain_attention'],
+        },
+      },
+      {
+        id: 'evt-execution',
+        alunoId: 'aluno-1',
+        contractId: 'contract-1',
+        eventType: 'STATUS_CHANGED',
+        actorUserId: 'student-user-1',
+        createdAt: '2026-05-12T10:00:00.000Z',
+        metadata: {
+          eventKey: 'workout-session-execution:exec-1:op-1',
+          domain: 'workout_session_execution',
+          action: 'transition',
+          workoutDayId: 'day-1',
+          previousStatus: 'in_progress',
+          status: 'completed',
+          version: 2,
+        },
+      },
+    ]);
+
+    const result = await studentDomainService.getTimeline('aluno-1', {
+      companyContractId: 'contract-1',
+    });
+
+    expect(lifecycleFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: { alunoId: 'aluno-1', contractId: 'contract-1' },
+    }));
+    expect(result?.items.slice(0, 2).map((item) => item.type)).toEqual([
+      'post_workout_feedback_recorded',
+      'workout_execution_completed',
+    ]);
+    expect(result?.items[0].details).toEqual({
+      workoutDayId: 'day-1',
+      revisionNumber: 1,
+    });
+    expect(result?.items[0].details).not.toHaveProperty('signalCodes');
   });
 
   it('falls back to external ids when segmented source metadata is absent', async () => {
