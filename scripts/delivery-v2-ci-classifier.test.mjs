@@ -114,3 +114,51 @@ test('sensitive CI rules cannot be forced to FAST', () => {
     assert.equal(classifyDeliveryV2Ci({ requested: 'fast', changedPaths: [path] }).riskProfile, 'critical');
   }
 });
+
+test('mixed FAST and STANDARD paths select STANDARD', () => {
+  const result = classifyDeliveryV2Ci({
+    changedPaths: ['apps/web/src/components/Button.tsx', 'apps/api/src/modules/alunos/aluno.service.ts']
+  });
+  assert.equal(result.riskProfile, 'standard');
+  assert.equal(result.webChanged, true);
+  assert.equal(result.apiChanged, true);
+});
+
+test('mixed FAST and CRITICAL paths select CRITICAL', () => {
+  const result = classifyDeliveryV2Ci({
+    changedPaths: ['docs/product/alunos.md', 'apps/api/prisma/schema.prisma']
+  });
+  assert.equal(result.riskProfile, 'critical');
+  assert.equal(result.databaseRequired, true);
+  assert.equal(result.docsRequired, true);
+});
+
+test('requested FAST cannot downgrade STANDARD', () => {
+  const result = classifyDeliveryV2Ci({
+    requested: 'fast',
+    changedPaths: ['apps/api/src/modules/alunos/aluno.service.ts']
+  });
+  assert.equal(result.riskProfile, 'standard');
+  assert.equal(result.promoted, true);
+});
+
+test('requested CRITICAL upgrades FAST to CRITICAL', () => {
+  const result = classifyDeliveryV2Ci({
+    requested: 'critical',
+    changedPaths: ['docs/product/alunos.md']
+  });
+  assert.equal(result.riskProfile, 'critical');
+  assert.equal(result.promoted, false);
+});
+
+test('policy and validation entrypoints remain CRITICAL', () => {
+  for (const path of [
+    '.github/workflows/validate-pr.yml',
+    'scripts/ci-risk-policy.json',
+    'scripts/ci-risk-profile.mjs',
+    'scripts/ci-repository-risk-policy.mjs',
+    'scripts/delivery-v2-ci-classifier.test.mjs'
+  ]) {
+    assert.equal(classifyDeliveryV2Ci({ changedPaths: [path] }).riskProfile, 'critical', path);
+  }
+});
