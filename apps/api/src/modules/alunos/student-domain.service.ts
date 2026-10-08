@@ -374,6 +374,81 @@ const buildContractTimelineEvents = (contracts: any[]) => {
   return events;
 };
 
+const buildTrainingTimelineEvents = (lifecycleEvents: any[]) => lifecycleEvents.flatMap((event) => {
+  const metadata = toRecord(event.metadata);
+  const domain = typeof metadata?.domain === 'string' ? metadata.domain : null;
+  if (!['pre_workout_check_in', 'workout_session_execution', 'post_workout_feedback'].includes(domain ?? '')) {
+    return [];
+  }
+
+  const action = typeof metadata?.action === 'string' ? metadata.action : null;
+  const status = typeof metadata?.status === 'string' ? metadata.status : null;
+  const source = {
+    type: 'system',
+    reference:
+      typeof metadata?.eventKey === 'string'
+        ? metadata.eventKey
+        : `student-lifecycle-event:${event.id}`,
+    recordedByUserId: event.actorUserId ?? null,
+  };
+
+  if (domain === 'pre_workout_check_in') {
+    return [{
+      id: `training-check-in-${event.id}`,
+      type: action === 'updated' ? 'pre_workout_check_in_updated' : 'pre_workout_check_in_recorded',
+      title: action === 'updated' ? 'Check-in pré-treino atualizado' : 'Check-in pré-treino registrado',
+      occurredAt: event.createdAt,
+      source,
+      details: {
+        workoutDayId: metadata?.workoutDayId ?? null,
+      },
+    }];
+  }
+
+  if (domain === 'post_workout_feedback') {
+    return [{
+      id: `training-feedback-${event.id}`,
+      type: action === 'corrected' ? 'post_workout_feedback_corrected' : 'post_workout_feedback_recorded',
+      title: action === 'corrected' ? 'Feedback pós-treino corrigido' : 'Feedback pós-treino registrado',
+      occurredAt: event.createdAt,
+      source,
+      details: {
+        workoutDayId: metadata?.workoutDayId ?? null,
+        revisionNumber: metadata?.revisionNumber ?? null,
+      },
+    }];
+  }
+
+  const executionTypeByStatus: Record<string, string> = {
+    in_progress: 'workout_execution_started',
+    paused: 'workout_execution_paused',
+    completed: 'workout_execution_completed',
+    partial: 'workout_execution_partial',
+    not_performed: 'workout_execution_not_performed',
+  };
+  const executionTitleByStatus: Record<string, string> = {
+    in_progress: 'Treino iniciado',
+    paused: 'Treino pausado',
+    completed: 'Treino concluído',
+    partial: 'Treino encerrado parcialmente',
+    not_performed: 'Treino marcado como não realizado',
+  };
+
+  return [{
+    id: `training-execution-${event.id}`,
+    type: action === 'record_values' ? 'workout_execution_values_recorded' : executionTypeByStatus[status ?? ''] ?? 'workout_execution_updated',
+    title: action === 'record_values' ? 'Execução do treino atualizada' : executionTitleByStatus[status ?? ''] ?? 'Execução do treino atualizada',
+    occurredAt: event.createdAt,
+    source,
+    details: {
+      workoutDayId: metadata?.workoutDayId ?? null,
+      status: status ?? null,
+      previousStatus: metadata?.previousStatus ?? null,
+      version: metadata?.version ?? null,
+    },
+  }];
+});
+
 const buildTimeline = ({
   aluno,
   profile,
@@ -863,15 +938,27 @@ export const studentDomainService = {
       return null;
     }
 
-    const items = buildTimeline({
-      aluno,
-      profile,
-      intake,
-      assessments: assessments.items,
-      financial,
-      integrations,
-      activities,
+    const lifecycleEvents = await prisma.studentLifecycleEvent.findMany({
+      where: {
+        alunoId,
+        ...(options.companyContractId ? { contractId: options.companyContractId } : {}),
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 100,
     });
+
+    const items = [
+      ...buildTimeline({
+        aluno,
+        profile,
+        intake,
+        assessments: assessments.items,
+        financial,
+        integrations,
+        activities,
+      }),
+      ...buildTrainingTimelineEvents(lifecycleEvents),
+    ].sort((a, b) => new Date(String(b.occurredAt)).getTime() - new Date(String(a.occurredAt)).getTime());
 
     return {
       alunoId: aluno.id,
