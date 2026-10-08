@@ -547,6 +547,22 @@ export function TrainingRoutinePanel({
     void fetchRoutine(referenceDate);
   }, [canView, fetchRoutine, referenceDate]);
 
+  useEffect(() => {
+    if (!canView) return;
+
+    const refreshCurrentContext = () => {
+      if (document.visibilityState === 'hidden') return;
+      void fetchRoutine(referenceDate);
+    };
+
+    window.addEventListener('focus', refreshCurrentContext);
+    document.addEventListener('visibilitychange', refreshCurrentContext);
+    return () => {
+      window.removeEventListener('focus', refreshCurrentContext);
+      document.removeEventListener('visibilitychange', refreshCurrentContext);
+    };
+  }, [canView, fetchRoutine, referenceDate]);
+
   const header = (
     <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
       <Heading className={headingLevel === 'h1' ? 'text-2xl font-bold text-foreground' : 'text-lg font-semibold text-foreground'}>
