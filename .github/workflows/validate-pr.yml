@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   classify:
-    name: Delivery V2 risk
+    name: Repository CI risk
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -48,17 +48,17 @@ jobs:
               per_page: 100,
             });
             require('node:fs').writeFileSync(
-              '/tmp/delivery-v2-changed-paths.json',
+              '/tmp/ci-changed-paths.json',
               JSON.stringify(files.map((file) => file.filename))
             );
       - name: Classify PR deterministically
         id: risk
         env:
-          DELIVERY_V2_REQUESTED_RISK: ${{ vars.DELIVERY_V2_RISK_PROFILE || 'auto' }}
-        run: node scripts/delivery-v2-ci-classifier.mjs --paths-file /tmp/delivery-v2-changed-paths.json
+          CI_REQUESTED_RISK: ${{ vars.CI_RISK_PROFILE || 'auto' }}
+        run: node scripts/delivery-v2-ci-classifier.mjs --paths-file /tmp/ci-changed-paths.json
       - name: Publish classification summary
         run: |
-          echo "## Delivery V2 risk" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Repository CI risk" >> "$GITHUB_STEP_SUMMARY"
           echo "- Effective: \`${{ steps.risk.outputs.risk_profile }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Reasons: \`${{ steps.risk.outputs.reasons_json }}\`" >> "$GITHUB_STEP_SUMMARY"
 
@@ -113,7 +113,7 @@ jobs:
           CHECKOUT_SHA="$(git rev-parse HEAD)"
           test "$CHECKOUT_SHA" = "$AUDIT_HEAD_SHA"
           printf '{"schemaVersion":1,"kind":"validate-pr-evidence","repository":"%s","workflow":"%s","runId":"%s","eventName":"%s","riskProfile":"fast","headSha":"%s","checkoutSha":"%s","baseSha":"%s","mergePreviewSha":"%s"}\n' \
-            "$GITHUB_REPOSITORY" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID" "$GITHUB_EVENT_NAME" "$AUDIT_HEAD_SHA" "$CHECKOUT_SHA" "$AUDIT_BASE_SHA" "$GITHUB_SHA" > orquestrador-artifact.json
+            "$GITHUB_REPOSITORY" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID" "$GITHUB_EVENT_NAME" "$AUDIT_HEAD_SHA" "$CHECKOUT_SHA" "$AUDIT_BASE_SHA" "$GITHUB_SHA" > ci-validation-evidence.json
       - run: node --test scripts/delivery-v2-ci-classifier.test.mjs
       - if: needs.classify.outputs.code_changed == 'true' || needs.classify.outputs.docs_required == 'true'
         uses: pnpm/action-setup@v4
@@ -169,7 +169,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: validate-pr-fast-${{ github.event.pull_request.head.sha }}
-          path: orquestrador-artifact.json
+          path: ci-validation-evidence.json
           if-no-files-found: error
           retention-days: 30
 
@@ -195,7 +195,7 @@ jobs:
           CHECKOUT_SHA="$(git rev-parse HEAD)"
           test "$CHECKOUT_SHA" = "$AUDIT_HEAD_SHA"
           printf '{"schemaVersion":1,"kind":"validate-pr-evidence","repository":"%s","workflow":"%s","runId":"%s","eventName":"%s","riskProfile":"standard","headSha":"%s","checkoutSha":"%s","baseSha":"%s","mergePreviewSha":"%s"}\n' \
-            "$GITHUB_REPOSITORY" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID" "$GITHUB_EVENT_NAME" "$AUDIT_HEAD_SHA" "$CHECKOUT_SHA" "$AUDIT_BASE_SHA" "$GITHUB_SHA" > orquestrador-artifact.json
+            "$GITHUB_REPOSITORY" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID" "$GITHUB_EVENT_NAME" "$AUDIT_HEAD_SHA" "$CHECKOUT_SHA" "$AUDIT_BASE_SHA" "$GITHUB_SHA" > ci-validation-evidence.json
       - run: node --test scripts/delivery-v2-ci-classifier.test.mjs
       - uses: pnpm/action-setup@v4
         with:
@@ -221,7 +221,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: validate-pr-standard-${{ github.event.pull_request.head.sha }}
-          path: orquestrador-artifact.json
+          path: ci-validation-evidence.json
           if-no-files-found: error
           retention-days: 30
 
@@ -264,7 +264,7 @@ jobs:
           CHECKOUT_SHA="$(git rev-parse HEAD)"
           test "$CHECKOUT_SHA" = "$AUDIT_HEAD_SHA"
           printf '{"schemaVersion":1,"kind":"validate-pr-evidence","repository":"%s","workflow":"%s","runId":"%s","eventName":"%s","riskProfile":"critical","headSha":"%s","checkoutSha":"%s","baseSha":"%s","mergePreviewSha":"%s"}\n' \
-            "$GITHUB_REPOSITORY" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID" "$GITHUB_EVENT_NAME" "$AUDIT_HEAD_SHA" "$CHECKOUT_SHA" "$AUDIT_BASE_SHA" "$GITHUB_SHA" > orquestrador-artifact.json
+            "$GITHUB_REPOSITORY" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID" "$GITHUB_EVENT_NAME" "$AUDIT_HEAD_SHA" "$CHECKOUT_SHA" "$AUDIT_BASE_SHA" "$GITHUB_SHA" > ci-validation-evidence.json
       - run: node --test scripts/delivery-v2-ci-classifier.test.mjs
       - uses: pnpm/action-setup@v4
         with:
@@ -323,7 +323,7 @@ jobs:
         with:
           name: validate-pr-critical-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
-            orquestrador-artifact.json
+            ci-validation-evidence.json
             artifacts/settings-parameters-visual/**
             artifacts/ci/full-tests.log
             artifacts/issue-388/**
@@ -365,5 +365,5 @@ jobs:
         if: always()
         run: |
           echo "## Validate repository" >> "$GITHUB_STEP_SUMMARY"
-          echo "Delivery V2 risk profile: \`${RISK_PROFILE}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Repository CI risk profile: \`${RISK_PROFILE}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "Required check remains: \`Validate repository\`." >> "$GITHUB_STEP_SUMMARY"
