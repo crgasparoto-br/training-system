@@ -154,6 +154,14 @@ A experiencia guiada deve usar o lifecycle canonico da sessao e nao criar estado
 - Alteracoes posteriores no planejamento nao reescrevem o snapshot de origem da execucao; a sessao preserva `originReleaseId`, `originWorkoutTemplateId` e `originTrainingPlanId`.
 
 
+### Retorno e atualizacao da Central (#391)
+
+Apos mudancas confirmadas de check-in, execucao ou feedback, a Central deve revalidar somente as projecoes afetadas. O bloco de treino consulta novamente o backend ao retornar para a janela, sem recarregar a aplicacao inteira; a timeline e atualizada de forma independente quando o Historico e reaberto ou recupera foco.
+
+O contexto do aluno permanece preso ao `alunoId` da rota corrente. Uma resposta de outro contexto nao pode substituir silenciosamente o aluno selecionado. Falha localizada de treino ou timeline preserva os demais dados ja confirmados e permite nova tentativa.
+
+Eventos canonicos de `pre_workout_check_in`, `workout_session_execution` e `post_workout_feedback` alimentam a timeline como projecoes derivadas dos `StudentLifecycleEvent`; a timeline nao se torna fonte de verdade e nao expoe os valores sensiveis do feedback. Aderencia continua fora deste recorte ate a fonte canonica da #405 estar disponivel.
+
 ### Historico e evolucao
 
 Deve reunir:
