@@ -255,6 +255,18 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(screen.getByText('Nenhum check-in registrado para esta sessão.')).toBeInTheDocument();
   });
 
+  it('revalida o bloco de treino ao retornar para a janela sem recarregar a aplicação inteira', async () => {
+    const load = vi.fn().mockResolvedValue(routine());
+    render(<TrainingRoutinePanel audience="professor" load={load} />);
+
+    expect(await screen.findByRole('heading', { name: 'Musculação' })).toBeInTheDocument();
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+
+    window.dispatchEvent(new Event('focus'));
+
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+  });
+
   it('navega entre semanas pela data de referência', async () => {
     const load = vi.fn().mockResolvedValue(routine());
     render(<TrainingRoutinePanel audience="student" load={load} />);
