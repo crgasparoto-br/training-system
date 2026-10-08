@@ -5,6 +5,7 @@ import { TrainingRoutinePanel } from '../components/training/TrainingRoutinePane
 import { getStudentContractId, withStudentContractContext } from '../services/student-self.service';
 import { trainingRoutineService } from '../services/training-routine.service';
 import { preWorkoutCheckInService } from '../services/pre-workout-check-in.service';
+import { postWorkoutFeedbackService } from '../services/post-workout-feedback.service';
 
 /** Treino de hoje, rotina semanal e lifecycle canônico da sessão (#387/#389). */
 export function StudentTraining() {
@@ -17,6 +18,11 @@ export function StudentTraining() {
   const saveCheckIn = useCallback(
     (sessionId: string, payload: Parameters<typeof preWorkoutCheckInService.saveForStudent>[1]) =>
       preWorkoutCheckInService.saveForStudent(sessionId, payload, { contractId }),
+    [contractId]
+  );
+  const saveFeedback = useCallback(
+    (sessionId: string, payload: Parameters<typeof postWorkoutFeedbackService.saveForStudent>[1]) =>
+      postWorkoutFeedbackService.saveForStudent(sessionId, payload, { contractId }),
     [contractId]
   );
   const transitionExecution = useCallback(
@@ -43,6 +49,7 @@ export function StudentTraining() {
         load={load}
         headingLevel="h1"
         saveCheckIn={saveCheckIn}
+        saveFeedback={saveFeedback}
         transitionExecution={transitionExecution}
       />
     </div>

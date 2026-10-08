@@ -11,6 +11,12 @@ import {
   WorkoutSessionExecutionNotFoundError,
 } from '../src/modules/workout/workout-session-execution.service.js';
 import { workoutService } from '../src/modules/workout/workout.service.js';
+import {
+  createPostWorkoutFeedbackPersistenceService,
+  PostWorkoutFeedbackConflictError,
+  PostWorkoutFeedbackInputError,
+  PostWorkoutFeedbackNotFoundError,
+} from '../src/modules/post-workout-feedback/post-workout-feedback-persistence.service.js';
 
 const runDatabaseIntegrationTests = process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true';
 const describeDatabase = runDatabaseIntegrationTests ? describe : describe.skip;
@@ -20,11 +26,14 @@ const prisma = new PrismaClient();
 const concurrentPrisma = new PrismaClient();
 const service = createWorkoutSessionExecutionService(prisma);
 const concurrentService = createWorkoutSessionExecutionService(concurrentPrisma);
+const feedbackService = createPostWorkoutFeedbackPersistenceService(prisma);
+const concurrentFeedbackService = createPostWorkoutFeedbackPersistenceService(concurrentPrisma);
 
 type Fixture = {
   contractId: string;
   alunoId: string;
   alunoUserId: string;
+  professorUserId: string;
   dayId: string;
   exerciseIds: [string, string];
 };
@@ -207,6 +216,7 @@ async function seedReleasedWorkout(label: string): Promise<Fixture> {
     contractId,
     alunoId: aluno.id,
     alunoUserId: alunoUser.id,
+    professorUserId: professorUser.id,
     dayId: day.id,
     exerciseIds: [exerciseA.id, exerciseB.id],
   };
@@ -271,6 +281,303 @@ async function installLifecycleEventTrigger(
     );
   };
 }
+
+
+describeDatabase('post-workout feedback persistence - issue 390', () => {
+  async function completeSession(fixture: Fixture, prefix: string) {
+    await transition(fixture, `${prefix}-start`, 0, 'in_progress');
+    await transition(fixture, `${prefix}-complete`, 1, 'completed');
+  }
+
+  it('persiste um único feedback confirmado e torna retry idempotente', async () => {
+    const fixture = await seedReleasedWorkout('feedback-idempotency');
+    await completeSession(fixture, 'issue390-idem');
+
+    const payload = {
+      operationKey: 'issue390-feedback-idempotent',
+      values: { pse: 7, psr: 6, painDuring: 3, fatigueLevel: 'medium' as const },
+    };
+    const first = await feedbackService.createForStudent({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload,
+    });
+    const replay = await createPostWorkoutFeedbackPersistenceService(prisma).createForStudent({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload,
+    });
+
+    expect(replay.id).toBe(first.id);
+    expect(replay.values.painDuring).toBe(3);
+    expect(replay.signals.map((signal) => signal.code)).toContain('pain_attention');
+    expect(await prisma.postWorkoutFeedbackRevision.count({ where: { workoutDayId: fixture.dayId } })).toBe(1);
+    expect(await prisma.postWorkoutFeedbackOperation.count({ where: { workoutDayId: fixture.dayId } })).toBe(1);
+    expect(await prisma.studentLifecycleEvent.count({
+      where: {
+        alunoId: fixture.alunoId,
+        metadata: { path: ['domain'], equals: 'post_workout_feedback' },
+      },
+    })).toBe(1);
+  });
+
+  it('serializa duas confirmações concorrentes e mantém apenas uma revisão corrente', async () => {
+    const fixture = await seedReleasedWorkout('feedback-create-race');
+    await completeSession(fixture, 'issue390-create-race');
+
+    const request = (runner: typeof feedbackService, operationKey: string) =>
+      runner.createForStudent({
+        sessionId: fixture.dayId,
+        alunoId: fixture.alunoId,
+        contractId: fixture.contractId,
+        actorUserId: fixture.alunoUserId,
+        payload: {
+          operationKey,
+          values: { pse: 8, painAfter: 2, energyLevel: 'good' },
+        },
+      });
+
+    const results = await Promise.allSettled([
+      request(feedbackService, 'issue390-create-race-a'),
+      request(concurrentFeedbackService, 'issue390-create-race-b'),
+    ]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const rejection = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+    expect(rejection?.reason).toBeInstanceOf(PostWorkoutFeedbackConflictError);
+    expect(rejection?.reason.code).toBe('POST_WORKOUT_FEEDBACK_ALREADY_CONFIRMED');
+    expect(await prisma.postWorkoutFeedbackRevision.count({ where: { workoutDayId: fixture.dayId } })).toBe(1);
+  });
+
+  it('preserva histórico e rejeita duas correções concorrentes sobre a mesma revisão-base', async () => {
+    const fixture = await seedReleasedWorkout('feedback-correction-race');
+    await completeSession(fixture, 'issue390-correction-race');
+    const base = await feedbackService.createForStudent({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue390-correction-base',
+        values: { pse: 6, painDuring: 5, observations: 'Percepção original do aluno.' },
+      },
+    });
+
+    const correct = (runner: typeof feedbackService, operationKey: string, difficulty: number) =>
+      runner.correctForProfessor({
+        sessionId: fixture.dayId,
+        alunoId: fixture.alunoId,
+        contractId: fixture.contractId,
+        actorUserId: fixture.professorUserId,
+        payload: {
+          operationKey,
+          baseRevisionId: base.id,
+          reason: 'Correção técnica auditável',
+          values: { difficulty, professorTechnicalNotes: `Complemento técnico ${difficulty}` },
+        },
+      });
+
+    const results = await Promise.allSettled([
+      correct(feedbackService, 'issue390-correction-a', 7),
+      correct(concurrentFeedbackService, 'issue390-correction-b', 8),
+    ]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const rejection = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+    expect(rejection?.reason).toBeInstanceOf(PostWorkoutFeedbackConflictError);
+    expect(rejection?.reason.code).toBe('POST_WORKOUT_FEEDBACK_REVISION_CONFLICT');
+
+    const history = await feedbackService.getForSession({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      audience: 'professor',
+      includeHistory: true,
+    });
+    expect(history).toHaveLength(2);
+    expect(history[0]).toMatchObject({
+      revisionNumber: 2,
+      previousRevisionId: base.id,
+      correctionReason: 'Correção técnica auditável',
+      perceptionAuthor: 'student',
+      revisedBy: 'professor',
+      current: true,
+    });
+    expect(history[1]).toMatchObject({ id: base.id, revisionNumber: 1, current: false });
+    expect(history[1].values.observations).toBe('Percepção original do aluno.');
+    expect(history[0].technical).toMatchObject({ originTrainingPlanId: expect.any(String) });
+    const studentView = await feedbackService.getForSession({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      audience: 'student',
+    });
+    expect(studentView[0]).not.toHaveProperty('technical');
+    expect(studentView[0].values.professorTechnicalNotes).toBeNull();
+
+    const replayedCreate = await feedbackService.createForStudent({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue390-correction-base',
+        values: { pse: 6, painDuring: 5, observations: 'Percepção original do aluno.' },
+      },
+    });
+    expect(replayedCreate).toMatchObject({ id: base.id, current: false });
+    expect(replayedCreate.values.professorTechnicalNotes).toBeNull();
+
+    const winningIndex = results.findIndex((result) => result.status === 'fulfilled');
+    const winningRevision = (results[winningIndex] as PromiseFulfilledResult<Awaited<ReturnType<typeof feedbackService.correctForProfessor>>>).value;
+    const winningOperationKey = winningIndex === 0 ? 'issue390-correction-a' : 'issue390-correction-b';
+    const winningDifficulty = winningIndex === 0 ? 7 : 8;
+
+    const laterRevision = await feedbackService.correctForProfessor({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.professorUserId,
+      payload: {
+        operationKey: 'issue390-correction-later',
+        baseRevisionId: winningRevision.id,
+        reason: 'Segunda correção técnica auditável',
+        values: { pse: 7 },
+      },
+    });
+    expect(laterRevision.current).toBe(true);
+
+    const replayedCorrection = await feedbackService.correctForProfessor({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.professorUserId,
+      payload: {
+        operationKey: winningOperationKey,
+        baseRevisionId: base.id,
+        reason: 'Correção técnica auditável',
+        values: { difficulty: winningDifficulty, professorTechnicalNotes: `Complemento técnico ${winningDifficulty}` },
+      },
+    });
+    expect(replayedCorrection).toMatchObject({ id: winningRevision.id, current: false });
+  });
+
+  it('rejeita correções sem mudança material e audita somente campos alterados', async () => {
+    const fixture = await seedReleasedWorkout('feedback-material-correction');
+    await completeSession(fixture, 'issue390-material-correction');
+    const base = await feedbackService.createForStudent({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue390-material-base',
+        values: { pse: 6, painDuring: 4, observations: 'Original' },
+      },
+    });
+
+    const correction = (operationKey: string, values: Record<string, unknown>) =>
+      feedbackService.correctForProfessor({
+        sessionId: fixture.dayId,
+        alunoId: fixture.alunoId,
+        contractId: fixture.contractId,
+        actorUserId: fixture.professorUserId,
+        payload: {
+          operationKey,
+          baseRevisionId: base.id,
+          reason: 'Correção material auditável',
+          values,
+        },
+      } as Parameters<typeof feedbackService.correctForProfessor>[0]);
+
+    await expect(correction('issue390-empty-correction', {})).rejects.toBeInstanceOf(PostWorkoutFeedbackInputError);
+    await expect(correction('issue390-same-correction', { pse: 6 })).rejects.toBeInstanceOf(PostWorkoutFeedbackInputError);
+
+    expect(await prisma.postWorkoutFeedbackRevision.count({ where: { workoutDayId: fixture.dayId } })).toBe(1);
+    expect(await prisma.postWorkoutFeedbackOperation.count({ where: { workoutDayId: fixture.dayId } })).toBe(1);
+    expect(await prisma.studentLifecycleEvent.count({
+      where: {
+        alunoId: fixture.alunoId,
+        metadata: { path: ['domain'], equals: 'post_workout_feedback' },
+      },
+    })).toBe(1);
+
+    const payload = {
+      operationKey: 'issue390-material-change',
+      baseRevisionId: base.id,
+      reason: 'Correção material auditável',
+      values: { pse: 6, painDuring: 5, observations: 'Original' },
+    };
+    const corrected = await feedbackService.correctForProfessor({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.professorUserId,
+      payload,
+    });
+    expect(corrected.values).toMatchObject({ pse: 6, painDuring: 5, observations: 'Original' });
+
+    const event = await prisma.studentLifecycleEvent.findFirst({
+      where: {
+        alunoId: fixture.alunoId,
+        metadata: { path: ['revisionId'], equals: corrected.id },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect((event?.metadata as { changedFields?: string[] } | null)?.changedFields).toEqual(['painDuring']);
+
+    const replay = await feedbackService.correctForProfessor({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.professorUserId,
+      payload,
+    });
+    expect(replay.id).toBe(corrected.id);
+    expect(await prisma.postWorkoutFeedbackRevision.count({ where: { workoutDayId: fixture.dayId } })).toBe(2);
+    expect(await prisma.postWorkoutFeedbackOperation.count({ where: { workoutDayId: fixture.dayId } })).toBe(2);
+    expect(await prisma.studentLifecycleEvent.count({
+      where: {
+        alunoId: fixture.alunoId,
+        metadata: { path: ['domain'], equals: 'post_workout_feedback' },
+      },
+    })).toBe(2);
+  });
+
+  it('rejeita sessão não iniciada, aceita execução parcial e isola outro contrato', async () => {
+    const fixture = await seedReleasedWorkout('feedback-boundary');
+
+    await expect(feedbackService.createForStudent({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: { operationKey: 'issue390-not-started', values: { pse: 5 } },
+    })).rejects.toBeInstanceOf(PostWorkoutFeedbackNotFoundError);
+
+    await transition(fixture, 'issue390-boundary-start', 0, 'in_progress');
+    await transition(fixture, 'issue390-boundary-partial', 1, 'partial', 'Sessão encerrada antes do fim');
+
+    const partial = await feedbackService.createForStudent({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: { operationKey: 'issue390-partial-feedback', values: { pse: 5, fatigueLevel: 'high' } },
+    });
+    expect(partial.executionStatus).toBe('partial');
+    expect(partial.signals.map((signal) => signal.code)).toContain('fatigue_high');
+
+    await expect(feedbackService.getForSession({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: 'contract-wrong',
+      audience: 'student',
+    })).rejects.toBeInstanceOf(PostWorkoutFeedbackNotFoundError);
+  });
+});
 
 describeDatabase('workout session execution persistence - issue 389', () => {
   afterAll(async () => {

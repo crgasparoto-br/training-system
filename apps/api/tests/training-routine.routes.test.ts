@@ -11,6 +11,9 @@ const mockResolveActiveStudentMembership = jest.fn();
 const mockBlockAccessMiddleware = jest.fn(
   () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
 );
+const mockExplicitBlockAccessMiddleware = jest.fn(
+  () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
+);
 let mockUser: Record<string, unknown> = {};
 
 jest.mock('@prisma/client', () => ({
@@ -32,6 +35,7 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
 
 jest.mock('../src/modules/access-control/access-control.middleware', () => ({
   blockAccessMiddleware: mockBlockAccessMiddleware,
+  explicitBlockAccessMiddleware: mockExplicitBlockAccessMiddleware,
 }));
 
 jest.mock('../src/modules/workout/training-routine.service', () => {
@@ -249,11 +253,14 @@ describe('training routine HTTP boundaries (#387)', () => {
         audience: 'professor',
         date: '2026-10-01',
         includePreWorkoutCheckIn: false,
+        includePostWorkoutFeedback: false,
       });
     });
 
     it('inclui o check-in sensível somente com concessão explícita', async () => {
-      mockAccessPermissionFindFirst.mockResolvedValue({ id: 'permission-1' });
+      mockAccessPermissionFindFirst.mockImplementation(({ where }: any) =>
+        Promise.resolve(where.blockKey === 'students.details.preWorkoutCheckIn' ? { id: 'permission-checkin' } : null)
+      );
 
       const response = await request(app).get('/alunos/aluno-1/training-routine');
 
@@ -264,6 +271,38 @@ describe('training routine HTTP boundaries (#387)', () => {
         audience: 'professor',
         date: undefined,
         includePreWorkoutCheckIn: true,
+        includePostWorkoutFeedback: false,
+      });
+    });
+
+    it('mantém o boundary explícito disponível para as rotas sensíveis de feedback', async () => {
+      expect(mockExplicitBlockAccessMiddleware).toHaveBeenCalledWith('students.details.postWorkoutFeedback');
+    });
+
+    it('projeta feedback pós-treino somente com concessão sensível própria', async () => {
+      mockAccessPermissionFindFirst.mockImplementation(({ where }: any) =>
+        Promise.resolve(where.blockKey === 'students.details.postWorkoutFeedback' ? { id: 'permission-feedback' } : null)
+      );
+
+      const response = await request(app).get('/alunos/aluno-1/training-routine');
+
+      expect(response.status).toBe(200);
+      expect(mockAccessPermissionFindFirst).toHaveBeenCalledWith({
+        where: {
+          collaboratorFunctionId: 'function-1',
+          screenKey: 'students.details',
+          blockKey: 'students.details.postWorkoutFeedback',
+          canView: true,
+        },
+        select: { id: true },
+      });
+      expect(mockGetRoutine).toHaveBeenCalledWith({
+        alunoId: 'aluno-1',
+        contractId: 'contract-1',
+        audience: 'professor',
+        date: undefined,
+        includePreWorkoutCheckIn: false,
+        includePostWorkoutFeedback: true,
       });
     });
 

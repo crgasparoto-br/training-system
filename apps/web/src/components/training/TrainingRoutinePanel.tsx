@@ -15,7 +15,8 @@ import type {
 } from '@corrida/types';
 import { Button } from '../ui/Button';
 import { PreWorkoutCheckInCard } from './PreWorkoutCheckInCard';
-import type { UpsertPreWorkoutCheckInPayload, PreWorkoutCheckInView } from '@corrida/types';
+import { PostWorkoutFeedbackCard } from './PostWorkoutFeedbackCard';
+import type { UpsertPreWorkoutCheckInPayload, PreWorkoutCheckInView, CreateCanonicalPostWorkoutFeedbackPayload, CanonicalPostWorkoutFeedbackRevisionView } from '@corrida/types';
 import {
   getTrainingRoutineErrorKind,
   shiftDateOnly,
@@ -132,6 +133,7 @@ function TodaySession({
   audience,
   executionAvailable,
   saveCheckIn,
+  saveFeedback,
   transitionExecution,
   onExecutionChanged,
 }: {
@@ -139,6 +141,7 @@ function TodaySession({
   audience: TrainingRoutineAudience;
   executionAvailable: boolean;
   saveCheckIn?: (sessionId: string, payload: UpsertPreWorkoutCheckInPayload) => Promise<PreWorkoutCheckInView>;
+  saveFeedback?: (sessionId: string, payload: CreateCanonicalPostWorkoutFeedbackPayload) => Promise<CanonicalPostWorkoutFeedbackRevisionView>;
   transitionExecution?: (sessionId: string, payload: TrainingSessionExecutionTransitionPayload) => Promise<TrainingSessionExecutionView>;
   onExecutionChanged?: () => Promise<void>;
 }) {
@@ -289,6 +292,10 @@ function TodaySession({
           initialCheckIn={session.preWorkoutCheckIn ?? null}
           save={saveCheckIn ? (payload) => saveCheckIn(session.sessionId, payload) : undefined}
         />
+      )}
+
+      {(session.status === 'completed' || session.status === 'partial') && (audience === 'student' || Object.prototype.hasOwnProperty.call(session, 'postWorkoutFeedback')) && (
+        <PostWorkoutFeedbackCard audience={audience} initialFeedback={session.postWorkoutFeedback ?? []} save={saveFeedback ? (payload) => saveFeedback(session.sessionId, payload) : undefined} />
       )}
 
       <section aria-label="Segurança" className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm text-amber-900">
@@ -491,6 +498,7 @@ export type TrainingRoutinePanelProps = {
   headingLevel?: 'h1' | 'h2';
   title?: string;
   saveCheckIn?: (sessionId: string, payload: UpsertPreWorkoutCheckInPayload) => Promise<PreWorkoutCheckInView>;
+  saveFeedback?: (sessionId: string, payload: CreateCanonicalPostWorkoutFeedbackPayload) => Promise<CanonicalPostWorkoutFeedbackRevisionView>;
   transitionExecution?: (sessionId: string, payload: TrainingSessionExecutionTransitionPayload) => Promise<TrainingSessionExecutionView>;
 };
 
@@ -501,6 +509,7 @@ export function TrainingRoutinePanel({
   headingLevel = 'h2',
   title = 'Treino de hoje',
   saveCheckIn,
+  saveFeedback,
   transitionExecution,
 }: TrainingRoutinePanelProps) {
   const [routine, setRoutine] = useState<TrainingRoutineView | null>(null);
@@ -589,6 +598,7 @@ export function TrainingRoutinePanel({
                 audience={audience}
                 executionAvailable={routine.execution.available}
                 saveCheckIn={saveCheckIn}
+            saveFeedback={saveFeedback}
                 transitionExecution={transitionExecution}
                 onExecutionChanged={() => fetchRoutine(referenceDate)}
               />

@@ -5,6 +5,9 @@ const request = require('supertest');
 const mockBlockAccessMiddleware = jest.fn(
   () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
 );
+const mockExplicitBlockAccessMiddleware = jest.fn(
+  () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
+);
 const mockStudentProfileFindFirst = jest.fn();
 
 jest.mock('@prisma/client', () => ({
@@ -36,6 +39,7 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
 
 jest.mock('../src/modules/access-control/access-control.middleware', () => ({
   blockAccessMiddleware: mockBlockAccessMiddleware,
+  explicitBlockAccessMiddleware: mockExplicitBlockAccessMiddleware,
 }));
 
 jest.mock('../src/modules/alunos/aluno.service', () => ({
@@ -76,6 +80,8 @@ describe('segmented aluno routes', () => {
 
   beforeEach(() => {
     mockStudentProfileFindFirst.mockReset();
+    // Access middleware factories are invoked once when the router is registered.
+    // Preserve those calls so route-boundary assertions verify the actual registration.
     (alunoService.belongsToContract as jest.Mock).mockReset();
     (alunoService.belongsToProfessor as jest.Mock).mockReset();
     (studentParqBoundaryService.getAdministrativeSummary as jest.Mock).mockReset();
@@ -203,6 +209,13 @@ describe('segmented aluno routes', () => {
     expect(studentDomainService.listExternalActivities).toHaveBeenCalledWith('aluno-1', {
       companyContractId: 'contract-1',
     });
+  });
+
+  it('protects post-workout feedback history and corrections with explicit sensitive permission', async () => {
+    expect(mockExplicitBlockAccessMiddleware).toHaveBeenCalledWith(
+      'students.details.postWorkoutFeedback'
+    );
+    expect(mockExplicitBlockAccessMiddleware).toHaveBeenCalledTimes(2);
   });
 
   it('protects the timeline with the audit block permission and contract scope', async () => {

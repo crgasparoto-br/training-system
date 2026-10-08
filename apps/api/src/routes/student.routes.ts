@@ -34,6 +34,7 @@ import {
   WorkoutSessionExecutionInputError,
   WorkoutSessionExecutionNotFoundError,
 } from '../modules/workout/workout-session-execution.service.js';
+import { postWorkoutFeedbackPersistenceService, PostWorkoutFeedbackConflictError, PostWorkoutFeedbackInputError, PostWorkoutFeedbackNotFoundError } from '../modules/post-workout-feedback/post-workout-feedback-persistence.service.js';
 
 const prisma = new PrismaClient();
 
@@ -943,6 +944,13 @@ router.put('/me/training-sessions/:sessionId/execution/values', async (req: Requ
     return sendError(res, 'Erro ao salvar execução do treino', 500);
   }
 });
+
+
+const postWorkoutFeedbackValuesSchema=z.object({pse:z.number().int().min(0).max(10).nullable().optional(),psr:z.number().int().min(0).max(10).nullable().optional(),painBefore:z.number().int().min(0).max(10).nullable().optional(),painDuring:z.number().int().min(0).max(10).nullable().optional(),painAfter:z.number().int().min(0).max(10).nullable().optional(),painLocation:z.string().trim().max(160).nullable().optional(),difficulty:z.number().int().min(0).max(10).nullable().optional(),fatigueLevel:z.enum(['low','medium','high']).nullable().optional(),energyLevel:z.enum(['good','medium','poor']).nullable().optional(),sleepQuality:z.enum(['good','medium','poor']).nullable().optional(),dizziness:z.boolean().nullable().optional(),observations:z.string().trim().max(1000).nullable().optional()}).strict();
+const postWorkoutFeedbackCreateSchema=z.object({operationKey:z.string().trim().min(8).max(128),capacity:z.enum(['resisted','flexibility','cyclic','balance']).nullable().optional(),values:postWorkoutFeedbackValuesSchema}).strict();
+const sendPostWorkoutFeedbackError=(res:Response,error:any)=>{if(error instanceof z.ZodError||error instanceof PostWorkoutFeedbackInputError)return sendError(res,error instanceof z.ZodError?'Dados inválidos':error.message,400,error instanceof z.ZodError?error.errors:{code:error.code});if(error instanceof StudentAccountContextError){const status=error.code==='STUDENT_CONTRACT_CONTEXT_REQUIRED'?409:404;return sendError(res,error.message,status);}if(error instanceof PostWorkoutFeedbackNotFoundError)return sendError(res,error.message,404);if(error instanceof PostWorkoutFeedbackConflictError)return sendError(res,error.message,409,{code:error.code});return null;};
+router.get('/me/training-sessions/:sessionId/feedback',async(req:Request,res:Response)=>{try{const userId=(req as any).user.userId as string;const aluno=await requireAlunoByUserId(req,userId);return sendSuccess(res,await postWorkoutFeedbackPersistenceService.getForSession({sessionId:req.params.sessionId,alunoId:aluno.id,contractId:aluno.contractId,audience:'student'}));}catch(error:any){const handled=sendPostWorkoutFeedbackError(res,error);if(handled)return handled;console.error('Erro ao buscar feedback pós-treino:',error);return sendError(res,'Erro ao buscar feedback pós-treino',500);}});
+router.post('/me/training-sessions/:sessionId/feedback',async(req:Request,res:Response)=>{try{const userId=(req as any).user.userId as string;const aluno=await requireAlunoByUserId(req,userId);const payload=postWorkoutFeedbackCreateSchema.parse(req.body);return sendSuccess(res,await postWorkoutFeedbackPersistenceService.createForStudent({sessionId:req.params.sessionId,alunoId:aluno.id,contractId:aluno.contractId,actorUserId:userId,payload}),'Feedback pós-treino confirmado');}catch(error:any){const handled=sendPostWorkoutFeedbackError(res,error);if(handled)return handled;console.error('Erro ao salvar feedback pós-treino:',error);return sendError(res,'Erro ao salvar feedback pós-treino',500);}});
 
 // ---------------------------------------------------------------------------
 // GET /api/v1/student/me/assessments
