@@ -20,7 +20,7 @@ The `Validate PR` workflow uses deterministic risk classification to keep small 
 - Pull requests validate merge-preview compatibility separately from the exact PR head.
 - Push events covered by the workflow always execute `CRITICAL` validation.
 - The final required status remains exactly `Validate repository` because the active `main` ruleset depends on that context.
-- The executed path emits exact-head evidence in `ci-validation-evidence.json`.
+- The executed path emits repository-owned exact-head evidence in `ci-validation-evidence.json`.
 - CI does not merge pull requests automatically.
 
 ## FAST regression selection
@@ -31,24 +31,13 @@ For `FAST` web changes, changed test files are executed directly and Vitest `rel
 
 The complete database/browser/migration suite is not deleted. It remains mandatory for `CRITICAL` pull requests and for pushes covered by the workflow, so interactions that are not justified on every small PR are still exercised before promotion through the main development flow.
 
-## Local policy and independence
+## Repository ownership and rollback
 
-Risk classification is owned by `scripts/ci-risk-policy.json`, `scripts/ci-risk-profile.mjs`, and `scripts/ci-repository-risk-policy.mjs`, invoked by `scripts/delivery-v2-ci-classifier.mjs` (compatibility entrypoint, not an orchestrator dependency). The workflow uses only files in this repository and does not invoke AI or remote skills. The local policy replaces the generated orchestrator policy and lock as the active source of truth. CI risk rule changes are themselves CRITICAL.
-
-The legacy `.delivery-v2/` package and lock are retained temporarily for rollback only. They are not imported, executed, or verified by the active Validate PR workflow. Remove those legacy files in a separate reviewed change only after an exact-head successful run confirms the replacement. Do not re-enable the legacy package implicitly.
-
-### Verification and rollback
-
-1. Run `node --test scripts/delivery-v2-ci-classifier.test.mjs` against the proposed commit; check sensitive paths, unknown paths, and requested risk promotion.
-2. Open a PR against `develop`; confirm the CRITICAL path executes its PostgreSQL, migrations, authentication/access, full tests, browser, merge-preview, and exact-head gates.
-3. Verify the required GitHub status context remains exactly `Validate repository` and is successful for the exact PR head SHA. Recheck branch protection before promotion to `main`.
-4. If a regression occurs, revert the workflow, classifier, tests, and local policy changes together to the previous known-good commit via a new PR. The retained `.delivery-v2/` files support investigation but must never be treated as proof that the new workflow passed. Do not bypass required checks or merge automatically.
-
-
-### Evidence matrix and branch protection checklist
-
-A successful CRITICAL run on the migration PR demonstrates the CRITICAL path only. The classifier unit tests cover FAST, STANDARD, CRITICAL, combined path precedence, explicit promotion and fail-closed behavior, but do not substitute for end-to-end FAST and STANDARD workflow runs. Before merging, create representative non-sensitive FAST and STANDARD PRs targeting `develop` (or use existing qualifying runs); verify that each selects only its corresponding gate, that merge preview passes, and that `Validate repository` succeeds on the exact PR head SHA. Record links to both runs in the migration PR.
-
-Branch protection/rulesets must be reviewed in GitHub repository Settings > Rules > Rulesets (and legacy Branches rules when applicable) for both `develop` and `main`. Confirm the required status check is spelled **`Validate repository`** and is reported by the expected GitHub Actions app; do not add per-profile job names as mandatory contexts, because two profiles are skipped by design. Confirm the rule applies to the intended branches and prevents unvalidated merging. Capture the rule identifier or a settings screenshot in the PR review; a passing job alone cannot establish which status contexts branch protection requires.
-
-After each amendment to the PR, re-check the **new** head SHA and its workflow run; a prior green SHA is not sufficient. Changes to this document or the classifier also require the CRITICAL path. Do not remove `.delivery-v2/` as part of this evidence-only follow-up; treat its eventual removal as a separate reviewed change.
+- Canonical classification policy: `config/ci-risk-policy.json`. Evaluator: `scripts/ci-risk-profile.mjs` and `scripts/ci-repository-risk-policy.mjs`.
+- Workflow adapter: `scripts/ci-risk-classifier.mjs`; regression tests: `scripts/ci-risk-classifier.test.mjs`.
+- No dependency on the Delivery V2 or an external repository is required at CI runtime. No AI/skills are executed in GitHub Actions.
+- Run classification regressions with `node --test scripts/ci-risk-classifier.test.mjs`. Workflow changes are always CRITICAL, so the exact-head full gate and PostgreSQL/migration checks must succeed before promotion.
+- During rollout, preserve the exact job check context `Validate repository` in branch protection. Confirm that it is emitted and succeeds for a fresh PR against `develop` and for the protected promotion path. Never remove the required check before a replacement is proven.
+- Merge preview uses the GitHub synthetic merge commit and checks both the PR base and head parents. Execution gates check out the exact PR head SHA.
+- Rollback if classification, preview, full regressions or branch protection behavior regresses: do not merge; revert the migration commit/PR on the candidate branch and re-run the original `Validate PR` workflow; preserve the same `Validate repository` status context and check its exact SHA before resuming promotion. Do not force-push protected branches or disable required status checks.
+- Legacy `.delivery-v2/` files may be removed in a separate cleanup only after a green independent CI path and documented rollback evidence; keeping them during initial rollout is intentional, but the new workflow and classifier must not import them.

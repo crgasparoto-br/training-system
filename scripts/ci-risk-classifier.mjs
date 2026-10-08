@@ -1,12 +1,12 @@
 import { appendFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { resolveRiskProfile } from '../.delivery-v2/risk-profile.mjs';
+import { resolveRiskProfile } from './ci-risk-profile.mjs';
 
-export const DELIVERY_V2_RISK_PROFILES = Object.freeze(['fast', 'standard', 'critical']);
-export const DELIVERY_V2_REQUESTED_RISKS = Object.freeze(['auto', ...DELIVERY_V2_RISK_PROFILES]);
+export const CI_RISK_PROFILES = Object.freeze(['fast', 'standard', 'critical']);
+export const CI_REQUESTED_RISKS = Object.freeze(['auto', ...CI_RISK_PROFILES]);
 
 const POLICY = JSON.parse(
-  readFileSync(new URL('../.delivery-v2/policy.json', import.meta.url), 'utf8')
+  readFileSync(new URL('../config/ci-risk-policy.json', import.meta.url), 'utf8')
 ).riskPolicy;
 
 function normalizePath(value) {
@@ -28,7 +28,7 @@ function isDatabasePath(path) {
   return /(^|\/)(prisma|migrations?|database|db)(\/|\.|$)/.test(path);
 }
 
-export function classifyDeliveryV2Ci({ requested = 'auto', changedPaths = [] } = {}) {
+export function classifyRepositoryCi({ requested = 'auto', changedPaths = [] } = {}) {
   const risk = resolveRiskProfile({ requested, changedPaths, repositoryPolicy: POLICY });
   const paths = risk.paths.map(normalizePath);
   return {
@@ -46,7 +46,7 @@ export function classifyDeliveryV2Ci({ requested = 'auto', changedPaths = [] } =
 }
 
 function parseCliArgs(argv) {
-  const result = { requested: process.env.DELIVERY_V2_REQUESTED_RISK || 'auto', pathsFile: null };
+  const result = { requested: process.env.CI_REQUESTED_RISK || 'auto', pathsFile: null };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--paths-file') result.pathsFile = argv[++index];
@@ -80,7 +80,7 @@ function main() {
   const args = parseCliArgs(process.argv.slice(2));
   const changedPaths = JSON.parse(readFileSync(args.pathsFile, 'utf8'));
   if (!Array.isArray(changedPaths)) throw new Error('paths file must contain a JSON array');
-  const plan = classifyDeliveryV2Ci({ requested: args.requested, changedPaths });
+  const plan = classifyRepositoryCi({ requested: args.requested, changedPaths });
   writeGithubOutput(plan);
   process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
 }
@@ -89,7 +89,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   try {
     main();
   } catch (error) {
-    console.error(`Delivery V2 CI classifier failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`Repository CI classifier failed: ${error instanceof Error ? error.message : String(error)}`);
     process.exitCode = 1;
   }
 }
