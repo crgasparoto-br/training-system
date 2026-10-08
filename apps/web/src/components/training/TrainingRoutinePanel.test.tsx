@@ -255,6 +255,50 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(screen.getByText('Nenhum check-in registrado para esta sessão.')).toBeInTheDocument();
   });
 
+  it('mostra continuidade com próxima sessão, última execução e feedback pendente sem calcular aderência', async () => {
+    const completedSession = session({
+      status: 'completed',
+      postWorkoutFeedback: [],
+      execution: {
+        ...session().execution,
+        status: 'completed',
+        version: 2,
+        startedAt: '2026-10-01T11:00:00.000Z',
+        finishedAt: '2026-10-01T12:00:00.000Z',
+      },
+    });
+    const nextSession = session({
+      sessionId: 'day-2',
+      date: '2026-10-02',
+      status: 'not_started',
+      execution: {
+        ...session().execution,
+        sessionId: 'day-2',
+      },
+    });
+    const data = routine({
+      audience: 'professor',
+      days: [
+        { date: '2026-09-28', isToday: false, sessions: [], pendingReleaseCount: 0 },
+        { date: '2026-09-29', isToday: false, sessions: [], pendingReleaseCount: 0 },
+        { date: '2026-09-30', isToday: false, sessions: [], pendingReleaseCount: 0 },
+        { date: '2026-10-01', isToday: true, sessions: [completedSession], pendingReleaseCount: 0 },
+        { date: '2026-10-02', isToday: false, sessions: [nextSession], pendingReleaseCount: 0 },
+        { date: '2026-10-03', isToday: false, sessions: [], pendingReleaseCount: 0 },
+        { date: '2026-10-04', isToday: false, sessions: [], pendingReleaseCount: 0 },
+      ],
+      today: { date: '2026-10-01', state: 'released', sessions: [completedSession] },
+    });
+
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue(data)} />);
+
+    const continuity = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
+    expect(within(continuity).getByText('Próximo treino')).toBeInTheDocument();
+    expect(within(continuity).getByText('Última execução')).toBeInTheDocument();
+    expect(within(continuity).getByText('1 feedback pendente')).toBeInTheDocument();
+    expect(within(continuity).getByText(/indicador canônico será consumido quando a #405/i)).toBeInTheDocument();
+  });
+
   it('revalida o bloco de treino ao retornar para a janela sem recarregar a aplicação inteira', async () => {
     const load = vi.fn().mockResolvedValue(routine());
     render(<TrainingRoutinePanel audience="professor" load={load} />);
