@@ -410,6 +410,67 @@ function TodaySession({
   );
 }
 
+function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) {
+  const sessions = routine.days
+    .flatMap((day) => day.sessions.map((session) => ({ ...session, date: day.date })))
+    .sort((left, right) => left.date.localeCompare(right.date) || left.sessionId.localeCompare(right.sessionId));
+  const terminal = new Set<TrainingRoutineExecutionProjectionStatus>(['completed', 'partial', 'not_performed']);
+  const nextSession = sessions.find(
+    (session) => session.date >= routine.today.date && !terminal.has(session.status)
+  ) ?? null;
+  const lastExecution = [...sessions]
+    .reverse()
+    .find((session) => session.date <= routine.today.date && terminal.has(session.status)) ?? null;
+
+  const feedbackSessions = routine.today.sessions.filter(
+    (session) =>
+      (session.status === 'completed' || session.status === 'partial') &&
+      Object.prototype.hasOwnProperty.call(session, 'postWorkoutFeedback')
+  );
+  const pendingFeedbackCount = feedbackSessions.filter(
+    (session) => (session.postWorkoutFeedback ?? []).length === 0
+  ).length;
+  const registeredFeedbackCount = feedbackSessions.filter(
+    (session) => (session.postWorkoutFeedback ?? []).length > 0
+  ).length;
+
+  const feedbackStatus = pendingFeedbackCount > 0
+    ? `${pendingFeedbackCount} feedback${pendingFeedbackCount === 1 ? '' : 's'} pendente${pendingFeedbackCount === 1 ? '' : 's'}`
+    : registeredFeedbackCount > 0
+      ? 'Feedback registrado'
+      : 'Sem pendência confirmada';
+
+  return (
+    <section aria-label="Continuidade do treinamento" className="grid gap-3 sm:grid-cols-3">
+      <div className="rounded-lg border border-border bg-background p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Próximo treino</p>
+        <p className="mt-1 text-sm font-semibold text-foreground">
+          {nextSession ? sessionTitle(nextSession.modalities) : 'Nenhuma sessão pendente nesta semana'}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {nextSession ? `${formatShortDate(nextSession.date)} · ${sessionStatusLabels[nextSession.status]}` : 'A rotina semanal continua sendo a fonte do planejamento liberado.'}
+        </p>
+      </div>
+      <div className="rounded-lg border border-border bg-background p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Última execução</p>
+        <p className="mt-1 text-sm font-semibold text-foreground">
+          {lastExecution ? sessionStatusLabels[lastExecution.status] : 'Nenhuma execução registrada nesta semana'}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {lastExecution ? `${formatShortDate(lastExecution.date)} · ${sessionTitle(lastExecution.modalities)}` : 'O card será atualizado a partir do backend quando houver execução.'}
+        </p>
+      </div>
+      <div className="rounded-lg border border-border bg-background p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Feedback pós-treino</p>
+        <p className="mt-1 text-sm font-semibold text-foreground">{feedbackStatus}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Aderência não é calculada aqui; o indicador canônico será consumido quando a #405 estiver disponível.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 function TodayEmptyState({ state, audience }: { state: 'not_released' | 'none'; audience: TrainingRoutineAudience }) {
   const copy =
     state === 'not_released'
@@ -604,6 +665,7 @@ export function TrainingRoutinePanel({
   return (
     <section className="space-y-4" aria-busy={loading}>
       {header}
+      {isCurrentWeek && <TrainingContinuityCards routine={routine} />}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="space-y-4">
           {routine.today.state === 'released' ? (
