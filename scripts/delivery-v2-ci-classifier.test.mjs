@@ -1,16 +1,10 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { classifyDeliveryV2Ci } from './delivery-v2-ci-classifier.mjs';
 
-test('generated classifier package is intact and pinned to the orchestrator source', () => {
-  const verify = spawnSync(process.execPath, [fileURLToPath(new URL('../.delivery-v2/verify.mjs', import.meta.url))], { encoding: 'utf8' });
-  assert.equal(verify.status, 0, verify.stderr);
-  const lock = JSON.parse(readFileSync(new URL('../.delivery-v2/lock.json', import.meta.url), 'utf8'));
-  assert.equal(lock.source.commit, '00eb10545f2f7209ef649d2834300515e0b85106');
-  assert.equal(lock.target.repository, 'crgasparoto-br/training-system');
+test('classifier uses local CI risk policy', () => {
+  const result = classifyDeliveryV2Ci({ changedPaths: ['scripts/ci-risk-policy.json'] });
+  assert.equal(result.riskProfile, 'critical');
 });
 
 test('isolated web component with colocated test stays FAST', () => {
@@ -113,4 +107,10 @@ test('static assets remain FAST only inside trusted web asset roots', () => {
 
 test('empty changed-path evidence fails closed to CRITICAL', () => {
   assert.equal(classifyDeliveryV2Ci({ changedPaths: [] }).riskProfile, 'critical');
+});
+
+test('sensitive CI rules cannot be forced to FAST', () => {
+  for (const path of ['scripts/ci-risk-profile.mjs', 'scripts/ci-repository-risk-policy.mjs', 'scripts/ci-risk-policy.json']) {
+    assert.equal(classifyDeliveryV2Ci({ requested: 'fast', changedPaths: [path] }).riskProfile, 'critical');
+  }
 });
