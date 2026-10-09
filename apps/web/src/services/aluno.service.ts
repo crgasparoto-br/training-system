@@ -660,6 +660,7 @@ export interface StudentSegmentedTimeline {
   alunoId: string;
   items: StudentTimelineEvent[];
   total: number;
+  nextCursor?: string | null;
 }
 
 export const alunoService = {
@@ -1001,9 +1002,11 @@ export const alunoService = {
     return response.data.data;
   },
 
-  async getSegmentedTimeline(alunoId: string): Promise<StudentSegmentedTimeline> {
+  async getSegmentedTimeline(alunoId: string, cursor?: string): Promise<StudentSegmentedTimeline> {
+    const params = new URLSearchParams({ limit: '100' });
+    if (cursor) params.set('cursor', cursor);
     const response = await api.get<{ success: boolean; data: StudentSegmentedTimeline }>(
-      `/alunos/${alunoId}/timeline`
+      `/alunos/${alunoId}/timeline?${params.toString()}`
     );
     return response.data.data;
   },
