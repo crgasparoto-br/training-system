@@ -146,7 +146,21 @@ describe('training routine service (#387)', () => {
 
   it('calcula feedback pendente apenas para sessão concluída do contrato', async () => {
     releasedRows = [makeRow({
-      execution: { status: 'completed' },
+      execution: {
+        workoutDayId: 'day-1',
+        status: 'completed',
+        version: 1,
+        startedAt: new Date('2026-10-01T10:00:00.000Z'),
+        finishedAt: new Date('2026-10-01T11:00:00.000Z'),
+        currentPauseStartedAt: null,
+        pausedDurationMs: BigInt(0),
+        interruptionReason: null,
+        originReleaseId: 'release-1',
+        originWorkoutTemplateId: 'template-1',
+        originTrainingPlanId: 'plan-1',
+        sessionValues: {},
+        items: [],
+      },
     })];
     const result = await service.getRoutine({
       alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
