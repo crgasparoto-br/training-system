@@ -322,36 +322,38 @@ describe('studentDomainService', () => {
     expect(result?.items[0].details).not.toHaveProperty('signalCodes');
   });
 
-  it('continues paginating canonical events after a full page', async () => {
+  it('paginates canonical events with a bounded query and stable cursor', async () => {
     findUniqueMock.mockResolvedValue({
       ...createAlunoSnapshot(),
       studentExternalAccounts: [],
       studentExternalActivities: [],
     });
     (studentContractService.listByAluno as jest.Mock).mockResolvedValue([]);
-    const firstPage = Array.from({ length: 200 }, (_, index) => ({
+    const records = Array.from({ length: 101 }, (_, index) => ({
       id: `event-${index}`,
       alunoId: 'aluno-1',
       createdAt: '2026-05-12T10:00:00.000Z',
       actorUserId: null,
       metadata: { domain: 'workout_session_execution', status: 'completed' },
     }));
-    const secondPage = [{
+    lifecycleFindManyMock.mockResolvedValueOnce(records).mockResolvedValueOnce([{
       id: 'older-event',
       alunoId: 'aluno-1',
       createdAt: '2026-05-11T10:00:00.000Z',
       actorUserId: null,
       metadata: { domain: 'post_workout_feedback', action: 'created' },
-    }];
-    lifecycleFindManyMock.mockResolvedValueOnce(firstPage).mockResolvedValueOnce(secondPage);
-
-    const result = await studentDomainService.getTimeline('aluno-1');
-    expect(lifecycleFindManyMock).toHaveBeenCalledTimes(2);
+    }]);
+    const first = await studentDomainService.getTimeline('aluno-1', { timelineLimit: 100 });
+    expect(first?.nextCursor).toBe('event-99');
+    expect(first?.items.some((item) => item.id === 'training-execution-event-100')).toBe(false);
+    const second = await studentDomainService.getTimeline('aluno-1', { timelineCursor: first?.nextCursor ?? undefined });
+    expect(second?.nextCursor).toBeNull();
+    expect(second?.items.some((item) => item.id === 'training-feedback-older-event')).toBe(true);
     expect(lifecycleFindManyMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      cursor: { id: 'event-199' },
+      take: 101,
+      cursor: { id: 'event-99' },
       skip: 1,
     }));
-    expect(result?.items.some((item) => item.id === 'training-feedback-older-event')).toBe(true);
   });
 
   it('falls back to external ids when segmented source metadata is absent', async () => {
