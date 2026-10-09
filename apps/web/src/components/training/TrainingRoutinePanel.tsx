@@ -435,12 +435,14 @@ function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) 
       (session.status === 'completed' || session.status === 'partial') &&
       !Object.prototype.hasOwnProperty.call(session, 'postWorkoutFeedback')
   );
+  const hasRegisteredFeedback = (session: (typeof feedbackSessions)[number]) =>
+    'postWorkoutFeedback' in session &&
+    Array.isArray(session.postWorkoutFeedback) &&
+    session.postWorkoutFeedback.length > 0;
   const pendingFeedbackCount = feedbackSessions.filter(
-    (session) => (session.postWorkoutFeedback ?? []).length === 0
+    (session) => !hasRegisteredFeedback(session)
   ).length;
-  const registeredFeedbackCount = feedbackSessions.filter(
-    (session) => (session.postWorkoutFeedback ?? []).length > 0
-  ).length;
+  const registeredFeedbackCount = feedbackSessions.filter(hasRegisteredFeedback).length;
 
   const feedbackStatus = pendingFeedbackCount > 0
     ? `${pendingFeedbackCount} feedback${pendingFeedbackCount === 1 ? '' : 's'} pendente${pendingFeedbackCount === 1 ? '' : 's'}`
