@@ -75,8 +75,10 @@ describe('training routine service (#387)', () => {
   const queryRaw = jest.fn();
   const preWorkoutCheckInFindMany = jest.fn();
   const postWorkoutFeedbackFindMany = jest.fn();
+  const lastExecutionFindFirst = jest.fn();
   const client = {
     workoutDay: { findMany },
+    workoutSessionExecution: { findFirst: lastExecutionFindFirst },
     preWorkoutCheckIn: { findMany: preWorkoutCheckInFindMany },
     postWorkoutFeedbackRevision: { findMany: postWorkoutFeedbackFindMany },
     $queryRaw: queryRaw,
@@ -97,6 +99,7 @@ describe('training routine service (#387)', () => {
     releaseRows = [makeRelease()];
     preWorkoutCheckInFindMany.mockResolvedValue([]);
     postWorkoutFeedbackFindMany.mockResolvedValue([]);
+    lastExecutionFindFirst.mockResolvedValue(null);
     findMany.mockImplementation((args: any) =>
       Promise.resolve(args.where.template.released ? releasedRows : pendingRows)
     );
@@ -106,6 +109,28 @@ describe('training routine service (#387)', () => {
       if (sql.includes('ConsolidatedPrescriptionOperationalRelease')) return Promise.resolve(releaseRows);
       throw new Error(`SQL inesperado: ${sql}`);
     });
+  });
+
+  it('projetar última execução de qualquer semana sem misturar alunos ou contratos', async () => {
+    lastExecutionFindFirst.mockResolvedValue({
+      workoutDayId: 'old-day',
+      status: 'completed',
+      workoutDay: { workoutDate: new Date('2026-09-01T00:00:00.000Z') },
+    });
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.lastExecution).toEqual({
+      sessionId: 'old-day', status: 'completed', date: '2026-09-01',
+    });
+    expect(lastExecutionFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        alunoId: 'aluno-1', contractId: 'contract-1',
+        workoutDay: { template: { released: true, plan: {
+          alunoId: 'aluno-1', aluno: { contractId: 'contract-1' },
+        } } },
+      }),
+    }));
   });
 
   it('consulta somente sessões liberadas do aluno e do contrato informados', async () => {
