@@ -164,7 +164,7 @@ Eventos canonicos de `pre_workout_check_in`, `workout_session_execution` e `post
 
 A consulta dos eventos de treinamento filtra os dominios canonicos antes da paginacao e retorna no maximo 200 eventos por requisicao (padrao 100). O contrato de `GET /alunos/:id/timeline` oferece `limit`, `cursor` e `nextCursor`; os eventos gerais não são repetidos nas páginas posteriores de eventos de treinamento; o Historico apresenta `Carregar eventos anteriores` para continuar a partir do cursor sem requisitar toda a historia de uma vez. Atualizacoes concorrentes da timeline desconsideram respostas anteriores a uma requisicao mais recente, inclusive carregamento de pagina anterior iniciado antes de uma revalidacao ou troca de aluno; o retorno de visibilidade tambem revalida o Historico.
 
-Os cards de continuidade representam apenas a semana consultada pela rotina: pendencias de feedback dos dias anteriores dessa semana continuam visiveis. Ausencia de execucao na semana nao significa ausencia de execucao historica. Uma consulta historica de ultima execucao, independente da semana, exige contrato canonico proprio e nao deve ser inferida no frontend.
+O card de próximo treino e as contagens de feedback se limitam à semana consultada; pendências de feedback de dias anteriores dessa semana continuam visíveis. O card de última execução é global ao contrato e não fica limitado à semana. Ausencia de execucao na semana nao significa ausencia de execucao historica. Uma consulta historica de ultima execucao, independente da semana, exige contrato canonico proprio e nao deve ser inferida no frontend.
 
 ### Historico e evolucao
 
