@@ -350,6 +350,24 @@ describe('TrainingRoutinePanel (#387)', () => {
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
   });
 
+  it('descarta retorno antigo quando a pessoa navega para outra semana', async () => {
+    let resolvePrevious: ((view: TrainingRoutineView) => void) | undefined;
+    const load = vi.fn()
+      .mockResolvedValueOnce(routine())
+      .mockImplementationOnce(() => new Promise<TrainingRoutineView>((resolve) => {
+        resolvePrevious = resolve;
+      }))
+      .mockResolvedValueOnce(routine({ referenceDate: '2026-10-12' }));
+    render(<TrainingRoutinePanel audience="student" load={load} />);
+    await screen.findByRole('heading', { name: 'Musculação' });
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima semana' }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima semana' }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(3));
+    resolvePrevious?.(routine({ referenceDate: '2026-10-05' }));
+    await waitFor(() => expect(load).toHaveBeenLastCalledWith('2026-10-12'));
+  });
+
   it('navega entre semanas pela data de referência', async () => {
     const load = vi.fn().mockResolvedValue(routine());
     render(<TrainingRoutinePanel audience="student" load={load} />);
