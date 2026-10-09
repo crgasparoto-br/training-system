@@ -294,7 +294,7 @@ describe('TrainingRoutinePanel (#387)', () => {
 
     const continuity = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
     expect(within(continuity).getByText('Próximo treino')).toBeInTheDocument();
-    expect(within(continuity).getByText('Última execução')).toBeInTheDocument();
+    expect(within(continuity).getByText('Última execução na semana')).toBeInTheDocument();
     expect(within(continuity).getByText('1 feedback pendente')).toBeInTheDocument();
     expect(within(continuity).getByText(/indicador canônico será consumido quando a #405/i)).toBeInTheDocument();
   });
@@ -315,6 +315,23 @@ describe('TrainingRoutinePanel (#387)', () => {
     render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue(data)} />);
     const continuity = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
     expect(within(continuity).getByText('1 feedback pendente')).toBeInTheDocument();
+  });
+
+  it('nao interpreta feedback ausente da projecao como pendente confirmado', async () => {
+    const completed = session({
+      status: 'completed',
+      execution: { ...session().execution, status: 'completed' },
+    });
+    const data = routine({
+      days: [
+        { date: '2026-10-01', isToday: true, sessions: [completed], pendingReleaseCount: 0 },
+      ],
+      today: { date: '2026-10-01', state: 'released', sessions: [completed] },
+    });
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue(data)} />);
+    const continuity = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
+    expect(within(continuity).getByText('Feedback indisponível')).toBeInTheDocument();
+    expect(within(continuity).queryByText('1 feedback pendente')).not.toBeInTheDocument();
   });
 
   it('revalida o bloco de treino ao retornar para a janela sem recarregar a aplicação inteira', async () => {
