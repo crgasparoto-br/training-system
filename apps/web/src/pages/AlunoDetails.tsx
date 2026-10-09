@@ -1095,22 +1095,28 @@ export function AlunoDetails() {
     if (!id || !canViewAuditTab || activeTab !== 'auditoria') return;
 
     let cancelled = false;
+    let latestRequest = 0;
     const refreshTimeline = async () => {
+      if (document.visibilityState === 'hidden') return;
+      const request = ++latestRequest;
       try {
         const timeline = await alunoService.getSegmentedTimeline(id);
-        if (!cancelled && timeline.alunoId === id) {
+        if (!cancelled && request === latestRequest && timeline.alunoId === id) {
           setSegmentedTimeline(timeline);
         }
       } catch {
-        // Falha localizada: preserva a timeline já carregada e permite nova tentativa por foco/retorno.
+        // Mantem os dados confirmados e permite nova tentativa.
       }
     };
 
     void refreshTimeline();
     window.addEventListener('focus', refreshTimeline);
+    document.addEventListener('visibilitychange', refreshTimeline);
     return () => {
       cancelled = true;
+      latestRequest++;
       window.removeEventListener('focus', refreshTimeline);
+      document.removeEventListener('visibilitychange', refreshTimeline);
     };
   }, [activeTab, canViewAuditTab, id]);
 
