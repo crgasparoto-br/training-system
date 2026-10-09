@@ -162,6 +162,10 @@ O contexto do aluno permanece preso ao `alunoId` da rota corrente. Uma resposta 
 
 Eventos canonicos de `pre_workout_check_in`, `workout_session_execution` e `post_workout_feedback` alimentam a timeline como projecoes derivadas dos `StudentLifecycleEvent`; a timeline nao se torna fonte de verdade e nao expoe os valores sensiveis do feedback. Aderencia continua fora deste recorte ate a fonte canonica da #405 estar disponivel.
 
+A consulta dos eventos de treinamento filtra os dominios canonicos antes da paginacao e continua a buscar paginas para nao perder registros antigos. Atualizacoes concorrentes da timeline desconsideram respostas anteriores a uma requisicao mais recente; o retorno de visibilidade tambem revalida o Historico.
+
+Os cards de continuidade representam apenas a semana consultada pela rotina: pendencias de feedback dos dias anteriores dessa semana continuam visiveis. Ausencia de execucao na semana nao significa ausencia de execucao historica. Uma consulta historica de ultima execucao, independente da semana, exige contrato canonico proprio e nao deve ser inferida no frontend.
+
 ### Historico e evolucao
 
 Deve reunir:
