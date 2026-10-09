@@ -269,6 +269,8 @@ export function AlunoDetails() {
     useState<StudentSegmentedTimeline | null>(null);
   const [timelineRefreshFailed, setTimelineRefreshFailed] = useState(false);
   const [timelineRetryKey, setTimelineRetryKey] = useState(0);
+  const activeAlunoIdRef = useRef(id);
+  activeAlunoIdRef.current = id;
   const [timelineLoadingMore, setTimelineLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadErrorKind, setLoadErrorKind] = useState<AlunoLoadErrorKind>(null);
@@ -589,6 +591,7 @@ export function AlunoDetails() {
           : Promise.resolve(null),
       ]);
 
+      if (activeAlunoIdRef.current !== alunoId) return;
       setAluno(data);
       setSegmentedSummary(segmentedSummaryData);
       setSegmentedProfile(segmentedProfileData);
@@ -609,6 +612,7 @@ export function AlunoDetails() {
       );
 
     } catch (error) {
+      if (activeAlunoIdRef.current !== alunoId) return;
       console.error('Erro ao carregar aluno:', error);
       const failureKind = classifyApiFailure(error);
       const isTransientFailure = failureKind === 'timeout' || failureKind === 'network';
@@ -626,7 +630,7 @@ export function AlunoDetails() {
       setSegmentedActivities(null);
       setSegmentedTimeline(null);
     } finally {
-      setLoading(false);
+      if (activeAlunoIdRef.current === alunoId) setLoading(false);
     }
   };
 
