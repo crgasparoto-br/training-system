@@ -427,13 +427,13 @@ function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) 
     (session) =>
       session.date <= routine.today.date &&
       (session.status === 'completed' || session.status === 'partial') &&
-      Object.prototype.hasOwnProperty.call(session, 'postWorkoutFeedback')
+      Array.isArray(session.postWorkoutFeedback)
   );
   const feedbackUnavailable = sessions.some(
     (session) =>
       session.date <= routine.today.date &&
       (session.status === 'completed' || session.status === 'partial') &&
-      !Object.prototype.hasOwnProperty.call(session, 'postWorkoutFeedback')
+      !Array.isArray(session.postWorkoutFeedback)
   );
   const hasRegisteredFeedback = (session: (typeof feedbackSessions)[number]) =>
     'postWorkoutFeedback' in session &&
@@ -462,7 +462,7 @@ function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) 
         </p>
       </div>
       <div className="rounded-lg border border-border bg-background p-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Última execução</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Última execução na semana</p>
         <p className="mt-1 text-sm font-semibold text-foreground">
           {lastExecution ? sessionStatusLabels[lastExecution.status] : 'Nenhuma execução registrada na semana exibida'}
         </p>
