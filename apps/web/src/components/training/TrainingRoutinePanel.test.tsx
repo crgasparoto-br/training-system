@@ -299,6 +299,24 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(within(continuity).getByText(/indicador canônico será consumido quando a #405/i)).toBeInTheDocument();
   });
 
+  it('mantém pendência de feedback de dia anterior na semana consultada', async () => {
+    const previous = session({
+      status: 'completed',
+      postWorkoutFeedback: [],
+      execution: { ...session().execution, status: 'completed' },
+    });
+    const data = routine({
+      days: [
+        { date: '2026-09-30', isToday: false, sessions: [previous], pendingReleaseCount: 0 },
+        { date: '2026-10-01', isToday: true, sessions: [], pendingReleaseCount: 0 },
+      ],
+      today: { date: '2026-10-01', state: 'released', sessions: [] },
+    });
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue(data)} />);
+    const continuity = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
+    expect(within(continuity).getByText('1 feedback pendente')).toBeInTheDocument();
+  });
+
   it('revalida o bloco de treino ao retornar para a janela sem recarregar a aplicação inteira', async () => {
     const load = vi.fn().mockResolvedValue(routine());
     render(<TrainingRoutinePanel audience="professor" load={load} />);
