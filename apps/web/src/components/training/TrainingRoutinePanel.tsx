@@ -433,10 +433,10 @@ function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) 
       <div className="rounded-lg border border-border bg-background p-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Próximo treino</p>
         <p className="mt-1 text-sm font-semibold text-foreground">
-          {nextSession ? sessionTitle(nextSession.modalities) : 'Nenhuma sessão pendente nesta semana'}
+          {nextSession ? sessionTitle(nextSession.modalities) : 'Nenhuma sessão pendente na semana exibida'}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {nextSession ? `${formatShortDate(nextSession.date)} · ${sessionStatusLabels[nextSession.status]}` : 'A rotina semanal continua sendo a fonte do planejamento liberado.'}
+          {nextSession ? `${formatShortDate(nextSession.date)} · ${sessionStatusLabels[nextSession.status]}` : 'Consulte outras semanas para verificar próximos treinos planejados.'}
         </p>
       </div>
       <div className="rounded-lg border border-border bg-background p-3">
