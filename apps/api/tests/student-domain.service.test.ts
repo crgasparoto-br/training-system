@@ -349,6 +349,8 @@ describe('studentDomainService', () => {
     const second = await studentDomainService.getTimeline('aluno-1', { timelineCursor: first?.nextCursor ?? undefined });
     expect(second?.nextCursor).toBeNull();
     expect(second?.items.some((item) => item.id === 'training-feedback-older-event')).toBe(true);
+    expect(second?.items.some((item) => item.id === 'student-created-aluno-1')).toBe(false);
+    expect(first?.items.some((item) => item.id === 'student-created-aluno-1')).toBe(true);
     expect(lifecycleFindManyMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
       take: 101,
       cursor: { id: 'event-99' },
