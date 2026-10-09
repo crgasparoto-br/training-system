@@ -269,6 +269,7 @@ export function AlunoDetails() {
     useState<StudentSegmentedTimeline | null>(null);
   const [timelineRefreshFailed, setTimelineRefreshFailed] = useState(false);
   const [timelineRetryKey, setTimelineRetryKey] = useState(0);
+  const [timelineLoadingMore, setTimelineLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadErrorKind, setLoadErrorKind] = useState<AlunoLoadErrorKind>(null);
   const [loading, setLoading] = useState(true);
@@ -1125,6 +1126,32 @@ export function AlunoDetails() {
       document.removeEventListener('visibilitychange', refreshTimeline);
     };
   }, [activeTab, canViewAuditTab, id, timelineRetryKey]);
+
+  const loadMoreTimeline = async () => {
+    if (!id || !segmentedTimeline?.nextCursor || timelineLoadingMore) return;
+    const studentId = id;
+    const cursor = segmentedTimeline.nextCursor;
+    setTimelineLoadingMore(true);
+    try {
+      const page = await alunoService.getSegmentedTimeline(studentId, cursor);
+      if (page.alunoId !== studentId) return;
+      setSegmentedTimeline((previous) => {
+        if (!previous || previous.alunoId !== studentId || previous.nextCursor !== cursor) return previous;
+        const knownIds = new Set(previous.items.map((item) => item.id));
+        return {
+          ...previous,
+          items: [...previous.items, ...page.items.filter((item) => !knownIds.has(item.id))],
+          nextCursor: page.nextCursor,
+          total: previous.total + page.items.filter((item) => !knownIds.has(item.id)).length,
+        };
+      });
+      setTimelineRefreshFailed(false);
+    } catch {
+      setTimelineRefreshFailed(true);
+    } finally {
+      setTimelineLoadingMore(false);
+    }
+  };
 
   // Show access denied message if no tabs are visible
   const hasAnyAccessibleTab = visibleTabs.length > 0;
@@ -2292,6 +2319,11 @@ export function AlunoDetails() {
             </div>
           )}
           <AlunoHistoricoTab timeline={segmentedTimeline} />
+          {segmentedTimeline?.alunoId === id && segmentedTimeline.nextCursor && (
+            <Button type="button" variant="outline" disabled={timelineLoadingMore} onClick={() => void loadMoreTimeline()}>
+              {timelineLoadingMore ? 'Carregando histórico...' : 'Carregar eventos anteriores'}
+            </Button>
+          )}
         </div>
       )}
 
