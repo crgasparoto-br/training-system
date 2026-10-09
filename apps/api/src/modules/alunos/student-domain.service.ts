@@ -958,7 +958,7 @@ export const studentDomainService = {
     const nextCursor = hasMore ? lifecycleEvents[lifecycleEvents.length - 1]?.id ?? null : null;
 
     const items = [
-      ...buildTimeline({
+      ...(options.timelineCursor ? [] : buildTimeline({
         aluno,
         profile,
         intake,
@@ -966,7 +966,7 @@ export const studentDomainService = {
         financial,
         integrations,
         activities,
-      }),
+      })),
       ...buildTrainingTimelineEvents(lifecycleEvents),
     ].sort((a, b) => new Date(String(b.occurredAt)).getTime() - new Date(String(a.occurredAt)).getTime());
 
