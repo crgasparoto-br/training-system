@@ -418,37 +418,15 @@ function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) 
   const nextSession = sessions.find(
     (session) => session.date >= routine.today.date && !terminal.has(session.status)
   ) ?? null;
-  const lastExecution = [...sessions]
-    .reverse()
-    .find((session) => session.date <= routine.today.date && terminal.has(session.status)) ?? null;
-
-  // Pendencias de dias anteriores continuam relevantes dentro da janela consultada.
-  const feedbackSessions = sessions.filter(
-    (session) =>
-      session.date <= routine.today.date &&
-      (session.status === 'completed' || session.status === 'partial') &&
-      ('postWorkoutFeedback' in session && Array.isArray(session.postWorkoutFeedback))
-  );
-  const feedbackUnavailable = sessions.some(
-    (session) =>
-      session.date <= routine.today.date &&
-      (session.status === 'completed' || session.status === 'partial') &&
-      !('postWorkoutFeedback' in session && Array.isArray(session.postWorkoutFeedback))
-  );
-  const hasRegisteredFeedback = (session: (typeof feedbackSessions)[number]) =>
-    'postWorkoutFeedback' in session &&
-    Array.isArray(session.postWorkoutFeedback) &&
-    session.postWorkoutFeedback.length > 0;
-  const pendingFeedbackCount = feedbackSessions.filter(
-    (session) => !hasRegisteredFeedback(session)
-  ).length;
-  const registeredFeedbackCount = feedbackSessions.filter(hasRegisteredFeedback).length;
-
-  const feedbackStatus = pendingFeedbackCount > 0
-    ? `${pendingFeedbackCount} feedback${pendingFeedbackCount === 1 ? '' : 's'} pendente${pendingFeedbackCount === 1 ? '' : 's'}`
-    : registeredFeedbackCount > 0
-      ? 'Feedback registrado'
-      : feedbackUnavailable ? 'Feedback indisponível' : 'Sem pendência confirmada nesta semana';
+  const lastExecution = routine.lastExecution ?? null;
+  const continuity = routine.feedbackContinuity;
+  const feedbackStatus = !continuity || continuity.state === 'unavailable'
+    ? 'Feedback indisponível'
+    : continuity.pendingCount > 0
+      ? `${continuity.pendingCount} feedback${continuity.pendingCount === 1 ? '' : 's'} pendente${continuity.pendingCount === 1 ? '' : 's'}`
+      : continuity.registeredCount > 0
+        ? 'Feedback registrado'
+        : 'Sem pendência confirmada nesta semana';
 
   return (
     <section aria-label="Continuidade do treinamento" className="grid gap-3 sm:grid-cols-3">
@@ -462,12 +440,12 @@ function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) 
         </p>
       </div>
       <div className="rounded-lg border border-border bg-background p-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Última execução na semana</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Última execução</p>
         <p className="mt-1 text-sm font-semibold text-foreground">
-          {lastExecution ? sessionStatusLabels[lastExecution.status] : 'Nenhuma execução registrada na semana exibida'}
+          {lastExecution ? sessionStatusLabels[lastExecution.status] : 'Nenhuma execução registrada'}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {lastExecution ? `${formatShortDate(lastExecution.date)} · ${sessionTitle(lastExecution.modalities)}` : 'O card será atualizado a partir do backend quando houver execução.'}
+          {lastExecution ? formatShortDate(lastExecution.date) : 'Nenhuma execução registrada.'}
         </p>
       </div>
       <div className="rounded-lg border border-border bg-background p-3">
