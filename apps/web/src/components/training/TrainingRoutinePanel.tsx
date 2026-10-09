@@ -427,13 +427,13 @@ function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) 
     (session) =>
       session.date <= routine.today.date &&
       (session.status === 'completed' || session.status === 'partial') &&
-      Array.isArray(session.postWorkoutFeedback)
+      ('postWorkoutFeedback' in session && Array.isArray(session.postWorkoutFeedback))
   );
   const feedbackUnavailable = sessions.some(
     (session) =>
       session.date <= routine.today.date &&
       (session.status === 'completed' || session.status === 'partial') &&
-      !Array.isArray(session.postWorkoutFeedback)
+      !('postWorkoutFeedback' in session && Array.isArray(session.postWorkoutFeedback))
   );
   const hasRegisteredFeedback = (session: (typeof feedbackSessions)[number]) =>
     'postWorkoutFeedback' in session &&
