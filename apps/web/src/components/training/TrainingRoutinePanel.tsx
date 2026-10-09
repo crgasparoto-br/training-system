@@ -422,10 +422,18 @@ function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) 
     .reverse()
     .find((session) => session.date <= routine.today.date && terminal.has(session.status)) ?? null;
 
-  const feedbackSessions = routine.today.sessions.filter(
+  // Pendencias de dias anteriores continuam relevantes dentro da janela consultada.
+  const feedbackSessions = sessions.filter(
     (session) =>
+      session.date <= routine.today.date &&
       (session.status === 'completed' || session.status === 'partial') &&
       Object.prototype.hasOwnProperty.call(session, 'postWorkoutFeedback')
+  );
+  const feedbackUnavailable = sessions.some(
+    (session) =>
+      session.date <= routine.today.date &&
+      (session.status === 'completed' || session.status === 'partial') &&
+      !Object.prototype.hasOwnProperty.call(session, 'postWorkoutFeedback')
   );
   const pendingFeedbackCount = feedbackSessions.filter(
     (session) => (session.postWorkoutFeedback ?? []).length === 0
@@ -438,7 +446,7 @@ function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) 
     ? `${pendingFeedbackCount} feedback${pendingFeedbackCount === 1 ? '' : 's'} pendente${pendingFeedbackCount === 1 ? '' : 's'}`
     : registeredFeedbackCount > 0
       ? 'Feedback registrado'
-      : 'Sem pendência confirmada';
+      : feedbackUnavailable ? 'Feedback indisponível' : 'Sem pendência confirmada nesta semana';
 
   return (
     <section aria-label="Continuidade do treinamento" className="grid gap-3 sm:grid-cols-3">
@@ -454,7 +462,7 @@ function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) 
       <div className="rounded-lg border border-border bg-background p-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Última execução</p>
         <p className="mt-1 text-sm font-semibold text-foreground">
-          {lastExecution ? sessionStatusLabels[lastExecution.status] : 'Nenhuma execução registrada nesta semana'}
+          {lastExecution ? sessionStatusLabels[lastExecution.status] : 'Nenhuma execução registrada na semana exibida'}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
           {lastExecution ? `${formatShortDate(lastExecution.date)} · ${sessionTitle(lastExecution.modalities)}` : 'O card será atualizado a partir do backend quando houver execução.'}
