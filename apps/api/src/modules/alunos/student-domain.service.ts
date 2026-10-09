@@ -6,6 +6,8 @@ const prisma = prismaRuntimeClient;
 
 type StudentDomainQueryOptions = {
   companyContractId?: string;
+  timelineCursor?: string;
+  timelineLimit?: number;
 };
 
 const toNumber = (value: unknown) => {
@@ -940,24 +942,20 @@ export const studentDomainService = {
 
     // Filtre antes de paginar: eventos de outros dominios nao devem ocultar treinos antigos.
     const trainingDomains = ['pre_workout_check_in', 'workout_session_execution', 'post_workout_feedback'];
-    const lifecycleEvents: Awaited<ReturnType<typeof prisma.studentLifecycleEvent.findMany>> = [];
-    let cursor: string | undefined;
-    const pageSize = 200;
-    while (true) {
-      const page = await prisma.studentLifecycleEvent.findMany({
-        where: {
-          alunoId,
-          ...(options.companyContractId ? { contractId: options.companyContractId } : {}),
-          OR: trainingDomains.map((domain) => ({ metadata: { path: ['domain'], equals: domain } })),
-        },
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        take: pageSize,
-        ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
-      });
-      lifecycleEvents.push(...page);
-      if (page.length < pageSize) break;
-      cursor = page[page.length - 1].id;
-    }
+    const pageSize = Math.min(200, Math.max(1, options.timelineLimit ?? 100));
+    const page = await prisma.studentLifecycleEvent.findMany({
+      where: {
+        alunoId,
+        ...(options.companyContractId ? { contractId: options.companyContractId } : {}),
+        OR: trainingDomains.map((domain) => ({ metadata: { path: ['domain'], equals: domain } })),
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: pageSize + 1,
+      ...(options.timelineCursor ? { skip: 1, cursor: { id: options.timelineCursor } } : {}),
+    });
+    const hasMore = page.length > pageSize;
+    const lifecycleEvents = page.slice(0, pageSize);
+    const nextCursor = hasMore ? lifecycleEvents[lifecycleEvents.length - 1]?.id ?? null : null;
 
     const items = [
       ...buildTimeline({
@@ -976,6 +974,7 @@ export const studentDomainService = {
       alunoId: aluno.id,
       items,
       total: items.length,
+      nextCursor,
     };
   },
 };
