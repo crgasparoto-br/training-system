@@ -144,6 +144,21 @@ describe('training routine service (#387)', () => {
     expect(postWorkoutFeedbackFindMany).not.toHaveBeenCalled();
   });
 
+  it('calcula feedback pendente apenas para sessão concluída do contrato', async () => {
+    releasedRows = [makeRow({
+      execution: { status: 'completed' },
+    })];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.feedbackContinuity).toEqual({
+      state: 'available', pendingCount: 1, registeredCount: 0,
+    });
+    expect(postWorkoutFeedbackFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ alunoId: 'aluno-1', contractId: 'contract-1' }),
+    }));
+  });
+
   it('consulta somente sessões liberadas do aluno e do contrato informados', async () => {
     await service.getRoutine({ alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now });
 
