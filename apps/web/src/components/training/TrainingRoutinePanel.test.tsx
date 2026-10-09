@@ -255,6 +255,119 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(screen.getByText('Nenhum check-in registrado para esta sessão.')).toBeInTheDocument();
   });
 
+  it('mostra continuidade com próxima sessão, última execução e feedback pendente sem calcular aderência', async () => {
+    const completedSession = session({
+      status: 'completed',
+      postWorkoutFeedback: [],
+      execution: {
+        ...session().execution,
+        status: 'completed',
+        version: 2,
+        startedAt: '2026-10-01T11:00:00.000Z',
+        finishedAt: '2026-10-01T12:00:00.000Z',
+      },
+    });
+    const nextSession = session({
+      sessionId: 'day-2',
+      date: '2026-10-02',
+      status: 'not_started',
+      execution: {
+        ...session().execution,
+        sessionId: 'day-2',
+      },
+    });
+    const data = routine({
+      audience: 'professor',
+      lastExecution: { sessionId: 'day-1', date: '2026-10-01', status: 'completed' },
+      feedbackContinuity: { state: 'available', pendingCount: 1, registeredCount: 0 },
+      days: [
+        { date: '2026-09-28', isToday: false, sessions: [], pendingReleaseCount: 0 },
+        { date: '2026-09-29', isToday: false, sessions: [], pendingReleaseCount: 0 },
+        { date: '2026-09-30', isToday: false, sessions: [], pendingReleaseCount: 0 },
+        { date: '2026-10-01', isToday: true, sessions: [completedSession], pendingReleaseCount: 0 },
+        { date: '2026-10-02', isToday: false, sessions: [nextSession], pendingReleaseCount: 0 },
+        { date: '2026-10-03', isToday: false, sessions: [], pendingReleaseCount: 0 },
+        { date: '2026-10-04', isToday: false, sessions: [], pendingReleaseCount: 0 },
+      ],
+      today: { date: '2026-10-01', state: 'released', sessions: [completedSession] },
+    });
+
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue(data)} />);
+
+    const continuity = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
+    expect(within(continuity).getByText('Próximo treino')).toBeInTheDocument();
+    expect(within(continuity).getByText('Última execução')).toBeInTheDocument();
+    expect(within(continuity).getByText('1 feedback pendente')).toBeInTheDocument();
+    expect(within(continuity).getByText(/indicador canônico será consumido quando a #405/i)).toBeInTheDocument();
+  });
+
+  it('mantém pendência de feedback de dia anterior na semana consultada', async () => {
+    const previous = session({
+      status: 'completed',
+      postWorkoutFeedback: [],
+      execution: { ...session().execution, status: 'completed' },
+    });
+    const data = routine({
+      feedbackContinuity: { state: 'available', pendingCount: 1, registeredCount: 0 },
+      days: [
+        { date: '2026-09-30', isToday: false, sessions: [previous], pendingReleaseCount: 0 },
+        { date: '2026-10-01', isToday: true, sessions: [], pendingReleaseCount: 0 },
+      ],
+      today: { date: '2026-10-01', state: 'released', sessions: [] },
+    });
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue(data)} />);
+    const continuity = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
+    expect(within(continuity).getByText('1 feedback pendente')).toBeInTheDocument();
+  });
+
+  it('nao interpreta feedback ausente da projecao como pendente confirmado', async () => {
+    const completed = session({
+      status: 'completed',
+      execution: { ...session().execution, status: 'completed' },
+    });
+    const data = routine({
+      feedbackContinuity: { state: 'unavailable', pendingCount: 0, registeredCount: 0 },
+      days: [
+        { date: '2026-10-01', isToday: true, sessions: [completed], pendingReleaseCount: 0 },
+      ],
+      today: { date: '2026-10-01', state: 'released', sessions: [completed] },
+    });
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue(data)} />);
+    const continuity = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
+    expect(within(continuity).getByText('Feedback indisponível')).toBeInTheDocument();
+    expect(within(continuity).queryByText('1 feedback pendente')).not.toBeInTheDocument();
+  });
+
+  it('revalida o bloco de treino ao retornar para a janela sem recarregar a aplicação inteira', async () => {
+    const load = vi.fn().mockResolvedValue(routine());
+    render(<TrainingRoutinePanel audience="professor" load={load} />);
+
+    expect(await screen.findByRole('heading', { name: 'Musculação' })).toBeInTheDocument();
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+
+    window.dispatchEvent(new Event('focus'));
+
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+  });
+
+  it('descarta retorno antigo quando a pessoa navega para outra semana', async () => {
+    let resolvePrevious: ((view: TrainingRoutineView) => void) | undefined;
+    const load = vi.fn()
+      .mockResolvedValueOnce(routine())
+      .mockImplementationOnce(() => new Promise<TrainingRoutineView>((resolve) => {
+        resolvePrevious = resolve;
+      }))
+      .mockResolvedValueOnce(routine({ referenceDate: '2026-10-12' }));
+    render(<TrainingRoutinePanel audience="student" load={load} />);
+    await screen.findByRole('heading', { name: 'Musculação' });
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima semana' }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima semana' }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(3));
+    resolvePrevious?.(routine({ referenceDate: '2026-10-05' }));
+    await waitFor(() => expect(load).toHaveBeenLastCalledWith('2026-10-12'));
+  });
+
   it('navega entre semanas pela data de referência', async () => {
     const load = vi.fn().mockResolvedValue(routine());
     render(<TrainingRoutinePanel audience="student" load={load} />);

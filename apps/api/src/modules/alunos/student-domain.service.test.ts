@@ -1,8 +1,12 @@
 const mockFindFirst = jest.fn();
+const mockLifecycleFindMany = jest.fn();
 const mockListByAluno = jest.fn();
 
 jest.mock('../../common/prisma-runtime-client.js', () => ({
-  prismaRuntimeClient: { aluno: { findFirst: mockFindFirst } },
+  prismaRuntimeClient: {
+    aluno: { findFirst: mockFindFirst },
+    studentLifecycleEvent: { findMany: mockLifecycleFindMany },
+  },
 }));
 
 jest.mock('../student-contracts/student-contract.service.js', () => ({
@@ -37,6 +41,7 @@ describe('studentDomainService snapshot reuse', () => {
   beforeEach(() => {
     jest.restoreAllMocks();
     mockFindFirst.mockReset();
+    mockLifecycleFindMany.mockReset().mockResolvedValue([]);
     mockListByAluno.mockReset().mockResolvedValue([]);
   });
 

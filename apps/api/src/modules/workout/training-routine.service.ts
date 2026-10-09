@@ -378,7 +378,7 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
         { workoutDate: { gte: todayStart, lt: new Date(todayStart.getTime() + DAY_MS) } },
       ];
 
-      const [rows, pendingRows] = await Promise.all([
+      const [rows, pendingRows, latestExecution] = await Promise.all([
         client.workoutDay.findMany({
           where: { OR: workoutDateWindow, template: { released: true, plan: studentScope } },
           orderBy: [{ workoutDate: 'asc' }, { dayOfWeek: 'asc' }, { id: 'asc' }],
@@ -387,6 +387,20 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
         client.workoutDay.findMany({
           where: { OR: workoutDateWindow, template: { released: false, plan: studentScope } },
           select: { workoutDate: true },
+        }),
+        client.workoutSessionExecution.findFirst({
+          where: {
+            alunoId: query.alunoId,
+            contractId: query.contractId,
+            status: { in: ['completed', 'partial', 'not_performed'] },
+            workoutDay: { template: { released: true, plan: studentScope } },
+          },
+          orderBy: [{ finishedAt: 'desc' }, { updatedAt: 'desc' }, { id: 'desc' }],
+          select: {
+            workoutDayId: true,
+            status: true,
+            workoutDay: { select: { workoutDate: true } },
+          },
         }),
       ]);
 
@@ -457,6 +471,15 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
       });
       const todayRows = rowsOn(today);
       const todayPending = pendingByDate.get(today) ?? 0;
+      const weekRows = visibleRows.filter((row) =>
+        toDateOnly(row.workoutDate) <= today && toDateOnly(row.workoutDate) >= toDateOnly(week.start)
+      );
+      const feedbackEligible = weekRows.filter((row) =>
+        row.execution?.status === 'completed' || row.execution?.status === 'partial'
+      );
+      const registeredCount = feedbackEligible.filter((row) =>
+        (latestFeedbackBySession.get(row.id)?.length ?? 0) > 0
+      ).length;
 
       return {
         alunoId: query.alunoId,
@@ -480,6 +503,18 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
           ),
         },
         execution: { available: true, reason: null },
+        lastExecution: latestExecution
+          ? {
+              sessionId: latestExecution.workoutDayId,
+              status: latestExecution.status,
+              date: toDateOnly(latestExecution.workoutDay.workoutDate),
+            }
+          : null,
+        feedbackContinuity: {
+          state: canProjectPostWorkoutFeedback ? 'available' : 'unavailable',
+          pendingCount: canProjectPostWorkoutFeedback ? feedbackEligible.length - registeredCount : 0,
+          registeredCount: canProjectPostWorkoutFeedback ? registeredCount : 0,
+        },
       };
     },
   };

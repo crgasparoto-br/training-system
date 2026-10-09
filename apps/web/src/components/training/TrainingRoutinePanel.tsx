@@ -410,6 +410,55 @@ function TodaySession({
   );
 }
 
+function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) {
+  const sessions = routine.days
+    .flatMap((day) => day.sessions.map((session) => ({ ...session, date: day.date })))
+    .sort((left, right) => left.date.localeCompare(right.date) || left.sessionId.localeCompare(right.sessionId));
+  const terminal = new Set<TrainingRoutineExecutionProjectionStatus>(['completed', 'partial', 'not_performed']);
+  const nextSession = sessions.find(
+    (session) => session.date >= routine.today.date && !terminal.has(session.status)
+  ) ?? null;
+  const lastExecution = routine.lastExecution ?? null;
+  const continuity = routine.feedbackContinuity;
+  const feedbackStatus = !continuity || continuity.state === 'unavailable'
+    ? 'Feedback indisponível'
+    : continuity.pendingCount > 0
+      ? `${continuity.pendingCount} feedback${continuity.pendingCount === 1 ? '' : 's'} pendente${continuity.pendingCount === 1 ? '' : 's'}`
+      : continuity.registeredCount > 0
+        ? 'Feedback registrado'
+        : 'Sem pendência confirmada nesta semana';
+
+  return (
+    <section aria-label="Continuidade do treinamento" className="grid gap-3 sm:grid-cols-3">
+      <div className="rounded-lg border border-border bg-background p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Próximo treino</p>
+        <p className="mt-1 text-sm font-semibold text-foreground">
+          {nextSession ? sessionTitle(nextSession.modalities) : 'Nenhuma sessão pendente na semana exibida'}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {nextSession ? `${formatShortDate(nextSession.date)} · ${sessionStatusLabels[nextSession.status]}` : 'Consulte outras semanas para verificar próximos treinos planejados.'}
+        </p>
+      </div>
+      <div className="rounded-lg border border-border bg-background p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Última execução</p>
+        <p className="mt-1 text-sm font-semibold text-foreground">
+          {lastExecution ? sessionStatusLabels[lastExecution.status] : 'Nenhuma execução registrada'}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {lastExecution ? formatShortDate(lastExecution.date) : 'Nenhuma execução registrada.'}
+        </p>
+      </div>
+      <div className="rounded-lg border border-border bg-background p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Feedback pós-treino</p>
+        <p className="mt-1 text-sm font-semibold text-foreground">{feedbackStatus}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Aderência não é calculada aqui; o indicador canônico será consumido quando a #405 estiver disponível.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 function TodayEmptyState({ state, audience }: { state: 'not_released' | 'none'; audience: TrainingRoutineAudience }) {
   const copy =
     state === 'not_released'
@@ -547,6 +596,22 @@ export function TrainingRoutinePanel({
     void fetchRoutine(referenceDate);
   }, [canView, fetchRoutine, referenceDate]);
 
+  useEffect(() => {
+    if (!canView) return;
+
+    const refreshCurrentContext = () => {
+      if (document.visibilityState === 'hidden') return;
+      void fetchRoutine(referenceDate);
+    };
+
+    window.addEventListener('focus', refreshCurrentContext);
+    document.addEventListener('visibilitychange', refreshCurrentContext);
+    return () => {
+      window.removeEventListener('focus', refreshCurrentContext);
+      document.removeEventListener('visibilitychange', refreshCurrentContext);
+    };
+  }, [canView, fetchRoutine, referenceDate]);
+
   const header = (
     <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
       <Heading className={headingLevel === 'h1' ? 'text-2xl font-bold text-foreground' : 'text-lg font-semibold text-foreground'}>
@@ -588,6 +653,7 @@ export function TrainingRoutinePanel({
   return (
     <section className="space-y-4" aria-busy={loading}>
       {header}
+      {isCurrentWeek && <TrainingContinuityCards routine={routine} />}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="space-y-4">
           {routine.today.state === 'released' ? (
@@ -624,8 +690,7 @@ export function TrainingRoutinePanel({
                 variant="ghost"
                 size="icon"
                 aria-label="Semana anterior"
-                disabled={loading}
-                onClick={() => setReferenceDate(shiftDateOnly(routine.week.startDate, -7))}
+                onClick={() => setReferenceDate(shiftDateOnly(referenceDate ?? routine.week.startDate, -7))}
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               </Button>
@@ -639,8 +704,7 @@ export function TrainingRoutinePanel({
                 variant="ghost"
                 size="icon"
                 aria-label="Próxima semana"
-                disabled={loading}
-                onClick={() => setReferenceDate(shiftDateOnly(routine.week.startDate, 7))}
+                onClick={() => setReferenceDate(shiftDateOnly(referenceDate ?? routine.week.startDate, 7))}
               >
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </Button>

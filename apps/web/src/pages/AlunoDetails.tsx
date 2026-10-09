@@ -267,6 +267,12 @@ export function AlunoDetails() {
     useState<StudentSegmentedActivities | null>(null);
   const [segmentedTimeline, setSegmentedTimeline] =
     useState<StudentSegmentedTimeline | null>(null);
+  const [timelineRefreshFailed, setTimelineRefreshFailed] = useState(false);
+  const [timelineRetryKey, setTimelineRetryKey] = useState(0);
+  const activeAlunoIdRef = useRef(id);
+  activeAlunoIdRef.current = id;
+  const [timelineLoadingMore, setTimelineLoadingMore] = useState(false);
+  const timelineGenerationRef = useRef(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadErrorKind, setLoadErrorKind] = useState<AlunoLoadErrorKind>(null);
   const [loading, setLoading] = useState(true);
@@ -586,6 +592,7 @@ export function AlunoDetails() {
           : Promise.resolve(null),
       ]);
 
+      if (activeAlunoIdRef.current !== alunoId) return;
       setAluno(data);
       setSegmentedSummary(segmentedSummaryData);
       setSegmentedProfile(segmentedProfileData);
@@ -606,6 +613,7 @@ export function AlunoDetails() {
       );
 
     } catch (error) {
+      if (activeAlunoIdRef.current !== alunoId) return;
       console.error('Erro ao carregar aluno:', error);
       const failureKind = classifyApiFailure(error);
       const isTransientFailure = failureKind === 'timeout' || failureKind === 'network';
@@ -623,7 +631,7 @@ export function AlunoDetails() {
       setSegmentedActivities(null);
       setSegmentedTimeline(null);
     } finally {
-      setLoading(false);
+      if (activeAlunoIdRef.current === alunoId) setLoading(false);
     }
   };
 
@@ -1090,6 +1098,68 @@ export function AlunoDetails() {
       setActiveTab(visibleTabs[0] ?? 'resumo');
     }
   }, [activeTab, visibleTabs]);
+
+  useEffect(() => {
+    if (!id || !canViewAuditTab || activeTab !== 'auditoria') return;
+
+    let cancelled = false;
+    let latestRequest = 0;
+    const refreshTimeline = async () => {
+      if (document.visibilityState === 'hidden') return;
+      const request = ++latestRequest;
+      const generation = ++timelineGenerationRef.current;
+      try {
+        const timeline = await alunoService.getSegmentedTimeline(id);
+        if (!cancelled && request === latestRequest && generation === timelineGenerationRef.current && activeAlunoIdRef.current === id && timeline.alunoId === id) {
+          setSegmentedTimeline(timeline);
+          setTimelineRefreshFailed(false);
+        }
+      } catch {
+        if (!cancelled && request === latestRequest && generation === timelineGenerationRef.current && activeAlunoIdRef.current === id) {
+          // A falha da timeline nao invalida os demais blocos confirmados.
+          setTimelineRefreshFailed(true);
+        }
+      }
+    };
+
+    void refreshTimeline();
+    window.addEventListener('focus', refreshTimeline);
+    document.addEventListener('visibilitychange', refreshTimeline);
+    return () => {
+      cancelled = true;
+      latestRequest++;
+      timelineGenerationRef.current++;
+      window.removeEventListener('focus', refreshTimeline);
+      document.removeEventListener('visibilitychange', refreshTimeline);
+    };
+  }, [activeTab, canViewAuditTab, id, timelineRetryKey]);
+
+  const loadMoreTimeline = async () => {
+    if (!id || !segmentedTimeline?.nextCursor || timelineLoadingMore) return;
+    const studentId = id;
+    const cursor = segmentedTimeline.nextCursor;
+    const generation = timelineGenerationRef.current;
+    setTimelineLoadingMore(true);
+    try {
+      const page = await alunoService.getSegmentedTimeline(studentId, cursor);
+      if (page.alunoId !== studentId || activeAlunoIdRef.current !== studentId || generation !== timelineGenerationRef.current) return;
+      setSegmentedTimeline((previous) => {
+        if (!previous || previous.alunoId !== studentId || previous.nextCursor !== cursor || generation !== timelineGenerationRef.current || activeAlunoIdRef.current !== studentId) return previous;
+        const knownIds = new Set(previous.items.map((item) => item.id));
+        return {
+          ...previous,
+          items: [...previous.items, ...page.items.filter((item) => !knownIds.has(item.id))],
+          nextCursor: page.nextCursor,
+          total: previous.total + page.items.filter((item) => !knownIds.has(item.id)).length,
+        };
+      });
+      if (generation === timelineGenerationRef.current) setTimelineRefreshFailed(false);
+    } catch {
+      if (generation === timelineGenerationRef.current && activeAlunoIdRef.current === studentId) setTimelineRefreshFailed(true);
+    } finally {
+      setTimelineLoadingMore(false);
+    }
+  };
 
   // Show access denied message if no tabs are visible
   const hasAnyAccessibleTab = visibleTabs.length > 0;
@@ -2247,7 +2317,22 @@ export function AlunoDetails() {
       )}
 
       {visibleTabs.includes('auditoria') && activeTab === 'auditoria' && (
-        <AlunoHistoricoTab timeline={segmentedTimeline} />
+        <div className="space-y-3">
+          {timelineRefreshFailed && (
+            <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-warning/40 p-3 text-sm">
+              <span>Não foi possível atualizar o histórico. Os dados exibidos podem estar desatualizados.</span>
+              <Button type="button" size="sm" variant="outline" onClick={() => setTimelineRetryKey((value) => value + 1)}>
+                Tentar novamente
+              </Button>
+            </div>
+          )}
+          <AlunoHistoricoTab timeline={segmentedTimeline} />
+          {segmentedTimeline?.alunoId === id && segmentedTimeline?.nextCursor && (
+            <Button type="button" variant="outline" disabled={timelineLoadingMore} onClick={() => void loadMoreTimeline()}>
+              {timelineLoadingMore ? 'Carregando histórico...' : 'Carregar eventos anteriores'}
+            </Button>
+          )}
+        </div>
       )}
 
       {previewOpen && (
