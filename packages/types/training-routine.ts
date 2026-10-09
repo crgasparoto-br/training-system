@@ -196,4 +196,16 @@ export interface TrainingRoutineView {
     sessions: TrainingRoutineSessionDetail[];
   };
   execution: TrainingRoutineExecutionAvailability;
+  /** Projeção canônica de última execução, independente da janela semanal. */
+  lastExecution?: {
+    sessionId: string;
+    date: string;
+    status: TrainingRoutineExecutionProjectionStatus;
+  } | null;
+  /** Contagem confirmada na semana, sem expor valores sensíveis das revisões. */
+  feedbackContinuity?: {
+    state: 'available' | 'unavailable';
+    pendingCount: number;
+    registeredCount: number;
+  };
 }
