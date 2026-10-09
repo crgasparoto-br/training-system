@@ -322,6 +322,38 @@ describe('studentDomainService', () => {
     expect(result?.items[0].details).not.toHaveProperty('signalCodes');
   });
 
+  it('continues paginating canonical events after a full page', async () => {
+    findUniqueMock.mockResolvedValue({
+      ...createAlunoSnapshot(),
+      studentExternalAccounts: [],
+      studentExternalActivities: [],
+    });
+    (studentContractService.listByAluno as jest.Mock).mockResolvedValue([]);
+    const firstPage = Array.from({ length: 200 }, (_, index) => ({
+      id: `event-${index}`,
+      alunoId: 'aluno-1',
+      createdAt: '2026-05-12T10:00:00.000Z',
+      actorUserId: null,
+      metadata: { domain: 'workout_session_execution', status: 'completed' },
+    }));
+    const secondPage = [{
+      id: 'older-event',
+      alunoId: 'aluno-1',
+      createdAt: '2026-05-11T10:00:00.000Z',
+      actorUserId: null,
+      metadata: { domain: 'post_workout_feedback', action: 'created' },
+    }];
+    lifecycleFindManyMock.mockResolvedValueOnce(firstPage).mockResolvedValueOnce(secondPage);
+
+    const result = await studentDomainService.getTimeline('aluno-1');
+    expect(lifecycleFindManyMock).toHaveBeenCalledTimes(2);
+    expect(lifecycleFindManyMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      cursor: { id: 'event-199' },
+      skip: 1,
+    }));
+    expect(result?.items.some((item) => item.id === 'training-feedback-older-event')).toBe(true);
+  });
+
   it('falls back to external ids when segmented source metadata is absent', async () => {
     findUniqueMock.mockResolvedValue({
       ...createAlunoSnapshot(),
