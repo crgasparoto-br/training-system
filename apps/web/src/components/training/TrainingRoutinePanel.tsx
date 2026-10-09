@@ -690,8 +690,7 @@ export function TrainingRoutinePanel({
                 variant="ghost"
                 size="icon"
                 aria-label="Semana anterior"
-                disabled={loading}
-                onClick={() => setReferenceDate(shiftDateOnly(routine.week.startDate, -7))}
+                onClick={() => setReferenceDate(shiftDateOnly(referenceDate ?? routine.week.startDate, -7))}
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               </Button>
@@ -705,8 +704,7 @@ export function TrainingRoutinePanel({
                 variant="ghost"
                 size="icon"
                 aria-label="Próxima semana"
-                disabled={loading}
-                onClick={() => setReferenceDate(shiftDateOnly(routine.week.startDate, 7))}
+                onClick={() => setReferenceDate(shiftDateOnly(referenceDate ?? routine.week.startDate, 7))}
               >
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </Button>
