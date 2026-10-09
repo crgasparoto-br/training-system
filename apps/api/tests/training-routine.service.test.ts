@@ -133,6 +133,17 @@ describe('training routine service (#387)', () => {
     }));
   });
 
+  it('não projeta contagens de feedback ao professor sem concessão explícita', async () => {
+    releasedRows = [makeRow()];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'professor', now,
+    });
+    expect(result.feedbackContinuity).toEqual({
+      state: 'unavailable', pendingCount: 0, registeredCount: 0,
+    });
+    expect(postWorkoutFeedbackFindMany).not.toHaveBeenCalled();
+  });
+
   it('consulta somente sessões liberadas do aluno e do contrato informados', async () => {
     await service.getRoutine({ alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now });
 
