@@ -346,8 +346,16 @@ router.get(
         return;
       }
 
+      const rawLimit = typeof req.query.limit === 'string' ? Number(req.query.limit) : 100;
+      const rawCursor = req.query.cursor;
+      if (!Number.isInteger(rawLimit) || rawLimit < 1 || rawLimit > 200 ||
+          (rawCursor !== undefined && (typeof rawCursor !== 'string' || rawCursor.length > 256))) {
+        return sendError(res, 'Parâmetros de paginação inválidos', 400);
+      }
       const timeline = await studentDomainService.getTimeline(id, {
         companyContractId: contractId,
+        timelineLimit: rawLimit,
+        timelineCursor: typeof rawCursor === 'string' ? rawCursor : undefined,
       });
       if (!timeline) {
         return sendError(res, 'Aluno não encontrado', 404);
