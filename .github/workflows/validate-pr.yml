@@ -79,7 +79,10 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_MERGE_SHA"
-          test "$(git rev-parse HEAD^1)" = "${{ github.event.pull_request.base.sha }}"
+          # Merge refs may be rebuilt after the event payload was created.
+          # Keep exact merge/head identity checks, but allow a newer base commit.
+          git fetch --no-tags origin "${{ github.event.pull_request.base.ref }}"
+          git merge-base --is-ancestor "$(git rev-parse HEAD^1)" "origin/${{ github.event.pull_request.base.ref }}"
           test "$(git rev-parse HEAD^2)" = "${{ github.event.pull_request.head.sha }}"
       - if: needs.classify.outputs.code_changed == 'true'
         uses: pnpm/action-setup@v4
