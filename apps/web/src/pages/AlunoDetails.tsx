@@ -267,6 +267,8 @@ export function AlunoDetails() {
     useState<StudentSegmentedActivities | null>(null);
   const [segmentedTimeline, setSegmentedTimeline] =
     useState<StudentSegmentedTimeline | null>(null);
+  const [timelineRefreshFailed, setTimelineRefreshFailed] = useState(false);
+  const [timelineRetryKey, setTimelineRetryKey] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadErrorKind, setLoadErrorKind] = useState<AlunoLoadErrorKind>(null);
   const [loading, setLoading] = useState(true);
@@ -1103,9 +1105,13 @@ export function AlunoDetails() {
         const timeline = await alunoService.getSegmentedTimeline(id);
         if (!cancelled && request === latestRequest && timeline.alunoId === id) {
           setSegmentedTimeline(timeline);
+          setTimelineRefreshFailed(false);
         }
       } catch {
-        // Mantem os dados confirmados e permite nova tentativa.
+        if (!cancelled && request === latestRequest) {
+          // A falha da timeline nao invalida os demais blocos confirmados.
+          setTimelineRefreshFailed(true);
+        }
       }
     };
 
@@ -1118,7 +1124,7 @@ export function AlunoDetails() {
       window.removeEventListener('focus', refreshTimeline);
       document.removeEventListener('visibilitychange', refreshTimeline);
     };
-  }, [activeTab, canViewAuditTab, id]);
+  }, [activeTab, canViewAuditTab, id, timelineRetryKey]);
 
   // Show access denied message if no tabs are visible
   const hasAnyAccessibleTab = visibleTabs.length > 0;
@@ -2276,7 +2282,17 @@ export function AlunoDetails() {
       )}
 
       {visibleTabs.includes('auditoria') && activeTab === 'auditoria' && (
-        <AlunoHistoricoTab timeline={segmentedTimeline} />
+        <div className="space-y-3">
+          {timelineRefreshFailed && (
+            <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-warning/40 p-3 text-sm">
+              <span>Não foi possível atualizar o histórico. Os dados exibidos podem estar desatualizados.</span>
+              <Button type="button" size="sm" variant="outline" onClick={() => setTimelineRetryKey((value) => value + 1)}>
+                Tentar novamente
+              </Button>
+            </div>
+          )}
+          <AlunoHistoricoTab timeline={segmentedTimeline} />
+        </div>
       )}
 
       {previewOpen && (
