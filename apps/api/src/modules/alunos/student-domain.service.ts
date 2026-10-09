@@ -938,14 +938,26 @@ export const studentDomainService = {
       return null;
     }
 
-    const lifecycleEvents = await prisma.studentLifecycleEvent.findMany({
-      where: {
-        alunoId,
-        ...(options.companyContractId ? { contractId: options.companyContractId } : {}),
-      },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: 100,
-    });
+    // Filtre antes de paginar: eventos de outros dominios nao devem ocultar treinos antigos.
+    const trainingDomains = ['pre_workout_check_in', 'workout_session_execution', 'post_workout_feedback'];
+    const lifecycleEvents: Awaited<ReturnType<typeof prisma.studentLifecycleEvent.findMany>> = [];
+    let cursor: string | undefined;
+    const pageSize = 200;
+    while (true) {
+      const page = await prisma.studentLifecycleEvent.findMany({
+        where: {
+          alunoId,
+          ...(options.companyContractId ? { contractId: options.companyContractId } : {}),
+          OR: trainingDomains.map((domain) => ({ metadata: { path: ['domain'], equals: domain } })),
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: pageSize,
+        ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      });
+      lifecycleEvents.push(...page);
+      if (page.length < pageSize) break;
+      cursor = page[page.length - 1].id;
+    }
 
     const items = [
       ...buildTimeline({
