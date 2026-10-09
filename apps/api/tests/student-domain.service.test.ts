@@ -303,7 +303,13 @@ describe('studentDomainService', () => {
     });
 
     expect(lifecycleFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
-      where: { alunoId: 'aluno-1', contractId: 'contract-1' },
+      where: expect.objectContaining({
+        alunoId: 'aluno-1',
+        contractId: 'contract-1',
+        OR: expect.arrayContaining([
+          { metadata: { path: ['domain'], equals: 'workout_session_execution' } },
+        ]),
+      }),
     }));
     expect(result?.items.slice(0, 2).map((item) => item.type)).toEqual([
       'post_workout_feedback_recorded',
