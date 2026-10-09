@@ -278,6 +278,8 @@ describe('TrainingRoutinePanel (#387)', () => {
     });
     const data = routine({
       audience: 'professor',
+      lastExecution: { sessionId: 'day-1', date: '2026-10-01', status: 'completed' },
+      feedbackContinuity: { state: 'available', pendingCount: 1, registeredCount: 0 },
       days: [
         { date: '2026-09-28', isToday: false, sessions: [], pendingReleaseCount: 0 },
         { date: '2026-09-29', isToday: false, sessions: [], pendingReleaseCount: 0 },
@@ -294,7 +296,7 @@ describe('TrainingRoutinePanel (#387)', () => {
 
     const continuity = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
     expect(within(continuity).getByText('Próximo treino')).toBeInTheDocument();
-    expect(within(continuity).getByText('Última execução na semana')).toBeInTheDocument();
+    expect(within(continuity).getByText('Última execução')).toBeInTheDocument();
     expect(within(continuity).getByText('1 feedback pendente')).toBeInTheDocument();
     expect(within(continuity).getByText(/indicador canônico será consumido quando a #405/i)).toBeInTheDocument();
   });
@@ -306,6 +308,7 @@ describe('TrainingRoutinePanel (#387)', () => {
       execution: { ...session().execution, status: 'completed' },
     });
     const data = routine({
+      feedbackContinuity: { state: 'available', pendingCount: 1, registeredCount: 0 },
       days: [
         { date: '2026-09-30', isToday: false, sessions: [previous], pendingReleaseCount: 0 },
         { date: '2026-10-01', isToday: true, sessions: [], pendingReleaseCount: 0 },
@@ -323,6 +326,7 @@ describe('TrainingRoutinePanel (#387)', () => {
       execution: { ...session().execution, status: 'completed' },
     });
     const data = routine({
+      feedbackContinuity: { state: 'unavailable', pendingCount: 0, registeredCount: 0 },
       days: [
         { date: '2026-10-01', isToday: true, sessions: [completed], pendingReleaseCount: 0 },
       ],
