@@ -272,6 +272,7 @@ export function AlunoDetails() {
   const activeAlunoIdRef = useRef(id);
   activeAlunoIdRef.current = id;
   const [timelineLoadingMore, setTimelineLoadingMore] = useState(false);
+  const timelineGenerationRef = useRef(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadErrorKind, setLoadErrorKind] = useState<AlunoLoadErrorKind>(null);
   const [loading, setLoading] = useState(true);
@@ -1106,14 +1107,15 @@ export function AlunoDetails() {
     const refreshTimeline = async () => {
       if (document.visibilityState === 'hidden') return;
       const request = ++latestRequest;
+      const generation = ++timelineGenerationRef.current;
       try {
         const timeline = await alunoService.getSegmentedTimeline(id);
-        if (!cancelled && request === latestRequest && timeline.alunoId === id) {
+        if (!cancelled && request === latestRequest && generation === timelineGenerationRef.current && activeAlunoIdRef.current === id && timeline.alunoId === id) {
           setSegmentedTimeline(timeline);
           setTimelineRefreshFailed(false);
         }
       } catch {
-        if (!cancelled && request === latestRequest) {
+        if (!cancelled && request === latestRequest && generation === timelineGenerationRef.current && activeAlunoIdRef.current === id) {
           // A falha da timeline nao invalida os demais blocos confirmados.
           setTimelineRefreshFailed(true);
         }
@@ -1126,6 +1128,7 @@ export function AlunoDetails() {
     return () => {
       cancelled = true;
       latestRequest++;
+      timelineGenerationRef.current++;
       window.removeEventListener('focus', refreshTimeline);
       document.removeEventListener('visibilitychange', refreshTimeline);
     };
@@ -1135,12 +1138,13 @@ export function AlunoDetails() {
     if (!id || !segmentedTimeline?.nextCursor || timelineLoadingMore) return;
     const studentId = id;
     const cursor = segmentedTimeline.nextCursor;
+    const generation = timelineGenerationRef.current;
     setTimelineLoadingMore(true);
     try {
       const page = await alunoService.getSegmentedTimeline(studentId, cursor);
-      if (page.alunoId !== studentId) return;
+      if (page.alunoId !== studentId || activeAlunoIdRef.current !== studentId || generation !== timelineGenerationRef.current) return;
       setSegmentedTimeline((previous) => {
-        if (!previous || previous.alunoId !== studentId || previous.nextCursor !== cursor) return previous;
+        if (!previous || previous.alunoId !== studentId || previous.nextCursor !== cursor || generation !== timelineGenerationRef.current || activeAlunoIdRef.current !== studentId) return previous;
         const knownIds = new Set(previous.items.map((item) => item.id));
         return {
           ...previous,
@@ -1149,9 +1153,9 @@ export function AlunoDetails() {
           total: previous.total + page.items.filter((item) => !knownIds.has(item.id)).length,
         };
       });
-      setTimelineRefreshFailed(false);
+      if (generation === timelineGenerationRef.current) setTimelineRefreshFailed(false);
     } catch {
-      setTimelineRefreshFailed(true);
+      if (generation === timelineGenerationRef.current && activeAlunoIdRef.current === studentId) setTimelineRefreshFailed(true);
     } finally {
       setTimelineLoadingMore(false);
     }
