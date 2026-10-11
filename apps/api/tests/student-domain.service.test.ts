@@ -322,40 +322,68 @@ describe('studentDomainService', () => {
     expect(result?.items[0].details).not.toHaveProperty('signalCodes');
   });
 
-  it('paginates canonical events with a bounded query and stable cursor', async () => {
+  it('paginates legacy and training events in one chronological order, including identical timestamps', async () => {
     findUniqueMock.mockResolvedValue({
       ...createAlunoSnapshot(),
+      createdAt: '2026-05-12T10:00:00.000Z',
       studentExternalAccounts: [],
       studentExternalActivities: [],
     });
     (studentContractService.listByAluno as jest.Mock).mockResolvedValue([]);
-    const records = Array.from({ length: 101 }, (_, index) => ({
-      id: `event-${index}`,
-      alunoId: 'aluno-1',
-      createdAt: '2026-05-12T10:00:00.000Z',
-      actorUserId: null,
-      metadata: { domain: 'workout_session_execution', status: 'completed' },
-    }));
-    lifecycleFindManyMock.mockResolvedValueOnce(records).mockResolvedValueOnce([{
-      id: 'older-event',
-      alunoId: 'aluno-1',
-      createdAt: '2026-05-11T10:00:00.000Z',
-      actorUserId: null,
-      metadata: { domain: 'post_workout_feedback', action: 'created' },
-    }]);
-    const first = await studentDomainService.getTimeline('aluno-1', { timelineLimit: 100 });
-    expect(first?.nextCursor).toBe('event-99');
-    expect(first?.items.some((item) => item.id === 'training-execution-event-100')).toBe(false);
-    const second = await studentDomainService.getTimeline('aluno-1', { timelineCursor: first?.nextCursor ?? undefined });
-    expect(second?.nextCursor).toBeNull();
-    expect(second?.items.some((item) => item.id === 'training-feedback-older-event')).toBe(true);
-    expect(second?.items.some((item) => item.id === 'student-created-aluno-1')).toBe(false);
-    expect(first?.items.some((item) => item.id === 'student-created-aluno-1')).toBe(true);
-    expect(lifecycleFindManyMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      take: 101,
-      cursor: { id: 'event-99' },
-      skip: 1,
-    }));
+    const records = [
+      { id: 'event-z', alunoId: 'aluno-1', createdAt: '2026-05-12T10:00:00.000Z', actorUserId: null, metadata: { domain: 'workout_session_execution', status: 'completed' } },
+      { id: 'event-a', alunoId: 'aluno-1', createdAt: '2026-05-12T10:00:00.000Z', actorUserId: null, metadata: { domain: 'post_workout_feedback', action: 'created' } },
+      { id: 'event-old', alunoId: 'aluno-1', createdAt: '2026-05-11T10:00:00.000Z', actorUserId: null, metadata: { domain: 'pre_workout_check_in' } },
+    ];
+    lifecycleFindManyMock.mockImplementation(({ where }: any) => {
+      const cursorTime = where.AND?.[1]?.OR?.[0]?.createdAt?.lt?.getTime();
+      if (cursorTime === undefined) return Promise.resolve(records.slice(0, 3));
+      const sameTimeCursor = where.AND?.[1]?.OR?.[1];
+      const sameTimeId = sameTimeCursor?.id?.lt;
+      return Promise.resolve(records.filter((record) =>
+        new Date(record.createdAt).getTime() < cursorTime ||
+        (new Date(record.createdAt).getTime() === cursorTime &&
+          (sameTimeId === undefined || record.id < sameTimeId))
+      ));
+    });
+    const first = await studentDomainService.getTimeline('aluno-1', { timelineLimit: 1, companyContractId: 'contract-1' });
+    expect(first?.items[0].id).toBe('student-created-aluno-1');
+    expect(first?.nextCursor).toEqual(expect.any(String));
+    const second = await studentDomainService.getTimeline('aluno-1', {
+      timelineLimit: 1, timelineCursor: first?.nextCursor ?? undefined, companyContractId: 'contract-1',
+    });
+    expect(second?.items[0].id).toBe('training-execution-event-z');
+    const third = await studentDomainService.getTimeline('aluno-1', {
+      timelineLimit: 1, timelineCursor: second?.nextCursor ?? undefined, companyContractId: 'contract-1',
+    });
+    expect(third?.items[0].id).toBe('training-feedback-event-a');
+    expect(new Set([first?.items[0].id, second?.items[0].id, third?.items[0].id]).size).toBe(3);
+  });
+
+  it('rejects cursor reuse across students and contracts before querying events', async () => {
+    findUniqueMock.mockResolvedValue({
+      ...createAlunoSnapshot(), studentExternalAccounts: [], studentExternalActivities: [],
+    });
+    (studentContractService.listByAluno as jest.Mock).mockResolvedValue([]);
+    lifecycleFindManyMock.mockResolvedValue([
+      { id: 'event-a', alunoId: 'aluno-1', createdAt: '2026-05-12T10:00:00.000Z', actorUserId: null, metadata: { domain: 'workout_session_execution', status: 'completed' } },
+      { id: 'event-b', alunoId: 'aluno-1', createdAt: '2026-05-11T10:00:00.000Z', actorUserId: null, metadata: { domain: 'workout_session_execution', status: 'completed' } },
+    ]);
+    const first = await studentDomainService.getTimeline('aluno-1', {
+      timelineLimit: 1, companyContractId: 'contract-1',
+    });
+    expect(first?.nextCursor).toEqual(expect.any(String));
+    lifecycleFindManyMock.mockClear();
+    await expect(studentDomainService.getTimeline('aluno-1', {
+      timelineLimit: 1, companyContractId: 'contract-2', timelineCursor: first?.nextCursor ?? undefined,
+    })).rejects.toThrow('INVALID_TIMELINE_CURSOR');
+    await expect(studentDomainService.getTimeline('aluno-2', {
+      timelineLimit: 1, companyContractId: 'contract-1', timelineCursor: first?.nextCursor ?? undefined,
+    })).rejects.toThrow('INVALID_TIMELINE_CURSOR');
+    await expect(studentDomainService.getTimeline('aluno-1', {
+      companyContractId: 'contract-1', timelineCursor: 'invalid-token',
+    })).rejects.toThrow('INVALID_TIMELINE_CURSOR');
+    expect(lifecycleFindManyMock).not.toHaveBeenCalled();
   });
 
   it('falls back to external ids when segmented source metadata is absent', async () => {
