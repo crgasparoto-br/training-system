@@ -306,8 +306,10 @@ describe('studentDomainService', () => {
       where: expect.objectContaining({
         alunoId: 'aluno-1',
         contractId: 'contract-1',
-        OR: expect.arrayContaining([
-          { metadata: { path: ['domain'], equals: 'workout_session_execution' } },
+        AND: expect.arrayContaining([
+          expect.objectContaining({ OR: expect.arrayContaining([
+            { metadata: { path: ['domain'], equals: 'workout_session_execution' } },
+          ]) }),
         ]),
       }),
     }));
