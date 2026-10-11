@@ -363,6 +363,9 @@ router.get(
 
       return sendSuccess(res, timeline, 'Linha do tempo do aluno carregada com sucesso');
     } catch (error) {
+      if (error instanceof Error && error.message === 'INVALID_TIMELINE_CURSOR') {
+        return sendError(res, 'Cursor de histórico inválido para este aluno ou contrato', 400);
+      }
       console.error('Erro ao carregar linha do tempo do aluno:', error);
       return sendStudentDomainLoadError(res, error, 'Erro ao carregar linha do tempo do aluno');
     }
