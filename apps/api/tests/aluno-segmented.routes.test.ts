@@ -249,6 +249,13 @@ describe('segmented aluno routes', () => {
     });
   });
 
+  it('returns 400 for a cross-context or tampered timeline cursor', async () => {
+    (studentDomainService.getTimeline as jest.Mock).mockRejectedValueOnce(new Error('INVALID_TIMELINE_CURSOR'));
+    const response = await request(app).get('/alunos/aluno-1/timeline?cursor=dGFtcGVyZWQ');
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual(expect.objectContaining({ success: false }));
+  });
+
   it('rejects invalid timeline pagination before invoking the service', async () => {
     for (const query of ['?limit=0', '?limit=201', '?limit=abc']) {
       (studentDomainService.getTimeline as jest.Mock).mockClear();
