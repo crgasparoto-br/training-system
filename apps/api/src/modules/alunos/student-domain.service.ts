@@ -451,6 +451,40 @@ const buildTrainingTimelineEvents = (lifecycleEvents: any[]) => lifecycleEvents.
   }];
 });
 
+type TimelineCursor = { v: 1; alunoId: string; contractId: string | null; at: string; kind: 'legacy' | 'training'; id: string };
+
+const timelineTimestamp = (value: unknown) => new Date(String(value)).getTime();
+const timelineKey = (event: { id: unknown; occurredAt: unknown }, kind: 'legacy' | 'training') => ({
+  at: timelineTimestamp(event.occurredAt), kind, id: String(event.id),
+});
+const compareTimelineKeys = (
+  a: { at: number; kind: 'legacy' | 'training'; id: string },
+  b: { at: number; kind: 'legacy' | 'training'; id: string },
+) => b.at - a.at || (a.kind === b.kind ? b.id.localeCompare(a.id) : a.kind === 'legacy' ? -1 : 1);
+
+const decodeTimelineCursor = (raw: string, alunoId: string, contractId?: string): TimelineCursor => {
+  try {
+    if (!/^[A-Za-z0-9_-]{1,256}$/.test(raw)) throw new Error('invalid');
+    const parsed: unknown = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
+    if (!parsed || typeof parsed !== 'object') throw new Error('invalid');
+    const data = parsed as Partial<TimelineCursor>;
+    if (data.v !== 1 || data.alunoId !== alunoId || data.contractId !== (contractId ?? null) ||
+        (data.kind !== 'legacy' && data.kind !== 'training') ||
+        typeof data.id !== 'string' || !data.id || data.id.length > 128 ||
+        typeof data.at !== 'string' || !Number.isFinite(Date.parse(data.at)) ||
+        new Date(data.at).toISOString() !== data.at) throw new Error('invalid');
+    return data as TimelineCursor;
+  } catch {
+    throw new Error('INVALID_TIMELINE_CURSOR');
+  }
+};
+const encodeTimelineCursor = (
+  key: { at: number; kind: 'legacy' | 'training'; id: string },
+  alunoId: string, contractId?: string,
+) => Buffer.from(JSON.stringify({
+  v: 1, alunoId, contractId: contractId ?? null, at: new Date(key.at).toISOString(), kind: key.kind, id: key.id,
+})).toString('base64url');
+
 const buildTimeline = ({
   aluno,
   profile,
@@ -940,41 +974,53 @@ export const studentDomainService = {
       return null;
     }
 
-    // Filtre antes de paginar: eventos de outros dominios nao devem ocultar treinos antigos.
-    const trainingDomains = ['pre_workout_check_in', 'workout_session_execution', 'post_workout_feedback'];
+    // A timeline e uma unica sequencia: eventos legados e canonicos compartilham cursor e ordenacao.
+    const legacyItems = buildTimeline({
+      aluno, profile, intake, assessments: assessments.items, financial, integrations, activities,
+    });
+    const cursor = options.timelineCursor
+      ? decodeTimelineCursor(options.timelineCursor, alunoId, options.companyContractId)
+      : null;
     const pageSize = Math.min(200, Math.max(1, options.timelineLimit ?? 100));
+    const cursorKey = cursor ? { at: Date.parse(cursor.at), kind: cursor.kind, id: cursor.id } : null;
+    const legacy = legacyItems.map((event) => ({ event, key: timelineKey(event, 'legacy') }))
+      .filter(({ key }) => !cursorKey || compareTimelineKeys(key, cursorKey) > 0);
+
+    const trainingDomains = ['pre_workout_check_in', 'workout_session_execution', 'post_workout_feedback'];
+    const scopedDomain = { OR: trainingDomains.map((domain) => ({
+      metadata: { path: ['domain'], equals: domain },
+    })) };
+    // Treinos com data anterior; empates usam o ID original do registro, nunca o ID projetado.
+    // Para cursor legado, todos os treinos no mesmo instante sao posteriores na ordenacao.
+    const trainingTimeFilter = cursor
+      ? { OR: [
+          { createdAt: { lt: new Date(cursor.at) } },
+          ...(cursor.kind === 'legacy'
+            ? [{ createdAt: new Date(cursor.at) }]
+            : [{ createdAt: new Date(cursor.at), id: { lt: cursor.id } }]),
+        ] }
+      : {};
     const page = await prisma.studentLifecycleEvent.findMany({
       where: {
         alunoId,
         ...(options.companyContractId ? { contractId: options.companyContractId } : {}),
-        OR: trainingDomains.map((domain) => ({ metadata: { path: ['domain'], equals: domain } })),
+        AND: [scopedDomain, trainingTimeFilter],
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: pageSize + 1,
-      ...(options.timelineCursor ? { skip: 1, cursor: { id: options.timelineCursor } } : {}),
     });
-    const hasMore = page.length > pageSize;
-    const lifecycleEvents = page.slice(0, pageSize);
-    const nextCursor = hasMore ? lifecycleEvents[lifecycleEvents.length - 1]?.id ?? null : null;
-
-    const items = [
-      ...(options.timelineCursor ? [] : buildTimeline({
-        aluno,
-        profile,
-        intake,
-        assessments: assessments.items,
-        financial,
-        integrations,
-        activities,
-      })),
-      ...buildTrainingTimelineEvents(lifecycleEvents),
-    ].sort((a, b) => new Date(String(b.occurredAt)).getTime() - new Date(String(a.occurredAt)).getTime());
-
+    const training = page.flatMap((record) => buildTrainingTimelineEvents([record]).map((event) => ({
+      event, key: { at: timelineTimestamp(event.occurredAt), kind: 'training' as const, id: record.id as string },
+    })));
+    const combined = [...legacy, ...training].sort((a, b) => compareTimelineKeys(a.key, b.key));
+    const selected = combined.slice(0, pageSize);
+    const hasMore = combined.length > pageSize || page.length > pageSize;
+    const last = selected[selected.length - 1];
     return {
       alunoId: aluno.id,
-      items,
-      total: items.length,
-      nextCursor,
+      items: selected.map(({ event }) => event),
+      total: selected.length,
+      nextCursor: hasMore && last ? encodeTimelineCursor(last.key, alunoId, options.companyContractId) : null,
     };
   },
 };
