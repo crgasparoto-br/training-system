@@ -1116,7 +1116,7 @@ export function AlunoDetails() {
             const freshIds = new Set(timeline.items.map((item) => item.id));
             const olderItems = previous.items.filter((item) => !freshIds.has(item.id));
             const items = [...timeline.items, ...olderItems].sort((a, b) =>
-              new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime() || b.id.localeCompare(a.id)
+              new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
             );
             return {
               ...timeline,
