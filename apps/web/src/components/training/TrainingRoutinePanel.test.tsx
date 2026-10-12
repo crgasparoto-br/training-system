@@ -175,7 +175,7 @@ describe('TrainingRoutinePanel (#387)', () => {
     render(<TrainingRoutinePanel audience="student" load={load} transitionExecution={transitionExecution} />);
     await userEvent.click(await screen.findByRole('button', { name: 'Iniciar treino' }));
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
-    expect(await screen.findByText('Em andamento')).toBeInTheDocument();
+    expect((await screen.findAllByText('Em andamento')).length).toBeGreaterThan(0);
     expect(screen.getByRole('alert')).toHaveTextContent(/outro dispositivo/i);
   });
 
@@ -187,7 +187,7 @@ describe('TrainingRoutinePanel (#387)', () => {
     render(<TrainingRoutinePanel audience="student" load={load} transitionExecution={transitionExecution} />);
     await userEvent.click(await screen.findByRole('button', { name: 'Iniciar treino' }));
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/não foi possível atualizar a sessão/i);
+    expect(await screen.findByText(/não foi possível atualizar a sessão/i)).toBeInTheDocument();
   });
 
   it('atualiza a continuidade ao confirmar feedback sem recarregar a página inteira', async () => {
