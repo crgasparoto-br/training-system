@@ -222,6 +222,32 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(saveFeedback).toHaveBeenCalledWith('day-1', expect.objectContaining({ operationKey: expect.any(String) }));
   });
 
+  it('informa gravação confirmada mesmo quando a leitura posterior falha, sem repetir a mutação', async () => {
+    const load = vi.fn()
+      .mockResolvedValueOnce(routine())
+      .mockRejectedValueOnce(new Error('network unavailable'))
+      .mockResolvedValueOnce(routine({
+        today: {
+          date: '2026-10-01', state: 'released',
+          sessions: [session({
+            status: 'in_progress',
+            execution: { ...session().execution, status: 'in_progress', version: 1 },
+          })],
+        },
+      }));
+    const transitionExecution = vi.fn().mockResolvedValue({
+      ...session().execution, status: 'in_progress', version: 1,
+    });
+    render(<TrainingRoutinePanel audience="student" load={load} transitionExecution={transitionExecution} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Iniciar treino' }));
+    expect(await screen.findByText(/A alteração foi salva, mas não foi possível atualizar a sessão/)).toBeInTheDocument();
+    expect(screen.queryByText(/Não foi possível salvar a alteração/)).not.toBeInTheDocument();
+    expect(transitionExecution).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Atualizar estado' }));
+    expect((await screen.findAllByText('Em andamento')).length).toBeGreaterThan(0);
+    expect(transitionExecution).toHaveBeenCalledTimes(1);
+  });
+
   it('distingue sessão ainda não liberada de dia sem treino', async () => {
     const { unmount } = render(
       <TrainingRoutinePanel
