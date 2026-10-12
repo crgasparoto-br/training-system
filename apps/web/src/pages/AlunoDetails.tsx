@@ -1111,20 +1111,10 @@ export function AlunoDetails() {
       try {
         const timeline = await alunoService.getSegmentedTimeline(id);
         if (!cancelled && request === latestRequest && generation === timelineGenerationRef.current && activeAlunoIdRef.current === id && timeline.alunoId === id) {
-          setSegmentedTimeline((previous) => {
-            if (!previous || previous.alunoId !== id || !previous.nextCursor && previous.items.length <= timeline.items.length) return timeline;
-            const freshIds = new Set(timeline.items.map((item) => item.id));
-            const olderItems = previous.items.filter((item) => !freshIds.has(item.id));
-            const items = [...timeline.items, ...olderItems].sort((a, b) =>
-              new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
-            );
-            return {
-              ...timeline,
-              items,
-              nextCursor: previous.nextCursor,
-              total: items.length,
-            };
-          });
+          // A revalidacao reinicia o snapshot paginado: um cursor antigo nao
+          // corresponde necessariamente a primeira pagina de uma nova consulta.
+          // O usuario pode carregar novamente as paginas anteriores.
+          setSegmentedTimeline(timeline);
           setTimelineRefreshFailed(false);
         }
       } catch {
