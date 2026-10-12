@@ -60,6 +60,13 @@ const tabs: Array<{
     blockKey: 'students.details.assessmentPlan',
   },
   {
+    id: 'treinos',
+    label: 'Treinos / Planos',
+    description: 'Treino de hoje, rotina semanal e continuidade do aluno.',
+    group: 'selectedStudent',
+    blockKey: 'students.details.trainingPlans',
+  },
+  {
     id: 'auditoria',
     label: 'Histórico / Evolução',
     description: 'Linha do tempo, auditoria e evolução do aluno.',

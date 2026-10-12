@@ -180,12 +180,32 @@ function TodaySession({
         ...(requiresReason ? { reason } : {}),
       });
       operationRef.current = null;
-      if (onExecutionChanged) await onExecutionChanged();
+      // Persistencia confirmada: falha da revalidacao nao invalida a gravacao.
+      try {
+        if (onExecutionChanged) await onExecutionChanged();
+      } catch {
+        setExecutionError('A alteração foi salva, mas não foi possível atualizar a sessão. Os dados exibidos podem estar desatualizados.');
+      }
     } catch (error) {
       const status = (error as { response?: { status?: number } })?.response?.status;
+      let reconciled = false;
+      if (status === 409) {
+        // Nunca repetir a versão vencida ou a mesma chave idempotente.
+        operationRef.current = null;
+        try {
+          if (onExecutionChanged) {
+            await onExecutionChanged();
+            reconciled = true;
+          }
+        } catch {
+          // Falha de revalidação não transforma o conflito em sucesso.
+        }
+      }
       setExecutionError(
         status === 409
-          ? 'O estado deste treino mudou em outro dispositivo. Atualize o estado antes de tentar novamente.'
+          ? reconciled
+            ? 'O estado deste treino mudou em outro dispositivo. Confira a sessão atualizada antes de tentar novamente.'
+            : 'O estado deste treino mudou em outro dispositivo, mas não foi possível atualizar a sessão. Atualize o estado antes de tentar novamente.'
           : 'Não foi possível salvar a alteração. Seus dados nesta tela foram preservados; tente novamente.'
       );
     } finally {
@@ -396,7 +416,7 @@ function TodaySession({
             {executionError && (
               <div role="alert" className="rounded-md border border-amber-200 bg-amber-50/60 p-3 text-sm text-amber-900">
                 <p>{executionError}</p>
-                {executionError.includes('outro dispositivo') && onExecutionChanged && (
+                {(executionError.includes('outro dispositivo') || executionError.includes('foi salva, mas')) && onExecutionChanged && (
                   <Button type="button" variant="outline" size="sm" className="mt-2" disabled={executionBusy} onClick={() => void onExecutionChanged()}>
                     Atualizar estado
                   </Button>
@@ -407,6 +427,58 @@ function TodaySession({
         )}
       </footer>
     </article>
+  );
+}
+
+function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) {
+  const sessions = routine.days
+    .flatMap((day) => day.sessions.map((session) => ({ ...session, date: day.date })))
+    .sort((left, right) => left.date.localeCompare(right.date) || left.sessionId.localeCompare(right.sessionId));
+  const terminal = new Set<TrainingRoutineExecutionProjectionStatus>(['completed', 'partial', 'not_performed']);
+  const nextSession = routine.nextSession === undefined
+    ? sessions.find((session) => session.date >= routine.today.date && !terminal.has(session.status)) ?? null
+    : routine.nextSession;
+  const nextInWeek = nextSession
+    ? sessions.find((session) => session.sessionId === nextSession.sessionId)
+    : null;
+  const lastExecution = routine.lastExecution ?? null;
+  const continuity = routine.feedbackContinuity;
+  const feedbackStatus = !continuity || continuity.state === 'unavailable'
+    ? 'Feedback indisponível'
+    : continuity.pendingCount > 0
+      ? `${continuity.pendingCount} feedback${continuity.pendingCount === 1 ? '' : 's'} pendente${continuity.pendingCount === 1 ? '' : 's'}`
+      : continuity.registeredCount > 0
+        ? 'Feedback registrado'
+        : 'Sem pendência confirmada nesta semana';
+
+  return (
+    <section aria-label="Continuidade do treinamento" className="grid gap-3 sm:grid-cols-3">
+      <div className="rounded-lg border border-border bg-background p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Próximo treino</p>
+        <p className="mt-1 text-sm font-semibold text-foreground">
+          {nextSession ? (nextInWeek ? sessionTitle(nextInWeek.modalities) : 'Treino programado') : 'Nenhuma sessão futura liberada'}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {nextSession ? `${formatShortDate(nextSession.date)} · ${sessionStatusLabels[nextSession.status]}` : 'Não há outro treino liberado para este contrato.'}
+        </p>
+      </div>
+      <div className="rounded-lg border border-border bg-background p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Última execução</p>
+        <p className="mt-1 text-sm font-semibold text-foreground">
+          {lastExecution ? sessionStatusLabels[lastExecution.status] : 'Nenhuma execução registrada'}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {lastExecution ? formatShortDate(lastExecution.date) : 'Nenhuma execução registrada.'}
+        </p>
+      </div>
+      <div className="rounded-lg border border-border bg-background p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Feedback pós-treino</p>
+        <p className="mt-1 text-sm font-semibold text-foreground">{feedbackStatus}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Aderência não é calculada aqui; o indicador canônico será consumido quando a #405 estiver disponível.
+        </p>
+      </div>
+    </section>
   );
 }
 
@@ -522,15 +594,18 @@ export function TrainingRoutinePanel({
 
   const fetchRoutine = useCallback(
     async (date?: string) => {
-      if (!canView) return;
+      if (!canView) return false;
       const requestId = ++requestRef.current;
       setLoading(true);
       setErrorKind(null);
       try {
         const data = await load(date);
-        if (requestId === requestRef.current) setRoutine(data);
+        if (requestId !== requestRef.current) return false;
+        setRoutine(data);
+        return true;
       } catch (error) {
         if (requestId === requestRef.current) setErrorKind(getTrainingRoutineErrorKind(error));
+        return false;
       } finally {
         if (requestId === requestRef.current) setLoading(false);
       }
@@ -547,6 +622,22 @@ export function TrainingRoutinePanel({
     void fetchRoutine(referenceDate);
   }, [canView, fetchRoutine, referenceDate]);
 
+  useEffect(() => {
+    if (!canView) return;
+
+    const refreshCurrentContext = () => {
+      if (document.visibilityState === 'hidden') return;
+      void fetchRoutine(referenceDate);
+    };
+
+    window.addEventListener('focus', refreshCurrentContext);
+    document.addEventListener('visibilitychange', refreshCurrentContext);
+    return () => {
+      window.removeEventListener('focus', refreshCurrentContext);
+      document.removeEventListener('visibilitychange', refreshCurrentContext);
+    };
+  }, [canView, fetchRoutine, referenceDate]);
+
   const header = (
     <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
       <Heading className={headingLevel === 'h1' ? 'text-2xl font-bold text-foreground' : 'text-lg font-semibold text-foreground'}>
@@ -556,8 +647,10 @@ export function TrainingRoutinePanel({
     </div>
   );
 
-  if (errorKind) {
-    const copy = loadErrorCopy[errorKind];
+  // A revogacao de acesso e sincrona: nao renderizar por um frame
+  // o snapshot anterior enquanto o efeito de revalidacao ainda nao executou.
+  if (!canView || (errorKind && (!routine || errorKind === 'access-denied'))) {
+    const copy = loadErrorCopy[!canView ? 'access-denied' : errorKind!];
     return (
       <section className="space-y-4" aria-live="polite">
         {header}
@@ -588,6 +681,15 @@ export function TrainingRoutinePanel({
   return (
     <section className="space-y-4" aria-busy={loading}>
       {header}
+      {errorKind && (
+        <div role="alert" className="rounded-lg border border-warning/40 bg-muted/20 p-3 text-sm">
+          <p>{loadErrorCopy[errorKind].title} Os treinos exibidos podem estar desatualizados.</p>
+          <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => void fetchRoutine(referenceDate)}>
+            Tentar novamente
+          </Button>
+        </div>
+      )}
+      {isCurrentWeek && <TrainingContinuityCards routine={routine} />}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="space-y-4">
           {routine.today.state === 'released' ? (
@@ -597,10 +699,20 @@ export function TrainingRoutinePanel({
                 session={session}
                 audience={audience}
                 executionAvailable={routine.execution.available}
-                saveCheckIn={saveCheckIn}
-            saveFeedback={saveFeedback}
+                saveCheckIn={saveCheckIn ? async (sessionId, payload) => {
+                  const saved = await saveCheckIn(sessionId, payload);
+                  await fetchRoutine(referenceDate);
+                  return saved;
+                } : undefined}
+                saveFeedback={saveFeedback ? async (sessionId, payload) => {
+                  const saved = await saveFeedback(sessionId, payload);
+                  await fetchRoutine(referenceDate);
+                  return saved;
+                } : undefined}
                 transitionExecution={transitionExecution}
-                onExecutionChanged={() => fetchRoutine(referenceDate)}
+                onExecutionChanged={async () => {
+                  if (!await fetchRoutine(referenceDate)) throw new Error('Falha ao revalidar treino');
+                }}
               />
             ))
           ) : (
@@ -624,8 +736,7 @@ export function TrainingRoutinePanel({
                 variant="ghost"
                 size="icon"
                 aria-label="Semana anterior"
-                disabled={loading}
-                onClick={() => setReferenceDate(shiftDateOnly(routine.week.startDate, -7))}
+                onClick={() => setReferenceDate(shiftDateOnly(referenceDate ?? routine.week.startDate, -7))}
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               </Button>
@@ -639,8 +750,7 @@ export function TrainingRoutinePanel({
                 variant="ghost"
                 size="icon"
                 aria-label="Próxima semana"
-                disabled={loading}
-                onClick={() => setReferenceDate(shiftDateOnly(routine.week.startDate, 7))}
+                onClick={() => setReferenceDate(shiftDateOnly(referenceDate ?? routine.week.startDate, 7))}
               >
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </Button>

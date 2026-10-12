@@ -7,7 +7,7 @@ type AlunoHistoricoTabProps = {
   timeline?: StudentSegmentedTimeline | null;
 };
 
-type EventCategory = 'all' | 'profile' | 'health' | 'assessment' | 'financial' | 'integration' | 'system';
+type EventCategory = 'all' | 'profile' | 'health' | 'assessment' | 'financial' | 'integration' | 'training' | 'system';
 
 const eventTypeLabel: Record<string, string> = {
   student_created: 'Cadastro criado',
@@ -24,6 +24,17 @@ const eventTypeLabel: Record<string, string> = {
   integration_connected: 'Integração conectada',
   integration_synchronized: 'Integração sincronizada',
   external_activity_imported: 'Atividade importada',
+  pre_workout_check_in_recorded: 'Check-in pré-treino',
+  pre_workout_check_in_updated: 'Check-in pré-treino atualizado',
+  workout_execution_started: 'Treino iniciado',
+  workout_execution_paused: 'Treino pausado',
+  workout_execution_completed: 'Treino concluído',
+  workout_execution_partial: 'Treino parcial',
+  workout_execution_not_performed: 'Treino não realizado',
+  workout_execution_values_recorded: 'Execução atualizada',
+  workout_execution_updated: 'Execução atualizada',
+  post_workout_feedback_recorded: 'Feedback pós-treino',
+  post_workout_feedback_corrected: 'Feedback pós-treino corrigido',
 };
 
 const sourceTypeLabel: Record<string, string> = {
@@ -40,6 +51,7 @@ const categoryLabel: Record<EventCategory, string> = {
   assessment: 'Avaliações',
   financial: 'Contratos',
   integration: 'Integrações',
+  training: 'Treinamento',
   system: 'Sistema',
 };
 
@@ -73,6 +85,10 @@ function getEventCategory(type: string): EventCategory {
 
   if (type.startsWith('integration_') || type.startsWith('external_activity_')) {
     return 'integration';
+  }
+
+  if (type.startsWith('pre_workout_') || type.startsWith('workout_execution_') || type.startsWith('post_workout_')) {
+    return 'training';
   }
 
   return 'system';
@@ -120,6 +136,7 @@ export function AlunoHistoricoTab({ timeline }: AlunoHistoricoTabProps) {
         assessment: 0,
         financial: 0,
         integration: 0,
+        training: 0,
         system: 0,
       }
     );

@@ -196,4 +196,22 @@ export interface TrainingRoutineView {
     sessions: TrainingRoutineSessionDetail[];
   };
   execution: TrainingRoutineExecutionAvailability;
+  /** Próxima sessão liberada pela montagem consolidada, mesmo fora da semana exibida. */
+  nextSession?: {
+    sessionId: string;
+    date: string;
+    status: TrainingRoutineExecutionProjectionStatus;
+  } | null;
+  /** Projeção canônica de última execução, independente da janela semanal. */
+  lastExecution?: {
+    sessionId: string;
+    date: string;
+    status: TrainingRoutineExecutionProjectionStatus;
+  } | null;
+  /** Contagem confirmada na semana, sem expor valores sensíveis das revisões. */
+  feedbackContinuity?: {
+    state: 'available' | 'unavailable';
+    pendingCount: number;
+    registeredCount: number;
+  };
 }

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type { TrainingRoutineSessionDetail, TrainingRoutineView } from '@corrida/types';
 import { TrainingRoutinePanel } from './TrainingRoutinePanel';
@@ -160,6 +161,93 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(screen.getByRole('button', { name: 'Atualizar estado' })).toBeInTheDocument();
   });
 
+  it('reconcilia automaticamente o estado canônico após conflito de versão', async () => {
+    const updated = session({
+      status: 'in_progress',
+      execution: { ...session().execution, status: 'in_progress', version: 1 },
+    });
+    const load = vi.fn()
+      .mockResolvedValueOnce(routine())
+      .mockResolvedValue(routine({
+        today: { date: '2026-10-01', state: 'released', sessions: [updated] },
+      }));
+    const transitionExecution = vi.fn().mockRejectedValue({ response: { status: 409 } });
+    render(<TrainingRoutinePanel audience="student" load={load} transitionExecution={transitionExecution} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Iniciar treino' }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect((await screen.findAllByText('Em andamento')).length).toBeGreaterThan(0);
+    expect(screen.getByRole('alert')).toHaveTextContent(/outro dispositivo/i);
+  });
+
+  it('não afirma ter reconciliado quando a leitura canônica após 409 falha', async () => {
+    const load = vi.fn()
+      .mockResolvedValueOnce(routine())
+      .mockRejectedValueOnce(new Error('network unavailable'));
+    const transitionExecution = vi.fn().mockRejectedValue({ response: { status: 409 } });
+    render(<TrainingRoutinePanel audience="student" load={load} transitionExecution={transitionExecution} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Iniciar treino' }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText(/não foi possível atualizar a sessão/i)).toBeInTheDocument();
+  });
+
+  it('atualiza a continuidade ao confirmar feedback sem recarregar a página inteira', async () => {
+    const completed = session({
+      status: 'completed',
+      execution: { ...session().execution, status: 'completed', version: 2 },
+      postWorkoutFeedback: [],
+    });
+    const initial = routine({
+      today: { date: '2026-10-01', state: 'released', sessions: [completed] },
+      feedbackContinuity: { state: 'available', pendingCount: 1, registeredCount: 0 },
+    });
+    const refreshed = routine({
+      today: { date: '2026-10-01', state: 'released', sessions: [completed] },
+      feedbackContinuity: { state: 'available', pendingCount: 0, registeredCount: 1 },
+    });
+    const load = vi.fn().mockResolvedValueOnce(initial).mockResolvedValue(refreshed);
+    const saveFeedback = vi.fn().mockImplementation(async (_sessionId, payload) => ({
+      id: 'feedback-1', sessionId: 'day-1', executionId: 'execution-1',
+      executionStatus: 'completed', scopeKey: 'session', capacity: null,
+      revisionNumber: 1, previousRevisionId: null, correctionReason: null,
+      perceptionAuthor: 'student', revisedBy: 'student',
+      createdAt: '2026-10-01T12:00:00.000Z', current: true,
+      values: payload.values, signals: [],
+    }));
+    render(<TrainingRoutinePanel audience="student" load={load} saveFeedback={saveFeedback} />);
+    const cards = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
+    expect(within(cards).getByText('1 feedback pendente')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar feedback' }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(within(cards).getByText('Feedback registrado')).toBeInTheDocument();
+    expect(saveFeedback).toHaveBeenCalledWith('day-1', expect.objectContaining({ operationKey: expect.any(String) }));
+  });
+
+  it('informa gravação confirmada mesmo quando a leitura posterior falha, sem repetir a mutação', async () => {
+    const load = vi.fn()
+      .mockResolvedValueOnce(routine())
+      .mockRejectedValueOnce(new Error('network unavailable'))
+      .mockResolvedValueOnce(routine({
+        today: {
+          date: '2026-10-01', state: 'released',
+          sessions: [session({
+            status: 'in_progress',
+            execution: { ...session().execution, status: 'in_progress', version: 1 },
+          })],
+        },
+      }));
+    const transitionExecution = vi.fn().mockResolvedValue({
+      ...session().execution, status: 'in_progress', version: 1,
+    });
+    render(<TrainingRoutinePanel audience="student" load={load} transitionExecution={transitionExecution} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Iniciar treino' }));
+    expect(await screen.findByText(/A alteração foi salva, mas não foi possível atualizar a sessão/)).toBeInTheDocument();
+    expect(screen.queryByText(/Não foi possível salvar a alteração/)).not.toBeInTheDocument();
+    expect(transitionExecution).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Atualizar estado' }));
+    expect((await screen.findAllByText('Em andamento')).length).toBeGreaterThan(0);
+    expect(transitionExecution).toHaveBeenCalledTimes(1);
+  });
+
   it('distingue sessão ainda não liberada de dia sem treino', async () => {
     const { unmount } = render(
       <TrainingRoutinePanel
@@ -192,7 +280,7 @@ describe('TrainingRoutinePanel (#387)', () => {
     const load = vi.fn();
     render(<TrainingRoutinePanel audience="professor" load={load} canView={false} />);
 
-    expect(await screen.findByText('Sem permissão para ver os treinos')).toBeInTheDocument();
+    expect(screen.getByText('Sem permissão para ver os treinos')).toBeInTheDocument();
     expect(load).not.toHaveBeenCalled();
   });
 
@@ -255,6 +343,194 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(screen.getByText('Nenhum check-in registrado para esta sessão.')).toBeInTheDocument();
   });
 
+  it('mostra continuidade com próxima sessão, última execução e feedback pendente sem calcular aderência', async () => {
+    const completedSession = session({
+      status: 'completed',
+      postWorkoutFeedback: [],
+      execution: {
+        ...session().execution,
+        status: 'completed',
+        version: 2,
+        startedAt: '2026-10-01T11:00:00.000Z',
+        finishedAt: '2026-10-01T12:00:00.000Z',
+      },
+    });
+    const nextSession = session({
+      sessionId: 'day-2',
+      date: '2026-10-02',
+      status: 'not_started',
+      execution: {
+        ...session().execution,
+        sessionId: 'day-2',
+      },
+    });
+    const data = routine({
+      audience: 'student',
+      lastExecution: { sessionId: 'day-1', date: '2026-10-01', status: 'completed' },
+      feedbackContinuity: { state: 'available', pendingCount: 1, registeredCount: 0 },
+      days: [
+        { date: '2026-09-28', isToday: false, sessions: [], pendingReleaseCount: 0 },
+        { date: '2026-09-29', isToday: false, sessions: [], pendingReleaseCount: 0 },
+        { date: '2026-09-30', isToday: false, sessions: [], pendingReleaseCount: 0 },
+        { date: '2026-10-01', isToday: true, sessions: [completedSession], pendingReleaseCount: 0 },
+        { date: '2026-10-02', isToday: false, sessions: [nextSession], pendingReleaseCount: 0 },
+        { date: '2026-10-03', isToday: false, sessions: [], pendingReleaseCount: 0 },
+        { date: '2026-10-04', isToday: false, sessions: [], pendingReleaseCount: 0 },
+      ],
+      today: { date: '2026-10-01', state: 'released', sessions: [completedSession] },
+    });
+
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue(data)} />);
+
+    const continuity = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
+    expect(within(continuity).getByText('Próximo treino')).toBeInTheDocument();
+    expect(within(continuity).getByText('Última execução')).toBeInTheDocument();
+    expect(within(continuity).getByText('1 feedback pendente')).toBeInTheDocument();
+    expect(within(continuity).getByText(/indicador canônico será consumido quando a #405/i)).toBeInTheDocument();
+  });
+
+  it('usa próxima sessão canônica de outra semana sem inferir ausência pela semana atual', async () => {
+    const load = vi.fn().mockResolvedValue(routine({
+      nextSession: { sessionId: 'next-month', date: '2026-11-03', status: 'not_started' },
+    }));
+    render(<TrainingRoutinePanel audience="student" load={load} />);
+    const cards = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
+    expect(cards).toHaveClass('grid', 'sm:grid-cols-3');
+    expect(within(cards).getByText('Treino programado')).toBeInTheDocument();
+    expect(within(cards).getByText('03/11 · Não iniciado')).toBeInTheDocument();
+    expect(within(cards).queryByText(/Nenhuma sessão pendente/)).not.toBeInTheDocument();
+  });
+
+  it('mantém o aluno correto ao navegar voltar/avançar, inclusive sob carregamento assíncrono', async () => {
+    const loadA = vi.fn().mockResolvedValue(routine({
+      alunoId: 'aluno-a',
+      nextSession: { sessionId: 'a-next', date: '2026-11-03', status: 'not_started' },
+    }));
+    const loadB = vi.fn().mockResolvedValue(routine({
+      alunoId: 'aluno-b',
+      nextSession: { sessionId: 'b-next', date: '2026-12-04', status: 'not_started' },
+    }));
+    function RouteView() {
+      const { alunoId } = useParams();
+      const navigate = useNavigate();
+      return (
+        <main>
+          <button onClick={() => navigate('/aluno-b')}>Abrir aluno B</button>
+          <button onClick={() => navigate(-1)}>Voltar no navegador</button>
+          <button onClick={() => navigate(1)}>Avançar no navegador</button>
+          <TrainingRoutinePanel key={alunoId} audience="student" load={alunoId === 'aluno-a' ? loadA : loadB} />
+        </main>
+      );
+    }
+    render(
+      <MemoryRouter initialEntries={['/aluno-a']}>
+        <Routes><Route path="/:alunoId" element={<RouteView />} /></Routes>
+      </MemoryRouter>
+    );
+    expect(await screen.findByText('03/11 · Não iniciado')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir aluno B' }));
+    expect(await screen.findByText('04/12 · Não iniciado')).toBeInTheDocument();
+    expect(screen.queryByText('03/11 · Não iniciado')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Voltar no navegador' }));
+    expect(await screen.findByText('03/11 · Não iniciado')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Avançar no navegador' }));
+    expect(await screen.findByText('04/12 · Não iniciado')).toBeInTheDocument();
+  });
+
+  it('oculta dados anteriormente confirmados quando a permissão do bloco é revogada', async () => {
+    const load = vi.fn().mockResolvedValue(routine({
+      nextSession: { sessionId: 'next-month', date: '2026-11-03', status: 'not_started' },
+    }));
+    const view = render(<TrainingRoutinePanel audience="student" load={load} canView />);
+    expect(await screen.findByRole('region', { name: 'Continuidade do treinamento' })).toBeInTheDocument();
+    view.rerender(<TrainingRoutinePanel audience="student" load={load} canView={false} />);
+    expect(screen.getByText('Sem permissão para ver os treinos')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Continuidade do treinamento' })).not.toBeInTheDocument();
+  });
+
+  it('mantém pendência de feedback de dia anterior na semana consultada', async () => {
+    const previous = session({
+      status: 'completed',
+      postWorkoutFeedback: [],
+      execution: { ...session().execution, status: 'completed' },
+    });
+    const data = routine({
+      feedbackContinuity: { state: 'available', pendingCount: 1, registeredCount: 0 },
+      days: [
+        { date: '2026-09-30', isToday: false, sessions: [previous], pendingReleaseCount: 0 },
+        { date: '2026-10-01', isToday: true, sessions: [], pendingReleaseCount: 0 },
+      ],
+      today: { date: '2026-10-01', state: 'released', sessions: [] },
+    });
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue(data)} />);
+    const continuity = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
+    expect(within(continuity).getByText('1 feedback pendente')).toBeInTheDocument();
+  });
+
+  it('nao interpreta feedback ausente da projecao como pendente confirmado', async () => {
+    const completed = session({
+      status: 'completed',
+      execution: { ...session().execution, status: 'completed' },
+    });
+    const data = routine({
+      feedbackContinuity: { state: 'unavailable', pendingCount: 0, registeredCount: 0 },
+      days: [
+        { date: '2026-10-01', isToday: true, sessions: [completed], pendingReleaseCount: 0 },
+      ],
+      today: { date: '2026-10-01', state: 'released', sessions: [completed] },
+    });
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue(data)} />);
+    const continuity = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
+    expect(within(continuity).getByText('Feedback indisponível')).toBeInTheDocument();
+    expect(within(continuity).queryByText('1 feedback pendente')).not.toBeInTheDocument();
+  });
+
+  it('revalida o bloco de treino ao retornar para a janela sem recarregar a aplicação inteira', async () => {
+    const load = vi.fn().mockResolvedValue(routine());
+    render(<TrainingRoutinePanel audience="professor" load={load} />);
+
+    expect(await screen.findByRole('heading', { name: 'Musculação' })).toBeInTheDocument();
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+
+    window.dispatchEvent(new Event('focus'));
+
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+  });
+
+  it('mantém a rotina confirmada quando a revalidação falha e permite nova tentativa', async () => {
+    const load = vi.fn()
+      .mockResolvedValueOnce(routine())
+      .mockRejectedValueOnce(new Error('network unavailable'))
+      .mockResolvedValueOnce(routine());
+    render(<TrainingRoutinePanel audience="student" load={load} />);
+    expect(await screen.findByRole('heading', { name: 'Musculação' })).toBeInTheDocument();
+
+    window.dispatchEvent(new Event('focus'));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole('heading', { name: 'Musculação' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(3));
+    expect(screen.getByRole('heading', { name: 'Musculação' })).toBeInTheDocument();
+  });
+
+  it('descarta retorno antigo quando a pessoa navega para outra semana', async () => {
+    let resolvePrevious: ((view: TrainingRoutineView) => void) | undefined;
+    const load = vi.fn()
+      .mockResolvedValueOnce(routine())
+      .mockImplementationOnce(() => new Promise<TrainingRoutineView>((resolve) => {
+        resolvePrevious = resolve;
+      }))
+      .mockResolvedValueOnce(routine({ referenceDate: '2026-10-12' }));
+    render(<TrainingRoutinePanel audience="student" load={load} />);
+    await screen.findByRole('heading', { name: 'Musculação' });
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima semana' }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima semana' }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(3));
+    resolvePrevious?.(routine({ referenceDate: '2026-10-05' }));
+    await waitFor(() => expect(load).toHaveBeenLastCalledWith('2026-10-12'));
+  });
+
   it('navega entre semanas pela data de referência', async () => {
     const load = vi.fn().mockResolvedValue(routine());
     render(<TrainingRoutinePanel audience="student" load={load} />);
@@ -272,4 +548,50 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(serviceSource).toContain('/execution/values');
     expect(serviceSource).not.toMatch(/\/executions\/workout-day\/.*\/status/);
   });
+
+  it('preserva edições não enviadas de check-in existente após retorno do foco', async () => {
+    const existing = {
+      id: 'check-in-1', sessionId: 'day-1',
+      createdAt: '2026-10-01T09:00:00.000Z', updatedAt: '2026-10-01T09:00:00.000Z',
+      editable: true,
+      values: { psr: 7, sleepQuality: null, fatigue: null, painLevel: null, motivation: null, availableMinutes: null, notes: null },
+      guidance: { painTriage: null, studentMessage: null, blocksWorkout: false as const, changesWorkoutAutomatically: false as const },
+    };
+    const snapshot = (nextDate: string) => routine({
+      nextSession: { sessionId: 'future', date: nextDate, status: 'not_started' },
+      today: { date: '2026-10-01', state: 'released', sessions: [session({ preWorkoutCheckIn: { ...existing, values: { ...existing.values } } })] },
+    });
+    const load = vi.fn().mockResolvedValueOnce(snapshot('2026-10-04')).mockResolvedValue(snapshot('2026-10-05'));
+    render(<TrainingRoutinePanel audience="student" load={load} />);
+    const notes = await screen.findByPlaceholderText(/Algo que seu professor deva saber/i);
+    await userEvent.type(notes, 'Preciso sair mais cedo');
+    window.dispatchEvent(new Event('focus'));
+    expect(await screen.findByText('05/10 · Não iniciado')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Preciso sair mais cedo')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('7')).toBeInTheDocument();
+  });
+
+  it('preserva rascunho de feedback após retorno de foco, sem impedir a leitura canônica', async () => {
+    const completed = session({
+      status: 'completed',
+      execution: { ...session().execution, status: 'completed', version: 2 },
+      postWorkoutFeedback: [],
+    });
+    const snapshot = (nextDate: string) => routine({
+      nextSession: { sessionId: 'future', date: nextDate, status: 'not_started' },
+      today: { date: '2026-10-01', state: 'released', sessions: [{ ...completed, postWorkoutFeedback: [] }] },
+    });
+    const load = vi.fn().mockResolvedValueOnce(snapshot('2026-10-04')).mockResolvedValue(snapshot('2026-10-05'));
+    render(<TrainingRoutinePanel audience="student" load={load} />);
+    const notes = await screen.findByPlaceholderText(/Conte algo importante sobre a execução/i);
+    await userEvent.type(notes, 'Dor leve ao final');
+    await userEvent.type(screen.getByRole('spinbutton', { name: 'Esforço percebido (PSE)' }), '6');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Fadiga' }), 'high');
+    window.dispatchEvent(new Event('focus'));
+    expect(await screen.findByText('05/10 · Não iniciado')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Dor leve ao final')).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: 'Esforço percebido (PSE)' })).toHaveValue(6);
+    expect(screen.getByRole('combobox', { name: 'Fadiga' })).toHaveValue('high');
+  });
+
 });

@@ -48,13 +48,14 @@ export function PreWorkoutCheckInCard({ audience, sessionStatus, initialCheckIn,
   const [saving, setSaving] = useState(false);
   const [sessionLocked, setSessionLocked] = useState(false);
   const submissionInFlight = useRef(false);
+  const draftDirty = useRef(false); // Preserve unsubmitted changes on focus/visibility refresh.
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const pendingOperation = useRef<{ fingerprint: string; key: string } | null>(null);
   const editable = !sessionLocked && audience === 'student' && sessionStatus === 'not_started' && (checkIn?.editable ?? true);
 
   useEffect(() => {
     setCheckIn(initialCheckIn);
-    setValues(initialCheckIn?.values ?? emptyValues);
+    if (!draftDirty.current) setValues(initialCheckIn?.values ?? emptyValues);
   }, [initialCheckIn]);
 
   if (audience === 'professor') {
@@ -92,6 +93,7 @@ export function PreWorkoutCheckInCard({ audience, sessionStatus, initialCheckIn,
   }
 
   const setNumeric = (key: keyof Omit<PreWorkoutCheckInValues, 'notes'>, raw: string) => {
+    draftDirty.current = true;
     setValues((current) => ({ ...current, [key]: raw === '' ? null : Number(raw) }));
     setMessage(null);
   };
@@ -112,6 +114,7 @@ export function PreWorkoutCheckInCard({ audience, sessionStatus, initialCheckIn,
     try {
       const saved = await save({ operationKey: pendingOperation.current.key, ...payloadValues });
       pendingOperation.current = null;
+      draftDirty.current = false;
       setCheckIn(saved);
       setValues(saved.values);
       setMessage({ kind: 'success', text: 'Check-in salvo. Você pode ajustá-lo até iniciar o treino.' });
@@ -161,6 +164,7 @@ export function PreWorkoutCheckInCard({ audience, sessionStatus, initialCheckIn,
           maxLength={500}
           rows={3}
           onChange={(event) => {
+            draftDirty.current = true;
             setValues((current) => ({ ...current, notes: event.target.value }));
             setMessage(null);
           }}

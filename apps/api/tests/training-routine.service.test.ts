@@ -88,6 +88,8 @@ describe('training routine service (#387)', () => {
   let pendingRows: Row[];
   let capacityRows: Row[];
   let releaseRows: Row[];
+  let upcomingRows: Row[];
+  let latestExecutionRows: Row[];
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -95,17 +97,130 @@ describe('training routine service (#387)', () => {
     pendingRows = [];
     capacityRows = [];
     releaseRows = [makeRelease()];
+    upcomingRows = [];
     preWorkoutCheckInFindMany.mockResolvedValue([]);
     postWorkoutFeedbackFindMany.mockResolvedValue([]);
+    latestExecutionRows = [];
     findMany.mockImplementation((args: any) =>
       Promise.resolve(args.where.template.released ? releasedRows : pendingRows)
     );
     queryRaw.mockImplementation((strings: TemplateStringsArray) => {
       const sql = strings.join('?');
+      if (sql.includes('FROM "WorkoutDay" day')) return Promise.resolve(upcomingRows);
+      if (sql.includes('FROM "WorkoutSessionExecution" execution')) return Promise.resolve(latestExecutionRows);
       if (sql.includes('WorkoutDayCapacityOperationalBlock')) return Promise.resolve(capacityRows);
       if (sql.includes('ConsolidatedPrescriptionOperationalRelease')) return Promise.resolve(releaseRows);
       throw new Error(`SQL inesperado: ${sql}`);
     });
+  });
+
+  it('projeta o próximo treino de outra semana apenas com liberação consolidada e escopo contratual', async () => {
+    upcomingRows = [{
+      sessionId: 'next-month',
+      date: new Date('2026-11-03T00:00:00.000Z'),
+      status: 'not_started',
+    }];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.nextSession).toEqual({
+      sessionId: 'next-month', date: '2026-11-03', status: 'not_started',
+    });
+    const sql = queryRaw.mock.calls
+      .map(([strings]) => strings.join('?'))
+      .find((query: string) => query.includes('FROM "WorkoutDay" day'));
+    expect(sql).toContain('ConsolidatedPrescriptionOperationalRelease');
+    expect(sql).toContain('student."contractId"');
+    expect(sql).toContain('plan."alunoId"');
+    expect(sql).toContain("NOT IN ('completed', 'partial', 'not_performed')");
+    const args = queryRaw.mock.calls.find(([strings]) =>
+      strings.join('?').includes('FROM "WorkoutDay" day')
+    );
+    expect(args).toContain('aluno-1');
+    expect(args).toContain('contract-1');
+    expect(args).not.toContain('contract-2');
+  });
+
+  it('não inventa sessão futura quando a consulta consolidada não retorna dias autorizados', async () => {
+    upcomingRows = [];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.nextSession).toBeNull();
+  });
+
+  it('projeta a ultima execucao global apenas com liberação consolidada vinculada ao release de origem', async () => {
+    latestExecutionRows = [{
+      sessionId: 'old-day',
+      status: 'completed',
+      date: new Date('2026-09-01T00:00:00.000Z'),
+    }];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.lastExecution).toEqual({
+      sessionId: 'old-day', status: 'completed', date: '2026-09-01',
+    });
+    const executionCall = queryRaw.mock.calls.find(([strings]) =>
+      strings.join('?').includes('FROM "WorkoutSessionExecution" execution')
+    );
+    expect(executionCall).toBeDefined();
+    const executionSql = (executionCall?.[0] as TemplateStringsArray).join('?');
+    expect(executionSql).toContain('release."id" = execution."originReleaseId"');
+    expect(executionSql).toContain('release."workoutTemplateId" = template."id"');
+    expect(executionSql).toContain('release."alunoId" = execution."alunoId"');
+    expect(executionSql).toContain('release."contractId" = execution."contractId"');
+    expect(executionSql).toContain("IN ('completed', 'partial', 'not_performed')");
+    expect(executionSql).toContain('ORDER BY execution."finishedAt" DESC');
+    expect(executionCall?.slice(1)).toEqual(['aluno-1', 'contract-1', 'aluno-1', 'contract-1']);
+  });
+
+  it('não inventa última execução quando o backend não encontra execução autorizada', async () => {
+    latestExecutionRows = [];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.lastExecution).toBeNull();
+  });
+
+  it('não projeta contagens de feedback ao professor sem concessão explícita', async () => {
+    releasedRows = [makeRow()];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'professor', now,
+    });
+    expect(result.feedbackContinuity).toEqual({
+      state: 'unavailable', pendingCount: 0, registeredCount: 0,
+    });
+    expect(postWorkoutFeedbackFindMany).not.toHaveBeenCalled();
+  });
+
+  it('calcula feedback pendente apenas para sessão concluída do contrato', async () => {
+    releasedRows = [makeRow({
+      execution: {
+        workoutDayId: 'day-1',
+        status: 'completed',
+        version: 1,
+        startedAt: new Date('2026-10-01T10:00:00.000Z'),
+        finishedAt: new Date('2026-10-01T11:00:00.000Z'),
+        currentPauseStartedAt: null,
+        pausedDurationMs: BigInt(0),
+        interruptionReason: null,
+        originReleaseId: 'release-1',
+        originWorkoutTemplateId: 'template-1',
+        originTrainingPlanId: 'plan-1',
+        sessionValues: {},
+        items: [],
+      },
+    })];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.feedbackContinuity).toEqual({
+      state: 'available', pendingCount: 1, registeredCount: 0,
+    });
+    expect(postWorkoutFeedbackFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ alunoId: 'aluno-1', contractId: 'contract-1' }),
+    }));
   });
 
   it('consulta somente sessões liberadas do aluno e do contrato informados', async () => {

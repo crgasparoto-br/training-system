@@ -390,6 +390,71 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
         }),
       ]);
 
+      // Projecao global do proximo treino: apenas dias liberados pela montagem
+      // consolidada deste aluno/contrato. Nenhuma janela semanal artificial.
+      const upcoming = await client.$queryRaw<Array<{
+        sessionId: string;
+        date: Date;
+        status: TrainingRoutineExecutionProjectionStatus;
+      }>>`
+        SELECT day."id" AS "sessionId",
+               day."workoutDate" AS "date",
+               COALESCE(execution."status"::text, 'not_started') AS "status"
+        FROM "WorkoutDay" day
+        JOIN "WorkoutTemplate" template ON template."id" = day."templateId"
+        JOIN "TrainingPlan" plan ON plan."id" = template."planId"
+        JOIN "Aluno" student ON student."id" = plan."alunoId"
+        JOIN "ConsolidatedPrescriptionOperationalRelease" release
+          ON release."workoutTemplateId" = template."id"
+         AND release."alunoId" = ${query.alunoId}
+         AND release."contractId" = ${query.contractId}
+        LEFT JOIN "WorkoutSessionExecution" execution
+          ON execution."workoutDayId" = day."id"
+         AND execution."alunoId" = ${query.alunoId}
+         AND execution."contractId" = ${query.contractId}
+        WHERE plan."alunoId" = ${query.alunoId}
+          AND student."contractId" = ${query.contractId}
+          AND template."released" = true
+          AND day."workoutDate" >= ${todayStart}
+          AND COALESCE(execution."status"::text, 'not_started')
+              NOT IN ('completed', 'partial', 'not_performed')
+        ORDER BY day."workoutDate" ASC, day."id" ASC
+        LIMIT 1
+      `;
+
+      // A ultima execucao usa a mesma autoridade da rotina/nextSession:
+      // execucao terminal vinculada ao release consolidado de origem do aluno e contrato.
+      // Nao limitar pela semana consultada ou pela data de hoje.
+      const latestExecution = await client.$queryRaw<Array<{
+        sessionId: string;
+        date: Date;
+        status: TrainingRoutineExecutionProjectionStatus;
+      }>>`
+        SELECT execution."workoutDayId" AS "sessionId",
+               day."workoutDate" AS "date",
+               execution."status"::text AS "status"
+        FROM "WorkoutSessionExecution" execution
+        JOIN "WorkoutDay" day ON day."id" = execution."workoutDayId"
+        JOIN "WorkoutTemplate" template ON template."id" = day."templateId"
+        JOIN "TrainingPlan" plan ON plan."id" = template."planId"
+        JOIN "Aluno" student ON student."id" = plan."alunoId"
+        JOIN "ConsolidatedPrescriptionOperationalRelease" release
+          ON release."id" = execution."originReleaseId"
+         AND release."workoutTemplateId" = template."id"
+         AND release."alunoId" = execution."alunoId"
+         AND release."contractId" = execution."contractId"
+        WHERE execution."alunoId" = ${query.alunoId}
+          AND execution."contractId" = ${query.contractId}
+          AND plan."alunoId" = ${query.alunoId}
+          AND student."contractId" = ${query.contractId}
+          AND template."released" = true
+          AND execution."status"::text IN ('completed', 'partial', 'not_performed')
+        ORDER BY execution."finishedAt" DESC NULLS LAST,
+                 execution."updatedAt" DESC,
+                 execution."id" DESC
+        LIMIT 1
+      `;
+
       const dayIds = rows.map((row) => row.id);
       const templateIds = [...new Set(rows.map((row) => row.template.id))];
       const [capacityRows, releaseRows] = await Promise.all([
@@ -457,6 +522,15 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
       });
       const todayRows = rowsOn(today);
       const todayPending = pendingByDate.get(today) ?? 0;
+      const weekRows = visibleRows.filter((row) =>
+        toDateOnly(row.workoutDate) <= today && toDateOnly(row.workoutDate) >= toDateOnly(week.start)
+      );
+      const feedbackEligible = weekRows.filter((row) =>
+        row.execution?.status === 'completed' || row.execution?.status === 'partial'
+      );
+      const registeredCount = feedbackEligible.filter((row) =>
+        (latestFeedbackBySession.get(row.id)?.length ?? 0) > 0
+      ).length;
 
       return {
         alunoId: query.alunoId,
@@ -480,6 +554,25 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
           ),
         },
         execution: { available: true, reason: null },
+        nextSession: upcoming[0]
+          ? {
+              sessionId: upcoming[0].sessionId,
+              date: toDateOnly(upcoming[0].date),
+              status: upcoming[0].status,
+            }
+          : null,
+        lastExecution: latestExecution[0]
+          ? {
+              sessionId: latestExecution[0].sessionId,
+              status: latestExecution[0].status,
+              date: toDateOnly(latestExecution[0].date),
+            }
+          : null,
+        feedbackContinuity: {
+          state: canProjectPostWorkoutFeedback ? 'available' : 'unavailable',
+          pendingCount: canProjectPostWorkoutFeedback ? feedbackEligible.length - registeredCount : 0,
+          registeredCount: canProjectPostWorkoutFeedback ? registeredCount : 0,
+        },
       };
     },
   };
