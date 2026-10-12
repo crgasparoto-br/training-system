@@ -1251,7 +1251,9 @@ export function AlunoDetails() {
         .flatMap((section) => section.variables)
     : [];
 
-  if (loading) {
+  // Trocas de rota podem ocorrer antes do efeito que inicia o novo carregamento.
+  // Nunca renderizar o snapshot confirmado de outro aluno nesse intervalo.
+  if (loading || (aluno && aluno.id !== id)) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
