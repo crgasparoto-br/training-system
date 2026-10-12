@@ -417,7 +417,7 @@ describe('TrainingRoutinePanel (#387)', () => {
     const view = render(<TrainingRoutinePanel audience="student" load={load} canView />);
     expect(await screen.findByRole('region', { name: 'Continuidade do treinamento' })).toBeInTheDocument();
     view.rerender(<TrainingRoutinePanel audience="student" load={load} canView={false} />);
-    expect(await screen.findByText('Sem permissão para ver os treinos')).toBeInTheDocument();
+    expect(screen.getByText('Sem permissão para ver os treinos')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Continuidade do treinamento' })).not.toBeInTheDocument();
   });
 
