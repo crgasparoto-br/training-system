@@ -621,7 +621,7 @@ export function TrainingRoutinePanel({
     </div>
   );
 
-  if (errorKind) {
+  if (errorKind && (!routine || errorKind === 'access-denied')) {
     const copy = loadErrorCopy[errorKind];
     return (
       <section className="space-y-4" aria-live="polite">
@@ -653,6 +653,14 @@ export function TrainingRoutinePanel({
   return (
     <section className="space-y-4" aria-busy={loading}>
       {header}
+      {errorKind && (
+        <div role="alert" className="rounded-lg border border-warning/40 bg-muted/20 p-3 text-sm">
+          <p>{loadErrorCopy[errorKind].title} Os treinos exibidos podem estar desatualizados.</p>
+          <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => void fetchRoutine(referenceDate)}>
+            Tentar novamente
+          </Button>
+        </div>
+      )}
       {isCurrentWeek && <TrainingContinuityCards routine={routine} />}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="space-y-4">
