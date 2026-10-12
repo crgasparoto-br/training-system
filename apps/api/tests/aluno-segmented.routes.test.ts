@@ -257,7 +257,7 @@ describe('segmented aluno routes', () => {
   });
 
   it('rejects invalid timeline pagination before invoking the service', async () => {
-    for (const query of ['?limit=0', '?limit=201', '?limit=abc']) {
+    for (const query of ['?limit=0', '?limit=201', '?limit=abc', '?cursor=']) {
       (studentDomainService.getTimeline as jest.Mock).mockClear();
       const response = await request(app).get(`/alunos/aluno-1/timeline${query}`);
       expect(response.status).toBe(400);
