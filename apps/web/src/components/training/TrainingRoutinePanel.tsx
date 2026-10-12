@@ -183,18 +183,24 @@ function TodaySession({
       if (onExecutionChanged) await onExecutionChanged();
     } catch (error) {
       const status = (error as { response?: { status?: number } })?.response?.status;
+      let reconciled = false;
       if (status === 409) {
-        // Reconciliar com o estado persistido antes de permitir nova tentativa.
+        // Nunca repetir a versão vencida ou a mesma chave idempotente.
         operationRef.current = null;
         try {
-          await onExecutionChanged?.();
+          if (onExecutionChanged) {
+            await onExecutionChanged();
+            reconciled = true;
+          }
         } catch {
-          // Manter a mensagem de conflito caso a revalidação também falhe.
+          // Falha de revalidação não transforma o conflito em sucesso.
         }
       }
       setExecutionError(
         status === 409
-          ? 'O estado deste treino mudou em outro dispositivo. A sessão foi revalidada; confira o estado antes de tentar novamente.'
+          ? reconciled
+            ? 'O estado deste treino mudou em outro dispositivo. Confira a sessão atualizada antes de tentar novamente.'
+            : 'O estado deste treino mudou em outro dispositivo, mas não foi possível atualizar a sessão. Atualize o estado antes de tentar novamente.'
           : 'Não foi possível salvar a alteração. Seus dados nesta tela foram preservados; tente novamente.'
       );
     } finally {
@@ -583,15 +589,18 @@ export function TrainingRoutinePanel({
 
   const fetchRoutine = useCallback(
     async (date?: string) => {
-      if (!canView) return;
+      if (!canView) return false;
       const requestId = ++requestRef.current;
       setLoading(true);
       setErrorKind(null);
       try {
         const data = await load(date);
-        if (requestId === requestRef.current) setRoutine(data);
+        if (requestId !== requestRef.current) return false;
+        setRoutine(data);
+        return true;
       } catch (error) {
         if (requestId === requestRef.current) setErrorKind(getTrainingRoutineErrorKind(error));
+        return false;
       } finally {
         if (requestId === requestRef.current) setLoading(false);
       }
@@ -694,7 +703,9 @@ export function TrainingRoutinePanel({
                   return saved;
                 } : undefined}
                 transitionExecution={transitionExecution}
-                onExecutionChanged={() => fetchRoutine(referenceDate)}
+                onExecutionChanged={async () => {
+                  if (!await fetchRoutine(referenceDate)) throw new Error('Falha ao revalidar treino');
+                }}
               />
             ))
           ) : (
