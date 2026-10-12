@@ -133,6 +133,20 @@ describe('training routine service (#387)', () => {
     expect(sql).toContain('student."contractId"');
     expect(sql).toContain('plan."alunoId"');
     expect(sql).toContain("NOT IN ('completed', 'partial', 'not_performed')");
+    const args = queryRaw.mock.calls.find(([strings]: [TemplateStringsArray]) =>
+      strings.join('?').includes('FROM "WorkoutDay" day')
+    );
+    expect(args).toContain('aluno-1');
+    expect(args).toContain('contract-1');
+    expect(args).not.toContain('contract-2');
+  });
+
+  it('não inventa sessão futura quando a consulta consolidada não retorna dias autorizados', async () => {
+    upcomingRows = [];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.nextSession).toBeNull();
   });
 
   it('projetar última execução de qualquer semana sem misturar alunos ou contratos', async () => {
