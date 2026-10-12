@@ -160,6 +160,24 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(screen.getByRole('button', { name: 'Atualizar estado' })).toBeInTheDocument();
   });
 
+  it('reconcilia automaticamente o estado canônico após conflito de versão', async () => {
+    const updated = session({
+      status: 'in_progress',
+      execution: { ...session().execution, status: 'in_progress', version: 1 },
+    });
+    const load = vi.fn()
+      .mockResolvedValueOnce(routine())
+      .mockResolvedValue(routine({
+        today: { date: '2026-10-01', state: 'released', sessions: [updated] },
+      }));
+    const transitionExecution = vi.fn().mockRejectedValue({ response: { status: 409 } });
+    render(<TrainingRoutinePanel audience="student" load={load} transitionExecution={transitionExecution} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Iniciar treino' }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('Em andamento')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(/outro dispositivo/i);
+  });
+
   it('distingue sessão ainda não liberada de dia sem treino', async () => {
     const { unmount } = render(
       <TrainingRoutinePanel
