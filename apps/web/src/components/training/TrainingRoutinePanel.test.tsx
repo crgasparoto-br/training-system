@@ -350,6 +350,22 @@ describe('TrainingRoutinePanel (#387)', () => {
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
   });
 
+  it('mantém a rotina confirmada quando a revalidação falha e permite nova tentativa', async () => {
+    const load = vi.fn()
+      .mockResolvedValueOnce(routine())
+      .mockRejectedValueOnce(new Error('network unavailable'))
+      .mockResolvedValueOnce(routine());
+    render(<TrainingRoutinePanel audience="student" load={load} />);
+    expect(await screen.findByRole('heading', { name: 'Musculação' })).toBeInTheDocument();
+
+    window.dispatchEvent(new Event('focus'));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole('heading', { name: 'Musculação' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(3));
+    expect(screen.getByRole('heading', { name: 'Musculação' })).toBeInTheDocument();
+  });
+
   it('descarta retorno antigo quando a pessoa navega para outra semana', async () => {
     let resolvePrevious: ((view: TrainingRoutineView) => void) | undefined;
     const load = vi.fn()
