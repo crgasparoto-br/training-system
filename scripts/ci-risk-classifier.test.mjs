@@ -110,3 +110,13 @@ test('static assets remain FAST only inside trusted web asset roots', () => {
 test('empty changed-path evidence fails closed to CRITICAL', () => {
   assert.equal(classifyRepositoryCi({ changedPaths: [] }).riskProfile, 'critical');
 });
+
+test('canonical audit contract changes always use CRITICAL validation', () => {
+  for (const path of ['docs/audit/github-native-contract.json', 'docs/audit/README.md']) {
+    const automatic = classifyRepositoryCi({ changedPaths: [path] });
+    assert.equal(automatic.riskProfile, 'critical', `${path} must never be FAST`);
+    const forced = classifyRepositoryCi({ requested: 'fast', changedPaths: [path] });
+    assert.equal(forced.riskProfile, 'critical');
+    assert.equal(forced.promoted, true);
+  }
+});
