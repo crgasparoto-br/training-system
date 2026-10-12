@@ -319,6 +319,28 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(within(continuity).getByText(/indicador canônico será consumido quando a #405/i)).toBeInTheDocument();
   });
 
+  it('usa próxima sessão canônica de outra semana sem inferir ausência pela semana atual', async () => {
+    const load = vi.fn().mockResolvedValue(routine({
+      nextSession: { sessionId: 'next-month', date: '2026-11-03', status: 'not_started' },
+    }));
+    render(<TrainingRoutinePanel audience="student" load={load} />);
+    const cards = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
+    expect(within(cards).getByText('Treino programado')).toBeInTheDocument();
+    expect(within(cards).getByText(/03\\/11/)).toBeInTheDocument();
+    expect(within(cards).queryByText(/Nenhuma sessão pendente/)).not.toBeInTheDocument();
+  });
+
+  it('oculta dados anteriormente confirmados quando a permissão do bloco é revogada', async () => {
+    const load = vi.fn().mockResolvedValue(routine({
+      nextSession: { sessionId: 'next-month', date: '2026-11-03', status: 'not_started' },
+    }));
+    const view = render(<TrainingRoutinePanel audience="student" load={load} canView />);
+    expect(await screen.findByRole('region', { name: 'Continuidade do treinamento' })).toBeInTheDocument();
+    view.rerender(<TrainingRoutinePanel audience="student" load={load} canView={false} />);
+    expect(await screen.findByText('Sem permissão para ver os treinos')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Continuidade do treinamento' })).not.toBeInTheDocument();
+  });
+
   it('mantém pendência de feedback de dia anterior na semana consultada', async () => {
     const previous = session({
       status: 'completed',
