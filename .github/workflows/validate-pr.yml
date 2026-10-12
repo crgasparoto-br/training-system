@@ -339,6 +339,7 @@ jobs:
             artifacts/settings-parameters-visual/**
             artifacts/ci/full-tests.log
             artifacts/issue-388/**
+            artifacts/issue-391/**
           if-no-files-found: error
           retention-days: 30
 
