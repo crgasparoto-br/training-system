@@ -307,6 +307,14 @@ jobs:
             postgres:16-alpine \
             psql -h localhost -U postgres -d training_system_test -v ON_ERROR_STOP=1 \
             -f /workspace/apps/api/prisma/migrations/20260721120000_student_lifecycle_domain/migration.sql
+          mkdir -p artifacts/ci
+          node apps/api/scripts/verify-training-next-session-query.mjs > artifacts/ci/training-next-session.sql
+          docker run --rm --network host \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -e PGPASSWORD=postgres \
+            postgres:16-alpine \
+            psql -h localhost -U postgres -d training_system_test -v ON_ERROR_STOP=1 \
+            -f /workspace/artifacts/ci/training-next-session.sql
       - name: Type check
         run: pnpm type-check
       - name: Lint
@@ -338,6 +346,7 @@ jobs:
             ci-validation-evidence.json
             artifacts/settings-parameters-visual/**
             artifacts/ci/full-tests.log
+            artifacts/ci/training-next-session.sql
             artifacts/issue-388/**
             artifacts/issue-391/**
           if-no-files-found: error
