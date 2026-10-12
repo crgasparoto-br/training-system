@@ -404,6 +404,38 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
         }),
       ]);
 
+      // Projecao global do proximo treino: apenas dias liberados pela montagem
+      // consolidada deste aluno/contrato. Nenhuma janela semanal artificial.
+      const upcoming = await client.$queryRaw<Array<{
+        sessionId: string;
+        date: Date;
+        status: TrainingRoutineExecutionProjectionStatus;
+      }>>`
+        SELECT day."id" AS "sessionId",
+               day."workoutDate" AS "date",
+               COALESCE(execution."status"::text, 'not_started') AS "status"
+        FROM "WorkoutDay" day
+        JOIN "WorkoutTemplate" template ON template."id" = day."templateId"
+        JOIN "TrainingPlan" plan ON plan."id" = template."planId"
+        JOIN "Aluno" student ON student."id" = plan."alunoId"
+        JOIN "ConsolidatedPrescriptionOperationalRelease" release
+          ON release."workoutTemplateId" = template."id"
+         AND release."alunoId" = ${query.alunoId}
+         AND release."contractId" = ${query.contractId}
+        LEFT JOIN "WorkoutSessionExecution" execution
+          ON execution."workoutDayId" = day."id"
+         AND execution."alunoId" = ${query.alunoId}
+         AND execution."contractId" = ${query.contractId}
+        WHERE plan."alunoId" = ${query.alunoId}
+          AND student."contractId" = ${query.contractId}
+          AND template."released" = true
+          AND day."workoutDate" >= ${todayStart}
+          AND COALESCE(execution."status"::text, 'not_started')
+              NOT IN ('completed', 'partial', 'not_performed')
+        ORDER BY day."workoutDate" ASC, day."id" ASC
+        LIMIT 1
+      `;
+
       const dayIds = rows.map((row) => row.id);
       const templateIds = [...new Set(rows.map((row) => row.template.id))];
       const [capacityRows, releaseRows] = await Promise.all([
@@ -503,6 +535,13 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
           ),
         },
         execution: { available: true, reason: null },
+        nextSession: upcoming[0]
+          ? {
+              sessionId: upcoming[0].sessionId,
+              date: toDateOnly(upcoming[0].date),
+              status: upcoming[0].status,
+            }
+          : null,
         lastExecution: latestExecution
           ? {
               sessionId: latestExecution.workoutDayId,
