@@ -14,6 +14,7 @@ The `Validate PR` workflow uses deterministic risk classification to keep small 
 
 - Classification is path-based and deterministic; no LLM decides the CI level.
 - Unknown paths fail closed to `CRITICAL`.
+- `docs/audit/` is a sensitive trust-boundary root: audit contracts and their guidance always require `CRITICAL`, even though ordinary `docs/` remains FAST. A candidate cannot use its own contract to waive prior handoff requirements.
 - `FAST` is an explicit allowlist, not an extension-based default. Static/image/style extensions only inherit `FAST` when the path is already inside a trusted web/documentation root; an unknown `.svg`, `.png`, `.css` or similar path remains `CRITICAL`.
 - Known frontend authentication/access/session entrypoints are checked before the general web allowlists. Sensitive filenames such as route guards, login/sign-in pages and auth/session stores remain `CRITICAL` even when they live under `components`, `pages` or `stores`.
 - `CI_RISK_PROFILE` may promote a PR to a higher level but never downgrades observed risk.
