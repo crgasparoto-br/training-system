@@ -642,8 +642,10 @@ export function TrainingRoutinePanel({
     </div>
   );
 
-  if (errorKind && (!routine || errorKind === 'access-denied')) {
-    const copy = loadErrorCopy[errorKind];
+  // A revogacao de acesso e sincrona: nao renderizar por um frame
+  // o snapshot anterior enquanto o efeito de revalidacao ainda nao executou.
+  if (!canView || (errorKind && (!routine || errorKind === 'access-denied'))) {
+    const copy = loadErrorCopy[!canView ? 'access-denied' : errorKind!];
     return (
       <section className="space-y-4" aria-live="polite">
         {header}
