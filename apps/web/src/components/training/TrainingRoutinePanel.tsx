@@ -424,9 +424,12 @@ function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) 
     .flatMap((day) => day.sessions.map((session) => ({ ...session, date: day.date })))
     .sort((left, right) => left.date.localeCompare(right.date) || left.sessionId.localeCompare(right.sessionId));
   const terminal = new Set<TrainingRoutineExecutionProjectionStatus>(['completed', 'partial', 'not_performed']);
-  const nextSession = sessions.find(
-    (session) => session.date >= routine.today.date && !terminal.has(session.status)
-  ) ?? null;
+  const nextSession = routine.nextSession === undefined
+    ? sessions.find((session) => session.date >= routine.today.date && !terminal.has(session.status)) ?? null
+    : routine.nextSession;
+  const nextInWeek = nextSession
+    ? sessions.find((session) => session.sessionId === nextSession.sessionId)
+    : null;
   const lastExecution = routine.lastExecution ?? null;
   const continuity = routine.feedbackContinuity;
   const feedbackStatus = !continuity || continuity.state === 'unavailable'
@@ -442,10 +445,10 @@ function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) 
       <div className="rounded-lg border border-border bg-background p-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Próximo treino</p>
         <p className="mt-1 text-sm font-semibold text-foreground">
-          {nextSession ? sessionTitle(nextSession.modalities) : 'Nenhuma sessão pendente na semana exibida'}
+          {nextSession ? (nextInWeek ? sessionTitle(nextInWeek.modalities) : 'Treino programado') : 'Nenhuma sessão futura liberada'}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {nextSession ? `${formatShortDate(nextSession.date)} · ${sessionStatusLabels[nextSession.status]}` : 'Consulte outras semanas para verificar próximos treinos planejados.'}
+          {nextSession ? `${formatShortDate(nextSession.date)} · ${sessionStatusLabels[nextSession.status]}` : 'Não há outro treino liberado para este contrato.'}
         </p>
       </div>
       <div className="rounded-lg border border-border bg-background p-3">
