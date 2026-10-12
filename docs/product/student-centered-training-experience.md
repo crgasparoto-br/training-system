@@ -168,7 +168,7 @@ O card de próximo treino usa `TrainingRoutineView.nextSession`, uma projeção 
 
 O resumo Aluno 360 já incorpora os cards de continuidade via `AlunoResumoHubTabBase`. A aba `Treinos / Planos` também mostra a projeção canônica sob a permissão `students.details.trainingPlans`, sem segundo armazenamento. Mudanças de aluno e contrato recriam o painel para impedir a exibição de dados de um contexto anterior durante a nova consulta, mesmo em falha de rede. Após uma transição confirmada pelo backend, falha de revalidação é comunicada como estado potencialmente desatualizado; a ação confirmada não é repetida.
 
-Regressões da #391 devem abranger transições e feedback confirmados, status atualizados por outro cliente, perda de autorização, troca de aluno e contrato, navegação voltar/avançar, revalidação localizada e apresentação responsiva. Testes de componentes verificam estados funcionais e classes responsivas; a verificação visual em dispositivos reais continua uma etapa distinta da suíte automatizada.
+Regressões da #391 devem abranger transições e feedback confirmados, status atualizados por outro cliente, perda de autorização, troca de aluno e contrato, navegação voltar/avançar, revalidação localizada e apresentação responsiva. Testes de componentes verificam estados funcionais e classes responsivas. O navegador Chromium real verifica reflow dos cards de continuidade em desktop (1440px, 1366px) e mobile (390px), inclusive Aluno 360 e Treinos / Planos, e publica screenshots em `artifacts/issue-391`. Homologação manual em dispositivos físicos permanece uma validação operacional separada.
 
 ### Historico e evolucao
 
