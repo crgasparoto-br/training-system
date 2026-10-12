@@ -378,7 +378,7 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
         { workoutDate: { gte: todayStart, lt: new Date(todayStart.getTime() + DAY_MS) } },
       ];
 
-      const [rows, pendingRows, latestExecution] = await Promise.all([
+      const [rows, pendingRows] = await Promise.all([
         client.workoutDay.findMany({
           where: { OR: workoutDateWindow, template: { released: true, plan: studentScope } },
           orderBy: [{ workoutDate: 'asc' }, { dayOfWeek: 'asc' }, { id: 'asc' }],
@@ -387,20 +387,6 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
         client.workoutDay.findMany({
           where: { OR: workoutDateWindow, template: { released: false, plan: studentScope } },
           select: { workoutDate: true },
-        }),
-        client.workoutSessionExecution.findFirst({
-          where: {
-            alunoId: query.alunoId,
-            contractId: query.contractId,
-            status: { in: ['completed', 'partial', 'not_performed'] },
-            workoutDay: { template: { released: true, plan: studentScope } },
-          },
-          orderBy: [{ finishedAt: 'desc' }, { updatedAt: 'desc' }, { id: 'desc' }],
-          select: {
-            workoutDayId: true,
-            status: true,
-            workoutDay: { select: { workoutDate: true } },
-          },
         }),
       ]);
 
@@ -433,6 +419,39 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
           AND COALESCE(execution."status"::text, 'not_started')
               NOT IN ('completed', 'partial', 'not_performed')
         ORDER BY day."workoutDate" ASC, day."id" ASC
+        LIMIT 1
+      `;
+
+      // A ultima execucao usa a mesma autoridade da rotina/nextSession:
+      // execucao terminal vinculada ao release consolidado de origem do aluno e contrato.
+      // Nao limitar pela semana consultada ou pela data de hoje.
+      const latestExecution = await client.$queryRaw<Array<{
+        sessionId: string;
+        date: Date;
+        status: TrainingRoutineExecutionProjectionStatus;
+      }>>`
+        SELECT execution."workoutDayId" AS "sessionId",
+               day."workoutDate" AS "date",
+               execution."status"::text AS "status"
+        FROM "WorkoutSessionExecution" execution
+        JOIN "WorkoutDay" day ON day."id" = execution."workoutDayId"
+        JOIN "WorkoutTemplate" template ON template."id" = day."templateId"
+        JOIN "TrainingPlan" plan ON plan."id" = template."planId"
+        JOIN "Aluno" student ON student."id" = plan."alunoId"
+        JOIN "ConsolidatedPrescriptionOperationalRelease" release
+          ON release."id" = execution."originReleaseId"
+         AND release."workoutTemplateId" = template."id"
+         AND release."alunoId" = execution."alunoId"
+         AND release."contractId" = execution."contractId"
+        WHERE execution."alunoId" = ${query.alunoId}
+          AND execution."contractId" = ${query.contractId}
+          AND plan."alunoId" = ${query.alunoId}
+          AND student."contractId" = ${query.contractId}
+          AND template."released" = true
+          AND execution."status"::text IN ('completed', 'partial', 'not_performed')
+        ORDER BY execution."finishedAt" DESC NULLS LAST,
+                 execution."updatedAt" DESC,
+                 execution."id" DESC
         LIMIT 1
       `;
 
@@ -542,11 +561,11 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
               status: upcoming[0].status,
             }
           : null,
-        lastExecution: latestExecution
+        lastExecution: latestExecution[0]
           ? {
-              sessionId: latestExecution.workoutDayId,
-              status: latestExecution.status,
-              date: toDateOnly(latestExecution.workoutDay.workoutDate),
+              sessionId: latestExecution[0].sessionId,
+              status: latestExecution[0].status,
+              date: toDateOnly(latestExecution[0].date),
             }
           : null,
         feedbackContinuity: {
