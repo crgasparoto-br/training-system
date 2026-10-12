@@ -415,6 +415,7 @@ export function AlunoResumoHubTab({
       <Card>
         <CardContent className="p-4 sm:p-6">
           <TrainingRoutinePanel
+            key={`${aluno.id}:${activeStudentContract?.contractId ?? 'sem-contrato'}`}
             audience="professor"
             canView={canViewTraining}
             load={loadTrainingRoutine}

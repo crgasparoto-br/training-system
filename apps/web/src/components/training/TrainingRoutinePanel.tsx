@@ -180,7 +180,12 @@ function TodaySession({
         ...(requiresReason ? { reason } : {}),
       });
       operationRef.current = null;
-      if (onExecutionChanged) await onExecutionChanged();
+      // Persistencia confirmada: falha da revalidacao nao invalida a gravacao.
+      try {
+        if (onExecutionChanged) await onExecutionChanged();
+      } catch {
+        setExecutionError('A alteração foi salva, mas não foi possível atualizar a sessão. Os dados exibidos podem estar desatualizados.');
+      }
     } catch (error) {
       const status = (error as { response?: { status?: number } })?.response?.status;
       let reconciled = false;
@@ -411,7 +416,7 @@ function TodaySession({
             {executionError && (
               <div role="alert" className="rounded-md border border-amber-200 bg-amber-50/60 p-3 text-sm text-amber-900">
                 <p>{executionError}</p>
-                {executionError.includes('outro dispositivo') && onExecutionChanged && (
+                {(executionError.includes('outro dispositivo') || executionError.includes('foi salva, mas')) && onExecutionChanged && (
                   <Button type="button" variant="outline" size="sm" className="mt-2" disabled={executionBusy} onClick={() => void onExecutionChanged()}>
                     Atualizar estado
                   </Button>

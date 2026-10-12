@@ -24,6 +24,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '..
 import { ProfessorManualContextPanel } from '../components/ProfessorManualContextPanel';
 import { AlunoDetailsTabs, getTabBlockKey, type AlunoDetailsTab } from '../components/alunos/AlunoDetailsTabs';
 import { AlunoResumoHubTab } from '../components/alunos/AlunoResumoHubTab';
+import { AlunoTrainingTab } from '../components/alunos/AlunoTrainingTab';
 import { AlunoCadastroTab } from '../components/alunos/AlunoCadastroTab';
 import { AlunoSaudeAnamneseTab } from '../components/alunos/AlunoSaudeAnamneseTab';
 import { AlunoFinanceiroTab } from '../components/alunos/AlunoFinanceiroTab';
@@ -2315,20 +2316,8 @@ export function AlunoDetails() {
         />
       )}
 
-      {visibleTabs.includes('treinos') && activeTab === 'treinos' && (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Treinos / Planos</CardTitle>
-              <CardDescription>
-                Visualize e gerencie os planos de treino do aluno.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Aba de Treinos / Planos em desenvolvimento</p>
-            </CardContent>
-          </Card>
-        </div>
+      {visibleTabs.includes('treinos') && activeTab === 'treinos' && id && (
+        <AlunoTrainingTab key={id} alunoId={id} />
       )}
 
       {visibleTabs.includes('auditoria') && activeTab === 'auditoria' && (

@@ -45,6 +45,7 @@ export function StudentTraining() {
         </Link>
       </div>
       <TrainingRoutinePanel
+        key={contractId ?? 'sem-contrato-explicito'}
         audience="student"
         load={load}
         headingLevel="h1"
