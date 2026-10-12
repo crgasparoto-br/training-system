@@ -107,6 +107,13 @@ router.get('/workout-days', alunoMiddleware, async (req: Request, res: Response)
 // Update workout day status / PSR / PSE
 router.put('/workout-day/:id/status', alunoMiddleware, async (req: Request, res: Response) => {
   try {
+    if (req.body.status !== undefined) {
+      return res.status(409).json({
+        error: 'Use o contrato canônico de execução da sessão para alterar o estado do treino.',
+        code: 'WORKOUT_SESSION_EXECUTION_CANONICAL_ENDPOINT_REQUIRED',
+      });
+    }
+
     const alunoId = await getAlunoId(req);
     if (!alunoId) {
       return res.status(403).json({ error: 'Aluno não encontrado' });

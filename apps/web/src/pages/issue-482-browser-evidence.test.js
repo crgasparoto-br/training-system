@@ -11,6 +11,23 @@ const puppeteer = apiRequire('puppeteer');
 const HOST='127.0.0.1', WEB_PORT=4340, API_PORT=4341;
 const WEB_ORIGIN=`http://${HOST}:${WEB_PORT}`, API_ORIGIN=`http://${HOST}:${API_PORT}`;
 const CONTRACT_ID='contract-482';
+// The fixture week is fixed, so browser calendar time must be fixed as well.
+// Keep native timers/performance: request delays and waits still use real time.
+const SCENARIO_NOW='2026-09-30T12:00:00.000Z';
+function installScenarioClock(instant) {
+ const NativeDate=globalThis.Date;
+ const epoch=NativeDate.parse(instant);
+ globalThis.Date=new Proxy(NativeDate, {
+  construct(target,args,newTarget) {
+   return Reflect.construct(target,args.length?args:[epoch],newTarget);
+  },
+  apply() { return new NativeDate(epoch).toString(); },
+  get(target,key,receiver) {
+   return key==='now'?()=>epoch:Reflect.get(target,key,receiver);
+  },
+ });
+}
+
 const user={id:'student-482',type:'aluno',name:'Aluno Evidencia 482',email:'aluno.482@example.com'};
 const current={id:'template-current',planId:'plan-1',mesocycleNumber:2,weekNumber:4,weekStartDate:'2026-09-28T00:00:00.000Z',releasedAt:'2026-09-27T10:00:00.000Z',plan:{id:'plan-1',name:'Plano Performance com nome longo para validar responsividade'},workoutDays:[{id:'day-1',dayOfWeek:2,workoutDate:'2026-09-30T00:00:00.000Z',sessionDurationMin:60,location:'Academia principal',method:'Forca',status:'planned'}]};
 const old={...current,id:'template-old',weekNumber:2,weekStartDate:'2026-09-07T00:00:00.000Z',releasedAt:'2026-09-06T10:00:00.000Z',workoutDays:[]};
@@ -38,10 +55,14 @@ suite('Issue #482 / PR #484 - evidencia browser Meus Treinos',()=>{
   const id=identity();let api,vite,browser;const scenarios=[];
   try{
    api=await startApi();vite=await startVite();browser=await puppeteer.launch({executablePath:chromeExecutable(),headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
-   const page=await browser.newPage();await setSession(page);
+   const page=await browser.newPage();
+   await page.evaluateOnNewDocument(installScenarioClock,SCENARIO_NOW);
+   await setSession(page);
    for(const viewport of [{name:'desktop-1366x768',width:1366,height:768,isMobile:false},{name:'mobile-390x844',width:390,height:844,isMobile:true,hasTouch:true}]){
     await page.setViewport(viewport);
     mode='list';await page.goto(`${WEB_ORIGIN}/inicio?contractId=${CONTRACT_ID}`,{waitUntil:'domcontentloaded'});await waitText(page,'Ver meus treinos');const home=await assertNoOverflow(page);await clickText(page,'Ver meus treinos');await waitText(page,'Atual e próximos');await waitText(page,'Histórico');const list=await assertNoOverflow(page);expect(list.pathname).toBe('/student/workouts');
+    expect(await page.evaluate(()=>new Date().toISOString())).toBe(SCENARIO_NOW);
+    expect(await page.$eval('a[href^="/student/workouts/"]',link=>link.pathname)).toBe(`/student/workouts/${current.id}`);
     const listShot=await shot(page);await clickText(page,'Ver detalhes');await waitText(page,'Agachamento livre');await waitText(page,'somente leitura');const detailLayout=await assertNoOverflow(page);const detailShot=await shot(page);
     mode='empty';await page.goto(`${WEB_ORIGIN}/student/workouts?contractId=${CONTRACT_ID}`,{waitUntil:'domcontentloaded'});await waitText(page,'Nenhum treino liberado');const emptyLayout=await assertNoOverflow(page);
     mode='error';failOnce=true;await page.goto(`${WEB_ORIGIN}/student/workouts?contractId=${CONTRACT_ID}`,{waitUntil:'domcontentloaded'});await waitText(page,'Não foi possível carregar seus treinos');await clickText(page,'Tentar novamente');await waitText(page,'Atual e próximos');const retryLayout=await assertNoOverflow(page);
@@ -49,7 +70,7 @@ suite('Issue #482 / PR #484 - evidencia browser Meus Treinos',()=>{
     scenarios.push({viewport,home,list,detail:detailLayout,empty:emptyLayout,retry:retryLayout,loading:loadingLayout,screenshots:{list:listShot,detail:detailShot},accessibility:await page.accessibility.snapshot({interestingOnly:false})});
    }
    expect(api.requests.filter(r=>r.method==='GET'&&r.path.startsWith('/api/v1/student/me/workouts')).every(r=>r.contractId===CONTRACT_ID)).toBe(true);
-   const evidence={kind:'issue-482-pr-484-browser-evidence',result:'PASS',identity:id,browser:await browser.version(),viewports:scenarios,verified:['home-entry','loading','list-current-upcoming','history','empty','retryable-error','detail-readonly','sessions-exercises','no-horizontal-overflow','desktop-1366x768','mobile-390x844','x-contract-id','accessibility-tree-captured'],apiRequests:api.requests};
+   const evidence={kind:'issue-482-pr-484-browser-evidence',result:'PASS',identity:id,scenarioNow:SCENARIO_NOW,browser:await browser.version(),viewports:scenarios,verified:['home-entry','loading','list-current-upcoming','history','empty','retryable-error','detail-readonly','sessions-exercises','no-horizontal-overflow','desktop-1366x768','mobile-390x844','x-contract-id','accessibility-tree-captured'],apiRequests:api.requests};
    console.log(`BROWSER_EVIDENCE_482 ${JSON.stringify(evidence)}`);console.log(`BROWSER_EVIDENCE_482 PASS head=${id.headSha}`);
   }finally{await browser?.close().catch(()=>{});await stopVite(vite).catch(()=>{});await stopApi(api?.server).catch(()=>{});}
  },100000);

@@ -169,9 +169,9 @@ Fonte corrente do ciclo de vida: `docs/AVALIACAO_ANTROPOMETRICA.md`.
 
 ### Fase 6 - Adipometria
 
-**Situacao: epic criada e pronta para execucao incremental; implementacao ainda pendente.**
+**Situacao: epic #245 e subissues concluidas; estado clinico/documental reconciliado pela #383.**
 
-A epic #245 foi criada em 2026-07-17 com as seguintes subissues:
+A epic #245 foi criada em 2026-07-17 e entregue pelas seguintes subissues:
 
 - #246 - protocolos, dominio, persistencia e politica de correcao;
 - #247 - API, calculo, historico, autorizacao e auditoria;
@@ -186,17 +186,19 @@ Ordem tecnica:
 #248 --------------> #249
 ```
 
-Regras de prioridade:
+Contrato vigente:
 
-- estrutura e persistencia podem avancar antes do protocolo clinico final;
-- calculo e finalizacao exigem protocolo completo, aprovado e testavel;
+- `GUEDES_1991_ADULT_YOUNG` e o candidato clinico completo e testado; permanece `DRAFT` globalmente e requer aprovacao clinica ativa por contrato;
+- calculo e finalizacao bloqueiam protocolo incompleto, aprovacao ausente/revogada, perfil incompativel ou dado obrigatorio ausente, sem fallback silencioso;
+- Slaughter permanece `DISABLED` e nao finalizavel;
 - rascunhos nao entram em indicadores do aluno;
+- avaliacoes concluidas permanecem imutaveis e correcoes criam revisoes auditadas;
 - Adipometria nao altera treino automaticamente;
-- a entrega deve retornar ao contexto do aluno na Central.
+- o fluxo retorna ao contexto do aluno na Central.
 
 ### Fase 7 - Experiencia de treinamento do aluno
 
-**Situacao: modulos tecnicos existentes; experiencia integrada e centrada no aluno ainda pendente.**
+**Situacao: epics #386 e #397 criadas; experiencia integrada ainda pendente de implementacao incremental, agora com recortes de execucao guiada #487-#489.**
 
 O sistema ja possui planos, periodizacao, estimulos resistidos e ciclicos, Workout Builder, biblioteca, Treino de hoje e execucoes. A proxima evolucao nao deve substituir esses modulos de forma destrutiva; deve conecta-los a jornada do aluno.
 
@@ -273,6 +275,37 @@ Pendente:
 
 Fonte detalhada: `docs/product/student-centered-training-experience.md`.
 
+### Plano operacional da Fase 7
+
+Epics e issues:
+
+- #386 - experiencia diaria do aluno;
+- #387-#391 - rotina, check-in, lifecycle, feedback e retorno a Central;
+- #397 - representacao estruturada;
+- #398-#400 - etapas ciclicas, series resistidas e agrupamentos;
+- #401 - planejado versus executado;
+- #487 - modo guiado resistido;
+- #488 - cronometro e transicoes de descanso;
+- #489 - executor guiado ciclico.
+
+Ordem recomendada:
+
+```text
+#387 -> #388
+  |
+  +--> #389 -------------------------------> #390 -> #391
+          |                                    ^
+          +--> #487 --> #488 -----------------+
+          |
+          +--> #489 --------------------------+
+
+#399 --> #400 --> #487 --> #488
+#398 -----------> #489
+#398/#399/#400 + #389 -----------------------> #401
+```
+
+Plano detalhado: `docs/execution-plans/active/2026-10-epic-386-guided-training-execution.md`.
+
 ### Fase 8 - Agenda, frequencia e comunicacao
 
 **Situacao: pendente como fase integrada.**
@@ -329,8 +362,8 @@ Pendente:
 | 3. Entrada inicial | sem epic propria | Parcialmente existente | Criar epic de onboarding e revisao periodica |
 | 4. PRNT | #171, #180-#182 | Avancada | Completar historicos, permissoes e resumo seguro para aluno |
 | 5. Antropometria | #172, #183, #184, #382 | Lifecycle, historico e comparacao implementados | Definir contrato de laudos, validar manualmente e concluir auditoria independente do SHA final |
-| 6. Adipometria | #245-#249 | Epic criada; execucao pendente | Iniciar pela #246 e respeitar gate clinico |
-| 7. Treinamento do aluno | sem epic propria | Modulos existentes; integracao pendente | Criar epic centrada na jornada definida neste plano |
+| 6. Adipometria | #245-#249, #383 | Epic concluida; gate clinico/documental reconciliado | Manter aprovacao clinica por contrato e Slaughter bloqueado enquanto incompleto |
+| 7. Treinamento do aluno | #386-#391, #397-#401, #487-#489 | Epics e recortes definidos; implementacao guiada pendente | Executar dependencias estruturais e seguir o plano da epic #386 |
 | 8. Agenda e frequencia | sem epic propria | Integracao pendente | Planejar apos o nucleo diario de treinamento |
 | 9. Contratos e documentos | sem epic propria | Parcial fora da Central | Evoluir em trilha operacional paralela |
 | 10. Relatorios e laudos | sem epic propria | Nao iniciada | Aguardar dados historicos e protocolos confiaveis |
@@ -366,24 +399,24 @@ Para treinamento, tambem e obrigatorio:
 
 ### Trilha imediata de confianca dos dados
 
-1. Executar a epic #245 na ordem de dependencia iniciando pela #246.
+1. Manter a ADPT entregue pela epic #245 alinhada ao contrato clinico por `contractId`, sem liberar protocolos incompletos ou sem aprovacao ativa.
 2. Definir operacionalmente, por contrato/protocolo, quais medidas da Antropometria sao obrigatorias para novas conclusoes e manter esse conjunto versionado.
 3. Avancar o contrato de dados para laudos sem reabrir lifecycle, historico, permissao ou comparacao ja entregues na issue #382.
 4. Executar validacao manual complementar e nova auditoria independente do SHA final da Antropometria.
 
 ### Proxima grande epic de produto
 
-Criar a epic da Fase 7 - Experiencia de treinamento do aluno, dividida em entregas pequenas:
+Executar a epic #386 - Experiencia de treinamento do aluno, coordenada com a epic estrutural #397, nas seguintes entregas:
 
-1. rotina semanal e Treino de hoje na Central;
-2. check-in, execucao e feedback;
-3. templates internos e biblioteca curada;
-4. etapas ciclicas estruturadas;
-5. blocos e series resistidas;
-6. treino combinado e substituicoes;
-7. indicadores e revisao validada.
+1. #387 - rotina semanal e Treino de hoje na Central;
+2. #388/#389 - check-in e lifecycle persistido;
+3. #398/#399/#400 - estrutura ciclica, series e agrupamentos;
+4. #487/#488 - execucao resistida guiada e descanso;
+5. #489 - execucao ciclica guiada;
+6. #390/#391 - feedback e retorno consistente a Central;
+7. #401 e fases posteriores - comparacao, indicadores e revisao validada.
 
-O planejamento da Fase 7 pode ocorrer enquanto a Fase 6 avanca, mas sua implementacao deve respeitar as fontes de dados, permissoes e contratos ja definidos.
+A Fase 7 pode avancar consumindo os contratos entregues pela Fase 6, respeitando as fontes de dados, permissoes, aprovacoes clinicas e historico ja definidos.
 
 ## Nao priorizar agora
 

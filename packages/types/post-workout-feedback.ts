@@ -107,3 +107,74 @@ export interface CreatePostWorkoutFeedbackSessionPayload {
   executionMetrics?: PostWorkoutExecutionMetrics;
   capacityFeedback: PostWorkoutCapacityFeedback[];
 }
+
+
+/** Contrato canônico e revisionado do feedback pós-treino (#390). */
+export const POST_WORKOUT_FEEDBACK_RULE_SET_VERSION = 'post-workout-feedback-v1' as const;
+export const POST_WORKOUT_FEEDBACK_FATIGUE_LEVELS = ['low', 'medium', 'high'] as const;
+export const POST_WORKOUT_FEEDBACK_ENERGY_LEVELS = ['good', 'medium', 'poor'] as const;
+export const POST_WORKOUT_FEEDBACK_SLEEP_LEVELS = ['good', 'medium', 'poor'] as const;
+export type PostWorkoutFeedbackFatigueLevel = (typeof POST_WORKOUT_FEEDBACK_FATIGUE_LEVELS)[number];
+export type PostWorkoutFeedbackEnergyLevel = (typeof POST_WORKOUT_FEEDBACK_ENERGY_LEVELS)[number];
+export type PostWorkoutFeedbackSleepLevel = (typeof POST_WORKOUT_FEEDBACK_SLEEP_LEVELS)[number];
+export type PostWorkoutFeedbackPainTriage = 'green' | 'attention' | 'alert';
+export type PostWorkoutFeedbackExecutionStatus = 'completed' | 'partial';
+
+export interface CanonicalPostWorkoutFeedbackValues {
+  pse: number | null;
+  psr: number | null;
+  painBefore: number | null;
+  painDuring: number | null;
+  painAfter: number | null;
+  painLocation: string | null;
+  difficulty: number | null;
+  fatigueLevel: PostWorkoutFeedbackFatigueLevel | null;
+  energyLevel: PostWorkoutFeedbackEnergyLevel | null;
+  sleepQuality: PostWorkoutFeedbackSleepLevel | null;
+  dizziness: boolean | null;
+  observations: string | null;
+  professorTechnicalNotes: string | null;
+}
+export interface PostWorkoutFeedbackSignal {
+  code: 'pain_green' | 'pain_attention' | 'pain_alert' | 'dizziness' | 'fatigue_high';
+  severity: 'info' | 'warning' | 'critical';
+  painTriage: PostWorkoutFeedbackPainTriage | null;
+  studentMessage: string;
+  technicalMessage: string;
+  requiresFollowUp: boolean;
+  changesWorkoutAutomatically: false;
+}
+export interface CanonicalPostWorkoutFeedbackRevisionView {
+  id: string;
+  sessionId: string;
+  executionId: string;
+  executionStatus: PostWorkoutFeedbackExecutionStatus;
+  scopeKey: string;
+  capacity: PhysicalCapacityType | null;
+  revisionNumber: number;
+  previousRevisionId: string | null;
+  correctionReason: string | null;
+  perceptionAuthor: PostWorkoutFeedbackActor;
+  revisedBy: PostWorkoutFeedbackActor;
+  createdAt: string;
+  values: CanonicalPostWorkoutFeedbackValues;
+  signals: PostWorkoutFeedbackSignal[];
+  current: boolean;
+  technical?: {
+    ruleSetVersion: string;
+    originReleaseId: string;
+    originWorkoutTemplateId: string;
+    originTrainingPlanId: string;
+  };
+}
+export interface CreateCanonicalPostWorkoutFeedbackPayload {
+  operationKey: string;
+  capacity?: PhysicalCapacityType | null;
+  values: Partial<CanonicalPostWorkoutFeedbackValues>;
+}
+export interface CorrectCanonicalPostWorkoutFeedbackPayload {
+  operationKey: string;
+  baseRevisionId: string;
+  reason: string;
+  values: Partial<CanonicalPostWorkoutFeedbackValues>;
+}

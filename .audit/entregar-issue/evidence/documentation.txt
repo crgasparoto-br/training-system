@@ -1,6 +1,6 @@
-Material head: 5ac4547eb94abe644c7e3cfb0504610de64a8ebc
-Observed canonical documentation:
-- docs/student-app-data-contract.md documents /student/workouts routes and both /api/v1/student/me/workouts endpoints.
-- It states released===true is the visibility source of truth and releasedAt is metadata.
-- It documents student/contract authorization, x-contract-id, history retention, read-only detail, and loading/empty/retryable-error states.
-- Exact-head CI Documentation checks completed successfully in Validate PR run 36716196399.
+Exact-head documentation evidence for PR #492:
+- docs/architecture/api.md documents the two GET routes, access block, professor/contract scope, released-only filters, projection boundaries and execution.available=false.
+- docs/architecture/web.md documents localized states, block-based access, read-only service/panel and disabled execution controls.
+- docs/execution-plans/active/2026-10-issue-387-weekly-routine-today-workout.md records Monday-Sunday, America/Sao_Paulo, source visibility, out-of-scope #389 writes, validations and browser evidence.
+- docs/product/student-centered-training-experience.md and docs/student-app-data-contract.md were updated in the PR.
+- exact-head CI documentation checks completed successfully.

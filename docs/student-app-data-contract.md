@@ -530,6 +530,35 @@ Estados de UI:
 - detalhe com retorno para a lista;
 - layout responsivo para desktop e mobile. A home do aluno possui acesso direto a **Meus Treinos**.
 
+### Treino de hoje e rotina semanal
+
+Rota web:
+- `/student/training` (acesso pela home do aluno; preserva `?contractId=` nos links de ida e volta).
+
+Consumir:
+- `GET /api/v1/student/me/training-routine?date=YYYY-MM-DD`: rotina da semana (segunda a domingo) que contém `date` e o Treino de hoje. `date` é opcional; sem ele a API usa a data atual em `America/Sao_Paulo`. Data inválida responde `400`.
+
+Contrato de autorização:
+- mesmo contrato de Meus Treinos: o cliente não envia `alunoId`, a API resolve o vínculo do `student/me` e revalida `x-contract-id` (`409` quando o contexto contratual é obrigatório);
+- somente `WorkoutTemplate.released = true` que também possua `ConsolidatedPrescriptionOperationalRelease` do aluno e contrato resolvidos; template liberado apenas pelo Workout Builder não é publicado nesta projeção; sessões `released=false` aparecem apenas como contagem (`pendingReleaseCount`) e estado `today.state = not_released`.
+
+Resposta (`TrainingRoutineView`, tipo compartilhado em `packages/types/training-routine.ts`):
+- `week`, `days[]` com `isToday`, sessões resumidas e `pendingReleaseCount`;
+- `today.state`: `released`, `not_released` ou `none`, com sessões detalhadas: objetivo prático, duração, local, método, modalidades, parâmetros aeróbios (tempo, distância, FC, velocidade, pace), blocos ordenados de exercícios (séries, repetições, carga, descanso, sistema, observação) e orientações;
+- `origin.kind`: sempre `consolidated`, com `releasedAt`; o aluno não recebe IDs da Montagem nem contexto técnico do professor;
+- `status` é a projeção da autoridade canônica `WorkoutSessionExecution` quando ela existe; `WorkoutDay.status` permanece somente como compatibilidade legada;
+- cada sessão detalhada inclui `execution` com `sessionId`, `status`, `version`, `startedAt`, `finishedAt`, `currentPauseStartedAt`, `pausedDurationMs`, motivo terminal, origem imutável e valores executados;
+- `execution.available = true` informa que o lifecycle canônico da #389 está habilitado.
+
+Execução mutável do aluno:
+- `GET /api/v1/student/me/training-sessions/:sessionId/execution`: reconstrói o estado canônico da sessão, inclusive em outro dispositivo;
+- `POST /api/v1/student/me/training-sessions/:sessionId/execution/transition`: aplica uma transição com `operationKey`, `expectedVersion`, `targetStatus`, motivo quando necessário e valores executados opcionais;
+- `PUT /api/v1/student/me/training-sessions/:sessionId/execution/values`: persiste valores executados durante `in_progress`, sem modificar os valores prescritos;
+- conflitos de versão, transição incompatível ou reutilização divergente da mesma `operationKey` respondem `409` sem mutação parcial;
+- `plannedUnitId` dos valores por exercício é sempre o `WorkoutExercise.id` da sessão autorizada.
+
+Estados de UI: carregamento, sem treino hoje, treino em preparação, erro recuperável com tentar novamente e contrato não selecionado. Durante a execução, a interface habilita iniciar, pausar, retomar, concluir, encerrar parcialmente ou registrar não realização conforme o estado atual. Falhas recuperáveis preservam o motivo digitado; conflitos `409` orientam a atualizar/reconciliar o estado antes de reenviar.
+
 ### Agenda
 
 Consumir inicialmente:

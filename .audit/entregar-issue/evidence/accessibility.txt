@@ -1,0 +1,4 @@
+Exact-head accessibility/responsive evidence for PR #492:
+- component tests query headings, regions, buttons and alerts by accessible role/name, including Safety, retry and execution controls.
+- browser evidence runs desktop 1440x900, desktop 1366x768 and mobile 390x844, asserting no horizontal overflow and all visible links/buttons remain inside viewport bounds.
+- execution controls are native disabled buttons while the canonical mutation contract is unavailable; navigation uses native link/button semantics rather than custom storage state.

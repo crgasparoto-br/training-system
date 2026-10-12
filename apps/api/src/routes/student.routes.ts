@@ -18,6 +18,23 @@ import {
   upsertCanonicalStudentHealthIntake,
 } from '../modules/alunos/student-health-intake-write.service.js';
 import { studentWorkoutService } from '../modules/workout/student-workout.service.js';
+import {
+  trainingRoutineService,
+  TrainingRoutineInputError,
+} from '../modules/workout/training-routine.service.js';
+import {
+  preWorkoutCheckInService,
+  PreWorkoutCheckInConflictError,
+  PreWorkoutCheckInInputError,
+  PreWorkoutCheckInNotFoundError,
+} from '../modules/workout/pre-workout-check-in.service.js';
+import {
+  workoutSessionExecutionService,
+  WorkoutSessionExecutionConflictError,
+  WorkoutSessionExecutionInputError,
+  WorkoutSessionExecutionNotFoundError,
+} from '../modules/workout/workout-session-execution.service.js';
+import { postWorkoutFeedbackPersistenceService, PostWorkoutFeedbackConflictError, PostWorkoutFeedbackInputError, PostWorkoutFeedbackNotFoundError } from '../modules/post-workout-feedback/post-workout-feedback-persistence.service.js';
 
 const prisma = new PrismaClient();
 
@@ -698,6 +715,242 @@ router.get('/me/workouts/:workoutTemplateId', async (req: Request, res: Response
     return sendError(res, 'Erro ao buscar treino', 500);
   }
 });
+
+// ---------------------------------------------------------------------------
+// GET /api/v1/student/me/training-routine?date=YYYY-MM-DD
+// Rotina semanal e Treino de hoje do aluno autenticado, somente leitura (#387).
+// ---------------------------------------------------------------------------
+router.get('/me/training-routine', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId as string;
+    const aluno = await requireAlunoByUserId(req, userId);
+    const date = typeof req.query.date === 'string' ? req.query.date : undefined;
+    const routine = await trainingRoutineService.getRoutine({
+      alunoId: aluno.id,
+      contractId: aluno.contractId,
+      audience: 'student',
+      date,
+    });
+
+    return sendSuccess(res, routine);
+  } catch (error: any) {
+    if (error instanceof TrainingRoutineInputError) {
+      return sendError(res, error.message, 400);
+    }
+    if (error instanceof StudentAccountContextError) {
+      const status = error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404;
+      return sendError(res, error.message, status);
+    }
+    if (error?.status === 404) {
+      return sendError(res, error.message, 404);
+    }
+    console.error('Erro ao buscar rotina semanal do aluno:', error);
+    return sendError(res, 'Erro ao buscar rotina de treino', 500);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET/PUT /api/v1/student/me/training-sessions/:sessionId/check-in
+// Check-in pré-treino canônico da sessão liberada (#388).
+// ---------------------------------------------------------------------------
+const preWorkoutCheckInSchema = z
+  .object({
+    operationKey: z.string().trim().min(8).max(128),
+    psr: z.number().int().min(0).max(10).nullable().optional(),
+    sleepQuality: z.number().int().min(0).max(10).nullable().optional(),
+    fatigue: z.number().int().min(0).max(10).nullable().optional(),
+    painLevel: z.number().int().min(0).nullable().optional(),
+    motivation: z.number().int().min(0).max(10).nullable().optional(),
+    availableMinutes: z.number().int().min(0).nullable().optional(),
+    notes: z.string().trim().max(500).nullable().optional(),
+  })
+  .strict();
+
+router.get('/me/training-sessions/:sessionId/check-in', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId as string;
+    const aluno = await requireAlunoByUserId(req, userId);
+    const checkIn = await preWorkoutCheckInService.getForSession({
+      sessionId: req.params.sessionId,
+      alunoId: aluno.id,
+      contractId: aluno.contractId,
+      audience: 'student',
+    });
+    return sendSuccess(res, checkIn);
+  } catch (error: any) {
+    if (error instanceof StudentAccountContextError) {
+      const status = error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404;
+      return sendError(res, error.message, status);
+    }
+    if (error instanceof PreWorkoutCheckInNotFoundError) {
+      return sendError(res, 'Sessão de treino não encontrada', 404);
+    }
+    console.error('Erro ao buscar check-in pré-treino:', error);
+    return sendError(res, 'Erro ao buscar check-in pré-treino', 500);
+  }
+});
+
+router.put('/me/training-sessions/:sessionId/check-in', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId as string;
+    const aluno = await requireAlunoByUserId(req, userId);
+    const payload = preWorkoutCheckInSchema.parse(req.body);
+    const checkIn = await preWorkoutCheckInService.saveForStudent({
+      sessionId: req.params.sessionId,
+      alunoId: aluno.id,
+      contractId: aluno.contractId,
+      actorUserId: userId,
+      payload,
+    });
+    return sendSuccess(res, checkIn, 'Check-in salvo com sucesso');
+  } catch (error: any) {
+    if (error instanceof z.ZodError || error instanceof PreWorkoutCheckInInputError) {
+      return sendError(
+        res,
+        error instanceof z.ZodError ? 'Dados inválidos' : error.message,
+        400,
+        error instanceof z.ZodError ? error.errors : undefined
+      );
+    }
+    if (error instanceof StudentAccountContextError) {
+      const status = error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404;
+      return sendError(res, error.message, status);
+    }
+    if (error instanceof PreWorkoutCheckInNotFoundError) {
+      return sendError(res, 'Sessão de treino não encontrada', 404);
+    }
+    if (error instanceof PreWorkoutCheckInConflictError) {
+      return sendError(res, error.message, 409, { code: error.code });
+    }
+    console.error('Erro ao salvar check-in pré-treino:', error);
+    return sendError(res, 'Erro ao salvar check-in pré-treino', 500);
+  }
+});
+
+
+// ---------------------------------------------------------------------------
+// GET/POST/PUT /api/v1/student/me/training-sessions/:sessionId/execution
+// Lifecycle canônico e valores executados da sessão (#389).
+// ---------------------------------------------------------------------------
+const executionSessionValuesSchema = z.object({
+  durationSec: z.number().int().nonnegative().nullable().optional(),
+  distanceKm: z.number().nonnegative().nullable().optional(),
+  pace: z.string().trim().max(32).nullable().optional(),
+  heartRateBpm: z.number().int().min(0).max(260).nullable().optional(),
+  heartRateZone: z.string().trim().max(32).nullable().optional(),
+}).strict();
+
+const executionItemSchema = z.object({
+  plannedUnitId: z.string().trim().min(1),
+  setNumber: z.number().int().nonnegative().optional(),
+  loadKg: z.number().nonnegative().nullable().optional(),
+  repetitions: z.number().int().nonnegative().nullable().optional(),
+  durationSec: z.number().int().nonnegative().nullable().optional(),
+  distanceKm: z.number().nonnegative().nullable().optional(),
+  pace: z.string().trim().max(32).nullable().optional(),
+  heartRateBpm: z.number().int().min(0).max(260).nullable().optional(),
+  heartRateZone: z.string().trim().max(32).nullable().optional(),
+}).strict();
+
+const executionTransitionSchema = z.object({
+  operationKey: z.string().trim().min(8).max(128),
+  expectedVersion: z.number().int().nonnegative(),
+  targetStatus: z.enum(['not_started', 'in_progress', 'paused', 'completed', 'partial', 'not_performed']),
+  reason: z.string().trim().max(500).nullable().optional(),
+  sessionValues: executionSessionValuesSchema.optional(),
+  items: z.array(executionItemSchema).max(500).optional(),
+}).strict();
+
+const executionValuesSchema = z.object({
+  operationKey: z.string().trim().min(8).max(128),
+  expectedVersion: z.number().int().nonnegative(),
+  sessionValues: executionSessionValuesSchema.optional(),
+  items: z.array(executionItemSchema).max(500).optional(),
+}).strict();
+
+const sendExecutionError = (res: Response, error: any) => {
+  if (error instanceof z.ZodError || error instanceof WorkoutSessionExecutionInputError) {
+    return sendError(res, error instanceof z.ZodError ? 'Dados inválidos' : error.message, 400, error instanceof z.ZodError ? error.errors : { code: error.code });
+  }
+  if (error instanceof StudentAccountContextError) {
+    const status = error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404;
+    return sendError(res, error.message, status);
+  }
+  if (error instanceof WorkoutSessionExecutionNotFoundError) {
+    return sendError(res, 'Sessão de treino não encontrada', 404);
+  }
+  if (error instanceof WorkoutSessionExecutionConflictError) {
+    return sendError(res, error.message, 409, { code: error.code });
+  }
+  return null;
+};
+
+router.get('/me/training-sessions/:sessionId/execution', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId as string;
+    const aluno = await requireAlunoByUserId(req, userId);
+    const execution = await workoutSessionExecutionService.getForSession({
+      sessionId: req.params.sessionId,
+      alunoId: aluno.id,
+      contractId: aluno.contractId,
+    });
+    return sendSuccess(res, execution);
+  } catch (error: any) {
+    const handled = sendExecutionError(res, error);
+    if (handled) return handled;
+    console.error('Erro ao buscar execução da sessão:', error);
+    return sendError(res, 'Erro ao buscar execução do treino', 500);
+  }
+});
+
+router.post('/me/training-sessions/:sessionId/execution/transition', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId as string;
+    const aluno = await requireAlunoByUserId(req, userId);
+    const payload = executionTransitionSchema.parse(req.body);
+    const execution = await workoutSessionExecutionService.transition({
+      sessionId: req.params.sessionId,
+      alunoId: aluno.id,
+      contractId: aluno.contractId,
+      actorUserId: userId,
+      payload,
+    });
+    return sendSuccess(res, execution, 'Estado do treino atualizado');
+  } catch (error: any) {
+    const handled = sendExecutionError(res, error);
+    if (handled) return handled;
+    console.error('Erro ao atualizar execução da sessão:', error);
+    return sendError(res, 'Erro ao atualizar execução do treino', 500);
+  }
+});
+
+router.put('/me/training-sessions/:sessionId/execution/values', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId as string;
+    const aluno = await requireAlunoByUserId(req, userId);
+    const payload = executionValuesSchema.parse(req.body);
+    const execution = await workoutSessionExecutionService.saveValues({
+      sessionId: req.params.sessionId,
+      alunoId: aluno.id,
+      contractId: aluno.contractId,
+      actorUserId: userId,
+      payload,
+    });
+    return sendSuccess(res, execution, 'Execução do treino salva');
+  } catch (error: any) {
+    const handled = sendExecutionError(res, error);
+    if (handled) return handled;
+    console.error('Erro ao salvar valores executados:', error);
+    return sendError(res, 'Erro ao salvar execução do treino', 500);
+  }
+});
+
+
+const postWorkoutFeedbackValuesSchema=z.object({pse:z.number().int().min(0).max(10).nullable().optional(),psr:z.number().int().min(0).max(10).nullable().optional(),painBefore:z.number().int().min(0).max(10).nullable().optional(),painDuring:z.number().int().min(0).max(10).nullable().optional(),painAfter:z.number().int().min(0).max(10).nullable().optional(),painLocation:z.string().trim().max(160).nullable().optional(),difficulty:z.number().int().min(0).max(10).nullable().optional(),fatigueLevel:z.enum(['low','medium','high']).nullable().optional(),energyLevel:z.enum(['good','medium','poor']).nullable().optional(),sleepQuality:z.enum(['good','medium','poor']).nullable().optional(),dizziness:z.boolean().nullable().optional(),observations:z.string().trim().max(1000).nullable().optional()}).strict();
+const postWorkoutFeedbackCreateSchema=z.object({operationKey:z.string().trim().min(8).max(128),capacity:z.enum(['resisted','flexibility','cyclic','balance']).nullable().optional(),values:postWorkoutFeedbackValuesSchema}).strict();
+const sendPostWorkoutFeedbackError=(res:Response,error:any)=>{if(error instanceof z.ZodError||error instanceof PostWorkoutFeedbackInputError)return sendError(res,error instanceof z.ZodError?'Dados inválidos':error.message,400,error instanceof z.ZodError?error.errors:{code:error.code});if(error instanceof StudentAccountContextError){const status=error.code==='STUDENT_CONTRACT_CONTEXT_REQUIRED'?409:404;return sendError(res,error.message,status);}if(error instanceof PostWorkoutFeedbackNotFoundError)return sendError(res,error.message,404);if(error instanceof PostWorkoutFeedbackConflictError)return sendError(res,error.message,409,{code:error.code});return null;};
+router.get('/me/training-sessions/:sessionId/feedback',async(req:Request,res:Response)=>{try{const userId=(req as any).user.userId as string;const aluno=await requireAlunoByUserId(req,userId);return sendSuccess(res,await postWorkoutFeedbackPersistenceService.getForSession({sessionId:req.params.sessionId,alunoId:aluno.id,contractId:aluno.contractId,audience:'student'}));}catch(error:any){const handled=sendPostWorkoutFeedbackError(res,error);if(handled)return handled;console.error('Erro ao buscar feedback pós-treino:',error);return sendError(res,'Erro ao buscar feedback pós-treino',500);}});
+router.post('/me/training-sessions/:sessionId/feedback',async(req:Request,res:Response)=>{try{const userId=(req as any).user.userId as string;const aluno=await requireAlunoByUserId(req,userId);const payload=postWorkoutFeedbackCreateSchema.parse(req.body);return sendSuccess(res,await postWorkoutFeedbackPersistenceService.createForStudent({sessionId:req.params.sessionId,alunoId:aluno.id,contractId:aluno.contractId,actorUserId:userId,payload}),'Feedback pós-treino confirmado');}catch(error:any){const handled=sendPostWorkoutFeedbackError(res,error);if(handled)return handled;console.error('Erro ao salvar feedback pós-treino:',error);return sendError(res,'Erro ao salvar feedback pós-treino',500);}});
 
 // ---------------------------------------------------------------------------
 // GET /api/v1/student/me/assessments

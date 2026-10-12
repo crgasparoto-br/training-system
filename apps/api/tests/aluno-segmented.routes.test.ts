@@ -5,6 +5,9 @@ const request = require('supertest');
 const mockBlockAccessMiddleware = jest.fn(
   () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
 );
+const mockExplicitBlockAccessMiddleware = jest.fn(
+  () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
+);
 const mockStudentProfileFindFirst = jest.fn();
 
 jest.mock('@prisma/client', () => ({
@@ -36,6 +39,7 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
 
 jest.mock('../src/modules/access-control/access-control.middleware', () => ({
   blockAccessMiddleware: mockBlockAccessMiddleware,
+  explicitBlockAccessMiddleware: mockExplicitBlockAccessMiddleware,
 }));
 
 jest.mock('../src/modules/alunos/aluno.service', () => ({
@@ -76,6 +80,8 @@ describe('segmented aluno routes', () => {
 
   beforeEach(() => {
     mockStudentProfileFindFirst.mockReset();
+    // Access middleware factories are invoked once when the router is registered.
+    // Preserve those calls so route-boundary assertions verify the actual registration.
     (alunoService.belongsToContract as jest.Mock).mockReset();
     (alunoService.belongsToProfessor as jest.Mock).mockReset();
     (studentParqBoundaryService.getAdministrativeSummary as jest.Mock).mockReset();
@@ -205,6 +211,13 @@ describe('segmented aluno routes', () => {
     });
   });
 
+  it('protects post-workout feedback history and corrections with explicit sensitive permission', async () => {
+    expect(mockExplicitBlockAccessMiddleware).toHaveBeenCalledWith(
+      'students.details.postWorkoutFeedback'
+    );
+    expect(mockExplicitBlockAccessMiddleware).toHaveBeenCalledTimes(2);
+  });
+
   it('protects the timeline with the audit block permission and contract scope', async () => {
     (studentDomainService.getTimeline as jest.Mock).mockResolvedValue({
       alunoId: 'aluno-1',
@@ -218,6 +231,37 @@ describe('segmented aluno routes', () => {
     expect(mockBlockAccessMiddleware).toHaveBeenCalledWith('students.details.audit');
     expect(studentDomainService.getTimeline).toHaveBeenCalledWith('aluno-1', {
       companyContractId: 'contract-1',
+      timelineLimit: 100,
+      timelineCursor: undefined,
     });
+  });
+
+  it('passes validated timeline pagination within the current contract scope', async () => {
+    (studentDomainService.getTimeline as jest.Mock).mockResolvedValue({
+      alunoId: 'aluno-1', items: [], total: 0, nextCursor: null,
+    });
+    const response = await request(app).get('/alunos/aluno-1/timeline?limit=25&cursor=event-25');
+    expect(response.status).toBe(200);
+    expect(studentDomainService.getTimeline).toHaveBeenCalledWith('aluno-1', {
+      companyContractId: 'contract-1',
+      timelineLimit: 25,
+      timelineCursor: 'event-25',
+    });
+  });
+
+  it('returns 400 for a cross-context or tampered timeline cursor', async () => {
+    (studentDomainService.getTimeline as jest.Mock).mockRejectedValueOnce(new Error('INVALID_TIMELINE_CURSOR'));
+    const response = await request(app).get('/alunos/aluno-1/timeline?cursor=dGFtcGVyZWQ');
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual(expect.objectContaining({ success: false }));
+  });
+
+  it('rejects invalid timeline pagination before invoking the service', async () => {
+    for (const query of ['?limit=0', '?limit=201', '?limit=abc', '?cursor=']) {
+      (studentDomainService.getTimeline as jest.Mock).mockClear();
+      const response = await request(app).get(`/alunos/aluno-1/timeline${query}`);
+      expect(response.status).toBe(400);
+      expect(studentDomainService.getTimeline).not.toHaveBeenCalled();
+    }
   });
 });

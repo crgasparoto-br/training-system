@@ -54,6 +54,10 @@ Services importantes:
 8. Quando a capacidade depende do estado ou da revisao do recurso, frontend e backend devem derivar a mesma capacidade exata; a posse de um bloco irmao nao pode ampliar a operacao.
 9. Ações transacionais sensíveis devem revalidar a permissão e o `dataScope` dentro da transação definitiva; middleware/preflight não substitui o gate contra TOCTOU.
 
+## Dados sensíveis dentro de blocos existentes
+
+O check-in pré-treino da #388 usa o bloco dedicado `students.details.preWorkoutCheckIn`. Ele é catalogado sob `students.details`, mas não pertence a nenhum preset de `DEFAULT_ACCESS_BY_PROFILE_CODE`: a leitura pelo professor exige uma linha explícita `canView=true` para a função colaboradora. A rota de treinos continua protegida por `students.details.trainingPlans`, porém o backend não carrega nem serializa `preWorkoutCheckIn` sem essa concessão adicional; o frontend apenas acompanha essa projeção mínima.
+
 ## Padrao para novas permissoes
 
 1. Adicionar `screenKey` ou `blockKey` em `packages/types/access-control.ts`.

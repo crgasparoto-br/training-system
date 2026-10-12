@@ -1,0 +1,6 @@
+Exact-head single-authority/read-only evidence for PR #492:
+- training-routine.service.ts is read-only and returns execution={available:false,reason:'execution_contract_pending'} until #389 exists.
+- apps/web/src/services/training-routine.service.ts exposes only getForAluno and getForStudent and uses api.get.
+- TrainingRoutinePanel.test.tsx verifies controls are disabled, no mutation callback is invoked, and source contains no api.post/put/patch/delete, /executions, /status, localStorage or sessionStorage execution-state path.
+- training-routine.routes.test.ts verifies the training-routine boundary exposes no execution mutation endpoint; write attempts return 404 and do not call the read service.
+- issue-387-browser-evidence.test.js verifies requests to the routine boundary are GET/OPTIONS only and execution controls remain disabled.

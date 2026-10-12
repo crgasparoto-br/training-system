@@ -332,7 +332,8 @@ describeDb('student-lifecycle integration (banco real)', () => {
 
     expect(
       await prisma.profile.count({
-        where: { cpf },
+        // O writer canônico grava CPF válido somente com dígitos.
+        where: { cpf: cpf.replace(/\D/g, '') },
       })
     ).toBe(2);
   });
@@ -560,7 +561,7 @@ describeDb('student-lifecycle integration (banco real)', () => {
     const tenantIdentity = await loadStudentIdentity(second.id, other.contractId);
     expect(tenantIdentity.name).toBe('Nome Tenant Dois');
     expect(tenantIdentity.phone).toBe('11999990000');
-    expect(tenantIdentity.cpf).toBe('987.654.321-00');
+    expect(tenantIdentity.cpf).toBe('98765432100');
   });
 
   it('claim concorrente não sobrescreve o vencedor e gera um único evento', async () => {

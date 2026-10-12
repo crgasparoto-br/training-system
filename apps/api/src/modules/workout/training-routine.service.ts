@@ -1,0 +1,581 @@
+import { Prisma, PrismaClient, type PostWorkoutFeedbackRevision, type WorkoutSessionExecutionStatus } from '@prisma/client';
+import type {
+  TrainingRoutineAudience,
+  TrainingRoutineBlock,
+  TrainingRoutineBlockKey,
+  TrainingRoutineConsolidatedRelease,
+  TrainingRoutineCyclicTargets,
+  TrainingRoutineDay,
+  TrainingRoutineModality,
+  TrainingRoutineRange,
+  TrainingRoutineExecutionProjectionStatus,
+  TrainingRoutineSessionDetail,
+  TrainingRoutineSessionSummary,
+  TrainingRoutineView,
+  TrainingSessionExecutionView,
+} from '@corrida/types';
+import { DEFAULT_CONTRACT_TIME_ZONE } from '../contracts/contract-date-input.js';
+import { projectPreWorkoutCheckIn } from './pre-workout-check-in.service.js';
+import { projectWorkoutSessionExecution } from './workout-session-execution.service.js';
+import { projectPostWorkoutFeedback } from '../post-workout-feedback/post-workout-feedback-persistence.service.js';
+
+/**
+ * Leitura da rotina semanal e do Treino de hoje (issue #387).
+ *
+ * Somente leitura sobre o grafo operacional liberado. Este serviço não cria,
+ * atualiza nem simula estado de execução: o lifecycle da sessão pertence à #389.
+ */
+
+const prisma = new PrismaClient();
+const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/u;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export class TrainingRoutineInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TrainingRoutineInputError';
+  }
+}
+
+export type TrainingRoutineQuery = {
+  alunoId: string;
+  contractId: string;
+  audience: TrainingRoutineAudience;
+  /** Dados sensíveis do check-in só são projetados ao professor com concessão explícita. */
+  includePreWorkoutCheckIn?: boolean;
+  includePostWorkoutFeedback?: boolean;
+  /** Data local `YYYY-MM-DD`; quando ausente usa a data atual no fuso do produto. */
+  date?: string;
+  now?: Date;
+};
+
+const sessionSelect = {
+  id: true,
+  dayOfWeek: true,
+  workoutDate: true,
+  sessionDurationMin: true,
+  stimulusDurationMin: true,
+  cyclicTimeMin: true,
+  resistanceTimeMin: true,
+  location: true,
+  method: true,
+  status: true,
+  execution: {
+    select: {
+      workoutDayId: true,
+      status: true,
+      version: true,
+      startedAt: true,
+      finishedAt: true,
+      currentPauseStartedAt: true,
+      pausedDurationMs: true,
+      interruptionReason: true,
+      originReleaseId: true,
+      originWorkoutTemplateId: true,
+      originTrainingPlanId: true,
+      sessionValues: true,
+      items: {
+        orderBy: [{ plannedUnitId: 'asc' as const }, { setNumber: 'asc' as const }, { id: 'asc' as const }],
+        select: {
+          plannedUnitId: true,
+          setNumber: true,
+          loadKg: true,
+          repetitions: true,
+          durationSec: true,
+          distanceKm: true,
+          pace: true,
+          heartRateBpm: true,
+          heartRateZone: true,
+        },
+      },
+    },
+  },
+  targetHrMin: true,
+  targetHrMax: true,
+  targetSpeedMin: true,
+  targetSpeedMax: true,
+  paceMin: true,
+  paceMax: true,
+  vo2maxPct: true,
+  generalGuidelines: true,
+  detailNotes: true,
+  complementNotes: true,
+  template: {
+    select: {
+      id: true,
+      planId: true,
+      mesocycleNumber: true,
+      weekNumber: true,
+      releasedAt: true,
+      studentGoal: true,
+      coachGoal: true,
+      trainingMethod: true,
+      trainingDivision: true,
+      repReserve: true,
+      totalVolumeKm: true,
+      plan: { select: { id: true, name: true } },
+    },
+  },
+  exercises: {
+    orderBy: [{ section: 'asc' as const }, { exerciseOrder: 'asc' as const }, { id: 'asc' as const }],
+    select: {
+      id: true,
+      section: true,
+      exerciseOrder: true,
+      system: true,
+      sets: true,
+      reps: true,
+      load: true,
+      intervalSec: true,
+      exerciseNotes: true,
+      exercise: { select: { name: true } },
+    },
+  },
+} satisfies Prisma.WorkoutDaySelect;
+
+type SessionRow = Prisma.WorkoutDayGetPayload<{ select: typeof sessionSelect }>;
+
+type CapacityBlockRow = { workoutDayId: string; capacity: string };
+
+type ReleaseRow = {
+  id: string;
+  assemblyId: string;
+  workoutTemplateId: string;
+  sourceAssemblyVersion: number;
+  releasedAssemblyVersion: number;
+};
+
+const SECTION_BLOCK: Record<string, TrainingRoutineBlockKey> = {
+  mobilidade: 'warmup',
+  aquecimento: 'warmup',
+  sessao: 'main',
+  principal: 'main',
+  resfriamento: 'cooldown',
+  finalizacao: 'cooldown',
+};
+const BLOCK_ORDER: TrainingRoutineBlockKey[] = ['warmup', 'main', 'cooldown', 'other'];
+
+export function parseDateOnly(value: string): Date {
+  const match = DATE_ONLY_PATTERN.exec(value.trim());
+  if (!match) throw new TrainingRoutineInputError('Data inválida. Use o formato AAAA-MM-DD.');
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    throw new TrainingRoutineInputError('Data inválida. Use o formato AAAA-MM-DD.');
+  }
+  return date;
+}
+
+export function toDateOnly(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/** Data civil atual no fuso informado, sem depender do fuso do processo. */
+export function todayInTimeZone(now: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+}
+
+/** Semana civil segunda-feira a domingo que contém a data de referência. */
+export function resolveRoutineWeek(reference: Date) {
+  const offset = (reference.getUTCDay() + 6) % 7;
+  const start = new Date(reference.getTime() - offset * DAY_MS);
+  const days = Array.from({ length: 7 }, (_, index) => new Date(start.getTime() + index * DAY_MS));
+  const endExclusive = new Date(start.getTime() + 7 * DAY_MS);
+  return { start, days, endExclusive };
+}
+
+const cleanText = (value: string | null | undefined) => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+};
+
+const toRange = (
+  min: string | number | null | undefined,
+  max: string | number | null | undefined
+): TrainingRoutineRange | null => {
+  const normalizedMin = min === null || min === undefined ? null : cleanText(String(min));
+  const normalizedMax = max === null || max === undefined ? null : cleanText(String(max));
+  return normalizedMin || normalizedMax ? { min: normalizedMin, max: normalizedMax } : null;
+};
+
+function buildCyclicTargets(row: SessionRow): TrainingRoutineCyclicTargets | null {
+  const targets: TrainingRoutineCyclicTargets = {
+    durationMin: row.cyclicTimeMin ?? row.stimulusDurationMin ?? null,
+    distanceKm: row.template.totalVolumeKm ?? null,
+    heartRate: toRange(row.targetHrMin, row.targetHrMax),
+    speed: toRange(row.targetSpeedMin, row.targetSpeedMax),
+    pace: toRange(row.paceMin, row.paceMax),
+  };
+  const hasTargets =
+    targets.durationMin !== null ||
+    targets.distanceKm !== null ||
+    targets.heartRate ||
+    targets.speed ||
+    targets.pace ||
+    row.vo2maxPct !== null;
+  return hasTargets ? targets : null;
+}
+
+function resolveModalities(row: SessionRow, capacities: string[]): TrainingRoutineModality[] {
+  const modalities: TrainingRoutineModality[] = [];
+  if (row.exercises.length > 0) modalities.push('resistance');
+  if (buildCyclicTargets(row)) modalities.push('cyclic');
+  if (capacities.includes('flexibility')) modalities.push('flexibility');
+  if (capacities.includes('balance')) modalities.push('balance');
+  return modalities;
+}
+
+function resolveDuration(row: SessionRow): number | null {
+  if (row.sessionDurationMin !== null) return row.sessionDurationMin;
+  if (row.cyclicTimeMin === null && row.resistanceTimeMin === null) return null;
+  return (row.cyclicTimeMin ?? 0) + (row.resistanceTimeMin ?? 0);
+}
+
+function buildBlocks(row: SessionRow): TrainingRoutineBlock[] {
+  const grouped = new Map<TrainingRoutineBlockKey, TrainingRoutineBlock['exercises']>();
+  for (const item of row.exercises) {
+    const key = SECTION_BLOCK[item.section.trim().toLowerCase()] ?? 'other';
+    const list = grouped.get(key) ?? [];
+    list.push({
+      id: item.id,
+      order: item.exerciseOrder,
+      name: item.exercise.name,
+      system: cleanText(item.system),
+      sets: item.sets,
+      reps: item.reps,
+      loadKg: item.load,
+      intervalSec: item.intervalSec,
+      notes: cleanText(item.exerciseNotes),
+    });
+    grouped.set(key, list);
+  }
+  return BLOCK_ORDER.filter((key) => grouped.has(key)).map((key) => ({
+    key,
+    exercises: grouped.get(key)!,
+  }));
+}
+
+function projectLegacyExecutionStatus(status: SessionRow['status']): TrainingRoutineExecutionProjectionStatus {
+  switch (status) {
+    case 'planned': return 'not_started';
+    case 'in_progress': return 'in_progress';
+    case 'completed': return 'completed';
+  }
+}
+
+function buildExecution(row: SessionRow, release: ReleaseRow): TrainingSessionExecutionView {
+  if (row.execution) return projectWorkoutSessionExecution(row.execution);
+  return {
+    sessionId: row.id,
+    status: projectLegacyExecutionStatus(row.status),
+    version: 0,
+    startedAt: null,
+    finishedAt: null,
+    currentPauseStartedAt: null,
+    pausedDurationMs: 0,
+    interruptionReason: null,
+    origin: {
+      releaseId: release.id,
+      workoutTemplateId: row.template.id,
+      trainingPlanId: row.template.plan.id,
+    },
+    sessionValues: {},
+    items: [],
+  };
+}
+
+function toSummary(
+  row: SessionRow,
+  audience: TrainingRoutineAudience,
+  capacities: string[],
+  release: ReleaseRow
+): TrainingRoutineSessionSummary {
+  const consolidatedRelease: TrainingRoutineConsolidatedRelease = {
+    releaseId: release.id,
+    assemblyId: release.assemblyId,
+    sourceAssemblyVersion: release.sourceAssemblyVersion,
+    releasedAssemblyVersion: release.releasedAssemblyVersion,
+  };
+
+  return {
+    sessionId: row.id,
+    workoutTemplateId: row.template.id,
+    trainingPlanId: row.template.plan.id,
+    planName: row.template.plan.name,
+    date: toDateOnly(row.workoutDate),
+    dayOfWeek: row.dayOfWeek,
+    mesocycleNumber: row.template.mesocycleNumber,
+    weekNumber: row.template.weekNumber,
+    modalities: resolveModalities(row, capacities),
+    durationMin: resolveDuration(row),
+    location: cleanText(row.location),
+    method: cleanText(row.method),
+    status: buildExecution(row, release).status,
+    origin: {
+      kind: 'consolidated',
+      releasedAt: row.template.releasedAt?.toISOString() ?? null,
+      ...(audience === 'professor' ? { consolidatedRelease } : {}),
+    },
+  };
+}
+
+function toDetail(
+  row: SessionRow,
+  audience: TrainingRoutineAudience,
+  capacities: string[],
+  release: ReleaseRow,
+  checkIn: Awaited<ReturnType<PrismaClient['preWorkoutCheckIn']['findFirst']>>,
+  includePreWorkoutCheckIn: boolean,
+  feedback: Array<PostWorkoutFeedbackRevision & { execution: { status: WorkoutSessionExecutionStatus } }>,
+  includePostWorkoutFeedback: boolean
+): TrainingRoutineSessionDetail {
+  const execution = buildExecution(row, release);
+  const detail: TrainingRoutineSessionDetail = {
+    ...toSummary(row, audience, capacities, release),
+    execution,
+    objective: cleanText(row.template.studentGoal),
+    guidelines: [row.generalGuidelines, row.detailNotes, row.complementNotes]
+      .map(cleanText)
+      .filter((value): value is string => value !== null),
+    cyclic: buildCyclicTargets(row),
+    blocks: buildBlocks(row),
+    ...(includePreWorkoutCheckIn ? { preWorkoutCheckIn: checkIn ? projectPreWorkoutCheckIn(checkIn, audience, execution.status) : null } : {}),
+    ...(includePostWorkoutFeedback ? { postWorkoutFeedback: feedback.map((row) => projectPostWorkoutFeedback(row, row.execution.status, audience, true)) } : {}),
+  };
+
+  if (audience === 'professor') {
+    detail.technical = {
+      coachGoal: cleanText(row.template.coachGoal),
+      trainingMethod: cleanText(row.template.trainingMethod),
+      trainingDivision: cleanText(row.template.trainingDivision),
+      repReserve: row.template.repReserve,
+      vo2maxPct: row.vo2maxPct,
+    };
+  }
+
+  return detail;
+}
+
+export function createTrainingRoutineService(client: PrismaClient = prisma) {
+  return {
+    async getRoutine(query: TrainingRoutineQuery): Promise<TrainingRoutineView> {
+      const timeZone = DEFAULT_CONTRACT_TIME_ZONE;
+      const today = todayInTimeZone(query.now ?? new Date(), timeZone);
+      const referenceDate = query.date ? toDateOnly(parseDateOnly(query.date)) : today;
+      const week = resolveRoutineWeek(parseDateOnly(referenceDate));
+      const studentScope = { alunoId: query.alunoId, aluno: { contractId: query.contractId } };
+      const todayStart = parseDateOnly(today);
+      // Hoje pode estar fora da semana consultada (navegação entre semanas).
+      const workoutDateWindow: Prisma.WorkoutDayWhereInput[] = [
+        { workoutDate: { gte: week.start, lt: week.endExclusive } },
+        { workoutDate: { gte: todayStart, lt: new Date(todayStart.getTime() + DAY_MS) } },
+      ];
+
+      const [rows, pendingRows] = await Promise.all([
+        client.workoutDay.findMany({
+          where: { OR: workoutDateWindow, template: { released: true, plan: studentScope } },
+          orderBy: [{ workoutDate: 'asc' }, { dayOfWeek: 'asc' }, { id: 'asc' }],
+          select: sessionSelect,
+        }),
+        client.workoutDay.findMany({
+          where: { OR: workoutDateWindow, template: { released: false, plan: studentScope } },
+          select: { workoutDate: true },
+        }),
+      ]);
+
+      // Projecao global do proximo treino: apenas dias liberados pela montagem
+      // consolidada deste aluno/contrato. Nenhuma janela semanal artificial.
+      const upcoming = await client.$queryRaw<Array<{
+        sessionId: string;
+        date: Date;
+        status: TrainingRoutineExecutionProjectionStatus;
+      }>>`
+        SELECT day."id" AS "sessionId",
+               day."workoutDate" AS "date",
+               COALESCE(execution."status"::text, 'not_started') AS "status"
+        FROM "WorkoutDay" day
+        JOIN "WorkoutTemplate" template ON template."id" = day."templateId"
+        JOIN "TrainingPlan" plan ON plan."id" = template."planId"
+        JOIN "Aluno" student ON student."id" = plan."alunoId"
+        JOIN "ConsolidatedPrescriptionOperationalRelease" release
+          ON release."workoutTemplateId" = template."id"
+         AND release."alunoId" = ${query.alunoId}
+         AND release."contractId" = ${query.contractId}
+        LEFT JOIN "WorkoutSessionExecution" execution
+          ON execution."workoutDayId" = day."id"
+         AND execution."alunoId" = ${query.alunoId}
+         AND execution."contractId" = ${query.contractId}
+        WHERE plan."alunoId" = ${query.alunoId}
+          AND student."contractId" = ${query.contractId}
+          AND template."released" = true
+          AND day."workoutDate" >= ${todayStart}
+          AND COALESCE(execution."status"::text, 'not_started')
+              NOT IN ('completed', 'partial', 'not_performed')
+        ORDER BY day."workoutDate" ASC, day."id" ASC
+        LIMIT 1
+      `;
+
+      // A ultima execucao usa a mesma autoridade da rotina/nextSession:
+      // execucao terminal vinculada ao release consolidado de origem do aluno e contrato.
+      // Nao limitar pela semana consultada ou pela data de hoje.
+      const latestExecution = await client.$queryRaw<Array<{
+        sessionId: string;
+        date: Date;
+        status: TrainingRoutineExecutionProjectionStatus;
+      }>>`
+        SELECT execution."workoutDayId" AS "sessionId",
+               day."workoutDate" AS "date",
+               execution."status"::text AS "status"
+        FROM "WorkoutSessionExecution" execution
+        JOIN "WorkoutDay" day ON day."id" = execution."workoutDayId"
+        JOIN "WorkoutTemplate" template ON template."id" = day."templateId"
+        JOIN "TrainingPlan" plan ON plan."id" = template."planId"
+        JOIN "Aluno" student ON student."id" = plan."alunoId"
+        JOIN "ConsolidatedPrescriptionOperationalRelease" release
+          ON release."id" = execution."originReleaseId"
+         AND release."workoutTemplateId" = template."id"
+         AND release."alunoId" = execution."alunoId"
+         AND release."contractId" = execution."contractId"
+        WHERE execution."alunoId" = ${query.alunoId}
+          AND execution."contractId" = ${query.contractId}
+          AND plan."alunoId" = ${query.alunoId}
+          AND student."contractId" = ${query.contractId}
+          AND template."released" = true
+          AND execution."status"::text IN ('completed', 'partial', 'not_performed')
+        ORDER BY execution."finishedAt" DESC NULLS LAST,
+                 execution."updatedAt" DESC,
+                 execution."id" DESC
+        LIMIT 1
+      `;
+
+      const dayIds = rows.map((row) => row.id);
+      const templateIds = [...new Set(rows.map((row) => row.template.id))];
+      const [capacityRows, releaseRows] = await Promise.all([
+        dayIds.length
+          ? client.$queryRaw<CapacityBlockRow[]>`
+              SELECT "workoutDayId", "capacity"
+              FROM "WorkoutDayCapacityOperationalBlock"
+              WHERE "workoutDayId" IN (${Prisma.join(dayIds)})
+            `
+          : Promise.resolve([] as CapacityBlockRow[]),
+        templateIds.length
+          ? client.$queryRaw<ReleaseRow[]>`
+              SELECT "id", "assemblyId", "workoutTemplateId", "sourceAssemblyVersion", "releasedAssemblyVersion"
+              FROM "ConsolidatedPrescriptionOperationalRelease"
+              WHERE "workoutTemplateId" IN (${Prisma.join(templateIds)})
+                AND "contractId" = ${query.contractId}
+                AND "alunoId" = ${query.alunoId}
+            `
+          : Promise.resolve([] as ReleaseRow[]),
+      ]);
+
+      const capacitiesByDay = new Map<string, string[]>();
+      for (const block of capacityRows) {
+        capacitiesByDay.set(block.workoutDayId, [...(capacitiesByDay.get(block.workoutDayId) ?? []), block.capacity]);
+      }
+      const releaseByTemplate = new Map(releaseRows.map((release) => [release.workoutTemplateId, release]));
+      // A projeção #387 publica exclusivamente a saída operacional rastreável
+      // até a Montagem Consolidada. Um template released=true sem release
+      // consolidado (por exemplo, liberação manual do Workout Builder) não
+      // participa da rotina semanal nem do Treino de hoje.
+      const visibleRows = rows.filter((row) => releaseByTemplate.has(row.template.id));
+      const canProjectPreWorkoutCheckIn =
+        query.audience === 'student' || query.includePreWorkoutCheckIn === true;
+      const canProjectPostWorkoutFeedback = query.audience === 'student' || query.includePostWorkoutFeedback === true;
+      const checkInRows = canProjectPreWorkoutCheckIn && visibleRows.length
+        ? await client.preWorkoutCheckIn.findMany({
+            where: {
+              workoutDayId: { in: visibleRows.map((row) => row.id) },
+              alunoId: query.alunoId,
+              contractId: query.contractId,
+            },
+          })
+        : [];
+      const checkInBySession = new Map(checkInRows.map((checkIn) => [checkIn.workoutDayId, checkIn]));
+      const feedbackRows = canProjectPostWorkoutFeedback && visibleRows.length ? await client.postWorkoutFeedbackRevision.findMany({where:{workoutDayId:{in:visibleRows.map((row)=>row.id)},alunoId:query.alunoId,contractId:query.contractId},include:{execution:{select:{status:true}}},orderBy:[{workoutDayId:'asc'},{scopeKey:'asc'},{revisionNumber:'desc'}]}) : [];
+      const latestFeedbackBySession = new Map<string, typeof feedbackRows>(); const latestScopes = new Set<string>();
+      for (const feedback of feedbackRows) { const key = `${feedback.workoutDayId}:${feedback.scopeKey}`; if (latestScopes.has(key)) continue; latestScopes.add(key); latestFeedbackBySession.set(feedback.workoutDayId,[...(latestFeedbackBySession.get(feedback.workoutDayId) ?? []),feedback]); }
+      const pendingByDate = new Map<string, number>();
+      for (const pending of pendingRows) {
+        const key = toDateOnly(pending.workoutDate);
+        pendingByDate.set(key, (pendingByDate.get(key) ?? 0) + 1);
+      }
+      const rowsOn = (key: string) => visibleRows.filter((row) => toDateOnly(row.workoutDate) === key);
+      const context = (row: SessionRow) =>
+        [query.audience, capacitiesByDay.get(row.id) ?? [], releaseByTemplate.get(row.template.id)!] as const;
+
+      const days: TrainingRoutineDay[] = week.days.map((date) => {
+        const key = toDateOnly(date);
+        return {
+          date: key,
+          isToday: key === today,
+          sessions: rowsOn(key).map((row) => toSummary(row, ...context(row))),
+          pendingReleaseCount: pendingByDate.get(key) ?? 0,
+        };
+      });
+      const todayRows = rowsOn(today);
+      const todayPending = pendingByDate.get(today) ?? 0;
+      const weekRows = visibleRows.filter((row) =>
+        toDateOnly(row.workoutDate) <= today && toDateOnly(row.workoutDate) >= toDateOnly(week.start)
+      );
+      const feedbackEligible = weekRows.filter((row) =>
+        row.execution?.status === 'completed' || row.execution?.status === 'partial'
+      );
+      const registeredCount = feedbackEligible.filter((row) =>
+        (latestFeedbackBySession.get(row.id)?.length ?? 0) > 0
+      ).length;
+
+      return {
+        alunoId: query.alunoId,
+        audience: query.audience,
+        referenceDate,
+        timeZone,
+        week: { startDate: toDateOnly(week.start), endDate: toDateOnly(week.days[6]) },
+        days,
+        today: {
+          date: today,
+          state: todayRows.length > 0 ? 'released' : todayPending > 0 ? 'not_released' : 'none',
+          sessions: todayRows.map((row) =>
+            toDetail(
+              row,
+              ...context(row),
+              checkInBySession.get(row.id) ?? null,
+              canProjectPreWorkoutCheckIn,
+              latestFeedbackBySession.get(row.id) ?? [],
+              canProjectPostWorkoutFeedback
+            )
+          ),
+        },
+        execution: { available: true, reason: null },
+        nextSession: upcoming[0]
+          ? {
+              sessionId: upcoming[0].sessionId,
+              date: toDateOnly(upcoming[0].date),
+              status: upcoming[0].status,
+            }
+          : null,
+        lastExecution: latestExecution[0]
+          ? {
+              sessionId: latestExecution[0].sessionId,
+              status: latestExecution[0].status,
+              date: toDateOnly(latestExecution[0].date),
+            }
+          : null,
+        feedbackContinuity: {
+          state: canProjectPostWorkoutFeedback ? 'available' : 'unavailable',
+          pendingCount: canProjectPostWorkoutFeedback ? feedbackEligible.length - registeredCount : 0,
+          registeredCount: canProjectPostWorkoutFeedback ? registeredCount : 0,
+        },
+      };
+    },
+  };
+}
+
+export const trainingRoutineService = createTrainingRoutineService();

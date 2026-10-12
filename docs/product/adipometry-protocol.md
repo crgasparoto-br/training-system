@@ -4,6 +4,8 @@
 
 Esta é a fonte canônica versionada da adipometria no Sistema ACESSO. A fundação estrutural pode ser implantada sem uma aprovação clínica ativa, mas nenhum protocolo pode calcular ou concluir uma avaliação em um contrato até cumprir simultaneamente os gates de definição e de aprovação descritos abaixo.
 
+Estado reconciliado pela #383: `GUEDES_1991_ADULT_YOUNG` é o único candidato clínico completo e testável atualmente documentado. Seu estado global `DRAFT` é deliberado e não representa fórmula pendente: cálculo e conclusão só ficam disponíveis no contrato que possui responsabilidade técnica vigente e aprovação clínica ativa para o mesmo código, versão, referência, hash e snapshot. `SLAUGHTER` permanece `DISABLED`, com definição incompleta, fora da seleção e sem possibilidade de finalização. Não existe fallback silencioso entre protocolos.
+
 O domínio de responsabilidade técnica é `ADIPOMETRY_CLINICAL_RESPONSIBLE`.
 
 ## Fronteira do domínio

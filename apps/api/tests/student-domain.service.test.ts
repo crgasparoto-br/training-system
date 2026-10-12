@@ -1,8 +1,12 @@
 const findUniqueMock = jest.fn();
+const lifecycleFindManyMock = jest.fn();
 const mockPrisma = {
   aluno: {
     findUnique: findUniqueMock,
     findFirst: findUniqueMock,
+  },
+  studentLifecycleEvent: {
+    findMany: lifecycleFindManyMock,
   },
 };
 
@@ -130,6 +134,8 @@ const createStudentContract = (overrides: Record<string, unknown> = {}) => ({
 describe('studentDomainService', () => {
   beforeEach(() => {
     findUniqueMock.mockReset();
+    lifecycleFindManyMock.mockReset();
+    lifecycleFindManyMock.mockResolvedValue([]);
     (studentContractService.listByAluno as jest.Mock).mockReset();
   });
 
@@ -247,6 +253,139 @@ describe('studentDomainService', () => {
       serviceName: 'Premium',
     });
     expect(result?.items.some((item) => item.type === 'intake_recorded' || item.type === 'intake_updated')).toBe(false);
+  });
+
+  it('projects canonical training lifecycle events into the student timeline without sensitive feedback values', async () => {
+    findUniqueMock.mockResolvedValue({
+      ...createAlunoSnapshot(),
+      studentExternalAccounts: [],
+      studentExternalActivities: [],
+    });
+    (studentContractService.listByAluno as jest.Mock).mockResolvedValue([]);
+    lifecycleFindManyMock.mockResolvedValue([
+      {
+        id: 'evt-feedback',
+        alunoId: 'aluno-1',
+        contractId: 'contract-1',
+        eventType: 'STATUS_CHANGED',
+        actorUserId: 'student-user-1',
+        createdAt: '2026-05-12T10:15:00.000Z',
+        metadata: {
+          eventKey: 'post-workout-feedback:rev-1',
+          domain: 'post_workout_feedback',
+          action: 'created',
+          workoutDayId: 'day-1',
+          revisionNumber: 1,
+          signalCodes: ['pain_attention'],
+        },
+      },
+      {
+        id: 'evt-execution',
+        alunoId: 'aluno-1',
+        contractId: 'contract-1',
+        eventType: 'STATUS_CHANGED',
+        actorUserId: 'student-user-1',
+        createdAt: '2026-05-12T10:00:00.000Z',
+        metadata: {
+          eventKey: 'workout-session-execution:exec-1:op-1',
+          domain: 'workout_session_execution',
+          action: 'transition',
+          workoutDayId: 'day-1',
+          previousStatus: 'in_progress',
+          status: 'completed',
+          version: 2,
+        },
+      },
+    ]);
+
+    const result = await studentDomainService.getTimeline('aluno-1', {
+      companyContractId: 'contract-1',
+    });
+
+    expect(lifecycleFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        alunoId: 'aluno-1',
+        contractId: 'contract-1',
+        AND: expect.arrayContaining([
+          expect.objectContaining({ OR: expect.arrayContaining([
+            { metadata: { path: ['domain'], equals: 'workout_session_execution' } },
+          ]) }),
+        ]),
+      }),
+    }));
+    expect(result?.items.slice(0, 2).map((item) => item.type)).toEqual([
+      'post_workout_feedback_recorded',
+      'workout_execution_completed',
+    ]);
+    expect(result?.items[0].details).toEqual({
+      workoutDayId: 'day-1',
+      revisionNumber: 1,
+    });
+    expect(result?.items[0].details).not.toHaveProperty('signalCodes');
+  });
+
+  it('paginates legacy and training events in one chronological order, including identical timestamps', async () => {
+    findUniqueMock.mockResolvedValue({
+      ...createAlunoSnapshot(),
+      createdAt: '2026-05-12T10:00:00.000Z',
+      studentExternalAccounts: [],
+      studentExternalActivities: [],
+    });
+    (studentContractService.listByAluno as jest.Mock).mockResolvedValue([]);
+    const records = [
+      { id: 'event-z', alunoId: 'aluno-1', createdAt: '2026-05-12T10:00:00.000Z', actorUserId: null, metadata: { domain: 'workout_session_execution', status: 'completed' } },
+      { id: 'event-a', alunoId: 'aluno-1', createdAt: '2026-05-12T10:00:00.000Z', actorUserId: null, metadata: { domain: 'post_workout_feedback', action: 'created' } },
+      { id: 'event-old', alunoId: 'aluno-1', createdAt: '2026-05-11T10:00:00.000Z', actorUserId: null, metadata: { domain: 'pre_workout_check_in' } },
+    ];
+    lifecycleFindManyMock.mockImplementation(({ where }: any) => {
+      const cursorTime = where.AND?.[1]?.OR?.[0]?.createdAt?.lt?.getTime();
+      if (cursorTime === undefined) return Promise.resolve(records.slice(0, 3));
+      const sameTimeCursor = where.AND?.[1]?.OR?.[1];
+      const sameTimeId = sameTimeCursor?.id?.lt;
+      return Promise.resolve(records.filter((record) =>
+        new Date(record.createdAt).getTime() < cursorTime ||
+        (new Date(record.createdAt).getTime() === cursorTime &&
+          (sameTimeId === undefined || record.id < sameTimeId))
+      ));
+    });
+    const first = await studentDomainService.getTimeline('aluno-1', { timelineLimit: 1, companyContractId: 'contract-1' });
+    expect(first?.items[0].id).toBe('student-created-aluno-1');
+    expect(first?.nextCursor).toEqual(expect.any(String));
+    const second = await studentDomainService.getTimeline('aluno-1', {
+      timelineLimit: 1, timelineCursor: first?.nextCursor ?? undefined, companyContractId: 'contract-1',
+    });
+    expect(second?.items[0].id).toBe('training-execution-event-z');
+    const third = await studentDomainService.getTimeline('aluno-1', {
+      timelineLimit: 1, timelineCursor: second?.nextCursor ?? undefined, companyContractId: 'contract-1',
+    });
+    expect(third?.items[0].id).toBe('training-feedback-event-a');
+    expect(new Set([first?.items[0].id, second?.items[0].id, third?.items[0].id]).size).toBe(3);
+  });
+
+  it('rejects cursor reuse across students and contracts before querying events', async () => {
+    findUniqueMock.mockResolvedValue({
+      ...createAlunoSnapshot(), studentExternalAccounts: [], studentExternalActivities: [],
+    });
+    (studentContractService.listByAluno as jest.Mock).mockResolvedValue([]);
+    lifecycleFindManyMock.mockResolvedValue([
+      { id: 'event-a', alunoId: 'aluno-1', createdAt: '2026-05-12T10:00:00.000Z', actorUserId: null, metadata: { domain: 'workout_session_execution', status: 'completed' } },
+      { id: 'event-b', alunoId: 'aluno-1', createdAt: '2026-05-11T10:00:00.000Z', actorUserId: null, metadata: { domain: 'workout_session_execution', status: 'completed' } },
+    ]);
+    const first = await studentDomainService.getTimeline('aluno-1', {
+      timelineLimit: 1, companyContractId: 'contract-1',
+    });
+    expect(first?.nextCursor).toEqual(expect.any(String));
+    lifecycleFindManyMock.mockClear();
+    await expect(studentDomainService.getTimeline('aluno-1', {
+      timelineLimit: 1, companyContractId: 'contract-2', timelineCursor: first?.nextCursor ?? undefined,
+    })).rejects.toThrow('INVALID_TIMELINE_CURSOR');
+    await expect(studentDomainService.getTimeline('aluno-2', {
+      timelineLimit: 1, companyContractId: 'contract-1', timelineCursor: first?.nextCursor ?? undefined,
+    })).rejects.toThrow('INVALID_TIMELINE_CURSOR');
+    await expect(studentDomainService.getTimeline('aluno-1', {
+      companyContractId: 'contract-1', timelineCursor: 'invalid-token',
+    })).rejects.toThrow('INVALID_TIMELINE_CURSOR');
+    expect(lifecycleFindManyMock).not.toHaveBeenCalled();
   });
 
   it('falls back to external ids when segmented source metadata is absent', async () => {

@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "ESC-BASE-DRIFT-MERGEABILITY-494-001",
+      "status": "passed",
+      "escape_class": "base-drift-mergeability-loss",
+      "source_audit": {
+        "head_sha": "9a9b4d41a412c335d1ec1e0932f308ea5e54b6e5",
+        "rejection_id": "audit-rejection:pr493-mergeability-9a9b4d4",
+        "finding_id": "A-001",
+        "audit_report_sha256": "229b0bbee1b54df142332648c9b684a83cbd5062493583ff9ea7ec3e2779b0b2"
+      },
+      "plausible_wrong_implementation": "Treat previously green material CI and an existing result-only handoff as release-ready after the target base advances and GitHub marks the PR dirty.",
+      "literal_case": {
+        "procedure": "Re-read PR #493 against the current develop base, reconcile develop into the existing branch, then require mergeable=true, mergeable_state=clean and exact-SHA CI success before rebuilding the handoff.",
+        "status": "passed",
+        "evidence": "audit-remediation.json",
+        "observed": "The reconciled material head e23c8d334b82063d95ef6c1af130ea105d672604 is clean against develop 4f281f503aecc632375b306197da0f6b20be2678 and Validate PR run 36921124825 succeeded."
+      },
+      "sibling_cases": [
+        {
+          "id": "base-advances-after-freeze",
+          "surface": "delivery-base-identity",
+          "dimension": "base-sha-drift",
+          "status": "passed",
+          "evidence": "audit-remediation.json"
+        },
+        {
+          "id": "stale-result-child-after-base-drift",
+          "surface": "terminal-handoff-identity",
+          "dimension": "stale-result-only-child",
+          "status": "passed",
+          "evidence": "handoff-ready.json"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "delivery-base-identity",
+          "dimension": "fresh-base-and-mergeability"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "terminal-handoff-identity",
+          "dimension": "post-write-refreeze"
+        }
+      ],
+      "prevention_change": {
+        "kind": "existing-control-applied",
+        "evidence": "audit-remediation.json",
+        "description": "Current develop is reconciled before final freeze whenever the PR becomes dirty."
+      },
+      "detection_change": {
+        "kind": "fresh-remote-mergeability-and-ci-gate",
+        "evidence": "audit-remediation.json",
+        "description": "Release readiness is re-evaluated from fresh GitHub metadata and exact-SHA CI after base drift."
+      },
+      "trigger_terms": [
+        "mergeable_state",
+        "dirty",
+        "base_sha",
+        "post-write-refreeze"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "e23c8d334b82063d95ef6c1af130ea105d672604"
+    }
+  ]
+}

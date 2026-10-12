@@ -92,6 +92,12 @@ A versão atual do catálogo é `parq-2026-01`, com sete chaves estáveis (`q1` 
 
 Snapshots de desconforto corporal ficam em `ProntuarioDiscomfortSnapshot` e `ProntuarioDiscomfortEntry`. Dados legados de desconforto no cadastro do aluno não são migrados automaticamente.
 
+## Check-in pré-treino (#388)
+
+`PreWorkoutCheckIn` mantém no máximo um registro canônico por `WorkoutDay` e declara relações Prisma explícitas para `Aluno` e `CompanyContract`, além de `workoutDay`. `PreWorkoutCheckInOperation` é o ledger de idempotência por check-in, com chave lógica e fingerprint do patch normalizado submetido. As migrations espelhadas em `apps/api/prisma` e `prisma` adicionam FKs e checks das escalas já definidas pelo produto; a FK de `contractId` referencia a tabela física `Contract`, mapeada pelo model Prisma `CompanyContract`, porque o escopo canônico do check-in é o mesmo `contractId` do aluno autenticado.
+
+A imutabilidade depois do início não depende de flag paralela no check-in: ela deriva do lifecycle canônico de `WorkoutDay`. A escrita bloqueia a linha da sessão e revalida `planned` dentro da mesma transação que grava check-in, operação e evento da timeline.
+
 ## Cuidados para agentes
 
 - Nao criar `PrismaClient` em arquivos aleatorios sem necessidade.
@@ -168,11 +174,14 @@ mínima de três dígitos. Chaves estrangeiras compostas vinculam aluno, profess
 Antropometria de apoio, correção e auditoria ao mesmo contrato, impedindo a
 combinação de identificadores válidos de tenants distintos.
 
-Somente protocolo estruturalmente completo e `APPROVED` permite conclusão. A
-avaliação concluída preserva entradas, resultados, versão e snapshot coerentes e é
-imutável. Correção cria nova avaliação, liga a original atomicamente e produz
-trilha append-only. Guedes e Slaughter permanecem indisponíveis até a aprovação
-clínica documentada em `docs/product/adipometry-protocol.md`.
+Somente protocolo estruturalmente completo com aprovação clínica ativa no mesmo
+`contractId` permite conclusão. `GUEDES_1991_ADULT_YOUNG` permanece `DRAFT`
+globalmente e só se torna efetivamente aprovado por contrato via
+`AdipometryProtocolApproval`; o estado global sozinho nunca libera cálculo. A
+avaliação concluída preserva entradas, resultados, versão, aprovação e snapshot
+coerentes e é imutável. Correção cria nova revisão auditada e preserva a anterior.
+Slaughter permanece `DISABLED` e incompleto, sem seleção, aprovação operacional ou
+fallback. O contrato clínico canônico está em `docs/product/adipometry-protocol.md`.
 
 Os gates PostgreSQL oficiais são:
 

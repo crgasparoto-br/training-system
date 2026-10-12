@@ -25,6 +25,14 @@ describe('catalogo de permissoes', () => {
     }
   });
 
+  it('o check-in pré-treino sensível nunca é concedido por perfil padrão', () => {
+    expect(ACCESS_BLOCK_CATALOG.some((block) => block.key === 'students.details.preWorkoutCheckIn')).toBe(true);
+
+    for (const defaults of Object.values(DEFAULT_ACCESS_BY_PROFILE_CODE)) {
+      expect(defaults.blocks).not.toContain('students.details.preWorkoutCheckIn');
+    }
+  });
+
   it('defaults nao referenciam telas ou blocos inexistentes', () => {
     const validScreens = new Set(ACCESS_SCREEN_CATALOG.map((screen) => screen.key));
     const validBlocks = new Set(ACCESS_BLOCK_CATALOG.map((block) => block.key));

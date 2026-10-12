@@ -88,6 +88,102 @@ Deve ser a saida operacional da Montagem Consolidada e apresentar:
 
 Nao deve exibir formula clinica, justificativa tecnica completa, conflito interno ou configuracao de prescricao.
 
+#### Contrato de leitura implementado (#387)
+
+A rotina semanal e o Treino de hoje sao uma leitura do grafo operacional liberado `TrainingPlan -> WorkoutTemplate(released=true) -> WorkoutDay -> WorkoutExercise`, mas uma sessao so e publicavel quando existe a liberacao correspondente da Montagem Consolidada para o mesmo aluno e contrato. Nao existe modelo, tabela ou estado paralelo de `Treino de hoje`.
+
+- **Fonte**: somente sessoes com `WorkoutTemplate.released = true` e `ConsolidatedPrescriptionOperationalRelease` compativel com aluno, contrato e template. Um template liberado apenas pelo Workout Builder nao publica rotina nem Treino de hoje nesta projecao.
+- **Origem**: cada sessao informa `origin.kind = consolidated`. A visao do professor recebe release, montagem e versoes; a do aluno recebe somente a origem e a data de liberacao.
+- **Semana**: semana civil de segunda a domingo que contem a data de referencia; sessoes em ordem `workoutDate`, `dayOfWeek`, `id`. Dia sem sessao consolidada liberada nem pendente e apresentado como recuperacao.
+- **Hoje**: data civil no fuso `America/Sao_Paulo`, calculada no backend. Estados distintos: `released`, `not_released` (existe sessao `released=false`) e `none`. Falta de permissao e erro de carregamento sao estados da interface, distintos destes.
+- **Modalidade**: derivada de dados persistidos, nunca de texto livre: exercicios -> musculacao; tempo/distancia/FC/velocidade/pace/VO2 -> aerobio; `WorkoutDayCapacityOperationalBlock` -> flexibilidade/equilibrio.
+- **Blocos**: `WorkoutExercise.section` `mobilidade`/`aquecimento` -> aquecimento; `sessao`/`principal` -> parte principal; `resfriamento`/`finalizacao` -> finalizacao; demais secoes -> outros, preservando a ordem persistida.
+- **Aluno x professor**: o aluno ve objetivo pratico (`studentGoal`), parametros, orientacoes e alerta de seguranca generico. Objetivo do professor (`coachGoal`), metodo, divisao, RIR e VO2 ficam no contexto tecnico restrito ao professor.
+- **Execucao**: a #389 publica a autoridade canonica `WorkoutSessionExecution`, versionada por sessao e vinculada de forma imutavel ao release/template/plano que originou a execucao. O `WorkoutDay.status` legado permanece somente como projecao de compatibilidade; quando existe `WorkoutSessionExecution`, ela e a unica autoridade para `not_started | in_progress | paused | completed | partial | not_performed`. A rotina declara `execution.available = true` e cada sessao de hoje inclui estado, versao, timestamps, pausas acumuladas, motivo terminal e valores executados separados do planejado.
+
+### Modo guiado de execucao
+
+Ao iniciar o treino, a experiencia deve mudar de uma ficha ampla para um fluxo guiado que apresenta predominantemente a unidade que o aluno precisa executar agora.
+
+Para treino resistido:
+
+- mostrar exercicio, serie/rodada, repeticoes ou faixa, carga, RIR/RPE, tempo/cadencia e orientacao quando aplicaveis;
+- permitir confirmar ou ajustar carga e repeticoes realizadas sem modificar o valor prescrito;
+- avancar pela ordem persistida da sessao;
+- em superserie, bi-set, tri-set e circuito, percorrer todos os itens da rodada antes do descanso final, salvo intervalo intermediario explicitamente prescrito;
+- reconstruir a posicao atual a partir do estado persistido apos refresh ou retomada.
+
+Para descanso resistido:
+
+- preservar o intervalo planejado como parte do planejamento historico;
+- registrar o descanso efetivamente realizado separadamente;
+- permitir extensao manual, inicialmente em incrementos de 15 segundos, e pular o descanso sem alterar a prescricao;
+- usar timestamps persistidos para reconstruir o tempo restante; ticks do navegador nao sao fonte de verdade;
+- som e vibracao podem ser usados como ajuda opcional quando a plataforma e a permissao do dispositivo permitirem.
+
+Para treino ciclico estruturado:
+
+- mostrar uma etapa por vez com tipo, rodada, duracao/distancia e alvo aplicavel;
+- diferenciar trabalho, recuperacao, aquecimento e desaquecimento;
+- preservar a ordem e as repeticoes definidas no planejamento estruturado;
+- reconstruir temporizadores por timestamps persistidos depois de refresh ou background;
+- manter valores executados separados dos planejados.
+
+A experiencia guiada deve usar o lifecycle canonico da sessao e nao criar estado paralelo no frontend.
+
+### Semantica canonica de pausa
+
+- `paused` representa uma pausa **explicita** da sessao e congela relogios operacionais da execucao, incluindo descanso resistido e etapas ciclicas temporais.
+- Background, suspensao do navegador ou refresh **nao** significam pausa. Sem comando explicito de pausa, o tempo continua correndo por wall-clock a partir dos timestamps persistidos.
+- Ao retomar, o relogio operacional continua do tempo restante preservado no momento da pausa. Exemplo: descanso de 60 s pausado apos 25 s deve retomar com 35 s restantes.
+- Nenhum cronometro, etapa, rodada ou serie pode avancar automaticamente enquanto a sessao estiver `paused`.
+- `startedAt` permanece o primeiro inicio da sessao e nao e regravado em retomadas. `finishedAt` so existe em estado terminal.
+- A persistencia deve permitir reconstruir intervalos de pausa e distinguir tempo corrido de parede de tempo efetivamente ativo quando essa diferenca for relevante para a execucao.
+- Retry de `pause` ou `resume` deve ser idempotente.
+- A pausa e seu tempo restante devem ser reconstruiveis em outro cliente/dispositivo autorizado; memoria do navegador nao pode ser a fonte de verdade.
+
+#### Persistencia canonica da execucao (#389)
+
+- Identidade publica da sessao: `WorkoutDay.id`; a persistencia mutavel fica em `WorkoutSessionExecution`, com `version` para concorrencia otimista.
+- Transicoes permitidas: `not_started -> in_progress | not_performed`; `in_progress -> paused | completed | partial`; `paused -> in_progress | partial`. Estados terminais nao reabrem.
+- `startedAt` e gravado apenas no primeiro inicio; `finishedAt` apenas ao entrar em estado terminal. Pausas explicitas geram intervalos duraveis e acumulam `pausedDurationMs`.
+- Toda escrita exige `operationKey` e `expectedVersion`. Replay da mesma chave com o mesmo payload retorna o estado persistido sem duplicar evento; chave reutilizada com outro payload ou versao obsoleta responde conflito `409`.
+- A transicao, seus valores executados, a projecao legada e o evento derivado de timeline sao escritos na mesma transacao serializavel. O evento nao e fonte de verdade.
+- Valores executados de exercicio referenciam `WorkoutExercise.id` em `plannedUnitId`; carga, repeticoes, tempo, distancia, pace e frequencia cardiaca/zona ficam separados dos valores prescritos.
+- `not_performed` so e valido antes do primeiro inicio e exige motivo. `partial` tambem exige motivo.
+- Alteracoes posteriores no planejamento nao reescrevem o snapshot de origem da execucao; a sessao preserva `originReleaseId`, `originWorkoutTemplateId` e `originTrainingPlanId`.
+
+
+### Retorno e atualizacao da Central (#391)
+
+Apos mudancas confirmadas de check-in, execucao ou feedback, a Central deve revalidar somente as projecoes afetadas. Durante revalidacoes de foco, rascunhos de check-in e feedback ainda nao enviados sao preservados; uma revisao confirmada pelo servidor continua sendo autoridade. A troca de sessao ou contrato reinicia o formulario no novo contexto. O bloco de treino consulta novamente o backend ao retornar para a janela, sem recarregar a aplicacao inteira; a timeline e atualizada de forma independente quando o Historico e reaberto ou recupera foco.
+
+O contexto do aluno permanece preso ao `alunoId` da rota corrente. Uma resposta de outro contexto nao pode substituir silenciosamente o aluno selecionado. Falha localizada de treino ou timeline preserva os demais dados ja confirmados e permite nova tentativa.
+
+Eventos canonicos de `pre_workout_check_in`, `workout_session_execution` e `post_workout_feedback` alimentam a timeline como projecoes derivadas dos `StudentLifecycleEvent`; a timeline nao se torna fonte de verdade e nao expoe os valores sensiveis do feedback. Aderencia continua fora deste recorte ate a fonte canonica da #405 estar disponivel. A continuidade da rotina agora expõe `lastExecution` global, filtrada por `alunoId` e `contractId`, derivada de `WorkoutSessionExecution` e independente da semana consultada. O estado `feedbackContinuity` contabiliza sessões elegíveis e revisões canônicas na janela semanal, sem disponibilizar conteúdo sensível quando a permissão não permite.
+
+A consulta dos eventos de treinamento filtra os dominios canonicos antes da paginacao e retorna no maximo 200 eventos por requisicao (padrao 100). O contrato de `GET /alunos/:id/timeline` oferece `limit`, `cursor` e `nextCursor`; cursor informado vazio e rejeitado com HTTP 400; os eventos gerais não são repetidos nas páginas posteriores de eventos de treinamento; o Historico apresenta `Carregar eventos anteriores` para continuar a partir do cursor sem requisitar toda a historia de uma vez. Atualizacoes concorrentes da timeline desconsideram respostas anteriores a uma requisicao mais recente, inclusive carregamento de pagina anterior iniciado antes de uma revalidacao ou troca de aluno; o retorno de visibilidade tambem revalida o Historico.
+
+O card de próximo treino usa `TrainingRoutineView.nextSession`, uma projeção canônica do backend que busca a primeira sessão futura em qualquer semana, sempre restrita ao mesmo `alunoId` e `contractId`, a `WorkoutTemplate.released` e à existência de `ConsolidatedPrescriptionOperationalRelease`. Sessões com estado terminal não são apresentadas como próximas. Quando não existe sessão futura liberada, o contrato retorna `null`; dados em preparação não são apresentados como treino confirmado. As contagens de feedback se limitam à semana consultada; pendências de feedback de dias anteriores dessa semana continuam visíveis. O card de última execução é global ao contrato e não fica limitado à semana. A execução deve estar em estado terminal e vinculada, pelo `originReleaseId`, à mesma `ConsolidatedPrescriptionOperationalRelease` do template, aluno e contrato; um treino liberado apenas pelo Workout Builder, release ausente ou divergente não pode aparecer no card. Ausência de execução na semana não significa ausência de execução histórica, e o card não consulta uma semana arbitrária para descobrir a última execução. Em conflitos de versão `409`, a interface reconsulta a execução canônica e distingue falha de revalidação de sucesso; a mesma operação obsoleta não é repetida automaticamente.
+
+O resumo Aluno 360 já incorpora os cards de continuidade via `AlunoResumoHubTabBase`. A aba `Treinos / Planos` também mostra a projeção canônica sob a permissão `students.details.trainingPlans`, sem segundo armazenamento. Mudanças de aluno e contrato recriam o painel para impedir a exibição de dados de um contexto anterior durante a nova consulta, mesmo em falha de rede. Após uma transição confirmada pelo backend, falha de revalidação é comunicada como estado potencialmente desatualizado; a ação confirmada não é repetida.
+
+Regressões da #391 devem abranger transições e feedback confirmados, status atualizados por outro cliente, perda de autorização, troca de aluno e contrato, navegação voltar/avançar, revalidação localizada e apresentação responsiva. Testes de componentes verificam estados funcionais e classes responsivas. O navegador Chromium real verifica reflow dos cards de continuidade em desktop (1440px, 1366px) e mobile (390px), inclusive Aluno 360 e Treinos / Planos, e publica screenshots em `artifacts/issue-391`. As consultas de `nextSession` e `lastExecution` são exercitadas por SQL extraído da própria implementação em PostgreSQL migrado no CI crítico, cobrindo liberação consolidada, contrato, aluno, vínculo de origem da execução, estado terminal e fronteira temporal. Homologação manual em dispositivos físicos permanece uma validação operacional separada.
+
+#### Checklist operacional de homologação da #391 (fora da CI)
+
+Registrar dispositivo, sistema operacional, navegador, tamanho da tela, data/hora, contrato e usuário de teste, sem incluir dados pessoais em screenshots. Executar no ambiente de homologação com contas autorizadas e dados de teste. O responsável pelo aceite deve assinar o resultado com evidência vinculada ao HEAD da PR.
+
+1. **Mobile físico:** abrir o mesmo aluno no Aluno 360 e Treinos / Planos; conferir cards sem corte, rolagem horizontal, áreas clicáveis e navegação por semana; repetir em orientação retrato e paisagem.
+2. **Desktop físico:** repetir o cenário em viewport ampla e estreita, com zoom de 200% e navegação por teclado; verificar o Histórico e o carregamento de eventos anteriores sem duplicação.
+3. **Rascunhos e retomada:** iniciar check-in e feedback parciais sem enviar, alternar de app/aba e voltar; dados digitados devem continuar presentes. Confirmar um formulário e verificar que a projeção canônica atualizada substitui o rascunho.
+4. **Concorrência:** alterar o status da sessão por outro cliente e provocar conflito 409 no primeiro; exigir reconciliação explícita, sem repetição de mutação obsoleta nem mensagem falsa de sucesso.
+5. **Escopo e acesso:** alternar aluno, contrato, voltar/avançar no navegador e revogar permissão durante carregamento; não mostrar dados anteriores do outro contexto nem conteúdo sensível sem concessão.
+6. **Falha parcial:** simular falha da revalidação após uma gravação confirmada; mostrar aviso localizado, preservar demais blocos e permitir nova leitura sem repetir a gravação.
+7. **Continuidade temporal:** verificar próximo treino fora da semana atual, última execução histórica, feedback pendente e ausência de liberação consolidada, sem inventar percentual de aderência.
+
+O resultado deve indicar PASSOU/FALHOU/BLOQUEADO para cada cenário, passos e evidências por dispositivo. Capturas Chromium no CI são evidência automatizada complementar e não encerram esta homologação física.
+
 ### Historico e evolucao
 
 Deve reunir:
@@ -302,9 +398,35 @@ Antes de iniciar, o aluno pode registrar:
 - disponibilidade de tempo;
 - observacao livre curta.
 
-O check-in pode gerar alertas para o professor e orientacoes seguras para o aluno. Ele nao pode reduzir, trocar ou cancelar automaticamente a prescricao.
+### Contrato canonico do primeiro recorte
 
-Quando houver alerta critico, o sistema deve impedir que a experiencia sugira normalidade e deve orientar o aluno a procurar o professor ou atendimento apropriado conforme regra aprovada.
+- **PSR:** inteiro de `0` a `10`, reutilizando a semantica ja adotada pelo produto sem inventar rotulos intermediarios ausentes.
+- **Qualidade do sono:** inteiro de `0` a `10`, em que `0` representa qualidade pessima e `10` qualidade excelente.
+- **Fadiga:** inteiro de `0` a `10`, em que `0` representa nenhuma fadiga e `10` fadiga extrema.
+- **Motivacao:** inteiro de `0` a `10`, em que `0` representa nenhuma motivacao e `10` motivacao muito alta.
+- **Disponibilidade de tempo:** minutos inteiros.
+- **Dor/desconforto:** reutiliza a regra de triagem ja adotada no feedback pos-treino: `0-2` faixa verde, `3-4` atencao e `>4` alerta para acompanhamento. A faixa nao altera automaticamente o treino.
+- Sono, fadiga, motivacao e PSR permanecem sinais independentes. O primeiro recorte nao cria score composto de prontidao nem thresholds clinicos adicionais sem regra aprovada.
+
+### Politica temporal e idempotencia
+
+- Enquanto a sessao estiver `not_started`, o check-in pode ser criado e alterado.
+- Na primeira transicao da sessao para `in_progress`, o check-in vigente fica imutavel e permanece disponivel para consulta.
+- Depois do inicio, nao existe criacao tardia, sobrescrita silenciosa ou backfill no fluxo comum.
+- Eventual correcao historica futura deve usar mecanismo auditavel separado.
+- Cada sessao possui no maximo um check-in canonico. Retry da mesma operacao logica nao pode duplicar check-in nem evento associado.
+
+### Implementação canônica (#388)
+
+- `PreWorkoutCheckIn` é a fonte única por sessão operacional e mantém os valores separados do `WorkoutDay`.
+- A escrita do aluno é idempotente por chave lógica; a identidade do retry é calculada a partir do patch normalizado submetido, sem depender de campos alterados posteriormente por outra operação. Cada operação persistida alimenta a timeline apenas com referência e versão da regra.
+- A imutabilidade é derivada do lifecycle da própria sessão: `planned` equivale a `not_started`; qualquer estado posterior torna o check-in somente leitura.
+- A regra persistida `pre-workout-check-in-v1` implementa exclusivamente a triagem de dor/desconforto definida acima. Não existe score composto de prontidão, threshold adicional, bloqueio automático nem mutação de treino/prescrição.
+- A visão do aluno recebe orientação prática. A visão do professor só recebe valores e contexto técnico do check-in quando houver concessão explícita do bloco sensível `students.details.preWorkoutCheckIn`; a permissão genérica `students.details.trainingPlans` não autoriza esses dados.
+
+O check-in pode gerar alertas para o professor e orientacoes seguras para o aluno. Ele nao pode reduzir, trocar, cancelar ou modificar automaticamente a prescricao ou o treino liberado.
+
+Quando houver alerta critico definido por regra aprovada, o sistema deve impedir que a experiencia sugira normalidade e deve orientar o aluno a procurar o professor ou atendimento apropriado conforme a regra vigente.
 
 ## Execucao e feedback pos-treino
 
@@ -325,6 +447,33 @@ Dados esperados:
 - observacao do professor.
 
 O sistema deve preservar rascunho e falhas recuperaveis sem perder o que o aluno ja registrou.
+
+### Lifecycle canonico do feedback pos-treino
+
+- Antes da confirmacao, o cliente pode manter rascunho local/recuperavel sem torna-lo fonte canonica.
+- O primeiro envio confirmado cria a revisao canonica inicial do feedback.
+- Feedback confirmado e imutavel no fluxo comum: correcao posterior cria nova revisao vinculada a anterior; nao existe `UPDATE` destrutivo do historico.
+- Apenas a revisao vigente e projetada como feedback atual, mas revisoes anteriores permanecem consultaveis para auditoria.
+- Toda correcao exige motivo e registra ator, data/hora, revisao-base e campos alterados.
+- A correcao nao pode trocar a sessao, aluno, `contractId` ou origem operacional do feedback.
+- Retry da criacao ou correcao e idempotente e nao duplica feedback, timeline, alertas ou efeitos derivados.
+- Duas correcoes concorrentes sobre a mesma revisao-base retornam conflito deterministico; nao existe politica de last-write-wins.
+- Alertas, timeline, indicadores e decisoes derivadas devem apontar para a revisao correspondente ou ser reconciliados de forma deterministica, sem duplicacao.
+- O professor nao pode reescrever silenciosamente a percepcao original do aluno. Complemento tecnico do professor deve permanecer como dado atribuido ao professor; uma correcao sobre resposta do aluno, quando autorizada, deve preservar autoria e trilha de revisao.
+- A capacidade do aluno de corrigir o proprio feedback depende de permissao explicita do produto/backend; ausencia dessa permissao mantem o feedback somente leitura para o aluno apos confirmacao.
+
+### Implementação canônica do feedback pós-treino (#390)
+
+- A fonte canônica é uma sequência append-only de `PostWorkoutFeedbackRevision`, separada por sessão e, quando informado, por capacidade. A maior revisão de cada escopo é vigente e as anteriores permanecem auditáveis.
+- O feedback só pode ser confirmado quando `WorkoutSessionExecution` da #389 estiver em `completed` ou `partial`; ele nunca cria outra autoridade para o estado da sessão.
+- Criação e correção exigem `operationKey`. Retry idêntico reutiliza o resultado; chave reutilizada com conteúdo diferente gera conflito.
+- Correção é profissional neste recorte, exige `students.details.postWorkoutFeedback`, motivo e `baseRevisionId`; base obsoleta gera conflito determinístico.
+- PSE, PSR, dores antes/durante/depois e dificuldade são campos distintos de 0 a 10. Ausência de dor permanece `null`.
+- Fadiga, energia e sono preservam escalas categóricas independentes. Dor usa somente 0–2 verde, 3–4 atenção e >4 alerta.
+- Tontura, fadiga alta e dor podem sinalizar acompanhamento, mas nenhum sinal altera, bloqueia ou decide prescrição ou treino automaticamente.
+- A timeline recebe apenas referências, regra e códigos de sinal; valores sensíveis permanecem na fonte canônica e a visão técnica exige permissão explícita.
+
+
 
 ## Evolucao e apoio a decisao
 

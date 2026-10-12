@@ -6,6 +6,8 @@ const prisma = prismaRuntimeClient;
 
 type StudentDomainQueryOptions = {
   companyContractId?: string;
+  timelineCursor?: string;
+  timelineLimit?: number;
 };
 
 const toNumber = (value: unknown) => {
@@ -373,6 +375,115 @@ const buildContractTimelineEvents = (contracts: any[]) => {
 
   return events;
 };
+
+const buildTrainingTimelineEvents = (lifecycleEvents: any[]) => lifecycleEvents.flatMap((event) => {
+  const metadata = toRecord(event.metadata);
+  const domain = typeof metadata?.domain === 'string' ? metadata.domain : null;
+  if (!['pre_workout_check_in', 'workout_session_execution', 'post_workout_feedback'].includes(domain ?? '')) {
+    return [];
+  }
+
+  const action = typeof metadata?.action === 'string' ? metadata.action : null;
+  const status = typeof metadata?.status === 'string' ? metadata.status : null;
+  const source = {
+    type: 'system',
+    reference:
+      typeof metadata?.eventKey === 'string'
+        ? metadata.eventKey
+        : `student-lifecycle-event:${event.id}`,
+    recordedByUserId: event.actorUserId ?? null,
+  };
+
+  if (domain === 'pre_workout_check_in') {
+    return [{
+      id: `training-check-in-${event.id}`,
+      type: action === 'updated' ? 'pre_workout_check_in_updated' : 'pre_workout_check_in_recorded',
+      title: action === 'updated' ? 'Check-in pré-treino atualizado' : 'Check-in pré-treino registrado',
+      occurredAt: event.createdAt,
+      source,
+      details: {
+        workoutDayId: metadata?.workoutDayId ?? null,
+      },
+    }];
+  }
+
+  if (domain === 'post_workout_feedback') {
+    return [{
+      id: `training-feedback-${event.id}`,
+      type: action === 'corrected' ? 'post_workout_feedback_corrected' : 'post_workout_feedback_recorded',
+      title: action === 'corrected' ? 'Feedback pós-treino corrigido' : 'Feedback pós-treino registrado',
+      occurredAt: event.createdAt,
+      source,
+      details: {
+        workoutDayId: metadata?.workoutDayId ?? null,
+        revisionNumber: metadata?.revisionNumber ?? null,
+      },
+    }];
+  }
+
+  const executionTypeByStatus: Record<string, string> = {
+    in_progress: 'workout_execution_started',
+    paused: 'workout_execution_paused',
+    completed: 'workout_execution_completed',
+    partial: 'workout_execution_partial',
+    not_performed: 'workout_execution_not_performed',
+  };
+  const executionTitleByStatus: Record<string, string> = {
+    in_progress: 'Treino iniciado',
+    paused: 'Treino pausado',
+    completed: 'Treino concluído',
+    partial: 'Treino encerrado parcialmente',
+    not_performed: 'Treino marcado como não realizado',
+  };
+
+  return [{
+    id: `training-execution-${event.id}`,
+    type: action === 'record_values' ? 'workout_execution_values_recorded' : executionTypeByStatus[status ?? ''] ?? 'workout_execution_updated',
+    title: action === 'record_values' ? 'Execução do treino atualizada' : executionTitleByStatus[status ?? ''] ?? 'Execução do treino atualizada',
+    occurredAt: event.createdAt,
+    source,
+    details: {
+      workoutDayId: metadata?.workoutDayId ?? null,
+      status: status ?? null,
+      previousStatus: metadata?.previousStatus ?? null,
+      version: metadata?.version ?? null,
+    },
+  }];
+});
+
+type TimelineCursor = { v: 1; alunoId: string; contractId: string | null; at: string; kind: 'legacy' | 'training'; id: string };
+
+const timelineTimestamp = (value: unknown) => new Date(String(value)).getTime();
+const timelineKey = (event: Record<string, unknown>, kind: 'legacy' | 'training') => ({
+  at: timelineTimestamp(event.occurredAt), kind, id: String(event.id),
+});
+const compareTimelineKeys = (
+  a: { at: number; kind: 'legacy' | 'training'; id: string },
+  b: { at: number; kind: 'legacy' | 'training'; id: string },
+) => b.at - a.at || (a.kind === b.kind ? b.id.localeCompare(a.id) : a.kind === 'legacy' ? -1 : 1);
+
+const decodeTimelineCursor = (raw: string, alunoId: string, contractId?: string): TimelineCursor => {
+  try {
+    if (!/^[A-Za-z0-9_-]{1,256}$/.test(raw)) throw new Error('invalid');
+    const parsed: unknown = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
+    if (!parsed || typeof parsed !== 'object') throw new Error('invalid');
+    const data = parsed as Partial<TimelineCursor>;
+    if (data.v !== 1 || data.alunoId !== alunoId || data.contractId !== (contractId ?? null) ||
+        (data.kind !== 'legacy' && data.kind !== 'training') ||
+        typeof data.id !== 'string' || !data.id || data.id.length > 128 ||
+        typeof data.at !== 'string' || !Number.isFinite(Date.parse(data.at)) ||
+        new Date(data.at).toISOString() !== data.at) throw new Error('invalid');
+    return data as TimelineCursor;
+  } catch {
+    throw new Error('INVALID_TIMELINE_CURSOR');
+  }
+};
+const encodeTimelineCursor = (
+  key: { at: number; kind: 'legacy' | 'training'; id: string },
+  alunoId: string, contractId?: string,
+) => Buffer.from(JSON.stringify({
+  v: 1, alunoId, contractId: contractId ?? null, at: new Date(key.at).toISOString(), kind: key.kind, id: key.id,
+})).toString('base64url');
 
 const buildTimeline = ({
   aluno,
@@ -863,20 +974,53 @@ export const studentDomainService = {
       return null;
     }
 
-    const items = buildTimeline({
-      aluno,
-      profile,
-      intake,
-      assessments: assessments.items,
-      financial,
-      integrations,
-      activities,
+    // A timeline e uma unica sequencia: eventos legados e canonicos compartilham cursor e ordenacao.
+    const legacyItems = buildTimeline({
+      aluno, profile, intake, assessments: assessments.items, financial, integrations, activities,
     });
+    const cursor = options.timelineCursor
+      ? decodeTimelineCursor(options.timelineCursor, alunoId, options.companyContractId)
+      : null;
+    const pageSize = Math.min(200, Math.max(1, options.timelineLimit ?? 100));
+    const cursorKey = cursor ? { at: Date.parse(cursor.at), kind: cursor.kind, id: cursor.id } : null;
+    const legacy = legacyItems.map((event) => ({ event, key: timelineKey(event, 'legacy') }))
+      .filter(({ key }) => !cursorKey || compareTimelineKeys(key, cursorKey) > 0);
 
+    const trainingDomains = ['pre_workout_check_in', 'workout_session_execution', 'post_workout_feedback'];
+    const scopedDomain = { OR: trainingDomains.map((domain) => ({
+      metadata: { path: ['domain'], equals: domain },
+    })) };
+    // Treinos com data anterior; empates usam o ID original do registro, nunca o ID projetado.
+    // Para cursor legado, todos os treinos no mesmo instante sao posteriores na ordenacao.
+    const trainingTimeFilter = cursor
+      ? { OR: [
+          { createdAt: { lt: new Date(cursor.at) } },
+          ...(cursor.kind === 'legacy'
+            ? [{ createdAt: new Date(cursor.at) }]
+            : [{ createdAt: new Date(cursor.at), id: { lt: cursor.id } }]),
+        ] }
+      : {};
+    const page = await prisma.studentLifecycleEvent.findMany({
+      where: {
+        alunoId,
+        ...(options.companyContractId ? { contractId: options.companyContractId } : {}),
+        AND: [scopedDomain, trainingTimeFilter],
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: pageSize + 1,
+    });
+    const training = page.flatMap((record) => buildTrainingTimelineEvents([record]).map((event) => ({
+      event, key: { at: timelineTimestamp(event.occurredAt), kind: 'training' as const, id: record.id as string },
+    })));
+    const combined = [...legacy, ...training].sort((a, b) => compareTimelineKeys(a.key, b.key));
+    const selected = combined.slice(0, pageSize);
+    const hasMore = combined.length > pageSize || page.length > pageSize;
+    const last = selected[selected.length - 1];
     return {
       alunoId: aluno.id,
-      items,
-      total: items.length,
+      items: selected.map(({ event }) => event),
+      total: selected.length,
+      nextCursor: hasMore && last ? encodeTimelineCursor(last.key, alunoId, options.companyContractId) : null,
     };
   },
 };

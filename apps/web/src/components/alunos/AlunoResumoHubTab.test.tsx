@@ -5,6 +5,13 @@ import { AlunoResumoHubTab } from './AlunoResumoHubTab';
 import type { Aluno } from '../../services/aluno.service';
 import type { Assessment, AssessmentSummary } from '../../services/assessment.service';
 
+const routineMocks = vi.hoisted(() => ({ getForAluno: vi.fn() }));
+
+vi.mock('../../services/training-routine.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../services/training-routine.service')>()),
+  trainingRoutineService: { getForAluno: routineMocks.getForAluno, getForStudent: vi.fn() },
+}));
+
 const baseAluno = {
   id: 'aluno-1',
   age: 35,
@@ -29,6 +36,7 @@ function renderResumo(
   options: {
     assessments?: Assessment[];
     assessmentSummary?: AssessmentSummary[];
+    canViewTraining?: boolean;
   } = {}
 ) {
   return render(
@@ -40,6 +48,7 @@ function renderResumo(
         plans={[]}
         activeStudentContract={null}
         segmentedSummary={null}
+        canViewTraining={options.canViewTraining}
       />
     </MemoryRouter>
   );
@@ -155,5 +164,44 @@ describe('AlunoResumoHubTab assessment card', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('AlunoResumoHubTab Treino de hoje (#387)', () => {
+  it('consulta a rotina canônica do aluno selecionado', async () => {
+    routineMocks.getForAluno.mockReset().mockResolvedValue({
+      alunoId: 'aluno-1',
+      audience: 'professor',
+      referenceDate: '2026-10-01',
+      timeZone: 'America/Sao_Paulo',
+      week: { startDate: '2026-09-28', endDate: '2026-10-04' },
+      days: [],
+      today: { date: '2026-10-01', state: 'none', sessions: [] },
+      execution: { available: false, reason: 'execution_contract_pending' },
+    });
+
+    renderResumo(baseAluno);
+
+    expect(await screen.findByText('Nenhuma sessão liberada para hoje')).toBeInTheDocument();
+    expect(routineMocks.getForAluno).toHaveBeenCalledWith('aluno-1', { date: undefined });
+  });
+
+  it('não consulta a rotina sem o bloco de treinos e mantém o restante do resumo', async () => {
+    routineMocks.getForAluno.mockReset();
+
+    renderResumo(baseAluno, { canViewTraining: false });
+
+    expect(await screen.findByText('Sem permissão para ver os treinos')).toBeInTheDocument();
+    expect(routineMocks.getForAluno).not.toHaveBeenCalled();
+    expect(screen.getAllByText('PRNT pendente').length).toBeGreaterThan(0);
+  });
+
+  it('mantém os demais blocos quando a rotina falha', async () => {
+    routineMocks.getForAluno.mockReset().mockRejectedValue({ response: { status: 500 } });
+
+    renderResumo(baseAluno);
+
+    expect(await screen.findByText('Não foi possível carregar os treinos')).toBeInTheDocument();
+    expect(screen.getAllByText('PRNT pendente').length).toBeGreaterThan(0);
   });
 });

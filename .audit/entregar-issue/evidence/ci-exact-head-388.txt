@@ -1,0 +1,10 @@
+repository=crgasparoto-br/training-system
+issue=388
+pr=495
+material_head_sha=667f3d564339791c2538937f1f2b2b48299f85aa
+workflow=Validate PR
+run_id=37203166199
+status=completed
+conclusion=success
+profile=CRITICAL
+observed_steps=critical database and migration regressions; type check; lint; full tests; build; architecture checks; access catalog checks; documentation checks

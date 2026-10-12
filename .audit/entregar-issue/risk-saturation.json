@@ -1,17 +1,1 @@
-{
-  "schema_version": 2,
-  "artifact_format": "base64-shards-v1",
-  "artifact_kind": "risk-saturation",
-  "compression": "gzip",
-  "encoded_size": 2036,
-  "encoded_sha256": "6ba348105ac92ffac0603f0ca8c72d4c5b285623dbb265f4bd2d5dcc7102710c",
-  "decoded_size": 5958,
-  "decoded_sha256": "65e0e4022849cfacdf4449cb15c28214b0d1b29a63ce2a9ace63651d9eef154d",
-  "parts": [
-    {
-      "path": "risk-saturation.parts/part-000.b64",
-      "size": 2036,
-      "sha256": "6ba348105ac92ffac0603f0ca8c72d4c5b285623dbb265f4bd2d5dcc7102710c"
-    }
-  ]
-}
+{"schema_version":1,"head_sha":"59971d6bdef059b1182e7447e98582d5336310c1","material_families_missing_controls":[],"families":[{"family":"authorization","applicable":true,"status":"passed","control_ids":["AUTH-NEG"],"reason":"Material to check-in contract and covered on exact head."},{"family":"tenant-isolation","applicable":true,"status":"passed","control_ids":["AUTH-NEG"],"reason":"Material to check-in contract and covered on exact head."},{"family":"public-boundary","applicable":true,"status":"passed","control_ids":["WEB-NEG"],"reason":"Material to check-in contract and covered on exact head."},{"family":"reference-liveness","applicable":false,"status":"not-applicable","control_ids":[],"reason":"No distinct material obligation for this delivery."},{"family":"temporal-consistency","applicable":true,"status":"passed","control_ids":["TIME-NEG"],"reason":"Material to check-in contract and covered on exact head."},{"family":"temporal-destination","applicable":false,"status":"not-applicable","control_ids":[],"reason":"No distinct material obligation for this delivery."},{"family":"concurrency-atomicity","applicable":true,"status":"passed","control_ids":["IDEMP-NEG"],"reason":"Material to check-in contract and covered on exact head."},{"family":"idempotency","applicable":true,"status":"passed","control_ids":["IDEMP-NEG"],"reason":"Material to check-in contract and covered on exact head."},{"family":"rollback","applicable":false,"status":"not-applicable","control_ids":[],"reason":"No distinct material obligation for this delivery."},{"family":"historical-immutability","applicable":true,"status":"passed","control_ids":["TIME-NEG"],"reason":"Material to check-in contract and covered on exact head."},{"family":"structural-contract","applicable":false,"status":"not-applicable","control_ids":[],"reason":"No distinct material obligation for this delivery."},{"family":"documentation","applicable":true,"status":"passed","control_ids":["DOC-NEG"],"reason":"Material to check-in contract and covered on exact head."}]}

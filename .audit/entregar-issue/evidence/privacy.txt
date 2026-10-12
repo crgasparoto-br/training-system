@@ -1,0 +1,4 @@
+Exact-head student projection evidence for PR #492:
+- service test verifies student response has consolidated public origin but no technical field and does not contain the professor internal objective text.
+- professor response may include coachGoal/trainingMethod/trainingDivision/repReserve and consolidated release identifiers.
+- route unexpected-error test verifies response does not expose an internal address marker from the thrown error.

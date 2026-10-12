@@ -1,0 +1,190 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "ESC-HANDOFF-TARGET-383-001",
+      "status": "passed",
+      "escape_class": "inherited-foreign-handoff-reuse",
+      "source_audit": {
+        "head_sha": "d011846598ad0dadbafd5772429e4102ed6dafb4",
+        "rejection_id": "audit-rejection:383-handoff-not-produced-d011846",
+        "finding_id": "A-383-01",
+        "audit_report_sha256": "4d2dfb98a4324b16307fd1b6eb1ddf7e3c4701299275ceca457671a6942863c5"
+      },
+      "plausible_wrong_implementation": "Treat an inherited handoff-ready.json from another issue as current delivery evidence merely because the branch contains a syntactically valid certificate.",
+      "literal_case": {
+        "procedure": "Compare repository, issue, PR, base and head subject against inherited certificate state before reuse.",
+        "status": "passed",
+        "evidence": "audit-remediation.json",
+        "observed": "The current package is bound to Issue 383 and PR 486 rather than inherited foreign target state."
+      },
+      "sibling_cases": [
+        {
+          "id": "foreign-subject",
+          "surface": "delivery-target-binding",
+          "dimension": "foreign-subject-on-inherited-base",
+          "status": "passed",
+          "evidence": "handoff-ready.json"
+        },
+        {
+          "id": "refreeze-floor",
+          "surface": "terminal-handoff-identity",
+          "dimension": "result-only-parent-binding",
+          "status": "passed",
+          "evidence": "handoff-ready.json"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "delivery-target-binding",
+          "dimension": "current-target-binding"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "terminal-handoff-identity",
+          "dimension": "result-only-parent-binding"
+        }
+      ],
+      "prevention_change": {
+        "kind": "existing-control-applied",
+        "evidence": "handoff-ready.json",
+        "description": "Foreign target packages are not reused as current delivery evidence."
+      },
+      "detection_change": {
+        "kind": "completion-guard-revalidation",
+        "evidence": "handoff-ready.json",
+        "description": "Terminal binding is revalidated for the current issue and PR."
+      },
+      "trigger_terms": [
+        "handoff-ready",
+        "inherited-base-artifact",
+        "foreign-target"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "d011846598ad0dadbafd5772429e4102ed6dafb4"
+    },
+    {
+      "escape_id": "ESC-HANDOFF-SCOPE-383-002",
+      "status": "passed",
+      "escape_class": "issue-scope-path-mismatch",
+      "source_audit": {
+        "head_sha": "582e5601d547bb138789d9361b1ae01b1e3f7dd2",
+        "rejection_id": "audit-rejection:383-handoff-scope-mismatch-582e560",
+        "finding_id": "A-383-02",
+        "audit_report_sha256": "1d4141997259485db19aea2eb6ec3f9db2ebdb9cd47f7d626aa304860fcd42fb"
+      },
+      "plausible_wrong_implementation": "Generate a syntactically valid result-only certificate using a manually transcribed issue_changed_paths list that contains a typo and therefore does not equal the immutable material delta.",
+      "literal_case": {
+        "procedure": "Rederive the exact base-to-material changed paths and build the certificate from those canonical paths rather than copying a prior list.",
+        "status": "passed",
+        "evidence": "handoff-ready.json",
+        "observed": "The corrected certificate binds docs/database/adipometry.md and the exact eight-path material delta."
+      },
+      "sibling_cases": [
+        {
+          "id": "missing-path",
+          "surface": "issue-local-scope",
+          "dimension": "omitted-material-path",
+          "status": "passed",
+          "evidence": "handoff-ready.json"
+        },
+        {
+          "id": "mistyped-path",
+          "surface": "issue-local-scope",
+          "dimension": "nonexistent-transcribed-path",
+          "status": "passed",
+          "evidence": "handoff-ready.json"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "issue-local-scope",
+          "dimension": "exact-path-set"
+        }
+      ],
+      "prevention_change": {
+        "kind": "canonical-delta-rederivation",
+        "evidence": "handoff-ready.json",
+        "description": "Certificate scope is rebuilt from the immutable Git compare path set."
+      },
+      "detection_change": {
+        "kind": "scope-binding-validation",
+        "evidence": "handoff-ready.json",
+        "description": "Terminal validation compares certified issue_changed_paths with the observed base-to-material delta."
+      },
+      "trigger_terms": [
+        "issue_changed_paths",
+        "scope-digest",
+        "result-only-child"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "d011846598ad0dadbafd5772429e4102ed6dafb4"
+    },
+    {
+      "escape_id": "ESC-HANDOFF-PUBLISHED-383-003",
+      "status": "passed",
+      "escape_class": "published-result-only-head-binding",
+      "source_audit": {
+        "head_sha": "becc08dab05d86c13ed8d88bf7cdba121329ea9f",
+        "rejection_id": "audit-rejection:383-published-head-mismatch-becc08d",
+        "finding_id": "A-383-03",
+        "audit_report_sha256": "062a522f58c62c56be51a98efa7b94961e3001afaeae00b49dca89e7ecad1da8"
+      },
+      "plausible_wrong_implementation": "Treat the material compatibility alias identity.head_sha as if it were the published result-only child SHA, or return audit-ready without comparing the actual published child against a fresh remote current head.",
+      "literal_case": {
+        "procedure": "Keep the certificate bound to the immutable material SHA, publish a direct result-only child, then obtain published_handoff_head_sha from the created Git object and compare it with a fresh current_head_sha in the terminal guard.",
+        "status": "passed",
+        "evidence": "terminal-handoff-proof.json",
+        "observed": "The terminal contract separates the material candidate from the published result-only child and requires the published child to equal the fresh remote current head before audit-ready completion."
+      },
+      "sibling_cases": [
+        {
+          "id": "material-alias-not-published-head",
+          "surface": "terminal-handoff-identity",
+          "dimension": "material-vs-published-head",
+          "status": "passed",
+          "evidence": "handoff-ready.json"
+        },
+        {
+          "id": "remote-head-drift-after-publication",
+          "surface": "terminal-handoff-identity",
+          "dimension": "published-vs-current-head",
+          "status": "passed",
+          "evidence": "terminal-handoff-proof.json"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "terminal-handoff-identity",
+          "dimension": "published-current-head-equality"
+        }
+      ],
+      "prevention_change": {
+        "kind": "existing-result-only-contract-applied",
+        "evidence": "handoff-ready.json",
+        "description": "The certificate stays material-bound and never attempts impossible commit self-reference."
+      },
+      "detection_change": {
+        "kind": "terminal-remote-binding",
+        "evidence": "terminal-handoff-proof.json",
+        "description": "After publication, the terminal guard separately proves published child, current remote head, direct parent and allowlisted paths."
+      },
+      "trigger_terms": [
+        "published_handoff_head_sha",
+        "current_head_sha",
+        "result-only-child"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "d011846598ad0dadbafd5772429e4102ed6dafb4"
+    }
+  ]
+}

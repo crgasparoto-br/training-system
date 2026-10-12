@@ -1,102 +1,176 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "head_sha": "b9a7b1d8c4e064bc75ebf06f28d66a4e7cd003b7",
+  "head_sha": "ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f",
   "requirements": [
     {
       "requirement_id": "REQ-001",
       "positive_evidence": [
-        "Targeted audit rejection is closed by the material patch and exact-head validation."
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pnpm validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
       ],
       "primary_negative_control": {
-        "id": "NC-001",
+        "id": "N-WEEK-1",
         "status": "passed",
-        "procedure": "Re-evaluate prior A-001/A-002 and R-001 against current head.",
-        "expected": "All actionable audit items are closed.",
-        "observed": "Remediation ledger closes A-001, A-002 and R-001."
+        "procedure": "Released-plan reference and week ordering regression",
+        "expected": "Lista sessões vigentes a partir do grafo operacional liberado, em ordem estável.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
       },
       "regression_evidence": [
-        "Remediation ledger closes A-001, A-002 and R-001."
+        "Validate PR run 36954523799 exact-head success."
       ]
     },
     {
       "requirement_id": "REQ-002",
       "positive_evidence": [
-        "Single and multi add initialize reps:null; Rep renders repZone only as placeholder."
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pnpm validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
       ],
       "primary_negative_control": {
-        "id": "NC-002",
+        "id": "N-RELEASE-2",
         "status": "passed",
-        "procedure": "Add one and two resisted exercises with repZone 12.",
-        "expected": "Persisted reps stay null; placeholder is 12.",
-        "observed": "Both regression tests passed in CI."
+        "procedure": "Unreleased sessions expose count only and never become today content",
+        "expected": "Deriva o Treino de hoje somente de WorkoutTemplate/release operacional liberado.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
       },
       "regression_evidence": [
-        "Both regression tests passed in CI."
+        "Validate PR run 36954523799 exact-head success."
       ]
     },
     {
       "requirement_id": "REQ-003",
       "positive_evidence": [
-        "openQuickFillModal resets all quick-fill fields before opening."
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pnpm validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
       ],
       "primary_negative_control": {
-        "id": "NC-003",
+        "id": "N-PRESENT-1",
         "status": "passed",
-        "procedure": "Apply C=5, close, reopen quick fill.",
-        "expected": "Reopened fields are empty; blank apply fields preserve current values.",
-        "observed": "Reopen/reset and preserve-current tests passed."
+        "procedure": "Presenter regression verifies practical fields without technical leakage",
+        "expected": "Apresenta objetivo, duração, ordem, aquecimento/blocos/finalização, parâmetros e orientações aplicáveis.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
       },
       "regression_evidence": [
-        "Reopen/reset and preserve-current tests passed."
+        "Validate PR run 36954523799 exact-head success."
       ]
     },
     {
       "requirement_id": "REQ-004",
       "positive_evidence": [
-        "Material diff is limited to WorkoutBuilderResistance source and tests; no permission/data-contract files changed."
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pn`m validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
       ],
       "primary_negative_control": {
-        "id": "NC-004",
+        "id": "N-EXEC-2",
         "status": "passed",
-        "procedure": "Compare d736698..b9a7b1d and run access/docs/architecture gates.",
-        "expected": "Only targeted source/tests change and all preservation gates pass.",
-        "observed": "Two-file remediation delta; arch/access/docs gates green."
+        "procedure": "Canonical release/origin consistency",
+        "expected": "Preserva referência à origem/release consolidado e não expõe justificativas técnicas internas ao aluno.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
       },
       "regression_evidence": [
-        "Two-file remediation delta; arch/access/docs gates green."
+        "Validate PR run 36954523799 exact-head success."
       ]
     },
     {
       "requirement_id": "REQ-005",
       "positive_evidence": [
-        "GitHub Actions run 36541963260 is success for exact material head."
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pn`m validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
       ],
       "primary_negative_control": {
-        "id": "NC-005",
+        "id": "N-STATE-1",
         "status": "passed",
-        "procedure": "Inspect exact-head Validate PR jobs.",
-        "expected": "Type-check, lint, tests, build, arch/access/docs and final gate succeed.",
-        "observed": "All required jobs and final Validate repository succeeded."
+        "procedure": "Access denial/loading/error/empty states remain discriminated",
+        "expected": "Distingue vazio, ainda não liberado, carregamento, erro localizado e acesso negado.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
       },
       "regression_evidence": [
-        "All required jobs and final Validate repository succeeded."
+        "Validate PR run 36954523799 exact-head success."
       ]
     },
     {
       "requirement_id": "REQ-006",
       "positive_evidence": [
-        "Fresh certificate subject is Issue #476 / PR #475 and material head b9a7b1d."
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pnpm validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
       ],
       "primary_negative_control": {
-        "id": "NC-006",
+        "id": "N-NAV-1",
         "status": "passed",
-        "procedure": "Reject inherited #467/#470 subject and validate replacement target binding.",
-        "expected": "Foreign inherited package is not reused; new subject matches current target.",
-        "observed": "Replacement certificate generated for #476/#475; inherited blob treated as foreign base artifact."
+        "procedure": "contractId/session context preserved across student navigation",
+        "expected": "Preserva aluno/contractId e referência estável da sessão ao navegar e retornar.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
       },
       "regression_evidence": [
-        "Replacement certificate generated for #476/#475; inherited blob treated as foreign base artifact."
+        "Validate PR run 36954523799 exact-head success."
+      ]
+    },
+    {
+      "requirement_id": "REQ-007",
+      "positive_evidence": [
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pnpm validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
+      ],
+      "primary_negative_control": {
+        "id": "N-AUTH-1",
+        "status": "passed",
+        "procedure": "Session target binding plus cross-contract denial and client override rejection",
+        "expected": "Valida permissões/contractId no backend e não aceita override do aluno autenticado pelo cliente.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
+      },
+      "regression_evidence": [
+        "Validate PR run 36954523799 exact-head success."
+      ]
+    },
+    {
+      "requirement_id": "REQ-008",
+      "positive_evidence": [
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pnpm validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
+      ],
+      "primary_negative_control": {
+        "id": "N-EXEC-4",
+        "status": "passed",
+        "procedure": "Mutation contract unavailable => zero state-changing requests and disabled controls",
+        "expected": "Não cria endpoint mutável, persistência paralela nem sucesso apenas local; controles ficam indisponíveis até o contrato canônico.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
+      },
+      "regression_evidence": [
+        "Validate PR run 36954523799 exact-head success."
+      ]
+    },
+    {
+      "requirement_id": "REQ-009",
+      "positive_evidence": [
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pn`m validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
+      ],
+      "primary_negative_control": {
+        "id": "N-DEGRADE-1",
+        "status": "passed",
+        "procedure": "Routine request failure leaves sibling Central blocks available",
+        "expected": "Falha da área de treino não derruba os demais blocos da Central.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
+      },
+      "regression_evidence": [
+        "Validate PR run 36954523799 exact-head success."
+      ]
+    },
+    {
+      "requirement_id": "REQ-010",
+      "positive_evidence": [
+        "GitHub Actions Validate PR run 36954523799 completed success on exact material head ddbe175e6a7b6047cf6ef0cf9553b9801bc48a9f.",
+        "PR #492 records pn`m validate passing locally; browser evidence passed at 1440x900, 1366x768 and 390x844."
+      ],
+      "primary_negative_control": {
+        "id": "N-TIME-1",
+        "status": "passed",
+        "procedure": "Backend civil-time boundary plus browser evidence at desktop/tablet/mobile",
+        "expected": "Fluxo funciona em desktop/mobile/teclado/leitor de tela e usa America/Sao_Paulo no backend para hoje/semana.",
+        "observed": "Exact-head CI 36954523799 and focused tests in PR #492 passed."
+      },
+      "regression_evidence": [
+        "Validate PR run 36954523799 exact-head success."
       ]
     }
   ]
