@@ -120,3 +120,19 @@ test('canonical audit contract changes always use CRITICAL validation', () => {
     assert.equal(forced.promoted, true);
   }
 });
+
+
+test('production Vercel routing never proxies authentication to a different system', () => {
+  const expectedApiDestination = 'https://sistema-acesso-api.onrender.com/api/:path*';
+  for (const configPath of ['../vercel.json', '../apps/web/vercel.json']) {
+    const config = JSON.parse(readFileSync(new URL(configPath, import.meta.url), 'utf8'));
+    assert.deepEqual(config.rewrites[0], {
+      source: '/api/:path*',
+      destination: expectedApiDestination,
+    }, `${configPath} must proxy same-origin API to Sistema Acesso`);
+    assert.deepEqual(config.rewrites[1], {
+      source: '/(.*)',
+      destination: '/index.html',
+    }, `${configPath} must keep the SPA fallback after the API rewrite`);
+  }
+});
