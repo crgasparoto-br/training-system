@@ -183,9 +183,18 @@ function TodaySession({
       if (onExecutionChanged) await onExecutionChanged();
     } catch (error) {
       const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 409) {
+        // Reconciliar com o estado persistido antes de permitir nova tentativa.
+        operationRef.current = null;
+        try {
+          await onExecutionChanged?.();
+        } catch {
+          // Manter a mensagem de conflito caso a revalidação também falhe.
+        }
+      }
       setExecutionError(
         status === 409
-          ? 'O estado deste treino mudou em outro dispositivo. Atualize o estado antes de tentar novamente.'
+          ? 'O estado deste treino mudou em outro dispositivo. A sessão foi revalidada; confira o estado antes de tentar novamente.'
           : 'Não foi possível salvar a alteração. Seus dados nesta tela foram preservados; tente novamente.'
       );
     } finally {
@@ -671,8 +680,16 @@ export function TrainingRoutinePanel({
                 session={session}
                 audience={audience}
                 executionAvailable={routine.execution.available}
-                saveCheckIn={saveCheckIn}
-            saveFeedback={saveFeedback}
+                saveCheckIn={saveCheckIn ? async (sessionId, payload) => {
+                  const saved = await saveCheckIn(sessionId, payload);
+                  await fetchRoutine(referenceDate);
+                  return saved;
+                } : undefined}
+                saveFeedback={saveFeedback ? async (sessionId, payload) => {
+                  const saved = await saveFeedback(sessionId, payload);
+                  await fetchRoutine(referenceDate);
+                  return saved;
+                } : undefined}
                 transitionExecution={transitionExecution}
                 onExecutionChanged={() => fetchRoutine(referenceDate)}
               />
