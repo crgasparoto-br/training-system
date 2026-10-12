@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type { TrainingRoutineSessionDetail, TrainingRoutineView } from '@corrida/types';
 import { TrainingRoutinePanel } from './TrainingRoutinePanel';
@@ -371,6 +372,42 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(within(cards).getByText('Treino programado')).toBeInTheDocument();
     expect(within(cards).getByText('03/11 · Não iniciado')).toBeInTheDocument();
     expect(within(cards).queryByText(/Nenhuma sessão pendente/)).not.toBeInTheDocument();
+  });
+
+  it('mantém o aluno correto ao navegar voltar/avançar, inclusive sob carregamento assíncrono', async () => {
+    const loadA = vi.fn().mockResolvedValue(routine({
+      alunoId: 'aluno-a',
+      nextSession: { sessionId: 'a-next', date: '2026-11-03', status: 'not_started' },
+    }));
+    const loadB = vi.fn().mockResolvedValue(routine({
+      alunoId: 'aluno-b',
+      nextSession: { sessionId: 'b-next', date: '2026-12-04', status: 'not_started' },
+    }));
+    function RouteView() {
+      const { alunoId } = useParams();
+      const navigate = useNavigate();
+      return (
+        <main>
+          <button onClick={() => navigate('/aluno-b')}>Abrir aluno B</button>
+          <button onClick={() => navigate(-1)}>Voltar no navegador</button>
+          <button onClick={() => navigate(1)}>Avançar no navegador</button>
+          <TrainingRoutinePanel key={alunoId} audience="student" load={alunoId === 'aluno-a' ? loadA : loadB} />
+        </main>
+      );
+    }
+    render(
+      <MemoryRouter initialEntries={['/aluno-a']}>
+        <Routes><Route path="/:alunoId" element={<RouteView />} /></Routes>
+      </MemoryRouter>
+    );
+    expect(await screen.findByText('03/11 · Não iniciado')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir aluno B' }));
+    expect(await screen.findByText('04/12 · Não iniciado')).toBeInTheDocument();
+    expect(screen.queryByText('03/11 · Não iniciado')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Voltar no navegador' }));
+    expect(await screen.findByText('03/11 · Não iniciado')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Avançar no navegador' }));
+    expect(await screen.findByText('04/12 · Não iniciado')).toBeInTheDocument();
   });
 
   it('oculta dados anteriormente confirmados quando a permissão do bloco é revogada', async () => {
