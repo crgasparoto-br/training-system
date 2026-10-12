@@ -75,10 +75,8 @@ describe('training routine service (#387)', () => {
   const queryRaw = jest.fn();
   const preWorkoutCheckInFindMany = jest.fn();
   const postWorkoutFeedbackFindMany = jest.fn();
-  const lastExecutionFindFirst = jest.fn();
   const client = {
     workoutDay: { findMany },
-    workoutSessionExecution: { findFirst: lastExecutionFindFirst },
     preWorkoutCheckIn: { findMany: preWorkoutCheckInFindMany },
     postWorkoutFeedbackRevision: { findMany: postWorkoutFeedbackFindMany },
     $queryRaw: queryRaw,
@@ -91,6 +89,7 @@ describe('training routine service (#387)', () => {
   let capacityRows: Row[];
   let releaseRows: Row[];
   let upcomingRows: Row[];
+  let latestExecutionRows: Row[];
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -101,13 +100,14 @@ describe('training routine service (#387)', () => {
     upcomingRows = [];
     preWorkoutCheckInFindMany.mockResolvedValue([]);
     postWorkoutFeedbackFindMany.mockResolvedValue([]);
-    lastExecutionFindFirst.mockResolvedValue(null);
+    latestExecutionRows = [];
     findMany.mockImplementation((args: any) =>
       Promise.resolve(args.where.template.released ? releasedRows : pendingRows)
     );
     queryRaw.mockImplementation((strings: TemplateStringsArray) => {
       const sql = strings.join('?');
       if (sql.includes('FROM "WorkoutDay" day')) return Promise.resolve(upcomingRows);
+      if (sql.includes('FROM "WorkoutSessionExecution" execution')) return Promise.resolve(latestExecutionRows);
       if (sql.includes('WorkoutDayCapacityOperationalBlock')) return Promise.resolve(capacityRows);
       if (sql.includes('ConsolidatedPrescriptionOperationalRelease')) return Promise.resolve(releaseRows);
       throw new Error(`SQL inesperado: ${sql}`);
@@ -149,26 +149,38 @@ describe('training routine service (#387)', () => {
     expect(result.nextSession).toBeNull();
   });
 
-  it('projetar última execução de qualquer semana sem misturar alunos ou contratos', async () => {
-    lastExecutionFindFirst.mockResolvedValue({
-      workoutDayId: 'old-day',
+  it('projeta a ultima execucao global apenas com liberação consolidada vinculada ao release de origem', async () => {
+    latestExecutionRows = [{
+      sessionId: 'old-day',
       status: 'completed',
-      workoutDay: { workoutDate: new Date('2026-09-01T00:00:00.000Z') },
-    });
+      date: new Date('2026-09-01T00:00:00.000Z'),
+    }];
     const result = await service.getRoutine({
       alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
     });
     expect(result.lastExecution).toEqual({
       sessionId: 'old-day', status: 'completed', date: '2026-09-01',
     });
-    expect(lastExecutionFindFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({
-        alunoId: 'aluno-1', contractId: 'contract-1',
-        workoutDay: { template: { released: true, plan: {
-          alunoId: 'aluno-1', aluno: { contractId: 'contract-1' },
-        } } },
-      }),
-    }));
+    const executionCall = queryRaw.mock.calls.find(([strings]) =>
+      strings.join('?').includes('FROM "WorkoutSessionExecution" execution')
+    );
+    expect(executionCall).toBeDefined();
+    const executionSql = (executionCall?.[0] as TemplateStringsArray).join('?');
+    expect(executionSql).toContain('release."id" = execution."originReleaseId"');
+    expect(executionSql).toContain('release."workoutTemplateId" = template."id"');
+    expect(executionSql).toContain('release."alunoId" = execution."alunoId"');
+    expect(executionSql).toContain('release."contractId" = execution."contractId"');
+    expect(executionSql).toContain("IN ('completed', 'partial', 'not_performed')");
+    expect(executionSql).toContain('ORDER BY execution."finishedAt" DESC');
+    expect(executionCall?.slice(1)).toEqual(['aluno-1', 'contract-1', 'aluno-1', 'contract-1']);
+  });
+
+  it('não inventa última execução quando o backend não encontra execução autorizada', async () => {
+    latestExecutionRows = [];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.lastExecution).toBeNull();
   });
 
   it('não projeta contagens de feedback ao professor sem concessão explícita', async () => {
