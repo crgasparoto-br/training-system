@@ -277,7 +277,7 @@ describe('TrainingRoutinePanel (#387)', () => {
       },
     });
     const data = routine({
-      audience: 'professor',
+      audience: 'student',
       lastExecution: { sessionId: 'day-1', date: '2026-10-01', status: 'completed' },
       feedbackContinuity: { state: 'available', pendingCount: 1, registeredCount: 0 },
       days: [
