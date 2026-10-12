@@ -273,6 +273,7 @@ export function AlunoDetails() {
   activeAlunoIdRef.current = id;
   const [timelineLoadingMore, setTimelineLoadingMore] = useState(false);
   const timelineGenerationRef = useRef(0);
+  const alunoLoadRequestRef = useRef(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadErrorKind, setLoadErrorKind] = useState<AlunoLoadErrorKind>(null);
   const [loading, setLoading] = useState(true);
@@ -526,6 +527,11 @@ export function AlunoDetails() {
   }, [assessmentForm.typeId]);
 
   const loadAluno = async (alunoId: string) => {
+    // O mesmo aluno pode ser recarregado mais de uma vez (permissoes, retry).
+    // A geracao protege dados antigos sem bloquear revalidacoes localizadas.
+    const loadRequest = ++alunoLoadRequestRef.current;
+    const timelineGeneration = ++timelineGenerationRef.current;
+    setTimelineLoadingMore(false);
     setLoading(true);
     setLoadError(null);
     setLoadErrorKind(null);
@@ -592,7 +598,7 @@ export function AlunoDetails() {
           : Promise.resolve(null),
       ]);
 
-      if (activeAlunoIdRef.current !== alunoId) return;
+      if (activeAlunoIdRef.current !== alunoId || loadRequest !== alunoLoadRequestRef.current) return;
       setAluno(data);
       setSegmentedSummary(segmentedSummaryData);
       setSegmentedProfile(segmentedProfileData);
@@ -600,7 +606,8 @@ export function AlunoDetails() {
       setSegmentedFinancialProfile(segmentedFinancialProfileData);
       setSegmentedIntegrations(segmentedIntegrationsData);
       setSegmentedActivities(segmentedActivitiesData);
-      setSegmentedTimeline(segmentedTimelineData);
+      // Uma revalidacao posterior da timeline nunca pode ser revertida pelo carregamento inicial.
+      if (timelineGeneration === timelineGenerationRef.current) setSegmentedTimeline(segmentedTimelineData);
       setAssessments(assessmentsData);
       setAssessmentSummary(summaryData);
       setAssessmentTypes(typesData);
@@ -613,7 +620,7 @@ export function AlunoDetails() {
       );
 
     } catch (error) {
-      if (activeAlunoIdRef.current !== alunoId) return;
+      if (activeAlunoIdRef.current !== alunoId || loadRequest !== alunoLoadRequestRef.current) return;
       console.error('Erro ao carregar aluno:', error);
       const failureKind = classifyApiFailure(error);
       const isTransientFailure = failureKind === 'timeout' || failureKind === 'network';
@@ -631,7 +638,7 @@ export function AlunoDetails() {
       setSegmentedActivities(null);
       setSegmentedTimeline(null);
     } finally {
-      if (activeAlunoIdRef.current === alunoId) setLoading(false);
+      if (activeAlunoIdRef.current === alunoId && loadRequest === alunoLoadRequestRef.current) setLoading(false);
     }
   };
 
@@ -1108,6 +1115,7 @@ export function AlunoDetails() {
       if (document.visibilityState === 'hidden') return;
       const request = ++latestRequest;
       const generation = ++timelineGenerationRef.current;
+      setTimelineLoadingMore(false);
       try {
         const timeline = await alunoService.getSegmentedTimeline(id);
         if (!cancelled && request === latestRequest && generation === timelineGenerationRef.current && activeAlunoIdRef.current === id && timeline.alunoId === id) {
@@ -1138,7 +1146,7 @@ export function AlunoDetails() {
   }, [activeTab, canViewAuditTab, id, timelineRetryKey]);
 
   const loadMoreTimeline = async () => {
-    if (!id || !segmentedTimeline?.nextCursor || timelineLoadingMore) return;
+    if (!id || segmentedTimeline?.alunoId !== id || !segmentedTimeline.nextCursor || timelineLoadingMore) return;
     const studentId = id;
     const cursor = segmentedTimeline.nextCursor;
     const generation = timelineGenerationRef.current;
@@ -1160,7 +1168,9 @@ export function AlunoDetails() {
     } catch {
       if (generation === timelineGenerationRef.current && activeAlunoIdRef.current === studentId) setTimelineRefreshFailed(true);
     } finally {
-      setTimelineLoadingMore(false);
+      if (generation === timelineGenerationRef.current && activeAlunoIdRef.current === studentId) {
+        setTimelineLoadingMore(false);
+      }
     }
   };
 
@@ -2329,7 +2339,7 @@ export function AlunoDetails() {
               </Button>
             </div>
           )}
-          <AlunoHistoricoTab timeline={segmentedTimeline} />
+          <AlunoHistoricoTab timeline={segmentedTimeline?.alunoId === id ? segmentedTimeline : null} />
           {segmentedTimeline?.alunoId === id && segmentedTimeline?.nextCursor && (
             <Button type="button" variant="outline" disabled={timelineLoadingMore} onClick={() => void loadMoreTimeline()}>
               {timelineLoadingMore ? 'Carregando histórico...' : 'Carregar eventos anteriores'}
