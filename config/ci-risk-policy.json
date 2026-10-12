@@ -33,7 +33,8 @@
     "criticalRoots": [
       "packages",
       "apps/api/prisma",
-      "apps/web/src/access"
+      "apps/web/src/access",
+      "docs/audit"
     ],
     "fastSafeRoots": [
       "apps/web/src/components",
