@@ -78,6 +78,9 @@ const routine = (overrides = {}, audience = 'student') => ({
   week: { startDate: '2026-09-28', endDate: '2026-10-04' }, days,
   today: { date: TODAY, state: 'released', sessions: [detail] },
   execution: { available: false, reason: 'execution_contract_pending' },
+  nextSession: { sessionId: 'future-day', date: '2026-10-03', status: 'not_started' },
+  lastExecution: { sessionId: 'past-day', date: '2026-09-28', status: 'completed' },
+  feedbackContinuity: audience === 'student' ? { state: 'available', pendingCount: 1, registeredCount: 0 } : { state: 'unavailable', pendingCount: 0, registeredCount: 0 },
   ...overrides,
 });
 
@@ -167,7 +170,9 @@ async function stopVite(v) { if (!v) return; await v.server.close(); if (v.prev.
 async function setSession(page, sessionUser = user, contractId = CONTRACT_ID) { await page.goto(`${WEB_ORIGIN}/login`, { waitUntil: 'domcontentloaded' }); await page.evaluate((u, c) => { localStorage.setItem('token', 'issue-387-browser-token'); localStorage.setItem('user', JSON.stringify(u)); if (c) localStorage.setItem('studentContractId', c); else localStorage.removeItem('studentContractId'); }, sessionUser, contractId); }
 async function shot(page, name) {
   const b = await page.screenshot({ fullPage: true });
-  if (process.env.EVIDENCE_SCREENSHOT_DIR) { mkdirSync(process.env.EVIDENCE_SCREENSHOT_DIR, { recursive: true }); writeFileSync(path.join(process.env.EVIDENCE_SCREENSHOT_DIR, `${name}.png`), b); }
+  const directory = process.env.EVIDENCE_SCREENSHOT_DIR || path.resolve(process.cwd(), '../../artifacts/issue-391');
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(path.join(directory, `${name}.png`), b);
   return { bytes: b.length, sha256: createHash('sha256').update(b).digest('hex') };
 }
 async function waitText(page, text) { try { await page.waitForFunction((t) => document.body?.innerText.includes(t), { timeout: 12000 }, text); } catch (error) { console.log("WAIT_DEBUG", text, await page.evaluate(() => location.href + "\n" + document.body?.innerText)); throw error; } }
@@ -197,6 +202,15 @@ suite('Issue #387 - evidencia browser Treino de hoje', () => {
         await clickText(page, 'Ver treino de hoje');
         await waitText(page, 'Agachamento livre'); await waitText(page, 'Rotina da semana');
         const released = await assertNoOverflow(page); expect(released.pathname).toBe('/student/training');
+        await waitText(page, 'Próximo treino');
+        const studentLayout = await page.evaluate(() => {
+          const section = document.querySelector('section[aria-label="Continuidade do treinamento"]');
+          if (!section) return null;
+          return { text: section.textContent || '', columns: new Set([...section.children].map((node) => Math.round(node.getBoundingClientRect().left))).size };
+        });
+        expect(studentLayout?.text).toContain('Última execução');
+        expect(studentLayout?.text).toContain('Feedback pós-treino');
+        expect(studentLayout?.columns).toBe(viewport.width < 640 ? 1 : 3);
         const disabled = await page.evaluate(() => [...document.querySelectorAll('main button[disabled]')].map((b) => (b.textContent || '').trim()));
         expect(disabled.length).toBeGreaterThan(0);
         const releasedShot = await shot(page, `${viewport.name}-released`);
@@ -241,8 +255,22 @@ suite('Issue #387 - evidencia browser Treino de hoje', () => {
         await waitText(page, 'Aluno Central 387');
         await waitText(page, 'Objetivo do professor');
         await waitText(page, 'Rotina da semana');
+        await waitText(page, 'Próximo treino');
+        const professorLayout = await page.evaluate(() => {
+          const section = document.querySelector('section[aria-label="Continuidade do treinamento"]');
+          if (!section) return null;
+          return { text: section.textContent || '', columns: new Set([...section.children].map((node) => Math.round(node.getBoundingClientRect().left))).size };
+        });
+        expect(professorLayout?.text).toContain('Feedback indisponível');
+        expect(professorLayout?.columns).toBe(viewport.width < 640 ? 1 : 3);
         await assertNoOverflow(page);
         await shot(page, viewport.name);
+        await page.click('#aluno-details-menu-selectedStudent');
+        await page.waitForSelector('#aluno-details-tab-treinos', { visible: true });
+        await page.click('#aluno-details-tab-treinos');
+        await waitText(page, 'Rotina da semana');
+        await assertNoOverflow(page);
+        await shot(page, `${viewport.name}-treinos-tab`);
       }
 
       await page.setViewport({ width: 1366, height: 768 });
