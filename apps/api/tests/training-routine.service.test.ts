@@ -127,13 +127,13 @@ describe('training routine service (#387)', () => {
       sessionId: 'next-month', date: '2026-11-03', status: 'not_started',
     });
     const sql = queryRaw.mock.calls
-      .map(([strings]: [TemplateStringsArray]) => strings.join('?'))
+      .map(([strings]) => strings.join('?'))
       .find((query: string) => query.includes('FROM "WorkoutDay" day'));
     expect(sql).toContain('ConsolidatedPrescriptionOperationalRelease');
     expect(sql).toContain('student."contractId"');
     expect(sql).toContain('plan."alunoId"');
     expect(sql).toContain("NOT IN ('completed', 'partial', 'not_performed')");
-    const args = queryRaw.mock.calls.find(([strings]: [TemplateStringsArray]) =>
+    const args = queryRaw.mock.calls.find(([strings]) =>
       strings.join('?').includes('FROM "WorkoutDay" day')
     );
     expect(args).toContain('aluno-1');
