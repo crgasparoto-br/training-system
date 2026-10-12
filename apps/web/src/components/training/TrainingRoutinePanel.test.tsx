@@ -548,4 +548,50 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(serviceSource).toContain('/execution/values');
     expect(serviceSource).not.toMatch(/\/executions\/workout-day\/.*\/status/);
   });
+
+  it('preserva edições não enviadas de check-in existente após retorno do foco', async () => {
+    const existing = {
+      id: 'check-in-1', sessionId: 'day-1',
+      createdAt: '2026-10-01T09:00:00.000Z', updatedAt: '2026-10-01T09:00:00.000Z',
+      editable: true,
+      values: { psr: 7, sleepQuality: null, fatigue: null, painLevel: null, motivation: null, availableMinutes: null, notes: null },
+      guidance: { painTriage: null, studentMessage: null, blocksWorkout: false as const, changesWorkoutAutomatically: false as const },
+    };
+    const snapshot = (nextDate: string) => routine({
+      nextSession: { sessionId: 'future', date: nextDate, status: 'not_started' },
+      today: { date: '2026-10-01', state: 'released', sessions: [session({ preWorkoutCheckIn: { ...existing, values: { ...existing.values } } })] },
+    });
+    const load = vi.fn().mockResolvedValueOnce(snapshot('2026-10-04')).mockResolvedValue(snapshot('2026-10-05'));
+    render(<TrainingRoutinePanel audience="student" load={load} />);
+    const notes = await screen.findByPlaceholderText(/Algo que seu professor deva saber/i);
+    await userEvent.type(notes, 'Preciso sair mais cedo');
+    window.dispatchEvent(new Event('focus'));
+    expect(await screen.findByText('05/10 · Não iniciado')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Preciso sair mais cedo')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('7')).toBeInTheDocument();
+  });
+
+  it('preserva rascunho de feedback após retorno de foco, sem impedir a leitura canônica', async () => {
+    const completed = session({
+      status: 'completed',
+      execution: { ...session().execution, status: 'completed', version: 2 },
+      postWorkoutFeedback: [],
+    });
+    const snapshot = (nextDate: string) => routine({
+      nextSession: { sessionId: 'future', date: nextDate, status: 'not_started' },
+      today: { date: '2026-10-01', state: 'released', sessions: [{ ...completed, postWorkoutFeedback: [] }] },
+    });
+    const load = vi.fn().mockResolvedValueOnce(snapshot('2026-10-04')).mockResolvedValue(snapshot('2026-10-05'));
+    render(<TrainingRoutinePanel audience="student" load={load} />);
+    const notes = await screen.findByPlaceholderText(/Conte algo importante sobre a execução/i);
+    await userEvent.type(notes, 'Dor leve ao final');
+    await userEvent.type(screen.getByRole('spinbutton', { name: 'Esforço percebido (PSE)' }), '6');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Fadiga' }), 'high');
+    window.dispatchEvent(new Event('focus'));
+    expect(await screen.findByText('05/10 · Não iniciado')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Dor leve ao final')).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: 'Esforço percebido (PSE)' })).toHaveValue(6);
+    expect(screen.getByRole('combobox', { name: 'Fadiga' })).toHaveValue('high');
+  });
+
 });
