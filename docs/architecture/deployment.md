@@ -136,6 +136,27 @@ Quando os logs mostrarem `too many connections`:
 
 A API converte esgotamento/timeout do pool em HTTP `503` com mensagem segura. Detalhes do papel, host e erro do Prisma devem permanecer apenas nos logs.
 
+## Roteamento do frontend para a API (Issue #506)
+
+O frontend chama `/api/v1/auth/login` e `/api/v1/auth/me` por meio de
+`apps/web/src/services/api.ts`. Se `VITE_API_URL` nao for configurada, ele
+usa a origem do proprio frontend (`/api/v1`); nesse caso o proxy da Vercel
+deve encaminhar as chamadas exclusivamente para
+`https://sistema-acesso-api.onrender.com/api/:path*`.
+
+Tanto `vercel.json` na raiz quanto `apps/web/vercel.json` devem possuir a
+reescrita `/api/:path*` antes do fallback SPA `/(.*) -> /index.html`.
+Nunca configurar o proxy para o backend do `controle_calorias`, que pertence
+a outra aplicacao. O teste de arquitetura/de risco do CI valida os dois arquivos.
+
+Em incidentes HTTP 500 no login, confirmar primeiro no Network a URL e o metodo
+exatos da chamada com erro: `POST /auth/login` e `GET /auth/me` possuem
+tratamento de erro diferente. Conferir `VITE_API_URL` compilada no build,
+o roteamento efetivo do deployment Vercel, logs do serviço correto no Render
+e a migration no banco realmente usado pelo runtime. Deploy marcado como
+`live` nao substitui smoke test com conta de homologacao. Nao registrar tokens,
+senhas ou dados pessoais na investigacao.
+
 ## Variaveis esperadas do frontend
 
 - `VITE_API_URL`
