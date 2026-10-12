@@ -326,7 +326,7 @@ describe('TrainingRoutinePanel (#387)', () => {
     render(<TrainingRoutinePanel audience="student" load={load} />);
     const cards = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
     expect(within(cards).getByText('Treino programado')).toBeInTheDocument();
-    expect(within(cards).getByText(/03\\/11/)).toBeInTheDocument();
+    expect(within(cards).getByText('03/11 · Não iniciado')).toBeInTheDocument();
     expect(within(cards).queryByText(/Nenhuma sessão pendente/)).not.toBeInTheDocument();
   });
 
