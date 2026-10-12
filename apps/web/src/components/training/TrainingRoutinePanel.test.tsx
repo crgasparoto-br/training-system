@@ -254,7 +254,7 @@ describe('TrainingRoutinePanel (#387)', () => {
     const load = vi.fn();
     render(<TrainingRoutinePanel audience="professor" load={load} canView={false} />);
 
-    expect(await screen.findByText('Sem permissão para ver os treinos')).toBeInTheDocument();
+    expect(screen.getByText('Sem permissão para ver os treinos')).toBeInTheDocument();
     expect(load).not.toHaveBeenCalled();
   });
 
