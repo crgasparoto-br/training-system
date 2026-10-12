@@ -90,6 +90,7 @@ describe('training routine service (#387)', () => {
   let pendingRows: Row[];
   let capacityRows: Row[];
   let releaseRows: Row[];
+  let upcomingRows: Row[];
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -97,6 +98,7 @@ describe('training routine service (#387)', () => {
     pendingRows = [];
     capacityRows = [];
     releaseRows = [makeRelease()];
+    upcomingRows = [];
     preWorkoutCheckInFindMany.mockResolvedValue([]);
     postWorkoutFeedbackFindMany.mockResolvedValue([]);
     lastExecutionFindFirst.mockResolvedValue(null);
@@ -105,10 +107,32 @@ describe('training routine service (#387)', () => {
     );
     queryRaw.mockImplementation((strings: TemplateStringsArray) => {
       const sql = strings.join('?');
+      if (sql.includes('FROM "WorkoutDay" day')) return Promise.resolve(upcomingRows);
       if (sql.includes('WorkoutDayCapacityOperationalBlock')) return Promise.resolve(capacityRows);
       if (sql.includes('ConsolidatedPrescriptionOperationalRelease')) return Promise.resolve(releaseRows);
       throw new Error(`SQL inesperado: ${sql}`);
     });
+  });
+
+  it('projeta o próximo treino de outra semana apenas com liberação consolidada e escopo contratual', async () => {
+    upcomingRows = [{
+      sessionId: 'next-month',
+      date: new Date('2026-11-03T00:00:00.000Z'),
+      status: 'not_started',
+    }];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.nextSession).toEqual({
+      sessionId: 'next-month', date: '2026-11-03', status: 'not_started',
+    });
+    const sql = queryRaw.mock.calls
+      .map(([strings]: [TemplateStringsArray]) => strings.join('?'))
+      .find((query: string) => query.includes('FROM "WorkoutDay" day'));
+    expect(sql).toContain('ConsolidatedPrescriptionOperationalRelease');
+    expect(sql).toContain('student."contractId"');
+    expect(sql).toContain('plan."alunoId"');
+    expect(sql).toContain("NOT IN ('completed', 'partial', 'not_performed')");
   });
 
   it('projetar última execução de qualquer semana sem misturar alunos ou contratos', async () => {
