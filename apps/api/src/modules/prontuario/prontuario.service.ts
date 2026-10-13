@@ -307,92 +307,69 @@ export const prontuarioService = {
     return this.getRecord(contractId, record.id);
   },
 
-  async saveAnamnesisFollowUps(contractId: string, recordId: string, items: Array<{ id?: string; parqSubmissionId?: string | null; itemKey: string; itemLabel: string; status?: ProntuarioItemStatus; followUpNotes?: string | null; actionPlan?: string | null; closedAt?: string | null }>) {
+  async saveAnamnesisFollowUps(contractId: string, recordId: string, items: Array<{ id?: string; parqSubmissionId?: string | null; itemKey: string; itemLabel: string; status?: ProntuarioItemStatus; followUpNotes?: string | null; actionPlan?: string | null; closedAt?: string | null }>, actorUserId?: string) {
     const record = await prisma.prontuarioRecord.findFirstOrThrow({ where: { id: recordId, contractId } });
     await prisma.$transaction(async (tx) => {
-      const existing = await tx.prontuarioAnamnesisFollowUp.findMany({
-        where: { recordId: record.id },
-        select: { id: true, itemKey: true, parqSubmissionId: true, status: true, closedAt: true },
-      });
+      const existing = await tx.prontuarioAnamnesisFollowUp.findMany({ where: { recordId: record.id } });
       const existingById = new Map(existing.map((item) => [item.id, item]));
-      const existingBySubmissionAndKey = new Map(
-        existing.map((item) => [`${item.parqSubmissionId ?? '__none__'}:${item.itemKey}`, item])
-      );
-      const targetedSubmissionIds = new Set(
-        items.map((item) => item.parqSubmissionId || '__none__')
-      );
+      const existingBySubmissionAndKey = new Map(existing.map((item) => [
+        `${item.parqSubmissionId ?? '__none__'}:${item.itemKey}`, item,
+      ]));
+      const targetedSubmissionIds = new Set(items.map((item) => item.parqSubmissionId || '__none__'));
       const touchedIds = new Set<string>();
-
       for (const item of items) {
         const itemKey = item.itemKey?.trim();
         const itemLabel = item.itemLabel?.trim();
         if (!itemKey || !itemLabel) continue;
-
-        await assertParqSubmissionBelongsToRecord(tx, {
-          contractId,
-          alunoId: record.alunoId,
-          parqSubmissionId: item.parqSubmissionId,
-        });
-
+        await assertParqSubmissionBelongsToRecord(tx, { contractId, alunoId: record.alunoId, parqSubmissionId: item.parqSubmissionId });
         const compositeKey = `${item.parqSubmissionId ?? '__none__'}:${itemKey}`;
-        const existingItem = item.id
-          ? existingById.get(item.id)
-          : existingBySubmissionAndKey.get(compositeKey) ?? null;
-
+        const previous = item.id ? existingById.get(item.id) : existingBySubmissionAndKey.get(compositeKey);
+        assertKnownProntuarioItem(item.id, Boolean(previous));
+        if (previous && (previous.itemKey !== itemKey || previous.parqSubmissionId !== (item.parqSubmissionId || null))) {
+          throw new Error('Registro clínico não encontrado no contrato');
+        }
+        const status = item.status ?? previous?.status ?? 'active';
         const payload = {
-          parqSubmissionId: item.parqSubmissionId || null,
-          itemKey,
-          itemLabel,
-          status: item.status ?? existingItem?.status ?? 'active',
-          followUpNotes: toNullableString(item.followUpNotes),
-          actionPlan: toNullableString(item.actionPlan),
-          closedAt: parseDate(item.closedAt) ?? existingItem?.closedAt ?? null,
+          parqSubmissionId: item.parqSubmissionId || null, itemKey, itemLabel, status,
+          followUpNotes: item.followUpNotes === undefined ? previous?.followUpNotes ?? null : toNullableString(item.followUpNotes) ?? null,
+          actionPlan: item.actionPlan === undefined ? previous?.actionPlan ?? null : toNullableString(item.actionPlan) ?? null,
+          closedAt: isTerminalItemStatus(status) ? parseDate(item.closedAt) ?? previous?.closedAt ?? new Date() : null,
         };
-
-        if (item.id && existingItem) {
-          await tx.prontuarioAnamnesisFollowUp.update({ where: { id: item.id }, data: payload });
-          touchedIds.add(item.id);
-          continue;
+        if (previous) {
+          if (await appendProntuarioHistory(tx, record, 'anamnesisFollowUp', previous.id, followUpSnapshot(previous), followUpSnapshot(payload), actorUserId)) {
+            await tx.prontuarioAnamnesisFollowUp.update({ where: { id: previous.id }, data: payload });
+          }
+          touchedIds.add(previous.id);
+        } else {
+          const created = await tx.prontuarioAnamnesisFollowUp.create({ data: { recordId: record.id, ...payload } });
+          await appendProntuarioHistory(tx, record, 'anamnesisFollowUp', created.id, null, followUpSnapshot(payload), actorUserId);
+          touchedIds.add(created.id);
         }
-
-        if (existingItem) {
-          await tx.prontuarioAnamnesisFollowUp.update({ where: { id: existingItem.id }, data: payload });
-          touchedIds.add(existingItem.id);
-          continue;
-        }
-
-        const created = await tx.prontuarioAnamnesisFollowUp.create({
-          data: {
-            recordId: record.id,
-            ...payload,
-          },
-          select: { id: true },
-        });
-        touchedIds.add(created.id);
       }
-
       for (const item of existing) {
         if (touchedIds.has(item.id) || isTerminalItemStatus(item.status)) continue;
         if (!targetedSubmissionIds.has(item.parqSubmissionId || '__none__')) continue;
-        await tx.prontuarioAnamnesisFollowUp.update({
-          where: { id: item.id },
-          data: toArchivedItemState(item),
-        });
+        const archived = { ...item, ...toArchivedItemState(item) };
+        await appendProntuarioHistory(tx, record, 'anamnesisFollowUp', item.id, followUpSnapshot(item), followUpSnapshot(archived), actorUserId);
+        await tx.prontuarioAnamnesisFollowUp.update({ where: { id: item.id }, data: toArchivedItemState(item) });
       }
     });
     return this.getRecord(contractId, record.id);
   },
 
-  async closeAnamnesisFollowUp(contractId: string, followUpId: string) {
-    const followUp = await prisma.prontuarioAnamnesisFollowUp.findFirstOrThrow({
-      where: { id: followUpId, record: { contractId } },
-      select: { id: true, recordId: true },
+  async closeAnamnesisFollowUp(contractId: string, followUpId: string, actorUserId?: string) {
+    const recordId = await prisma.$transaction(async (tx) => {
+      const followUp = await tx.prontuarioAnamnesisFollowUp.findFirstOrThrow({
+        where: { id: followUpId, record: { contractId } }, include: { record: true },
+      });
+      if (!isTerminalItemStatus(followUp.status)) {
+        const closed = { ...followUp, status: 'resolved' as ProntuarioItemStatus, closedAt: followUp.closedAt ?? new Date() };
+        await appendProntuarioHistory(tx, followUp.record, 'anamnesisFollowUp', followUp.id, followUpSnapshot(followUp), followUpSnapshot(closed), actorUserId);
+        await tx.prontuarioAnamnesisFollowUp.update({ where: { id: followUp.id }, data: { status: 'resolved', closedAt: closed.closedAt } });
+      }
+      return followUp.recordId;
     });
-    await prisma.prontuarioAnamnesisFollowUp.update({
-      where: { id: followUp.id },
-      data: { status: 'resolved', closedAt: new Date() },
-    });
-    return this.getRecord(contractId, followUp.recordId);
+    return this.getRecord(contractId, recordId);
   },
 
   async saveActivityHistory(contractId: string, recordId: string, items: Array<{ id?: string; activityType?: ProntuarioActivityType; description: string; frequency?: string | null; duration?: string | null; intensity?: string | null; startedAt?: string | null; endedAt?: string | null; notes?: string | null }>) {
