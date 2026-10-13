@@ -1004,7 +1004,19 @@ export const studentDomainService = {
       : { items: [], unavailableDomains: [] };
     unavailableDomains.push(...clinical.unavailableDomains);
 
-    const hasCanonicalIntake = clinical.items.some((event) => event.type === 'prnt_intake_revision');
+    // Canonical intake exists across the whole source, not only on this page.
+    // An old legacy snapshot must not reappear when its revision is outside the cursor.
+    let hasCanonicalIntake = clinical.items.some((event) => event.type === 'prnt_intake_revision');
+    if (!hasCanonicalIntake && grants.clinical.intake && options.companyContractId) {
+      try {
+        hasCanonicalIntake = Boolean(await prisma.studentHealthIntakeRevision.findFirst({
+          where: { alunoId, contractId: options.companyContractId },
+          select: { id: true },
+        }));
+      } catch {
+        if (!unavailableDomains.includes('Anamnese')) unavailableDomains.push('Anamnese');
+      }
+    }
     const legacyItems = buildTimeline({
       aluno, profile, intake, assessments: assessments.items, financial, integrations, activities,
     }).filter((event) => {
