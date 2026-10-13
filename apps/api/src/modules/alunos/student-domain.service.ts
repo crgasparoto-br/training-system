@@ -461,9 +461,10 @@ const buildTrainingTimelineEvents = (lifecycleEvents: any[]) => lifecycleEvents.
 type TimelineCursor = { v: 1; alunoId: string; contractId: string | null; at: string; kind: TimelineEventKind; id: string };
 
 const timelineTimestamp = (value: unknown) => new Date(String(value)).getTime();
-const timelineKey = (event: Record<string, unknown>, kind: TimelineEventKind) => ({
-  at: timelineTimestamp(event.occurredAt), kind, id: String(event.id),
-});
+const timelineKey = (event: unknown, kind: TimelineEventKind) => {
+  const value = event as { id: string; occurredAt: unknown };
+  return { at: timelineTimestamp(value.occurredAt), kind, id: String(value.id) };
+};
 const compareTimelineKeys = (
   a: { at: number; kind: TimelineEventKind; id: string },
   b: { at: number; kind: TimelineEventKind; id: string },
