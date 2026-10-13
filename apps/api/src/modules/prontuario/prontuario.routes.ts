@@ -128,7 +128,8 @@ router.get('/records/:recordId/history/:entityType',
       if (!contractId || !professorId) return sendError(res, 'Contrato não encontrado', 404);
       const entityType = historyEntityTypeSchema.parse(req.params.entityType) as ProntuarioHistoryEntityType;
       const permissions = await resolveProntuarioReadPermissions(contractId, professorId);
-      if (!permissions || (entityType !== 'record' && !permissions[PRNT_HISTORY_BLOCKS[entityType]])) {
+      const blockName = PRNT_HISTORY_BLOCKS[entityType];
+      if (!permissions || (blockName !== 'summary' && !permissions[blockName])) {
         return sendError(res, 'Perfil sem permissão para acessar este recurso', 403);
       }
       const query = z.object({
