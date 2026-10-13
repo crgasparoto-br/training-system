@@ -142,11 +142,11 @@ Entregue:
 - encerramento de objetivos sem exclusão física, mantendo versões anteriores;
 - versões da Anamnese Inicial recuperáveis por data e revisão, preservando o PAR-Q canônico independente;
 - consulta de versões no PRNT por bloco autorizado e sem persistência duplicada na timeline;
+- projeção canônica de revisões do PRNT, Anamnese Inicial e PAR-Q na timeline, com permissões clínicas por bloco, origem, versão e ator (issue #385).
 
 Pendente:
 
 - integracao da rotina semanal;
-- garantia de eventos no historico unificado;
 - testes completos de permissao e isolamento por contrato;
 
 ### 4. Avaliacao Fisica
@@ -168,6 +168,7 @@ Antropometria entregue:
 - variacoes absolutas e percentuais calculadas a partir dos valores persistidos, sem transformar ausencia em zero;
 - grafico de evolucao complementar, mantendo a tabela como representacao acessivel principal;
 - evento de conclusao/correcao integrado a timeline canonica do aluno;
+- leitura desses eventos na Central em conjunto com versões concluídas/corrigidas da Adipometria, sem duplicação de snapshots (#385);
 - protecao por `physicalAssessment.protocol`, revalidacao da capacidade de correcao e isolamento por `contractId`;
 - testes focados cobrindo lifecycle, conclusao, correcao, concorrencia, permissao e isolamento por contrato.
 
@@ -451,7 +452,7 @@ Nao incorporar:
 - completar o contrato de laudos da Antropometria sem reabrir o ciclo de vida ja entregue;
 - manter a Adipometria entregue pela epic #245 sob governanca clinica por contrato, sem liberar protocolos incompletos ou sem aprovacao ativa;
 - consolidar PRNT e objetivos;
-- integrar os demais eventos da jornada a timeline.
+- integrar os demais eventos da jornada a timeline (eventos clínicos de PRNT/Antropometria/Adipometria entregues pela #385; preservar outras origens em issues específicas).
 
 ### Prioridade 2 - experiencia diaria do aluno
 
