@@ -49,6 +49,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`product/student-central-action-patterns.md`](product/student-central-action-patterns.md): padrao de pop-up, painel lateral e fluxo guiado.
 - [`product/student-central-domain-matrix.md`](product/student-central-domain-matrix.md): fronteira entre Central do Aluno, administracao geral e dominios hibridos.
 - [`product/prnt-discomfort-followup-flow.md`](product/prnt-discomfort-followup-flow.md): fluxo implementado de desconfortos e acompanhamentos do PRNT.
+- [`product/prnt-versioned-history.md`](product/prnt-versioned-history.md): estado atual, eventos imutáveis, consulta de versões e segurança dos dados clínicos PRNT (#384).
 - [`product/pre-registration.md`](product/pre-registration.md): ciclo unico de lead, convite, preenchimento, revisao e ativacao no mesmo aluno.
 - [`product/pre-registration-health-intake.md`](product/pre-registration-health-intake.md): Anamnese Inicial canônica, opcional, autenticada e retomável.
 - [`product/pre-registration-parq.md`](product/pre-registration-parq.md): PAR-Q canônico, versionado, retomável e integrado à análise profissional.
