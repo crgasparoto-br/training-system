@@ -191,6 +191,12 @@ describeDatabase('capacity prescription canonical source metadata with PostgreSQ
   });
 
   afterEach(async () => {
+    // Test-only cleanup for append-only fixture rows. SET LOCAL ensures trigger
+    // bypass applies only to this transaction, never to the application.
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL session_replication_role = 'replica'");
+      await tx.prontuarioHistoryEvent.deleteMany({ where: { contractId } });
+    });
     await prisma.companyContract.deleteMany({ where: { id: contractId } });
     await prisma.user.deleteMany({ where: { email } });
   });
