@@ -1,6 +1,12 @@
 import { PARQ_CATALOG_VERSION, PARQ_LEGACY_CATALOG_VERSION } from '@corrida/types';
 import { prismaRuntimeClient } from '../../common/prisma-runtime-client.js';
 import { studentContractService } from '../student-contracts/student-contract.service.js';
+import {
+  NO_TIMELINE_DOMAIN_ACCESS,
+  readClinicalTimeline,
+  type TimelineDomainAccess,
+  type TimelineEventKind,
+} from './student-clinical-timeline.service.js';
 
 const prisma = prismaRuntimeClient;
 
@@ -8,6 +14,7 @@ type StudentDomainQueryOptions = {
   companyContractId?: string;
   timelineCursor?: string;
   timelineLimit?: number;
+  timelineAccess?: TimelineDomainAccess;
 };
 
 const toNumber = (value: unknown) => {
@@ -451,16 +458,19 @@ const buildTrainingTimelineEvents = (lifecycleEvents: any[]) => lifecycleEvents.
   }];
 });
 
-type TimelineCursor = { v: 1; alunoId: string; contractId: string | null; at: string; kind: 'legacy' | 'training'; id: string };
+type TimelineCursor = { v: 1; alunoId: string; contractId: string | null; at: string; kind: TimelineEventKind; id: string };
 
 const timelineTimestamp = (value: unknown) => new Date(String(value)).getTime();
-const timelineKey = (event: Record<string, unknown>, kind: 'legacy' | 'training') => ({
+const timelineKey = (event: Record<string, unknown>, kind: TimelineEventKind) => ({
   at: timelineTimestamp(event.occurredAt), kind, id: String(event.id),
 });
 const compareTimelineKeys = (
-  a: { at: number; kind: 'legacy' | 'training'; id: string },
-  b: { at: number; kind: 'legacy' | 'training'; id: string },
-) => b.at - a.at || (a.kind === b.kind ? b.id.localeCompare(a.id) : a.kind === 'legacy' ? -1 : 1);
+  a: { at: number; kind: TimelineEventKind; id: string },
+  b: { at: number; kind: TimelineEventKind; id: string },
+) => {
+  const priority: Record<TimelineEventKind, number> = { legacy: 0, clinical: 1, training: 2 };
+  return b.at - a.at || priority[a.kind] - priority[b.kind] || b.id.localeCompare(a.id);
+};
 
 const decodeTimelineCursor = (raw: string, alunoId: string, contractId?: string): TimelineCursor => {
   try {
@@ -469,7 +479,7 @@ const decodeTimelineCursor = (raw: string, alunoId: string, contractId?: string)
     if (!parsed || typeof parsed !== 'object') throw new Error('invalid');
     const data = parsed as Partial<TimelineCursor>;
     if (data.v !== 1 || data.alunoId !== alunoId || data.contractId !== (contractId ?? null) ||
-        (data.kind !== 'legacy' && data.kind !== 'training') ||
+        (data.kind !== 'legacy' && data.kind !== 'clinical' && data.kind !== 'training') ||
         typeof data.id !== 'string' || !data.id || data.id.length > 128 ||
         typeof data.at !== 'string' || !Number.isFinite(Date.parse(data.at)) ||
         new Date(data.at).toISOString() !== data.at) throw new Error('invalid');
@@ -479,7 +489,7 @@ const decodeTimelineCursor = (raw: string, alunoId: string, contractId?: string)
   }
 };
 const encodeTimelineCursor = (
-  key: { at: number; kind: 'legacy' | 'training'; id: string },
+  key: { at: number; kind: TimelineEventKind; id: string },
   alunoId: string, contractId?: string,
 ) => Buffer.from(JSON.stringify({
   v: 1, alunoId, contractId: contractId ?? null, at: new Date(key.at).toISOString(), kind: key.kind, id: key.id,
@@ -956,71 +966,119 @@ export const studentDomainService = {
   },
 
   async getTimeline(alunoId: string, options: StudentDomainQueryOptions = {}) {
+    // The API route supplies server-resolved permission grants. Missing grants
+    // fail closed: being allowed to view Audit is not permission to see health.
+    const grants = options.timelineAccess ?? NO_TIMELINE_DOMAIN_ACCESS;
     const aluno = await this.loadAlunoDomainSnapshot(alunoId, options);
-    if (!aluno) {
-      return null;
+    if (!aluno) return null;
+
+    const cursor = options.timelineCursor
+      ? decodeTimelineCursor(options.timelineCursor, alunoId, options.companyContractId)
+      : null;
+    const pageSize = Math.min(200, Math.max(1, options.timelineLimit ?? 100));
+    const cursorKey = cursor
+      ? { at: Date.parse(cursor.at), kind: cursor.kind, id: cursor.id }
+      : null;
+
+    let contracts: Awaited<ReturnType<typeof studentContractService.listByAluno>> = [];
+    const unavailableDomains: string[] = [];
+    try {
+      contracts = await studentContractService.listByAluno(alunoId, {
+        companyContractId: options.companyContractId,
+      });
+    } catch {
+      if (grants.financial) unavailableDomains.push('Contratos');
     }
-    const contracts = await studentContractService.listByAluno(alunoId, {
-      companyContractId: options.companyContractId,
-    });
+
     const profile = this.getProfileFromSnapshot(aluno);
     const intake = this.getHealthIntakeFromSnapshot(aluno);
     const assessments = this.listAssessmentRecordsFromSnapshot(aluno);
     const financial = this.getFinancialProfileFromSnapshot(aluno, contracts);
     const integrations = this.getIntegrationsFromSnapshot(aluno);
     const activities = this.listExternalActivitiesFromSnapshot(aluno);
+    if (!profile || !intake || !assessments || !financial || !integrations || !activities) return null;
 
-    if (!aluno || !profile || !intake || !assessments || !financial || !integrations || !activities) {
-      return null;
-    }
+    const clinical = options.companyContractId
+      ? await readClinicalTimeline(alunoId, options.companyContractId, grants.clinical, pageSize, cursor ?? undefined)
+      : { items: [], unavailableDomains: [] };
+    unavailableDomains.push(...clinical.unavailableDomains);
 
-    // A timeline e uma unica sequencia: eventos legados e canonicos compartilham cursor e ordenacao.
+    const hasCanonicalIntake = clinical.items.some((event) => event.type === 'prnt_intake_revision');
     const legacyItems = buildTimeline({
       aluno, profile, intake, assessments: assessments.items, financial, integrations, activities,
+    }).filter((event) => {
+      const type = String(event.type);
+      if (type.startsWith('profile_')) return grants.profile;
+      if (type.startsWith('intake_')) return grants.health && !hasCanonicalIntake;
+      if (type.startsWith('assessment_')) return grants.assessments;
+      if (type.startsWith('financial_')) return grants.financial;
+      if (type.startsWith('integration_') || type.startsWith('external_activity_')) return grants.integrations;
+      return type === 'student_created';
     });
-    const cursor = options.timelineCursor
-      ? decodeTimelineCursor(options.timelineCursor, alunoId, options.companyContractId)
-      : null;
-    const pageSize = Math.min(200, Math.max(1, options.timelineLimit ?? 100));
-    const cursorKey = cursor ? { at: Date.parse(cursor.at), kind: cursor.kind, id: cursor.id } : null;
     const legacy = legacyItems.map((event) => ({ event, key: timelineKey(event, 'legacy') }))
       .filter(({ key }) => !cursorKey || compareTimelineKeys(key, cursorKey) > 0);
+
+    const clinicalEntries = clinical.items.map((event) => ({
+      event, key: timelineKey(event, 'clinical'),
+    })).filter(({ key }) => !cursorKey || compareTimelineKeys(key, cursorKey) > 0);
 
     const trainingDomains = ['pre_workout_check_in', 'workout_session_execution', 'post_workout_feedback'];
     const scopedDomain = { OR: trainingDomains.map((domain) => ({
       metadata: { path: ['domain'], equals: domain },
     })) };
-    // Treinos com data anterior; empates usam o ID original do registro, nunca o ID projetado.
-    // Para cursor legado, todos os treinos no mesmo instante sao posteriores na ordenacao.
     const trainingTimeFilter = cursor
       ? { OR: [
           { createdAt: { lt: new Date(cursor.at) } },
-          ...(cursor.kind === 'legacy'
-            ? [{ createdAt: new Date(cursor.at) }]
-            : [{ createdAt: new Date(cursor.at), id: { lt: cursor.id } }]),
+          ...(cursor.kind === 'training'
+            ? [{ createdAt: new Date(cursor.at), id: { lt: cursor.id } }]
+            : [{ createdAt: new Date(cursor.at) }]),
         ] }
       : {};
-    const page = await prisma.studentLifecycleEvent.findMany({
-      where: {
-        alunoId,
-        ...(options.companyContractId ? { contractId: options.companyContractId } : {}),
-        AND: [scopedDomain, trainingTimeFilter],
-      },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: pageSize + 1,
-    });
-    const training = page.flatMap((record) => buildTrainingTimelineEvents([record]).map((event) => ({
+    const trainingRecords = grants.training
+      ? await prisma.studentLifecycleEvent.findMany({
+          where: {
+            alunoId,
+            ...(options.companyContractId ? { contractId: options.companyContractId } : {}),
+            AND: [scopedDomain, trainingTimeFilter],
+          },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: pageSize + 1,
+        }).catch(() => {
+          unavailableDomains.push('Treinamento');
+          return [];
+        })
+      : [];
+    const training = trainingRecords.flatMap((record) => buildTrainingTimelineEvents([record]).map((event) => ({
       event, key: { at: timelineTimestamp(event.occurredAt), kind: 'training' as const, id: record.id as string },
     })));
-    const combined = [...legacy, ...training].sort((a, b) => compareTimelineKeys(a.key, b.key));
+
+    const unique = new Map<string, typeof legacy[number] | typeof clinicalEntries[number] | typeof training[number]>();
+    for (const item of [...legacy, ...clinicalEntries, ...training]) {
+      const id = String(item.event.id);
+      if (!unique.has(id)) unique.set(id, item);
+    }
+    const combined = [...unique.values()].sort((a, b) => compareTimelineKeys(a.key, b.key));
     const selected = combined.slice(0, pageSize);
-    const hasMore = combined.length > pageSize || page.length > pageSize;
+    const hasMore = combined.length > pageSize
+      || clinical.items.length > pageSize
+      || trainingRecords.length > pageSize;
     const last = selected[selected.length - 1];
     return {
       alunoId: aluno.id,
-      items: selected.map(({ event }) => event),
+      items: selected.map(({ event }) => {
+        const source = event.source as { type?: string; reference?: string | null; recordedByUserId?: string | null } | undefined;
+        return {
+          ...event,
+          sourceType: 'sourceType' in event ? event.sourceType : source?.type ?? 'system',
+          sourceId: 'sourceId' in event ? event.sourceId : source?.reference ?? String(event.id),
+          contractId: options.companyContractId,
+          actorUserId: 'actorUserId' in event ? event.actorUserId : source?.recordedByUserId ?? null,
+        };
+      }),
       total: selected.length,
       nextCursor: hasMore && last ? encodeTimelineCursor(last.key, alunoId, options.companyContractId) : null,
+      partial: unavailableDomains.length > 0,
+      unavailableDomains,
     };
-  },
+  }
 };
