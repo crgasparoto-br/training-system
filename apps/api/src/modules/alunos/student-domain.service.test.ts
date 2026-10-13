@@ -88,6 +88,51 @@ describe('studentDomainService snapshot reuse', () => {
     });
   });
 
+  it('keeps the global cursor after skipped malformed anthropometry events', async () => {
+    jest.spyOn(studentDomainService, 'loadAlunoDomainSnapshot')
+      .mockResolvedValue(snapshot() as never);
+    const records = [
+      { id: 'bad-correction', createdAt: new Date('2026-10-13T15:00:00Z'),
+        metadata: { domain: 'anthropometry', action: 'corrected', assessmentId: 'a', correctionId: null } },
+      { id: 'bad-completion', createdAt: new Date('2026-10-13T14:00:00Z'),
+        metadata: { domain: 'anthropometry', action: 'completed', assessmentId: null } },
+      { id: 'valid-new', createdAt: new Date('2026-10-13T13:00:00Z'),
+        metadata: { domain: 'anthropometry', action: 'completed', assessmentId: 'new' } },
+      { id: 'valid-old', createdAt: new Date('2026-10-13T12:00:00Z'),
+        metadata: { domain: 'anthropometry', action: 'completed', assessmentId: 'old' } },
+    ].map((record) => ({ ...record, contractId: 'contract-a', actorUserId: null }));
+    mockLifecycleFindMany.mockImplementation(({ where, skip = 0, take }: any) => {
+      if (where.metadata?.equals !== 'anthropometry') return Promise.resolve([]);
+      const earlierThan = where.OR?.[0]?.createdAt?.lt as Date | undefined;
+      const eligible = records.filter((record) => !earlierThan || record.createdAt < earlierThan);
+      return Promise.resolve(eligible.slice(skip, skip + take));
+    });
+    const access = {
+      profile: false, health: false, assessments: false, financial: false,
+      integrations: false, training: false,
+      clinical: { prnt: {}, intake: false, parq: false, anthropometry: true, adipometry: false },
+    };
+    const first = await studentDomainService.getTimeline('aluno-1', {
+      companyContractId: 'contract-a', timelineLimit: 1, timelineAccess: access,
+    });
+    expect(first?.items.map((item) => item.id)).toEqual(['clinical-anthropometry-valid-new']);
+    expect(first?.nextCursor).toEqual(expect.any(String));
+
+    const second = await studentDomainService.getTimeline('aluno-1', {
+      companyContractId: 'contract-a', timelineLimit: 1, timelineCursor: first?.nextCursor ?? undefined,
+      timelineAccess: access,
+    });
+    expect(second?.items.map((item) => item.id)).toEqual(['clinical-anthropometry-valid-old']);
+    expect(second?.nextCursor).toEqual(expect.any(String));
+
+    const third = await studentDomainService.getTimeline('aluno-1', {
+      companyContractId: 'contract-a', timelineLimit: 1, timelineCursor: second?.nextCursor ?? undefined,
+      timelineAccess: access,
+    });
+    expect(third?.items.map((item) => item.type)).toEqual(['student_created']);
+    expect(third?.nextCursor).toBeNull();
+  });
+
   it('keeps the query and reused relations isolated to the requested contract', async () => {
     mockFindFirst.mockResolvedValue(
       snapshot({
