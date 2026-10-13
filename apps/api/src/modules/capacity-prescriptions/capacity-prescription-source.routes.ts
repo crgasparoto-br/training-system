@@ -293,7 +293,7 @@ async function canonicalizeCapacitySource(
         type: 'professor_note',
         id: activity.id,
         label: `Histórico de atividade física: ${revisionText(revision.snapshot, 'description', activity.description)}`,
-        assessedAt: revisionDate(revision.snapshot, 'startedAt', activity.startedAt ?? activity.createdAt),
+        assessedAt: revisionDate(revision.snapshot, 'startedAt', activity.createdAt),
         origin: 'PRNT - histórico de atividade física',
         version: revision.version,
         responsibleProfessorId: activity.record.professorId ?? actorProfessorId,

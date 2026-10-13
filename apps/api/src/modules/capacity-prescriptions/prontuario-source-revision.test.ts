@@ -43,5 +43,9 @@ describe('PRNT canonical prescription revision', () => {
   it('reconstructs the historical assessment date instead of showing the latest one', () => {
     expect(revisionDate({ onsetDate: '2026-07-12T10:00:00.000Z' }, 'onsetDate', new Date('2026-10-13T10:00:00Z')))
       .toBe('2026-07-12T10:00:00.000Z');
+    // No historical clinical start date: fall back to immutable creation time,
+    // never to a later mutable onsetDate/startDate from the current record.
+    expect(revisionDate({ onsetDate: null }, 'onsetDate', new Date('2026-07-01T10:00:00Z')))
+      .toBe('2026-07-01T10:00:00.000Z');
   });
 });
