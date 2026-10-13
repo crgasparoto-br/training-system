@@ -203,7 +203,7 @@ describe('canonical clinical timeline (#385)', () => {
     const result = await readClinicalTimeline('aluno-a', 'contract-a',
       { ...denied, anthropometry: true }, 1);
 
-    expect(result.items.map((item) => item.sourceId).toEqual(['anth-new', 'anth-old']);
+    expect(result.items.map((item) => item.sourceId)).toEqual(['anth-new', 'anth-old']);
     expect(mockLifecycle).toHaveBeenCalledTimes(2);
     expect(mockLifecycle).toHaveBeenNthCalledWith(2, expect.objectContaining({
       skip: 2, take: 2,
@@ -229,7 +229,7 @@ describe('canonical clinical timeline (#385)', () => {
     const result = await readClinicalTimeline('aluno-a', 'contract-a',
       { ...denied, anthropometry: true }, 1);
 
-    expect(result.items.map((item) => item.sourceId).toEqual(['anth-1', 'anth-2']);
+    expect(result.items.map((item) => item.sourceId)).toEqual(['anth-1', 'anth-2']);
     expect(result.items[0].id).toBe('clinical-anthropometry-newest');
     expect(mockLifecycle).toHaveBeenCalledTimes(2);
     expect(mockLifecycle).toHaveBeenNthCalledWith(2, expect.objectContaining({ skip: 2, take: 2 }));
