@@ -6,6 +6,7 @@ import type { StudentSegmentedTimeline, StudentTimelineEvent } from '../../servi
 
 type AlunoHistoricoTabProps = {
   timeline?: StudentSegmentedTimeline | null;
+  onRetry?: () => void;
 };
 
 type EventCategory = 'all' | 'profile' | 'health' | 'assessment' | 'financial' | 'integration' | 'training' | 'system';
@@ -147,7 +148,7 @@ function canonicalSourceLink(item: StudentTimelineEvent, alunoId: string) {
   return null;
 }
 
-export function AlunoHistoricoTab({ timeline }: AlunoHistoricoTabProps) {
+export function AlunoHistoricoTab({ timeline, onRetry }: AlunoHistoricoTabProps) {
   const [selectedCategory, setSelectedCategory] = useState<EventCategory>('all');
   const sortedItems = useMemo(() => sortTimelineEvents(timeline?.items ?? []), [timeline?.items]);
   const categoryCounts = useMemo(() => {
@@ -201,7 +202,13 @@ export function AlunoHistoricoTab({ timeline }: AlunoHistoricoTabProps) {
               Parte do histórico não pôde ser carregada
               {timeline.unavailableDomains?.length
                 ? ` (${timeline.unavailableDomains.join(', ')})`
-                : ''}. Os demais eventos continuam disponíveis. Use “Tentar novamente” para atualizar.
+                : ''}. Os demais eventos continuam disponíveis.
+              {onRetry && (
+                <button type="button" className="ml-2 font-medium text-primary underline-offset-2 hover:underline"
+                  onClick={onRetry}>
+                  Tentar novamente
+                </button>
+              )}
             </div>
           )}
           {sortedItems.length > 0 && (
