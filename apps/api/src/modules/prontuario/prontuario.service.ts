@@ -522,31 +522,29 @@ export const prontuarioService = {
     return this.getRecord(contractId, record.id);
   },
 
-  async createDiscomfortSnapshot(contractId: string, recordId: string, data: { notes?: string | null; entries: Array<{ regionId: string; regionName: string; discomfortTypes: string[]; intensity: number; notes?: string | null }> }) {
+  async createDiscomfortSnapshot(contractId: string, recordId: string, data: { notes?: string | null; entries: Array<{ regionId: string; regionName: string; discomfortTypes: string[]; intensity: number; notes?: string | null }> }, actorUserId?: string) {
     const record = await prisma.prontuarioRecord.findFirstOrThrow({ where: { id: recordId, contractId } });
-    const snapshot = await prisma.prontuarioDiscomfortSnapshot.create({
-      data: {
-        contractId,
-        alunoId: record.alunoId,
-        recordId: record.id,
-        notes: data.notes,
-        entries: {
-          create: data.entries.map((entry) => ({
-            regionId: entry.regionId,
-            regionName: entry.regionName,
-            discomfortTypes: entry.discomfortTypes,
-            intensity: entry.intensity,
-            notes: entry.notes,
-          })),
+    return prisma.$transaction(async (tx) => {
+      const snapshot = await tx.prontuarioDiscomfortSnapshot.create({
+        data: {
+          contractId, alunoId: record.alunoId, recordId: record.id, notes: data.notes,
+          entries: { create: data.entries.map((entry) => ({
+            regionId: entry.regionId, regionName: entry.regionName, discomfortTypes: entry.discomfortTypes,
+            intensity: entry.intensity, notes: entry.notes,
+          })) },
         },
-      },
-      include: { entries: true },
+        include: { entries: true },
+      });
+      await appendProntuarioHistory(tx, record, 'discomfortSnapshot', snapshot.id, null, {
+        notes: snapshot.notes,
+        snapshotAt: snapshot.snapshotAt,
+        entries: snapshot.entries.map((entry) => ({
+          regionId: entry.regionId, regionName: entry.regionName, discomfortTypes: entry.discomfortTypes,
+          intensity: entry.intensity, notes: entry.notes,
+        })),
+      }, actorUserId);
+      return { ...snapshot, professorId: record.professorId ?? null };
     });
-
-    return {
-      ...snapshot,
-      professorId: record.professorId ?? null,
-    };
   },
 
   async getHistory(
