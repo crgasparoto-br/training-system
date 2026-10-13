@@ -19,13 +19,15 @@ Cada evento registra `recordId`, `contractId`, `alunoId`, `entityType`, `entityI
 
 Os tipos de evento são `record` (resumo e observações), `goal`, `anamnesisFollowUp`, `activityHistory`, `medicationProcedure`, `painCase`, `painFollowUp` e `discomfortSnapshot`.
 
-Questionários PAR-Q e Anamnese Inicial **permanecem nos fluxos canônicos existentes**, respectivamente `StudentParqSubmission` e `StudentHealthIntake`. Cada submissão histórica de PAR-Q conserva data e versão de catálogo; o acompanhamento profissional vincula `parqSubmissionId` e ganha revisão própria no PRNT. O endpoint de histórico do PRNT não copia as respostas de PAR-Q.
+Questionários PAR-Q e Anamnese Inicial **permanecem nos fluxos canônicos existentes**, respectivamente `StudentParqSubmission` e `StudentHealthIntake`. Cada submissão histórica de PAR-Q conserva data e versão de catálogo; o acompanhamento profissional vincula `parqSubmissionId` e ganha revisão própria no PRNT. O endpoint de histórico do PRNT não copia as respostas de PAR-Q. A Anamnese Inicial possui histórico próprio em `StudentHealthIntakeRevision`, capturado automaticamente por trigger na mesma transação da escrita, com `revision` estável, `sourceVersion` do formulário, autoria quando disponível, origem e snapshot de respostas clínicas, sem duplicar o PAR-Q. A migração preserva o estado legado como revisão inicial, sem fabricar revisões antigas.
 
 ## API e UI
 
 - Estado atual: `GET /api/v1/prontuario/alunos/:alunoId`, projeção protegida por blocos individuais.
 - Histórico: `GET /api/v1/prontuario/records/:recordId/history/:entityType`.
 - Filtros opcionais de histórico: `entityId`, `version` (inteiro positivo) e `skip`. Consulta limitada a 100 eventos por página; não substitui o estado atual.
+- Histórico da Anamnese Inicial: `GET /api/v1/prontuario/alunos/:alunoId/intake-history` com `revision` (positivo) e `skip`. Exige o bloco `physicalAssessment.prnt.anamnesisFollowUp` e o mesmo isolamento `contractId + alunoId`.
+- O painel lateral expõe as versões da Anamnese independentemente de existir um registro PRNT.
 - A interface de PRNT exibe versões no painel lateral, por categoria, apenas quando a permissão de resumo e a do respectivo bloco estão presentes. O professor altera o estado de objetivo pelo editor; não apaga versões.
 
 ## Segurança e consumidores
