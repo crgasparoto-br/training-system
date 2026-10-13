@@ -210,19 +210,42 @@ export async function readClinicalTimeline(
   if (access.adipometry) {
     tasks.push({ domain: 'Adipometria', execute: async () => {
       const rows = await prisma.adipometryAssessment.findMany({
-        where: { alunoId, contractId, status: 'COMPLETED', revisionStatus: 'FINALIZED',
+        where: { alunoId, contractId, status: 'COMPLETED',
+          // A superseded revision remains an immutable historical completion.
+          revisionStatus: { in: ['FINALIZED', 'SUPERSEDED'] },
           completedAt: { not: null }, ...sourceTimeWhere('clinical-adipometry-', 'completedAt', cursor) },
         orderBy: [{ completedAt: 'desc' }, { id: 'desc' }], take: limit + 1,
         select: { id: true, contractId: true, code: true, rootAssessmentId: true,
           revisionNumber: true, correctsAssessmentId: true,
           correctionAuthorUserId: true, completedAt: true },
       });
+      // The finalizer of R1 must remain the actor of its original completion even
+      // after another user finalizes R2. Fetch IDs and actors only, never snapshots.
+      const finalizationActors = new Map<string, string>();
+      if (rows.length) {
+        const revisions = new Map(rows.map((row) => [row.id, row.revisionNumber]));
+        const auditEvents = await prisma.adipometryAuditEvent.findMany({
+          where: { contractId, assessmentId: { in: rows.map((row) => row.id) },
+            action: { in: ['COMPLETED', 'CORRECTION_FINALIZED'] } },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          select: { assessmentId: true, action: true, actorUserId: true },
+        });
+        for (const event of auditEvents) {
+          const revision = revisions.get(event.assessmentId);
+          const expectedAction = revision === 1 ? 'COMPLETED' : 'CORRECTION_FINALIZED';
+          if (revision !== undefined && event.action === expectedAction
+              && !finalizationActors.has(event.assessmentId)) {
+            finalizationActors.set(event.assessmentId, event.actorUserId);
+          }
+        }
+      }
       return rows.flatMap((row) => row.completedAt ? [{
         id: `clinical-adipometry-${row.id}`,
         type: row.revisionNumber > 1 ? 'adipometry_corrected' : 'adipometry_completed',
         title: row.revisionNumber > 1 ? 'Adipometria corrigida' : 'Adipometria concluída',
         occurredAt: row.completedAt,
-        ...provenance('adipometry-assessment', row.id, row.contractId, row.correctionAuthorUserId),
+        ...provenance('adipometry-assessment', row.id, row.contractId,
+          finalizationActors.get(row.id) ?? (row.revisionNumber > 1 ? row.correctionAuthorUserId : null)),
         metadata: { assessmentId: row.id, assessmentCode: row.code,
           rootAssessmentId: row.rootAssessmentId, revisionNumber: row.revisionNumber,
           correctsAssessmentId: row.correctsAssessmentId },
