@@ -1,5 +1,8 @@
 const findUniqueMock = jest.fn();
 const lifecycleFindManyMock = jest.fn();
+const prntFindManyMock = jest.fn();
+const intakeFindManyMock = jest.fn();
+const intakeFindFirstMock = jest.fn();
 const mockPrisma = {
   aluno: {
     findUnique: findUniqueMock,
@@ -8,6 +11,8 @@ const mockPrisma = {
   studentLifecycleEvent: {
     findMany: lifecycleFindManyMock,
   },
+  prontuarioHistoryEvent: { findMany: prntFindManyMock },
+  studentHealthIntakeRevision: { findMany: intakeFindManyMock, findFirst: intakeFindFirstMock },
 };
 
 jest.mock('@prisma/client', () => ({
@@ -30,7 +35,7 @@ const timelineWithPermissions = (
   options: Parameters<typeof studentDomainService.getTimeline>[1] = {},
 ) => studentDomainService.getTimeline(alunoId, {
   ...options,
-  timelineAccess: {
+  timelineAccess: options.timelineAccess ?? {
     profile: true, health: true, assessments: true,
     financial: true, integrations: true, training: true,
     clinical: { prnt: {}, intake: false, parq: false, anthropometry: false, adipometry: false },
@@ -150,6 +155,9 @@ describe('studentDomainService', () => {
     findUniqueMock.mockReset();
     lifecycleFindManyMock.mockReset();
     lifecycleFindManyMock.mockResolvedValue([]);
+    prntFindManyMock.mockReset().mockResolvedValue([]);
+    intakeFindManyMock.mockReset().mockResolvedValue([]);
+    intakeFindFirstMock.mockReset().mockResolvedValue(null);
     (studentContractService.listByAluno as jest.Mock).mockReset();
   });
 
@@ -368,7 +376,7 @@ describe('studentDomainService', () => {
       const sameTimeId = sameTimeCursor?.id?.lt;
       return Promise.resolve(records.filter((record) =>
         new Date(record.createdAt).getTime() < cursorTime ||
-        (new Date(record.createdAt).getTime() === cursorTime &&
+        (Boolean(sameTimeCursor) && new Date(record.createdAt).getTime() === cursorTime &&
           (sameTimeId === undefined || record.id < sameTimeId))
       ));
     });
@@ -499,4 +507,89 @@ describe('studentDomainService', () => {
       },
     });
   });
+
+  it('paginates legacy, clinical and training on the same timestamp without gaps', async () => {
+    const instant = new Date('2026-05-12T10:00:00.000Z');
+    findUniqueMock.mockResolvedValue({
+      ...createAlunoSnapshot(), createdAt: instant.toISOString(),
+      studentExternalAccounts: [], studentExternalActivities: [],
+    });
+    (studentContractService.listByAluno as jest.Mock).mockResolvedValue([]);
+    const canonical = {
+      id: 'prnt-1', alunoId: 'aluno-1', contractId: 'contract-1',
+      recordId: 'record-1', entityType: 'goal', entityId: 'goal-1',
+      version: 1, action: 'created', actorUserId: 'user-1', source: 'prnt-api', createdAt: instant,
+    };
+    prntFindManyMock.mockImplementation(({ where }: any) => {
+      if (where.OR?.[0]?.createdAt?.lt && !where.OR?.[1]) return Promise.resolve([]);
+      if (where.OR?.[1]?.id?.lt && canonical.id >= where.OR[1].id.lt) return Promise.resolve([]);
+      return Promise.resolve([canonical]);
+    });
+    const training = {
+      id: 'train-1', alunoId: 'aluno-1', contractId: 'contract-1',
+      createdAt: instant.toISOString(), actorUserId: null,
+      metadata: { domain: 'workout_session_execution', status: 'completed' },
+    };
+    lifecycleFindManyMock.mockImplementation(({ where }: any) => {
+      const timeFilter = where.AND?.[1]?.OR;
+      if (!timeFilter) return Promise.resolve([training]);
+      const olderThan = timeFilter[0].createdAt.lt.getTime();
+      const equals = timeFilter[1];
+      return Promise.resolve(
+        new Date(training.createdAt).getTime() < olderThan ||
+        (Boolean(equals) && new Date(training.createdAt).getTime() === olderThan
+          && (!equals.id?.lt || training.id < equals.id.lt)) ? [training] : []
+      );
+    });
+    const options = {
+      companyContractId: 'contract-1', timelineLimit: 1,
+      timelineAccess: {
+        profile: true, health: false, assessments: false, financial: false,
+        integrations: false, training: true,
+        clinical: { prnt: { goal: true }, intake: false, parq: false, anthropometry: false, adipometry: false },
+      },
+    };
+    const first = await studentDomainService.getTimeline('aluno-1', options);
+    const second = await studentDomainService.getTimeline('aluno-1', {
+      ...options, timelineCursor: first?.nextCursor ?? undefined,
+    });
+    const third = await studentDomainService.getTimeline('aluno-1', {
+      ...options, timelineCursor: second?.nextCursor ?? undefined,
+    });
+    expect([first?.items[0]?.id, second?.items[0]?.id, third?.items[0]?.id]).toEqual([
+      'student-created-aluno-1', 'clinical-prnt-prnt-1', 'training-execution-train-1',
+    ]);
+  });
+
+  it('does not resurface legacy intake when its canonical revision is outside the current page', async () => {
+    findUniqueMock.mockResolvedValue({
+      ...createAlunoSnapshot(),
+      intakeForm: {
+        id: 'legacy-intake-1', assessmentDate: '2026-05-11T10:00:00.000Z',
+        createdAt: '2026-05-11T10:00:00.000Z', updatedAt: '2026-05-11T10:00:00.000Z',
+        observations: 'Legacy intake',
+      },
+      studentExternalAccounts: [], studentExternalActivities: [],
+    });
+    (studentContractService.listByAluno as jest.Mock).mockResolvedValue([]);
+    intakeFindManyMock.mockResolvedValue([]); // Revision outside the cursor window.
+    intakeFindFirstMock.mockResolvedValue({ id: 'canonical-revision-1' });
+    const options = {
+      companyContractId: 'contract-1',
+      timelineAccess: {
+        profile: true, health: true, assessments: false, financial: false,
+        integrations: false, training: false,
+        clinical: { prnt: {}, intake: true, parq: false, anthropometry: false, adipometry: false },
+      },
+    };
+    const canonical = await studentDomainService.getTimeline('aluno-1', options);
+    expect(canonical?.items.some((item) => item.type.startsWith('intake_'))).toBe(false);
+    expect(intakeFindFirstMock).toHaveBeenCalledWith({
+      where: { alunoId: 'aluno-1', contractId: 'contract-1' }, select: { id: true },
+    });
+    intakeFindFirstMock.mockResolvedValue(null);
+    const legacy = await studentDomainService.getTimeline('aluno-1', options);
+    expect(legacy?.items.some((item) => item.type.startsWith('intake_'))).toBe(true);
+  });
+
 });
