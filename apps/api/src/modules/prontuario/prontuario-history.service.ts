@@ -57,9 +57,17 @@ export async function appendProntuarioHistory(
     });
     latest = { version: 1 };
   }
-  const next = after as { status?: string; endDate?: unknown };
-  const closed = next.status === 'closed' || next.status === 'resolved' ||
-    next.status === 'archived' || (next.endDate != null && (before as { endDate?: unknown } | null)?.endDate == null);
+  const previous = before as { status?: string; endDate?: unknown; closedAt?: unknown } | null;
+  const next = after as { status?: string; endDate?: unknown; closedAt?: unknown };
+  const isTerminal = (status: string | undefined) =>
+    status === 'closed' || status === 'resolved' || status === 'archived';
+  // Closing is a transition, not a property of the current state. Later
+  // edits to an already closed item must remain ordinary updated revisions.
+  const closed = before !== null && (
+    (!isTerminal(previous?.status) && isTerminal(next.status)) ||
+    (previous?.endDate == null && next.endDate != null) ||
+    (previous?.closedAt == null && next.closedAt != null)
+  );
   await tx.prontuarioHistoryEvent.create({
     data: {
       recordId: record.id, contractId: record.contractId, alunoId: record.alunoId,
