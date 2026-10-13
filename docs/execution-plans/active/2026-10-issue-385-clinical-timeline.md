@@ -66,3 +66,10 @@ Aprovação depende de validações no HEAD corrigido e nova auditoria independe
 - **TL-385-009 (P2):** o fallback legado exige ausência canônica confirmada por consulta do aluno/contrato; erro na verificação deixa o evento oculto e a resposta parcial.
 - **Regressões:** perfis com grants parciais, rejeição da projeção e da verificação de existência, snapshot agregado indisponível e falha em uma fonte opcional com PRNT preservado.
 - **Gate de saída:** testes API/web, `pnpm validate`, CI da PR no HEAD novo e reauditoria independente. Sem merge/deploy.
+
+## Remediação TL-385-010 — paginação sem perda de eventos
+
+- **P1 — Implementação:** a projeção de Antropometria passa a continuar a consulta paginada até reunir `limit + 1` eventos **válidos e distintos** ou esgotar a fonte. A consulta restringe ações a `completed` e `corrected`, mantém ordenação por `createdAt/id`, `alunoId/contractId` e descarta linhas inválidas ou duplicadas antes de decidir se há página posterior.
+- **Continuidade:** o cursor global entre eventos clínicos, legados e treinamento permanece inalterado. Na web, páginas incrementais deduplicam também pela identidade da fonte clínica (`type/sourceType/sourceId`), evitando duplicatas que cruzam limites de página.
+- **Regressões:** `student-clinical-timeline.service.test.ts` valida lotes inválidos, duplicados e continuação da consulta; `student-domain.service.test.ts` valida que um evento clínico posterior ainda produz `nextCursor` até alcançar o legado; `student-timeline-pagination.test.ts` cobre a mesma fonte clínica em páginas diferentes.
+- **Validação obrigatória:** CI `Validate PR` e check `Validate repository` no HEAD material corrigido, com testes API/web, análise de acesso/documentação e `pnpm validate` quando disponível. Aprovação operacional exige nova auditoria independente. Sem merge e sem deploy.
