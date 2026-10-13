@@ -552,6 +552,23 @@ export const prontuarioService = {
     });
   },
 
+  async getHealthIntakeHistory(
+    contractId: string,
+    alunoId: string,
+    options: { revision?: number; skip?: number } = {}
+  ) {
+    await assertAlunoInContract(alunoId, contractId);
+    return prisma.studentHealthIntakeRevision.findMany({
+      where: {
+        contractId, alunoId,
+        ...(options.revision ? { revision: options.revision } : {}),
+      },
+      orderBy: [{ revision: 'desc' }],
+      take: 100,
+      skip: options.skip ?? 0,
+    });
+  },
+
   async getHistory(
     contractId: string,
     recordId: string,
