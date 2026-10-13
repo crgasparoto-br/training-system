@@ -230,6 +230,9 @@ describe('prontuario PAR-Q authorization boundary', () => {
   });
 
   it('rejects invalid history version input before consulting clinical storage', async () => {
+    (canProfessorAccessBlock as jest.Mock).mockImplementation(
+      (_prof: unknown, block: string) => Promise.resolve(block === 'physicalAssessment.prnt.goals')
+    );
     const response = await request(app)
       .get('/api/v1/prontuario/records/record-1/history/goal?version=-1')
       .set('x-allowed-blocks', SUMMARY_BLOCK);
