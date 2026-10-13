@@ -11,7 +11,7 @@ A separação administrativa é preservada: dados de cadastro, contrato e finan�
 Cada evento registra `recordId`, `contractId`, `alunoId`, `entityType`, `entityId`, `version`, `action`, `snapshot`, `actorUserId`, `source` e `createdAt`.
 
 - Uma nova entidade gera `version=1`, `action=created`, `source=prnt-api`.
-- Uma edição com mudança real ou encerramento gera a próxima versão na mesma transação da atualização do estado atual.
+- Uma edição com mudança real ou encerramento gera a próxima versão na mesma transação da atualização do estado atual. O evento `closed` exige transição de estado aberto para encerrado (`closed`, `resolved` ou `archived`) ou o primeiro preenchimento de `endDate`/`closedAt`. Edições posteriores em entidades já encerradas, mudanças entre estados terminais e reaberturas geram `updated`, sem registrar um encerramento fictício.
 - Reenvio semanticamente idêntico não cria versão adicional. Omissão de objetivo ativo em salvamento completo equivale a arquivamento, não exclusão.
 - Estados `resolved` e `archived` preservam a entidade e sua linha histórica. Em objetivos, `closedAt` distingue o encerramento do último `updatedAt`.
 - A migração #384 grava `baseline` do estado encontrado dos registros clínicos anteriores, sem inventar a sequência histórica ausente. `source=legacy-baseline` e `actorUserId=null` identificam origem sem autoria histórica recuperável.
