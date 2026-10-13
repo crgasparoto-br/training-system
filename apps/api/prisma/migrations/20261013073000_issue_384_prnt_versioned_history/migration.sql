@@ -61,6 +61,24 @@ SELECT gen_random_uuid()::text, r."id",r."contractId",r."alunoId", 'painCase',p.
   'onsetDate',p."onsetDate",'description',p."description",'closedAt',p."closedAt"),'legacy-baseline'
 FROM "ProntuarioPainCase" p JOIN "ProntuarioRecord" r ON r."id"=p."recordId";
 
+INSERT INTO "ProntuarioHistoryEvent" ("id","recordId","contractId","alunoId","entityType","entityId","version","action","snapshot","source")
+SELECT gen_random_uuid()::text, r."id",r."contractId",r."alunoId", 'painFollowUp',f."id",1,'baseline',
+  jsonb_build_object('followUpAt',f."followUpAt",'intensity',f."intensity",'notes',f."notes",'conduct',f."conduct"),'legacy-baseline'
+FROM "ProntuarioPainFollowUp" f JOIN "ProntuarioPainCase" p ON p."id"=f."painCaseId"
+JOIN "ProntuarioRecord" r ON r."id"=p."recordId";
+
+INSERT INTO "ProntuarioHistoryEvent" ("id","recordId","contractId","alunoId","entityType","entityId","version","action","snapshot","source")
+SELECT gen_random_uuid()::text, d."recordId",d."contractId",d."alunoId",'discomfortSnapshot',d."id",1,'baseline',
+  jsonb_build_object('snapshotAt',d."snapshotAt",'notes',d."notes",'entries',
+    (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+        'regionId',e."regionId",'regionName',e."regionName",
+        'discomfortTypes',to_jsonb(e."discomfortTypes"),
+        'intensity',e."intensity",'notes',e."notes"
+      )), '[]'::jsonb)
+      FROM "ProntuarioDiscomfortEntry" e WHERE e."snapshotId"=d."id")
+  ), 'legacy-baseline'
+FROM "ProntuarioDiscomfortSnapshot" d;
+
 CREATE FUNCTION prnt_history_append_only() RETURNS trigger AS $$
 BEGIN
   RAISE EXCEPTION 'PRNT clinical history is immutable' USING ERRCODE = '23514';
