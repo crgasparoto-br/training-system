@@ -176,34 +176,52 @@ export async function readClinicalTimeline(
 
   if (access.anthropometry) {
     tasks.push({ domain: 'Antropometria', execute: async () => {
-      const rows = await prisma.studentLifecycleEvent.findMany({
-        where: { alunoId, contractId,
-          metadata: { path: ['domain'], equals: 'anthropometry' },
-          ...sourceTimeWhere('clinical-anthropometry-', 'createdAt', cursor) },
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: limit + 1,
-        select: { id: true, contractId: true, actorUserId: true, createdAt: true, metadata: true },
-      });
-      return rows.flatMap((row) => {
-        const meta = row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
-          ? row.metadata as Record<string, unknown> : null;
-        const action = meta?.action;
-        const assessmentId = meta?.assessmentId;
-        const correctionId = meta?.correctionId;
-        if ((action !== 'completed' && action !== 'corrected') || typeof assessmentId !== 'string'
-          || (action === 'corrected' && typeof correctionId !== 'string')) return [];
-        const sourceType = action === 'corrected' ? 'anthropometry-correction' : 'anthropometry-assessment';
-        const sourceId = action === 'corrected' ? correctionId as string : assessmentId;
-        return [{
-          id: `clinical-anthropometry-${row.id}`,
-          type: action === 'corrected' ? 'anthropometry_corrected' : 'anthropometry_completed',
-          title: action === 'corrected' ? 'Antropometria corrigida' : 'Antropometria concluída',
-          occurredAt: row.createdAt,
-          ...provenance(sourceType, sourceId, row.contractId, row.actorUserId),
-          metadata: { assessmentId, assessmentCode:
-            typeof meta?.assessmentCode === 'string' ? meta.assessmentCode : null,
-            correctionId: typeof correctionId === 'string' ? correctionId : null },
-        }];
-      });
+      // Read until we have limit + 1 DISTINCT valid events or the source is
+      // exhausted. A raw take before validation/deduplication could suppress
+      // an older completion and incorrectly terminate the global cursor.
+      const pageTarget = limit + 1;
+      const unique = new Map<string, ClinicalTimelineEvent>();
+      let skip = 0;
+      while (unique.size < pageTarget) {
+        const rows = await prisma.studentLifecycleEvent.findMany({
+          where: { alunoId, contractId,
+            metadata: { path: ['domain'], equals: 'anthropometry' },
+            AND: [{ OR: [
+              { metadata: { path: ['action'], equals: 'completed' } },
+              { metadata: { path: ['action'], equals: 'corrected' } },
+            ] }],
+            ...sourceTimeWhere('clinical-anthropometry-', 'createdAt', cursor) },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          skip, take: pageTarget,
+          select: { id: true, contractId: true, actorUserId: true, createdAt: true, metadata: true },
+        });
+        for (const row of rows) {
+          const meta = row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
+            ? row.metadata as Record<string, unknown> : null;
+          const action = meta?.action;
+          const assessmentId = meta?.assessmentId;
+          const correctionId = meta?.correctionId;
+          if ((action !== 'completed' && action !== 'corrected') || typeof assessmentId !== 'string'
+            || (action === 'corrected' && typeof correctionId !== 'string')) continue;
+          const sourceType = action === 'corrected' ? 'anthropometry-correction' : 'anthropometry-assessment';
+          const sourceId = action === 'corrected' ? correctionId as string : assessmentId;
+          const event: ClinicalTimelineEvent = {
+            id: `clinical-anthropometry-${row.id}`,
+            type: action === 'corrected' ? 'anthropometry_corrected' : 'anthropometry_completed',
+            title: action === 'corrected' ? 'Antropometria corrigida' : 'Antropometria concluída',
+            occurredAt: row.createdAt,
+            ...provenance(sourceType, sourceId, row.contractId, row.actorUserId),
+            metadata: { assessmentId, assessmentCode:
+              typeof meta?.assessmentCode === 'string' ? meta.assessmentCode : null,
+              correctionId: typeof correctionId === 'string' ? correctionId : null },
+          };
+          const identity = `${event.sourceType}:${event.sourceId}:${event.type}`;
+          if (!unique.has(identity)) unique.set(identity, event);
+        }
+        if (rows.length < pageTarget) break;
+        skip += rows.length;
+      }
+      return [...unique.values()];
     } });
   }
 
