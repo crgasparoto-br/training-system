@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { StudentSegmentedTimeline } from './aluno.service';
 import { appendStudentTimelinePage } from './student-timeline-pagination';
 
-const event = (id: string) => ({
+const event = (id: string): StudentSegmentedTimeline['items'][number] => ({
   id, type: 'student_created', title: id, occurredAt: '2026-10-13T12:00:00Z',
   source: { type: 'system', reference: id, recordedByUserId: null },
 });
