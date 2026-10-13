@@ -86,3 +86,88 @@ END;
 $$ LANGUAGE plpgsql;
 CREATE TRIGGER prnt_history_immutable BEFORE UPDATE OR DELETE ON "ProntuarioHistoryEvent"
 FOR EACH ROW EXECUTE FUNCTION prnt_history_append_only();
+
+
+-- The canonical health-intake form uses mutable drafts; immutable revisions
+-- preserve successive clinical questionnaire states without copying PAR-Q.
+CREATE TABLE "StudentHealthIntakeRevision" (
+  "id" TEXT NOT NULL,
+  "intakeId" TEXT NOT NULL,
+  "alunoId" TEXT NOT NULL,
+  "contractId" TEXT NOT NULL,
+  "revision" INTEGER NOT NULL,
+  "sourceVersion" INTEGER NOT NULL,
+  "formVersion" TEXT,
+  "sourceType" "StudentRecordSourceType" NOT NULL,
+  "sourceReference" TEXT,
+  "actorUserId" TEXT,
+  "snapshot" JSONB NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "StudentHealthIntakeRevision_pkey" PRIMARY KEY ("id")
+);
+ALTER TABLE "StudentHealthIntakeRevision" ADD CONSTRAINT "StudentHealthIntakeRevision_intakeId_fkey"
+  FOREIGN KEY ("intakeId") REFERENCES "StudentHealthIntake"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+CREATE UNIQUE INDEX "StudentHealthIntakeRevision_intakeId_revision_key"
+  ON "StudentHealthIntakeRevision"("intakeId","revision");
+CREATE INDEX "StudentHealthIntakeRevision_contractId_alunoId_createdAt_idx"
+  ON "StudentHealthIntakeRevision"("contractId","alunoId","createdAt");
+CREATE INDEX "StudentHealthIntakeRevision_intakeId_createdAt_idx"
+  ON "StudentHealthIntakeRevision"("intakeId","createdAt");
+
+INSERT INTO "StudentHealthIntakeRevision"
+  ("id","intakeId","alunoId","contractId","revision","sourceVersion",
+   "formVersion","sourceType","sourceReference","actorUserId","snapshot")
+SELECT gen_random_uuid()::text, i."id",i."alunoId",i."contractId",1,i."version",
+  i."formVersion",i."sourceType",i."sourceReference",NULL,
+  jsonb_build_object('formVersion', i."formVersion", 'status', i."status",
+    'assessmentDate', i."assessmentDate", 'questionnaireAha', i."questionnaireAha",
+    'clinicalHistoryData', i."clinicalHistoryData",
+    'medicationData', i."medicationData", 'injuryData', i."injuryData",
+    'allergyData', i."allergyData", 'observations', i."observations",
+    'completedAt', i."completedAt")
+FROM "StudentHealthIntake" i;
+
+CREATE FUNCTION capture_health_intake_revision() RETURNS trigger AS $$
+DECLARE
+  previous_payload JSONB;
+  next_payload JSONB;
+  next_revision INTEGER;
+BEGIN
+  next_payload := jsonb_build_object(
+    'formVersion', NEW."formVersion", 'status', NEW."status",
+    'assessmentDate', NEW."assessmentDate", 'questionnaireAha', NEW."questionnaireAha",
+    'clinicalHistoryData', NEW."clinicalHistoryData", 'medicationData', NEW."medicationData",
+    'injuryData', NEW."injuryData", 'allergyData', NEW."allergyData",
+    'observations', NEW."observations", 'completedAt', NEW."completedAt"
+  );
+  IF TG_OP = 'UPDATE' THEN
+    previous_payload := jsonb_build_object(
+      'formVersion', OLD."formVersion", 'status', OLD."status",
+      'assessmentDate', OLD."assessmentDate", 'questionnaireAha', OLD."questionnaireAha",
+      'clinicalHistoryData', OLD."clinicalHistoryData", 'medicationData', OLD."medicationData",
+      'injuryData', OLD."injuryData", 'allergyData', OLD."allergyData",
+      'observations', OLD."observations", 'completedAt', OLD."completedAt"
+    );
+    IF previous_payload = next_payload THEN RETURN NEW; END IF;
+  END IF;
+  SELECT COALESCE(MAX("revision"),0)+1 INTO next_revision
+    FROM "StudentHealthIntakeRevision" WHERE "intakeId"=NEW."id";
+  INSERT INTO "StudentHealthIntakeRevision"
+    ("id","intakeId","alunoId","contractId","revision","sourceVersion",
+     "formVersion","sourceType","sourceReference","actorUserId","snapshot")
+  VALUES (
+    gen_random_uuid()::text,NEW."id",NEW."alunoId",NEW."contractId",
+    next_revision,NEW."version",NEW."formVersion",NEW."sourceType",
+    NEW."sourceReference",NEW."recordedByUserId",next_payload
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER health_intake_capture_revision
+AFTER INSERT OR UPDATE ON "StudentHealthIntake"
+FOR EACH ROW EXECUTE FUNCTION capture_health_intake_revision();
+
+CREATE TRIGGER health_intake_history_immutable
+BEFORE UPDATE OR DELETE ON "StudentHealthIntakeRevision"
+FOR EACH ROW EXECUTE FUNCTION prnt_history_append_only();
