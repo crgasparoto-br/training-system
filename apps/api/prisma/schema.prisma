@@ -2217,6 +2217,7 @@ model StudentHealthIntake {
   migrationProvenance      Json?
   migrationReviewRequired  Boolean                       @default(false)
   migrationReviewData      Json?
+  revisions                StudentHealthIntakeRevision[]
   createdAt                DateTime                      @default(now())
   updatedAt                DateTime                      @updatedAt
   aluno                    Aluno                         @relation(fields: [alunoId], references: [id], onDelete: Cascade)
@@ -2228,6 +2229,27 @@ model StudentHealthIntake {
   @@index([sourceType])
   @@index([status])
   @@index([migrationReviewRequired])
+}
+
+
+model StudentHealthIntakeRevision {
+  id              String              @id @default(cuid())
+  intakeId        String
+  alunoId         String
+  contractId      String
+  revision        Int
+  sourceVersion   Int
+  formVersion     String?
+  sourceType      StudentRecordSourceType
+  sourceReference String?
+  actorUserId     String?
+  snapshot        Json
+  createdAt       DateTime            @default(now())
+  intake          StudentHealthIntake @relation(fields: [intakeId], references: [id], onDelete: Restrict)
+
+  @@unique([intakeId, revision])
+  @@index([contractId, alunoId, createdAt])
+  @@index([intakeId, createdAt])
 }
 
 model StudentParqSubmission {
