@@ -141,8 +141,7 @@ Entregue:
 
 Pendente:
 
-- ciclo completo e historico dos objetivos;
-- historicos proprios para medicamentos, cirurgias, restricoes e observacoes;
+- consolidar experiencia de historico versionado no PRNT (issue #384: eventos canonicos e consulta separada do estado atual);
 - integracao da rotina semanal;
 - garantia de eventos no historico unificado;
 - testes completos de permissao e isolamento por contrato;

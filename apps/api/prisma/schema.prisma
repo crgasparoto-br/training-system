@@ -2347,6 +2347,7 @@ model ProntuarioRecord {
   contract              CompanyContract                 @relation(fields: [contractId], references: [id], onDelete: Cascade)
   professor             Professor?                      @relation(fields: [professorId], references: [id], onDelete: SetNull)
   goals                 ProntuarioGoal[]
+  historyEvents         ProntuarioHistoryEvent[]
   anamnesisFollowUps    ProntuarioAnamnesisFollowUp[]
   activityHistory       ProntuarioActivityHistory[]
   medicationsProcedures ProntuarioMedicationProcedure[]
@@ -2367,6 +2368,7 @@ model ProntuarioGoal {
   status                    ProntuarioItemStatus                  @default(active)
   priority                  Int                                   @default(0)
   targetDate                DateTime?
+  closedAt                  DateTime?
   createdAt                 DateTime                              @default(now())
   updatedAt                 DateTime                              @updatedAt
   record                    ProntuarioRecord                      @relation(fields: [recordId], references: [id], onDelete: Cascade)
@@ -2375,6 +2377,27 @@ model ProntuarioGoal {
 
   @@index([recordId, status])
   @@index([targetDate])
+}
+
+
+model ProntuarioHistoryEvent {
+  id          String           @id @default(cuid())
+  recordId    String
+  contractId  String
+  alunoId     String
+  entityType  String
+  entityId    String
+  version     Int
+  action      String
+  snapshot    Json
+  actorUserId String?
+  source      String           @default("prnt-api")
+  createdAt   DateTime         @default(now())
+  record      ProntuarioRecord @relation(fields: [recordId], references: [id], onDelete: Restrict)
+
+  @@unique([entityType, entityId, version])
+  @@index([contractId, alunoId, recordId, createdAt])
+  @@index([recordId, entityType, entityId, version])
 }
 
 model ProntuarioAnamnesisFollowUp {

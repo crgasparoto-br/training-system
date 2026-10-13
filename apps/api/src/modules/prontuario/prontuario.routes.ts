@@ -5,6 +5,7 @@ import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js'
 import { blockAccessMiddleware, screenAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { canProfessorAccessBlock } from '../access-control/access-control.service.js';
 import { prontuarioService } from './prontuario.service.js';
+import { PRNT_HISTORY_BLOCKS, type ProntuarioHistoryEntityType } from './prontuario-history.service.js';
 import { sanitizeProntuarioOverviewForSummary } from './prontuario-parq-boundary.js';
 import {
   prontuarioOverviewBoundaryPrisma,
@@ -74,7 +75,7 @@ function handleError(res: Response, error: any, fallback: string) {
     const status = error.code === 'NOT_FOUND' ? 404 : error.code === 'REVIEW_NOT_PENDING' ? 409 : error.code === 'LEGACY_WRITE_DISABLED' ? 410 : 400;
     return sendError(res, error.message, status, { code: error.code });
   }
-  if (error?.message === 'Aluno não encontrado no contrato') return sendError(res, error.message, 404);
+  if (error?.message === 'Aluno não encontrado no contrato' || error?.message === 'Registro clínico não encontrado no contrato') return sendError(res, error.message, 404);
   console.error(fallback, error);
   return sendError(res, error?.message || fallback, 500);
 }
@@ -112,6 +113,37 @@ router.get('/alunos/:alunoId/parq-submissions', blockAccessMiddleware('physicalA
     return handleError(res, error, 'Erro ao carregar histórico PAR-Q');
   }
 });
+
+
+const historyEntityTypeSchema = z.enum([
+  'record', 'goal', 'anamnesisFollowUp', 'activityHistory',
+  'medicationProcedure', 'painCase', 'painFollowUp', 'discomfortSnapshot',
+]);
+
+router.get('/records/:recordId/history/:entityType',
+  blockAccessMiddleware('physicalAssessment.prnt.summary'),
+  async (req: Request, res: Response) => {
+    try {
+      const { contractId, professorId } = contextFromRequest(req);
+      if (!contractId || !professorId) return sendError(res, 'Contrato não encontrado', 404);
+      const entityType = historyEntityTypeSchema.parse(req.params.entityType) as ProntuarioHistoryEntityType;
+      const permissions = await resolveProntuarioReadPermissions(contractId, professorId);
+      if (!permissions || (entityType !== 'record' && !permissions[PRNT_HISTORY_BLOCKS[entityType]])) {
+        return sendError(res, 'Perfil sem permissão para acessar este recurso', 403);
+      }
+      const query = z.object({
+        entityId: z.string().min(1).optional(),
+        version: z.coerce.number().int().positive().optional(),
+        skip: z.coerce.number().int().min(0).max(10000).default(0),
+      }).parse(req.query);
+      return sendSuccess(res,
+        await prontuarioService.getHistory(contractId, req.params.recordId, entityType, query),
+        'Histórico versionado carregado');
+    } catch (error) {
+      return handleError(res, error, 'Erro ao consultar histórico do PRNT');
+    }
+  }
+);
 
 router.post('/alunos/:alunoId/parq-submissions', async (_req: Request, res: Response) => {
   return sendError(
@@ -178,10 +210,10 @@ router.put(
 
 router.put('/records/:recordId/goals', blockAccessMiddleware('physicalAssessment.prnt.goals'), async (req, res) => {
   try {
-    const { contractId } = contextFromRequest(req);
-    if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
+    const { contractId, userId } = contextFromRequest(req);
+    if (!contractId || !userId) return sendError(res, 'Contrato não encontrado', 404);
     const { goals } = z.object({ goals: z.array(z.object({ id: z.string().optional(), title: z.string(), description: z.string().optional().nullable(), status: itemStatus.optional(), priority: z.number().int().optional(), targetDate: z.string().optional().nullable() })) }).parse(req.body);
-    return sendSuccess(res, await prontuarioService.saveGoals(contractId, req.params.recordId, goals), 'Objetivos salvos');
+    return sendSuccess(res, await prontuarioService.saveGoals(contractId, req.params.recordId, goals, userId), 'Objetivos salvos');
   } catch (error) {
     return handleError(res, error, 'Erro ao salvar objetivos');
   }
@@ -224,7 +256,7 @@ router.put('/records/:recordId/medications-procedures', blockAccessMiddleware('p
     const { contractId } = contextFromRequest(req);
     if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
     const { items } = z.object({ items: z.array(z.object({ id: z.string().optional(), type: medicationProcedureType, name: z.string(), dosage: z.string().optional().nullable(), frequency: z.string().optional().nullable(), startDate: z.string().optional().nullable(), endDate: z.string().optional().nullable(), notes: z.string().optional().nullable() })) }).parse(req.body);
-    return sendSuccess(res, await prontuarioService.saveMedicationsProcedures(contractId, req.params.recordId, items), 'Medicações e procedimentos salvos');
+    return sendSuccess(res, await prontuarioService.saveMedicationsProcedures(contractId, req.params.recordId, items, contextFromRequest(req).userId), 'Medicações e procedimentos salvos');
   } catch (error) {
     return handleError(res, error, 'Erro ao salvar medicações e procedimentos');
   }

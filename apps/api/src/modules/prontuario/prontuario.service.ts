@@ -6,6 +6,7 @@ import {
   type ProntuarioMedicationProcedureType,
   type ProntuarioPainCaseStatus,
 } from '@prisma/client';
+import { appendProntuarioHistory, assertKnownProntuarioItem, type ProntuarioHistoryEntityType } from './prontuario-history.service.js';
 import { preRegistrationParqService } from '../pre-registration-public/pre-registration-parq.service.js';
 
 const prisma = new PrismaClient();
@@ -82,6 +83,53 @@ async function resolveAlunoContractContext(
 
 async function assertAlunoInContract(alunoId: string, contractId: string) {
   return resolveAlunoContractContext(alunoId, contractId);
+}
+
+function goalSnapshot(goal: { title?: string; description?: string | null; status?: ProntuarioItemStatus; priority?: number; targetDate?: Date | null; closedAt?: Date | null }) {
+  return {
+    title: goal.title ?? null, description: goal.description ?? null, status: goal.status ?? null,
+    priority: goal.priority ?? 0, targetDate: goal.targetDate ?? null, closedAt: goal.closedAt ?? null,
+  };
+}
+
+function medicationSnapshot(item: { type?: ProntuarioMedicationProcedureType; name?: string; dosage?: string | null; frequency?: string | null; startDate?: Date | null; endDate?: Date | null; notes?: string | null }) {
+  return {
+    type: item.type ?? null, name: item.name ?? null, dosage: item.dosage ?? null,
+    frequency: item.frequency ?? null, startDate: item.startDate ?? null,
+    endDate: item.endDate ?? null, notes: item.notes ?? null,
+  };
+}
+
+function followUpSnapshot(item: { parqSubmissionId?: string | null; itemKey?: string; itemLabel?: string; status?: ProntuarioItemStatus; followUpNotes?: string | null; actionPlan?: string | null; closedAt?: Date | null }) {
+  return {
+    parqSubmissionId: item.parqSubmissionId ?? null, itemKey: item.itemKey ?? null,
+    itemLabel: item.itemLabel ?? null, status: item.status ?? null,
+    followUpNotes: item.followUpNotes ?? null, actionPlan: item.actionPlan ?? null,
+    closedAt: item.closedAt ?? null,
+  };
+}
+
+function painSnapshot(item: { title?: string; region?: string | null; status?: ProntuarioPainCaseStatus; onsetDate?: Date | null; description?: string | null; closedAt?: Date | null }) {
+  return {
+    title: item.title ?? null, region: item.region ?? null, status: item.status ?? null,
+    onsetDate: item.onsetDate ?? null, description: item.description ?? null, closedAt: item.closedAt ?? null,
+  };
+}
+
+function activitySnapshot(item: { activityType?: ProntuarioActivityType; description?: string; frequency?: string | null; duration?: string | null; intensity?: string | null; startedAt?: Date | null; endedAt?: Date | null; notes?: string | null }) {
+  return {
+    activityType: item.activityType ?? null, description: item.description ?? null,
+    frequency: item.frequency ?? null, duration: item.duration ?? null,
+    intensity: item.intensity ?? null, startedAt: item.startedAt ?? null,
+    endedAt: item.endedAt ?? null, notes: item.notes ?? null,
+  };
+}
+
+function recordSnapshot(item: { recordDate: Date; summary?: string | null; notes?: string | null; status: string; closedAt?: Date | null }) {
+  return {
+    recordDate: item.recordDate, summary: item.summary ?? null, notes: item.notes ?? null,
+    status: item.status, closedAt: item.closedAt ?? null,
+  };
 }
 
 function isTerminalItemStatus(status: ProntuarioItemStatus) {
@@ -209,48 +257,50 @@ export const prontuarioService = {
     return withSnapshotProfessorId(record);
   },
 
-  async saveGoals(contractId: string, recordId: string, goals: Array<{ id?: string; title: string; description?: string | null; status?: ProntuarioItemStatus; priority?: number; targetDate?: string | null }>) {
+  async saveGoals(contractId: string, recordId: string, goals: Array<{ id?: string; title: string; description?: string | null; status?: ProntuarioItemStatus; priority?: number; targetDate?: string | null }>, actorUserId?: string) {
     const record = await prisma.prontuarioRecord.findFirstOrThrow({ where: { id: recordId, contractId } });
     await prisma.$transaction(async (tx) => {
-      const existing = await tx.prontuarioGoal.findMany({ where: { recordId: record.id }, select: { id: true, status: true } });
+      const existing = await tx.prontuarioGoal.findMany({ where: { recordId: record.id } });
       const existingById = new Map(existing.map((item) => [item.id, item]));
       const touchedIds = new Set<string>();
 
       for (const [index, item] of goals.entries()) {
         const title = item.title?.trim();
         if (!title) continue;
-
-        const existingItem = item.id ? existingById.get(item.id) : null;
-
+        const previous = item.id ? existingById.get(item.id) : undefined;
+        assertKnownProntuarioItem(item.id, Boolean(previous));
+        const status = item.status ?? previous?.status ?? 'active';
         const payload = {
           title,
-          description: toNullableString(item.description),
-          status: item.status ?? existingItem?.status ?? 'active',
-          priority: item.priority ?? index,
-          targetDate: parseDate(item.targetDate) ?? null,
+          description: toNullableString(item.description) ?? previous?.description ?? null,
+          status,
+          priority: item.priority ?? previous?.priority ?? index,
+          targetDate: item.targetDate === undefined ? previous?.targetDate ?? null : parseDate(item.targetDate) ?? null,
+          closedAt: isTerminalItemStatus(status) ? previous?.closedAt ?? new Date() : null,
         };
-
-        if (item.id && existingItem) {
-          await tx.prontuarioGoal.update({ where: { id: item.id }, data: payload });
-          touchedIds.add(item.id);
-          continue;
+        if (previous) {
+          const before = goalSnapshot(previous);
+          const after = goalSnapshot(payload);
+          if (await appendProntuarioHistory(tx, record, 'goal', previous.id, before, after, actorUserId)) {
+            await tx.prontuarioGoal.update({ where: { id: previous.id }, data: payload });
+          }
+          touchedIds.add(previous.id);
+        } else {
+          const created = await tx.prontuarioGoal.create({
+            data: { recordId: record.id, ...payload },
+          });
+          await appendProntuarioHistory(tx, record, 'goal', created.id, null, goalSnapshot(payload), actorUserId);
+          touchedIds.add(created.id);
         }
-
-        const created = await tx.prontuarioGoal.create({
-          data: {
-            recordId: record.id,
-            ...payload,
-          },
-          select: { id: true },
-        });
-        touchedIds.add(created.id);
       }
 
       for (const item of existing) {
         if (touchedIds.has(item.id) || isTerminalItemStatus(item.status)) continue;
+        const archived = { ...item, status: 'archived' as ProntuarioItemStatus, closedAt: item.closedAt ?? new Date() };
+        await appendProntuarioHistory(tx, record, 'goal', item.id, goalSnapshot(item), goalSnapshot(archived), actorUserId);
         await tx.prontuarioGoal.update({
           where: { id: item.id },
-          data: { status: 'archived' },
+          data: { status: 'archived', closedAt: archived.closedAt },
         });
       }
     });
@@ -394,49 +444,41 @@ export const prontuarioService = {
     return this.getRecord(contractId, record.id);
   },
 
-  async saveMedicationsProcedures(contractId: string, recordId: string, items: Array<{ id?: string; type: ProntuarioMedicationProcedureType; name: string; dosage?: string | null; frequency?: string | null; startDate?: string | null; endDate?: string | null; notes?: string | null }>) {
+  async saveMedicationsProcedures(contractId: string, recordId: string, items: Array<{ id?: string; type: ProntuarioMedicationProcedureType; name: string; dosage?: string | null; frequency?: string | null; startDate?: string | null; endDate?: string | null; notes?: string | null }>, actorUserId?: string) {
     const record = await prisma.prontuarioRecord.findFirstOrThrow({ where: { id: recordId, contractId } });
     await prisma.$transaction(async (tx) => {
-      const existing = await tx.prontuarioMedicationProcedure.findMany({ where: { recordId: record.id }, select: { id: true, endDate: true } });
-      const existingIds = new Set(existing.map((item) => item.id));
+      const existing = await tx.prontuarioMedicationProcedure.findMany({ where: { recordId: record.id } });
+      const existingById = new Map(existing.map((item) => [item.id, item]));
       const touchedIds = new Set<string>();
-
       for (const item of items) {
         const name = item.name?.trim();
         if (!name) continue;
-
+        const previous = item.id ? existingById.get(item.id) : undefined;
+        assertKnownProntuarioItem(item.id, Boolean(previous));
         const payload = {
-          type: item.type,
-          name,
-          dosage: toNullableString(item.dosage),
-          frequency: toNullableString(item.frequency),
-          startDate: parseDate(item.startDate) ?? null,
-          endDate: parseDate(item.endDate) ?? null,
-          notes: toNullableString(item.notes),
+          type: item.type, name,
+          dosage: toNullableString(item.dosage) ?? previous?.dosage ?? null,
+          frequency: toNullableString(item.frequency) ?? previous?.frequency ?? null,
+          startDate: item.startDate === undefined ? previous?.startDate ?? null : parseDate(item.startDate) ?? null,
+          endDate: item.endDate === undefined ? previous?.endDate ?? null : parseDate(item.endDate) ?? null,
+          notes: toNullableString(item.notes) ?? previous?.notes ?? null,
         };
-
-        if (item.id && existingIds.has(item.id)) {
-          await tx.prontuarioMedicationProcedure.update({ where: { id: item.id }, data: payload });
-          touchedIds.add(item.id);
-          continue;
+        if (previous) {
+          if (await appendProntuarioHistory(tx, record, 'medicationProcedure', previous.id, medicationSnapshot(previous), medicationSnapshot(payload), actorUserId)) {
+            await tx.prontuarioMedicationProcedure.update({ where: { id: previous.id }, data: payload });
+          }
+          touchedIds.add(previous.id);
+        } else {
+          const created = await tx.prontuarioMedicationProcedure.create({ data: { recordId: record.id, ...payload } });
+          await appendProntuarioHistory(tx, record, 'medicationProcedure', created.id, null, medicationSnapshot(payload), actorUserId);
+          touchedIds.add(created.id);
         }
-
-        const created = await tx.prontuarioMedicationProcedure.create({
-          data: {
-            recordId: record.id,
-            ...payload,
-          },
-          select: { id: true },
-        });
-        touchedIds.add(created.id);
       }
-
       for (const item of existing) {
         if (touchedIds.has(item.id) || item.endDate) continue;
-        await tx.prontuarioMedicationProcedure.update({
-          where: { id: item.id },
-          data: { endDate: new Date() },
-        });
+        const ended = { ...item, endDate: new Date() };
+        await appendProntuarioHistory(tx, record, 'medicationProcedure', item.id, medicationSnapshot(item), medicationSnapshot(ended), actorUserId);
+        await tx.prontuarioMedicationProcedure.update({ where: { id: item.id }, data: { endDate: ended.endDate } });
       }
     });
     return this.getRecord(contractId, record.id);
@@ -552,6 +594,29 @@ export const prontuarioService = {
       ...snapshot,
       professorId: record.professorId ?? null,
     };
+  },
+
+  async getHistory(
+    contractId: string,
+    recordId: string,
+    entityType: ProntuarioHistoryEntityType,
+    options: { entityId?: string; version?: number; skip?: number } = {}
+  ) {
+    const record = await prisma.prontuarioRecord.findFirst({
+      where: { id: recordId, contractId },
+      select: { id: true, alunoId: true },
+    });
+    if (!record) throw new Error('Registro clínico não encontrado no contrato');
+    return prisma.prontuarioHistoryEvent.findMany({
+      where: {
+        contractId, recordId, alunoId: record.alunoId, entityType,
+        ...(options.entityId ? { entityId: options.entityId } : {}),
+        ...(options.version ? { version: options.version } : {}),
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 100,
+      skip: options.skip ?? 0,
+    });
   },
 
   async getRecord(contractId: string, recordId: string) {

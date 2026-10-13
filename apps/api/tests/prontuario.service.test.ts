@@ -33,6 +33,7 @@ jest.mock('@prisma/client', () => {
     update: jest.fn(),
     create: jest.fn(),
   };
+  const prontuarioHistoryEvent = { findFirst: jest.fn(), findMany: jest.fn(), create: jest.fn() };
   const studentParqSubmission = {
     findFirstOrThrow: jest.fn(),
     create: jest.fn(),
@@ -47,6 +48,7 @@ jest.mock('@prisma/client', () => {
     prontuarioMedicationProcedure,
     prontuarioPainCase,
     prontuarioPainFollowUp,
+    prontuarioHistoryEvent,
     studentParqSubmission,
     $transaction: jest.fn(),
   };
@@ -75,6 +77,7 @@ type DbMock = {
   prontuarioPainCase: { findMany: jest.Mock; update: jest.Mock; create: jest.Mock };
   prontuarioPainFollowUp: { update: jest.Mock; create: jest.Mock };
   studentParqSubmission: { findFirstOrThrow: jest.Mock; create: jest.Mock };
+  prontuarioHistoryEvent: { findFirst: jest.Mock; findMany: jest.Mock; create: jest.Mock };
   $transaction: jest.Mock;
 };
 
@@ -86,6 +89,8 @@ const ALUNO_ID = 'aluno-1';
 
 beforeEach(() => {
   jest.clearAllMocks();
+  db.prontuarioHistoryEvent.findFirst.mockResolvedValue({ version: 1 });
+  db.prontuarioHistoryEvent.findMany.mockResolvedValue([]);
   db.$transaction.mockImplementation(async (arg: unknown) => {
     if (typeof arg === 'function') return (arg as (tx: unknown) => unknown)(db);
     return Promise.all(arg as Promise<unknown>[]);
@@ -118,7 +123,7 @@ describe('prontuarioService', () => {
     );
     expect(db.prontuarioGoal.update).toHaveBeenCalledWith({
       where: { id: 'goal-archive' },
-      data: { status: 'archived' },
+      data: { status: 'archived', closedAt: expect.any(Date) },
     });
     expect(db.prontuarioGoal.update).not.toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'goal-resolved' } })
