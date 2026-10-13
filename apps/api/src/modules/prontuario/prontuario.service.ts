@@ -372,50 +372,42 @@ export const prontuarioService = {
     return this.getRecord(contractId, recordId);
   },
 
-  async saveActivityHistory(contractId: string, recordId: string, items: Array<{ id?: string; activityType?: ProntuarioActivityType; description: string; frequency?: string | null; duration?: string | null; intensity?: string | null; startedAt?: string | null; endedAt?: string | null; notes?: string | null }>) {
+  async saveActivityHistory(contractId: string, recordId: string, items: Array<{ id?: string; activityType?: ProntuarioActivityType; description: string; frequency?: string | null; duration?: string | null; intensity?: string | null; startedAt?: string | null; endedAt?: string | null; notes?: string | null }>, actorUserId?: string) {
     const record = await prisma.prontuarioRecord.findFirstOrThrow({ where: { id: recordId, contractId } });
     await prisma.$transaction(async (tx) => {
-      const existing = await tx.prontuarioActivityHistory.findMany({ where: { recordId: record.id }, select: { id: true, endedAt: true } });
-      const existingIds = new Set(existing.map((item) => item.id));
+      const existing = await tx.prontuarioActivityHistory.findMany({ where: { recordId: record.id } });
+      const existingById = new Map(existing.map((item) => [item.id, item]));
       const touchedIds = new Set<string>();
-
       for (const item of items) {
         const description = item.description?.trim();
         if (!description) continue;
-
+        const previous = item.id ? existingById.get(item.id) : undefined;
+        assertKnownProntuarioItem(item.id, Boolean(previous));
         const payload = {
-          activityType: item.activityType ?? 'other',
-          description,
-          frequency: toNullableString(item.frequency),
-          duration: toNullableString(item.duration),
-          intensity: toNullableString(item.intensity),
-          startedAt: parseDate(item.startedAt) ?? null,
-          endedAt: parseDate(item.endedAt) ?? null,
-          notes: toNullableString(item.notes),
+          activityType: item.activityType ?? previous?.activityType ?? 'other', description,
+          frequency: item.frequency === undefined ? previous?.frequency ?? null : toNullableString(item.frequency) ?? null,
+          duration: item.duration === undefined ? previous?.duration ?? null : toNullableString(item.duration) ?? null,
+          intensity: item.intensity === undefined ? previous?.intensity ?? null : toNullableString(item.intensity) ?? null,
+          startedAt: item.startedAt === undefined ? previous?.startedAt ?? null : parseDate(item.startedAt) ?? null,
+          endedAt: item.endedAt === undefined ? previous?.endedAt ?? null : parseDate(item.endedAt) ?? null,
+          notes: item.notes === undefined ? previous?.notes ?? null : toNullableString(item.notes) ?? null,
         };
-
-        if (item.id && existingIds.has(item.id)) {
-          await tx.prontuarioActivityHistory.update({ where: { id: item.id }, data: payload });
-          touchedIds.add(item.id);
-          continue;
+        if (previous) {
+          if (await appendProntuarioHistory(tx, record, 'activityHistory', previous.id, activitySnapshot(previous), activitySnapshot(payload), actorUserId)) {
+            await tx.prontuarioActivityHistory.update({ where: { id: previous.id }, data: payload });
+          }
+          touchedIds.add(previous.id);
+        } else {
+          const created = await tx.prontuarioActivityHistory.create({ data: { recordId: record.id, ...payload } });
+          await appendProntuarioHistory(tx, record, 'activityHistory', created.id, null, activitySnapshot(payload), actorUserId);
+          touchedIds.add(created.id);
         }
-
-        const created = await tx.prontuarioActivityHistory.create({
-          data: {
-            recordId: record.id,
-            ...payload,
-          },
-          select: { id: true },
-        });
-        touchedIds.add(created.id);
       }
-
       for (const item of existing) {
         if (touchedIds.has(item.id) || item.endedAt) continue;
-        await tx.prontuarioActivityHistory.update({
-          where: { id: item.id },
-          data: { endedAt: new Date() },
-        });
+        const ended = { ...item, endedAt: new Date() };
+        await appendProntuarioHistory(tx, record, 'activityHistory', item.id, activitySnapshot(item), activitySnapshot(ended), actorUserId);
+        await tx.prontuarioActivityHistory.update({ where: { id: item.id }, data: { endedAt: ended.endedAt } });
       }
     });
     return this.getRecord(contractId, record.id);
