@@ -57,6 +57,106 @@ describe('appendProntuarioHistory', () => {
     });
   });
 
+  it('records edits to a resolved goal as updates instead of repeating the closure', async () => {
+    const tx = makeTx(2);
+    await appendProntuarioHistory(
+      tx, record, 'goal', 'goal-1',
+      { status: 'resolved', title: 'Correr 5 km', closedAt: new Date('2026-10-11T10:00:00Z') },
+      { status: 'resolved', title: 'Correr 10 km', closedAt: new Date('2026-10-11T10:00:00Z') },
+      'actor-2'
+    );
+    expect(tx.prontuarioHistoryEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        entityType: 'goal', version: 3, action: 'updated',
+        actorUserId: 'actor-2', snapshot: expect.objectContaining({ title: 'Correr 10 km' }),
+      }),
+    });
+  });
+
+  it('does not treat changes between terminal states or reopening as new closures', async () => {
+    const cases = [
+      { before: { status: 'resolved', title: 'A' }, after: { status: 'archived', title: 'A' } },
+      { before: { status: 'archived', title: 'A' }, after: { status: 'active', title: 'Reaberto' } },
+      { before: { status: 'closed', notes: 'A' }, after: { status: 'closed', notes: 'B' } },
+    ];
+    for (const [index, item] of cases.entries()) {
+      const tx = makeTx(3);
+      await appendProntuarioHistory(tx, record, 'record', `record-${index}`,
+        item.before, item.after, 'actor-3');
+      expect(tx.prontuarioHistoryEvent.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ version: 4, action: 'updated' }),
+      });
+    }
+  });
+
+  it('emits a closure only on a real transition to a terminal status', async () => {
+    const tx = makeTx(1);
+    await appendProntuarioHistory(
+      tx, record, 'goal', 'goal-2',
+      { status: 'active', title: 'Meta' },
+      { status: 'resolved', title: 'Meta' }, 'actor-2'
+    );
+    expect(tx.prontuarioHistoryEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ version: 2, action: 'closed' }),
+    });
+  });
+
+  it('distinguishes first and later medication end-date changes', async () => {
+    const closed = makeTx(1);
+    const endDate = new Date('2026-10-12T10:00:00Z');
+    await appendProntuarioHistory(
+      closed, record, 'medicationProcedure', 'med-1',
+      { endDate: null, notes: 'A' }, { endDate, notes: 'A' }, 'actor-2'
+    );
+    expect(closed.prontuarioHistoryEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'closed' }),
+    });
+
+    const edited = makeTx(2);
+    await appendProntuarioHistory(
+      edited, record, 'medicationProcedure', 'med-1',
+      { endDate, notes: 'A' }, { endDate, notes: 'B' }, 'actor-3'
+    );
+    expect(edited.prontuarioHistoryEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ version: 3, action: 'updated' }),
+    });
+  });
+
+  it('recognizes first-time closedAt without repeating closure on later edits', async () => {
+    const date = new Date('2026-10-12T10:00:00Z');
+    const first = makeTx(1);
+    await appendProntuarioHistory(
+      first, record, 'goal', 'goal-3',
+      { status: 'resolved', title: 'A', closedAt: null },
+      { status: 'resolved', title: 'A', closedAt: date }, 'actor-2'
+    );
+    expect(first.prontuarioHistoryEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'closed' }),
+    });
+
+    const next = makeTx(2);
+    await appendProntuarioHistory(
+      next, record, 'goal', 'goal-3',
+      { status: 'resolved', title: 'A', closedAt: date },
+      { status: 'resolved', title: 'B', closedAt: date }, 'actor-3'
+    );
+    expect(next.prontuarioHistoryEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'updated' }),
+    });
+  });
+
+  it('classifies a newly created already-closed item as creation, not closure', async () => {
+    const tx = makeTx(null);
+    await appendProntuarioHistory(
+      tx, record, 'goal', 'goal-4', null,
+      { status: 'resolved', title: 'Já concluída', closedAt: new Date('2026-10-12T10:00:00Z') },
+      'actor-1'
+    );
+    expect(tx.prontuarioHistoryEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ version: 1, action: 'created' }),
+    });
+  });
+
   it('rejects foreign item IDs instead of duplicating them', () => {
     expect(() => assertKnownProntuarioItem('foreign-item', false))
       .toThrow('Registro clínico não encontrado no contrato');
