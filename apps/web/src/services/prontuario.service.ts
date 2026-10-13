@@ -4,6 +4,9 @@ import type {
   ProntuarioDiscomfortEntry,
   ProntuarioDiscomfortSnapshot,
   ProntuarioGoal,
+  ProntuarioHistoryEvent,
+  ProntuarioHealthIntakeRevision,
+  ProntuarioHistoryEntityType,
   ProntuarioMedicationProcedure,
   ProntuarioOverview,
   ProntuarioOverviewSummary,
@@ -67,6 +70,14 @@ export const prontuarioService = {
 
   async updateRecord(recordId: string, data: ProntuarioRecordPayload & { status?: 'open' | 'closed' | 'archived' }): Promise<ProntuarioRecord> {
     return unwrap(await api.put(`/prontuario/records/${recordId}`, data));
+  },
+
+  async healthIntakeHistory(alunoId: string, options: { revision?: number; skip?: number } = {}): Promise<ProntuarioHealthIntakeRevision[]> {
+    return unwrap(await api.get(`/prontuario/alunos/${alunoId}/intake-history`, { params: options }));
+  },
+
+  async history(recordId: string, entityType: ProntuarioHistoryEntityType, options: { entityId?: string; version?: number; skip?: number } = {}): Promise<ProntuarioHistoryEvent[]> {
+    return unwrap(await api.get(`/prontuario/records/${recordId}/history/${entityType}`, { params: options }));
   },
 
   async saveGoals(recordId: string, goals: Array<Partial<ProntuarioGoal> & { title: string }>): Promise<ProntuarioRecord> {

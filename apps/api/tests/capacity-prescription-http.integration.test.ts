@@ -146,6 +146,19 @@ async function createAlunoAndGoal(input: {
       priority: 1,
     },
   });
+  // Direct SQL fixtures bypass the PRNT service. Seed the same canonical
+  // immutable baseline that the production migration/service guarantees.
+  await prisma.prontuarioHistoryEvent.create({
+    data: {
+      recordId: record.id, contractId: input.contractId, alunoId: aluno.id,
+      entityType: 'goal', entityId: goal.id, version: 1, action: 'baseline',
+      source: 'legacy-baseline', snapshot: {
+        title: goal.title, description: goal.description, status: goal.status,
+        priority: goal.priority, targetDate: goal.targetDate?.toISOString() ?? null,
+        closedAt: null,
+      },
+    },
+  });
   await prisma.prontuarioGoalCapacityClassification.create({
     data: {
       goalId: goal.id,
@@ -277,6 +290,14 @@ describeDatabase('capacity prescriptions HTTP integration with PostgreSQL', () =
   });
 
   afterEach(async () => {
+    // Test-only tenant-scoped cleanup of append-only fixture events. The
+    // trigger bypass is LOCAL to this transaction and never used in the app.
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL session_replication_role = 'replica'");
+      await tx.prontuarioHistoryEvent.deleteMany({
+        where: { contractId: { in: [contractA, contractB] } },
+      });
+    });
     await prisma.companyContract.deleteMany({
       where: { id: { in: [contractA, contractB] } },
     });

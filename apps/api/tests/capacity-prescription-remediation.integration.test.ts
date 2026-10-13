@@ -147,6 +147,19 @@ describeDatabase('capacity prescription remediation with PostgreSQL', () => {
       },
     });
     activityId = activity.id;
+    await prisma.prontuarioHistoryEvent.create({
+      data: {
+        recordId: prontuario.id, contractId, alunoId,
+        entityType: 'activityHistory', entityId: activityId,
+        version: 1, action: 'baseline', source: 'legacy-baseline',
+        snapshot: {
+          activityType: activity.activityType, description: activity.description,
+          frequency: activity.frequency, duration: activity.duration,
+          intensity: activity.intensity, startedAt: activity.startedAt?.toISOString() ?? null,
+          endedAt: null, notes: activity.notes,
+        },
+      },
+    });
 
     const assessment = await prisma.studentAssessmentRecord.create({
       data: {
@@ -244,6 +257,11 @@ describeDatabase('capacity prescription remediation with PostgreSQL', () => {
   });
 
   afterEach(async () => {
+    // Tenant-scoped cleanup for append-only clinical history fixtures.
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL session_replication_role = 'replica'");
+      await tx.prontuarioHistoryEvent.deleteMany({ where: { contractId } });
+    });
     await prisma.companyContract.deleteMany({ where: { id: contractId } });
     await prisma.user.deleteMany({ where: { email } });
   });

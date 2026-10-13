@@ -281,3 +281,7 @@ Os testes cobrem:
 - `methodologyVersion` é derivada do conjunto persistido no mesmo contrato e capacidade; o cliente não define esse metadado.
 - Conjuntos históricos permanecem disponíveis para leitura e preservação da proveniência de versões anteriores.
 - Notas técnicas livres têm autoria e origem normalizadas no backend; fontes persistidas são reconstruídas da respectiva fonte canônica.
+
+## Referências clínicas versionadas (#384)
+
+Fontes `prontuario_goal`, `prontuario_alert` e `professor_note` vinculadas a entidades do PRNT preservam a versão numérica do evento imutável `ProntuarioHistoryEvent`. O identificador da fonte permanece o ID da entidade canônica e o tipo de entidade é determinado pelo domínio/registro encontrado. O backend valida `contractId`, `alunoId` e a existência do evento da versão indicada; quando recebe uma referência legada baseada em timestamp, resolve o evento atual. A edição posterior do PRNT não muda automaticamente a versão referenciada por uma Prescrição já salva ou reenviada com o número de revisão anterior. Metadados históricos são reconstruídos do snapshot selecionado, nunca aceitos do cliente. As fontes e prescrições legadas já persistidas não são reescritas retroativamente.

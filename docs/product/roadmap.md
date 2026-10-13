@@ -138,15 +138,16 @@ Entregue:
 - encerramento sem apagar historico;
 - controle por blocos de acesso;
 - classificacao dos objetivos para capacidades, avaliacao e plano de acao no fluxo da prescricao.
+- histórico versionado e auditável por entidade clínica (issue #384), com autoria, origem, contrato e aluno;
+- encerramento de objetivos sem exclusão física, mantendo versões anteriores;
+- versões da Anamnese Inicial recuperáveis por data e revisão, preservando o PAR-Q canônico independente;
+- consulta de versões no PRNT por bloco autorizado e sem persistência duplicada na timeline;
 
 Pendente:
 
-- ciclo completo e historico dos objetivos;
-- historicos proprios para medicamentos, cirurgias, restricoes e observacoes;
 - integracao da rotina semanal;
 - garantia de eventos no historico unificado;
 - testes completos de permissao e isolamento por contrato;
-- questionarios versionados como eventos rastreaveis.
 
 ### 4. Avaliacao Fisica
 

@@ -22,6 +22,8 @@ import type {
 } from '@corrida/types';
 import type { BodyDiscomfortEntry } from '../../constants/bodyRegions';
 import { ProtocolNavTabs } from './protocolNav';
+import { ProntuarioVersionHistory } from './ProntuarioVersionHistory';
+import { ProntuarioHealthIntakeHistory } from './ProntuarioHealthIntakeHistory';
 
 type ProntuarioBlockName =
   | 'summary'
@@ -657,6 +659,12 @@ export function ProntuarioScreen() {
           </div>
 
           <aside className="space-y-4">
+            {selectedAlunoId && blocks.anamnesis && (
+              <ProntuarioHealthIntakeHistory alunoId={selectedAlunoId} refreshToken={overview} />
+            )}
+            {currentRecord && blocks.summary && (
+              <ProntuarioVersionHistory recordId={currentRecord.id} allowed={blocks} refreshToken={overview} />
+            )}
             <Card>
               <CardHeader>
                 <CardTitle>Histórico</CardTitle>
@@ -761,6 +769,15 @@ function GoalsEditor({
           <div key={item.id || index} className="grid gap-3 rounded-md border border-border bg-muted/20 p-3 md:grid-cols-2">
             <Input label="Título" value={item.title || ''} onChange={(event) => updateItem(index, { title: event.target.value })} />
             <Input label="Data alvo" type="date" value={toDateInput(item.targetDate)} onChange={(event) => updateItem(index, { targetDate: event.target.value })} />
+            <div>
+              <label className="mb-2 block text-sm font-medium">Situação do objetivo</label>
+              <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={item.status ?? 'active'} onChange={(event) => updateItem(index, { status: event.target.value as ProntuarioGoal['status'] })}>
+                <option value="active">Ativo</option>
+                <option value="monitoring">Em acompanhamento</option>
+                <option value="resolved">Concluído</option>
+                <option value="archived">Arquivado</option>
+              </select>
+            </div>
             <div className="md:col-span-2">
               <textarea className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Descrição" value={item.description || ''} onChange={(event) => updateItem(index, { description: event.target.value })} />
             </div>

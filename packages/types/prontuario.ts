@@ -11,6 +11,38 @@ import type {
   ParqSubmissionDTO,
 } from './pre-registration-parq.js';
 
+export type ProntuarioHistoryEntityType = 'record' | 'goal' | 'anamnesisFollowUp' | 'activityHistory' | 'medicationProcedure' | 'painCase' | 'painFollowUp' | 'discomfortSnapshot';
+
+export interface ProntuarioHistoryEvent {
+  id: string;
+  recordId: string;
+  contractId: string;
+  alunoId: string;
+  entityType: ProntuarioHistoryEntityType;
+  entityId: string;
+  version: number;
+  action: 'baseline' | 'created' | 'updated' | 'closed';
+  snapshot: Record<string, unknown>;
+  actorUserId: string | null;
+  source: 'prnt-api' | 'legacy-baseline';
+  createdAt: string;
+}
+
+export interface ProntuarioHealthIntakeRevision {
+  id: string;
+  intakeId: string;
+  alunoId: string;
+  contractId: string;
+  revision: number;
+  sourceVersion: number;
+  formVersion: string | null;
+  sourceType: 'student' | 'professional' | 'integration' | 'system';
+  sourceReference: string | null;
+  actorUserId: string | null;
+  snapshot: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface ProntuarioGoal {
   id: string;
   recordId: string;
@@ -19,6 +51,7 @@ export interface ProntuarioGoal {
   status: ProntuarioItemStatus;
   priority: number;
   targetDate?: string | null;
+  closedAt?: string | null;
 }
 
 export interface ProntuarioAnamnesisFollowUp {
