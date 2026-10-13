@@ -56,6 +56,8 @@ export function AnthropometryScreen() {
   const canCorrectCompleted = canAccessBlock(user, 'students.actions.manageAssessments');
   const [searchParams, setSearchParams] = useSearchParams();
   const initialAlunoId = searchParams.get('alunoId') || '';
+  const assessmentIdParam = searchParams.get('assessmentId') || '';
+  const correctionIdParam = searchParams.get('correctionId') || '';
   const startedFromCentral = Boolean(initialAlunoId);
   const [alunos, setAlunos] = useState<Aluno[]>([]);
   const [selectedAlunoId, setSelectedAlunoId] = useState(initialAlunoId);
@@ -81,7 +83,8 @@ export function AnthropometryScreen() {
   const isEditable = Boolean(workingAssessment && (isDraft || isCorrectionMode));
   const hasDraft = anthropometry.assessments.some((assessment) => assessment.status === 'DRAFT');
   const selectedReadOnlyAssessment =
-    anthropometry.selectedAssessment && anthropometry.selectedAssessment.id !== defaultAssessment?.id
+    anthropometry.selectedAssessment && (anthropometry.selectedAssessment.id !== defaultAssessment?.id
+      || anthropometry.selectedAssessment.id === assessmentIdParam)
       ? anthropometry.selectedAssessment
       : null;
   const previousAssessments = anthropometry.assessments.filter((assessment) => assessment.id !== defaultAssessment?.id);
@@ -102,8 +105,22 @@ export function AnthropometryScreen() {
 
   useEffect(() => {
     if (!selectedAlunoId) return;
-    setSearchParams({ alunoId: selectedAlunoId });
+    // Preserve the precise assessment/correction deep link during student initialization.
+    setSearchParams((current) => {
+      if (current.get('alunoId') === selectedAlunoId) return current;
+      const next = new URLSearchParams(current);
+      next.set('alunoId', selectedAlunoId);
+      return next;
+    }, { replace: true });
   }, [selectedAlunoId, setSearchParams]);
+
+  useEffect(() => {
+    if (assessmentIdParam && anthropometry.assessments.some((item) => item.id === assessmentIdParam)
+      && anthropometry.selectedAssessmentId !== assessmentIdParam) {
+      anthropometry.setSelectedAssessmentId(assessmentIdParam);
+    }
+  }, [assessmentIdParam, anthropometry.assessments, anthropometry.selectedAssessmentId,
+    anthropometry.setSelectedAssessmentId]);
 
   useEffect(() => {
     if (!workingAssessment) {
@@ -494,7 +511,7 @@ export function AnthropometryScreen() {
               <CardDescription>Consulte avaliações anteriores e configure explicitamente os requisitos de conclusão.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Accordion type="single" collapsible>
+              <Accordion type="single" collapsible defaultValue={assessmentIdParam ? 'history' : undefined}>
                 <AccordionItem value="history">
                   <AccordionTrigger><span className="flex items-center gap-2"><History className="h-4 w-4" /> Histórico de avaliações</span></AccordionTrigger>
                   <AccordionContent>
@@ -541,7 +558,7 @@ export function AnthropometryScreen() {
                           <div className="mt-4 space-y-2">
                             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Correções auditadas</p>
                             {selectedReadOnlyAssessment.corrections.map((correction) => (
-                              <div key={correction.id} className="rounded-lg border border-border bg-card px-3 py-2 text-sm">
+                              <div key={correction.id} className={`rounded-lg border px-3 py-2 text-sm ${correctionIdParam === correction.id ? 'border-primary bg-primary/5' : 'border-border bg-card'}`}>
                                 <span className="font-medium">{new Date(correction.createdAt).toLocaleString('pt-BR')}</span>
                                 <span className="ml-2 text-muted-foreground">{correction.reason}</span>
                               </div>
