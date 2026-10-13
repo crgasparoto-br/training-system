@@ -28,6 +28,21 @@ export interface ProntuarioHistoryEvent {
   createdAt: string;
 }
 
+export interface ProntuarioHealthIntakeRevision {
+  id: string;
+  intakeId: string;
+  alunoId: string;
+  contractId: string;
+  revision: number;
+  sourceVersion: number;
+  formVersion: string | null;
+  sourceType: 'student' | 'professional' | 'integration' | 'system';
+  sourceReference: string | null;
+  actorUserId: string | null;
+  snapshot: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface ProntuarioGoal {
   id: string;
   recordId: string;
