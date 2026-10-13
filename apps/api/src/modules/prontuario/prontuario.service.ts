@@ -217,44 +217,44 @@ export const prontuarioService = {
     };
   },
 
-  async createRecord(contractId: string, alunoId: string, professorId: string | undefined, data: { recordDate?: string; summary?: string | null; notes?: string | null }) {
+  async createRecord(contractId: string, alunoId: string, professorId: string | undefined, data: { recordDate?: string; summary?: string | null; notes?: string | null }, actorUserId?: string) {
     const aluno = await assertAlunoInContract(alunoId, contractId);
-    const latest = await prisma.prontuarioRecord.findFirst({
-      where: { contractId: aluno.contractId, alunoId },
-      orderBy: [{ createdAt: 'desc' }],
-      select: { code: true },
+    return prisma.$transaction(async (tx) => {
+      const latest = await tx.prontuarioRecord.findFirst({
+        where: { contractId: aluno.contractId, alunoId },
+        orderBy: [{ createdAt: 'desc' }],
+        select: { code: true },
+      });
+      const record = await tx.prontuarioRecord.create({
+        data: {
+          contractId: aluno.contractId, alunoId, professorId,
+          code: nextCodeFrom(latest?.code), recordDate: parseDate(data.recordDate) ?? new Date(),
+          summary: data.summary, notes: data.notes,
+        },
+        include: includeRecord,
+      });
+      await appendProntuarioHistory(tx, record, 'record', record.id, null, recordSnapshot(record), actorUserId);
+      return withSnapshotProfessorId(record);
     });
-
-    const record = await prisma.prontuarioRecord.create({
-      data: {
-        contractId: aluno.contractId,
-        alunoId,
-        professorId,
-        code: nextCodeFrom(latest?.code),
-        recordDate: parseDate(data.recordDate) ?? new Date(),
-        summary: data.summary,
-        notes: data.notes,
-      },
-      include: includeRecord,
-    });
-
-    return withSnapshotProfessorId(record);
   },
 
-  async updateRecord(contractId: string, recordId: string, data: { recordDate?: string; summary?: string | null; notes?: string | null; status?: 'open' | 'closed' | 'archived' }) {
-    const existing = await prisma.prontuarioRecord.findFirstOrThrow({ where: { id: recordId, contractId } });
-    const record = await prisma.prontuarioRecord.update({
-      where: { id: existing.id },
-      data: {
-        recordDate: parseDate(data.recordDate),
-        summary: data.summary,
-        notes: data.notes,
-        status: data.status,
-        closedAt: data.status === 'closed' ? new Date() : undefined,
-      },
-      include: includeRecord,
+  async updateRecord(contractId: string, recordId: string, data: { recordDate?: string; summary?: string | null; notes?: string | null; status?: 'open' | 'closed' | 'archived' }, actorUserId?: string) {
+    const updated = await prisma.$transaction(async (tx) => {
+      const previous = await tx.prontuarioRecord.findFirstOrThrow({ where: { id: recordId, contractId } });
+      const status = data.status ?? previous.status;
+      const payload = {
+        recordDate: data.recordDate === undefined ? previous.recordDate : parseDate(data.recordDate) ?? previous.recordDate,
+        summary: data.summary === undefined ? previous.summary : toNullableString(data.summary),
+        notes: data.notes === undefined ? previous.notes : toNullableString(data.notes),
+        status,
+        closedAt: status === 'open' ? null : previous.closedAt ?? new Date(),
+      };
+      if (await appendProntuarioHistory(tx, previous, 'record', previous.id, recordSnapshot(previous), recordSnapshot(payload), actorUserId)) {
+        await tx.prontuarioRecord.update({ where: { id: previous.id }, data: payload });
+      }
+      return tx.prontuarioRecord.findFirstOrThrow({ where: { id: previous.id, contractId }, include: includeRecord });
     });
-    return withSnapshotProfessorId(record);
+    return withSnapshotProfessorId(updated);
   },
 
   async saveGoals(contractId: string, recordId: string, goals: Array<{ id?: string; title: string; description?: string | null; status?: ProntuarioItemStatus; priority?: number; targetDate?: string | null }>, actorUserId?: string) {
