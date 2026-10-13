@@ -2330,7 +2330,8 @@ export function AlunoDetails() {
               </Button>
             </div>
           )}
-          <AlunoHistoricoTab timeline={segmentedTimeline?.alunoId === id ? segmentedTimeline : null} />
+          <AlunoHistoricoTab timeline={segmentedTimeline?.alunoId === id ? segmentedTimeline : null}
+            onRetry={() => setTimelineRetryKey((value) => value + 1)} />
           {segmentedTimeline?.alunoId === id && segmentedTimeline?.nextCursor && (
             <Button type="button" variant="outline" disabled={timelineLoadingMore} onClick={() => void loadMoreTimeline()}>
               {timelineLoadingMore ? 'Carregando histórico...' : 'Carregar eventos anteriores'}
