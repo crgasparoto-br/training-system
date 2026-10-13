@@ -50,7 +50,6 @@ const sourceTypeLabel: Record<string, string> = {
   professional: 'Profissional',
   integration: 'Integração',
   system: 'Sistema',
-  professional: 'Profissional',
 };
 
 const categoryLabel: Record<EventCategory, string> = {
