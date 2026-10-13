@@ -453,86 +453,70 @@ export const prontuarioService = {
     return this.getRecord(contractId, record.id);
   },
 
-  async savePainCases(contractId: string, recordId: string, items: Array<{ id?: string; title: string; region?: string | null; status?: ProntuarioPainCaseStatus; onsetDate?: string | null; description?: string | null; followUps?: Array<{ id?: string; followUpAt?: string; intensity?: number | null; notes?: string | null; conduct?: string | null }> }>) {
+  async savePainCases(contractId: string, recordId: string, items: Array<{ id?: string; title: string; region?: string | null; status?: ProntuarioPainCaseStatus; onsetDate?: string | null; description?: string | null; followUps?: Array<{ id?: string; followUpAt?: string; intensity?: number | null; notes?: string | null; conduct?: string | null }> }>, actorUserId?: string) {
     const record = await prisma.prontuarioRecord.findFirstOrThrow({ where: { id: recordId, contractId } });
     await prisma.$transaction(async (tx) => {
       const existingCases = await tx.prontuarioPainCase.findMany({
-        where: { recordId: record.id },
-        select: { id: true, status: true, closedAt: true, followUps: { select: { id: true } } },
+        where: { recordId: record.id }, include: { followUps: true },
       });
-      const existingCaseIds = new Set(existingCases.map((item) => item.id));
-      const followUpsByCaseId = new Map(
-        existingCases.map((item) => [item.id, new Set(item.followUps.map((followUp) => followUp.id))])
-      );
+      const existingById = new Map(existingCases.map((item) => [item.id, item]));
       const touchedCaseIds = new Set<string>();
-
       for (const item of items) {
         const title = item.title?.trim();
         if (!title) continue;
-
-        const existingCase = item.id ? existingCases.find((entry) => entry.id === item.id) : null;
-        const nextStatus = item.status ?? existingCase?.status ?? 'active';
-
-        const casePayload = {
+        const previous = item.id ? existingById.get(item.id) : undefined;
+        assertKnownProntuarioItem(item.id, Boolean(previous));
+        const status = item.status ?? previous?.status ?? 'active';
+        const payload = {
           title,
-          region: toNullableString(item.region),
-          status: nextStatus,
-          onsetDate: parseDate(item.onsetDate) ?? null,
-          description: toNullableString(item.description),
-          closedAt: effectivePainCaseClosedAt(nextStatus, existingCase?.closedAt),
+          region: item.region === undefined ? previous?.region ?? null : toNullableString(item.region) ?? null,
+          status,
+          onsetDate: item.onsetDate === undefined ? previous?.onsetDate ?? null : parseDate(item.onsetDate) ?? null,
+          description: item.description === undefined ? previous?.description ?? null : toNullableString(item.description) ?? null,
+          closedAt: status === previous?.status && isTerminalItemStatus(status as ProntuarioItemStatus)
+            ? previous?.closedAt ?? null : effectivePainCaseClosedAt(status, previous?.closedAt),
         };
-
         let painCaseId: string;
-        if (item.id && existingCaseIds.has(item.id)) {
-          await tx.prontuarioPainCase.update({ where: { id: item.id }, data: casePayload });
-          painCaseId = item.id;
+        if (previous) {
+          if (await appendProntuarioHistory(tx, record, 'painCase', previous.id, painSnapshot(previous), painSnapshot(payload), actorUserId)) {
+            await tx.prontuarioPainCase.update({ where: { id: previous.id }, data: payload });
+          }
+          painCaseId = previous.id;
         } else {
-          const created = await tx.prontuarioPainCase.create({
-            data: {
-              recordId: record.id,
-              ...casePayload,
-            },
-            select: { id: true },
-          });
+          const created = await tx.prontuarioPainCase.create({ data: { recordId: record.id, ...payload } });
           painCaseId = created.id;
+          await appendProntuarioHistory(tx, record, 'painCase', painCaseId, null, painSnapshot(payload), actorUserId);
         }
         touchedCaseIds.add(painCaseId);
-
         if (item.followUps?.length) {
-          const existingFollowUpIds = followUpsByCaseId.get(painCaseId) ?? new Set<string>();
-
+          const existingFollowUps = new Map((previous?.followUps ?? []).map((f) => [f.id, f]));
           for (const followUp of item.followUps) {
-            const followUpPayload = {
-              followUpAt: parseDate(followUp.followUpAt) ?? new Date(),
-              intensity: followUp.intensity ?? null,
-              notes: toNullableString(followUp.notes),
-              conduct: toNullableString(followUp.conduct),
+            const old = followUp.id ? existingFollowUps.get(followUp.id) : undefined;
+            assertKnownProntuarioItem(followUp.id, Boolean(old));
+            const event = {
+              followUpAt: followUp.followUpAt === undefined ? old?.followUpAt ?? new Date() : parseDate(followUp.followUpAt) ?? new Date(),
+              intensity: followUp.intensity === undefined ? old?.intensity ?? null : followUp.intensity,
+              notes: followUp.notes === undefined ? old?.notes ?? null : toNullableString(followUp.notes) ?? null,
+              conduct: followUp.conduct === undefined ? old?.conduct ?? null : toNullableString(followUp.conduct) ?? null,
             };
-
-            if (followUp.id && existingFollowUpIds.has(followUp.id)) {
-              await tx.prontuarioPainFollowUp.update({
-                where: { id: followUp.id },
-                data: followUpPayload,
-              });
-              continue;
+            if (old) {
+              if (await appendProntuarioHistory(tx, record, 'painFollowUp', old.id, {
+                followUpAt: old.followUpAt, intensity: old.intensity, notes: old.notes, conduct: old.conduct,
+              }, event, actorUserId)) {
+                await tx.prontuarioPainFollowUp.update({ where: { id: old.id }, data: event });
+              }
+            } else {
+              const created = await tx.prontuarioPainFollowUp.create({ data: { painCaseId, ...event } });
+              await appendProntuarioHistory(tx, record, 'painFollowUp', created.id, null, event, actorUserId);
             }
-
-            await tx.prontuarioPainFollowUp.create({
-              data: {
-                painCaseId,
-                ...followUpPayload,
-              },
-            });
           }
         }
       }
-
       for (const item of existingCases) {
         if (touchedCaseIds.has(item.id) || item.status === 'resolved' || item.status === 'archived') continue;
-        await tx.prontuarioPainCase.update({
-          where: { id: item.id },
-          data: toArchivedPainCaseState(item.status, item.closedAt),
-        });
+        const archived = { ...item, ...toArchivedPainCaseState(item.status, item.closedAt) };
+        await appendProntuarioHistory(tx, record, 'painCase', item.id, painSnapshot(item), painSnapshot(archived), actorUserId);
+        await tx.prontuarioPainCase.update({ where: { id: item.id }, data: toArchivedPainCaseState(item.status, item.closedAt) });
       }
     });
     return this.getRecord(contractId, record.id);
