@@ -1067,13 +1067,23 @@ export const studentDomainService = {
     return {
       alunoId: aluno.id,
       items: selected.map(({ event }) => {
-        const source = event.source as { type?: string; reference?: string | null; recordedByUserId?: string | null } | undefined;
+        const data = event as Record<string, unknown>;
+        const source = data.source as {
+          type?: string; reference?: string | null; recordedByUserId?: string | null;
+        } | undefined;
         return {
-          ...event,
-          sourceType: 'sourceType' in event ? event.sourceType : source?.type ?? 'system',
-          sourceId: 'sourceId' in event ? event.sourceId : source?.reference ?? String(event.id),
+          ...data,
+          id: String(data.id),
+          type: String(data.type),
+          title: String(data.title),
+          occurredAt: data.occurredAt as string | Date,
+          source: source ?? { type: 'system', reference: String(data.id), recordedByUserId: null },
+          details: data.details as Record<string, unknown> | undefined,
+          sourceType: typeof data.sourceType === 'string' ? data.sourceType : source?.type ?? 'system',
+          sourceId: typeof data.sourceId === 'string' ? data.sourceId : source?.reference ?? String(data.id),
           contractId: options.companyContractId,
-          actorUserId: 'actorUserId' in event ? event.actorUserId : source?.recordedByUserId ?? null,
+          actorUserId: typeof data.actorUserId === 'string' ? data.actorUserId
+            : source?.recordedByUserId ?? null,
         };
       }),
       total: selected.length,
