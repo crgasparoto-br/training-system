@@ -3,6 +3,7 @@ const mockIntakeHistory = jest.fn();
 const mockParq = jest.fn();
 const mockLifecycle = jest.fn();
 const mockAdipometry = jest.fn();
+const mockAdipometryAudit = jest.fn();
 
 jest.mock('../../common/prisma-runtime-client.js', () => ({
   prismaRuntimeClient: {
@@ -11,6 +12,7 @@ jest.mock('../../common/prisma-runtime-client.js', () => ({
     studentParqSubmission: { findMany: mockParq },
     studentLifecycleEvent: { findMany: mockLifecycle },
     adipometryAssessment: { findMany: mockAdipometry },
+    adipometryAuditEvent: { findMany: mockAdipometryAudit },
   },
 }));
 
@@ -23,7 +25,7 @@ const at = new Date('2026-10-13T12:00:00.000Z');
 
 describe('canonical clinical timeline (#385)', () => {
   beforeEach(() => {
-    for (const mock of [mockPrntHistory, mockIntakeHistory, mockParq, mockLifecycle, mockAdipometry]) {
+    for (const mock of [mockPrntHistory, mockIntakeHistory, mockParq, mockLifecycle, mockAdipometry, mockAdipometryAudit]) {
       mock.mockReset().mockResolvedValue([]);
     }
   });
@@ -31,7 +33,7 @@ describe('canonical clinical timeline (#385)', () => {
   it('never touches denied clinical tables even when Audit is available', async () => {
     const result = await readClinicalTimeline('aluno-a', 'contract-a', denied, 10);
     expect(result).toEqual({ items: [], unavailableDomains: [] });
-    for (const mock of [mockPrntHistory, mockIntakeHistory, mockParq, mockLifecycle, mockAdipometry]) {
+    for (const mock of [mockPrntHistory, mockIntakeHistory, mockParq, mockLifecycle, mockAdipometry, mockAdipometryAudit]) {
       expect(mock).not.toHaveBeenCalled();
     }
   });
@@ -64,27 +66,97 @@ describe('canonical clinical timeline (#385)', () => {
     expect(mockIntakeHistory).not.toHaveBeenCalled();
   });
 
-  it('keeps corrected ADPT revisions instead of replacing original completion', async () => {
+  it('preserves a SUPERSEDED R1 and attributes each completion to its own finalizer', async () => {
     mockAdipometry.mockResolvedValue([
       { id: 'revision-2', contractId: 'contract-a', code: 'ADPT-01', rootAssessmentId: 'root-1',
-        revisionNumber: 2, correctsAssessmentId: 'revision-1', correctionAuthorUserId: 'user-2', completedAt: at },
+        revisionNumber: 2, revisionStatus: 'FINALIZED', correctsAssessmentId: 'revision-1',
+        correctionAuthorUserId: 'correction-creator', completedAt: at },
       { id: 'revision-1', contractId: 'contract-a', code: 'ADPT-01', rootAssessmentId: 'root-1',
-        revisionNumber: 1, correctsAssessmentId: null, correctionAuthorUserId: null, completedAt: at },
+        revisionNumber: 1, revisionStatus: 'SUPERSEDED', correctsAssessmentId: null,
+        correctionAuthorUserId: null, completedAt: at },
+    ]);
+    mockAdipometryAudit.mockResolvedValue([
+      { assessmentId: 'revision-1', action: 'COMPLETED', actorUserId: 'original-finalizer' },
+      { assessmentId: 'revision-1', action: 'COMPLETED', actorUserId: 'incorrect-later-actor' },
+      { assessmentId: 'revision-1', action: 'CORRECTION_FINALIZED', actorUserId: 'superseding-actor' },
+      { assessmentId: 'revision-2', action: 'CORRECTION_FINALIZED', actorUserId: 'r2-finalizer' },
     ]);
     const result = await readClinicalTimeline('aluno-a', 'contract-a',
       { ...denied, adipometry: true }, 10);
     expect(mockAdipometry).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         contractId: 'contract-a', alunoId: 'aluno-a',
-        status: 'COMPLETED', revisionStatus: 'FINALIZED', completedAt: { not: null },
+        status: 'COMPLETED', revisionStatus: { in: ['FINALIZED', 'SUPERSEDED'] },
+        completedAt: { not: null },
       }),
     }));
-    expect(result.items.map((event) => event.type)).toEqual([
+    expect(mockAdipometryAudit).toHaveBeenCalledWith({
+      where: { contractId: 'contract-a', assessmentId: { in: ['revision-2', 'revision-1'] },
+        action: { in: ['COMPLETED', 'CORRECTION_FINALIZED'] } },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: { assessmentId: true, action: true, actorUserId: true },
+    });
+    expect(result.items.map((item) => item.type)).toEqual([
       'adipometry_corrected', 'adipometry_completed',
     ]);
+    expect(result.items.map((item) => item.actorUserId)).toEqual([
+      'r2-finalizer', 'original-finalizer',
+    ]);
+    expect(result.items[1]).toEqual(expect.objectContaining({
+      id: 'clinical-adipometry-revision-1',
+      sourceId: 'revision-1', sourceType: 'adipometry-assessment',
+      source: { type: 'professional', reference: 'revision-1', recordedByUserId: 'original-finalizer' },
+    }));
     expect(result.items[0].metadata).toEqual(expect.objectContaining({
       revisionNumber: 2, correctsAssessmentId: 'revision-1',
     }));
+    expect(JSON.stringify(result)).not.toContain('incorrect-later-actor');
+    expect(JSON.stringify(result)).not.toContain('superseding-actor');
+  });
+
+  it('does not misattribute original completion when its historical audit actor is unavailable', async () => {
+    mockAdipometry.mockResolvedValue([
+      { id: 'revision-1', contractId: 'contract-a', code: 'ADPT-01', rootAssessmentId: 'root-1',
+        revisionNumber: 1, correctsAssessmentId: null, correctionAuthorUserId: null, completedAt: at },
+    ]);
+    const result = await readClinicalTimeline('aluno-a', 'contract-a',
+      { ...denied, adipometry: true }, 10);
+    expect(result.items[0].actorUserId).toBeNull();
+    expect(result.items[0].source.recordedByUserId).toBeNull();
+    expect(mockAdipometryAudit).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the canonical correction author for legacy R2 only when no finalization audit exists', async () => {
+    mockAdipometry.mockResolvedValue([
+      { id: 'revision-2', contractId: 'contract-a', code: 'ADPT-01', rootAssessmentId: 'root-1',
+        revisionNumber: 2, correctsAssessmentId: 'revision-1',
+        correctionAuthorUserId: 'legacy-correction-author', completedAt: at },
+    ]);
+    const result = await readClinicalTimeline('aluno-a', 'contract-a',
+      { ...denied, adipometry: true }, 10);
+    expect(result.items[0].actorUserId).toBe('legacy-correction-author');
+  });
+
+  it('localizes an ADPT audit read failure and preserves other permitted domains', async () => {
+    mockAdipometry.mockResolvedValue([
+      { id: 'revision-1', contractId: 'contract-a', code: 'ADPT-01', rootAssessmentId: 'root-1',
+        revisionNumber: 1, correctsAssessmentId: null, completedAt: at },
+    ]);
+    mockAdipometryAudit.mockRejectedValue(new Error('private SQL details'));
+    mockParq.mockResolvedValue([{
+      id: 'parq-1', contractId: 'contract-a', submittedAt: at,
+      submittedByUserId: 'student-a', catalogVersion: '2',
+    }]);
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const result = await readClinicalTimeline('aluno-a', 'contract-a',
+        { ...denied, adipometry: true, parq: true }, 10);
+      expect(result.items.map((item) => item.type)).toEqual(['prnt_parq_submitted']);
+      expect(result.unavailableDomains).toEqual(['Adipometria']);
+      expect(JSON.stringify(result)).not.toContain('private SQL details');
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('uses existing immutable anthropometry lifecycle events, without reproducing measures', async () => {
