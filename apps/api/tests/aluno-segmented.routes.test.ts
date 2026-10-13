@@ -302,4 +302,18 @@ describe('segmented aluno routes', () => {
       expect(studentDomainService.getTimeline).not.toHaveBeenCalled();
     }
   });
+
+  it('keeps clinical intake denied despite a granted health block', async () => {
+    mockCanAccessBlock.mockImplementation(async (_professor: unknown, key: string) =>
+      key !== 'physicalAssessment.prnt.anamnesisFollowUp');
+    (studentDomainService.getTimeline as jest.Mock).mockResolvedValue({
+      alunoId: 'aluno-1', items: [], total: 0,
+    });
+    const response = await request(app).get('/alunos/aluno-1/timeline');
+    expect(response.status).toBe(200);
+    const grants = (studentDomainService.getTimeline as jest.Mock).mock.calls[0][1].timelineAccess;
+    expect(grants.health).toBe(true);
+    expect(grants.clinical.intake).toBe(false);
+  });
+
 });

@@ -623,6 +623,78 @@ const buildTimeline = ({
     .sort((a, b) => new Date(String(b.occurredAt)).getTime() - new Date(String(a.occurredAt)).getTime());
 };
 
+
+/**
+ * Reconstruct only authorized timeline domains when a broad compatibility
+ * snapshot fails. Keep retries sequential to avoid exhausting the DB pool.
+ */
+async function loadDegradedTimelineSnapshot(
+  alunoId: string, contractId: string, grants: TimelineDomainAccess,
+): Promise<{ aluno: any; unavailableDomains: string[] }> {
+  const where = { id: alunoId, contractId };
+  const base = await prisma.aluno.findFirst({ where });
+  if (!base) return { aluno: null, unavailableDomains: [] };
+  const snapshot: any = {
+    ...base, user: null, professor: null, studentProfile: null,
+    intakeForm: null, studentHealthIntake: null, parqSubmissions: [],
+    assessments: [], studentAssessmentRecords: [],
+    studentFinancialProfile: null, service: null,
+    integrations: [], studentExternalAccounts: [], studentExternalActivities: [],
+  };
+  const unavailableDomains: string[] = [];
+  const readPart = async (
+    domain: string, enabled: boolean, load: () => Promise<any>, keys: string[],
+  ) => {
+    if (!enabled) return;
+    try {
+      const row = await load();
+      if (!row) {
+        unavailableDomains.push(domain);
+        return;
+      }
+      const scoped = scopeAlunoDomainSnapshot(row, contractId);
+      for (const key of keys) snapshot[key] = scoped[key];
+    } catch {
+      unavailableDomains.push(domain);
+    }
+  };
+  await readPart('Cadastro', grants.profile,
+    () => prisma.aluno.findFirst({ where, include: {
+      user: { include: { profile: true } },
+      professor: { include: { user: { include: { profile: true } } } },
+      studentProfile: true,
+    } }), ['user', 'professor', 'studentProfile']);
+  await readPart('Anamnese', grants.health && grants.clinical.intake,
+    () => prisma.aluno.findFirst({ where, include: {
+      intakeForm: true, studentHealthIntake: true,
+      parqSubmissions: {
+        where: { declarationAccepted: true,
+          catalogVersion: { in: [PARQ_CATALOG_VERSION, PARQ_LEGACY_CATALOG_VERSION] } },
+        orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
+        take: 1,
+      },
+    } }), ['intakeForm', 'studentHealthIntake', 'parqSubmissions']);
+  await readPart('Avaliações', grants.assessments,
+    () => prisma.aluno.findFirst({ where, include: {
+      assessments: { include: { type: true }, orderBy: { assessmentDate: 'desc' }, take: 20 },
+      studentAssessmentRecords: {
+        include: { measurements: { orderBy: { sortOrder: 'asc' } } },
+        orderBy: { performedAt: 'desc' },
+      },
+    } }), ['assessments', 'studentAssessmentRecords']);
+  await readPart('Financeiro', grants.financial,
+    () => prisma.aluno.findFirst({ where, include: {
+      studentFinancialProfile: true, service: true,
+    } }), ['studentFinancialProfile', 'service']);
+  await readPart('Integrações', grants.integrations,
+    () => prisma.aluno.findFirst({ where, include: {
+      integrations: { orderBy: { createdAt: 'desc' } },
+      studentExternalAccounts: { orderBy: { createdAt: 'desc' } },
+      studentExternalActivities: { orderBy: { startedAt: 'desc' }, take: 50 },
+    } }), ['integrations', 'studentExternalAccounts', 'studentExternalActivities']);
+  return { aluno: snapshot, unavailableDomains };
+}
+
 export const studentDomainService = {
   async loadAlunoDomainSnapshot(alunoId: string, options: StudentDomainQueryOptions = {}) {
     const aluno = await prisma.aluno.findFirst({
@@ -970,7 +1042,19 @@ export const studentDomainService = {
     // The API route supplies server-resolved permission grants. Missing grants
     // fail closed: being allowed to view Audit is not permission to see health.
     const grants = options.timelineAccess ?? NO_TIMELINE_DOMAIN_ACCESS;
-    const aluno = await this.loadAlunoDomainSnapshot(alunoId, options);
+    const unavailableDomains: string[] = [];
+    let aluno: any;
+    try {
+      aluno = await this.loadAlunoDomainSnapshot(alunoId, options);
+    } catch (error) {
+      // A failing optional relation must not hide independent clinical sources.
+      if (!options.companyContractId) throw error;
+      const recovered = await loadDegradedTimelineSnapshot(
+        alunoId, options.companyContractId, grants,
+      );
+      aluno = recovered.aluno;
+      unavailableDomains.push(...recovered.unavailableDomains);
+    }
     if (!aluno) return null;
 
     const cursor = options.timelineCursor
@@ -982,13 +1066,14 @@ export const studentDomainService = {
       : null;
 
     let contracts: Awaited<ReturnType<typeof studentContractService.listByAluno>> = [];
-    const unavailableDomains: string[] = [];
-    try {
-      contracts = await studentContractService.listByAluno(alunoId, {
-        companyContractId: options.companyContractId,
-      });
-    } catch {
-      if (grants.financial) unavailableDomains.push('Contratos');
+    if (grants.financial) {
+      try {
+        contracts = await studentContractService.listByAluno(alunoId, {
+          companyContractId: options.companyContractId,
+        });
+      } catch {
+        unavailableDomains.push('Contratos');
+      }
     }
 
     const profile = this.getProfileFromSnapshot(aluno);
@@ -1006,10 +1091,12 @@ export const studentDomainService = {
 
     // Canonical intake exists across the whole source, not only on this page.
     // An old legacy snapshot must not reappear when its revision is outside the cursor.
-    let hasCanonicalIntake = clinical.items.some((event) => event.type === 'prnt_intake_revision');
-    if (!hasCanonicalIntake && grants.clinical.intake && options.companyContractId) {
+    const hasCanonicalOnPage = clinical.items.some((event) => event.type === 'prnt_intake_revision');
+    // Unknown is not absent: never expose a legacy clinical event on failed lookup.
+    let canonicalIntakeConfirmedAbsent = false;
+    if (!hasCanonicalOnPage && grants.clinical.intake && options.companyContractId) {
       try {
-        hasCanonicalIntake = Boolean(await prisma.studentHealthIntakeRevision.findFirst({
+        canonicalIntakeConfirmedAbsent = !(await prisma.studentHealthIntakeRevision.findFirst({
           where: { alunoId, contractId: options.companyContractId },
           select: { id: true },
         }));
@@ -1022,7 +1109,8 @@ export const studentDomainService = {
     }).filter((event) => {
       const type = String(event.type);
       if (type.startsWith('profile_')) return grants.profile;
-      if (type.startsWith('intake_')) return grants.health && !hasCanonicalIntake;
+      if (type.startsWith('intake_')) return grants.health
+        && grants.clinical.intake && canonicalIntakeConfirmedAbsent;
       if (type.startsWith('assessment_')) return grants.assessments;
       if (type.startsWith('financial_')) return grants.financial;
       if (type.startsWith('integration_') || type.startsWith('external_activity_')) return grants.integrations;

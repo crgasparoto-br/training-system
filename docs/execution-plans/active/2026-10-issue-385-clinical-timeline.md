@@ -58,3 +58,11 @@ Aprovação depende de validações no HEAD corrigido e nova auditoria independe
 - **TL-385-006 (P2):** a autoria de conclusão deriva da trilha canônica `AdipometryAuditEvent`: ação `COMPLETED` para R1 e `CORRECTION_FINALIZED` para R2+. A consulta é restrita ao `contractId` e aos IDs paginados; seleciona somente `assessmentId`, `action` e `actorUserId`. Snapshots e dados de avaliação permanecem nos registros de origem. Para correção legada sem auditoria de finalização usa-se `correctionAuthorUserId`, enquanto a conclusão R1 sem autoria comprovável permanece com ator nulo.
 - **Regressões:** teste adversarial com autores distintos para criação da correção e sua conclusão, primeira autoria da finalização R1, retenção da R1 marcada `SUPERSEDED`, ausência de auditoria, fronteira negada, falha localizada e acesso por contrato.
 - **Validação de saída:** testes focados, `pnpm validate` e checks da PR #510 no novo HEAD; uma nova auditoria independente é necessária para liberação. Nenhum merge ou publicação em produção.
+
+## Remediação da terceira auditoria
+
+- **TL-385-007 (P1):** eventos legados da Anamnese exigem permissão do bloco de saúde e permissão clínica específica, sem contorno pela tela de histórico.
+- **TL-385-008 (P1):** falha na consulta agregada aciona recuperação sequencial das fontes autorizadas, sempre com `alunoId/contractId`. Somente o domínio cujo retry falhar aparece em `unavailableDomains`; o caminho normal permanece agregado.
+- **TL-385-009 (P2):** o fallback legado exige ausência canônica confirmada por consulta do aluno/contrato; erro na verificação deixa o evento oculto e a resposta parcial.
+- **Regressões:** perfis com grants parciais, rejeição da projeção e da verificação de existência, snapshot agregado indisponível e falha em uma fonte opcional com PRNT preservado.
+- **Gate de saída:** testes API/web, `pnpm validate`, CI da PR no HEAD novo e reauditoria independente. Sem merge/deploy.

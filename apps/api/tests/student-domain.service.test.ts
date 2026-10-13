@@ -592,4 +592,86 @@ describe('studentDomainService', () => {
     expect(legacy?.items.some((item) => item.type.startsWith('intake_'))).toBe(true);
   });
 
+
+  it('denies legacy intake when the health grant lacks clinical intake permission', async () => {
+    findUniqueMock.mockResolvedValue({
+      ...createAlunoSnapshot(),
+      intakeForm: { id: 'legacy-intake', observations: 'sensitive',
+        assessmentDate: '2026-05-12T08:00:00.000Z' },
+    });
+    (studentContractService.listByAluno as jest.Mock).mockResolvedValue([]);
+    const result = await studentDomainService.getTimeline('aluno-1', {
+      companyContractId: 'contract-1',
+      timelineAccess: {
+        profile: true, health: true, assessments: false, financial: false,
+        integrations: false, training: false,
+        clinical: { prnt: {}, intake: false, parq: false, anthropometry: false, adipometry: false },
+      },
+    });
+    expect(result?.items.some((item) => item.type.startsWith('intake_'))).toBe(false);
+    expect(intakeFindFirstMock).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toContain('sensitive');
+  });
+
+  it('fails closed rather than resurrecting legacy intake when canonical lookup fails', async () => {
+    findUniqueMock.mockResolvedValue({
+      ...createAlunoSnapshot(),
+      intakeForm: { id: 'legacy-intake', observations: 'sensitive',
+        assessmentDate: '2026-05-12T08:00:00.000Z' },
+    });
+    (studentContractService.listByAluno as jest.Mock).mockResolvedValue([]);
+    intakeFindManyMock.mockRejectedValueOnce(new Error('private clinical database details'));
+    intakeFindFirstMock.mockRejectedValueOnce(new Error('private existence details'));
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const result = await studentDomainService.getTimeline('aluno-1', {
+        companyContractId: 'contract-1',
+        timelineAccess: {
+          profile: true, health: true, assessments: false, financial: false,
+          integrations: false, training: false,
+          clinical: { prnt: {}, intake: true, parq: false, anthropometry: false, adipometry: false },
+        },
+      });
+      expect(result?.partial).toBe(true);
+      expect(result?.unavailableDomains).toContain('Anamnese');
+      expect(result?.items.some((item) => item.type.startsWith('intake_'))).toBe(false);
+      expect(JSON.stringify(result)).not.toContain('private');
+      expect(JSON.stringify(result)).not.toContain('sensitive');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('recovers profile and PRNT when a broad or optional assessment read fails', async () => {
+    const snapshot = { ...createAlunoSnapshot(),
+      studentExternalAccounts: [], studentExternalActivities: [] };
+    findUniqueMock.mockRejectedValueOnce(new Error('broken assessment join'))
+      .mockResolvedValueOnce(snapshot)
+      .mockResolvedValueOnce(snapshot)
+      .mockRejectedValueOnce(new Error('broken optional assessment read'))
+      .mockResolvedValue(snapshot);
+    (studentContractService.listByAluno as jest.Mock).mockResolvedValue([]);
+    prntFindManyMock.mockResolvedValue([{
+      id: 'prnt-1', alunoId: 'aluno-1', contractId: 'contract-1',
+      recordId: 'record-1', entityType: 'goal', entityId: 'goal-1',
+      version: 1, action: 'created', actorUserId: 'user-1',
+      source: 'prnt-api', createdAt: new Date('2026-05-15T08:00:00.000Z'),
+    }]);
+    const result = await studentDomainService.getTimeline('aluno-1', {
+      companyContractId: 'contract-1',
+      timelineAccess: {
+        profile: true, health: false, assessments: true, financial: false,
+        integrations: false, training: false,
+        clinical: { prnt: { goal: true }, intake: false, parq: false, anthropometry: false, adipometry: false },
+      },
+    });
+    expect(result?.partial).toBe(true);
+    expect(result?.unavailableDomains).toEqual(['Avaliações']);
+    expect(result?.items.map((item) => item.type)).toContain('prnt_goal_created');
+    expect(result?.items.map((item) => item.type)).toContain('profile_updated');
+    expect(findUniqueMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'aluno-1', contractId: 'contract-1' },
+    }));
+  });
+
 });
