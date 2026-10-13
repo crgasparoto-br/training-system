@@ -200,7 +200,7 @@ export async function readClinicalTimeline(
           occurredAt: row.createdAt,
           ...provenance(sourceType, sourceId, row.contractId, row.actorUserId),
           metadata: { assessmentId, assessmentCode:
-            typeof meta.assessmentCode === 'string' ? meta.assessmentCode : null,
+            typeof meta?.assessmentCode === 'string' ? meta.assessmentCode : null,
             correctionId: typeof correctionId === 'string' ? correctionId : null },
         }];
       });
