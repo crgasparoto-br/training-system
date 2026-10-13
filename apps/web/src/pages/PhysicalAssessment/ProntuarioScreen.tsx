@@ -23,6 +23,7 @@ import type {
 import type { BodyDiscomfortEntry } from '../../constants/bodyRegions';
 import { ProtocolNavTabs } from './protocolNav';
 import { ProntuarioVersionHistory } from './ProntuarioVersionHistory';
+import { ProntuarioHealthIntakeHistory } from './ProntuarioHealthIntakeHistory';
 
 type ProntuarioBlockName =
   | 'summary'
@@ -658,6 +659,9 @@ export function ProntuarioScreen() {
           </div>
 
           <aside className="space-y-4">
+            {selectedAlunoId && blocks.anamnesis && (
+              <ProntuarioHealthIntakeHistory alunoId={selectedAlunoId} refreshToken={overview} />
+            )}
             {currentRecord && blocks.summary && (
               <ProntuarioVersionHistory recordId={currentRecord.id} allowed={blocks} refreshToken={overview} />
             )}
