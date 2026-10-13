@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/Card';
 import { formatDateBR } from '../../utils/date';
 import type { StudentSegmentedTimeline, StudentTimelineEvent } from '../../services/aluno.service';
@@ -35,6 +36,12 @@ const eventTypeLabel: Record<string, string> = {
   workout_execution_updated: 'Execução atualizada',
   post_workout_feedback_recorded: 'Feedback pós-treino',
   post_workout_feedback_corrected: 'Feedback pós-treino corrigido',
+  prnt_intake_revision: 'Revisão da anamnese',
+  prnt_parq_submitted: 'Questionário PAR-Q',
+  anthropometry_completed: 'Antropometria concluída',
+  anthropometry_corrected: 'Antropometria corrigida',
+  adipometry_completed: 'Adipometria concluída',
+  adipometry_corrected: 'Adipometria corrigida',
 };
 
 const sourceTypeLabel: Record<string, string> = {
@@ -42,6 +49,7 @@ const sourceTypeLabel: Record<string, string> = {
   professional: 'Profissional',
   integration: 'Integração',
   system: 'Sistema',
+  professional: 'Profissional',
 };
 
 const categoryLabel: Record<EventCategory, string> = {
@@ -64,6 +72,10 @@ const detailLabel: Record<string, string> = {
   assessmentType: 'Tipo de avaliação',
   provider: 'Origem',
   activityType: 'Tipo de atividade',
+  version: 'Versão',
+  revision: 'Revisão',
+  revisionNumber: 'Revisão',
+  assessmentCode: 'Código da avaliação',
 };
 
 function getEventCategory(type: string): EventCategory {
@@ -71,11 +83,11 @@ function getEventCategory(type: string): EventCategory {
     return 'profile';
   }
 
-  if (type.startsWith('intake_')) {
+  if (type.startsWith('intake_') || type.startsWith('prnt_')) {
     return 'health';
   }
 
-  if (type.startsWith('assessment_')) {
+  if (type.startsWith('assessment_') || type.startsWith('anthropometry_') || type.startsWith('adipometry_')) {
     return 'assessment';
   }
 
@@ -111,11 +123,28 @@ function formatDetailValue(value: unknown) {
 }
 
 function sortTimelineEvents(items: StudentTimelineEvent[]) {
-  return [...items].sort((a, b) => {
-    const timestampA = new Date(a.occurredAt).getTime();
-    const timestampB = new Date(b.occurredAt).getTime();
-    return timestampB - timestampA;
-  });
+  // Preserve the API's stable tie breaker across canonical source groups.
+  return items.map((item, index) => ({ item, index }))
+    .sort((a, b) =>
+      new Date(b.item.occurredAt).getTime() - new Date(a.item.occurredAt).getTime()
+        || a.index - b.index)
+    .map(({ item }) => item);
+}
+
+function canonicalSourceLink(item: StudentTimelineEvent, alunoId: string) {
+  const source = item.sourceType;
+  const params = new URLSearchParams({ alunoId, sourceId: item.sourceId ?? item.id });
+  if (source === 'prontuario-history-event' || source === 'student-health-intake-revision'
+    || source === 'student-parq-submission') {
+    return `/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento?${params.toString()}`;
+  }
+  if (source === 'anthropometry-assessment' || source === 'anthropometry-correction') {
+    return `/protocolo-avaliacao-fisica/antropometria?${params.toString()}`;
+  }
+  if (source === 'adipometry-assessment') {
+    return `/protocolo-avaliacao-fisica/adipometria?${params.toString()}`;
+  }
+  return null;
 }
 
 export function AlunoHistoricoTab({ timeline }: AlunoHistoricoTabProps) {
@@ -167,6 +196,14 @@ export function AlunoHistoricoTab({ timeline }: AlunoHistoricoTabProps) {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {timeline?.partial && (
+            <div role="status" className="rounded-lg border border-warning/40 p-3 text-sm text-muted-foreground">
+              Parte do histórico não pôde ser carregada
+              {timeline.unavailableDomains?.length
+                ? ` (${timeline.unavailableDomains.join(', ')})`
+                : ''}. Os demais eventos continuam disponíveis. Use “Tentar novamente” para atualizar.
+            </div>
+          )}
           {sortedItems.length > 0 && (
             <div className="flex flex-wrap gap-2" aria-label="Filtros do histórico">
               {categories.map((category) => {
@@ -208,6 +245,7 @@ export function AlunoHistoricoTab({ timeline }: AlunoHistoricoTabProps) {
               {visibleItems.map((item) => {
                 const category = getEventCategory(item.type);
                 const details = item.details ? Object.entries(item.details) : [];
+                const sourceLink = timeline ? canonicalSourceLink(item, timeline.alunoId) : null;
 
                 return (
                   <article key={item.id} className="rounded-lg border border-gray-200 p-4">
@@ -222,6 +260,12 @@ export function AlunoHistoricoTab({ timeline }: AlunoHistoricoTabProps) {
                           </span>
                         </div>
                         <h3 className="mt-2 text-sm font-semibold text-gray-900">{item.title}</h3>
+                        {sourceLink && (
+                          <Link className="mt-1 inline-block text-xs font-medium text-primary underline-offset-2 hover:underline"
+                            to={sourceLink}>
+                            Abrir registro original
+                          </Link>
+                        )}
                         <div className="mt-1 text-xs text-muted-foreground">
                           Origem: {sourceTypeLabel[item.source.type] || item.source.type}
                           {item.source.reference ? ` · ref ${item.source.reference}` : ''}
