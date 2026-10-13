@@ -132,7 +132,9 @@ DECLARE
   previous_payload JSONB;
   next_payload JSONB;
   next_revision INTEGER;
+  revision_actor TEXT;
 BEGIN
+  revision_actor := NEW."recordedByUserId";
   next_payload := jsonb_build_object(
     'formVersion', NEW."formVersion", 'status', NEW."status",
     'assessmentDate', NEW."assessmentDate", 'questionnaireAha', NEW."questionnaireAha",
@@ -149,6 +151,12 @@ BEGIN
       'observations', OLD."observations", 'completedAt', OLD."completedAt"
     );
     IF previous_payload = next_payload THEN RETURN NEW; END IF;
+    -- Completion can be performed by a different user than the respondent.
+    -- Preserve the response author and attribute the completion to its actor.
+    IF NEW."completedAt" IS DISTINCT FROM OLD."completedAt"
+       AND NEW."completedAt" IS NOT NULL THEN
+      revision_actor := COALESCE(NEW."completedByUserId", NEW."recordedByUserId");
+    END IF;
   END IF;
   SELECT COALESCE(MAX("revision"),0)+1 INTO next_revision
     FROM "StudentHealthIntakeRevision" WHERE "intakeId"=NEW."id";
@@ -158,7 +166,7 @@ BEGIN
   VALUES (
     gen_random_uuid()::text,NEW."id",NEW."alunoId",NEW."contractId",
     next_revision,NEW."version",NEW."formVersion",NEW."sourceType",
-    NEW."sourceReference",NEW."recordedByUserId",next_payload
+    NEW."sourceReference",revision_actor,next_payload
   );
   RETURN NEW;
 END;

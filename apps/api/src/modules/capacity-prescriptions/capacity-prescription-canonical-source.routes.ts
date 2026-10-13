@@ -4,6 +4,7 @@ import type { CapacityPrescriptionSourceRef } from '@corrida/types';
 import { sendError } from '@corrida/utils';
 import { canProfessorAccessBlock } from '../access-control/access-control.service.js';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
+import { ProntuarioSourceRevisionError, resolveProntuarioSourceRevision, revisionText, revisionDate } from './prontuario-source-revision.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();
@@ -71,13 +72,14 @@ async function canonicalizeProntuarioAlert(
     },
   });
   if (painCase) {
+    const revision = await resolveProntuarioSourceRevision(prisma, contractId, alunoId, 'painCase', painCase.id, source.version);
     return {
       type: 'prontuario_alert',
       id: painCase.id,
-      label: `Dor ou condição em acompanhamento: ${painCase.title}`,
-      assessedAt: (painCase.onsetDate ?? painCase.createdAt).toISOString(),
+      label: `Dor ou condição em acompanhamento: ${revisionText(revision.snapshot, 'title', painCase.title)}`,
+      assessedAt: revisionDate(revision.snapshot, 'onsetDate', painCase.onsetDate ?? painCase.createdAt),
       origin: 'PRNT - casos de dor',
-      version: painCase.updatedAt.toISOString(),
+      version: revision.version,
       responsibleProfessorId: painCase.record.professorId,
     };
   }
@@ -93,13 +95,14 @@ async function canonicalizeProntuarioAlert(
     },
   });
   if (followUp) {
+    const revision = await resolveProntuarioSourceRevision(prisma, contractId, alunoId, 'anamnesisFollowUp', followUp.id, source.version);
     return {
       type: 'prontuario_alert',
       id: followUp.id,
-      label: `Acompanhamento de anamnese: ${followUp.itemLabel}`,
+      label: `Acompanhamento de anamnese: ${revisionText(revision.snapshot, 'itemLabel', followUp.itemLabel)}`,
       assessedAt: followUp.createdAt.toISOString(),
       origin: 'PRNT - acompanhamento da anamnese',
-      version: followUp.updatedAt.toISOString(),
+      version: revision.version,
       responsibleProfessorId: followUp.record.professorId,
     };
   }
@@ -117,13 +120,14 @@ async function canonicalizeProntuarioAlert(
     },
   });
   if (medication) {
+    const revision = await resolveProntuarioSourceRevision(prisma, contractId, alunoId, 'medicationProcedure', medication.id, source.version);
     return {
       type: 'prontuario_alert',
       id: medication.id,
-      label: `${medication.type === 'medication' ? 'Medicamento' : 'Procedimento'}: ${medication.name}`,
-      assessedAt: (medication.startDate ?? medication.createdAt).toISOString(),
+      label: `${revisionText(revision.snapshot, 'type', medication.type) === 'medication' ? 'Medicamento' : 'Procedimento'}: ${revisionText(revision.snapshot, 'name', medication.name)}`,
+      assessedAt: revisionDate(revision.snapshot, 'startDate', medication.startDate ?? medication.createdAt),
       origin: 'PRNT - medicações e procedimentos',
-      version: medication.updatedAt.toISOString(),
+      version: revision.version,
       responsibleProfessorId: medication.record.professorId,
     };
   }
@@ -138,13 +142,14 @@ async function canonicalizeProntuarioAlert(
     },
   });
   if (discomfort) {
+    const revision = await resolveProntuarioSourceRevision(prisma, contractId, alunoId, 'discomfortSnapshot', discomfort.id, source.version);
     return {
       type: 'prontuario_alert',
       id: discomfort.id,
       label: 'Mapa corporal com desconfortos registrados',
       assessedAt: discomfort.snapshotAt.toISOString(),
       origin: 'PRNT - desconfortos',
-      version: discomfort.updatedAt.toISOString(),
+      version: revision.version,
       responsibleProfessorId: discomfort.record.professorId,
     };
   }
@@ -169,13 +174,14 @@ async function canonicalizeSource(
       },
     });
     if (!goal) return source;
+    const revision = await resolveProntuarioSourceRevision(prisma, contractId, alunoId, 'goal', goal.id, source.version);
     return {
       type: 'prontuario_goal',
       id: goal.id,
-      label: goal.title,
+      label: revisionText(revision.snapshot, 'title', goal.title),
       assessedAt: goal.createdAt.toISOString(),
       origin: `PRNT ${goal.record.code} - objetivos`,
-      version: goal.updatedAt.toISOString(),
+      version: revision.version,
       responsibleProfessorId: goal.record.professorId,
     };
   }
@@ -233,6 +239,7 @@ router.post(
       );
       return next();
     } catch (error) {
+      if (error instanceof ProntuarioSourceRevisionError) return sendError(res, error.message, 400);
       console.error('Erro ao reconstruir fontes canônicas da prescrição:', error);
       return sendError(res, 'Erro ao validar fontes técnicas', 500);
     }

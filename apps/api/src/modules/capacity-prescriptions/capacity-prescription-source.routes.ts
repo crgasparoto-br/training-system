@@ -12,6 +12,7 @@ import {
   type AdipometrySkinfoldsMm,
 } from './capacity-prescription-formulas.js';
 import { deriveCapacityAlerts, mergeCapacityAlerts } from './capacity-prescription-public.js';
+import { ProntuarioSourceRevisionError, resolveProntuarioSourceRevision, revisionText, revisionDate } from './prontuario-source-revision.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();
@@ -287,13 +288,14 @@ async function canonicalizeCapacitySource(
       },
     });
     if (activity) {
+      const revision = await resolveProntuarioSourceRevision(prisma, contractId, alunoId, 'activityHistory', activity.id, source.version);
       return {
         type: 'professor_note',
         id: activity.id,
-        label: `Histórico de atividade física: ${activity.description}`,
-        assessedAt: (activity.startedAt ?? activity.createdAt).toISOString(),
+        label: `Histórico de atividade física: ${revisionText(revision.snapshot, 'description', activity.description)}`,
+        assessedAt: revisionDate(revision.snapshot, 'startedAt', activity.startedAt ?? activity.createdAt),
         origin: 'PRNT - histórico de atividade física',
-        version: activity.updatedAt.toISOString(),
+        version: revision.version,
         responsibleProfessorId: activity.record.professorId ?? actorProfessorId,
       };
     }
@@ -357,7 +359,7 @@ router.post(
       body.methodologyVersion = parameterSet.methodologyVersion;
       return next();
     } catch (error) {
-      if (error instanceof CapacitySourceValidationError) return sendError(res, error.message, 400);
+      if (error instanceof CapacitySourceValidationError || error instanceof ProntuarioSourceRevisionError) return sendError(res, error.message, 400);
       console.error('Erro ao normalizar fontes da prescrição:', error);
       return sendError(res, 'Erro ao validar fontes técnicas', 500);
     }
