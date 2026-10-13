@@ -6,8 +6,19 @@ export function appendStudentTimelinePage(
   page: StudentSegmentedTimeline,
 ): StudentSegmentedTimeline {
   if (previous.alunoId !== page.alunoId) return previous;
-  const knownIds = new Set(previous.items.map((item) => item.id));
-  const additional = page.items.filter((item) => !knownIds.has(item.id));
+  // Two lifecycle rows can represent one canonical clinical source across
+  // page boundaries. Deduplicate by source identity, not just raw event ID.
+  const identity = (item: StudentSegmentedTimeline['items'][number]) =>
+    item.sourceType && item.sourceId
+      ? `canonical:${item.type}:${item.sourceType}:${item.sourceId}`
+      : `id:${item.id}`;
+  const known = new Set(previous.items.map(identity));
+  const additional = page.items.filter((item) => {
+    const key = identity(item);
+    if (known.has(key)) return false;
+    known.add(key);
+    return true;
+  });
   return {
     ...previous,
     items: [...previous.items, ...additional],
