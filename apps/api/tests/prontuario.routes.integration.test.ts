@@ -83,6 +83,7 @@ jest.mock('../src/modules/prontuario/prontuario.service', () => ({
   prontuarioService: {
     listParqSubmissions: jest.fn(),
     getHistory: jest.fn(),
+    getHealthIntakeHistory: jest.fn(),
   },
 }));
 
@@ -238,6 +239,25 @@ describe('prontuario PAR-Q authorization boundary', () => {
       .set('x-allowed-blocks', SUMMARY_BLOCK);
     expect(response.status).toBe(400);
     expect(prontuarioService.getHistory).not.toHaveBeenCalled();
+  });
+
+  it('protects original anamnesis revisions with its clinical permission', async () => {
+    const denied = await request(app)
+      .get('/api/v1/prontuario/alunos/aluno-1/intake-history')
+      .set('x-allowed-blocks', SUMMARY_BLOCK);
+    expect(denied.status).toBe(403);
+    expect(prontuarioService.getHealthIntakeHistory).not.toHaveBeenCalled();
+
+    (prontuarioService.getHealthIntakeHistory as jest.Mock).mockResolvedValue([
+      { id: 'intake-version-1', revision: 1 },
+    ]);
+    const allowed = await request(app)
+      .get('/api/v1/prontuario/alunos/aluno-1/intake-history?revision=1')
+      .set('x-allowed-blocks', 'physicalAssessment.prnt.anamnesisFollowUp');
+    expect(allowed.status).toBe(200);
+    expect(prontuarioService.getHealthIntakeHistory).toHaveBeenCalledWith(
+      'contract-1', 'aluno-1', { revision: 1, skip: 0 }
+    );
   });
 
 });
