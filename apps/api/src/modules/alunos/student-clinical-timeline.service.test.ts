@@ -182,6 +182,59 @@ describe('canonical clinical timeline (#385)', () => {
     }));
   });
 
+  it('scans beyond malformed anthropometry rows before deciding a page has no more events', async () => {
+    const rows = [
+      { id: 'invalid-correction', contractId: 'contract-a', actorUserId: null,
+        createdAt: new Date('2026-10-13T15:00:00Z'),
+        metadata: { domain: 'anthropometry', action: 'corrected', assessmentId: 'anth-a', correctionId: null } },
+      { id: 'invalid-completion', contractId: 'contract-a', actorUserId: null,
+        createdAt: new Date('2026-10-13T14:00:00Z'),
+        metadata: { domain: 'anthropometry', action: 'completed', assessmentId: null } },
+      { id: 'valid-new', contractId: 'contract-a', actorUserId: 'professor-a',
+        createdAt: new Date('2026-10-13T13:00:00Z'),
+        metadata: { domain: 'anthropometry', action: 'completed', assessmentId: 'anth-new' } },
+      { id: 'valid-old', contractId: 'contract-a', actorUserId: 'professor-b',
+        createdAt: new Date('2026-10-13T12:00:00Z'),
+        metadata: { domain: 'anthropometry', action: 'completed', assessmentId: 'anth-old' } },
+    ];
+    mockLifecycle.mockImplementation(({ skip = 0, take }: { skip?: number; take: number }) =>
+      Promise.resolve(rows.slice(skip, skip + take)));
+
+    const result = await readClinicalTimeline('aluno-a', 'contract-a',
+      { ...denied, anthropometry: true }, 1);
+
+    expect(result.items.map((item) => item.sourceId).toEqual(['anth-new', 'anth-old']);
+    expect(mockLifecycle).toHaveBeenCalledTimes(2);
+    expect(mockLifecycle).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      skip: 2, take: 2,
+      where: expect.objectContaining({ alunoId: 'aluno-a', contractId: 'contract-a' }),
+    }));
+  });
+
+  it('deduplicates a full raw batch before deciding whether another valid event exists', async () => {
+    const rows = [
+      { id: 'newest', contractId: 'contract-a', actorUserId: null,
+        createdAt: new Date('2026-10-13T14:00:00Z'),
+        metadata: { domain: 'anthropometry', action: 'completed', assessmentId: 'anth-1' } },
+      { id: 'duplicate', contractId: 'contract-a', actorUserId: null,
+        createdAt: new Date('2026-10-13T13:00:00Z'),
+        metadata: { domain: 'anthropometry', action: 'completed', assessmentId: 'anth-1' } },
+      { id: 'older', contractId: 'contract-a', actorUserId: null,
+        createdAt: new Date('2026-10-13T12:00:00Z'),
+        metadata: { domain: 'anthropometry', action: 'completed', assessmentId: 'anth-2' } },
+    ];
+    mockLifecycle.mockImplementation(({ skip = 0, take }: { skip?: number; take: number }) =>
+      Promise.resolve(rows.slice(skip, skip + take)));
+
+    const result = await readClinicalTimeline('aluno-a', 'contract-a',
+      { ...denied, anthropometry: true }, 1);
+
+    expect(result.items.map((item) => item.sourceId).toEqual(['anth-1', 'anth-2']);
+    expect(result.items[0].id).toBe('clinical-anthropometry-newest');
+    expect(mockLifecycle).toHaveBeenCalledTimes(2);
+    expect(mockLifecycle).toHaveBeenNthCalledWith(2, expect.objectContaining({ skip: 2, take: 2 }));
+  });
+
   it('keeps available domains and reports a localized source failure', async () => {
     mockPrntHistory.mockRejectedValue(new Error('internal DB error with private data'));
     mockParq.mockResolvedValue([{
