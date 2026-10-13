@@ -1,4 +1,4 @@
-import { Prisma, type Prisma as PrismaType } from '@prisma/client';
+import type { Prisma as PrismaType } from '@prisma/client';
 
 export const PRNT_HISTORY_BLOCKS = {
   record: 'summary',
@@ -27,7 +27,7 @@ function stable(value: unknown): string {
     return '{' + Object.keys(value).filter((key) => (value as Record<string, unknown>)[key] !== undefined)
       .sort().map((key) => JSON.stringify(key) + ':' + stable((value as Record<string, unknown>)[key])).join(',') + '}';
   }
-  return JSON.stringify(value);
+  return JSON.stringify(value) ?? 'null';
 }
 
 // All revisions are appended in the same transaction as the mutable current state.
