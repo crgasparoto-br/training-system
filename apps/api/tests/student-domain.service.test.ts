@@ -23,6 +23,20 @@ jest.mock('../src/modules/student-contracts/student-contract.service', () => ({
 import { studentDomainService } from '../src/modules/alunos/student-domain.service';
 import { studentContractService } from '../src/modules/student-contracts/student-contract.service';
 
+// Legacy timeline fixtures exercise the whole sequence with explicit test grants.
+// Production grants are resolved by the authenticated professor at the route.
+const timelineWithPermissions = (
+  alunoId: string,
+  options: Parameters<typeof studentDomainService.getTimeline>[1] = {},
+) => studentDomainService.getTimeline(alunoId, {
+  ...options,
+  timelineAccess: {
+    profile: true, health: true, assessments: true,
+    financial: true, integrations: true, training: true,
+    clinical: { prnt: {}, intake: false, parq: false, anthropometry: false, adipometry: false },
+  },
+});
+
 const createAlunoSnapshot = () => ({
   id: 'aluno-1',
   age: 30,
@@ -205,11 +219,21 @@ describe('studentDomainService', () => {
     expect(result?.items.map((item) => item.id)).toEqual(['seg-1', 'legacy-legacy-1']);
   });
 
+  it('fails closed for health, training and finance when no timeline grants are supplied', async () => {
+    findUniqueMock.mockResolvedValue(createAlunoSnapshot());
+    (studentContractService.listByAluno as jest.Mock).mockResolvedValue([createStudentContract()]);
+    const result = await studentDomainService.getTimeline('aluno-1', {
+      companyContractId: 'contract-1',
+    });
+    expect(result?.items.map((item) => item.type)).toEqual(['student_created']);
+    expect(lifecycleFindManyMock).not.toHaveBeenCalled();
+  });
+
   it('builds timeline events with contract milestones and import traceability', async () => {
     findUniqueMock.mockResolvedValue(createAlunoSnapshot());
     (studentContractService.listByAluno as jest.Mock).mockResolvedValue([createStudentContract()]);
 
-    const result = await studentDomainService.getTimeline('aluno-1', {
+    const result = await timelineWithPermissions('aluno-1', {
       companyContractId: 'contract-1',
     });
 
@@ -298,7 +322,7 @@ describe('studentDomainService', () => {
       },
     ]);
 
-    const result = await studentDomainService.getTimeline('aluno-1', {
+    const result = await timelineWithPermissions('aluno-1', {
       companyContractId: 'contract-1',
     });
 
@@ -348,14 +372,14 @@ describe('studentDomainService', () => {
           (sameTimeId === undefined || record.id < sameTimeId))
       ));
     });
-    const first = await studentDomainService.getTimeline('aluno-1', { timelineLimit: 1, companyContractId: 'contract-1' });
+    const first = await timelineWithPermissions('aluno-1', { timelineLimit: 1, companyContractId: 'contract-1' });
     expect(first?.items[0].id).toBe('student-created-aluno-1');
     expect(first?.nextCursor).toEqual(expect.any(String));
-    const second = await studentDomainService.getTimeline('aluno-1', {
+    const second = await timelineWithPermissions('aluno-1', {
       timelineLimit: 1, timelineCursor: first?.nextCursor ?? undefined, companyContractId: 'contract-1',
     });
     expect(second?.items[0].id).toBe('training-execution-event-z');
-    const third = await studentDomainService.getTimeline('aluno-1', {
+    const third = await timelineWithPermissions('aluno-1', {
       timelineLimit: 1, timelineCursor: second?.nextCursor ?? undefined, companyContractId: 'contract-1',
     });
     expect(third?.items[0].id).toBe('training-feedback-event-a');
@@ -371,18 +395,18 @@ describe('studentDomainService', () => {
       { id: 'event-a', alunoId: 'aluno-1', createdAt: '2026-05-12T10:00:00.000Z', actorUserId: null, metadata: { domain: 'workout_session_execution', status: 'completed' } },
       { id: 'event-b', alunoId: 'aluno-1', createdAt: '2026-05-11T10:00:00.000Z', actorUserId: null, metadata: { domain: 'workout_session_execution', status: 'completed' } },
     ]);
-    const first = await studentDomainService.getTimeline('aluno-1', {
+    const first = await timelineWithPermissions('aluno-1', {
       timelineLimit: 1, companyContractId: 'contract-1',
     });
     expect(first?.nextCursor).toEqual(expect.any(String));
     lifecycleFindManyMock.mockClear();
-    await expect(studentDomainService.getTimeline('aluno-1', {
+    await expect(timelineWithPermissions('aluno-1', {
       timelineLimit: 1, companyContractId: 'contract-2', timelineCursor: first?.nextCursor ?? undefined,
     })).rejects.toThrow('INVALID_TIMELINE_CURSOR');
-    await expect(studentDomainService.getTimeline('aluno-2', {
+    await expect(timelineWithPermissions('aluno-2', {
       timelineLimit: 1, companyContractId: 'contract-1', timelineCursor: first?.nextCursor ?? undefined,
     })).rejects.toThrow('INVALID_TIMELINE_CURSOR');
-    await expect(studentDomainService.getTimeline('aluno-1', {
+    await expect(timelineWithPermissions('aluno-1', {
       companyContractId: 'contract-1', timelineCursor: 'invalid-token',
     })).rejects.toThrow('INVALID_TIMELINE_CURSOR');
     expect(lifecycleFindManyMock).not.toHaveBeenCalled();
@@ -464,7 +488,7 @@ describe('studentDomainService', () => {
       }),
     ]);
 
-    const result = await studentDomainService.getTimeline('aluno-1');
+    const result = await timelineWithPermissions('aluno-1');
 
     const canceledContract = result?.items.find((item) => item.type === 'financial_contract_canceled');
     expect(canceledContract).toMatchObject({
