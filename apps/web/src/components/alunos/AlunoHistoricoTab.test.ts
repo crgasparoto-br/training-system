@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { StudentTimelineEvent } from '../../services/aluno.service';
-import { canonicalSourceLink } from './AlunoHistoricoTab';
+import { canonicalSourceLink } from './canonicalSourceLink';
 
 const event = (
   sourceType: string, sourceId: string, metadata: StudentTimelineEvent['metadata'] = {},
