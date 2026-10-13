@@ -247,7 +247,7 @@ export const prontuarioService = {
         summary: data.summary === undefined ? previous.summary : toNullableString(data.summary),
         notes: data.notes === undefined ? previous.notes : toNullableString(data.notes),
         status,
-        closedAt: status === 'open' ? null : previous.closedAt ?? new Date(),
+        closedAt: status === 'open' ? null : status === previous.status ? previous.closedAt : previous.closedAt ?? new Date(),
       };
       if (await appendProntuarioHistory(tx, previous, 'record', previous.id, recordSnapshot(previous), recordSnapshot(payload), actorUserId)) {
         await tx.prontuarioRecord.update({ where: { id: previous.id }, data: payload });
@@ -272,11 +272,13 @@ export const prontuarioService = {
         const status = item.status ?? previous?.status ?? 'active';
         const payload = {
           title,
-          description: toNullableString(item.description) ?? previous?.description ?? null,
+          description: item.description === undefined ? previous?.description ?? null : toNullableString(item.description) ?? null,
           status,
           priority: item.priority ?? previous?.priority ?? index,
           targetDate: item.targetDate === undefined ? previous?.targetDate ?? null : parseDate(item.targetDate) ?? null,
-          closedAt: isTerminalItemStatus(status) ? previous?.closedAt ?? new Date() : null,
+          closedAt: isTerminalItemStatus(status)
+            ? status === previous?.status ? previous?.closedAt ?? null : previous?.closedAt ?? new Date()
+            : null,
         };
         if (previous) {
           const before = goalSnapshot(previous);
@@ -333,7 +335,10 @@ export const prontuarioService = {
           parqSubmissionId: item.parqSubmissionId || null, itemKey, itemLabel, status,
           followUpNotes: item.followUpNotes === undefined ? previous?.followUpNotes ?? null : toNullableString(item.followUpNotes) ?? null,
           actionPlan: item.actionPlan === undefined ? previous?.actionPlan ?? null : toNullableString(item.actionPlan) ?? null,
-          closedAt: isTerminalItemStatus(status) ? parseDate(item.closedAt) ?? previous?.closedAt ?? new Date() : null,
+          closedAt: isTerminalItemStatus(status)
+            ? item.closedAt ? parseDate(item.closedAt) ?? null
+              : status === previous?.status ? previous?.closedAt ?? null : previous?.closedAt ?? new Date()
+            : null,
         };
         if (previous) {
           if (await appendProntuarioHistory(tx, record, 'anamnesisFollowUp', previous.id, followUpSnapshot(previous), followUpSnapshot(payload), actorUserId)) {
@@ -426,11 +431,11 @@ export const prontuarioService = {
         assertKnownProntuarioItem(item.id, Boolean(previous));
         const payload = {
           type: item.type, name,
-          dosage: toNullableString(item.dosage) ?? previous?.dosage ?? null,
-          frequency: toNullableString(item.frequency) ?? previous?.frequency ?? null,
+          dosage: item.dosage === undefined ? previous?.dosage ?? null : toNullableString(item.dosage) ?? null,
+          frequency: item.frequency === undefined ? previous?.frequency ?? null : toNullableString(item.frequency) ?? null,
           startDate: item.startDate === undefined ? previous?.startDate ?? null : parseDate(item.startDate) ?? null,
           endDate: item.endDate === undefined ? previous?.endDate ?? null : parseDate(item.endDate) ?? null,
-          notes: toNullableString(item.notes) ?? previous?.notes ?? null,
+          notes: item.notes === undefined ? previous?.notes ?? null : toNullableString(item.notes) ?? null,
         };
         if (previous) {
           if (await appendProntuarioHistory(tx, record, 'medicationProcedure', previous.id, medicationSnapshot(previous), medicationSnapshot(payload), actorUserId)) {
