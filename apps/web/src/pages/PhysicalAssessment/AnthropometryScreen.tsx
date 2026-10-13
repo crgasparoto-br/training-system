@@ -104,15 +104,12 @@ export function AnthropometryScreen() {
   }, []);
 
   useEffect(() => {
-    if (!selectedAlunoId) return;
+    if (!selectedAlunoId || searchParams.get('alunoId') === selectedAlunoId) return;
     // Preserve the precise assessment/correction deep link during student initialization.
-    setSearchParams((current) => {
-      if (current.get('alunoId') === selectedAlunoId) return current;
-      const next = new URLSearchParams(current);
-      next.set('alunoId', selectedAlunoId);
-      return next;
-    }, { replace: true });
-  }, [selectedAlunoId, setSearchParams]);
+    const next = new URLSearchParams(searchParams);
+    next.set('alunoId', selectedAlunoId);
+    setSearchParams(next, { replace: true });
+  }, [selectedAlunoId, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (assessmentIdParam && anthropometry.assessments.some((item) => item.id === assessmentIdParam)
