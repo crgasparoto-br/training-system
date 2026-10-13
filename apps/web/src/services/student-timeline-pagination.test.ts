@@ -32,6 +32,33 @@ describe('incremental student timeline', () => {
     expect(initial.unavailableDomains).toEqual([]);
   });
 
+  it('deduplicates separate lifecycle rows that reference the same canonical clinical event', () => {
+    const clinical = (id: string, sourceId: string) => ({
+      ...event(id),
+      type: 'anthropometry_completed',
+      sourceType: 'anthropometry-assessment',
+      sourceId,
+    });
+    const first: StudentSegmentedTimeline = {
+      alunoId: 'student-1', items: [clinical('lifecycle-new', 'assessment-1')],
+      total: 1, nextCursor: 'cursor-1',
+    };
+    const second: StudentSegmentedTimeline = {
+      alunoId: 'student-1',
+      items: [
+        clinical('lifecycle-duplicate', 'assessment-1'),
+        clinical('lifecycle-other', 'assessment-2'),
+        clinical('lifecycle-another-duplicate', 'assessment-2'),
+      ],
+      total: 3, nextCursor: null,
+    };
+
+    const merged = appendStudentTimelinePage(first, second);
+    expect(merged.items.map((item) => item.id)).toEqual(['lifecycle-new', 'lifecycle-other']);
+    expect(merged.total).toBe(2);
+    expect(merged.nextCursor).toBeNull();
+  });
+
   it('rejects an out-of-student page even if the caller provides one', () => {
     const first: StudentSegmentedTimeline = { alunoId: 'student-1', items: [], total: 0 };
     const other: StudentSegmentedTimeline = {
