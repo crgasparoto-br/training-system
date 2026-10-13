@@ -13,7 +13,7 @@ export class ProntuarioSourceRevisionError extends Error {}
 function requestedRevision(value: number | string | null | undefined): number | undefined {
   if (value === null || value === undefined) return undefined;
   const numericText = typeof value === 'string' &&
-    /^[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:e[+-]?\\d+)?$/i.test(value.trim());
+    /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim());
   if (typeof value !== 'number' && !numericText) return undefined;
   const version = typeof value === 'number' ? value : Number(value.trim());
   if (!Number.isSafeInteger(version) || version < 1) {
@@ -21,6 +21,7 @@ function requestedRevision(value: number | string | null | undefined): number | 
   }
   return version;
 }
+
 export async function resolveProntuarioSourceRevision(
   client: HistoryReader,
   contractId: string,
