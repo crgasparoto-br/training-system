@@ -1163,6 +1163,11 @@ export function AlunoDetails() {
           items: [...previous.items, ...page.items.filter((item) => !knownIds.has(item.id))],
           nextCursor: page.nextCursor,
           total: previous.total + page.items.filter((item) => !knownIds.has(item.id)).length,
+          // A falha localizada de qualquer página não pode desaparecer ao acumular resultados.
+          partial: Boolean(previous.partial || page.partial),
+          unavailableDomains: [...new Set([
+            ...(previous.unavailableDomains ?? []), ...(page.unavailableDomains ?? []),
+          ])],
         };
       });
       if (generation === timelineGenerationRef.current) setTimelineRefreshFailed(false);
