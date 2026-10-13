@@ -9,12 +9,16 @@ const mockExplicitBlockAccessMiddleware = jest.fn(
   () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
 );
 const mockStudentProfileFindFirst = jest.fn();
+const mockProfessorFindFirst = jest.fn();
+const mockCanAccessBlock = jest.fn();
+const mockCanAccessScreen = jest.fn();
 
 jest.mock('@prisma/client', () => ({
   PrismaClient: jest.fn(() => ({
     studentProfile: {
       findFirst: mockStudentProfileFindFirst,
     },
+    professor: { findFirst: mockProfessorFindFirst },
   })),
 }));
 
@@ -40,6 +44,11 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
 jest.mock('../src/modules/access-control/access-control.middleware', () => ({
   blockAccessMiddleware: mockBlockAccessMiddleware,
   explicitBlockAccessMiddleware: mockExplicitBlockAccessMiddleware,
+}));
+
+jest.mock('../src/modules/access-control/access-control.service', () => ({
+  canProfessorAccessBlock: mockCanAccessBlock,
+  canProfessorAccessScreen: mockCanAccessScreen,
 }));
 
 jest.mock('../src/modules/alunos/aluno.service', () => ({
@@ -94,6 +103,12 @@ describe('segmented aluno routes', () => {
     (studentDomainService.getTimeline as jest.Mock).mockReset();
     (alunoService.belongsToContract as jest.Mock).mockResolvedValue(true);
     mockStudentProfileFindFirst.mockResolvedValue(null);
+    mockProfessorFindFirst.mockReset().mockResolvedValue({
+      id: 'professor-1', contractId: 'contract-1', role: 'master',
+      collaboratorFunction: { id: 'function-1', code: 'master' },
+    });
+    mockCanAccessBlock.mockReset().mockResolvedValue(true);
+    mockCanAccessScreen.mockReset().mockResolvedValue(true);
   });
 
   it('returns the sanitized administrative summary through the PAR-Q boundary', async () => {
@@ -233,6 +248,9 @@ describe('segmented aluno routes', () => {
       companyContractId: 'contract-1',
       timelineLimit: 100,
       timelineCursor: undefined,
+      timelineAccess: expect.objectContaining({
+        clinical: expect.objectContaining({ adipometry: true, anthropometry: true }),
+      }),
     });
   });
 
@@ -246,7 +264,27 @@ describe('segmented aluno routes', () => {
       companyContractId: 'contract-1',
       timelineLimit: 25,
       timelineCursor: 'event-25',
+      timelineAccess: expect.any(Object),
     });
+  });
+
+  it('does not grant clinical timeline access without the clinical screen', async () => {
+    mockCanAccessScreen.mockResolvedValue(false);
+    (studentDomainService.getTimeline as jest.Mock).mockResolvedValue({
+      alunoId: 'aluno-1', items: [], total: 0,
+    });
+    const response = await request(app).get('/alunos/aluno-1/timeline');
+    expect(response.status).toBe(200);
+    const grants = (studentDomainService.getTimeline as jest.Mock).mock.calls[0][1].timelineAccess;
+    expect(grants.clinical).toEqual({
+      prnt: expect.objectContaining({
+        record: false, goal: false, painCase: false,
+      }),
+      intake: false, parq: false, anthropometry: false, adipometry: false,
+    });
+    expect(mockCanAccessBlock).not.toHaveBeenCalledWith(
+      expect.anything(), 'physicalAssessment.adpt.view'
+    );
   });
 
   it('returns 400 for a cross-context or tampered timeline cursor', async () => {
