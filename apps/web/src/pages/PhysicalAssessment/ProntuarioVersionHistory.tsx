@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { prontuarioService } from '../../services/prontuario.service';
 import type { ProntuarioHistoryEntityType, ProntuarioHistoryEvent } from '@corrida/types';
+import { useProntuarioHistoryPages } from './useProntuarioHistoryPages';
 
 const categories = [
   { type: 'record', label: 'Resumo e observações', block: 'summary' },
@@ -28,26 +29,12 @@ export function ProntuarioVersionHistory({
   const visible = categories.filter((category) => allowed[category.block]);
   const [category, setCategory] = useState<ProntuarioHistoryEntityType>('record');
   const selected = visible.some((entry) => entry.type === category) ? category : visible[0]?.type;
-  const [events, setEvents] = useState<ProntuarioHistoryEvent[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!recordId || !selected) {
-      setEvents([]);
-      setError(null);
-      return;
-    }
-    let alive = true;
-    setEvents([]);
-    setLoading(true);
-    setError(null);
-    prontuarioService.history(recordId, selected)
-      .then((result) => { if (alive) setEvents(result); })
-      .catch(() => { if (alive) setError('Não foi possível carregar as versões. Confira sua permissão para este bloco.'); })
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, [recordId, selected, refreshToken]);
+  const { events, loading, loadingMore, hasMore, error, loadMore, retry } =
+    useProntuarioHistoryPages<ProntuarioHistoryEvent>(
+      recordId && selected ? `${recordId}:${selected}` : null,
+      refreshToken,
+      (skip) => prontuarioService.history(recordId, selected!, { skip }),
+    );
 
   if (!visible.length) return null;
   return (
@@ -67,11 +54,16 @@ export function ProntuarioVersionHistory({
           {visible.map((entry) => <option key={entry.type} value={entry.type}>{entry.label}</option>)}
         </select>
         {loading && <p role="status" className="text-sm text-muted-foreground">Carregando versões...</p>}
-        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        {error && (
+          <div role="alert" className="text-sm text-destructive">
+            Não foi possível carregar as versões. Confira sua permissão para este bloco.
+            <button type="button" className="ml-2 underline" onClick={events.length ? loadMore : retry}>Tentar novamente</button>
+          </div>
+        )}
         {!loading && !error && events.length === 0 && (
           <p className="text-sm text-muted-foreground">Ainda não há versões registradas nesta categoria.</p>
         )}
-        {!loading && !error && events.map((event) => (
+        {!loading && events.map((event) => (
           <details key={event.id} className="min-w-0 rounded-md border border-border p-3 text-sm">
             <summary className="cursor-pointer font-medium">
               Versão {event.version} · {event.action === 'baseline' ? 'Estado anterior' : event.action === 'created' ? 'Criação' : event.action === 'closed' ? 'Encerramento' : 'Atualização'}
@@ -83,6 +75,12 @@ export function ProntuarioVersionHistory({
             <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 p-2 text-xs">{JSON.stringify(event.snapshot, null, 2)}</pre>
           </details>
         ))}
+        {hasMore && (
+          <button type="button" className="w-full rounded-md border border-border px-3 py-2 text-sm hover:bg-muted/40"
+            onClick={loadMore} disabled={loadingMore || loading}>
+            {loadingMore ? 'Carregando mais versões...' : 'Carregar versões anteriores'}
+          </button>
+        )}
       </CardContent>
     </Card>
   );

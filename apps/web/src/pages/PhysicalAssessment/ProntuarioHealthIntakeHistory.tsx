@@ -1,31 +1,19 @@
-import { useEffect, useState } from 'react';
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { prontuarioService } from '../../services/prontuario.service';
 import type { ProntuarioHealthIntakeRevision } from '@corrida/types';
+import { useProntuarioHistoryPages } from './useProntuarioHistoryPages';
 
 export function ProntuarioHealthIntakeHistory({ alunoId, refreshToken }: {
   alunoId: string;
   refreshToken: unknown;
 }) {
-  const [events, setEvents] = useState<ProntuarioHealthIntakeRevision[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!alunoId) {
-      setEvents([]);
-      return;
-    }
-    let active = true;
-    setEvents([]);
-    setError(null);
-    setLoading(true);
-    prontuarioService.healthIntakeHistory(alunoId)
-      .then((rows) => { if (active) setEvents(rows); })
-      .catch(() => { if (active) setError('Não foi possível consultar as versões da Anamnese.'); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [alunoId, refreshToken]);
+  const { events, loading, loadingMore, hasMore, error, loadMore, retry } =
+    useProntuarioHistoryPages<ProntuarioHealthIntakeRevision>(
+      alunoId || null,
+      refreshToken,
+      (skip) => prontuarioService.healthIntakeHistory(alunoId, { skip }),
+    );
 
   return (
     <Card>
@@ -35,9 +23,14 @@ export function ProntuarioHealthIntakeHistory({ alunoId, refreshToken }: {
       </CardHeader>
       <CardContent className="space-y-2">
         {loading && <p role="status" className="text-sm text-muted-foreground">Carregando Anamnese...</p>}
-        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        {error && (
+          <div role="alert" className="text-sm text-destructive">
+            Não foi possível consultar as versões da Anamnese.
+            <button type="button" className="ml-2 underline" onClick={events.length ? loadMore : retry}>Tentar novamente</button>
+          </div>
+        )}
         {!loading && !error && events.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma versão disponível.</p>}
-        {!loading && !error && events.map((event) => (
+        {!loading && events.map((event) => (
           <details key={event.id} className="min-w-0 rounded-md border border-border p-3 text-sm">
             <summary className="cursor-pointer font-medium">Versão {event.revision} · {new Date(event.createdAt).toLocaleString('pt-BR')}</summary>
             <p className="mt-2 text-xs text-muted-foreground">Origem: {event.sourceType} · Formulário: {event.formVersion ?? 'não informado'}</p>
@@ -45,6 +38,12 @@ export function ProntuarioHealthIntakeHistory({ alunoId, refreshToken }: {
             <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 p-2 text-xs">{JSON.stringify(event.snapshot, null, 2)}</pre>
           </details>
         ))}
+        {hasMore && (
+          <button type="button" className="w-full rounded-md border border-border px-3 py-2 text-sm hover:bg-muted/40"
+            onClick={loadMore} disabled={loadingMore || loading}>
+            {loadingMore ? 'Carregando mais versões...' : 'Carregar versões anteriores'}
+          </button>
+        )}
       </CardContent>
     </Card>
   );

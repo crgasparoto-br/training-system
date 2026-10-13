@@ -11,7 +11,7 @@ A separação administrativa é preservada: dados de cadastro, contrato e finan�
 Cada evento registra `recordId`, `contractId`, `alunoId`, `entityType`, `entityId`, `version`, `action`, `snapshot`, `actorUserId`, `source` e `createdAt`.
 
 - Uma nova entidade gera `version=1`, `action=created`, `source=prnt-api`.
-- Uma edição com mudança real ou encerramento gera a próxima versão na mesma transação da atualização do estado atual. O evento `closed` exige transição de estado aberto para encerrado (`closed`, `resolved` ou `archived`) ou o primeiro preenchimento de `endDate`/`closedAt`. Edições posteriores em entidades já encerradas, mudanças entre estados terminais e reaberturas geram `updated`, sem registrar um encerramento fictício.
+- Uma edição com mudança real ou encerramento gera a próxima versão na mesma transação da atualização do estado atual. O evento `closed` exige transição de estado aberto para encerrado (`closed`, `resolved` ou `archived`) ou o primeiro preenchimento de `endDate`/`closedAt` (também `endedAt` para atividades). Edições posteriores em entidades já encerradas, mudanças entre estados terminais e reaberturas geram `updated`, sem registrar um encerramento fictício.
 - Reenvio semanticamente idêntico não cria versão adicional. Omissão de objetivo ativo em salvamento completo equivale a arquivamento, não exclusão.
 - Estados `resolved` e `archived` preservam a entidade e sua linha histórica. Em objetivos, `closedAt` distingue o encerramento do último `updatedAt`.
 - A migração #384 grava `baseline` do estado encontrado dos registros clínicos anteriores, sem inventar a sequência histórica ausente. `source=legacy-baseline` e `actorUserId=null` identificam origem sem autoria histórica recuperável.
@@ -27,6 +27,7 @@ Questionários PAR-Q e Anamnese Inicial **permanecem nos fluxos canônicos exist
 - Histórico: `GET /api/v1/prontuario/records/:recordId/history/:entityType`.
 - Filtros opcionais de histórico: `entityId`, `version` (inteiro positivo) e `skip`. Consulta limitada a 100 eventos por página; não substitui o estado atual.
 - Histórico da Anamnese Inicial: `GET /api/v1/prontuario/alunos/:alunoId/intake-history` com `revision` (positivo) e `skip`. Exige o bloco `physicalAssessment.prnt.anamnesisFollowUp` e o mesmo isolamento `contractId + alunoId`.
+- Os painéis laterais carregam 100 eventos por vez e permitem consultar páginas mais antigas sem descartar os eventos já exibidos. A paginação respeita o limite `skip <= 10000` da API e reinicia ao trocar aluno, categoria ou atualizar o prontuário.
 - O painel lateral expõe as versões da Anamnese independentemente de existir um registro PRNT.
 - A interface de PRNT exibe versões no painel lateral, por categoria, apenas quando a permissão de resumo e a do respectivo bloco estão presentes. O professor altera o estado de objetivo pelo editor; não apaga versões.
 
@@ -36,7 +37,7 @@ A autenticação e `screenKey=physicalAssessment.protocol` antecedem os endpoint
 
 O catálogo atual não registra `physicalAssessment.protocol` como tela que aceita `dataScope` customizável; portanto essa superfície não ganha um escopo configurável implícito nesta issue. Para essa tela, a política vigente é isolamento por contrato e por bloco, sem relaxar a fronteira do tenant.
 
-A Prescrição continua apontando aos registros de origem pelo ID canônico e mantém suas próprias `sourceRefs` e versões; esta issue não permite que a Prescrição edite o PRNT. Um `ProntuarioGoal.id` permanece estável entre revisões, evitando invalidar `CapacityPrescriptionGoalLink`. Para fontes PRNT, a versão numérica em `CapacityPrescriptionSource.sourceVersion` identifica exatamente `ProntuarioHistoryEvent(entityType, entityId, version)`, com `contractId` e `alunoId`; versões numéricas antigas continuam vinculadas ao snapshot original ao editar a Prescrição. Datas de atualização enviadas por clientes legados não são identidade de revisão: o backend resolve o evento vigente. Revisões inexistentes são rejeitadas. Versões de prescrições já gravadas antes desta mudança permanecem intactas.
+A Prescrição continua apontando aos registros de origem pelo ID canônico e mantém suas próprias `sourceRefs` e versões; esta issue não permite que a Prescrição edite o PRNT. Um `ProntuarioGoal.id` permanece estável entre revisões, evitando invalidar `CapacityPrescriptionGoalLink`. Para fontes PRNT, a versão numérica em `CapacityPrescriptionSource.sourceVersion` identifica exatamente `ProntuarioHistoryEvent(entityType, entityId, version)`, com `contractId` e `alunoId`; versões numéricas antigas continuam vinculadas ao snapshot original ao editar a Prescrição. Strings numéricas (por exemplo `"1"`) representam revisões exatas, da mesma forma que números; versões numéricas inválidas ou inexistentes são rejeitadas. Datas de atualização enviadas por clientes legados não são identidade de revisão: o backend resolve o evento vigente. Versões de prescrições já gravadas antes desta mudança permanecem intactas.
 
 ## Validação e implantação
 

@@ -122,6 +122,33 @@ describe('appendProntuarioHistory', () => {
     });
   });
 
+  it('classifies the first endedAt on activity history as closure, subsequent edits as updates', async () => {
+    const endedAt = new Date('2026-10-13T12:00:00Z');
+    const closed = makeTx(1);
+    await appendProntuarioHistory(closed, record, 'activityHistory', 'activity-1',
+      { description: 'Corrida', endedAt: null },
+      { description: 'Corrida', endedAt }, 'actor-1');
+    expect(closed.prontuarioHistoryEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'closed', version: 2 }),
+    });
+
+    const edited = makeTx(2);
+    await appendProntuarioHistory(edited, record, 'activityHistory', 'activity-1',
+      { description: 'Corrida', endedAt },
+      { description: 'Corrida leve', endedAt }, 'actor-2');
+    expect(edited.prontuarioHistoryEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'updated', version: 3 }),
+    });
+
+    const reopened = makeTx(3);
+    await appendProntuarioHistory(reopened, record, 'activityHistory', 'activity-1',
+      { description: 'Corrida leve', endedAt },
+      { description: 'Corrida leve', endedAt: null }, 'actor-3');
+    expect(reopened.prontuarioHistoryEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'updated', version: 4 }),
+    });
+  });
+
   it('recognizes first-time closedAt without repeating closure on later edits', async () => {
     const date = new Date('2026-10-12T10:00:00Z');
     const first = makeTx(1);

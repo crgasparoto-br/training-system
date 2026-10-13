@@ -57,8 +57,8 @@ export async function appendProntuarioHistory(
     });
     latest = { version: 1 };
   }
-  const previous = before as { status?: string; endDate?: unknown; closedAt?: unknown } | null;
-  const next = after as { status?: string; endDate?: unknown; closedAt?: unknown };
+  const previous = before as { status?: string; endDate?: unknown; endedAt?: unknown; closedAt?: unknown } | null;
+  const next = after as { status?: string; endDate?: unknown; endedAt?: unknown; closedAt?: unknown };
   const isTerminal = (status: string | undefined) =>
     status === 'closed' || status === 'resolved' || status === 'archived';
   // Closing is a transition, not a property of the current state. Later
@@ -66,6 +66,7 @@ export async function appendProntuarioHistory(
   const closed = before !== null && (
     (!isTerminal(previous?.status) && isTerminal(next.status)) ||
     (previous?.endDate == null && next.endDate != null) ||
+    (entityType === 'activityHistory' && previous?.endedAt == null && next.endedAt != null) ||
     (previous?.closedAt == null && next.closedAt != null)
   );
   await tx.prontuarioHistoryEvent.create({

@@ -361,6 +361,50 @@ describeDatabase('capacity prescription canonical source metadata with PostgreSQ
     expect(stored.label).toBe('Retomar corrida com progressão controlada');
   });
 
+  it('preserves the original PRNT revision when a client resends its textual sourceVersion', async () => {
+    const goal = await prisma.prontuarioGoal.findUniqueOrThrow({ where: { id: goalId } });
+    await prisma.prontuarioGoal.update({ where: { id: goalId }, data: { title: 'Título posterior' } });
+    await prisma.prontuarioHistoryEvent.create({
+      data: {
+        recordId: goal.recordId, contractId, alunoId,
+        entityType: 'goal', entityId: goalId, version: 2, action: 'updated',
+        source: 'prnt-api', snapshot: {
+          title: 'Título posterior', description: goal.description,
+          status: goal.status, priority: goal.priority, targetDate: goal.targetDate, closedAt: null,
+        },
+      },
+    });
+    const response = await request(app)
+      .post(`/capacity-prescriptions/alunos/${alunoId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        capacity: 'resisted',
+        sourceRefs: [{ type: 'prontuario_goal', id: goalId, version: '1', label: 'Texto controlado pelo cliente' }],
+        linkedProntuarioGoalIds: [goalId],
+        technicalJustification: 'Preservar versão antiga', professorSummary: 'Revisão clínica original',
+      });
+    expect(response.status).toBe(201);
+    expect(response.body.data.latestVersion.sourceRefs[0]).toMatchObject({
+      id: goalId, version: 1, label: 'Retomar corrida com progressão controlada',
+    });
+    const persisted = await prisma.capacityPrescriptionSource.findFirstOrThrow({
+      where: { versionId: response.body.data.latestVersion.id, sourceId: goalId },
+    });
+    expect(persisted.sourceVersion).toBe('1');
+
+    const invalid = await request(app)
+      .post(`/capacity-prescriptions/alunos/${alunoId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        capacity: 'resisted', expectedCurrentVersion: 1,
+        sourceRefs: [{ type: 'prontuario_goal', id: goalId, version: '999', label: 'Versão forjada' }],
+        linkedProntuarioGoalIds: [goalId],
+        technicalJustification: 'Verificar versão inexistente', professorSummary: 'Não persistir',
+      });
+    expect(invalid.status).toBe(400);
+    expect(await prisma.capacityPrescriptionVersion.count({ where: { prescriptionId: response.body.data.id } })).toBe(1);
+  });
+
   it('rejects a client supplied revision that does not exist in this tenant', async () => {
     const response = await request(app)
       .post(`/capacity-prescriptions/alunos/${alunoId}`)

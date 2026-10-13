@@ -27,6 +27,31 @@ describe('PRNT canonical prescription revision', () => {
     expect(revisionText({ title: 'Antigo' }, 'title', 'Novo')).toBe('Antigo');
   });
 
+  it('pins stringified numeric versions as exact revisions, never as legacy hints', async () => {
+    const db = client();
+    db.prontuarioHistoryEvent.findFirst.mockResolvedValue({ version: 1, snapshot: { title: 'Primeira versão' } });
+    await expect(resolveProntuarioSourceRevision(db, 'contract-a', 'aluno-a', 'goal', 'goal-a', '1'))
+      .resolves.toEqual({ version: 1, snapshot: { title: 'Primeira versão' } });
+    expect(db.prontuarioHistoryEvent.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { contractId: 'contract-a', alunoId: 'aluno-a', entityType: 'goal', entityId: 'goal-a', version: 1 },
+    }));
+  });
+
+  it('rejects nonexistent or invalid numeric strings without falling back to latest', async () => {
+    const db = client();
+    db.prontuarioHistoryEvent.findFirst.mockResolvedValue(null);
+    await expect(resolveProntuarioSourceRevision(db, 'contract-a', 'aluno-a', 'goal', 'goal-a', '999'))
+      .rejects.toBeInstanceOf(ProntuarioSourceRevisionError);
+    expect(db.prontuarioHistoryEvent.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ entityId: 'goal-a', version: 999 }),
+    }));
+    for (const invalid of ['0', '-1', '1.5', '9007199254740992']) {
+      await expect(resolveProntuarioSourceRevision(db, 'contract-a', 'aluno-a', 'goal', 'goal-a', invalid))
+        .rejects.toBeInstanceOf(ProntuarioSourceRevisionError);
+    }
+    expect(db.prontuarioHistoryEvent.findFirst).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects missing or foreign-tenant revisions and invalid numerical versions', async () => {
     const db = client();
     db.prontuarioHistoryEvent.findFirst.mockResolvedValue(null);

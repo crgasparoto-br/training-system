@@ -8,9 +8,19 @@ type HistoryReader = Pick<Prisma.TransactionClient, 'prontuarioHistoryEvent'>;
 
 export class ProntuarioSourceRevisionError extends Error {}
 
-// Numeric versions are exact references to an immutable PRNT event. Legacy
-// timestamp strings from existing clients are hints only: resolve current
-// event from the database instead of accepting a client-supplied timestamp.
+// Numeric versions (including numeric strings persisted in sourceVersion) are
+// exact PRNT revision IDs. Only legacy nonnumeric timestamps are hints.
+function requestedRevision(value: number | string | null | undefined): number | undefined {
+  if (value === null || value === undefined) return undefined;
+  const numericText = typeof value === 'string' &&
+    /^[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:e[+-]?\\d+)?$/i.test(value.trim());
+  if (typeof value !== 'number' && !numericText) return undefined;
+  const version = typeof value === 'number' ? value : Number(value.trim());
+  if (!Number.isSafeInteger(version) || version < 1) {
+    throw new ProntuarioSourceRevisionError('Versão clínica inválida');
+  }
+  return version;
+}
 export async function resolveProntuarioSourceRevision(
   client: HistoryReader,
   contractId: string,
@@ -19,10 +29,7 @@ export async function resolveProntuarioSourceRevision(
   entityId: string,
   suppliedVersion?: number | string | null,
 ) {
-  const requestedVersion = typeof suppliedVersion === 'number' ? suppliedVersion : undefined;
-  if (requestedVersion !== undefined && (!Number.isSafeInteger(requestedVersion) || requestedVersion < 1)) {
-    throw new ProntuarioSourceRevisionError('Versão clínica inválida');
-  }
+  const requestedVersion = requestedRevision(suppliedVersion);
 
   const event = await client.prontuarioHistoryEvent.findFirst({
     where: {
