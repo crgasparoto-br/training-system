@@ -82,7 +82,7 @@ function publicSourceVersion(source: Record<string, any>): number | string | nul
   const isProntuario = source.sourceType === 'prontuario_goal' ||
     source.sourceType === 'prontuario_alert' ||
     (source.sourceType === 'professor_note' && source.origin === 'PRNT - histórico de atividade física');
-  if (isProntuario && typeof version === 'string' && /^[1-9]\\d*$/.test(version)) {
+  if (isProntuario && typeof version === 'string' && /^[1-9][0-9]*$/.test(version)) {
     const number = Number(version);
     if (Number.isSafeInteger(number)) return number;
   }
