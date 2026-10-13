@@ -103,6 +103,28 @@ router.get(
   }
 );
 
+router.get(
+  '/alunos/:alunoId/intake-history',
+  blockAccessMiddleware('physicalAssessment.prnt.anamnesisFollowUp'),
+  async (req: Request, res: Response) => {
+    try {
+      const { contractId } = contextFromRequest(req);
+      if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
+      const options = z.object({
+        revision: z.coerce.number().int().positive().optional(),
+        skip: z.coerce.number().int().min(0).max(10000).default(0),
+      }).parse(req.query);
+      return sendSuccess(
+        res,
+        await prontuarioService.getHealthIntakeHistory(contractId, req.params.alunoId, options),
+        'Versões da Anamnese Inicial carregadas'
+      );
+    } catch (error) {
+      return handleError(res, error, 'Erro ao consultar versões da Anamnese Inicial');
+    }
+  }
+);
+
 router.get('/alunos/:alunoId/parq-submissions', blockAccessMiddleware('physicalAssessment.prnt.parqSubmissions'), async (req: Request, res: Response) => {
   try {
     const { contractId } = contextFromRequest(req);
