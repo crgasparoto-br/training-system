@@ -58,12 +58,35 @@ describe('studentDomainService snapshot reuse', () => {
       expect(loadSnapshot).toHaveBeenCalledWith('aluno-1', {
         companyContractId: 'contract-a',
       });
-      expect(mockListByAluno).toHaveBeenCalledTimes(1);
-      expect(mockListByAluno).toHaveBeenCalledWith('aluno-1', {
-        companyContractId: 'contract-a',
-      });
+      if (method === 'getTimeline') {
+        // No finance grant: do not query contract/financial records at all.
+        expect(mockListByAluno).not.toHaveBeenCalled();
+      } else {
+        expect(mockListByAluno).toHaveBeenCalledTimes(1);
+        expect(mockListByAluno).toHaveBeenCalledWith('aluno-1', {
+          companyContractId: 'contract-a',
+        });
+      }
     }
   );
+
+  it('queries contracts for the timeline only with an explicit financial grant', async () => {
+    jest.spyOn(studentDomainService, 'loadAlunoDomainSnapshot')
+      .mockResolvedValue(snapshot() as never);
+
+    await studentDomainService.getTimeline('aluno-1', {
+      companyContractId: 'contract-a',
+      timelineAccess: {
+        profile: false, health: false, assessments: false, financial: true,
+        integrations: false, training: false,
+        clinical: { prnt: {}, intake: false, parq: false, anthropometry: false, adipometry: false },
+      },
+    });
+    expect(mockListByAluno).toHaveBeenCalledTimes(1);
+    expect(mockListByAluno).toHaveBeenCalledWith('aluno-1', {
+      companyContractId: 'contract-a',
+    });
+  });
 
   it('keeps the query and reused relations isolated to the requested contract', async () => {
     mockFindFirst.mockResolvedValue(
