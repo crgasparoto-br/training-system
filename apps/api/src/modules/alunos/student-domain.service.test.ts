@@ -104,7 +104,7 @@ describe('studentDomainService snapshot reuse', () => {
     mockLifecycleFindMany.mockImplementation(({ where, skip = 0, take }: any) => {
       if (where.metadata?.equals !== 'anthropometry') return Promise.resolve([]);
       const earlierThan = where.OR?.[0]?.createdAt?.lt as Date | undefined;
-      const eligible = records.filter((record) => !earlierThan || record.createdAt < earlierThan);
+      const eligible = records.filter((record) => !earlierThan || record.createdAt.getTime() < earlierThan.getTime());
       return Promise.resolve(eligible.slice(skip, skip + take));
     });
     const access = {
