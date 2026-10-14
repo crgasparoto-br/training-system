@@ -180,21 +180,32 @@ export async function readClinicalTimeline(
       // exhausted. A raw take before validation/deduplication could suppress
       // an older completion and incorrectly terminate the global cursor.
       const pageTarget = limit + 1;
+      // A fixed-size keyset batch keeps each database read bounded, even for
+      // deep histories. OFFSET/SKIP becomes progressively slower and is unsafe
+      // if events are inserted while an older page is being loaded.
+      const batchSize = Math.min(200, Math.max(32, pageTarget));
       const unique = new Map<string, ClinicalTimelineEvent>();
       const seenSources = new Set<string>();
-      let skip = 0;
-      // Canonical winner is the newest valid source row. Examine rows newer
-      // than the cursor too, or their older duplicates will appear on page 2.
+      let afterRow: { createdAt: Date; id: string } | null = null;
+      // Find the newest valid occurrence BEFORE applying the global cursor.
+      // Otherwise a duplicate older than the cursor could reappear on page 2.
       while (unique.size < pageTarget) {
         const rows = await prisma.studentLifecycleEvent.findMany({
           where: { alunoId, contractId,
             metadata: { path: ['domain'], equals: 'anthropometry' },
-            AND: [{ OR: [
-              { metadata: { path: ['action'], equals: 'completed' } },
-              { metadata: { path: ['action'], equals: 'corrected' } },
-            ] }] },
+            AND: [
+              { OR: [
+                { metadata: { path: ['action'], equals: 'completed' } },
+                { metadata: { path: ['action'], equals: 'corrected' } },
+              ] },
+              ...(afterRow ? [{ OR: [
+                { createdAt: { lt: afterRow.createdAt } },
+                { createdAt: afterRow.createdAt, id: { lt: afterRow.id } },
+              ] }] : []),
+            ],
+          },
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-          skip, take: pageTarget,
+          take: batchSize,
           select: { id: true, contractId: true, actorUserId: true, createdAt: true, metadata: true },
         });
         for (const row of rows) {
@@ -230,8 +241,11 @@ export async function readClinicalTimeline(
           unique.set(identity, event);
           if (unique.size === pageTarget) break;
         }
-        if (rows.length < pageTarget) break;
-        skip += rows.length;
+        // Advance using the last RAW row, never the last valid/visible event.
+        // Invalid rows and duplicates must not trap the scan or drop old events.
+        if (rows.length < batchSize) break;
+        const last = rows[rows.length - 1];
+        afterRow = { createdAt: last.createdAt, id: last.id };
       }
       return [...unique.values()];
     } });
