@@ -190,7 +190,10 @@ export async function readClinicalTimeline(
       // Find the newest valid occurrence BEFORE applying the global cursor.
       // Otherwise a duplicate older than the cursor could reappear on page 2.
       while (unique.size < pageTarget) {
-        const rows = await prisma.studentLifecycleEvent.findMany({
+        const rows: Array<{
+          id: string; contractId: string; actorUserId: string | null;
+          createdAt: Date; metadata: unknown;
+        }> = await prisma.studentLifecycleEvent.findMany({
           where: { alunoId, contractId,
             metadata: { path: ['domain'], equals: 'anthropometry' },
             AND: [
@@ -244,7 +247,7 @@ export async function readClinicalTimeline(
         // Advance using the last RAW row, never the last valid/visible event.
         // Invalid rows and duplicates must not trap the scan or drop old events.
         if (rows.length < batchSize) break;
-        const last = rows[rows.length - 1];
+        const last: { createdAt: Date; id: string } = rows[rows.length - 1];
         afterRow = { createdAt: last.createdAt, id: last.id };
       }
       return [...unique.values()];
