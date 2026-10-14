@@ -68,10 +68,16 @@ databaseDescribe('issue #385: real PostgreSQL canonical clinical timeline', () =
     const intake = await prisma.studentHealthIntake.create({
       data: { alunoId: aluno.id, contractId: contract.id },
     });
-    const intakeRevision = await prisma.studentHealthIntakeRevision.create({
-      data: { intakeId: intake.id, alunoId: aluno.id, contractId: contract.id,
-        revision: 1, sourceVersion: 1, sourceType: 'professional',
-        actorUserId: userR1.id, snapshot: { sensitive: 'private-intake-385' }, createdAt: instant(14) },
+    // The production AFTER INSERT/UPDATE trigger owns intake history. Verify
+    // its real behavior instead of attempting an invalid direct revision write.
+    await prisma.studentHealthIntake.update({
+      where: { id: intake.id },
+      data: { observations: 'private-intake-385', recordedByUserId: userR1.id },
+    });
+    const intakeRevision = await prisma.studentHealthIntakeRevision.findFirstOrThrow({
+      where: { intakeId: intake.id },
+      orderBy: { revision: 'desc' },
+      select: { id: true },
     });
     const parq = await prisma.studentParqSubmission.create({
       data: { alunoId: aluno.id, contractId: contract.id, sourceType: 'professional',
