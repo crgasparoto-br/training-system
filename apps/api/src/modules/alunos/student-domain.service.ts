@@ -1038,6 +1038,80 @@ export const studentDomainService = {
     };
   },
 
+  /**
+   * Read only the relationships required by the server-resolved timeline
+   * grants. Audit access alone never queries clinical or financial relations.
+   * This also prevents an inaccessible optional relation from breaking Audit.
+   */
+  async loadAlunoTimelineSnapshot(alunoId: string, options: StudentDomainQueryOptions = {}) {
+    const grants = options.timelineAccess ?? NO_TIMELINE_DOMAIN_ACCESS;
+    const canReadLegacyIntake = grants.health && grants.clinical.intake;
+    const aluno = await prisma.aluno.findFirst({
+      where: {
+        id: alunoId,
+        ...(options.companyContractId ? { contractId: options.companyContractId } : {}),
+      },
+      include: {
+        ...(grants.profile ? {
+          user: { include: { profile: true } },
+          studentProfile: true,
+        } : {}),
+        ...(canReadLegacyIntake ? {
+          intakeForm: true,
+          studentHealthIntake: true,
+          parqSubmissions: {
+            where: {
+              declarationAccepted: true,
+              catalogVersion: { in: [PARQ_CATALOG_VERSION, PARQ_LEGACY_CATALOG_VERSION] },
+            },
+            orderBy: [{ submittedAt: 'desc' as const }, { createdAt: 'desc' as const }],
+            take: 1,
+          },
+        } : {}),
+        ...(grants.assessments ? {
+          assessments: {
+            include: { type: true },
+            orderBy: { assessmentDate: 'desc' as const },
+            take: 20,
+          },
+          studentAssessmentRecords: {
+            include: { measurements: { orderBy: { sortOrder: 'asc' as const } } },
+            orderBy: { performedAt: 'desc' as const },
+          },
+        } : {}),
+        ...(grants.financial ? {
+          service: true,
+          studentFinancialProfile: true,
+        } : {}),
+        ...(grants.integrations ? {
+          integrations: { orderBy: { createdAt: 'desc' as const } },
+          studentExternalAccounts: { orderBy: { createdAt: 'desc' as const } },
+          studentExternalActivities: { orderBy: { startedAt: 'desc' as const }, take: 50 },
+        } : {}),
+      },
+    });
+    if (!aluno) return null;
+    // Stable fallback shape for existing projection helpers. No denied relation
+    // is queried, rehydrated, or returned to the event builder.
+    return scopeAlunoDomainSnapshot({
+      ...aluno,
+      user: grants.profile ? (aluno as any).user ?? null : null,
+      professor: null,
+      studentProfile: grants.profile ? (aluno as any).studentProfile ?? null : null,
+      intakeForm: canReadLegacyIntake ? (aluno as any).intakeForm ?? null : null,
+      studentHealthIntake: canReadLegacyIntake ? (aluno as any).studentHealthIntake ?? null : null,
+      parqSubmissions: canReadLegacyIntake ? (aluno as any).parqSubmissions ?? [] : [],
+      assessments: grants.assessments ? (aluno as any).assessments ?? [] : [],
+      studentAssessmentRecords: grants.assessments ? (aluno as any).studentAssessmentRecords ?? [] : [],
+      service: grants.financial ? (aluno as any).service ?? null : null,
+      studentFinancialProfile: grants.financial ? (aluno as any).studentFinancialProfile ?? null : null,
+      contracts: [],
+      integrations: grants.integrations ? (aluno as any).integrations ?? [] : [],
+      studentExternalAccounts: grants.integrations ? (aluno as any).studentExternalAccounts ?? [] : [],
+      studentExternalActivities: grants.integrations ? (aluno as any).studentExternalActivities ?? [] : [],
+    }, options.companyContractId);
+  },
+
   async getTimeline(alunoId: string, options: StudentDomainQueryOptions = {}) {
     // The API route supplies server-resolved permission grants. Missing grants
     // fail closed: being allowed to view Audit is not permission to see health.
@@ -1045,7 +1119,7 @@ export const studentDomainService = {
     const unavailableDomains: string[] = [];
     let aluno: any;
     try {
-      aluno = await this.loadAlunoDomainSnapshot(alunoId, options);
+      aluno = await this.loadAlunoTimelineSnapshot(alunoId, options);
     } catch (error) {
       // A failing optional relation must not hide independent clinical sources.
       if (!options.companyContractId) throw error;
