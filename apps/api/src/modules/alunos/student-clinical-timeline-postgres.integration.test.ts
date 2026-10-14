@@ -16,7 +16,7 @@ type Fixture = {
   contractId: string;
   otherContractId: string;
   prntEventId: string;
-  intakeRevisionId: string;
+  intakeRevisionIds: string[];
   parqId: string;
   adipometryR1Id: string;
   adipometryR2Id: string;
@@ -74,9 +74,9 @@ databaseDescribe('issue #385: real PostgreSQL canonical clinical timeline', () =
       where: { id: intake.id },
       data: { observations: 'private-intake-385', recordedByUserId: userR1.id },
     });
-    const intakeRevision = await prisma.studentHealthIntakeRevision.findFirstOrThrow({
+    const intakeRevisions = await prisma.studentHealthIntakeRevision.findMany({
       where: { intakeId: intake.id },
-      orderBy: { revision: 'desc' },
+      orderBy: { revision: 'asc' },
       select: { id: true },
     });
     const parq = await prisma.studentParqSubmission.create({
@@ -133,7 +133,7 @@ databaseDescribe('issue #385: real PostgreSQL canonical clinical timeline', () =
     fixture = {
       alunoId: aluno.id, otherAlunoId: otherAluno.id,
       contractId: contract.id, otherContractId: otherContract.id,
-      prntEventId: prntEvent.id, intakeRevisionId: intakeRevision.id, parqId: parq.id,
+      prntEventId: prntEvent.id, intakeRevisionIds: intakeRevisions.map((revision) => revision.id), parqId: parq.id,
       adipometryR1Id: r1Id, adipometryR2Id: r2Id, anthNewId,
       finalizerR1: userR1.id, finalizerR2: userR2.id,
     };
@@ -148,7 +148,7 @@ databaseDescribe('issue #385: real PostgreSQL canonical clinical timeline', () =
     const result = await readClinicalTimeline(fixture.alunoId, fixture.contractId, fullClinical, 50);
     expect(result.unavailableDomains).toEqual([]);
     expect(result.items.map((item) => item.sourceId).sort()).toEqual([
-      fixture.prntEventId, fixture.intakeRevisionId, fixture.parqId,
+      fixture.prntEventId, ...fixture.intakeRevisionIds, fixture.parqId,
       fixture.adipometryR1Id, fixture.adipometryR2Id,
       `anth-${fixture.anthNewId.slice('anth-new-'.length)}`,
       `correction-${fixture.anthNewId.slice('anth-new-'.length)}`,
@@ -157,7 +157,7 @@ databaseDescribe('issue #385: real PostgreSQL canonical clinical timeline', () =
       expect.objectContaining({ sourceType: 'prontuario-history-event',
         sourceId: fixture.prntEventId, contractId: fixture.contractId }),
       expect.objectContaining({ sourceType: 'student-health-intake-revision',
-        sourceId: fixture.intakeRevisionId }),
+        sourceId: fixture.intakeRevisionIds[1] }),
       expect.objectContaining({ sourceType: 'adipometry-assessment',
         sourceId: fixture.adipometryR1Id, actorUserId: fixture.finalizerR1 }),
       expect.objectContaining({ sourceType: 'adipometry-assessment',
