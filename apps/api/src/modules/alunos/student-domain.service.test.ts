@@ -215,6 +215,44 @@ describe('studentDomainService snapshot reuse', () => {
     })).rejects.toThrow('INVALID_TIMELINE_CURSOR');
   });
 
+  it('keeps millisecond precision across same-second training cursors', async () => {
+    jest.spyOn(studentDomainService, 'loadAlunoTimelineSnapshot')
+      .mockResolvedValue(snapshot() as never);
+    const records = [
+      { id: 'z-newer', createdAt: new Date('2026-10-13T14:00:00.900Z'),
+        metadata: { domain: 'workout_session_execution', action: 'started', status: 'in_progress' } },
+      { id: 'a-older', createdAt: new Date('2026-10-13T14:00:00.100Z'),
+        metadata: { domain: 'workout_session_execution', action: 'completed', status: 'completed' } },
+    ].map((record) => ({ ...record, alunoId: 'aluno-1', contractId: 'contract-a', actorUserId: null }));
+    mockLifecycleFindMany.mockImplementation(({ where, take }: any) => {
+      const filter = where.AND?.[1];
+      const before: Date | undefined = filter?.OR?.[0]?.createdAt?.lt;
+      const same: Date | undefined = filter?.OR?.[1]?.createdAt;
+      const lowerId: string | undefined = filter?.OR?.[1]?.id?.lt;
+      return Promise.resolve(records.filter((record) => !before
+        || record.createdAt.getTime() < before.getTime()
+        || (same && lowerId && record.createdAt.getTime() === same.getTime()
+          && record.id < lowerId)).slice(0, take));
+    });
+    const options = {
+      companyContractId: 'contract-a', timelineLimit: 1,
+      timelineAccess: {
+        profile: false, health: false, assessments: false, financial: false,
+        integrations: false, training: true,
+        clinical: { prnt: {}, intake: false, parq: false, anthropometry: false, adipometry: false },
+      },
+    };
+    const first = await studentDomainService.getTimeline('aluno-1', options);
+    expect(first?.items.map((event) => event.id)).toEqual(['training-execution-z-newer']);
+    expect(first?.nextCursor).toEqual(expect.any(String));
+    const cursor = JSON.parse(Buffer.from(first!.nextCursor!, 'base64url').toString('utf8')) as { at: string };
+    expect(cursor.at).toBe('2026-10-13T14:00:00.900Z');
+    const second = await studentDomainService.getTimeline('aluno-1', {
+      ...options, timelineCursor: first!.nextCursor!,
+    });
+    expect(second?.items.map((event) => event.id)).toEqual(['training-execution-a-older']);
+  });
+
   it('paginates distinct canonical anthropometry sources across API cursors', async () => {
     jest.spyOn(studentDomainService, 'loadAlunoTimelineSnapshot')
       .mockResolvedValue(snapshot() as never);
