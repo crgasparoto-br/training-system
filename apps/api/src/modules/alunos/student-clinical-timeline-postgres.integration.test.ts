@@ -52,19 +52,6 @@ databaseDescribe('issue #385: real PostgreSQL canonical clinical timeline', () =
     const functionOption = await prisma.collaboratorFunctionOption.create({
       data: { contractId: contract.id, name: `Timeline 385 ${id}`, code: `TL385-${id}` },
     });
-    const governanceBlocks = [
-      'settings.contract.actions.manageClinicalTechnicalResponsibility',
-      'settings.contract.adipometryProtocolApproval',
-    ];
-    await prisma.accessPermission.createMany({
-      data: governanceBlocks.map((blockKey) => ({
-        collaboratorFunctionId: functionOption.id,
-        screenKey: 'settings.contract',
-        blockKey,
-        canView: true,
-      })),
-      skipDuplicates: true,
-    });
     const professor = await prisma.professor.create({
       data: { userId: userR1.id, contractId: contract.id,
         collaboratorFunctionId: functionOption.id, role: 'master', currentStatus: 'active' },
@@ -74,6 +61,41 @@ databaseDescribe('issue #385: real PostgreSQL canonical clinical timeline', () =
       data: { userId: userR2.id, contractId: contract.id,
         collaboratorFunctionId: functionOption.id, role: 'master', currentStatus: 'active' },
     });
+
+    // Assign sensitive grants AFTER creating the professors: setup triggers or
+    // provisioning may reconcile the function's permissions on first use.
+    // Fail at this prerequisite rather than masking three integration tests.
+    const governanceBlocks = [
+      'settings.contract.actions.manageClinicalTechnicalResponsibility',
+      'settings.contract.adipometryProtocolApproval',
+    ] as const;
+    for (const blockKey of governanceBlocks) {
+      await prisma.accessPermission.upsert({
+        where: { collaboratorFunctionId_screenKey_blockKey: {
+          collaboratorFunctionId: functionOption.id,
+          screenKey: 'settings.contract',
+          blockKey,
+        } },
+        create: {
+          collaboratorFunctionId: functionOption.id,
+          screenKey: 'settings.contract',
+          blockKey,
+          canView: true,
+        },
+        update: { canView: true },
+      });
+    }
+    const effectiveGrants = await prisma.accessPermission.findMany({
+      where: {
+        collaboratorFunctionId: professor.collaboratorFunctionId,
+        screenKey: 'settings.contract',
+        blockKey: { in: [...governanceBlocks] },
+        canView: true,
+      },
+      select: { blockKey: true },
+    });
+    expect(effectiveGrants.map(({ blockKey }) => blockKey).sort())
+      .toEqual([...governanceBlocks].sort());
     await Promise.all([
       prisma.profile.create({
         data: { userId: userR1.id, name: `Timeline 385 R1 ${id}`, cref: `CREF-R1-${id}` },
