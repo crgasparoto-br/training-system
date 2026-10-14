@@ -79,6 +79,7 @@ Nao armazena corpos de eventos clinicos, tokens, cabecalhos de autenticacao ou c
 {
   "baseUrl": "https://homolog.example.test",
   "apiOrigin": "https://api-homolog.example.test",
+  "authOrigin": "https://auth-homolog.example.test",
   "entryPath": "/alunos/ALUNO_FICTICIO",
   "expectedHeadSha": "SUBSTITUIR_PELO_SHA_COMPLETO_DA_PR",
   "deploymentEvidenceUrl": "https://URL_DO_DEPLOYMENT_NAO_PRODUTIVO",
@@ -87,7 +88,7 @@ Nao armazena corpos de eventos clinicos, tokens, cabecalhos de autenticacao ou c
 }
 ```
 
-O campo `apiOrigin` é obrigatório e deve apontar exclusivamente para API isolada de homologação. O navegador **bloqueia solicitações fetch/XHR fora das origens web/API configuradas**, inclusive caso um frontend de staging esteja compilado contra backend produtivo. O valor de `expectedHeadSha` deve ser um hexadecimal real de 40 caracteres
+O campo `apiOrigin` é obrigatório e deve apontar exclusivamente para API isolada de homologação. `authOrigin` é opcional e só deve ser informado quando o login usar um provedor **também isolado em homologação**. Todas as requisições do navegador (documentos, navegação, iframes, scripts, imagens e fetch/XHR) são limitadas às origens explicitamente aprovadas; um redirect para login de produção ou CDN não permitido bloqueia a execução. Nunca autorizar um IdP real apenas para contornar o bloqueio. O navegador **bloqueia solicitações fetch/XHR fora das origens web/API configuradas**, inclusive caso um frontend de staging esteja compilado contra backend produtivo. O valor de `expectedHeadSha` deve ser um hexadecimal real de 40 caracteres
 na execucao, e o hostname externo deve identificar claramente homologacao, staging
 ou preview.
 
@@ -121,3 +122,12 @@ no projeto Vercel `training-system-web`; os deployments consultados eram de
 `768f2debbd6cd5d04e503a49557c7bf5a1d9d665`, mas qualquer commit novo
 requer consulta de checks no novo HEAD. Enquanto o ambiente isolado, os perfis,
 a execucao em browser e as evidencias nao existirem, **TL-385-020 continua aberta**.
+
+
+## Revisão do coletor e condições externas — 14/10/2026
+
+- A coleta agora bloqueia **todas** as solicitações para origens não configuradas, inclusive redirecionamentos e navegações; o bloqueio anterior restrito a fetch/XHR permitia sair do staging por um link ou documento.
+- O controle Audit-only identifica dados clínicos também pelos tipos legados `intake_*` e `assessment_*` e reprova exposição de eventos financeiros `financial_*`, mesmo quando `sourceType` é genérico. O controle cross-tenant reprova HTTP 2xx mesmo com lista vazia e só aceita a fronteira pública 403/404.
+- Os testes automáticos desses guardrails verificam **o coletor**, não os 12 cenários da aplicação. Capturas e métricas continuam não produzidas; não declarar TL-385-020 concluída.
+- Consulta ao projeto Vercel `training-system-web`: não há deployment da branch `feat/385-canonical-clinical-timeline`; `VITE_API_URL` aparece configurada apenas para produção. Não habilitar preview usando fallback para API de produção. Primeiro provisionar API e banco de homologação isolados, perfis e dados fictícios; então configurar a URL da API **somente na preview**, implantar frontend no SHA da PR, registrar proveniência do deploy e executar o roteiro completo.
+- Não executar `verify-issue-385-operational.cjs` em produção ou contra um backend compartilhado. A pendência é de ambiente/evidência operacional e requer execução real em sessão autenticada de teste.
