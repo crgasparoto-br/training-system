@@ -116,3 +116,11 @@ Aprovação depende de validações no HEAD corrigido e nova auditoria independe
 - A Vercel `training-system-web` nao possuia deployment de preview para a branch da PR #510 na consulta de 14/10/2026; a URL de producao continua vinculada a `main`, nao a esta PR. **Nao** executar cenarios clinicos na base de producao.
 - **Estado:** preparacao operacional implementada; execucao visual e mediçoes reais **pendentes** de deploy isolado e operador autenticado com usuarios ficticios. A TL-385-020 nao esta aprovada por ter o coletor; o aceite ainda depende das 12 evidencias reais e da reauditoria.
 - CI precisa ser observada no HEAD final deste conjunto de commits, sem transportar o verde de `768f2deb`. Nenhum merge/deploy/correcao em dados reais.
+
+
+## Remediacao TL-385-020 — infraestrutura e prevencao de publicacao insegura (14/10/2026)
+
+- Criado PostgreSQL isolado no Render (`training-system-issue385-homolog-pg`, ID `dpg-db7vf64s728c73c53m50-a`, Oregon, plano free, expiracao 13/11/2026). A API de producao na `main` nao foi alterada.
+- Adicionado `scripts/verify-preview-api-target.cjs`, integrado a `apps/web/package.json` para impedir build Vercel de preview sem API de homologacao segura, incluindo controles de host e origem; `scripts/verify-preview-api-target.test.cjs` foi conectado ao `pnpm test`.
+- Antes da execucao operacional: provisionar servico de API de homologacao isolado, configurar URL interna do novo banco e segredo de assinatura independente, publicar frontend preview da mesma branch com `VITE_API_URL` de staging, criar fixtures ficticias e executar os 12 cenarios reais com `scripts/verify-issue-385-operational.cjs`.
+- **Gate TL-385-020 ainda bloqueado**, sem evidencias de browser, links, perfis e medicao. O CI verifica codigo e regressao do guard, nao transforma essa pendencia em aprovada. Consultar o runbook em `docs/quality/issue-385-clinical-timeline-homologation.md` e revalidar CI exact-SHA apos esta remediacao.
