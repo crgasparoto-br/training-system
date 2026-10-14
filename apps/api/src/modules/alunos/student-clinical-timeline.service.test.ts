@@ -292,7 +292,7 @@ describe('canonical clinical timeline (#385)', () => {
 
     const access = { ...denied, anthropometry: true };
     const result = await readClinicalTimeline('aluno-a', 'contract-a', access, 1);
-    expect(result.items.map((item) => item.sourceId).toEqual(['replayed-source', 'distinct-old']);
+    expect(result.items.map((item) => item.sourceId)).toEqual(['replayed-source', 'distinct-old']);
     expect(mockLifecycle.mock.calls.length).toBeGreaterThan(3);
     for (const [query] of mockLifecycle.mock.calls) {
       expect(query.take).toBeLessThanOrEqual(200);
@@ -304,7 +304,7 @@ describe('canonical clinical timeline (#385)', () => {
       kind: 'clinical', at: rows[0].createdAt.toISOString(),
       id: `clinical-anthropometry-${rows[0].id}`,
     });
-    expect(second.items.map((item) => item.sourceId).toEqual(['distinct-old']);
+    expect(second.items.map((item) => item.sourceId)).toEqual(['distinct-old']);
   });
 
   it('advances keysets deterministically when timestamps are identical', async () => {
@@ -322,7 +322,7 @@ describe('canonical clinical timeline (#385)', () => {
     });
     const result = await readClinicalTimeline('aluno-a', 'contract-a',
       { ...denied, anthropometry: true }, 1);
-    expect(result.items.map((item) => item.sourceId).toEqual(['first', 'second']);
+    expect(result.items.map((item) => item.sourceId)).toEqual(['first', 'second']);
     expect(mockLifecycle).toHaveBeenCalledTimes(2);
     expect(mockLifecycle.mock.calls[1][0].where.AND[1].OR[1]).toEqual({
       createdAt: at, id: { lt: rows[31].id },
