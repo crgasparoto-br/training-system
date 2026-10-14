@@ -32,13 +32,14 @@ const PRODUCTION_HOSTS = new Set([
 ]);
 
 function validateConfig(config) {
-  assert.equal(typeof config, "object", "Config JSON obrigatorio");
+  assert.ok(config && typeof config === "object", "Config JSON obrigatorio");
   assert.equal(config.syntheticData, true, "Somente dados ficticios em ambiente isolado");
   assert.match(config.expectedHeadSha, /^[a-f0-9]{40}$/, "expectedHeadSha exige SHA completo");
-  assert.ok(typeof config.entryPath === "string" && config.entryPath.startsWith("/"), "entryPath deve ser rota relativa");
+  assert.ok(typeof config.entryPath === "string" && config.entryPath.startsWith("/") && !config.entryPath.startsWith("//"), "entryPath deve ser rota relativa");
   const url = new URL(config.baseUrl);
   assert.ok(url.protocol === "https:" || (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname)), "HTTPS obrigatorio fora de localhost");
   assert.ok(!PRODUCTION_HOSTS.has(url.hostname), "Dominio de producao bloqueado");
+  assert.ok(["localhost", "127.0.0.1"].includes(url.hostname) || /(staging|homolog|preview)/i.test(url.hostname), "Use somente hostname explicitamente de homologacao/preview");
   assert.ok(url.username === "" && url.password === "" && url.pathname === "/" && !url.search && !url.hash, "baseUrl nao pode conter credenciais, rota ou query");
   assert.ok(typeof config.deploymentEvidenceUrl === "string" && config.deploymentEvidenceUrl.startsWith("https://"), "URL de comprovacao de deploy obrigatoria");
   assert.ok(typeof config.fixtureDescription === "string" && config.fixtureDescription.includes("fict"), "Identifique o conjunto ficticio");
@@ -156,6 +157,7 @@ async function main() {
       else await page.setViewport({ width: 1440, height: 900 });
       await page.goto(new URL(config.entryPath, config.baseUrl).href, { waitUntil: "domcontentloaded" }).catch(() => undefined);
       await rl.question("Execute o cenario no navegador (incluindo links e paginacao) e pressione Enter para capturar: ");
+      await page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }).catch(() => undefined);
       await Promise.allSettled(pending);
       scenario.destination = safeDestination(page.url());
       scenario.viewport = await page.evaluate(() => ({
