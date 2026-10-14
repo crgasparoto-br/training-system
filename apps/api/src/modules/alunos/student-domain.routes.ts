@@ -5,7 +5,7 @@ import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import { blockAccessMiddleware, explicitBlockAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { alunoService } from './aluno.service.js';
-import { studentDomainService } from './student-domain.service.js';
+import { studentDomainService, STUDENT_TIMELINE_CURSOR_MAX_LENGTH } from './student-domain.service.js';
 import { canProfessorAccessBlock, canProfessorAccessScreen } from '../access-control/access-control.service.js';
 import { PRNT_HISTORY_BLOCKS, type ProntuarioHistoryEntityType } from '../prontuario/prontuario-history.service.js';
 import type { TimelineDomainAccess } from './student-clinical-timeline.service.js';
@@ -406,7 +406,7 @@ router.get(
       const rawLimit = typeof req.query.limit === 'string' ? Number(req.query.limit) : 100;
       const rawCursor = req.query.cursor;
       if (!Number.isInteger(rawLimit) || rawLimit < 1 || rawLimit > 200 ||
-          (rawCursor !== undefined && (typeof rawCursor !== 'string' || rawCursor.length === 0 || rawCursor.length > 256))) {
+          (rawCursor !== undefined && (typeof rawCursor !== 'string' || rawCursor.length === 0 || rawCursor.length > STUDENT_TIMELINE_CURSOR_MAX_LENGTH))) {
         return sendError(res, 'Parâmetros de paginação inválidos', 400);
       }
       const timelineAccess = await resolveTimelineAccess(req);
