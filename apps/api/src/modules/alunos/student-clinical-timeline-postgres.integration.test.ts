@@ -1,4 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
+import { adipometryGovernanceService, buildAdipometrySpecificationHash } from '../adipometry/adipometry-governance.service.js';
+import { adipometryService } from '../adipometry/adipometry.service.js';
 import { prismaRuntimeClient } from '../../common/prisma-runtime-client.js';
 import { readClinicalTimeline, type TimelineClinicalAccess, type TimelineDomainAccess } from './student-clinical-timeline.service.js';
 import { studentDomainService } from './student-domain.service.js';
@@ -42,19 +44,55 @@ databaseDescribe('issue #385: real PostgreSQL canonical clinical timeline', () =
       data: { type: 'academy', document: `timeline-385-b-${id}`, name: 'Timeline 385 B' },
     });
     const userR1 = await prisma.user.create({
-      data: { type: 'professor', email: `timeline-385-r1-${id}@example.invalid`, passwordHash: 'fixture' },
+      data: { type: 'professor', email: `timeline-385-r1-${id}@example.invalid`, passwordHash: 'fixture', isActive: true },
     });
     const userR2 = await prisma.user.create({
-      data: { type: 'professor', email: `timeline-385-r2-${id}@example.invalid`, passwordHash: 'fixture' },
+      data: { type: 'professor', email: `timeline-385-r2-${id}@example.invalid`, passwordHash: 'fixture', isActive: true },
     });
     const functionOption = await prisma.collaboratorFunctionOption.create({
       data: { contractId: contract.id, name: `Timeline 385 ${id}`, code: `TL385-${id}` },
+    });
+    const governanceBlocks = [
+      'settings.contract.actions.manageClinicalTechnicalResponsibility',
+      'settings.contract.adipometryProtocolApproval',
+    ];
+    await prisma.accessPermission.createMany({
+      data: governanceBlocks.map((blockKey) => ({
+        collaboratorFunctionId: functionOption.id,
+        screenKey: 'settings.contract',
+        blockKey,
+        canView: true,
+      })),
+      skipDuplicates: true,
     });
     const professor = await prisma.professor.create({
       data: { userId: userR1.id, contractId: contract.id,
         collaboratorFunctionId: functionOption.id, role: 'master', currentStatus: 'active' },
     });
-    const aluno = await prisma.aluno.create({ data: { contractId: contract.id } });
+    // R2 is finalized by a distinct active professor in the same contract.
+    await prisma.professor.create({
+      data: { userId: userR2.id, contractId: contract.id,
+        collaboratorFunctionId: functionOption.id, role: 'master', currentStatus: 'active' },
+    });
+    await Promise.all([
+      prisma.profile.create({
+        data: { userId: userR1.id, name: `Timeline 385 R1 ${id}`, cref: `CREF-R1-${id}` },
+      }),
+      prisma.profile.create({
+        data: { userId: userR2.id, name: `Timeline 385 R2 ${id}`, cref: `CREF-R2-${id}` },
+      }),
+    ]);
+    const aluno = await prisma.aluno.create({ data: { contractId: contract.id, professorId: professor.id } });
+    await prisma.studentProfile.create({
+      data: {
+        alunoId: aluno.id,
+        contractId: contract.id,
+        identificationData: {
+          birthDate: '2001-08-03',
+          gender: 'male',
+        } satisfies Prisma.InputJsonValue,
+      },
+    });
     const otherAluno = await prisma.aluno.create({ data: { contractId: otherContract.id } });
     const record = await prisma.prontuarioRecord.create({
       data: { contractId: contract.id, alunoId: aluno.id, code: `PRNT-${id}`, professorId: professor.id },
@@ -106,29 +144,85 @@ databaseDescribe('issue #385: real PostgreSQL canonical clinical timeline', () =
       ],
     });
 
-    const r1Id = `adpt-r1-${id}`;
-    const r2Id = `adpt-r2-${id}`;
-    await prisma.adipometryAssessment.create({
-      data: { id: r1Id, contractId: contract.id, alunoId: aluno.id,
-        professorId: professor.id, sequenceNumber: 1, code: `ADPT-${id}`,
-        assessmentDate: instant(1), status: 'COMPLETED', revisionStatus: 'SUPERSEDED',
-        revisionNumber: 1, rootAssessmentId: r1Id, completedAt: instant(9) },
+    // The production database rejects direct COMPLETED inserts without an
+    // approved clinical protocol. Exercise the canonical governance and revision
+    // lifecycle so the timeline observes genuine immutable audit events.
+    const protocol = await prisma.adipometryProtocol.findFirstOrThrow({
+      where: { code: 'GUEDES_1991_ADULT_YOUNG', version: 1 },
     });
-    await prisma.adipometryAssessment.create({
-      data: { id: r2Id, contractId: contract.id, alunoId: aluno.id,
-        professorId: professor.id, sequenceNumber: 1, code: `ADPT-${id}`,
-        assessmentDate: instant(2), status: 'COMPLETED', revisionStatus: 'FINALIZED',
-        revisionNumber: 2, rootAssessmentId: r1Id, correctsAssessmentId: r1Id,
-        correctionAuthorUserId: userR1.id, completedAt: instant(8) },
+    const approvedSpecificationHash = buildAdipometrySpecificationHash({
+      code: protocol.code,
+      version: protocol.version,
+      reference: protocol.reference,
+      definitionSnapshot: protocol.definitionSnapshot,
     });
-    await prisma.adipometryAuditEvent.createMany({
-      data: [
-        { id: `adpt-audit1-${id}`, contractId: contract.id,
-          assessmentId: r1Id, actorUserId: userR1.id, action: 'COMPLETED', createdAt: instant(9) },
-        { id: `adpt-audit2-${id}`, contractId: contract.id,
-          assessmentId: r2Id, actorUserId: userR2.id, action: 'CORRECTION_FINALIZED', createdAt: instant(8) },
-      ],
+    await adipometryGovernanceService.designate(contract.id, userR1.id, professor.id, {
+      professorId: professor.id,
     });
+    await adipometryGovernanceService.approve(
+      contract.id,
+      userR1.id,
+      professor.id,
+      protocol.code,
+      protocol.version,
+      {
+        approvalStatement: 'Aprovo tecnicamente este protocolo para o contrato descartável de integração.',
+        approvedSpecificationHash,
+      },
+    );
+
+    const draftR1 = await adipometryService.createDraft(
+      contract.id, aluno.id, userR1.id, professor.id, { assessmentDate: '2026-08-03' },
+    );
+    const r1Id = draftR1.id;
+    await adipometryService.updateDraft(contract.id, r1Id, userR1.id, {
+      protocolCode: protocol.code,
+      protocolVersion: protocol.version,
+      protocolSex: 'male',
+      protocolSexSource: 'profile',
+      measurements: { weightKg: 80, tricepsMm: 12, suprailiacMm: 18, abdominalMm: 20 },
+    });
+    const previewR1 = await adipometryService.calculate(contract.id, r1Id, userR1.id);
+    expect(previewR1.canFinalize).toBe(true);
+    await adipometryService.finalize(contract.id, r1Id, userR1.id, {
+      inputFingerprint: previewR1.inputFingerprint,
+    });
+
+    const correction = await adipometryService.startCorrection(
+      contract.id,
+      r1Id,
+      userR2.id,
+      'MEASUREMENT_TRANSCRIPTION_ERROR',
+      'Correção da dobra abdominal feita por outro profissional.',
+    );
+    const r2Id = correction.id;
+    await adipometryService.updateDraft(contract.id, r2Id, userR2.id, {
+      measurements: { abdominalMm: 21 },
+    });
+    const previewR2 = await adipometryService.calculate(contract.id, r2Id, userR2.id);
+    expect(previewR2.canFinalize).toBe(true);
+    await adipometryService.finalize(contract.id, r2Id, userR2.id, {
+      inputFingerprint: previewR2.inputFingerprint,
+    });
+
+    const revisions = await prisma.adipometryAssessment.findMany({
+      where: { id: { in: [r1Id, r2Id] }, contractId: contract.id, alunoId: aluno.id },
+      select: { id: true, status: true, revisionStatus: true, revisionNumber: true },
+    });
+    expect(revisions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: r1Id, status: 'COMPLETED', revisionStatus: 'SUPERSEDED', revisionNumber: 1 }),
+      expect.objectContaining({ id: r2Id, status: 'COMPLETED', revisionStatus: 'FINALIZED', revisionNumber: 2 }),
+    ]));
+    // Assert what the database emitted; do not fabricate AdipometryAuditEvent.
+    const clinicalAudit = await prisma.adipometryAuditEvent.findMany({
+      where: { contractId: contract.id, assessmentId: { in: [r1Id, r2Id] },
+        action: { in: ['COMPLETED', 'CORRECTION_FINALIZED'] } },
+      select: { assessmentId: true, action: true, actorUserId: true },
+    });
+    expect(clinicalAudit).toEqual(expect.arrayContaining([
+      expect.objectContaining({ assessmentId: r1Id, action: 'COMPLETED', actorUserId: userR1.id }),
+      expect.objectContaining({ assessmentId: r2Id, action: 'CORRECTION_FINALIZED', actorUserId: userR2.id }),
+    ]));
 
     fixture = {
       alunoId: aluno.id, otherAlunoId: otherAluno.id,
