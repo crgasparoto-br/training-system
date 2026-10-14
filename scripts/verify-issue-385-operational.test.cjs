@@ -5,6 +5,7 @@ const { validateConfig, summarizeTimeline, SCENARIOS } = require("./verify-issue
 
 const config = (override = {}) => ({
   baseUrl: "https://homolog.example.test",
+  apiOrigin: "https://api-homolog.example.test",
   entryPath: "/alunos/aluno-ficticio",
   expectedHeadSha: "a".repeat(40),
   syntheticData: true,
@@ -29,6 +30,8 @@ test("TL-385-020: exige isolamento, SHA valido, endereco seguro e dados ficticio
   assert.throws(() => validateConfig(config({ expectedHeadSha: "abc" })));
   assert.throws(() => validateConfig(config({ baseUrl: "http://homolog.example.test" })));
   assert.throws(() => validateConfig(config({ entryPath: "//exfiltrate.invalid/path" })));
+  assert.throws(() => validateConfig(config({ apiOrigin: "https://sistema-acesso-api.onrender.com" })));
+  assert.throws(() => validateConfig(config({ apiOrigin: "https://training-system-web.vercel.app" })));
   assert.throws(() => validateConfig(config({ fixtureDescription: "dados reais" })));
   assert.throws(() => validateConfig(config({ deploymentEvidenceUrl: "http://example.test" })));
 });
