@@ -315,14 +315,6 @@ databaseDescribe('issue #385: real PostgreSQL canonical clinical timeline', () =
         timelineLimit: 2, timelineCursor: nextCursor ?? undefined,
       });
       expect(result).not.toBeNull();
-      console.info('TL385_PAGINATION_DIAGNOSTIC', JSON.stringify({
-        page,
-        cursor: nextCursor,
-        events: result!.items.map((event) => ({ id: event.id, at: event.occurredAt })),
-        partial: result!.partial,
-        unavailable: result!.unavailableDomains,
-        next: result!.nextCursor,
-      }));
       seen.push(...result!.items.map((event) => event.id));
       nextCursor = result!.nextCursor;
       if (!nextCursor) break;
