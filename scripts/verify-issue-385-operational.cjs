@@ -42,8 +42,12 @@ function validateConfig(config) {
   assert.ok(["localhost", "127.0.0.1"].includes(url.hostname) || /(staging|homolog|preview)/i.test(url.hostname), "Use somente hostname explicitamente de homologacao/preview");
   assert.ok(url.username === "" && url.password === "" && url.pathname === "/" && !url.search && !url.hash, "baseUrl nao pode conter credenciais, rota ou query");
   assert.ok(typeof config.deploymentEvidenceUrl === "string" && config.deploymentEvidenceUrl.startsWith("https://"), "URL de comprovacao de deploy obrigatoria");
+  const api = new URL(config.apiOrigin);
+  assert.ok(api.pathname === "/" && !api.search && !api.hash && !api.username && !api.password, "apiOrigin deve conter somente a origem");
+  assert.ok(api.protocol === "https:" || (api.protocol === "http:" && ["localhost", "127.0.0.1"].includes(api.hostname)), "Origem de API insegura");
+  assert.ok(!PRODUCTION_HOSTS.has(api.hostname) && (["localhost", "127.0.0.1"].includes(api.hostname) || /(staging|homolog|preview)/i.test(api.hostname)), "API deve apontar para staging isolado");
   assert.ok(typeof config.fixtureDescription === "string" && config.fixtureDescription.includes("fict"), "Identifique o conjunto ficticio");
-  return { ...config, baseUrl: url.origin };
+  return { ...config, baseUrl: url.origin, apiOrigin: api.origin };
 }
 function readConfig() {
   const file = process.argv[2];
@@ -105,7 +109,7 @@ async function main() {
   const report = {
     schemaVersion: 1, issue: 385, pr: 510, type: "authenticated-staging-operation",
     candidateSha: config.expectedHeadSha, deploymentEvidenceUrl: config.deploymentEvidenceUrl,
-    environmentHost: new URL(config.baseUrl).host, fixtureDescription: config.fixtureDescription,
+    environmentHost: new URL(config.baseUrl).host, apiHost: new URL(config.apiOrigin).host, fixtureDescription: config.fixtureDescription,
     startedAt: new Date().toISOString(), browser: null, scenarios: [], outcome: "incomplete",
     note: "O resultado depende de execucao humana real; NAO e CI simulada ou evidencia de producao.",
   };
@@ -120,6 +124,17 @@ async function main() {
     });
     report.browser = await browser.version();
     const page = await browser.newPage();
+    const allowedOrigins = new Set([config.baseUrl, config.apiOrigin]);
+    await page.setRequestInterception(true);
+    page.on("request", request => {
+      // Reject ALL fetch/XHR leaving the explicitly vetted web/API staging origins.
+      // A staging frontend pointing at production must never run this homologation.
+      const parsed = new URL(request.url());
+      if (["xhr", "fetch"].includes(request.resourceType()) && !allowedOrigins.has(parsed.origin)) {
+        report.blockedUnexpectedRequests = (report.blockedUnexpectedRequests || 0) + 1;
+        void request.abort("blockedbyclient");
+      } else { void request.continue(); }
+    });
     await page.goto(new URL(config.entryPath, config.baseUrl).href, { waitUntil: "domcontentloaded" });
     await rl.question("Autentique-se com o PERFIL FICTICIO no navegador aberto; pressione Enter ao terminar: ");
     for (const item of SCENARIOS) {
@@ -136,7 +151,7 @@ async function main() {
         const millis = Math.round(performance.now() - (started.get(request) || performance.now()));
         if (/\/alunos\/[^/]+\/timeline$/.test(url.pathname)) {
           pending.push((async () => {
-            const record = { status: res.status(), durationMs: millis, ...{} };
+            const record = { status: res.status(), durationMs: millis };
             if (res.ok()) {
               try { Object.assign(record, summarizeTimeline(await res.json(), scenario)); }
               catch { record.responseUnreadable = true; }
@@ -172,7 +187,7 @@ async function main() {
       const choice = (await rl.question("Resultado real [pass/fail/blocked], sem inferir da CI: ")).trim().toLowerCase();
       scenario.explanation = (await rl.question("Evidencia observada ou motivo (nao insira nomes, emails, tokens ou dados clinicos): ")).trim().slice(0, 700);
       scenario.result = ["pass", "fail", "blocked"].includes(choice) ? choice : "blocked";
-      if (!scenario.timelineRequests.length) scenario.result = "blocked";
+      if (!scenario.timelineRequests.length || (report.blockedUnexpectedRequests || 0) > 0) scenario.result = "blocked";
       if (item.id === "audit_only" && scenario.timelineRequests.some(r => r.containsClinical)) scenario.result = "fail";
       if (item.id === "parq_denied" && (scenario.timelineRequests.some(r => r.containsParq) || scenario.otherApiPaths.length)) scenario.result = "fail";
       if (item.id === "cross_tenant" && scenario.timelineRequests.some(r => r.status === 200 && r.count > 0)) scenario.result = "fail";
