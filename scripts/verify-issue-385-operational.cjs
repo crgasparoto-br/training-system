@@ -114,6 +114,20 @@ function sanitizeScenario(entry) {
   return safe;
 }
 
+function evaluateScenarioEvidence(id, scenario, choice, blockedRequests = 0) {
+  const requests = scenario.timelineRequests || [];
+  if (!requests.length || blockedRequests > 0) return "blocked";
+  if (id === "audit_only" && requests.some(r => r.containsClinical || r.containsFinancial)) return "fail";
+  if (id === "parq_denied" && (requests.some(r => r.containsParq) || (scenario.otherApiPaths || []).length)) return "fail";
+  if (id === "cross_tenant") {
+    if (requests.some(r => r.status >= 200 && r.status < 300)) return "fail";
+    if (!requests.some(r => r.status === 403 || r.status === 404)) return "blocked";
+  }
+  if (id === "long_history" && ((scenario._items || 0) <= 200 || (scenario._repeats || 0) !== 0 || requests.length < 2)) return "fail";
+  if (id === "localized_failure" && !requests.some(r => r.partial)) return "blocked";
+  return ["pass", "fail", "blocked"].includes(choice) ? choice : "blocked";
+}
+
 async function main() {
   const config = readConfig();
   if (process.argv.includes("--preflight")) {
@@ -207,15 +221,7 @@ async function main() {
       scenario.screenshot = { file: name, sha256: crypto.createHash("sha256").update(screenshot).digest("hex") };
       const choice = (await rl.question("Resultado real [pass/fail/blocked], sem inferir da CI: ")).trim().toLowerCase();
       scenario.explanation = (await rl.question("Evidencia observada ou motivo (nao insira nomes, emails, tokens ou dados clinicos): ")).trim().slice(0, 700);
-      scenario.result = ["pass", "fail", "blocked"].includes(choice) ? choice : "blocked";
-      if (!scenario.timelineRequests.length || (report.blockedUnexpectedRequests || 0) > 0) scenario.result = "blocked";
-      if (item.id === "audit_only" && scenario.timelineRequests.some(r => r.containsClinical || r.containsFinancial)) scenario.result = "fail";
-      if (item.id === "parq_denied" && (scenario.timelineRequests.some(r => r.containsParq) || scenario.otherApiPaths.length)) scenario.result = "fail";
-      // A 200 with an empty list is not an acceptable replacement for the 404/403 access boundary.
-      if (item.id === "cross_tenant" && scenario.timelineRequests.some(r => r.status >= 200 && r.status < 300)) scenario.result = "fail";
-      if (item.id === "cross_tenant" && !scenario.timelineRequests.some(r => r.status === 403 || r.status === 404)) scenario.result = "blocked";
-      if (item.id === "long_history" && ((scenario._items || 0) <= 200 || (scenario._repeats || 0) !== 0 || scenario.timelineRequests.length < 2)) scenario.result = "fail";
-      if (item.id === "localized_failure" && !scenario.timelineRequests.some(r => r.partial)) scenario.result = "blocked";
+      scenario.result = evaluateScenarioEvidence(item.id, scenario, choice, report.blockedUnexpectedRequests || 0);
       scenario.finishedAt = new Date().toISOString();
       page.off("request", onRequest); page.off("response", onResponse); page.off("pageerror", onPageError);
       Object.assign(scenario, sanitizeScenario(scenario));
@@ -238,4 +244,4 @@ async function main() {
   if (report.outcome !== "passed") process.exitCode = 1;
 }
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
-module.exports = { validateConfig, summarizeTimeline, isAllowedStagingRequest, SCENARIOS };
+module.exports = { validateConfig, summarizeTimeline, isAllowedStagingRequest, evaluateScenarioEvidence, SCENARIOS };
