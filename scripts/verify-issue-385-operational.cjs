@@ -47,7 +47,16 @@ function validateConfig(config) {
   assert.ok(api.protocol === "https:" || (api.protocol === "http:" && ["localhost", "127.0.0.1"].includes(api.hostname)), "Origem de API insegura");
   assert.ok(!PRODUCTION_HOSTS.has(api.hostname) && (["localhost", "127.0.0.1"].includes(api.hostname) || /(staging|homolog|preview)/i.test(api.hostname)), "API deve apontar para staging isolado");
   assert.ok(typeof config.fixtureDescription === "string" && config.fixtureDescription.includes("fict"), "Identifique o conjunto ficticio");
-  return { ...config, baseUrl: url.origin, apiOrigin: api.origin };
+  // Staging authentication must also be isolated; never silently follow a live IdP.
+  let authOrigin = null;
+  if (config.authOrigin !== undefined && config.authOrigin !== null) {
+    const auth = new URL(config.authOrigin);
+    assert.ok(auth.protocol === "https:" || (auth.protocol === "http:" && ["localhost", "127.0.0.1"].includes(auth.hostname)), "Origem de login insegura");
+    assert.ok(!PRODUCTION_HOSTS.has(auth.hostname) && (["localhost", "127.0.0.1"].includes(auth.hostname) || /(staging|homolog|preview)/i.test(auth.hostname)), "Login deve apontar para IdP de homologacao");
+    assert.ok(auth.pathname === "/" && !auth.search && !auth.hash && !auth.username && !auth.password, "authOrigin deve conter somente a origem");
+    authOrigin = auth.origin;
+  }
+  return { ...config, baseUrl: url.origin, apiOrigin: api.origin, authOrigin };
 }
 function readConfig() {
   const file = process.argv[2];
@@ -56,7 +65,19 @@ function readConfig() {
 }
 function clinical(item) {
   const source = String(item.sourceType || "");
-  return /^(prontuario-|student-health-intake-|student-parq-|anthropometry-|adipometry-)/.test(source);
+  const type = String(item.type || "");
+  // Legacy clinical events can carry a generic sourceType such as "student".
+  return /^(prontuario-|student-health-intake-|student-parq-|anthropometry-|adipometry-)/.test(source)
+    || /^(intake_|prnt_|assessment_|anthropometry_|adipometry_)/.test(type);
+}
+function financial(item) {
+  return String(item.type || "").startsWith("financial_") || item.sourceType === "financial";
+}
+function isAllowedStagingRequest(raw, origins) {
+  try {
+    const url = new URL(raw);
+    return (url.protocol === "https:" || url.protocol === "http:") && origins.has(url.origin);
+  } catch { return false; }
 }
 function sourceKey(item) {
   return item.sourceType && item.sourceId ? String(item.type) + "|" + item.sourceType + "|" + item.sourceId : String(item.id);
@@ -79,6 +100,7 @@ function summarizeTimeline(body, scenario) {
     partial: Boolean(data && data.partial),
     unavailableDomains: Array.isArray(data && data.unavailableDomains) ? data.unavailableDomains.filter(x => typeof x === "string").slice(0, 12) : [],
     containsClinical: items.some(clinical),
+    containsFinancial: items.some(financial),
     containsParq: items.some(item => item.sourceType === "student-parq-submission" || item.type === "prnt_parq_submitted"),
     repeatedCanonicalSources: repeated,
   };
@@ -124,13 +146,12 @@ async function main() {
     });
     report.browser = await browser.version();
     const page = await browser.newPage();
-    const allowedOrigins = new Set([config.baseUrl, config.apiOrigin]);
+    const allowedOrigins = new Set([config.baseUrl, config.apiOrigin, config.authOrigin].filter(Boolean));
     await page.setRequestInterception(true);
     page.on("request", request => {
-      // Reject ALL fetch/XHR leaving the explicitly vetted web/API staging origins.
-      // A staging frontend pointing at production must never run this homologation.
-      const parsed = new URL(request.url());
-      if (["xhr", "fetch"].includes(request.resourceType()) && !allowedOrigins.has(parsed.origin)) {
+      // Fail closed for ALL browser resources, documents, navigations and API calls.
+      // Blocking only fetch/XHR still allows a link, redirect or iframe to hit production.
+      if (!isAllowedStagingRequest(request.url(), allowedOrigins)) {
         report.blockedUnexpectedRequests = (report.blockedUnexpectedRequests || 0) + 1;
         void request.abort("blockedbyclient");
       } else { void request.continue(); }
@@ -188,9 +209,11 @@ async function main() {
       scenario.explanation = (await rl.question("Evidencia observada ou motivo (nao insira nomes, emails, tokens ou dados clinicos): ")).trim().slice(0, 700);
       scenario.result = ["pass", "fail", "blocked"].includes(choice) ? choice : "blocked";
       if (!scenario.timelineRequests.length || (report.blockedUnexpectedRequests || 0) > 0) scenario.result = "blocked";
-      if (item.id === "audit_only" && scenario.timelineRequests.some(r => r.containsClinical)) scenario.result = "fail";
+      if (item.id === "audit_only" && scenario.timelineRequests.some(r => r.containsClinical || r.containsFinancial)) scenario.result = "fail";
       if (item.id === "parq_denied" && (scenario.timelineRequests.some(r => r.containsParq) || scenario.otherApiPaths.length)) scenario.result = "fail";
-      if (item.id === "cross_tenant" && scenario.timelineRequests.some(r => r.status === 200 && r.count > 0)) scenario.result = "fail";
+      // A 200 with an empty list is not an acceptable replacement for the 404/403 access boundary.
+      if (item.id === "cross_tenant" && scenario.timelineRequests.some(r => r.status >= 200 && r.status < 300)) scenario.result = "fail";
+      if (item.id === "cross_tenant" && !scenario.timelineRequests.some(r => r.status === 403 || r.status === 404)) scenario.result = "blocked";
       if (item.id === "long_history" && ((scenario._items || 0) <= 200 || (scenario._repeats || 0) !== 0 || scenario.timelineRequests.length < 2)) scenario.result = "fail";
       if (item.id === "localized_failure" && !scenario.timelineRequests.some(r => r.partial)) scenario.result = "blocked";
       scenario.finishedAt = new Date().toISOString();
@@ -215,4 +238,4 @@ async function main() {
   if (report.outcome !== "passed") process.exitCode = 1;
 }
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
-module.exports = { validateConfig, summarizeTimeline, SCENARIOS };
+module.exports = { validateConfig, summarizeTimeline, isAllowedStagingRequest, SCENARIOS };
