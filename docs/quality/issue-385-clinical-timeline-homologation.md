@@ -131,3 +131,26 @@ a execucao em browser e as evidencias nao existirem, **TL-385-020 continua abert
 - Os testes automáticos desses guardrails verificam **o coletor**, não os 12 cenários da aplicação. Capturas e métricas continuam não produzidas; não declarar TL-385-020 concluída.
 - Consulta ao projeto Vercel `training-system-web`: não há deployment da branch `feat/385-canonical-clinical-timeline`; `VITE_API_URL` aparece configurada apenas para produção. Não habilitar preview usando fallback para API de produção. Primeiro provisionar API e banco de homologação isolados, perfis e dados fictícios; então configurar a URL da API **somente na preview**, implantar frontend no SHA da PR, registrar proveniência do deploy e executar o roteiro completo.
 - Não executar `verify-issue-385-operational.cjs` em produção ou contra um backend compartilhado. A pendência é de ambiente/evidência operacional e requer execução real em sessão autenticada de teste.
+
+
+## Preparacao de staging iniciada — 14/10/2026 (TL-385-020)
+
+O banco Render isolado `training-system-issue385-homolog-pg` (`dpg-db7vf64s728c73c53m50-a`) foi criado no plano **free**, PostgreSQL 16, regiao Oregon e workspace `tea-d65ov0vgi27c739uq1pg`. Situacao observada: **available**. Expiracao prevista no plano gratuito: **13/11/2026**. Nao ha dados clinicos reais neste banco e ele nao deve receber copia de producao.
+
+O bloqueio permanece: nao foi provisionada API de homologacao com `DATABASE_URL` **interno** desse banco, segredos exclusivos e backend da branch `feat/385-canonical-clinical-timeline`; tampouco ha preview web autenticada da branch com `VITE_API_URL` apontando para essa API. O servico Render `sistema-acesso-api` na `main` permanece **exclusivamente producao** e nao pode ser reutilizado no staging.
+
+### Guard de preview versionado
+
+- `scripts/verify-preview-api-target.cjs` e executado antes do `vite build` do web somente quando `VERCEL_ENV=preview`.
+- O build falha sem `VITE_API_URL` ou se a URL apontar para host produtivo, HTTP, destino nao identificado como homologacao, origem nao administrada, credenciais, path ou parametros. Nenhum fallback para URL de producao e permitido.
+- `scripts/verify-preview-api-target.test.cjs` cobre casos positivos e negativos em `pnpm test`. Isso protege o deploy, mas nao substitui a homologacao manual.
+
+### Ordem segura para concluir TL-385-020
+
+1. Criar **novo** servico Render de API de staging a partir do SHA da PR (nao copiar variaveis de ambiente de producao); conectar exclusivamente ao PostgreSQL isolado pela URL **interna** do Dashboard, gerar um `JWT_SECRET` novo, definir URL publica e CORS de staging e manter mensageria/Stripe/integrações externas desabilitadas. Guardar segredos somente no provedor, nunca no repositorio ou nos relatorios.
+2. Aplicar migrations e seeds **apenas** no banco novo; criar perfis/usuarios e alunos inteiramente ficticios, dois contratos, permissoes distintas, historico com mais de 200 eventos, R1/R2 e um mecanismo controlado de falha por dominio. Validar que API e banco nao apontam para recursos da `main`.
+3. Configurar `VITE_API_URL` com **target preview e gitBranch da PR**, apontando exclusivamente para a API isolada; publicar o frontend com a identidade exata do HEAD material e registrar URLs/SHAs de API, frontend e banco.
+4. Em um navegador autenticado usando somente as identidades ficticias, executar o coletor e os **12 cenarios**, com relatorio, capturas sanitizadas, tempos de paginas inicial/intermediaria/profunda, teste de navegacao por teclado e zoom. Falha, bloqueio ou cenario nao executado impede aprovacao.
+5. Conferir CI e o gate `Validate repository` no **HEAD definitivo** (nao importar runs de SHAs anteriores). Solicitar nova auditoria independente e so entao avaliar merge.
+
+**Estado do gate:** `TL-385-020 = BLOCKED`, por falta de API/frontend de staging e evidencias de navegador autenticado. Banco isolado e guard de preview nao significam homologacao executada.
