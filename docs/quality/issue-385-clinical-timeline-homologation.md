@@ -154,3 +154,12 @@ O bloqueio permanece: nao foi provisionada API de homologacao com `DATABASE_URL`
 5. Conferir CI e o gate `Validate repository` no **HEAD definitivo** (nao importar runs de SHAs anteriores). Solicitar nova auditoria independente e so entao avaliar merge.
 
 **Estado do gate:** `TL-385-020 = BLOCKED`, por falta de API/frontend de staging e evidencias de navegador autenticado. Banco isolado e guard de preview nao significam homologacao executada.
+
+
+## Execucao da preparacao de staging em 14/10/2026 (TL-385-020)
+
+- API Render independente criada: `training-system-issue385-homolog-api` (`srv-db809e8n74is73d9l4ng`), na regiao Oregon, plano free, vinculada exclusivamente a `feat/385-canonical-clinical-timeline`, com `autoDeploy=no`. O build do commit `5ebd3346c99b857b624962850347179b5338951f` terminou com sucesso, mas o deploy falhou fechado com `[startup] DATABASE_URL nao configurada`. Essa falha confirma ausencia de conexao ao banco, **nao** homologacao funcional; nenhuma URL produtiva deve ser injetada para contornar o bloqueio.
+- PostgreSQL de staging `training-system-issue385-homolog-pg` (`dpg-db7vf64s728c73c53m50-a`) permanece `available`; o conector nao fornece a string interna de conexao/credenciais. Vincular `DATABASE_URL` e, se aplicavel, `MIGRATION_DATABASE_URL` por integracao segura no Dashboard Render; nunca colocar segredos no GitHub ou na documentacao. Usar segredos novos para `JWT_SECRET` e origens CORS exclusivamente de staging.
+- Na Vercel `training-system-web`, a variavel `VITE_API_URL` foi criada somente para o target `preview` e branch `feat/385-canonical-clinical-timeline`, apontando a `https://training-system-issue385-homolog-api.onrender.com`. Um deployment nao produtivo do SHA `5ebd3346c99b857b624962850347179b5338951f` foi solicitado: `dpl_AJAWUeGZffQhmAa5cwY9wQv8SDbB`. O estado final deve ser consultado na Vercel; existencia do deployment nao significa backend operacional.
+- **Ainda obrigatorio:** conectar backend ao banco de teste sem compartilhamento de segredos, aplicar migrations, criar somente identidades/dados ficticios, verificar origem do deploy de ambos os lados, executar e registrar todos os 12 cenarios com navegador autenticado, capturas sanitizadas e medicoes de desempenho.
+- **Gate:** TL-385-020 segue `BLOCKED`. Proibido marcar pass em qualquer cenario sem execucao real. Sem merge e sem deploy em producao.
