@@ -13,7 +13,7 @@ jest.mock('../student-contracts/student-contract.service.js', () => ({
   studentContractService: { listByAluno: mockListByAluno },
 }));
 
-import { studentDomainService } from './student-domain.service.js';
+import { studentDomainService, STUDENT_TIMELINE_CURSOR_MAX_LENGTH } from './student-domain.service.js';
 
 const snapshot = (overrides: Record<string, unknown> = {}) => ({
   id: 'aluno-1',
@@ -175,6 +175,44 @@ describe('studentDomainService snapshot reuse', () => {
     });
     expect(third?.items.map((item) => item.type)).toEqual(['student_created']);
     expect(third?.nextCursor).toBeNull();
+  });
+
+  it('roundtrips a real-length canonical cursor above 256 bytes while bounding input and tenant scope', async () => {
+    const alunoId = `aluno-${'a'.repeat(24)}`;
+    const contractId = `contract-${'c'.repeat(24)}`;
+    jest.spyOn(studentDomainService, 'loadAlunoTimelineSnapshot')
+      .mockResolvedValue(snapshot({ id: alunoId }) as never);
+    const records = [
+      { id: `long-${'r'.repeat(52)}`, createdAt: new Date('2026-10-13T14:00:00.000Z'),
+        metadata: { domain: 'anthropometry', action: 'completed', assessmentId: 'newest' } },
+      { id: 'older', createdAt: new Date('2026-10-13T13:00:00.000Z'),
+        metadata: { domain: 'anthropometry', action: 'completed', assessmentId: 'older' } },
+    ].map((item) => ({ ...item, contractId, actorUserId: null }));
+    mockLifecycleFindMany.mockImplementation(({ where, take }: any) =>
+      Promise.resolve(where.metadata?.equals === 'anthropometry' ? records.slice(0, take) : []));
+    const grants = {
+      profile: false, health: false, assessments: false, financial: false,
+      integrations: false, training: false,
+      clinical: { prnt: {}, intake: false, parq: false, anthropometry: true, adipometry: false },
+    };
+    const first = await studentDomainService.getTimeline(alunoId, {
+      companyContractId: contractId, timelineLimit: 1, timelineAccess: grants,
+    });
+    const cursor = first?.nextCursor;
+    expect(cursor).toEqual(expect.any(String));
+    expect(cursor!.length).toBeGreaterThan(256);
+    expect(cursor!.length).toBeLessThanOrEqual(STUDENT_TIMELINE_CURSOR_MAX_LENGTH);
+    const second = await studentDomainService.getTimeline(alunoId, {
+      companyContractId: contractId, timelineLimit: 1, timelineCursor: cursor!, timelineAccess: grants,
+    });
+    expect(second?.items[0].sourceId).toBe('older');
+    await expect(studentDomainService.getTimeline(alunoId, {
+      companyContractId: 'other-contract', timelineCursor: cursor!, timelineAccess: grants,
+    })).rejects.toThrow('INVALID_TIMELINE_CURSOR');
+    await expect(studentDomainService.getTimeline(alunoId, {
+      companyContractId: contractId,
+      timelineCursor: 'A'.repeat(STUDENT_TIMELINE_CURSOR_MAX_LENGTH + 1), timelineAccess: grants,
+    })).rejects.toThrow('INVALID_TIMELINE_CURSOR');
   });
 
   it('paginates distinct canonical anthropometry sources across API cursors', async () => {
