@@ -48,3 +48,75 @@ Esta especificação distingue **validação automatizada** (CI com PostgreSQL d
 - **TL-385-019 — correção de código:** na projeção legada, `parqSubmissions` exige o grant conjunto de Anamnese e PAR-Q, sem herdar a autorização de Anamnese. A recuperação degradada usa uma leitura PAR-Q separada com os mesmos gates; sem o grant, não consulta nem reutiliza o relacionamento. Três cenários de regressão no serviço cobrem leitura negada, permitida e falha do snapshot agregado.
 - **TL-385-020 — gate operacional:** o checklist acima continua **não executado em navegador autenticado de homologação**. A CI ou testes com mocks não comprovam capturas de interface, perfil real, carga de mais de 200 eventos, acessibilidade ou tempos reais de resposta. Registrar ambiente, perfis fictícios, horários, requisições, capturas e medições antes de declarar o gate concluído.
 - **Critério de fechamento:** revalidar o commit mais recente da PR #510 com `CRITICAL validation` e `Validate repository`, executar todos os cenários manuais (incluindo o novo controle negativo PAR-Q), registrar evidências sanitizadas e solicitar auditoria independente do mesmo HEAD. **Não declarar homologação concluída apenas por esta atualização.**
+
+## Coletor operacional da TL-385-020 (14/10/2026)
+
+O repositorio inclui `scripts/verify-issue-385-operational.cjs`. Ele **nao simula** backend,
+nao instala identidade de professor e nao substitui a observacao humana: abre Chromium
+real e guia os 12 cenarios deste checklist, com captura por cenario, resultado informado
+pelo operador e telemetria resumida de requisicoes reais da timeline (status, tempo de
+resposta, quantidade de eventos, estado parcial e duplicatas de origem). Capturas,
+relatorio e medidas ficam apenas em `reports/issue-385-operational/`, ignorado pelo Git.
+Nao armazena corpos de eventos clinicos, tokens, cabecalhos de autenticacao ou cookies.
+
+### Pre-condicoes obrigatorias
+
+1. Provisionar **ambiente de homologacao isolado** com frontend e API da mesma PR no
+   **SHA exato**, banco de testes e alunos/professores ficticios. Nunca apontar
+   esse coletor para `sistema-acesso.solveritconsultoria.com.br`, para a Vercel
+   de `main` ou para APIs/bancos de producao.
+2. Disponibilizar os perfis ficticios e permissões de cada cenario, duas empresas,
+   historicos de mais de 200 eventos e mecanismo controlado para falha localizada.
+   Somente completar avaliacao/adipometria de teste, nunca dados clinicos reais.
+3. Confirmar na plataforma a identidade do deployment e guardar a URL de evidencia.
+   A digitacao do SHA pelo operador e pre-condicao defensiva, **nao** prova automatica
+   de origem do deployment.
+4. Executar em maquina com Chrome/Chromium, ambiente grafico, Node e dependencias
+   do repositório instaladas. O coletor usa Puppeteer da `apps/api`.
+5. Manter o arquivo de configuracao fora do Git (por exemplo, `/tmp/issue-385-homolog.json`):
+
+```json
+{
+  "baseUrl": "https://homolog.example.test",
+  "entryPath": "/alunos/ALUNO_FICTICIO",
+  "expectedHeadSha": "SUBSTITUIR_PELO_SHA_COMPLETO_DA_PR",
+  "deploymentEvidenceUrl": "https://URL_DO_DEPLOYMENT_NAO_PRODUTIVO",
+  "syntheticData": true,
+  "fixtureDescription": "alunos ficticios em banco isolado"
+}
+```
+
+O valor de `expectedHeadSha` deve ser um hexadecimal real de 40 caracteres
+na execucao, e o hostname externo deve identificar claramente homologacao, staging
+ou preview.
+
+### Executar e verificar evidencias
+
+```bash
+node --test scripts/verify-issue-385-operational.test.cjs
+node scripts/verify-issue-385-operational.cjs /tmp/issue-385-homolog.json --preflight
+ISSUE385_FICTITIOUS_ONLY=YES node scripts/verify-issue-385-operational.cjs /tmp/issue-385-homolog.json
+```
+
+O navegador pede autenticação interativa com contas ficticias. Antes de cada cenario,
+o operador ajusta o perfil/fixture correspondente, realiza a navegacao e informa
+`pass`, `fail` ou `blocked` com justificativa sanitizada. O coletor recusa
+aprovar se nao observar requisicao de timeline; verifica algumas condicoes negativas
+automaticamente (evento clinico para Audit-only, PAR-Q negado, cross-tenant e repeticao
+em historico extenso). Isso e auxiliar, **nao** prova completa de autorizacao:
+revisar o comportamento e as requisicoes da API no ambiente homologado.
+
+Para fechar o gate, anexar o `report.json`, a proveniencia do deployment,
+as capturas de dados **apenas ficticios** e as medições das paginas inicial,
+intermediaria e profunda, identificando o operador e data. Revalidar em separado
+os testes de API/CI no mesmo SHA e solicitar reauditoria independente.
+
+### Estado na data do registro
+
+**Coletor implementado; homologacao nao executada.** Na verificacao de 14/10/2026,
+nao havia deployment de preview para `feat/385-canonical-clinical-timeline`
+no projeto Vercel `training-system-web`; os deployments consultados eram de
+`main`. A verificacao automatizada anterior da PR foi verde no SHA
+`768f2debbd6cd5d04e503a49557c7bf5a1d9d665`, mas qualquer commit novo
+requer consulta de checks no novo HEAD. Enquanto o ambiente isolado, os perfis,
+a execucao em browser e as evidencias nao existirem, **TL-385-020 continua aberta**.
