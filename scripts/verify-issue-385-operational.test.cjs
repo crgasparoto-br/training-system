@@ -1,7 +1,7 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { validateConfig, summarizeTimeline, SCENARIOS } = require("./verify-issue-385-operational.cjs");
+const { validateConfig, summarizeTimeline, isAllowedStagingRequest, evaluateScenarioEvidence, SCENARIOS } = require("./verify-issue-385-operational.cjs");
 
 const config = (override = {}) => ({
   baseUrl: "https://homolog.example.test",
@@ -67,4 +67,49 @@ test("TL-385-020: sumariza apenas metadados e identifica duplicacao/denegacao", 
   assert.ok(!JSON.stringify(first).includes("NEVER_PERSIST"));
   assert.ok(!JSON.stringify(first).includes("CURSOR_SECRET"));
   assert.ok(!JSON.stringify(first).includes("SECRET"));
+});
+
+
+test("TL-385-020: nenhuma navegacao, recurso, iframe ou API pode sair das origens de staging", () => {
+  const approved = new Set(["https://homolog.example.test", "https://api-homolog.example.test"]);
+  assert.equal(isAllowedStagingRequest("https://homolog.example.test/alunos/ficticio", approved), true);
+  assert.equal(isAllowedStagingRequest("https://api-homolog.example.test/api/alunos/ficticio/timeline", approved), true);
+  for (const url of [
+    "https://sistema-acesso.solveritconsultoria.com.br/alunos/real",
+    "https://training-system-web.vercel.app/",
+    "https://homolog.example.test.evil.invalid/",
+    "https://public-cdn.invalid/tracker.js",
+    "file:///etc/passwd",
+    "data:text/plain,unsafe",
+    "not-a-url",
+  ]) assert.equal(isAllowedStagingRequest(url, approved), false, url);
+});
+
+test("TL-385-020: IdP externo somente de homologacao e explicitamente configurado", () => {
+  assert.equal(validateConfig(config()).authOrigin, null);
+  assert.equal(validateConfig(config({ authOrigin: "https://auth-homolog.example.test" })).authOrigin, "https://auth-homolog.example.test");
+  assert.throws(() => validateConfig(config({ authOrigin: "https://auth.solveritconsultoria.com.br" })));
+  assert.throws(() => validateConfig(config({ authOrigin: "https://homolog.example.test:443@evil.invalid" })));
+  assert.throws(() => validateConfig(config({ authOrigin: "http://auth-homolog.example.test" })));
+});
+
+test("TL-385-020: Audit-only falha para eventos clinicos legados e financeiros", () => {
+  const scenario = { timelineRequests: [summarizeTimeline({ data: { items: [
+    { id: "x", type: "intake_recorded", sourceType: "student", sourceId: "x" },
+  ] } }, {})] };
+  assert.equal(scenario.timelineRequests[0].containsClinical, true);
+  assert.equal(evaluateScenarioEvidence("audit_only", scenario, "pass"), "fail");
+  const financialScenario = { timelineRequests: [summarizeTimeline({ data: { items: [
+    { id: "y", type: "financial_contract_signed", sourceType: "student", sourceId: "y" },
+  ] } }, {})] };
+  assert.equal(financialScenario.timelineRequests[0].containsFinancial, true);
+  assert.equal(evaluateScenarioEvidence("audit_only", financialScenario, "pass"), "fail");
+});
+
+test("TL-385-020: cross-tenant exige fronteira 403/404, 200 vazio nao e sucesso", () => {
+  assert.equal(evaluateScenarioEvidence("cross_tenant", { timelineRequests: [{ status: 200, count: 0 }] }, "pass"), "fail");
+  assert.equal(evaluateScenarioEvidence("cross_tenant", { timelineRequests: [{ status: 404 }] }, "pass"), "pass");
+  assert.equal(evaluateScenarioEvidence("cross_tenant", { timelineRequests: [{ status: 503 }] }, "pass"), "blocked");
+  assert.equal(evaluateScenarioEvidence("cross_tenant", { timelineRequests: [{ status: 200 }, { status: 404 }] }, "pass"), "fail");
+  assert.equal(evaluateScenarioEvidence("prnt", { timelineRequests: [{ status: 200 }] }, "pass", 1), "blocked");
 });
