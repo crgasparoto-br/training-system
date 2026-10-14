@@ -204,11 +204,12 @@ describe('canonical clinical timeline (#385)', () => {
       { ...denied, anthropometry: true }, 1);
 
     expect(result.items.map((item) => item.sourceId)).toEqual(['anth-new', 'anth-old']);
-    expect(mockLifecycle).toHaveBeenCalledTimes(2);
-    expect(mockLifecycle).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      skip: 2, take: 2,
+    expect(mockLifecycle).toHaveBeenCalledTimes(1);
+    expect(mockLifecycle).toHaveBeenCalledWith(expect.objectContaining({
+      take: 32,
       where: expect.objectContaining({ alunoId: 'aluno-a', contractId: 'contract-a' }),
     }));
+    expect(mockLifecycle.mock.calls[0][0]).not.toHaveProperty('skip');
   });
 
   it('deduplicates a full raw batch before deciding whether another valid event exists', async () => {
@@ -231,8 +232,8 @@ describe('canonical clinical timeline (#385)', () => {
 
     expect(result.items.map((item) => item.sourceId)).toEqual(['anth-1', 'anth-2']);
     expect(result.items[0].id).toBe('clinical-anthropometry-newest');
-    expect(mockLifecycle).toHaveBeenCalledTimes(2);
-    expect(mockLifecycle).toHaveBeenNthCalledWith(2, expect.objectContaining({ skip: 2, take: 2 }));
+    expect(mockLifecycle).toHaveBeenCalledTimes(1);
+    expect(mockLifecycle.mock.calls[0][0]).not.toHaveProperty('skip');
   });
 
   it('does not reintroduce an older duplicate after its winner is paginated', async () => {
@@ -261,6 +262,71 @@ describe('canonical clinical timeline (#385)', () => {
         contractId: 'contract-a', alunoId: 'aluno-a',
       }),
     }));
+  });
+
+
+  it('advances through many duplicate rows with bounded keyset batches and no OFFSET', async () => {
+    const base = Date.parse('2026-10-13T15:00:00.000Z');
+    const rows = Array.from({ length: 97 }, (_, index) => ({
+      id: `event-${String(999 - index).padStart(4, '0')}`,
+      contractId: 'contract-a',
+      actorUserId: null,
+      createdAt: new Date(base - index * 1000),
+      metadata: {
+        domain: 'anthropometry', action: 'completed',
+        assessmentId: index === 96 ? 'distinct-old' : 'replayed-source',
+      },
+    }));
+    mockLifecycle.mockImplementation(({ where, take }: {
+      where: { AND?: Array<{ OR?: Array<Record<string, any>> }> }; take: number;
+    }) => {
+      const boundary = where.AND?.[1]?.OR;
+      const olderThan = boundary?.[0]?.createdAt?.lt as Date | undefined;
+      const sameAt = boundary?.[1]?.createdAt as Date | undefined;
+      const olderId = boundary?.[1]?.id?.lt as string | undefined;
+      return Promise.resolve(rows.filter((row) => !olderThan
+        || row.createdAt < olderThan
+        || (sameAt && row.createdAt.getTime() === sameAt.getTime() && row.id < (olderId ?? '')))
+        .slice(0, take));
+    });
+
+    const access = { ...denied, anthropometry: true };
+    const result = await readClinicalTimeline('aluno-a', 'contract-a', access, 1);
+    expect(result.items.map((item) => item.sourceId).toEqual(['replayed-source', 'distinct-old']);
+    expect(mockLifecycle.mock.calls.length).toBeGreaterThan(3);
+    for (const [query] of mockLifecycle.mock.calls) {
+      expect(query.take).toBeLessThanOrEqual(200);
+      expect(query).not.toHaveProperty('skip');
+      expect(query.where.alunoId).toBe('aluno-a');
+      expect(query.where.contractId).toBe('contract-a');
+    }
+    const second = await readClinicalTimeline('aluno-a', 'contract-a', access, 1, {
+      kind: 'clinical', at: rows[0].createdAt.toISOString(),
+      id: `clinical-anthropometry-${rows[0].id}`,
+    });
+    expect(second.items.map((item) => item.sourceId).toEqual(['distinct-old']);
+  });
+
+  it('advances keysets deterministically when timestamps are identical', async () => {
+    const rows = Array.from({ length: 34 }, (_, index) => ({
+      id: `id-${String(99 - index).padStart(3, '0')}`, contractId: 'contract-a',
+      createdAt: at, actorUserId: null,
+      metadata: { domain: 'anthropometry', action: 'completed',
+        assessmentId: index === 33 ? 'second' : 'first' },
+    }));
+    mockLifecycle.mockImplementation(({ where, take }: {
+      where: { AND?: Array<{ OR?: Array<Record<string, any>> }> }; take: number;
+    }) => {
+      const lastId = where.AND?.[1]?.OR?.[1]?.id?.lt as string | undefined;
+      return Promise.resolve(rows.filter((row) => !lastId || row.id < lastId).slice(0, take));
+    });
+    const result = await readClinicalTimeline('aluno-a', 'contract-a',
+      { ...denied, anthropometry: true }, 1);
+    expect(result.items.map((item) => item.sourceId).toEqual(['first', 'second']);
+    expect(mockLifecycle).toHaveBeenCalledTimes(2);
+    expect(mockLifecycle.mock.calls[1][0].where.AND[1].OR[1]).toEqual({
+      createdAt: at, id: { lt: rows[31].id },
+    });
   });
 
   it('keeps available domains and reports a localized source failure', async () => {
