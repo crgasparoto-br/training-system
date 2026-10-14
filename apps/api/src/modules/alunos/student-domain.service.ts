@@ -675,13 +675,17 @@ async function loadDegradedTimelineSnapshot(
   await readPart('Anamnese', grants.health && grants.clinical.intake,
     () => prisma.aluno.findFirst({ where, include: {
       intakeForm: true, studentHealthIntake: true,
+    } }), ['intakeForm', 'studentHealthIntake']);
+  // In degraded mode the PAR-Q projection must use the same distinct grant.
+  await readPart('PAR-Q', grants.health && grants.clinical.intake && grants.clinical.parq,
+    () => prisma.aluno.findFirst({ where, include: {
       parqSubmissions: {
         where: { declarationAccepted: true,
           catalogVersion: { in: [PARQ_CATALOG_VERSION, PARQ_LEGACY_CATALOG_VERSION] } },
         orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
         take: 1,
       },
-    } }), ['intakeForm', 'studentHealthIntake', 'parqSubmissions']);
+    } }), ['parqSubmissions']);
   await readPart('Avaliações', grants.assessments,
     () => prisma.aluno.findFirst({ where, include: {
       assessments: { include: { type: true }, orderBy: { assessmentDate: 'desc' }, take: 20 },
@@ -1054,6 +1058,8 @@ export const studentDomainService = {
   async loadAlunoTimelineSnapshot(alunoId: string, options: StudentDomainQueryOptions = {}) {
     const grants = options.timelineAccess ?? NO_TIMELINE_DOMAIN_ACCESS;
     const canReadLegacyIntake = grants.health && grants.clinical.intake;
+    // A grant for Anamnese does not authorize reading PAR-Q submissions.
+    const canReadLegacyParq = canReadLegacyIntake && grants.clinical.parq;
     const aluno = await prisma.aluno.findFirst({
       where: {
         id: alunoId,
@@ -1067,6 +1073,8 @@ export const studentDomainService = {
         ...(canReadLegacyIntake ? {
           intakeForm: true,
           studentHealthIntake: true,
+        } : {}),
+        ...(canReadLegacyParq ? {
           parqSubmissions: {
             where: {
               declarationAccepted: true,
@@ -1108,7 +1116,7 @@ export const studentDomainService = {
       studentProfile: grants.profile ? (aluno as any).studentProfile ?? null : null,
       intakeForm: canReadLegacyIntake ? (aluno as any).intakeForm ?? null : null,
       studentHealthIntake: canReadLegacyIntake ? (aluno as any).studentHealthIntake ?? null : null,
-      parqSubmissions: canReadLegacyIntake ? (aluno as any).parqSubmissions ?? [] : [],
+      parqSubmissions: canReadLegacyParq ? (aluno as any).parqSubmissions ?? [] : [],
       assessments: grants.assessments ? (aluno as any).assessments ?? [] : [],
       studentAssessmentRecords: grants.assessments ? (aluno as any).studentAssessmentRecords ?? [] : [],
       service: grants.financial ? (aluno as any).service ?? null : null,
