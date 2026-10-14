@@ -285,7 +285,7 @@ describe('canonical clinical timeline (#385)', () => {
       const sameAt = boundary?.[1]?.createdAt as Date | undefined;
       const olderId = boundary?.[1]?.id?.lt as string | undefined;
       return Promise.resolve(rows.filter((row) => !olderThan
-        || row.createdAt < olderThan
+        || row.createdAt.getTime() < olderThan.getTime()
         || (sameAt && row.createdAt.getTime() === sameAt.getTime() && row.id < (olderId ?? '')))
         .slice(0, take));
     });
