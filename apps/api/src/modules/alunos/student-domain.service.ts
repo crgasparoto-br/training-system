@@ -464,7 +464,11 @@ const buildTrainingTimelineEvents = (lifecycleEvents: any[]) => lifecycleEvents.
 export const STUDENT_TIMELINE_CURSOR_MAX_LENGTH = 512;
 type TimelineCursor = { v: 1; alunoId: string; contractId: string | null; at: string; kind: TimelineEventKind; id: string };
 
-const timelineTimestamp = (value: unknown) => new Date(String(value)).getTime();
+// Preserve sub-second precision from Prisma Date values. Date#toString() drops
+// milliseconds, which makes a keyset cursor skip events in the same second.
+const timelineTimestamp = (value: unknown) => value instanceof Date
+  ? value.getTime()
+  : new Date(String(value)).getTime();
 const timelineKey = (event: unknown, kind: TimelineEventKind) => {
   const value = event as { id: string; occurredAt: unknown };
   return { at: timelineTimestamp(value.occurredAt), kind, id: String(value.id) };
