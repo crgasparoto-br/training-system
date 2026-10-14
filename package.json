@@ -15,7 +15,7 @@
     "dev:all:dev-migrate": "./scripts/dev-all.sh --migrate-dev",
     "dev:down": "./scripts/dev-down.sh",
     "build": "pnpm -r run build",
-    "test": "pnpm -r run test && node --test scripts/verify-issue-385-operational.test.cjs",
+    "test": "pnpm -r run test && node --test scripts/verify-issue-385-operational.test.cjs scripts/verify-preview-api-target.test.cjs",
     "lint": "pnpm -r run lint",
     "format": "pnpm -r run format",
     "type-check": "pnpm -r run type-check",
