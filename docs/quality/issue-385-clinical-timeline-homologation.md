@@ -78,6 +78,7 @@ Nao armazena corpos de eventos clinicos, tokens, cabecalhos de autenticacao ou c
 ```json
 {
   "baseUrl": "https://homolog.example.test",
+  "apiOrigin": "https://api-homolog.example.test",
   "entryPath": "/alunos/ALUNO_FICTICIO",
   "expectedHeadSha": "SUBSTITUIR_PELO_SHA_COMPLETO_DA_PR",
   "deploymentEvidenceUrl": "https://URL_DO_DEPLOYMENT_NAO_PRODUTIVO",
@@ -86,7 +87,7 @@ Nao armazena corpos de eventos clinicos, tokens, cabecalhos de autenticacao ou c
 }
 ```
 
-O valor de `expectedHeadSha` deve ser um hexadecimal real de 40 caracteres
+O campo `apiOrigin` é obrigatório e deve apontar exclusivamente para API isolada de homologação. O navegador **bloqueia solicitações fetch/XHR fora das origens web/API configuradas**, inclusive caso um frontend de staging esteja compilado contra backend produtivo. O valor de `expectedHeadSha` deve ser um hexadecimal real de 40 caracteres
 na execucao, e o hostname externo deve identificar claramente homologacao, staging
 ou preview.
 
