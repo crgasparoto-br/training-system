@@ -28,6 +28,7 @@ Esta especificação distingue **validação automatizada** (CI com PostgreSQL d
 | Adipometria | Concluir R1, realizar correção R2 com outro finalizador e voltar à timeline | R1 e R2 permanecem presentes, com datas e autores corretos |
 | Perfil com somente Audit | Negar blocos clínicos e financeiro; abrir Histórico | Não recebe dados ou links clínicos/financeiros, inclusive pela API |
 | Permissão parcial | Conceder apenas um bloco PRNT, negar os demais | Só eventos da categoria permitida são carregados |
+| Anamnese permitida, PAR-Q negado | Permitir somente Anamnese e negar PAR-Q, abrir Histórico e conferir requisições da API | O snapshot normal e a recuperação degradada não consultam `parqSubmissions`, não retornam respostas PAR-Q e preservam os demais eventos permitidos |
 | Cross-tenant | Autenticar em contrato B e tentar acessar histórico do aluno A | API não retorna eventos do outro contrato |
 | Histórico extenso | Gerar mais de 200 eventos, navegar repetidamente em Carregar eventos anteriores | Sem lacunas nem duplicatas; tempo de resposta observado e registrado |
 | Falha localizada | Em homologação, indisponibilizar uma fonte controladamente | Demais domínios continuam carregando; aviso parcial e Tentar novamente funcionam |
@@ -41,3 +42,9 @@ Esta especificação distingue **validação automatizada** (CI com PostgreSQL d
 4. Lista de falhas, correções e repetição de testes afetados, caso qualquer cenário reprove.
 
 **Estado:** roteiro e regressões automatizadas implementados. Homologação manual/visual não executada por este documento; a aprovação operacional depende das evidências acima.
+
+## Situação da remediação TL-385-019 / TL-385-020 (14/10/2026)
+
+- **TL-385-019 — correção de código:** na projeção legada, `parqSubmissions` exige o grant conjunto de Anamnese e PAR-Q, sem herdar a autorização de Anamnese. A recuperação degradada usa uma leitura PAR-Q separada com os mesmos gates; sem o grant, não consulta nem reutiliza o relacionamento. Três cenários de regressão no serviço cobrem leitura negada, permitida e falha do snapshot agregado.
+- **TL-385-020 — gate operacional:** o checklist acima continua **não executado em navegador autenticado de homologação**. A CI ou testes com mocks não comprovam capturas de interface, perfil real, carga de mais de 200 eventos, acessibilidade ou tempos reais de resposta. Registrar ambiente, perfis fictícios, horários, requisições, capturas e medições antes de declarar o gate concluído.
+- **Critério de fechamento:** revalidar o commit mais recente da PR #510 com `CRITICAL validation` e `Validate repository`, executar todos os cenários manuais (incluindo o novo controle negativo PAR-Q), registrar evidências sanitizadas e solicitar auditoria independente do mesmo HEAD. **Não declarar homologação concluída apenas por esta atualização.**
