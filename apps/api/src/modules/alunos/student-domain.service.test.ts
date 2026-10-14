@@ -120,7 +120,7 @@ describe('studentDomainService snapshot reuse', () => {
       timelineAccess: {
         profile: true, health: false, assessments: false, financial: true,
         integrations: false, training: false,
-        clinical: { prnt: {}, intake: true, parq: false, anthropometry: false, adipometry: false },
+        clinical: { prnt: {}, intake: false, parq: false, anthropometry: false, adipometry: false },
       },
     });
     const query = mockFindFirst.mock.calls[0][0];
