@@ -1,11 +1,14 @@
 const mockFindFirst = jest.fn();
 const mockLifecycleFindMany = jest.fn();
 const mockListByAluno = jest.fn();
+const mockIntakeFindMany = jest.fn();
+const mockIntakeFindFirst = jest.fn();
 
 jest.mock('../../common/prisma-runtime-client.js', () => ({
   prismaRuntimeClient: {
     aluno: { findFirst: mockFindFirst },
     studentLifecycleEvent: { findMany: mockLifecycleFindMany },
+    studentHealthIntakeRevision: { findMany: mockIntakeFindMany, findFirst: mockIntakeFindFirst },
   },
 }));
 
@@ -43,6 +46,8 @@ describe('studentDomainService snapshot reuse', () => {
     mockFindFirst.mockReset();
     mockLifecycleFindMany.mockReset().mockResolvedValue([]);
     mockListByAluno.mockReset().mockResolvedValue([]);
+    mockIntakeFindMany.mockReset().mockResolvedValue([]);
+    mockIntakeFindFirst.mockReset().mockResolvedValue(null);
   });
 
   it.each(['getSummary', 'getTimeline'] as const)(
@@ -130,6 +135,91 @@ describe('studentDomainService snapshot reuse', () => {
     expect(query.where).toEqual({ id: 'aluno-1', contractId: 'contract-a' });
     expect(mockListByAluno).toHaveBeenCalledTimes(1);
     expect(result?.partial).toBe(false);
+  });
+
+  it('never queries or rehydrates PAR-Q when Anamnese is granted but PAR-Q is denied', async () => {
+    const restrictedAccess = {
+      profile: false, health: true, assessments: false, financial: false,
+      integrations: false, training: false,
+      clinical: { prnt: {}, intake: true, parq: false, anthropometry: false, adipometry: false },
+    };
+    mockFindFirst.mockImplementation(({ where, include }: any) => {
+      expect(where).toEqual({ id: 'aluno-1', contractId: 'contract-a' });
+      // A negative control: attempting to include PAR-Q must fail, even though
+      // an unexpectedly broad mock response contains private PAR-Q answers.
+      if (include?.parqSubmissions) throw new Error('DENIED_PARQ_READ');
+      return Promise.resolve(snapshot({
+        studentHealthIntake: { status: 'COMPLETED', createdAt: new Date('2026-01-01') },
+        parqSubmissions: [{ id: 'private-parq', responses: { secret: 'DENIED_PARQ_ANSWER' } }],
+      }));
+    });
+    const loaded = await studentDomainService.loadAlunoTimelineSnapshot('aluno-1', {
+      companyContractId: 'contract-a', timelineAccess: restrictedAccess,
+    });
+    expect(mockFindFirst).toHaveBeenCalledTimes(1);
+    const include = mockFindFirst.mock.calls[0][0].include;
+    expect(include).toHaveProperty('studentHealthIntake', true);
+    expect(include).toHaveProperty('intakeForm', true);
+    expect(include).not.toHaveProperty('parqSubmissions');
+    expect(loaded?.parqSubmissions).toEqual([]);
+    expect(JSON.stringify(loaded)).not.toContain('DENIED_PARQ_ANSWER');
+  });
+
+  it('loads the legacy PAR-Q relation only with both Anamnese and PAR-Q grants', async () => {
+    mockFindFirst.mockResolvedValue(snapshot({
+      parqSubmissions: [{ id: 'permitted-parq', responses: { consent: true } }],
+    }));
+    const fullAccess = {
+      profile: false, health: true, assessments: false, financial: false,
+      integrations: false, training: false,
+      clinical: { prnt: {}, intake: true, parq: true, anthropometry: false, adipometry: false },
+    };
+    const loaded = await studentDomainService.loadAlunoTimelineSnapshot('aluno-1', {
+      companyContractId: 'contract-a', timelineAccess: fullAccess,
+    });
+    expect(mockFindFirst.mock.calls[0][0].include.parqSubmissions).toEqual(
+      expect.objectContaining({ take: 1 }),
+    );
+    expect(loaded?.parqSubmissions).toEqual([{ id: 'permitted-parq', responses: { consent: true } }]);
+
+    mockFindFirst.mockClear();
+    await studentDomainService.loadAlunoTimelineSnapshot('aluno-1', {
+      companyContractId: 'contract-a',
+      timelineAccess: { ...fullAccess, health: false, clinical: { ...fullAccess.clinical, intake: false } },
+    });
+    expect(mockFindFirst.mock.calls[0][0].include).not.toHaveProperty('parqSubmissions');
+  });
+
+  it('keeps PAR-Q denied during degraded timeline recovery after a broad snapshot failure', async () => {
+    let broadReadFailed = false;
+    mockFindFirst.mockImplementation(({ where, include }: any) => {
+      expect(where).toEqual({ id: 'aluno-1', contractId: 'contract-a' });
+      if (include?.parqSubmissions) throw new Error('DENIED_PARQ_READ');
+      if (include?.studentHealthIntake && !broadReadFailed) {
+        broadReadFailed = true;
+        throw new Error('BROKEN_OPTIONAL_INTAKE_RELATION');
+      }
+      return Promise.resolve(snapshot({
+        studentHealthIntake: { status: 'COMPLETED', createdAt: new Date('2026-01-01') },
+        parqSubmissions: [{ id: 'denied-parq', responses: { secret: 'DENIED_PARQ_ANSWER' } }],
+      }));
+    });
+    const grants = {
+      profile: false, health: true, assessments: false, financial: false,
+      integrations: false, training: false,
+      clinical: { prnt: {}, intake: true, parq: false, anthropometry: false, adipometry: false },
+    };
+    const timeline = await studentDomainService.getTimeline('aluno-1', {
+      companyContractId: 'contract-a', timelineAccess: grants,
+    });
+    expect(broadReadFailed).toBe(true);
+    expect(mockFindFirst).toHaveBeenCalledTimes(3);
+    for (const [query] of mockFindFirst.mock.calls) {
+      expect(query.include ?? {}).not.toHaveProperty('parqSubmissions');
+      expect(query.where).toEqual({ id: 'aluno-1', contractId: 'contract-a' });
+    }
+    expect(timeline?.unavailableDomains).not.toContain('PAR-Q');
+    expect(JSON.stringify(timeline)).not.toContain('DENIED_PARQ_ANSWER');
   });
 
   it('keeps the global cursor after skipped malformed anthropometry events', async () => {
