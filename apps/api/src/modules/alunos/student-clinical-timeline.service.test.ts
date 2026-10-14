@@ -235,6 +235,34 @@ describe('canonical clinical timeline (#385)', () => {
     expect(mockLifecycle).toHaveBeenNthCalledWith(2, expect.objectContaining({ skip: 2, take: 2 }));
   });
 
+  it('does not reintroduce an older duplicate after its winner is paginated', async () => {
+    const rows = [
+      { id: 'canonical-new', contractId: 'contract-a', actorUserId: null,
+        createdAt: new Date('2026-10-13T14:00:00Z'),
+        metadata: { domain: 'anthropometry', action: 'completed', assessmentId: 'anth-1' } },
+      { id: 'duplicate-older', contractId: 'contract-a', actorUserId: null,
+        createdAt: new Date('2026-10-13T13:00:00Z'),
+        metadata: { domain: 'anthropometry', action: 'completed', assessmentId: 'anth-1' } },
+      { id: 'other-assessment', contractId: 'contract-a', actorUserId: null,
+        createdAt: new Date('2026-10-13T12:00:00Z'),
+        metadata: { domain: 'anthropometry', action: 'completed', assessmentId: 'anth-2' } },
+    ];
+    mockLifecycle.mockImplementation(({ skip = 0, take }: { skip?: number; take: number }) =>
+      Promise.resolve(rows.slice(skip, skip + take)));
+    const page = await readClinicalTimeline('aluno-a', 'contract-a',
+      { ...denied, anthropometry: true }, 1, {
+        kind: 'clinical', at: rows[0].createdAt.toISOString(),
+        id: 'clinical-anthropometry-canonical-new',
+      });
+    expect(page.items.map((item) => item.sourceId)).toEqual(['anth-2']);
+    expect(page.items[0].id).toBe('clinical-anthropometry-other-assessment');
+    expect(mockLifecycle).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        contractId: 'contract-a', alunoId: 'aluno-a',
+      }),
+    }));
+  });
+
   it('keeps available domains and reports a localized source failure', async () => {
     mockPrntHistory.mockRejectedValue(new Error('internal DB error with private data'));
     mockParq.mockResolvedValue([{
