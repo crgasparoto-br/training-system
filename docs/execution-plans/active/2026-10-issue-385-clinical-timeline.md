@@ -106,3 +106,13 @@ Aprovação depende de validações no HEAD corrigido e nova auditoria independe
 - **Casos discriminantes:** Anamnese liberada / PAR-Q negado não consulta nem retorna o relacionamento; ambos liberados consultam sob `alunoId/contractId`; falha do snapshot amplo provoca fallback que não consulta PAR-Q negado. Suíte de regressão em `apps/api/src/modules/alunos/student-domain.service.test.ts`.
 - **TL-385-020 (homologação):** ampliação do roteiro com controle negativo explícito de acesso PAR-Q. O navegador autenticado e o ambiente de homologação com perfis/dados clínicos de teste não estão disponíveis neste runtime; **a execução visual, as capturas e a medição de desempenho real permanecem pendentes**. Não substituir a evidência por checklist preenchido por inferência, teste unitário ou CI.
 - **Gates:** verificar o `Validate PR` / `CRITICAL validation` / `Validate repository` no HEAD material posterior às correções, registrar resultado e retornar para auditoria independente após a homologação. Nenhum merge/deploy/fechamento de issue foi realizado.
+
+
+## Implementacao operacional da TL-385-020 — coletor e gate externo (14/10/2026)
+
+- Adicionado `scripts/verify-issue-385-operational.cjs` para registrar navegacao **real** e autenticada em Chromium, sem API mockada, para os 12 cenarios clinicos. Gera `reports/issue-385-operational/report.json`, capturas apenas de fixtures ficticias, metricas por requisicao e resultado por cenario. Bloqueia dominios de producao, exige hostname explicito de staging/homolog/preview, SHA do deploy confirmado pelo operador e conjunto de dados ficticios.
+- Criado `scripts/verify-issue-385-operational.test.cjs` e incluido no `pnpm test`: testes de negaçao de alvos produtivos, validaçao de SHA e isolamento, cobertura do checklist e ausencia de dados clinicos/cursor no resumo da API.
+- Documentada a execucao em `docs/quality/issue-385-clinical-timeline-homologation.md`, incluindo preflight, configuracao local, navegacao, capturas sanitizadas e criterio de fechamento.
+- A Vercel `training-system-web` nao possuia deployment de preview para a branch da PR #510 na consulta de 14/10/2026; a URL de producao continua vinculada a `main`, nao a esta PR. **Nao** executar cenarios clinicos na base de producao.
+- **Estado:** preparacao operacional implementada; execucao visual e mediçoes reais **pendentes** de deploy isolado e operador autenticado com usuarios ficticios. A TL-385-020 nao esta aprovada por ter o coletor; o aceite ainda depende das 12 evidencias reais e da reauditoria.
+- CI precisa ser observada no HEAD final deste conjunto de commits, sem transportar o verde de `768f2deb`. Nenhum merge/deploy/correcao em dados reais.
