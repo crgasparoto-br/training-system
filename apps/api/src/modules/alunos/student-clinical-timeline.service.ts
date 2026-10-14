@@ -181,7 +181,10 @@ export async function readClinicalTimeline(
       // an older completion and incorrectly terminate the global cursor.
       const pageTarget = limit + 1;
       const unique = new Map<string, ClinicalTimelineEvent>();
+      const seenSources = new Set<string>();
       let skip = 0;
+      // Canonical winner is the newest valid source row. Examine rows newer
+      // than the cursor too, or their older duplicates will appear on page 2.
       while (unique.size < pageTarget) {
         const rows = await prisma.studentLifecycleEvent.findMany({
           where: { alunoId, contractId,
@@ -189,8 +192,7 @@ export async function readClinicalTimeline(
             AND: [{ OR: [
               { metadata: { path: ['action'], equals: 'completed' } },
               { metadata: { path: ['action'], equals: 'corrected' } },
-            ] }],
-            ...sourceTimeWhere('clinical-anthropometry-', 'createdAt', cursor) },
+            ] }] },
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           skip, take: pageTarget,
           select: { id: true, contractId: true, actorUserId: true, createdAt: true, metadata: true },
@@ -202,7 +204,7 @@ export async function readClinicalTimeline(
           const assessmentId = meta?.assessmentId;
           const correctionId = meta?.correctionId;
           if ((action !== 'completed' && action !== 'corrected') || typeof assessmentId !== 'string'
-            || (action === 'corrected' && typeof correctionId !== 'string')) continue;
+            || !assessmentId || (action === 'corrected' && (typeof correctionId !== 'string' || !correctionId))) continue;
           const sourceType = action === 'corrected' ? 'anthropometry-correction' : 'anthropometry-assessment';
           const sourceId = action === 'corrected' ? correctionId as string : assessmentId;
           const event: ClinicalTimelineEvent = {
@@ -216,7 +218,17 @@ export async function readClinicalTimeline(
               correctionId: typeof correctionId === 'string' ? correctionId : null },
           };
           const identity = `${event.sourceType}:${event.sourceId}:${event.type}`;
-          if (!unique.has(identity)) unique.set(identity, event);
+          if (seenSources.has(identity)) continue;
+          seenSources.add(identity);
+          if (cursor) {
+            const occurredAt = new Date(event.occurredAt).getTime();
+            const cursorAt = Date.parse(cursor.at);
+            if (occurredAt > cursorAt || (occurredAt === cursorAt
+              && (cursor.kind === 'training' || (cursor.kind === 'clinical'
+                && event.id.localeCompare(cursor.id) >= 0)))) continue;
+          }
+          unique.set(identity, event);
+          if (unique.size === pageTarget) break;
         }
         if (rows.length < pageTarget) break;
         skip += rows.length;
