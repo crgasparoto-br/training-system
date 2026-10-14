@@ -458,6 +458,10 @@ const buildTrainingTimelineEvents = (lifecycleEvents: any[]) => lifecycleEvents.
   }];
 });
 
+// A base64url cursor carries both tenant IDs and a canonical clinical source ID.
+// Adipometry UUIDs and anthropometry revision IDs can exceed the old 256-character
+// HTTP limit even though the generated cursor is valid. Keep a bounded limit.
+export const STUDENT_TIMELINE_CURSOR_MAX_LENGTH = 512;
 type TimelineCursor = { v: 1; alunoId: string; contractId: string | null; at: string; kind: TimelineEventKind; id: string };
 
 const timelineTimestamp = (value: unknown) => new Date(String(value)).getTime();
@@ -475,7 +479,7 @@ const compareTimelineKeys = (
 
 const decodeTimelineCursor = (raw: string, alunoId: string, contractId?: string): TimelineCursor => {
   try {
-    if (!/^[A-Za-z0-9_-]{1,256}$/.test(raw)) throw new Error('invalid');
+    if (!raw || raw.length > STUDENT_TIMELINE_CURSOR_MAX_LENGTH || !/^[A-Za-z0-9_-]+$/.test(raw)) throw new Error('invalid');
     const parsed: unknown = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
     if (!parsed || typeof parsed !== 'object') throw new Error('invalid');
     const data = parsed as Partial<TimelineCursor>;
