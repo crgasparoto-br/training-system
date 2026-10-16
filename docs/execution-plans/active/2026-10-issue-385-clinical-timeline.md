@@ -124,3 +124,16 @@ Aprovação depende de validações no HEAD corrigido e nova auditoria independe
 - Adicionado `scripts/verify-preview-api-target.cjs`, integrado a `apps/web/package.json` para impedir build Vercel de preview sem API de homologacao segura, incluindo controles de host e origem; `scripts/verify-preview-api-target.test.cjs` foi conectado ao `pnpm test`.
 - Antes da execucao operacional: provisionar servico de API de homologacao isolado, configurar URL interna do novo banco e segredo de assinatura independente, publicar frontend preview da mesma branch com `VITE_API_URL` de staging, criar fixtures ficticias e executar os 12 cenarios reais com `scripts/verify-issue-385-operational.cjs`.
 - **Gate TL-385-020 ainda bloqueado**, sem evidencias de browser, links, perfis e medicao. O CI verifica codigo e regressao do guard, nao transforma essa pendencia em aprovada. Consultar o runbook em `docs/quality/issue-385-clinical-timeline-homologation.md` e revalidar CI exact-SHA apos esta remediacao.
+
+## Homologacao local executada — 16/10/2026 (janela VPS isolada)
+
+- SHA homologado: `e0352f4ec8b8f64fbb07c2291be8cbe599e6e9d6` (PR #510, branch `feat/385-canonical-clinical-timeline`).
+- Ambiente local isolado criado em `127.0.0.1:55432` (PostgreSQL 16 em container dedicado `hml385-postgres`, rede `hml385-net`) com variaveis exclusivas de homologacao local.
+- Sequencia obrigatoria da issue executada com evidencias em `reports/hml385/`:
+  - Prisma generate: OK.
+  - Migrations no banco isolado: OK (execucao estavel em `26-remigrate.log`).
+  - Testes obrigatorios da timeline (API + web + coletores): OK.
+  - `pnpm access:check`, `pnpm docs:check`, `pnpm arch:check`: OK.
+  - `pnpm validate`: **falhou** nesta VPS por indisponibilidade intermitente do PostgreSQL isolado durante lotes longos (`Can't reach database server at 127.0.0.1:55432`) e, em tentativa anterior, por gate de suite que exige nome de base com `test`.
+- O coletor operacional da TL-385-020 passou no preflight (`--preflight`) com configuracao local segura, mas os 12 cenarios manuais/autenticados nao foram executados nesta sessao nao interativa.
+- Conclusao desta rodada: pendencia principal TL-385-020 permanece aberta por ausencia de execucao real em navegador autenticado com captura operacional dos 12 cenarios.
