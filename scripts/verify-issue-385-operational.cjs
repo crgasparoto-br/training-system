@@ -39,9 +39,19 @@ function validateConfig(config) {
   const url = new URL(config.baseUrl);
   assert.ok(url.protocol === "https:" || (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname)), "HTTPS obrigatorio fora de localhost");
   assert.ok(!PRODUCTION_HOSTS.has(url.hostname), "Dominio de producao bloqueado");
-  assert.ok(["localhost", "127.0.0.1"].includes(url.hostname) || /(staging|homolog|preview)/i.test(url.hostname), "Use somente hostname explicitamente de homologacao/preview");
+  // Vercel truncates feature-branch aliases (feat/385 -> feat-38), so a real
+  // issue-385 preview does not contain "preview" in the hostname. Allow ONLY the
+  // verified project/team/branch alias, never a production domain or generic Git alias.
+  const issue385VercelPreview = /^training-system-web-git-feat-38-[a-z0-9-]+-crgasparoto-brs-projects\\.vercel\\.app$/.test(url.hostname);
+  assert.ok(["localhost", "127.0.0.1"].includes(url.hostname) || /(staging|homolog|preview)/i.test(url.hostname) || issue385VercelPreview, "Use somente hostname explicitamente de homologacao/preview");
   assert.ok(url.username === "" && url.password === "" && url.pathname === "/" && !url.search && !url.hash, "baseUrl nao pode conter credenciais, rota ou query");
   assert.ok(typeof config.deploymentEvidenceUrl === "string" && config.deploymentEvidenceUrl.startsWith("https://"), "URL de comprovacao de deploy obrigatoria");
+  if (issue385VercelPreview) {
+    const evidence = new URL(config.deploymentEvidenceUrl);
+    assert.ok(evidence.hostname === "vercel.com" &&
+      /^\\/crgasparoto-brs-projects\\/training-system-web\\/[A-Za-z0-9_-]+\\/?$/.test(evidence.pathname),
+      "Preview da Issue 385 exige evidencia do deployment Vercel do projeto exato");
+  }
   const api = new URL(config.apiOrigin);
   assert.ok(api.pathname === "/" && !api.search && !api.hash && !api.username && !api.password, "apiOrigin deve conter somente a origem");
   assert.ok(api.protocol === "https:" || (api.protocol === "http:" && ["localhost", "127.0.0.1"].includes(api.hostname)), "Origem de API insegura");

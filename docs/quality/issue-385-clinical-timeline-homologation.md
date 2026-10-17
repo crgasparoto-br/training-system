@@ -34,6 +34,16 @@ Esta especificação distingue **validação automatizada** (CI com PostgreSQL d
 | Falha localizada | Em homologação, indisponibilizar uma fonte controladamente | Demais domínios continuam carregando; aviso parcial e Tentar novamente funcionam |
 | Navegação acessível | Testar teclado, zoom 200% e viewport estreita | Histórico e links navegáveis e legíveis |
 
+**Preview da Issue #385:** o alias Vercel de branch pode ser truncado como
+`training-system-web-git-feat-38-...-crgasparoto-brs-projects.vercel.app`, sem
+as palavras `staging` ou `preview` no host. O coletor reconhece somente esse
+padrão de projeto/equipe/branch quando `deploymentEvidenceUrl` é a página do
+deployment no projeto Vercel correto. O operador ainda deve **confirmar no
+provedor** que o SHA de frontend e API coincide com o HEAD da PR; o alias
+sozinho não comprova SHA. Domínios de produção seguem bloqueados. Se o login
+redirecionar ao SSO produtivo da Vercel, interromper a execução e prover um
+mecanismo de autenticação isolado, sem ampliar a allowlist para produção.
+
 ## Evidência obrigatória para fechamento da homologação
 
 1. URL da execução de CI no último HEAD, com todos os checks obrigatórios verdes.

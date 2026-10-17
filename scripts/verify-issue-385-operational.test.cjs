@@ -25,6 +25,16 @@ test("TL-385-020: bloqueia producao e outros hostnames nao identificados como st
   assert.equal(validateConfig(config()).baseUrl, "https://homolog.example.test");
 });
 
+test("TL-385-020: aceita apenas o alias de preview do projeto e branch 385 com proveniencia Vercel", () => {
+  const baseUrl = "https://training-system-web-git-feat-38-77e478-crgasparoto-brs-projects.vercel.app";
+  const deploymentEvidenceUrl = "https://vercel.com/crgasparoto-brs-projects/training-system-web/AJAWUeGZffQhmAa5cwY9wQv8SDbB";
+  assert.equal(validateConfig(config({ baseUrl, deploymentEvidenceUrl })).baseUrl, baseUrl);
+  assert.throws(() => validateConfig(config({ baseUrl, deploymentEvidenceUrl: "https://vercel.com/other-team/training-system-web/not-the-deploy" })));
+  assert.throws(() => validateConfig(config({ baseUrl: baseUrl.replace("-git-feat-38-", "-git-main-"), deploymentEvidenceUrl })));
+  assert.throws(() => validateConfig(config({ baseUrl: "https://training-system-web-crgasparoto-brs-projects.vercel.app", deploymentEvidenceUrl })));
+  assert.throws(() => validateConfig(config({ baseUrl: "https://training-system-web-git-feat-38-77e478-another-team.vercel.app", deploymentEvidenceUrl })));
+});
+
 test("TL-385-020: exige isolamento, SHA valido, endereco seguro e dados ficticios", () => {
   assert.throws(() => validateConfig(config({ syntheticData: false })));
   assert.throws(() => validateConfig(config({ expectedHeadSha: "abc" })));
