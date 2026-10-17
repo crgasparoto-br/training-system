@@ -14,9 +14,15 @@ services:
     rootDir: .
     autoDeployTrigger: "off"
     buildCommand: pnpm install --frozen-lockfile && pnpm --filter @corrida/api exec prisma generate && pnpm --filter @corrida/api build
-    startCommand: pnpm --filter @corrida/api start
+    # Staging free plan has no pre-deploy command; run idempotent migrations at boot.
+    # Both runtime and migration URLs below are bound to the isolated database.
+    startCommand: pnpm --filter @corrida/api start:with-migrations
     envVars:
       - key: DATABASE_URL
+        fromDatabase:
+          name: training-system-issue385-homolog-pg
+          property: connectionString
+      - key: MIGRATION_DATABASE_URL
         fromDatabase:
           name: training-system-issue385-homolog-pg
           property: connectionString
