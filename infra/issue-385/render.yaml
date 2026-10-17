@@ -1,0 +1,40 @@
+# Issue 385: isolated staging resources only. Never bind production databases.
+# Render: select this custom Blueprint path explicitly and disable Auto Sync.
+previews:
+  generation: "off"
+
+services:
+  - type: web
+    name: training-system-issue385-homolog-api
+    runtime: node
+    plan: free
+    region: oregon
+    repo: https://github.com/crgasparoto-br/training-system
+    branch: feat/385-canonical-clinical-timeline
+    rootDir: .
+    autoDeployTrigger: "off"
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @corrida/api exec prisma generate && pnpm --filter @corrida/api build
+    startCommand: pnpm --filter @corrida/api start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: training-system-issue385-homolog-pg
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
+      - key: FRONTEND_URL
+        value: https://training-system-web-git-feat-38-77e478-crgasparoto-brs-projects.vercel.app
+      - key: CORS_ORIGINS
+        value: https://training-system-web-git-feat-38-77e478-crgasparoto-brs-projects.vercel.app
+
+databases:
+  - name: training-system-issue385-homolog-pg
+    plan: free
+    region: oregon
+    postgresMajorVersion: '16'
+    databaseName: training_system_issue385_homolog_pg
+    user: training_system_issue385_homolog_pg_user
+    connectionPool: none
+    ipAllowList: []
