@@ -184,7 +184,7 @@ Artefato: [`infra/issue-385/render.yaml`](../../infra/issue-385/render.yaml). El
 - `DATABASE_URL` referenciada **sem expor senha** por `fromDatabase: {name: training-system-issue385-homolog-pg, property: connectionString}`; `JWT_SECRET` gerada e guardada pelo Render se ainda ausente;
 - frontend e CORS restritos ao alias Vercel da branch de homologacao; nenhum dominio ou banco produtivo esta declarado.
 
-**Importante — aplicacao ainda nao realizada:** o YAML foi validado sintaticamente, mas nao submetido ao validador com credenciais Render nem sincronizado. Blueprint **nao configura automaticamente** a API apenas porque existe no Git. Para aplicar com seguranca:
+**Importante — aplicacao ainda nao realizada:** a estrutura YAML esta versionada e tem verificacoes locais de invariantes, mas ainda nao foi validada pelo endpoint/CLI da Render nem sincronizada. Blueprint **nao configura automaticamente** a API apenas porque existe no Git. Para aplicar com seguranca:
 
 1. No Dashboard do workspace correto, conferir se API e PostgreSQL acima nao estao associados a outro Blueprint (nunca gerenciar o mesmo recurso em dois Blueprints).
 2. Criar um Blueprint **apenas no branch desta PR**, com **Custom Blueprint Path `infra/issue-385/render.yaml`**, **Auto Sync = No**. Antes da primeira sincronizacao, conferir no diff do provedor que os nomes correspondem **aos recursos existentes**, que nenhuma substituicao ou alteracao de plano/region/database/user/allowlist esta proposta e que nao surgem recursos extras.
@@ -193,3 +193,14 @@ Artefato: [`infra/issue-385/render.yaml`](../../infra/issue-385/render.yaml). El
 5. Aplicar migrations e fixtures **somente** ao PostgreSQL de homologacao e, depois, os 12 casos autenticados usando o coletor existente. O deployment web precisa ser novamente publicado e verificado no mesmo SHA da API, inclusive apos commits apenas documentais.
 
 Este Blueprint e um mecanismo de wiring seguro, nao uma evidencia de deploy funcional ou homologacao. Na ultima observacao remota, o deploy da API terminou `update_failed` por `DATABASE_URL nao configurada`. Manter `TL-385-020=blocked` ate obter os 12 cenarios com evidencias sanitizadas.
+
+
+## Bootstrap de migrations restrito ao staging Free — 17/10/2026
+
+O plano Render **Free** da API isolada nao disponibiliza `preDeployCommand`. Por isso, o Blueprint da **Issue #385 apenas** usa `pnpm --filter @corrida/api start:with-migrations` (script ja existente). O script executa `prisma migrate deploy`, que e idempotente, antes do servidor e aborta a inicializacao em caso de erro. **Este mecanismo nao e recomendado para producao e nao altera o comando de startup de qualquer outro servico.**
+
+As duas variaveis `DATABASE_URL` e `MIGRATION_DATABASE_URL` apontam explicitamente para a **mesma** propriedade `connectionString` do recurso `training-system-issue385-homolog-pg` no Blueprint. Isto evita usar uma URL de migrations herdada de outro ambiente. O banco permanece com `ipAllowList: []`. O teste `scripts/verify-issue-385-operational.test.cjs` valida que ambas as variaveis permanecem vinculadas ao banco isolado, que o startup nao usa `db push`, que o deploy automatico esta desativado e que dominios produtivos nao aparecem no YAML.
+
+O Render so aplica estas definicoes **apos validacao, associacao segura dos recursos existentes e sincronizacao autorizada**. Nao ha prova de migration executada nem de API operacional enquanto a sincronizacao nao ocorrer e o deploy nao chegar a `live`. Caso o plano Free nao tenha tempo de startup suficiente para as migrations, **nao** afrouxar guards ou redirecionar banco; preparar migration em job de staging isolado ou ajustar os recursos conscientemente, com evidencias.
+
+As 12 verificacoes no navegador continuam nao executadas ate a API estar autenticavel com dados exclusivamente ficticios. `TL-385-020` permanece `blocked`.
