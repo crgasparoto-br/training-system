@@ -123,3 +123,23 @@ test("TL-385-020: cross-tenant exige fronteira 403/404, 200 vazio nao e sucesso"
   assert.equal(evaluateScenarioEvidence("cross_tenant", { timelineRequests: [{ status: 200 }, { status: 404 }] }, "pass"), "fail");
   assert.equal(evaluateScenarioEvidence("prnt", { timelineRequests: [{ status: 200 }] }, "pass", 1), "blocked");
 });
+
+
+test("TL-385-020: blueprint Render prende migracao e runtime ao banco isolado", () => {
+  const { readFileSync } = require("node:fs");
+  const { join } = require("node:path");
+  const blueprint = readFileSync(join(__dirname, "..", "infra", "issue-385", "render.yaml"), "utf8");
+  assert.match(blueprint, /name:\s*training-system-issue385-homolog-api/);
+  assert.match(blueprint, /name:\s*training-system-issue385-homolog-pg/);
+  assert.match(blueprint, /startCommand:\s*pnpm --filter @corrida\/api start:with-migrations/);
+  assert.match(blueprint, /autoDeployTrigger:\s*["']?off/);
+  assert.match(blueprint, /ipAllowList:\s*\[\]/);
+  assert.match(blueprint, /postgresMajorVersion:\s*["']16["']/);
+  for (const key of ["DATABASE_URL", "MIGRATION_DATABASE_URL"]) {
+    const segment = blueprint.split("- key: " + key)[1]?.split(/\n\s*- key:/)[0] ?? "";
+    assert.match(segment, /fromDatabase:\s*\n\s*name:\s*training-system-issue385-homolog-pg\s*\n\s*property:\s*connectionString/);
+  }
+  assert.match(blueprint, /key:\s+JWT_SECRET\s*\n\s+generateValue:\s+true/);
+  assert.doesNotMatch(blueprint, /sistema-acesso\.solveritconsultoria\.com\.br/);
+  assert.doesNotMatch(blueprint, /sistema-acesso-api\.onrender\.com/);
+});
