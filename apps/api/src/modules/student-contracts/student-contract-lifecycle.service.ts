@@ -1,5 +1,6 @@
 import crypto from 'crypto';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { prismaRuntimeClient } from '../../common/prisma-runtime-client.js';
 import { contractPublicAccessService } from '../contracts/contract-public-access.service.js';
 import { contractPartyLinkService } from '../contracts/contract-party-link.service.js';
 import { contractRecordRepository } from '../contracts/contract-record.repository.js';
@@ -8,7 +9,7 @@ import {
   prepareOrActivateStudentContractInTransaction,
 } from './student-contract-lifecycle-transaction.js';
 
-const prisma = new PrismaClient();
+const prisma = prismaRuntimeClient;
 const STUDENT_SCHEDULER_LOCK_ID = 742703001;
 
 /**
