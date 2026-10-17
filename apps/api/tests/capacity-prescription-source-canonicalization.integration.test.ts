@@ -128,6 +128,16 @@ describeDatabase('capacity prescription canonical source metadata with PostgreSQ
       },
     });
     goalId = goal.id;
+    await prisma.prontuarioHistoryEvent.create({
+      data: {
+        recordId: prontuario.id, contractId, alunoId,
+        entityType: 'goal', entityId: goalId, version: 1, action: 'baseline',
+        source: 'legacy-baseline', snapshot: {
+          title: goal.title, description: goal.description, status: goal.status,
+          priority: goal.priority, targetDate: goal.targetDate, closedAt: null,
+        },
+      },
+    });
     await prisma.prontuarioGoalCapacityClassification.create({
       data: {
         goalId,
@@ -151,6 +161,16 @@ describeDatabase('capacity prescription canonical source metadata with PostgreSQ
       },
     });
     painCaseId = painCase.id;
+    await prisma.prontuarioHistoryEvent.create({
+      data: {
+        recordId: prontuario.id, contractId, alunoId,
+        entityType: 'painCase', entityId: painCaseId, version: 1, action: 'baseline',
+        source: 'legacy-baseline', snapshot: {
+          title: painCase.title, region: painCase.region, status: painCase.status,
+          onsetDate: painCase.onsetDate, description: painCase.description, closedAt: null,
+        },
+      },
+    });
 
     const profile = await prisma.studentProfile.create({
       data: {
@@ -171,6 +191,12 @@ describeDatabase('capacity prescription canonical source metadata with PostgreSQ
   });
 
   afterEach(async () => {
+    // Test-only cleanup for append-only fixture rows. SET LOCAL ensures trigger
+    // bypass applies only to this transaction, never to the application.
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL session_replication_role = 'replica'");
+      await tx.prontuarioHistoryEvent.deleteMany({ where: { contractId } });
+    });
     await prisma.companyContract.deleteMany({ where: { id: contractId } });
     await prisma.user.deleteMany({ where: { email } });
   });
@@ -220,7 +246,7 @@ describeDatabase('capacity prescription canonical source metadata with PostgreSQ
       origin: 'PRNT PRNT-CANON-136 - objetivos',
       responsibleProfessorId: professorId,
     });
-    expect(refs.prontuario_goal.version).not.toBe('versao-forjada');
+    expect(refs.prontuario_goal.version).toBe(1);
 
     expect(refs.prontuario_alert).toMatchObject({
       id: painCaseId,
@@ -229,7 +255,7 @@ describeDatabase('capacity prescription canonical source metadata with PostgreSQ
       origin: 'PRNT - casos de dor',
       responsibleProfessorId: professorId,
     });
-    expect(refs.prontuario_alert.version).not.toBe('versao-forjada');
+    expect(refs.prontuario_alert.version).toBe(1);
 
     expect(refs.student_preference).toMatchObject({
       id: profileId,
@@ -286,5 +312,110 @@ describeDatabase('capacity prescription canonical source metadata with PostgreSQ
       ])
     );
     expect(persisted.every((item) => item.sourceVersion !== 'versao-forjada')).toBe(true);
+    expect(persisted.filter((item) => ['prontuario_goal', 'prontuario_alert'].includes(item.sourceType))
+      .every((item) => item.sourceVersion === '1')).toBe(true);
+  });
+
+  it('keeps the exact PRNT event and original label after a later clinical edit', async () => {
+    const first = await request(app)
+      .post(`/capacity-prescriptions/alunos/${alunoId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        capacity: 'resisted', sourceRefs: [{ type: 'prontuario_goal', id: goalId, label: 'client', version: 'legacy-timestamp' }],
+        linkedProntuarioGoalIds: [goalId],
+        technicalJustification: 'Objetivo original', professorSummary: 'Versão inicial',
+      });
+    expect(first.status).toBe(201);
+    const ref = first.body.data.latestVersion.sourceRefs[0];
+    expect(ref.version).toBe(1);
+
+    const goal = await prisma.prontuarioGoal.findUniqueOrThrow({ where: { id: goalId } });
+    await prisma.prontuarioGoal.update({ where: { id: goalId }, data: { title: 'Novo objetivo clínico' } });
+    await prisma.prontuarioHistoryEvent.create({
+      data: {
+        recordId: goal.recordId, contractId, alunoId,
+        entityType: 'goal', entityId: goalId, version: 2, action: 'updated',
+        source: 'prnt-api', snapshot: {
+          title: 'Novo objetivo clínico', status: goal.status, priority: goal.priority,
+          description: goal.description, targetDate: goal.targetDate, closedAt: null,
+        },
+      },
+    });
+
+    const second = await request(app)
+      .post(`/capacity-prescriptions/alunos/${alunoId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        capacity: 'resisted', expectedCurrentVersion: 1,
+        sourceRefs: [ref], linkedProntuarioGoalIds: [goalId],
+        technicalJustification: 'Manter origem clinica historica', professorSummary: 'Versão seguinte',
+      });
+    expect(second.status).toBe(201);
+    expect(second.body.data.latestVersion.sourceRefs[0]).toMatchObject({
+      id: goalId, version: 1, label: 'Retomar corrida com progressão controlada',
+    });
+    const stored = await prisma.capacityPrescriptionSource.findFirstOrThrow({
+      where: { versionId: second.body.data.latestVersion.id, sourceId: goalId },
+    });
+    expect(stored.sourceVersion).toBe('1');
+    expect(stored.label).toBe('Retomar corrida com progressão controlada');
+  });
+
+  it('preserves the original PRNT revision when a client resends its textual sourceVersion', async () => {
+    const goal = await prisma.prontuarioGoal.findUniqueOrThrow({ where: { id: goalId } });
+    await prisma.prontuarioGoal.update({ where: { id: goalId }, data: { title: 'Título posterior' } });
+    await prisma.prontuarioHistoryEvent.create({
+      data: {
+        recordId: goal.recordId, contractId, alunoId,
+        entityType: 'goal', entityId: goalId, version: 2, action: 'updated',
+        source: 'prnt-api', snapshot: {
+          title: 'Título posterior', description: goal.description,
+          status: goal.status, priority: goal.priority, targetDate: goal.targetDate, closedAt: null,
+        },
+      },
+    });
+    const response = await request(app)
+      .post(`/capacity-prescriptions/alunos/${alunoId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        capacity: 'resisted',
+        sourceRefs: [{ type: 'prontuario_goal', id: goalId, version: '1', label: 'Texto controlado pelo cliente' }],
+        linkedProntuarioGoalIds: [goalId],
+        technicalJustification: 'Preservar versão antiga', professorSummary: 'Revisão clínica original',
+      });
+    expect(response.status).toBe(201);
+    expect(response.body.data.latestVersion.sourceRefs[0]).toMatchObject({
+      id: goalId, version: 1, label: 'Retomar corrida com progressão controlada',
+    });
+    const persisted = await prisma.capacityPrescriptionSource.findFirstOrThrow({
+      where: { versionId: response.body.data.latestVersion.id, sourceId: goalId },
+    });
+    expect(persisted.sourceVersion).toBe('1');
+
+    const invalid = await request(app)
+      .post(`/capacity-prescriptions/alunos/${alunoId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        capacity: 'resisted', expectedCurrentVersion: 1,
+        sourceRefs: [{ type: 'prontuario_goal', id: goalId, version: '999', label: 'Versão forjada' }],
+        linkedProntuarioGoalIds: [goalId],
+        technicalJustification: 'Verificar versão inexistente', professorSummary: 'Não persistir',
+      });
+    expect(invalid.status).toBe(400);
+    expect(await prisma.capacityPrescriptionVersion.count({ where: { prescriptionId: response.body.data.id } })).toBe(1);
+  });
+
+  it('rejects a client supplied revision that does not exist in this tenant', async () => {
+    const response = await request(app)
+      .post(`/capacity-prescriptions/alunos/${alunoId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        capacity: 'resisted',
+        sourceRefs: [{ type: 'prontuario_goal', id: goalId, label: 'Falsa versão', version: 999 }],
+        linkedProntuarioGoalIds: [goalId],
+        technicalJustification: 'Teste de isolamento', professorSummary: 'Não deve gravar',
+      });
+    expect(response.status).toBe(400);
+    expect(await prisma.capacityPrescription.count({ where: { contractId, alunoId } })).toBe(0);
   });
 });

@@ -75,6 +75,20 @@ export function mergeCapacityAlerts(
   );
 }
 
+// PostgreSQL stores sourceVersion as text. Convert only PRNT event revisions
+// to numbers on the public contract so a later edit can pin the same version.
+function publicSourceVersion(source: Record<string, any>): number | string | null {
+  const version = source.sourceVersion;
+  const isProntuario = source.sourceType === 'prontuario_goal' ||
+    source.sourceType === 'prontuario_alert' ||
+    (source.sourceType === 'professor_note' && source.origin === 'PRNT - histórico de atividade física');
+  if (isProntuario && typeof version === 'string' && /^[1-9][0-9]*$/.test(version)) {
+    const number = Number(version);
+    if (Number.isSafeInteger(number)) return number;
+  }
+  return version ?? null;
+}
+
 export function serializeCapacityVersion(raw: Record<string, any>): CapacityPrescriptionVersionView {
   const { sources = [], goals = [], alerts = [], ...version } = raw;
   return {
@@ -87,7 +101,7 @@ export function serializeCapacityVersion(raw: Record<string, any>): CapacityPres
       label: source.label,
       assessedAt: iso(source.assessedAt) as string | null,
       origin: source.origin ?? null,
-      version: source.sourceVersion ?? null,
+      version: publicSourceVersion(source),
       responsibleProfessorId: source.responsibleProfessorId ?? null,
     })),
     linkedProntuarioGoalIds: goals.map((goal: Record<string, any>) => goal.goalId),

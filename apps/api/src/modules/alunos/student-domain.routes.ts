@@ -5,7 +5,10 @@ import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import { blockAccessMiddleware, explicitBlockAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { alunoService } from './aluno.service.js';
-import { studentDomainService } from './student-domain.service.js';
+import { studentDomainService, STUDENT_TIMELINE_CURSOR_MAX_LENGTH } from './student-domain.service.js';
+import { canProfessorAccessBlock, canProfessorAccessScreen } from '../access-control/access-control.service.js';
+import { PRNT_HISTORY_BLOCKS, type ProntuarioHistoryEntityType } from '../prontuario/prontuario-history.service.js';
+import type { TimelineDomainAccess } from './student-clinical-timeline.service.js';
 import { studentParqBoundaryService } from './student-parq-boundary.service.js';
 import {
   trainingRoutineService,
@@ -53,6 +56,59 @@ const canViewSensitivePreWorkoutCheckIn = async (req: Request) => {
 };
 
 const canViewSensitivePostWorkoutFeedback=async(req:Request)=>{const {collaboratorFunctionId}=getProfessorContext(req);if(!collaboratorFunctionId)return false;return Boolean(await prisma.accessPermission.findFirst({where:{collaboratorFunctionId,screenKey:'students.details',blockKey:'students.details.postWorkoutFeedback',canView:true},select:{id:true}}));};
+
+/**
+ * Resolve every grant from the authenticated professor's current function.
+ * The generic Audit tab never grants access to an unrelated clinical block.
+ */
+async function resolveTimelineAccess(req: Request): Promise<TimelineDomainAccess> {
+  const { contractId, professorId } = getProfessorContext(req);
+  if (!contractId || !professorId) throw new Error('TIMELINE_ACTOR_UNAVAILABLE');
+  const professor = await prisma.professor.findFirst({
+    where: { id: professorId, contractId },
+    include: { collaboratorFunction: true },
+  });
+  if (!professor) throw new Error('TIMELINE_ACTOR_UNAVAILABLE');
+
+  const clinicalScreen = await canProfessorAccessScreen(professor, 'physicalAssessment.protocol');
+  const keys = [
+    'students.details.profile', 'students.details.health', 'students.details.assessments',
+    'students.details.financialContract', 'students.details.integrations',
+    'students.details.trainingPlans',
+    ...(clinicalScreen ? [
+      'physicalAssessment.prnt.summary', 'physicalAssessment.prnt.goals',
+      'physicalAssessment.prnt.anamnesisFollowUp', 'physicalAssessment.prnt.activityHistory',
+      'physicalAssessment.prnt.medicationsProcedures', 'physicalAssessment.prnt.painCases',
+      'physicalAssessment.prnt.discomforts', 'physicalAssessment.prnt.parqSubmissions',
+      'physicalAssessment.adpt.view',
+    ] : []),
+  ];
+  const checks = await Promise.all(keys.map((key) => canProfessorAccessBlock(professor, key)));
+  const allowed = (key: string) => Boolean(checks[keys.indexOf(key)]);
+  const prntSummary = clinicalScreen && allowed('physicalAssessment.prnt.summary');
+  const prnt = Object.fromEntries(
+    (Object.entries(PRNT_HISTORY_BLOCKS) as Array<[ProntuarioHistoryEntityType, string]>)
+      .map(([entityType, block]) => [entityType,
+        prntSummary && allowed(`physicalAssessment.prnt.${block}`)]),
+  ) as TimelineDomainAccess['clinical']['prnt'];
+
+  const assessments = allowed('students.details.assessments');
+  return {
+    profile: allowed('students.details.profile'),
+    health: allowed('students.details.health') && prntSummary,
+    assessments: assessments && clinicalScreen,
+    financial: allowed('students.details.financialContract'),
+    integrations: allowed('students.details.integrations'),
+    training: allowed('students.details.trainingPlans'),
+    clinical: {
+      prnt,
+      intake: prntSummary && allowed('physicalAssessment.prnt.anamnesisFollowUp'),
+      parq: prntSummary && allowed('physicalAssessment.prnt.parqSubmissions'),
+      anthropometry: clinicalScreen && assessments,
+      adipometry: clinicalScreen && assessments && allowed('physicalAssessment.adpt.view'),
+    },
+  };
+}
 
 const ensureAlunoAccess = async (req: Request, res: Response, alunoId: string) => {
   const { professorId, professorRole, contractId } = getProfessorContext(req);
@@ -342,6 +398,7 @@ router.get(
     try {
       const { id } = req.params;
       const { contractId } = getProfessorContext(req);
+      if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
       if (!(await ensureAlunoAccess(req, res, id))) {
         return;
       }
@@ -349,13 +406,15 @@ router.get(
       const rawLimit = typeof req.query.limit === 'string' ? Number(req.query.limit) : 100;
       const rawCursor = req.query.cursor;
       if (!Number.isInteger(rawLimit) || rawLimit < 1 || rawLimit > 200 ||
-          (rawCursor !== undefined && (typeof rawCursor !== 'string' || rawCursor.length === 0 || rawCursor.length > 256))) {
+          (rawCursor !== undefined && (typeof rawCursor !== 'string' || rawCursor.length === 0 || rawCursor.length > STUDENT_TIMELINE_CURSOR_MAX_LENGTH))) {
         return sendError(res, 'Parâmetros de paginação inválidos', 400);
       }
+      const timelineAccess = await resolveTimelineAccess(req);
       const timeline = await studentDomainService.getTimeline(id, {
         companyContractId: contractId,
         timelineLimit: rawLimit,
         timelineCursor: typeof rawCursor === 'string' ? rawCursor : undefined,
+        timelineAccess,
       });
       if (!timeline) {
         return sendError(res, 'Aluno não encontrado', 404);

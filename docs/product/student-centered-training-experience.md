@@ -606,3 +606,15 @@ Uma entrega de treinamento centrada no aluno so deve ser considerada pronta quan
 - diagnostico clinico automatico;
 - configuracao completa de catalogos dentro da Central do Aluno;
 - substituicao destrutiva dos modelos atuais sem plano de migracao e compatibilidade.
+
+## Linha do tempo clínica canônica (#385)
+
+A aba **Histórico** da Central do Aluno consulta `GET /api/v1/alunos/:id/timeline`. O endpoint continua sendo uma **projeção de leitura**, não uma fonte clínica e não uma tabela de snapshots: cada evento traz identificador estável, `type`, `occurredAt`, `sourceType`, `sourceId`, `contractId`, `actorUserId` quando existente, e metadados técnicos mínimos. O detalhe clínico permanece nas origens protegidas.
+
+As origens versionadas são `ProntuarioHistoryEvent` (incluindo baseline legado identificável), `StudentHealthIntakeRevision`, `StudentParqSubmission`, `StudentLifecycleEvent` do domínio `anthropometry` (conclusão e correção auditada) e revisões `FINALIZED` de `AdipometryAssessment`. A revisão finalizada da ADPT não substitui o registro original no histórico; rascunhos e correções canceladas não geram conclusão clínica. Os eventos operacionais de treinamento continuam na mesma sequência sem alterar a fonte canônica.
+
+A autorização é sempre calculada no backend por professor vigente e `contractId`: `students.details.audit` libera apenas a consulta da timeline; a leitura do PRNT também exige `physicalAssessment.protocol`, `physicalAssessment.prnt.summary` e o bloco específico de cada entidade; a Anamnese Inicial exige `physicalAssessment.prnt.anamnesisFollowUp`, PAR-Q exige seu bloco próprio; Antropometria exige a tela clínica e `students.details.assessments`; ADPT exige adicionalmente `physicalAssessment.adpt.view`. Os demais eventos da Central respeitam as permissões das abas correspondentes. Dados não autorizados não são consultados e não aparecem como “indisponíveis”.
+
+O cursor de paginação é vinculado a aluno e contrato. Os grupos legado, clínico e treinamento compartilham ordenação determinística por instante, origem e ID, inclusive nos empates, preservando a leitura das páginas anteriores. Reenvios não criam um segundo evento: a projeção preserva a identidade canônica e elimina duplicatas de origem. Se uma fonte autorizada falhar, as demais continuam visíveis e a resposta retorna `partial=true` com nomes somente das fontes afetadas, permitindo a atualização pelo usuário. A interface apresenta rótulo de origem, versão/responsável quando existente e um link contextual para o protocolo original, sem reproduzir medicações, medidas, respostas ou snapshots.
+
+A integração não cria migrations nem altera a escrita dos módulos clínicos. A inclusão de novas fontes exige ampliar os grants, o adaptador da origem e os controles de paginação, permissões e contrato, sem acrescentar JSON clínico à timeline.

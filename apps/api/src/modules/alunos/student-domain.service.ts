@@ -1,6 +1,12 @@
 import { PARQ_CATALOG_VERSION, PARQ_LEGACY_CATALOG_VERSION } from '@corrida/types';
 import { prismaRuntimeClient } from '../../common/prisma-runtime-client.js';
 import { studentContractService } from '../student-contracts/student-contract.service.js';
+import {
+  NO_TIMELINE_DOMAIN_ACCESS,
+  readClinicalTimeline,
+  type TimelineDomainAccess,
+  type TimelineEventKind,
+} from './student-clinical-timeline.service.js';
 
 const prisma = prismaRuntimeClient;
 
@@ -8,6 +14,7 @@ type StudentDomainQueryOptions = {
   companyContractId?: string;
   timelineCursor?: string;
   timelineLimit?: number;
+  timelineAccess?: TimelineDomainAccess;
 };
 
 const toNumber = (value: unknown) => {
@@ -451,25 +458,37 @@ const buildTrainingTimelineEvents = (lifecycleEvents: any[]) => lifecycleEvents.
   }];
 });
 
-type TimelineCursor = { v: 1; alunoId: string; contractId: string | null; at: string; kind: 'legacy' | 'training'; id: string };
+// A base64url cursor carries both tenant IDs and a canonical clinical source ID.
+// Adipometry UUIDs and anthropometry revision IDs can exceed the old 256-character
+// HTTP limit even though the generated cursor is valid. Keep a bounded limit.
+export const STUDENT_TIMELINE_CURSOR_MAX_LENGTH = 512;
+type TimelineCursor = { v: 1; alunoId: string; contractId: string | null; at: string; kind: TimelineEventKind; id: string };
 
-const timelineTimestamp = (value: unknown) => new Date(String(value)).getTime();
-const timelineKey = (event: Record<string, unknown>, kind: 'legacy' | 'training') => ({
-  at: timelineTimestamp(event.occurredAt), kind, id: String(event.id),
-});
+// Preserve sub-second precision from Prisma Date values. Date#toString() drops
+// milliseconds, which makes a keyset cursor skip events in the same second.
+const timelineTimestamp = (value: unknown) => value instanceof Date
+  ? value.getTime()
+  : new Date(String(value)).getTime();
+const timelineKey = (event: unknown, kind: TimelineEventKind) => {
+  const value = event as { id: string; occurredAt: unknown };
+  return { at: timelineTimestamp(value.occurredAt), kind, id: String(value.id) };
+};
 const compareTimelineKeys = (
-  a: { at: number; kind: 'legacy' | 'training'; id: string },
-  b: { at: number; kind: 'legacy' | 'training'; id: string },
-) => b.at - a.at || (a.kind === b.kind ? b.id.localeCompare(a.id) : a.kind === 'legacy' ? -1 : 1);
+  a: { at: number; kind: TimelineEventKind; id: string },
+  b: { at: number; kind: TimelineEventKind; id: string },
+) => {
+  const priority: Record<TimelineEventKind, number> = { legacy: 0, clinical: 1, training: 2 };
+  return b.at - a.at || priority[a.kind] - priority[b.kind] || b.id.localeCompare(a.id);
+};
 
 const decodeTimelineCursor = (raw: string, alunoId: string, contractId?: string): TimelineCursor => {
   try {
-    if (!/^[A-Za-z0-9_-]{1,256}$/.test(raw)) throw new Error('invalid');
+    if (!raw || raw.length > STUDENT_TIMELINE_CURSOR_MAX_LENGTH || !/^[A-Za-z0-9_-]+$/.test(raw)) throw new Error('invalid');
     const parsed: unknown = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
     if (!parsed || typeof parsed !== 'object') throw new Error('invalid');
     const data = parsed as Partial<TimelineCursor>;
     if (data.v !== 1 || data.alunoId !== alunoId || data.contractId !== (contractId ?? null) ||
-        (data.kind !== 'legacy' && data.kind !== 'training') ||
+        (data.kind !== 'legacy' && data.kind !== 'clinical' && data.kind !== 'training') ||
         typeof data.id !== 'string' || !data.id || data.id.length > 128 ||
         typeof data.at !== 'string' || !Number.isFinite(Date.parse(data.at)) ||
         new Date(data.at).toISOString() !== data.at) throw new Error('invalid');
@@ -479,7 +498,7 @@ const decodeTimelineCursor = (raw: string, alunoId: string, contractId?: string)
   }
 };
 const encodeTimelineCursor = (
-  key: { at: number; kind: 'legacy' | 'training'; id: string },
+  key: { at: number; kind: TimelineEventKind; id: string },
   alunoId: string, contractId?: string,
 ) => Buffer.from(JSON.stringify({
   v: 1, alunoId, contractId: contractId ?? null, at: new Date(key.at).toISOString(), kind: key.kind, id: key.id,
@@ -611,6 +630,82 @@ const buildTimeline = ({
     .filter((event) => event.occurredAt)
     .sort((a, b) => new Date(String(b.occurredAt)).getTime() - new Date(String(a.occurredAt)).getTime());
 };
+
+
+/**
+ * Reconstruct only authorized timeline domains when a broad compatibility
+ * snapshot fails. Keep retries sequential to avoid exhausting the DB pool.
+ */
+async function loadDegradedTimelineSnapshot(
+  alunoId: string, contractId: string, grants: TimelineDomainAccess,
+): Promise<{ aluno: any; unavailableDomains: string[] }> {
+  const where = { id: alunoId, contractId };
+  const base = await prisma.aluno.findFirst({ where });
+  if (!base) return { aluno: null, unavailableDomains: [] };
+  const snapshot: any = {
+    ...base, user: null, professor: null, studentProfile: null,
+    intakeForm: null, studentHealthIntake: null, parqSubmissions: [],
+    assessments: [], studentAssessmentRecords: [],
+    studentFinancialProfile: null, service: null,
+    integrations: [], studentExternalAccounts: [], studentExternalActivities: [],
+  };
+  const unavailableDomains: string[] = [];
+  const readPart = async (
+    domain: string, enabled: boolean, load: () => Promise<any>, keys: string[],
+  ) => {
+    if (!enabled) return;
+    try {
+      const row = await load();
+      if (!row) {
+        unavailableDomains.push(domain);
+        return;
+      }
+      const scoped = scopeAlunoDomainSnapshot(row, contractId);
+      for (const key of keys) snapshot[key] = scoped[key];
+    } catch {
+      unavailableDomains.push(domain);
+    }
+  };
+  await readPart('Cadastro', grants.profile,
+    () => prisma.aluno.findFirst({ where, include: {
+      user: { include: { profile: true } },
+      professor: { include: { user: { include: { profile: true } } } },
+      studentProfile: true,
+    } }), ['user', 'professor', 'studentProfile']);
+  await readPart('Anamnese', grants.health && grants.clinical.intake,
+    () => prisma.aluno.findFirst({ where, include: {
+      intakeForm: true, studentHealthIntake: true,
+    } }), ['intakeForm', 'studentHealthIntake']);
+  // In degraded mode the PAR-Q projection must use the same distinct grant.
+  await readPart('PAR-Q', grants.health && grants.clinical.intake && grants.clinical.parq,
+    () => prisma.aluno.findFirst({ where, include: {
+      parqSubmissions: {
+        where: { declarationAccepted: true,
+          catalogVersion: { in: [PARQ_CATALOG_VERSION, PARQ_LEGACY_CATALOG_VERSION] } },
+        orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
+        take: 1,
+      },
+    } }), ['parqSubmissions']);
+  await readPart('Avaliações', grants.assessments,
+    () => prisma.aluno.findFirst({ where, include: {
+      assessments: { include: { type: true }, orderBy: { assessmentDate: 'desc' }, take: 20 },
+      studentAssessmentRecords: {
+        include: { measurements: { orderBy: { sortOrder: 'asc' } } },
+        orderBy: { performedAt: 'desc' },
+      },
+    } }), ['assessments', 'studentAssessmentRecords']);
+  await readPart('Financeiro', grants.financial,
+    () => prisma.aluno.findFirst({ where, include: {
+      studentFinancialProfile: true, service: true,
+    } }), ['studentFinancialProfile', 'service']);
+  await readPart('Integrações', grants.integrations,
+    () => prisma.aluno.findFirst({ where, include: {
+      integrations: { orderBy: { createdAt: 'desc' } },
+      studentExternalAccounts: { orderBy: { createdAt: 'desc' } },
+      studentExternalActivities: { orderBy: { startedAt: 'desc' }, take: 50 },
+    } }), ['integrations', 'studentExternalAccounts', 'studentExternalActivities']);
+  return { aluno: snapshot, unavailableDomains };
+}
 
 export const studentDomainService = {
   async loadAlunoDomainSnapshot(alunoId: string, options: StudentDomainQueryOptions = {}) {
@@ -955,72 +1050,236 @@ export const studentDomainService = {
     };
   },
 
-  async getTimeline(alunoId: string, options: StudentDomainQueryOptions = {}) {
-    const aluno = await this.loadAlunoDomainSnapshot(alunoId, options);
-    if (!aluno) {
-      return null;
-    }
-    const contracts = await studentContractService.listByAluno(alunoId, {
-      companyContractId: options.companyContractId,
+  /**
+   * Read only the relationships required by the server-resolved timeline
+   * grants. Audit access alone never queries clinical or financial relations.
+   * This also prevents an inaccessible optional relation from breaking Audit.
+   */
+  async loadAlunoTimelineSnapshot(alunoId: string, options: StudentDomainQueryOptions = {}) {
+    const grants = options.timelineAccess ?? NO_TIMELINE_DOMAIN_ACCESS;
+    const canReadLegacyIntake = grants.health && grants.clinical.intake;
+    // A grant for Anamnese does not authorize reading PAR-Q submissions.
+    const canReadLegacyParq = canReadLegacyIntake && grants.clinical.parq;
+    const aluno = await prisma.aluno.findFirst({
+      where: {
+        id: alunoId,
+        ...(options.companyContractId ? { contractId: options.companyContractId } : {}),
+      },
+      include: {
+        ...(grants.profile ? {
+          user: { include: { profile: true } },
+          studentProfile: true,
+        } : {}),
+        ...(canReadLegacyIntake ? {
+          intakeForm: true,
+          studentHealthIntake: true,
+        } : {}),
+        ...(canReadLegacyParq ? {
+          parqSubmissions: {
+            where: {
+              declarationAccepted: true,
+              catalogVersion: { in: [PARQ_CATALOG_VERSION, PARQ_LEGACY_CATALOG_VERSION] },
+            },
+            orderBy: [{ submittedAt: 'desc' as const }, { createdAt: 'desc' as const }],
+            take: 1,
+          },
+        } : {}),
+        ...(grants.assessments ? {
+          assessments: {
+            include: { type: true },
+            orderBy: { assessmentDate: 'desc' as const },
+            take: 20,
+          },
+          studentAssessmentRecords: {
+            include: { measurements: { orderBy: { sortOrder: 'asc' as const } } },
+            orderBy: { performedAt: 'desc' as const },
+          },
+        } : {}),
+        ...(grants.financial ? {
+          service: true,
+          studentFinancialProfile: true,
+        } : {}),
+        ...(grants.integrations ? {
+          integrations: { orderBy: { createdAt: 'desc' as const } },
+          studentExternalAccounts: { orderBy: { createdAt: 'desc' as const } },
+          studentExternalActivities: { orderBy: { startedAt: 'desc' as const }, take: 50 },
+        } : {}),
+      },
     });
+    if (!aluno) return null;
+    // Stable fallback shape for existing projection helpers. No denied relation
+    // is queried, rehydrated, or returned to the event builder.
+    return scopeAlunoDomainSnapshot({
+      ...aluno,
+      user: grants.profile ? (aluno as any).user ?? null : null,
+      professor: null,
+      studentProfile: grants.profile ? (aluno as any).studentProfile ?? null : null,
+      intakeForm: canReadLegacyIntake ? (aluno as any).intakeForm ?? null : null,
+      studentHealthIntake: canReadLegacyIntake ? (aluno as any).studentHealthIntake ?? null : null,
+      parqSubmissions: canReadLegacyParq ? (aluno as any).parqSubmissions ?? [] : [],
+      assessments: grants.assessments ? (aluno as any).assessments ?? [] : [],
+      studentAssessmentRecords: grants.assessments ? (aluno as any).studentAssessmentRecords ?? [] : [],
+      service: grants.financial ? (aluno as any).service ?? null : null,
+      studentFinancialProfile: grants.financial ? (aluno as any).studentFinancialProfile ?? null : null,
+      contracts: [],
+      integrations: grants.integrations ? (aluno as any).integrations ?? [] : [],
+      studentExternalAccounts: grants.integrations ? (aluno as any).studentExternalAccounts ?? [] : [],
+      studentExternalActivities: grants.integrations ? (aluno as any).studentExternalActivities ?? [] : [],
+    }, options.companyContractId);
+  },
+
+  async getTimeline(alunoId: string, options: StudentDomainQueryOptions = {}) {
+    // The API route supplies server-resolved permission grants. Missing grants
+    // fail closed: being allowed to view Audit is not permission to see health.
+    const grants = options.timelineAccess ?? NO_TIMELINE_DOMAIN_ACCESS;
+    const unavailableDomains: string[] = [];
+    let aluno: any;
+    try {
+      aluno = await this.loadAlunoTimelineSnapshot(alunoId, options);
+    } catch (error) {
+      // A failing optional relation must not hide independent clinical sources.
+      if (!options.companyContractId) throw error;
+      const recovered = await loadDegradedTimelineSnapshot(
+        alunoId, options.companyContractId, grants,
+      );
+      aluno = recovered.aluno;
+      unavailableDomains.push(...recovered.unavailableDomains);
+    }
+    if (!aluno) return null;
+
+    const cursor = options.timelineCursor
+      ? decodeTimelineCursor(options.timelineCursor, alunoId, options.companyContractId)
+      : null;
+    const pageSize = Math.min(200, Math.max(1, options.timelineLimit ?? 100));
+    const cursorKey = cursor
+      ? { at: Date.parse(cursor.at), kind: cursor.kind, id: cursor.id }
+      : null;
+
+    let contracts: Awaited<ReturnType<typeof studentContractService.listByAluno>> = [];
+    if (grants.financial) {
+      try {
+        contracts = await studentContractService.listByAluno(alunoId, {
+          companyContractId: options.companyContractId,
+        });
+      } catch {
+        unavailableDomains.push('Contratos');
+      }
+    }
+
     const profile = this.getProfileFromSnapshot(aluno);
     const intake = this.getHealthIntakeFromSnapshot(aluno);
     const assessments = this.listAssessmentRecordsFromSnapshot(aluno);
     const financial = this.getFinancialProfileFromSnapshot(aluno, contracts);
     const integrations = this.getIntegrationsFromSnapshot(aluno);
     const activities = this.listExternalActivitiesFromSnapshot(aluno);
+    if (!profile || !intake || !assessments || !financial || !integrations || !activities) return null;
 
-    if (!aluno || !profile || !intake || !assessments || !financial || !integrations || !activities) {
-      return null;
+    const clinical = options.companyContractId
+      ? await readClinicalTimeline(alunoId, options.companyContractId, grants.clinical, pageSize, cursor ?? undefined)
+      : { items: [], unavailableDomains: [] };
+    unavailableDomains.push(...clinical.unavailableDomains);
+
+    // Canonical intake exists across the whole source, not only on this page.
+    // An old legacy snapshot must not reappear when its revision is outside the cursor.
+    const hasCanonicalOnPage = clinical.items.some((event) => event.type === 'prnt_intake_revision');
+    // Unknown is not absent: never expose a legacy clinical event on failed lookup.
+    let canonicalIntakeConfirmedAbsent = false;
+    if (!hasCanonicalOnPage && grants.clinical.intake && options.companyContractId) {
+      try {
+        canonicalIntakeConfirmedAbsent = !(await prisma.studentHealthIntakeRevision.findFirst({
+          where: { alunoId, contractId: options.companyContractId },
+          select: { id: true },
+        }));
+      } catch {
+        if (!unavailableDomains.includes('Anamnese')) unavailableDomains.push('Anamnese');
+      }
     }
-
-    // A timeline e uma unica sequencia: eventos legados e canonicos compartilham cursor e ordenacao.
     const legacyItems = buildTimeline({
       aluno, profile, intake, assessments: assessments.items, financial, integrations, activities,
+    }).filter((event) => {
+      const type = String(event.type);
+      if (type.startsWith('profile_')) return grants.profile;
+      if (type.startsWith('intake_')) return grants.health
+        && grants.clinical.intake && canonicalIntakeConfirmedAbsent;
+      if (type.startsWith('assessment_')) return grants.assessments;
+      if (type.startsWith('financial_')) return grants.financial;
+      if (type.startsWith('integration_') || type.startsWith('external_activity_')) return grants.integrations;
+      return type === 'student_created';
     });
-    const cursor = options.timelineCursor
-      ? decodeTimelineCursor(options.timelineCursor, alunoId, options.companyContractId)
-      : null;
-    const pageSize = Math.min(200, Math.max(1, options.timelineLimit ?? 100));
-    const cursorKey = cursor ? { at: Date.parse(cursor.at), kind: cursor.kind, id: cursor.id } : null;
     const legacy = legacyItems.map((event) => ({ event, key: timelineKey(event, 'legacy') }))
       .filter(({ key }) => !cursorKey || compareTimelineKeys(key, cursorKey) > 0);
+
+    const clinicalEntries = clinical.items.map((event) => ({
+      event, key: timelineKey(event, 'clinical'),
+    })).filter(({ key }) => !cursorKey || compareTimelineKeys(key, cursorKey) > 0);
 
     const trainingDomains = ['pre_workout_check_in', 'workout_session_execution', 'post_workout_feedback'];
     const scopedDomain = { OR: trainingDomains.map((domain) => ({
       metadata: { path: ['domain'], equals: domain },
     })) };
-    // Treinos com data anterior; empates usam o ID original do registro, nunca o ID projetado.
-    // Para cursor legado, todos os treinos no mesmo instante sao posteriores na ordenacao.
     const trainingTimeFilter = cursor
       ? { OR: [
           { createdAt: { lt: new Date(cursor.at) } },
-          ...(cursor.kind === 'legacy'
-            ? [{ createdAt: new Date(cursor.at) }]
-            : [{ createdAt: new Date(cursor.at), id: { lt: cursor.id } }]),
+          ...(cursor.kind === 'training'
+            ? [{ createdAt: new Date(cursor.at), id: { lt: cursor.id } }]
+            : [{ createdAt: new Date(cursor.at) }]),
         ] }
       : {};
-    const page = await prisma.studentLifecycleEvent.findMany({
-      where: {
-        alunoId,
-        ...(options.companyContractId ? { contractId: options.companyContractId } : {}),
-        AND: [scopedDomain, trainingTimeFilter],
-      },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: pageSize + 1,
-    });
-    const training = page.flatMap((record) => buildTrainingTimelineEvents([record]).map((event) => ({
+    const trainingRecords = grants.training
+      ? await prisma.studentLifecycleEvent.findMany({
+          where: {
+            alunoId,
+            ...(options.companyContractId ? { contractId: options.companyContractId } : {}),
+            AND: [scopedDomain, trainingTimeFilter],
+          },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: pageSize + 1,
+        }).catch(() => {
+          unavailableDomains.push('Treinamento');
+          return [];
+        })
+      : [];
+    const training = trainingRecords.flatMap((record) => buildTrainingTimelineEvents([record]).map((event) => ({
       event, key: { at: timelineTimestamp(event.occurredAt), kind: 'training' as const, id: record.id as string },
     })));
-    const combined = [...legacy, ...training].sort((a, b) => compareTimelineKeys(a.key, b.key));
+
+    const unique = new Map<string, typeof legacy[number] | typeof clinicalEntries[number] | typeof training[number]>();
+    for (const item of [...legacy, ...clinicalEntries, ...training]) {
+      const id = String(item.event.id);
+      if (!unique.has(id)) unique.set(id, item);
+    }
+    const combined = [...unique.values()].sort((a, b) => compareTimelineKeys(a.key, b.key));
     const selected = combined.slice(0, pageSize);
-    const hasMore = combined.length > pageSize || page.length > pageSize;
+    const hasMore = combined.length > pageSize
+      || clinical.items.length > pageSize
+      || trainingRecords.length > pageSize;
     const last = selected[selected.length - 1];
     return {
       alunoId: aluno.id,
-      items: selected.map(({ event }) => event),
+      items: selected.map(({ event }) => {
+        const data = event as Record<string, unknown>;
+        const source = data.source as {
+          type?: string; reference?: string | null; recordedByUserId?: string | null;
+        } | undefined;
+        return {
+          ...data,
+          id: String(data.id),
+          type: String(data.type),
+          title: String(data.title),
+          occurredAt: data.occurredAt as string | Date,
+          source: source ?? { type: 'system', reference: String(data.id), recordedByUserId: null },
+          details: data.details as Record<string, unknown> | undefined,
+          sourceType: typeof data.sourceType === 'string' ? data.sourceType : source?.type ?? 'system',
+          sourceId: typeof data.sourceId === 'string' ? data.sourceId : source?.reference ?? String(data.id),
+          contractId: options.companyContractId,
+          actorUserId: typeof data.actorUserId === 'string' ? data.actorUserId
+            : source?.recordedByUserId ?? null,
+        };
+      }),
       total: selected.length,
       nextCursor: hasMore && last ? encodeTimelineCursor(last.key, alunoId, options.companyContractId) : null,
+      partial: unavailableDomains.length > 0,
+      unavailableDomains,
     };
-  },
+  }
 };

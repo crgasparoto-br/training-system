@@ -33,6 +33,7 @@ jest.mock('@prisma/client', () => {
     update: jest.fn(),
     create: jest.fn(),
   };
+  const prontuarioHistoryEvent = { findFirst: jest.fn(), findMany: jest.fn(), create: jest.fn() };
   const studentParqSubmission = {
     findFirstOrThrow: jest.fn(),
     create: jest.fn(),
@@ -47,6 +48,7 @@ jest.mock('@prisma/client', () => {
     prontuarioMedicationProcedure,
     prontuarioPainCase,
     prontuarioPainFollowUp,
+    prontuarioHistoryEvent,
     studentParqSubmission,
     $transaction: jest.fn(),
   };
@@ -75,6 +77,7 @@ type DbMock = {
   prontuarioPainCase: { findMany: jest.Mock; update: jest.Mock; create: jest.Mock };
   prontuarioPainFollowUp: { update: jest.Mock; create: jest.Mock };
   studentParqSubmission: { findFirstOrThrow: jest.Mock; create: jest.Mock };
+  prontuarioHistoryEvent: { findFirst: jest.Mock; findMany: jest.Mock; create: jest.Mock };
   $transaction: jest.Mock;
 };
 
@@ -86,6 +89,8 @@ const ALUNO_ID = 'aluno-1';
 
 beforeEach(() => {
   jest.clearAllMocks();
+  db.prontuarioHistoryEvent.findFirst.mockResolvedValue({ version: 1 });
+  db.prontuarioHistoryEvent.findMany.mockResolvedValue([]);
   db.$transaction.mockImplementation(async (arg: unknown) => {
     if (typeof arg === 'function') return (arg as (tx: unknown) => unknown)(db);
     return Promise.all(arg as Promise<unknown>[]);
@@ -118,7 +123,7 @@ describe('prontuarioService', () => {
     );
     expect(db.prontuarioGoal.update).toHaveBeenCalledWith({
       where: { id: 'goal-archive' },
-      data: { status: 'archived' },
+      data: { status: 'archived', closedAt: expect.any(Date) },
     });
     expect(db.prontuarioGoal.update).not.toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'goal-resolved' } })
@@ -220,4 +225,48 @@ describe('prontuarioService', () => {
     );
     expect(db.prontuarioPainFollowUp.update).not.toHaveBeenCalled();
   });
+  it('rejects foreign goal references before persisting sensitive events', async () => {
+    db.prontuarioGoal.findMany.mockResolvedValue([]);
+    await expect(prontuarioService.saveGoals(CONTRACT_ID, RECORD_ID, [
+      { id: 'goal-other-record', title: 'Não permitido' },
+    ], 'user-1')).rejects.toThrow('Registro clínico não encontrado no contrato');
+    expect(db.prontuarioGoal.update).not.toHaveBeenCalled();
+    expect(db.prontuarioHistoryEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('keeps an already resolved goal stable without recreating a closure timestamp', async () => {
+    db.prontuarioGoal.findMany.mockResolvedValue([
+      { id: 'goal-1', title: 'Objetivo', description: null, status: 'resolved', priority: 0, targetDate: null, closedAt: null },
+    ]);
+    await prontuarioService.saveGoals(CONTRACT_ID, RECORD_ID, [
+      { id: 'goal-1', title: 'Objetivo', status: 'resolved', priority: 0 },
+    ], 'user-2');
+    expect(db.prontuarioHistoryEvent.create).not.toHaveBeenCalled();
+    expect(db.prontuarioGoal.update).not.toHaveBeenCalled();
+  });
+
+  it('scopes history reads to the authenticated tenant and parent record student', async () => {
+    db.prontuarioRecord.findFirst.mockResolvedValueOnce({
+      id: RECORD_ID, alunoId: ALUNO_ID, contractId: CONTRACT_ID,
+    });
+    await prontuarioService.getHistory(CONTRACT_ID, RECORD_ID, 'goal', {
+      entityId: 'goal-1', version: 2, skip: 10,
+    });
+    expect(db.prontuarioHistoryEvent.findMany).toHaveBeenCalledWith({
+      where: {
+        contractId: CONTRACT_ID, recordId: RECORD_ID, alunoId: ALUNO_ID,
+        entityType: 'goal', entityId: 'goal-1', version: 2,
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      skip: 10, take: 100,
+    });
+  });
+
+  it('refuses history reads when the PRNT record is not in the contract', async () => {
+    db.prontuarioRecord.findFirst.mockResolvedValueOnce(null);
+    await expect(prontuarioService.getHistory('foreign-contract', RECORD_ID, 'goal'))
+      .rejects.toThrow('Registro clínico não encontrado no contrato');
+    expect(db.prontuarioHistoryEvent.findMany).not.toHaveBeenCalled();
+  });
+
 });

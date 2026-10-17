@@ -14,6 +14,7 @@ import type {
   ProntuarioActivityHistory,
   ProntuarioDiscomfortEntry,
   ProntuarioGoal,
+  ProntuarioHistoryEntityType,
   ProntuarioMedicationProcedure,
   ProntuarioOverview,
   ProntuarioPainCase,
@@ -22,6 +23,8 @@ import type {
 } from '@corrida/types';
 import type { BodyDiscomfortEntry } from '../../constants/bodyRegions';
 import { ProtocolNavTabs } from './protocolNav';
+import { ProntuarioVersionHistory } from './ProntuarioVersionHistory';
+import { ProntuarioHealthIntakeHistory } from './ProntuarioHealthIntakeHistory';
 
 type ProntuarioBlockName =
   | 'summary'
@@ -146,6 +149,14 @@ export function ProntuarioScreen() {
   const user = useAuthStore((state) => state.user);
   const [searchParams, setSearchParams] = useSearchParams();
   const alunoIdFromUrl = searchParams.get('alunoId') || '';
+  const recordIdFromUrl = searchParams.get('recordId') || '';
+  const parqSubmissionIdFromUrl = searchParams.get('parqSubmissionId') || '';
+  const intakeRevisionParam = Number(searchParams.get('intakeRevision'));
+  const focusIntakeRevision = Number.isSafeInteger(intakeRevisionParam) && intakeRevisionParam > 0
+    ? intakeRevisionParam : undefined;
+  const focusEntityType = searchParams.get('entityType') as ProntuarioHistoryEntityType | null;
+  const focusEntityId = searchParams.get('entityId');
+  const focusVersion = Number(searchParams.get('version'));
   const [students, setStudents] = useState<Aluno[]>([]);
   const [selectedAlunoId, setSelectedAlunoId] = useState(alunoIdFromUrl);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
@@ -241,10 +252,14 @@ export function ProntuarioScreen() {
         }
 
         setOverview(data);
-        const fallbackRecord = data.currentRecord ?? data.records[0] ?? null;
+        const linkedRecord = recordIdFromUrl
+          ? data.records.find((record) => record.id === recordIdFromUrl) ?? null : null;
+        const fallbackRecord = linkedRecord ?? data.currentRecord ?? data.records[0] ?? null;
         setSelectedRecordId(fallbackRecord?.id ?? null);
+        const linkedParqId = data.parqSubmissions?.some((item) => item.id === parqSubmissionIdFromUrl)
+          ? parqSubmissionIdFromUrl : null;
         const preferredParqId = inferParqSubmissionId(fallbackRecord, data.parqSubmissions || []);
-        setSelectedParqSubmissionId(preferredParqId ?? data.latestParqSubmission?.id ?? null);
+        setSelectedParqSubmissionId(linkedParqId ?? preferredParqId ?? data.latestParqSubmission?.id ?? null);
         setDrafts(draftsFromRecord(fallbackRecord));
       })
       .catch((err) => {
@@ -257,7 +272,7 @@ export function ProntuarioScreen() {
           setLoading(false);
         }
       });
-  }, [selectedAlunoId]);
+  }, [selectedAlunoId, recordIdFromUrl, parqSubmissionIdFromUrl]);
 
   useEffect(() => {
     const nextDrafts: Record<string, { followUpNotes: string; actionPlan: string }> = {};
@@ -657,6 +672,17 @@ export function ProntuarioScreen() {
           </div>
 
           <aside className="space-y-4">
+            {selectedAlunoId && blocks.anamnesis && (
+              <ProntuarioHealthIntakeHistory alunoId={selectedAlunoId} refreshToken={overview}
+                focusRevision={focusIntakeRevision} />
+            )}
+            {currentRecord && blocks.summary && (
+              <ProntuarioVersionHistory recordId={currentRecord.id} allowed={blocks} refreshToken={overview}
+                focus={recordIdFromUrl === currentRecord.id && focusEntityType && focusEntityId
+                  && Number.isSafeInteger(focusVersion) && focusVersion > 0
+                  ? { entityType: focusEntityType, entityId: focusEntityId, version: focusVersion }
+                  : undefined} />
+            )}
             <Card>
               <CardHeader>
                 <CardTitle>Histórico</CardTitle>
@@ -761,6 +787,15 @@ function GoalsEditor({
           <div key={item.id || index} className="grid gap-3 rounded-md border border-border bg-muted/20 p-3 md:grid-cols-2">
             <Input label="Título" value={item.title || ''} onChange={(event) => updateItem(index, { title: event.target.value })} />
             <Input label="Data alvo" type="date" value={toDateInput(item.targetDate)} onChange={(event) => updateItem(index, { targetDate: event.target.value })} />
+            <div>
+              <label className="mb-2 block text-sm font-medium">Situação do objetivo</label>
+              <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={item.status ?? 'active'} onChange={(event) => updateItem(index, { status: event.target.value as ProntuarioGoal['status'] })}>
+                <option value="active">Ativo</option>
+                <option value="monitoring">Em acompanhamento</option>
+                <option value="resolved">Concluído</option>
+                <option value="archived">Arquivado</option>
+              </select>
+            </div>
             <div className="md:col-span-2">
               <textarea className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Descrição" value={item.description || ''} onChange={(event) => updateItem(index, { description: event.target.value })} />
             </div>

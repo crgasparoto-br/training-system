@@ -653,6 +653,12 @@ export interface StudentTimelineEvent {
   title: string;
   occurredAt: string;
   source: StudentDomainSource;
+  /** Canonical provenance; clinical snapshots are never embedded here. */
+  sourceType?: string;
+  sourceId?: string;
+  contractId?: string;
+  actorUserId?: string | null;
+  metadata?: Record<string, string | number | null>;
   details?: Record<string, unknown> | null;
 }
 
@@ -661,6 +667,9 @@ export interface StudentSegmentedTimeline {
   items: StudentTimelineEvent[];
   total: number;
   nextCursor?: string | null;
+  /** Failures are localized to accessible domains; denied domains are omitted. */
+  partial?: boolean;
+  unavailableDomains?: string[];
 }
 
 export const alunoService = {

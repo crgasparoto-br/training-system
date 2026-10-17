@@ -120,3 +120,12 @@ test('canonical audit contract changes always use CRITICAL validation', () => {
     assert.equal(forced.promoted, true);
   }
 });
+
+
+test('clinical timeline projections require database-backed CRITICAL CI', () => {
+  const result = classifyRepositoryCi({
+    changedPaths: ['apps/api/src/modules/alunos/student-clinical-timeline.service.ts'],
+  });
+  assert.equal(result.riskProfile, 'critical');
+  assert.equal(result.apiChanged, true);
+});

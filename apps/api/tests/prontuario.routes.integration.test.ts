@@ -1,6 +1,7 @@
 import express from 'express';
 import prontuarioRouter from '../src/modules/prontuario/prontuario.routes';
 import { prontuarioService } from '../src/modules/prontuario/prontuario.service';
+import { canProfessorAccessBlock } from '../src/modules/access-control/access-control.service';
 import { prontuarioOverviewReadService } from '../src/modules/prontuario/prontuario-overview-read.service';
 
 const request = require('supertest');
@@ -81,6 +82,8 @@ jest.mock('../src/modules/pre-registration-public/pre-registration-parq.service'
 jest.mock('../src/modules/prontuario/prontuario.service', () => ({
   prontuarioService: {
     listParqSubmissions: jest.fn(),
+    getHistory: jest.fn(),
+    getHealthIntakeHistory: jest.fn(),
   },
 }));
 
@@ -124,6 +127,7 @@ describe('prontuario PAR-Q authorization boundary', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (canProfessorAccessBlock as jest.Mock).mockResolvedValue(false);
     (prontuarioOverviewReadService.overview as jest.Mock).mockResolvedValue({
       records: [],
       currentRecord: null,
@@ -200,4 +204,60 @@ describe('prontuario PAR-Q authorization boundary', () => {
     });
     expect(prontuarioService.listParqSubmissions).toHaveBeenCalledWith('contract-1', 'aluno-1');
   });
+  it('does not disclose clinical history when the category block is missing', async () => {
+    const response = await request(app)
+      .get('/api/v1/prontuario/records/record-1/history/medicationProcedure')
+      .set('x-allowed-blocks', SUMMARY_BLOCK);
+    expect(response.status).toBe(403);
+    expect(prontuarioService.getHistory).not.toHaveBeenCalled();
+  });
+
+  it('permits only the specifically granted history category', async () => {
+    (canProfessorAccessBlock as jest.Mock).mockImplementation(
+      (_prof: unknown, block: string) =>
+        Promise.resolve(block === 'physicalAssessment.prnt.goals')
+    );
+    (prontuarioService.getHistory as jest.Mock).mockResolvedValue([
+      { id: 'revision-1', entityType: 'goal', entityId: 'goal-1', version: 1 },
+    ]);
+    const response = await request(app)
+      .get('/api/v1/prontuario/records/record-1/history/goal?entityId=goal-1&version=1')
+      .set('x-allowed-blocks', SUMMARY_BLOCK);
+    expect(response.status).toBe(200);
+    expect(prontuarioService.getHistory).toHaveBeenCalledWith(
+      'contract-1', 'record-1', 'goal',
+      { entityId: 'goal-1', version: 1, skip: 0 }
+    );
+  });
+
+  it('rejects invalid history version input before consulting clinical storage', async () => {
+    (canProfessorAccessBlock as jest.Mock).mockImplementation(
+      (_prof: unknown, block: string) => Promise.resolve(block === 'physicalAssessment.prnt.goals')
+    );
+    const response = await request(app)
+      .get('/api/v1/prontuario/records/record-1/history/goal?version=-1')
+      .set('x-allowed-blocks', SUMMARY_BLOCK);
+    expect(response.status).toBe(400);
+    expect(prontuarioService.getHistory).not.toHaveBeenCalled();
+  });
+
+  it('protects original anamnesis revisions with its clinical permission', async () => {
+    const denied = await request(app)
+      .get('/api/v1/prontuario/alunos/aluno-1/intake-history')
+      .set('x-allowed-blocks', SUMMARY_BLOCK);
+    expect(denied.status).toBe(403);
+    expect(prontuarioService.getHealthIntakeHistory).not.toHaveBeenCalled();
+
+    (prontuarioService.getHealthIntakeHistory as jest.Mock).mockResolvedValue([
+      { id: 'intake-version-1', revision: 1 },
+    ]);
+    const allowed = await request(app)
+      .get('/api/v1/prontuario/alunos/aluno-1/intake-history?revision=1')
+      .set('x-allowed-blocks', 'physicalAssessment.prnt.anamnesisFollowUp');
+    expect(allowed.status).toBe(200);
+    expect(prontuarioService.getHealthIntakeHistory).toHaveBeenCalledWith(
+      'contract-1', 'aluno-1', { revision: 1, skip: 0 }
+    );
+  });
+
 });

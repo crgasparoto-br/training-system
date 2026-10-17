@@ -58,6 +58,20 @@ describe('capacity prescription public contract', () => {
     ]);
     expect(serialized.latestVersion.linkedProntuarioGoalIds).toEqual(['goal-1']);
     expect(serialized.latestVersion.createdAt).toBe('2026-07-27T12:00:00.000Z');
+    expect(serialized.latestVersion.sourceRefs[0].version).toBe(1);
+  });
+
+  it('preserva timestamps legados e versões de outras fontes, sem inventar revisão PRNT', () => {
+    const from = (sourceType: string, sourceVersion: string, origin = 'generic') =>
+      serializeCapacityApiData({
+        id: 'version-1', prescriptionId: 'prescription-1', version: 1,
+        sources: [{ sourceType, sourceId: 'source-1', label: 'Exemplo', origin, sourceVersion }],
+        goals: [], alerts: [],
+      }) as any;
+    expect(from('prontuario_goal', '2026-07-01T10:00:00Z').sourceRefs[0].version)
+      .toBe('2026-07-01T10:00:00Z');
+    expect(from('student_preference', '2').sourceRefs[0].version).toBe('2');
+    expect(from('professor_note', '3', 'PRNT - histórico de atividade física').sourceRefs[0].version).toBe(3);
   });
 
   it('serializa datas em respostas genéricas de parâmetros e catálogo', () => {

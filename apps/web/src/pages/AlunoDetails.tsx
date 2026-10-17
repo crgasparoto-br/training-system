@@ -13,6 +13,7 @@ import {
   type StudentSegmentedSummary,
   type StudentSegmentedTimeline,
 } from '../services/aluno.service';
+import { appendStudentTimelinePage } from '../services/student-timeline-pagination';
 import { planService, type TrainingPlan } from '../services/plan.service';
 import { assessmentService, type Assessment, type AssessmentSummary, type AssessmentAuditLog } from '../services/assessment.service';
 import { assessmentTypeService, type AssessmentType } from '../services/assessment-type.service';
@@ -1157,13 +1158,7 @@ export function AlunoDetails() {
       if (page.alunoId !== studentId || activeAlunoIdRef.current !== studentId || generation !== timelineGenerationRef.current) return;
       setSegmentedTimeline((previous) => {
         if (!previous || previous.alunoId !== studentId || previous.nextCursor !== cursor || generation !== timelineGenerationRef.current || activeAlunoIdRef.current !== studentId) return previous;
-        const knownIds = new Set(previous.items.map((item) => item.id));
-        return {
-          ...previous,
-          items: [...previous.items, ...page.items.filter((item) => !knownIds.has(item.id))],
-          nextCursor: page.nextCursor,
-          total: previous.total + page.items.filter((item) => !knownIds.has(item.id)).length,
-        };
+        return appendStudentTimelinePage(previous, page);
       });
       if (generation === timelineGenerationRef.current) setTimelineRefreshFailed(false);
     } catch {
@@ -2330,7 +2325,8 @@ export function AlunoDetails() {
               </Button>
             </div>
           )}
-          <AlunoHistoricoTab timeline={segmentedTimeline?.alunoId === id ? segmentedTimeline : null} />
+          <AlunoHistoricoTab timeline={segmentedTimeline?.alunoId === id ? segmentedTimeline : null}
+            onRetry={() => setTimelineRetryKey((value) => value + 1)} />
           {segmentedTimeline?.alunoId === id && segmentedTimeline?.nextCursor && (
             <Button type="button" variant="outline" disabled={timelineLoadingMore} onClick={() => void loadMoreTimeline()}>
               {timelineLoadingMore ? 'Carregando histórico...' : 'Carregar eventos anteriores'}
