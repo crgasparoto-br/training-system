@@ -42,14 +42,18 @@ function validateConfig(config) {
   // Vercel truncates feature-branch aliases (feat/385 -> feat-38), so a real
   // issue-385 preview does not contain "preview" in the hostname. Allow ONLY the
   // verified project/team/branch alias, never a production domain or generic Git alias.
-  const issue385VercelPreview = /^training-system-web-git-feat-38-[a-z0-9-]+-crgasparoto-brs-projects\\.vercel\\.app$/.test(url.hostname);
+  const issue385VercelPreview = url.hostname === "training-system-web-git-feat-38-77e478-crgasparoto-brs-projects.vercel.app";
   assert.ok(["localhost", "127.0.0.1"].includes(url.hostname) || /(staging|homolog|preview)/i.test(url.hostname) || issue385VercelPreview, "Use somente hostname explicitamente de homologacao/preview");
   assert.ok(url.username === "" && url.password === "" && url.pathname === "/" && !url.search && !url.hash, "baseUrl nao pode conter credenciais, rota ou query");
   assert.ok(typeof config.deploymentEvidenceUrl === "string" && config.deploymentEvidenceUrl.startsWith("https://"), "URL de comprovacao de deploy obrigatoria");
   if (issue385VercelPreview) {
     const evidence = new URL(config.deploymentEvidenceUrl);
-    assert.ok(evidence.hostname === "vercel.com" &&
-      /^\\/crgasparoto-brs-projects\\/training-system-web\\/[A-Za-z0-9_-]+\\/?$/.test(evidence.pathname),
+    const evidenceSegments = evidence.pathname.split("/").filter(Boolean);
+    assert.ok(evidence.origin === "https://vercel.com" && !evidence.username && !evidence.password &&
+      !evidence.search && !evidence.hash && evidenceSegments.length === 3 &&
+      evidenceSegments[0] === "crgasparoto-brs-projects" &&
+      evidenceSegments[1] === "training-system-web" &&
+      /^[A-Za-z0-9_-]+$/.test(evidenceSegments[2]),
       "Preview da Issue 385 exige evidencia do deployment Vercel do projeto exato");
   }
   const api = new URL(config.apiOrigin);
