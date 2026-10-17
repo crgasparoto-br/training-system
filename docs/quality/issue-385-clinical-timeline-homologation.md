@@ -173,3 +173,23 @@ O bloqueio permanece: nao foi provisionada API de homologacao com `DATABASE_URL`
 - Na Vercel `training-system-web`, a variavel `VITE_API_URL` foi criada somente para o target `preview` e branch `feat/385-canonical-clinical-timeline`, apontando a `https://training-system-issue385-homolog-api.onrender.com`. Um deployment nao produtivo do SHA `5ebd3346c99b857b624962850347179b5338951f` foi solicitado: `dpl_AJAWUeGZffQhmAa5cwY9wQv8SDbB`. O estado final deve ser consultado na Vercel; existencia do deployment nao significa backend operacional.
 - **Ainda obrigatorio:** conectar backend ao banco de teste sem compartilhamento de segredos, aplicar migrations, criar somente identidades/dados ficticios, verificar origem do deploy de ambos os lados, executar e registrar todos os 12 cenarios com navegador autenticado, capturas sanitizadas e medicoes de desempenho.
 - **Gate:** TL-385-020 segue `BLOCKED`. Proibido marcar pass em qualquer cenario sem execucao real. Sem merge e sem deploy em producao.
+
+
+## Blueprint de staging sem segredos — 17/10/2026 (TL-385-020)
+
+Artefato: [`infra/issue-385/render.yaml`](../../infra/issue-385/render.yaml). Ele declara **somente** os recursos de homologacao ja identificados no workspace Render `tea-d65ov0vgi27c739uq1pg`:
+
+- API `training-system-issue385-homolog-api` (`srv-db809e8n74is73d9l4ng`), plano free, regiao Oregon, branch `feat/385-canonical-clinical-timeline`, auto-deploy desativado;
+- PostgreSQL `training-system-issue385-homolog-pg` (`dpg-db7vf64s728c73c53m50-a`), plano free, PostgreSQL 16, regiao Oregon, `ipAllowList: []` (sem conexoes publicas);
+- `DATABASE_URL` referenciada **sem expor senha** por `fromDatabase: {name: training-system-issue385-homolog-pg, property: connectionString}`; `JWT_SECRET` gerada e guardada pelo Render se ainda ausente;
+- frontend e CORS restritos ao alias Vercel da branch de homologacao; nenhum dominio ou banco produtivo esta declarado.
+
+**Importante — aplicacao ainda nao realizada:** o YAML foi validado sintaticamente, mas nao submetido ao validador com credenciais Render nem sincronizado. Blueprint **nao configura automaticamente** a API apenas porque existe no Git. Para aplicar com seguranca:
+
+1. No Dashboard do workspace correto, conferir se API e PostgreSQL acima nao estao associados a outro Blueprint (nunca gerenciar o mesmo recurso em dois Blueprints).
+2. Criar um Blueprint **apenas no branch desta PR**, com **Custom Blueprint Path `infra/issue-385/render.yaml`**, **Auto Sync = No**. Antes da primeira sincronizacao, conferir no diff do provedor que os nomes correspondem **aos recursos existentes**, que nenhuma substituicao ou alteracao de plano/region/database/user/allowlist esta proposta e que nao surgem recursos extras.
+3. Executar a validacao Blueprint pela plataforma/CLI e somente aplicar a sincronizacao sem divergencias. Nao sincronizar se houver erro de validacao, custo imprevisto, associacao indevida ou recurso diferente do esperado. O `fromDatabase` deve materializar a URL interna como segredo no proprio Render, sem copiá-la para GitHub ou para o chat.
+4. Confirmar `DATABASE_URL`, `JWT_SECRET`, origins e `NODE_ENV` efetivos no servico sem imprimir valores sigilosos; executar deploy da API de **homologacao** no SHA exato e aguardar `live` mais health check. Se for necessario usar `MIGRATION_DATABASE_URL` distinto, configurar credencial isolada apenas neste ambiente.
+5. Aplicar migrations e fixtures **somente** ao PostgreSQL de homologacao e, depois, os 12 casos autenticados usando o coletor existente. O deployment web precisa ser novamente publicado e verificado no mesmo SHA da API, inclusive apos commits apenas documentais.
+
+Este Blueprint e um mecanismo de wiring seguro, nao uma evidencia de deploy funcional ou homologacao. Na ultima observacao remota, o deploy da API terminou `update_failed` por `DATABASE_URL nao configurada`. Manter `TL-385-020=blocked` ate obter os 12 cenarios com evidencias sanitizadas.
