@@ -14,6 +14,7 @@ import type {
   ProntuarioActivityHistory,
   ProntuarioDiscomfortEntry,
   ProntuarioGoal,
+  ProntuarioHistoryEntityType,
   ProntuarioMedicationProcedure,
   ProntuarioOverview,
   ProntuarioPainCase,
@@ -148,6 +149,14 @@ export function ProntuarioScreen() {
   const user = useAuthStore((state) => state.user);
   const [searchParams, setSearchParams] = useSearchParams();
   const alunoIdFromUrl = searchParams.get('alunoId') || '';
+  const recordIdFromUrl = searchParams.get('recordId') || '';
+  const parqSubmissionIdFromUrl = searchParams.get('parqSubmissionId') || '';
+  const intakeRevisionParam = Number(searchParams.get('intakeRevision'));
+  const focusIntakeRevision = Number.isSafeInteger(intakeRevisionParam) && intakeRevisionParam > 0
+    ? intakeRevisionParam : undefined;
+  const focusEntityType = searchParams.get('entityType') as ProntuarioHistoryEntityType | null;
+  const focusEntityId = searchParams.get('entityId');
+  const focusVersion = Number(searchParams.get('version'));
   const [students, setStudents] = useState<Aluno[]>([]);
   const [selectedAlunoId, setSelectedAlunoId] = useState(alunoIdFromUrl);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
@@ -243,10 +252,14 @@ export function ProntuarioScreen() {
         }
 
         setOverview(data);
-        const fallbackRecord = data.currentRecord ?? data.records[0] ?? null;
+        const linkedRecord = recordIdFromUrl
+          ? data.records.find((record) => record.id === recordIdFromUrl) ?? null : null;
+        const fallbackRecord = linkedRecord ?? data.currentRecord ?? data.records[0] ?? null;
         setSelectedRecordId(fallbackRecord?.id ?? null);
+        const linkedParqId = data.parqSubmissions?.some((item) => item.id === parqSubmissionIdFromUrl)
+          ? parqSubmissionIdFromUrl : null;
         const preferredParqId = inferParqSubmissionId(fallbackRecord, data.parqSubmissions || []);
-        setSelectedParqSubmissionId(preferredParqId ?? data.latestParqSubmission?.id ?? null);
+        setSelectedParqSubmissionId(linkedParqId ?? preferredParqId ?? data.latestParqSubmission?.id ?? null);
         setDrafts(draftsFromRecord(fallbackRecord));
       })
       .catch((err) => {
@@ -259,7 +272,7 @@ export function ProntuarioScreen() {
           setLoading(false);
         }
       });
-  }, [selectedAlunoId]);
+  }, [selectedAlunoId, recordIdFromUrl, parqSubmissionIdFromUrl]);
 
   useEffect(() => {
     const nextDrafts: Record<string, { followUpNotes: string; actionPlan: string }> = {};
@@ -660,10 +673,15 @@ export function ProntuarioScreen() {
 
           <aside className="space-y-4">
             {selectedAlunoId && blocks.anamnesis && (
-              <ProntuarioHealthIntakeHistory alunoId={selectedAlunoId} refreshToken={overview} />
+              <ProntuarioHealthIntakeHistory alunoId={selectedAlunoId} refreshToken={overview}
+                focusRevision={focusIntakeRevision} />
             )}
             {currentRecord && blocks.summary && (
-              <ProntuarioVersionHistory recordId={currentRecord.id} allowed={blocks} refreshToken={overview} />
+              <ProntuarioVersionHistory recordId={currentRecord.id} allowed={blocks} refreshToken={overview}
+                focus={recordIdFromUrl === currentRecord.id && focusEntityType && focusEntityId
+                  && Number.isSafeInteger(focusVersion) && focusVersion > 0
+                  ? { entityType: focusEntityType, entityId: focusEntityId, version: focusVersion }
+                  : undefined} />
             )}
             <Card>
               <CardHeader>

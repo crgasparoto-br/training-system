@@ -28,7 +28,8 @@
       "scripts/ci-risk-profile.mjs",
       "scripts/ci-repository-risk-policy.mjs",
       "config/ci-risk-policy.json",
-      "docs/architecture/ci-validation.md"
+      "docs/architecture/ci-validation.md",
+      "apps/api/src/modules/alunos/student-clinical-timeline.service.ts"
     ],
     "criticalRoots": [
       "packages",

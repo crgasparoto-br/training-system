@@ -1,5 +1,8 @@
 const findUniqueMock = jest.fn();
 const lifecycleFindManyMock = jest.fn();
+const prntFindManyMock = jest.fn();
+const intakeFindManyMock = jest.fn();
+const intakeFindFirstMock = jest.fn();
 const mockPrisma = {
   aluno: {
     findUnique: findUniqueMock,
@@ -8,6 +11,8 @@ const mockPrisma = {
   studentLifecycleEvent: {
     findMany: lifecycleFindManyMock,
   },
+  prontuarioHistoryEvent: { findMany: prntFindManyMock },
+  studentHealthIntakeRevision: { findMany: intakeFindManyMock, findFirst: intakeFindFirstMock },
 };
 
 jest.mock('@prisma/client', () => ({
@@ -22,6 +27,20 @@ jest.mock('../src/modules/student-contracts/student-contract.service', () => ({
 
 import { studentDomainService } from '../src/modules/alunos/student-domain.service';
 import { studentContractService } from '../src/modules/student-contracts/student-contract.service';
+
+// Legacy timeline fixtures exercise the whole sequence with explicit test grants.
+// Production grants are resolved by the authenticated professor at the route.
+const timelineWithPermissions = (
+  alunoId: string,
+  options: Parameters<typeof studentDomainService.getTimeline>[1] = {},
+) => studentDomainService.getTimeline(alunoId, {
+  ...options,
+  timelineAccess: options.timelineAccess ?? {
+    profile: true, health: true, assessments: true,
+    financial: true, integrations: true, training: true,
+    clinical: { prnt: {}, intake: false, parq: false, anthropometry: false, adipometry: false },
+  },
+});
 
 const createAlunoSnapshot = () => ({
   id: 'aluno-1',
@@ -136,6 +155,9 @@ describe('studentDomainService', () => {
     findUniqueMock.mockReset();
     lifecycleFindManyMock.mockReset();
     lifecycleFindManyMock.mockResolvedValue([]);
+    prntFindManyMock.mockReset().mockResolvedValue([]);
+    intakeFindManyMock.mockReset().mockResolvedValue([]);
+    intakeFindFirstMock.mockReset().mockResolvedValue(null);
     (studentContractService.listByAluno as jest.Mock).mockReset();
   });
 
@@ -205,11 +227,21 @@ describe('studentDomainService', () => {
     expect(result?.items.map((item) => item.id)).toEqual(['seg-1', 'legacy-legacy-1']);
   });
 
+  it('fails closed for health, training and finance when no timeline grants are supplied', async () => {
+    findUniqueMock.mockResolvedValue(createAlunoSnapshot());
+    (studentContractService.listByAluno as jest.Mock).mockResolvedValue([createStudentContract()]);
+    const result = await studentDomainService.getTimeline('aluno-1', {
+      companyContractId: 'contract-1',
+    });
+    expect(result?.items.map((item) => item.type)).toEqual(['student_created']);
+    expect(lifecycleFindManyMock).not.toHaveBeenCalled();
+  });
+
   it('builds timeline events with contract milestones and import traceability', async () => {
     findUniqueMock.mockResolvedValue(createAlunoSnapshot());
     (studentContractService.listByAluno as jest.Mock).mockResolvedValue([createStudentContract()]);
 
-    const result = await studentDomainService.getTimeline('aluno-1', {
+    const result = await timelineWithPermissions('aluno-1', {
       companyContractId: 'contract-1',
     });
 
@@ -298,7 +330,7 @@ describe('studentDomainService', () => {
       },
     ]);
 
-    const result = await studentDomainService.getTimeline('aluno-1', {
+    const result = await timelineWithPermissions('aluno-1', {
       companyContractId: 'contract-1',
     });
 
@@ -344,18 +376,18 @@ describe('studentDomainService', () => {
       const sameTimeId = sameTimeCursor?.id?.lt;
       return Promise.resolve(records.filter((record) =>
         new Date(record.createdAt).getTime() < cursorTime ||
-        (new Date(record.createdAt).getTime() === cursorTime &&
+        (Boolean(sameTimeCursor) && new Date(record.createdAt).getTime() === cursorTime &&
           (sameTimeId === undefined || record.id < sameTimeId))
       ));
     });
-    const first = await studentDomainService.getTimeline('aluno-1', { timelineLimit: 1, companyContractId: 'contract-1' });
+    const first = await timelineWithPermissions('aluno-1', { timelineLimit: 1, companyContractId: 'contract-1' });
     expect(first?.items[0].id).toBe('student-created-aluno-1');
     expect(first?.nextCursor).toEqual(expect.any(String));
-    const second = await studentDomainService.getTimeline('aluno-1', {
+    const second = await timelineWithPermissions('aluno-1', {
       timelineLimit: 1, timelineCursor: first?.nextCursor ?? undefined, companyContractId: 'contract-1',
     });
     expect(second?.items[0].id).toBe('training-execution-event-z');
-    const third = await studentDomainService.getTimeline('aluno-1', {
+    const third = await timelineWithPermissions('aluno-1', {
       timelineLimit: 1, timelineCursor: second?.nextCursor ?? undefined, companyContractId: 'contract-1',
     });
     expect(third?.items[0].id).toBe('training-feedback-event-a');
@@ -371,18 +403,18 @@ describe('studentDomainService', () => {
       { id: 'event-a', alunoId: 'aluno-1', createdAt: '2026-05-12T10:00:00.000Z', actorUserId: null, metadata: { domain: 'workout_session_execution', status: 'completed' } },
       { id: 'event-b', alunoId: 'aluno-1', createdAt: '2026-05-11T10:00:00.000Z', actorUserId: null, metadata: { domain: 'workout_session_execution', status: 'completed' } },
     ]);
-    const first = await studentDomainService.getTimeline('aluno-1', {
+    const first = await timelineWithPermissions('aluno-1', {
       timelineLimit: 1, companyContractId: 'contract-1',
     });
     expect(first?.nextCursor).toEqual(expect.any(String));
     lifecycleFindManyMock.mockClear();
-    await expect(studentDomainService.getTimeline('aluno-1', {
+    await expect(timelineWithPermissions('aluno-1', {
       timelineLimit: 1, companyContractId: 'contract-2', timelineCursor: first?.nextCursor ?? undefined,
     })).rejects.toThrow('INVALID_TIMELINE_CURSOR');
-    await expect(studentDomainService.getTimeline('aluno-2', {
+    await expect(timelineWithPermissions('aluno-2', {
       timelineLimit: 1, companyContractId: 'contract-1', timelineCursor: first?.nextCursor ?? undefined,
     })).rejects.toThrow('INVALID_TIMELINE_CURSOR');
-    await expect(studentDomainService.getTimeline('aluno-1', {
+    await expect(timelineWithPermissions('aluno-1', {
       companyContractId: 'contract-1', timelineCursor: 'invalid-token',
     })).rejects.toThrow('INVALID_TIMELINE_CURSOR');
     expect(lifecycleFindManyMock).not.toHaveBeenCalled();
@@ -464,7 +496,7 @@ describe('studentDomainService', () => {
       }),
     ]);
 
-    const result = await studentDomainService.getTimeline('aluno-1');
+    const result = await timelineWithPermissions('aluno-1');
 
     const canceledContract = result?.items.find((item) => item.type === 'financial_contract_canceled');
     expect(canceledContract).toMatchObject({
@@ -475,4 +507,171 @@ describe('studentDomainService', () => {
       },
     });
   });
+
+  it('paginates legacy, clinical and training on the same timestamp without gaps', async () => {
+    const instant = new Date('2026-05-12T10:00:00.000Z');
+    findUniqueMock.mockResolvedValue({
+      ...createAlunoSnapshot(), createdAt: instant.toISOString(),
+      studentExternalAccounts: [], studentExternalActivities: [],
+    });
+    (studentContractService.listByAluno as jest.Mock).mockResolvedValue([]);
+    const canonical = {
+      id: 'prnt-1', alunoId: 'aluno-1', contractId: 'contract-1',
+      recordId: 'record-1', entityType: 'goal', entityId: 'goal-1',
+      version: 1, action: 'created', actorUserId: 'user-1', source: 'prnt-api', createdAt: instant,
+    };
+    prntFindManyMock.mockImplementation(({ where }: any) => {
+      if (where.OR?.[0]?.createdAt?.lt && !where.OR?.[1]) return Promise.resolve([]);
+      if (where.OR?.[1]?.id?.lt && canonical.id >= where.OR[1].id.lt) return Promise.resolve([]);
+      return Promise.resolve([canonical]);
+    });
+    const training = {
+      id: 'train-1', alunoId: 'aluno-1', contractId: 'contract-1',
+      createdAt: instant.toISOString(), actorUserId: null,
+      metadata: { domain: 'workout_session_execution', status: 'completed' },
+    };
+    lifecycleFindManyMock.mockImplementation(({ where }: any) => {
+      const timeFilter = where.AND?.[1]?.OR;
+      if (!timeFilter) return Promise.resolve([training]);
+      const olderThan = timeFilter[0].createdAt.lt.getTime();
+      const equals = timeFilter[1];
+      return Promise.resolve(
+        new Date(training.createdAt).getTime() < olderThan ||
+        (Boolean(equals) && new Date(training.createdAt).getTime() === olderThan
+          && (!equals.id?.lt || training.id < equals.id.lt)) ? [training] : []
+      );
+    });
+    const options = {
+      companyContractId: 'contract-1', timelineLimit: 1,
+      timelineAccess: {
+        profile: true, health: false, assessments: false, financial: false,
+        integrations: false, training: true,
+        clinical: { prnt: { goal: true }, intake: false, parq: false, anthropometry: false, adipometry: false },
+      },
+    };
+    const first = await studentDomainService.getTimeline('aluno-1', options);
+    const second = await studentDomainService.getTimeline('aluno-1', {
+      ...options, timelineCursor: first?.nextCursor ?? undefined,
+    });
+    const third = await studentDomainService.getTimeline('aluno-1', {
+      ...options, timelineCursor: second?.nextCursor ?? undefined,
+    });
+    expect([first?.items[0]?.id, second?.items[0]?.id, third?.items[0]?.id]).toEqual([
+      'student-created-aluno-1', 'clinical-prnt-prnt-1', 'training-execution-train-1',
+    ]);
+  });
+
+  it('does not resurface legacy intake when its canonical revision is outside the current page', async () => {
+    findUniqueMock.mockResolvedValue({
+      ...createAlunoSnapshot(),
+      intakeForm: {
+        id: 'legacy-intake-1', assessmentDate: '2026-05-11T10:00:00.000Z',
+        createdAt: '2026-05-11T10:00:00.000Z', updatedAt: '2026-05-11T10:00:00.000Z',
+        observations: 'Legacy intake',
+      },
+      studentExternalAccounts: [], studentExternalActivities: [],
+    });
+    (studentContractService.listByAluno as jest.Mock).mockResolvedValue([]);
+    intakeFindManyMock.mockResolvedValue([]); // Revision outside the cursor window.
+    intakeFindFirstMock.mockResolvedValue({ id: 'canonical-revision-1' });
+    const options = {
+      companyContractId: 'contract-1',
+      timelineAccess: {
+        profile: true, health: true, assessments: false, financial: false,
+        integrations: false, training: false,
+        clinical: { prnt: {}, intake: true, parq: false, anthropometry: false, adipometry: false },
+      },
+    };
+    const canonical = await studentDomainService.getTimeline('aluno-1', options);
+    expect(canonical?.items.some((item) => item.type.startsWith('intake_'))).toBe(false);
+    expect(intakeFindFirstMock).toHaveBeenCalledWith({
+      where: { alunoId: 'aluno-1', contractId: 'contract-1' }, select: { id: true },
+    });
+    intakeFindFirstMock.mockResolvedValue(null);
+    const legacy = await studentDomainService.getTimeline('aluno-1', options);
+    expect(legacy?.items.some((item) => item.type.startsWith('intake_'))).toBe(true);
+  });
+
+
+  it('denies legacy intake when the health grant lacks clinical intake permission', async () => {
+    findUniqueMock.mockResolvedValue({
+      ...createAlunoSnapshot(),
+      intakeForm: { id: 'legacy-intake', observations: 'sensitive',
+        assessmentDate: '2026-05-12T08:00:00.000Z' },
+    });
+    (studentContractService.listByAluno as jest.Mock).mockResolvedValue([]);
+    const result = await studentDomainService.getTimeline('aluno-1', {
+      companyContractId: 'contract-1',
+      timelineAccess: {
+        profile: true, health: true, assessments: false, financial: false,
+        integrations: false, training: false,
+        clinical: { prnt: {}, intake: false, parq: false, anthropometry: false, adipometry: false },
+      },
+    });
+    expect(result?.items.some((item) => item.type.startsWith('intake_'))).toBe(false);
+    expect(intakeFindFirstMock).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toContain('sensitive');
+  });
+
+  it('fails closed rather than resurrecting legacy intake when canonical lookup fails', async () => {
+    findUniqueMock.mockResolvedValue({
+      ...createAlunoSnapshot(),
+      intakeForm: { id: 'legacy-intake', observations: 'sensitive',
+        assessmentDate: '2026-05-12T08:00:00.000Z' },
+    });
+    (studentContractService.listByAluno as jest.Mock).mockResolvedValue([]);
+    intakeFindManyMock.mockRejectedValueOnce(new Error('private clinical database details'));
+    intakeFindFirstMock.mockRejectedValueOnce(new Error('private existence details'));
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const result = await studentDomainService.getTimeline('aluno-1', {
+        companyContractId: 'contract-1',
+        timelineAccess: {
+          profile: true, health: true, assessments: false, financial: false,
+          integrations: false, training: false,
+          clinical: { prnt: {}, intake: true, parq: false, anthropometry: false, adipometry: false },
+        },
+      });
+      expect(result?.partial).toBe(true);
+      expect(result?.unavailableDomains).toContain('Anamnese');
+      expect(result?.items.some((item) => item.type.startsWith('intake_'))).toBe(false);
+      expect(JSON.stringify(result)).not.toContain('private');
+      expect(JSON.stringify(result)).not.toContain('sensitive');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('recovers profile and PRNT when a broad or optional assessment read fails', async () => {
+    const snapshot = { ...createAlunoSnapshot(),
+      studentExternalAccounts: [], studentExternalActivities: [] };
+    findUniqueMock.mockRejectedValueOnce(new Error('broken assessment join'))
+      .mockResolvedValueOnce(snapshot)
+      .mockResolvedValueOnce(snapshot)
+      .mockRejectedValueOnce(new Error('broken optional assessment read'))
+      .mockResolvedValue(snapshot);
+    (studentContractService.listByAluno as jest.Mock).mockResolvedValue([]);
+    prntFindManyMock.mockResolvedValue([{
+      id: 'prnt-1', alunoId: 'aluno-1', contractId: 'contract-1',
+      recordId: 'record-1', entityType: 'goal', entityId: 'goal-1',
+      version: 1, action: 'created', actorUserId: 'user-1',
+      source: 'prnt-api', createdAt: new Date('2026-05-15T08:00:00.000Z'),
+    }]);
+    const result = await studentDomainService.getTimeline('aluno-1', {
+      companyContractId: 'contract-1',
+      timelineAccess: {
+        profile: true, health: false, assessments: true, financial: false,
+        integrations: false, training: false,
+        clinical: { prnt: { goal: true }, intake: false, parq: false, anthropometry: false, adipometry: false },
+      },
+    });
+    expect(result?.partial).toBe(true);
+    expect(result?.unavailableDomains).toEqual(['Avaliações']);
+    expect(result?.items.map((item) => item.type)).toContain('prnt_goal_created');
+    expect(result?.items.map((item) => item.type)).toContain('profile_updated');
+    expect(findUniqueMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'aluno-1', contractId: 'contract-1' },
+    }));
+  });
+
 });

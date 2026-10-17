@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { prontuarioService } from '../../services/prontuario.service';
 import type { ProntuarioHistoryEntityType, ProntuarioHistoryEvent } from '@corrida/types';
@@ -21,19 +21,28 @@ export function ProntuarioVersionHistory({
   recordId,
   allowed,
   refreshToken,
+  focus,
 }: {
   recordId: string;
   allowed: Record<PermissionBlock, boolean>;
   refreshToken: unknown;
+  focus?: { entityType: ProntuarioHistoryEntityType; entityId: string; version: number };
 }) {
   const visible = categories.filter((category) => allowed[category.block]);
-  const [category, setCategory] = useState<ProntuarioHistoryEntityType>('record');
+  const [category, setCategory] = useState<ProntuarioHistoryEntityType>(focus?.entityType ?? 'record');
+  const [showAll, setShowAll] = useState(false);
+  useEffect(() => {
+    setCategory(focus?.entityType ?? 'record');
+    setShowAll(false);
+  }, [recordId, focus?.entityType, focus?.entityId, focus?.version]);
   const selected = visible.some((entry) => entry.type === category) ? category : visible[0]?.type;
+  const focused = Boolean(focus && selected === focus.entityType && !showAll);
   const { events, loading, loadingMore, hasMore, error, loadMore, retry } =
     useProntuarioHistoryPages<ProntuarioHistoryEvent>(
-      recordId && selected ? `${recordId}:${selected}` : null,
+      recordId && selected ? `${recordId}:${selected}:${focused ? `${focus?.entityId}:${focus?.version}` : 'all'}` : null,
       refreshToken,
-      (skip) => prontuarioService.history(recordId, selected!, { skip }),
+      (skip) => prontuarioService.history(recordId, selected!, focused && focus
+        ? { entityId: focus.entityId, version: focus.version, skip } : { skip }),
     );
 
   if (!visible.length) return null;
@@ -49,10 +58,16 @@ export function ProntuarioVersionHistory({
           id="prnt-history-category"
           className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
           value={selected}
-          onChange={(event) => setCategory(event.target.value as ProntuarioHistoryEntityType)}
+          onChange={(event) => { setCategory(event.target.value as ProntuarioHistoryEntityType); setShowAll(true); }}
         >
           {visible.map((entry) => <option key={entry.type} value={entry.type}>{entry.label}</option>)}
         </select>
+        {focused && (
+          <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/30 p-3 text-sm">
+            <span>Versão {focus?.version} do registro original selecionada na linha do tempo.</span>
+            <button type="button" className="font-medium text-primary underline" onClick={() => setShowAll(true)}>Ver todas as versões</button>
+          </div>
+        )}
         {loading && <p role="status" className="text-sm text-muted-foreground">Carregando versões...</p>}
         {error && (
           <div role="alert" className="text-sm text-destructive">
@@ -61,10 +76,10 @@ export function ProntuarioVersionHistory({
           </div>
         )}
         {!loading && !error && events.length === 0 && (
-          <p className="text-sm text-muted-foreground">Ainda não há versões registradas nesta categoria.</p>
+          <p className="text-sm text-muted-foreground">{focused ? 'A versão original não está disponível para este registro e perfil.' : 'Ainda não há versões registradas nesta categoria.'}</p>
         )}
         {!loading && events.map((event) => (
-          <details key={event.id} className="min-w-0 rounded-md border border-border p-3 text-sm">
+          <details key={event.id} open={focused && event.entityId === focus?.entityId && event.version === focus?.version} className="min-w-0 rounded-md border border-border p-3 text-sm">
             <summary className="cursor-pointer font-medium">
               Versão {event.version} · {event.action === 'baseline' ? 'Estado anterior' : event.action === 'created' ? 'Criação' : event.action === 'closed' ? 'Encerramento' : 'Atualização'}
             </summary>
