@@ -1,5 +1,6 @@
 import './bootstrap-env.js';
 import express from 'express';
+import { apiResourceRequestTelemetry, startApiResourceTelemetry } from './common/api-resource-telemetry.js';
 import cors from 'cors';
 import helmet from 'helmet';
 import 'express-async-errors';
@@ -68,6 +69,8 @@ const preRegistrationSafeBoundary = createPreRegistrationSafeBoundary();
 installPreRegistrationSafeConsoleError();
 getJwtSecret(process.env);
 app.set('trust proxy', 1);
+app.use(apiResourceRequestTelemetry);
+startApiResourceTelemetry();
 const corsConfig = resolveCorsConfig(process.env);
 
 app.use(

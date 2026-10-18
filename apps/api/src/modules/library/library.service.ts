@@ -1,6 +1,7 @@
-import { PrismaClient, LoadType, MovementType, CountingType } from '@prisma/client';
+import { prismaRuntimeClient } from '../../common/prisma-runtime-client.js';
+import { LoadType, MovementType, CountingType } from '@prisma/client';
 
-const prisma = new PrismaClient();
+const prisma = prismaRuntimeClient;
 
 export interface CreateExerciseDTO {
   name: string;

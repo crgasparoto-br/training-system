@@ -1,6 +1,7 @@
-import { PrismaClient, TrainingPhase } from '@prisma/client';
+import { prismaRuntimeClient } from '../../common/prisma-runtime-client.js';
+import { TrainingPhase } from '@prisma/client';
 
-const prisma = new PrismaClient();
+const prisma = prismaRuntimeClient;
 
 export interface CreatePlanDTO {
   professorId: string;
