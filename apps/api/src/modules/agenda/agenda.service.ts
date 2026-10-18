@@ -1,5 +1,5 @@
 import { prismaRuntimeClient } from '../../common/prisma-runtime-client.js';
-﻿import { type AgendaBookingStatus, type AgendaBookingType } from '@prisma/client';
+import { type AgendaBookingStatus, type AgendaBookingType } from '@prisma/client';
 import {
   checkFixedScheduleAvailability,
   FixedScheduleError,
