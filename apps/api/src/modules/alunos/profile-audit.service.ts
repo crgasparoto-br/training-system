@@ -1,6 +1,7 @@
-import { Prisma, PrismaClient, ProfileAuditAction, ProfileAuditSource } from '@prisma/client';
+import { prismaRuntimeClient } from '../../common/prisma-runtime-client.js';
+import { Prisma, ProfileAuditAction, ProfileAuditSource } from '@prisma/client';
 
-const prisma = new PrismaClient();
+const prisma = prismaRuntimeClient;
 
 // Fields that must never be stored in audit logs
 const SECRET_FIELDS = new Set(['password', 'passwordHash', 'token', 'secret', 'refreshToken']);
