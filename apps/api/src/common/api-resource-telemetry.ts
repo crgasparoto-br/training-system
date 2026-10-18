@@ -7,6 +7,7 @@ import type { RequestHandler } from 'express';
 const enabled = process.env.API_RESOURCE_TELEMETRY_ENABLED === 'true';
 const intervalSeconds = Math.max(30, Math.min(300, Number(process.env.API_RESOURCE_TELEMETRY_INTERVAL_SECONDS) || 60));
 const slowMs = Math.max(100, Math.min(60_000, Number(process.env.API_SLOW_REQUEST_MS) || 2000));
+const pressureThreshold = Math.max(128, Math.min(16384, Number(process.env.API_MEMORY_WARNING_MIB) || 420));
 const mib = (bytes: number): number => Math.round((bytes / 1024 / 1024) * 10) / 10;
 
 function sampleMemory(): Record<string, number> {
@@ -17,10 +18,15 @@ function sampleMemory(): Record<string, number> {
 export function startApiResourceTelemetry(): void {
   if (!enabled) return;
   const timer = setInterval(() => {
-    console.info('[api-resource]', JSON.stringify({
-      event: 'memory', uptimeSeconds: Math.round(process.uptime()),
-      ...sampleMemory(),
-    }));
+    const memory = sampleMemory();
+    const pressure = memory.rssMiB >= pressureThreshold;
+    const payload = JSON.stringify({
+      event: pressure ? 'memory-pressure' : 'memory',
+      uptimeSeconds: Math.round(process.uptime()),
+      ...memory,
+    });
+    if (pressure) console.warn('[api-resource]', payload);
+    else console.info('[api-resource]', payload);
   }, intervalSeconds * 1000);
   timer.unref();
 }
@@ -28,9 +34,12 @@ export function startApiResourceTelemetry(): void {
 export const apiResourceRequestTelemetry: RequestHandler = (req, res, next) => {
   if (!enabled) return next();
   const started = process.hrtime.bigint();
-  res.once('finish', () => {
+  let completed = false;
+  const report = (aborted: boolean) => {
+    if (completed) return;
+    completed = true;
     const elapsedMs = Math.round(Number(process.hrtime.bigint() - started) / 1e6);
-    if (elapsedMs < slowMs && res.statusCode < 500) return;
+    if (!aborted && elapsedMs < slowMs && res.statusCode < 500) return;
     // Use only a fixed route category. Never log req.url, req.path,
     // req.originalUrl or route parameters (which may contain PII or tokens).
     const category = req.originalUrl.startsWith('/api/v1/alunos') ? 'students'
@@ -39,9 +48,11 @@ export const apiResourceRequestTelemetry: RequestHandler = (req, res, next) => {
       : req.originalUrl.startsWith('/api/v1') ? 'api'
       : 'other';
     console.warn('[api-resource]', JSON.stringify({
-      event: 'request', category, method: req.method, status: res.statusCode,
+      event: aborted ? 'request-aborted' : 'request', category, method: req.method, status: res.statusCode,
       durationMs: elapsedMs, ...sampleMemory(),
     }));
-  });
+  };
+  res.once('finish', () => report(false));
+  res.once('close', () => report(!res.writableEnded));
   next();
 };
