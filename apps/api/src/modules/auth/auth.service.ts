@@ -1,5 +1,5 @@
-import { prismaRuntimeClient } from '../../common/prisma-runtime-client.js';
 import '../../bootstrap-env.js';
+import { prismaRuntimeClient } from '../../common/prisma-runtime-client.js';
 import jwt from 'jsonwebtoken';
 import bcryptjs from 'bcryptjs';
 import type {
