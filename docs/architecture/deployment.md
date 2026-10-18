@@ -251,6 +251,7 @@ A API oferece telemetria operacional opt-in sem dependencias extras:
 - `API_RESOURCE_TELEMETRY_ENABLED=true`: habilita amostras de memoria do processo e avisos de requisicoes lentas/5xx. Padrao: desabilitado.
 - `API_RESOURCE_TELEMETRY_INTERVAL_SECONDS=60`: intervalo das amostras (30 a 300 segundos).
 - `API_SLOW_REQUEST_MS=2000`: limite para registrar requisicoes lentas (100 a 60000 ms).
+- `API_MEMORY_WARNING_MIB=420`: emite warning `memory-pressure` quando o RSS ultrapassa o limite. No Render Free de 512 MiB, oferece aviso antecipado, sem reiniciar o processo.
 
 Os logs `[api-resource]` incluem RSS, heap, memoria externa e buffers em MiB. Avisos HTTP mostram apenas categoria fixa, metodo, status e duracao. Nunca devem conter URL completa, query string, parametros de rota, token, usuario, tenant nem payload. A amostragem nao deve manter o processo vivo. Compare os registros com metricas de memoria e eventos OOM do Render; nenhum log prova sozinho vazamento ou causa de uma requisicao especifica.
 
