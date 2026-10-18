@@ -1,7 +1,7 @@
+import { prismaRuntimeClient } from '../../common/prisma-runtime-client.js';
 import '../../bootstrap-env.js';
 import jwt from 'jsonwebtoken';
 import bcryptjs from 'bcryptjs';
-import { PrismaClient } from '@prisma/client';
 import type {
   JwtPayload,
   LoginRequest,
@@ -23,7 +23,7 @@ import {
   serializeAccessPermission,
 } from '../access-control/index.js';
 
-const prisma = new PrismaClient();
+const prisma = prismaRuntimeClient;
 
 export class AuthService {
   private readonly jwtSecret = process.env.JWT_SECRET || 'dev-secret';
