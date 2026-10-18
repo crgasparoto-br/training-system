@@ -89,4 +89,4 @@ export function createApiResourceRequestTelemetry(settings = getApiTelemetrySett
   };
 }
 
-export const apiResourceRequestTelemetry = createApiResourceRequestTelemetry();
+export const apiResourceRequestTelemetry: RequestHandler = createApiResourceRequestTelemetry();
