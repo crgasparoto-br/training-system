@@ -832,7 +832,7 @@ describeDatabase('resistance blocks - historical identity and transactional pers
       where: { workoutDayId: fixture.dayId },
       orderBy: { exerciseOrder: 'asc' },
     });
-    await expect(workoutService.replaceDayResistanceExercises(fixture.dayId, [input[1]]))
+    await expect(workoutService.replaceDayResistanceExercises(fixture.dayId, [{ ...input[1], exerciseOrder: 1 }]))
       .rejects.toMatchObject({ code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START' });
     const after = await prisma.workoutExercise.findMany({
       where: { workoutDayId: fixture.dayId },
