@@ -815,7 +815,10 @@ export default function WorkoutBuilder2() {
       }
     } catch (error) {
       console.error('Erro ao salvar:', error);
-      setSaveError(error instanceof Error ? error.message : 'Falha ao salvar treino. Revise os campos e tente novamente.');
+      const serverMessage = (error as { response?: { data?: { error?: unknown } } })?.response?.data?.error;
+      setSaveError(typeof serverMessage === 'string'
+        ? serverMessage
+        : 'Falha ao salvar treino. Revise os campos e tente novamente.');
     } finally {
       setSaving(false);
     }
