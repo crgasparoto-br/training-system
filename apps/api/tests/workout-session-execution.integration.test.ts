@@ -38,7 +38,10 @@ type Fixture = {
   exerciseIds: [string, string];
 };
 
-async function seedReleasedWorkout(label: string): Promise<Fixture> {
+async function seedReleasedWorkout(
+  label: string,
+  options: { publish?: boolean } = {},
+): Promise<Fixture> {
   const suffix = `${label}-${randomUUID()}`;
   const contractId = `issue-389-${suffix}`;
 
@@ -193,24 +196,26 @@ async function seedReleasedWorkout(label: string): Promise<Fixture> {
     },
   });
 
-  const releasedAt = new Date('2026-10-05T12:00:00.000Z');
-  await prisma.$executeRaw`
-    INSERT INTO "ConsolidatedPrescriptionOperationalRelease" (
-      "id", "assemblyId", "sourceAssemblyVersionId", "sourceAssemblyVersion",
-      "releasedAssemblyVersionId", "releasedAssemblyVersion", "contractId", "alunoId",
-      "trainingPlanId", "workoutTemplateId", "requestFingerprint",
-      "releasedByProfessorId", "releasedAt", "createdAt"
-    ) VALUES (
-      ${randomUUID()}, ${assembly.id}, ${approved.id}, 1,
-      ${released.id}, 2, ${contractId}, ${aluno.id},
-      ${plan.id}, ${template.id}, ${randomUUID()},
-      ${professor.id}, ${releasedAt}, ${releasedAt}
-    )
-  `;
-  await prisma.workoutTemplate.update({
-    where: { id: template.id },
-    data: { released: true, releasedAt },
-  });
+  if (options.publish !== false) {
+    const releasedAt = new Date('2026-10-05T12:00:00.000Z');
+    await prisma.$executeRaw`
+      INSERT INTO "ConsolidatedPrescriptionOperationalRelease" (
+        "id", "assemblyId", "sourceAssemblyVersionId", "sourceAssemblyVersion",
+        "releasedAssemblyVersionId", "releasedAssemblyVersion", "contractId", "alunoId",
+        "trainingPlanId", "workoutTemplateId", "requestFingerprint",
+        "releasedByProfessorId", "releasedAt", "createdAt"
+      ) VALUES (
+        ${randomUUID()}, ${assembly.id}, ${approved.id}, 1,
+        ${released.id}, 2, ${contractId}, ${aluno.id},
+        ${plan.id}, ${template.id}, ${randomUUID()},
+        ${professor.id}, ${releasedAt}, ${releasedAt}
+      )
+    `;
+    await prisma.workoutTemplate.update({
+      where: { id: template.id },
+      data: { released: true, releasedAt },
+    });
+  }
 
   return {
     contractId,
@@ -772,16 +777,9 @@ describeDatabase('workout session execution persistence - issue 389', () => {
 
 describeDatabase('resistance blocks - historical identity and transactional persistence (#399)', () => {
   async function editableFixture(label: string) {
-    const fixture = await seedReleasedWorkout(label);
-    const day = await prisma.workoutDay.findUniqueOrThrow({
-      where: { id: fixture.dayId },
-      select: { templateId: true },
-    });
-    // Exercise persistence is exercised on an editable template, not via release.
-    await prisma.workoutTemplate.update({
-      where: { id: day.templateId },
-      data: { released: false, releasedAt: null },
-    });
+    // Exercise persistence must start in a genuine draft. Published templates
+    // are immutable; tests must not attempt to unpublish operational releases.
+    const fixture = await seedReleasedWorkout(label, { publish: false });
     const rows = await prisma.workoutExercise.findMany({
       where: { id: { in: fixture.exerciseIds } },
       orderBy: { exerciseOrder: 'asc' },
