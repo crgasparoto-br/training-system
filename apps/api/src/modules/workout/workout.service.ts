@@ -589,6 +589,7 @@ export const workoutService = {
           exercises: {
             include: {
               exercise: true,
+              resistanceBlocks: resistanceBlockInclude,
             },
           },
         },
@@ -612,6 +613,7 @@ export const workoutService = {
           include: {
             exercise: true,
             executions: true,
+            resistanceBlocks: resistanceBlockInclude,
           },
           orderBy: [
             { section: 'asc' },
@@ -678,6 +680,7 @@ export const workoutService = {
           include: {
             exercise: true,
             executions: true,
+            resistanceBlocks: resistanceBlockInclude,
           },
           orderBy: [
             { section: 'asc' },
@@ -1011,6 +1014,7 @@ export const workoutService = {
           include: {
             exercise: true,
             executions: true,
+            resistanceBlocks: resistanceBlockInclude,
           },
           orderBy: [
             { section: 'asc' },
