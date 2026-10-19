@@ -848,6 +848,24 @@ describeDatabase('resistance blocks - historical identity and transactional pers
       .rejects.toMatchObject({ code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START' });
   });
 
+  it('reverte a atualização anterior quando a segunda gravação falha dentro da transação', async () => {
+    const { fixture, input } = await editableFixture('issue399-atomic-rollback');
+    const before = await prisma.workoutExercise.findMany({
+      where: { workoutDayId: fixture.dayId },
+      orderBy: { exerciseOrder: 'asc' },
+    });
+    await expect(workoutService.replaceDayResistanceExercises(fixture.dayId, [
+      { ...input[0], reps: 7 },
+      { ...input[1], reps: 'invalid' as unknown as number },
+    ])).rejects.toThrow();
+    const after = await prisma.workoutExercise.findMany({
+      where: { workoutDayId: fixture.dayId },
+      orderBy: { exerciseOrder: 'asc' },
+    });
+    expect(after.map((row) => [row.id, row.section, row.reps])).toEqual(
+      before.map((row) => [row.id, row.section, row.reps]));
+  });
+
   it('não aceita id de linha estrangeira e não provoca escrita parcial', async () => {
     const { fixture, input } = await editableFixture('issue399-invalid');
     await expect(workoutService.replaceDayResistanceExercises(fixture.dayId, [
