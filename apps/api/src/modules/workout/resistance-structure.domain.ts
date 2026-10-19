@@ -84,3 +84,57 @@ export function normalizeResistanceBlocks(value: unknown): ResistanceBlockInput[
     };
   });
 }
+
+
+/**
+ * Resolve stable workout row identities before any mutation. Explicit ids take
+ * precedence; unsaved legacy clients may match an existing exercise by its
+ * library id and section without taking a row reserved by another input.
+ */
+export function matchResistanceExerciseRows(
+  existing: ReadonlyArray<{ id: string; exerciseId: string; section: string }>,
+  requested: ReadonlyArray<{ workoutExerciseId?: string; exerciseId: string; section: string }>,
+): Array<string | null> {
+  const byId = new Map(existing.map((row) => [row.id, row]));
+  const reserved = new Set<string>();
+  for (const input of requested) {
+    if (input.workoutExerciseId === undefined) continue;
+    const row = byId.get(input.workoutExerciseId);
+    if (!row || row.exerciseId !== input.exerciseId || reserved.has(row.id)) {
+      throw new ResistanceStructureValidationError('Identidade de exercício inválida ou duplicada.');
+    }
+    reserved.add(row.id);
+  }
+  const assigned = new Set<string>();
+  return requested.map((input) => {
+    if (input.workoutExerciseId !== undefined) {
+      assigned.add(input.workoutExerciseId);
+      return input.workoutExerciseId;
+    }
+    const compatible = existing.find((row) =>
+      row.exerciseId === input.exerciseId
+      && row.section === input.section
+      && !reserved.has(row.id)
+      && !assigned.has(row.id));
+    if (!compatible) return null;
+    assigned.add(compatible.id);
+    return compatible.id;
+  });
+}
+
+/** Prevent raw Prisma/SQL error details from crossing the public API boundary. */
+export function classifyResistanceWriteError(error: unknown): {
+  status: number;
+  body: { error: string; code: string };
+} {
+  const code = error && typeof error === 'object' && 'code' in error
+    ? (error as { code?: unknown }).code
+    : undefined;
+  if (code === 'INVALID_RESISTANCE_STRUCTURE') {
+    return { status: 400, body: { code, error: 'Revise os blocos e as séries informados.' } };
+  }
+  if (code === 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START') {
+    return { status: 409, body: { code, error: 'Este treino possui histórico ou já foi liberado e não pode ser alterado.' } };
+  }
+  return { status: 500, body: { code: 'WORKOUT_SAVE_FAILED', error: 'Não foi possível salvar os exercícios.' } };
+}

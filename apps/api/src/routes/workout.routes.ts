@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { workoutService } from '../modules/workout/workout.service.js';
+import { classifyResistanceWriteError } from '../modules/workout/resistance-structure.domain.js';
 
 const router: Router = Router();
 
@@ -308,7 +309,9 @@ router.put('/days/:id/resistance-exercises', async (req, res) => {
     const exercises = await workoutService.replaceDayResistanceExercises(req.params.id, req.body?.exercises);
     res.json(exercises);
   } catch (error: any) {
-    res.status(error?.statusCode ?? 400).json({ error: error?.message ?? 'Não foi possível salvar os exercícios.', code: error?.code });
+    console.error('Error replacing resistance exercises:', error);
+    const response = classifyResistanceWriteError(error);
+    res.status(response.status).json(response.body);
   }
 });
 

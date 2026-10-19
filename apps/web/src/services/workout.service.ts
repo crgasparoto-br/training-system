@@ -163,6 +163,7 @@ export interface UpdateWorkoutDayDTO {
 }
 
 export interface AddExerciseDTO {
+  workoutExerciseId?: string;
   workoutDayId: string;
   exerciseId: string;
   section: string;

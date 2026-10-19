@@ -41,6 +41,7 @@ const parseQuickFillValue = (value: string) => (value.trim() === '' ? undefined 
 
 interface SelectedExercise {
   id: string;
+  workoutExerciseId?: string;
   exerciseId?: string;
   name: string;
   category?: string;
@@ -609,7 +610,7 @@ export default function WorkoutBuilderResistance({
 
       const list = [...currentDay[section]];
       const original = list[index];
-      const copy = { ...original, id: `${original.id}-${Date.now()}`, groupBreakBefore: false };
+      const copy = { ...original, id: `${original.id}-${Date.now()}`, workoutExerciseId: undefined, groupBreakBefore: false };
       list.splice(index + 1, 0, copy);
 
       const finalList = section === 'sessao' ? applyIntervalRulesIfConfigured(list) : list;

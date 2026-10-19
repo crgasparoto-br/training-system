@@ -66,6 +66,7 @@ export default function WorkoutBuilder2() {
         base[dayOfWeek][section] = base[dayOfWeek][section] || [];
         base[dayOfWeek][section].push({
           id: exercise.id,
+          workoutExerciseId: exercise.id,
           exerciseId: exercise.exerciseId,
           name: exercise.exercise?.name ?? '',
           category: exercise.exercise?.category ?? exercise.exerciseCategory,
@@ -792,6 +793,7 @@ export default function WorkoutBuilder2() {
                 .filter((exercise: any) => Boolean(exercise?.exerciseId))
                 .map((exercise: any, index: number) => ({
                   workoutDayId: targetDay.id,
+                  workoutExerciseId: exercise.workoutExerciseId,
                   exerciseId: exercise.exerciseId,
                   section,
                   exerciseOrder: index + 1,

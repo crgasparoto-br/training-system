@@ -20,3 +20,11 @@ Agrupamentos entre exercícios (#400), comparação planejado/executado (#401), 
 
 ## Estado de execução
 Implementação no branch `feat/399-resistance-blocks-sets`. Checkout local via GitHub bloqueado por DNS; checagens completas dependem de runner/CI. O plano fica ativo até homologação e auditoria independente.
+
+## Correção de auditoria — AUD-399-01/02/03 e REC-399-01
+- Substituição transacional do dia reconcilia identidades em vez de `deleteMany` geral.
+- Linhas históricas referenciadas por execução não podem ser removidas ou regravadas silenciosamente.
+- O editor transmite o identificador persistido; cópias novas não reutilizam esse vínculo.
+- Erros do endpoint recebem status/código públicos conhecidos, sem mensagens SQL/Prisma.
+- Controles unitários incluem correspondência estável, identidade duplicada/inválida e sanitização de erros.
+- Gate final: exigir CI `Validate repository` verde no HEAD e homologação visual/migration.

@@ -1,7 +1,7 @@
 ﻿import { PrismaClient } from '@prisma/client';
 
 import { Prisma } from '@prisma/client';
-import { normalizeResistanceBlocks, type ResistanceBlockInput } from './resistance-structure.domain.js';
+import { matchResistanceExerciseRows, normalizeResistanceBlocks, ResistanceStructureValidationError, type ResistanceBlockInput, type ResistancePlannedSetInput } from './resistance-structure.domain.js';
 
 const prisma = new PrismaClient();
 
@@ -88,6 +88,8 @@ type WorkoutDayCreateData = CreateWorkoutDayDTO;
 type WorkoutDayUpdateData = Partial<Omit<CreateWorkoutDayDTO, 'templateId'>>;
 
 export interface CreateWorkoutExerciseDTO {
+  /** Existing WorkoutExercise identity, not the exercise library id. */
+  workoutExerciseId?: string;
   workoutDayId: string;
   exerciseId: string;
   section: string;
@@ -184,6 +186,31 @@ function nestedResistanceBlocks(blocks: Array<Omit<ResistanceBlockInput, 'kind'>
     })),
   };
 }
+function comparableResistanceBlocks(blocks: ReadonlyArray<{
+  position: number;
+  kind: string;
+  notes?: string | null;
+  plannedSets: ReadonlyArray<ResistancePlannedSetInput>;
+}>) {
+  return JSON.stringify(blocks.map((block) => ({
+    position: block.position,
+    kind: block.kind,
+    notes: block.notes ?? null,
+    plannedSets: block.plannedSets.map((set) => ({
+      position: set.position,
+      repsMin: set.repsMin ?? null,
+      repsMax: set.repsMax ?? null,
+      loadKg: set.loadKg ?? null,
+      loadPercent: set.loadPercent ?? null,
+      rir: set.rir ?? null,
+      rpe: set.rpe ?? null,
+      tempo: set.tempo ?? null,
+      restSec: set.restSec ?? null,
+      notes: set.notes ?? null,
+    })),
+  })));
+}
+
 const resistanceBlockInclude = {
   orderBy: { position: 'asc' as const },
   include: { plannedSets: { orderBy: { position: 'asc' as const } } },
@@ -747,7 +774,7 @@ export const workoutService = {
    * Adicionar exercÃ­cio ao dia de treino
    */
   async addExerciseToDay(data: CreateWorkoutExerciseDTO) {
-    const { resistanceBlocks, ...exercise } = data;
+    const { resistanceBlocks, workoutExerciseId: _existingRowId, ...exercise } = data;
     const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
     return withWorkoutDayPlanningMutation(data.workoutDayId, (tx) =>
       tx.workoutExercise.create({
@@ -764,35 +791,86 @@ export const workoutService = {
     );
   },
 
-  /** Atomic replacement prevents partially saved days on a validation or persistence error. */
+  /**
+   * Reconcile a day atomically without re-keying its exercises on every save.
+   * Historical rows are never deleted or silently rewritten.
+   */
   async replaceDayResistanceExercises(workoutDayId: string, exercises: CreateWorkoutExerciseDTO[]) {
     if (!Array.isArray(exercises) || exercises.length > 200) {
-      throw new Error('Invalid resistance exercises list');
+      throw new ResistanceStructureValidationError('Lista de exercícios inválida.');
     }
     const perSection = new Map<string, number>();
     const prepared = exercises.map((input) => {
       if (!input || typeof input.exerciseId !== 'string' || !input.exerciseId.trim()
         || input.workoutDayId !== workoutDayId
+        || (input.workoutExerciseId !== undefined
+          && (typeof input.workoutExerciseId !== 'string' || !input.workoutExerciseId.trim()))
         || !['mobilidade', 'sessao', 'resfriamento'].includes(input.section)) {
-        throw new Error('Invalid resistance exercise');
+        throw new ResistanceStructureValidationError('Exercício inválido.');
       }
       const expected = (perSection.get(input.section) ?? 0) + 1;
-      if (input.exerciseOrder !== expected) throw new Error('Invalid resistance exercise order');
+      if (input.exerciseOrder !== expected) throw new ResistanceStructureValidationError('Ordem de exercício inválida.');
       perSection.set(input.section, expected);
-      const { resistanceBlocks, ...exercise } = input;
+      const { resistanceBlocks, workoutExerciseId, ...exercise } = input;
       const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
-      return { exercise, blocks };
+      return { workoutExerciseId, exercise, blocks };
     });
 
     return withWorkoutDayPlanningMutation(workoutDayId, async (tx) => {
-      await tx.workoutExercise.deleteMany({ where: { workoutDayId } });
-      for (const item of prepared) {
-        await tx.workoutExercise.create({
+      const current = await tx.workoutExercise.findMany({
+        where: { workoutDayId },
+        include: {
+          resistanceBlocks: resistanceBlockInclude,
+          _count: { select: { executions: true, executionItems: true } },
+        },
+        orderBy: [{ section: 'asc' }, { exerciseOrder: 'asc' }],
+      });
+      const identity = matchResistanceExerciseRows(current, prepared);
+      const preserved = new Set(identity.filter((id): id is string => id !== null));
+
+      // Validate removals before any writes to protect historical execution rows.
+      for (const prior of current) {
+        if (!preserved.has(prior.id)
+          && (prior._count.executions > 0 || prior._count.executionItems > 0)) {
+          throw new WorkoutPlanningLockedError();
+        }
+      }
+      for (let index = 0; index < prepared.length; index += 1) {
+        const input = prepared[index];
+        const rowId = identity[index];
+        if (!rowId) {
+          await tx.workoutExercise.create({
+            data: {
+              ...input.exercise,
+              ...(input.blocks ? { resistanceBlocks: nestedResistanceBlocks(input.blocks) } : {}),
+            },
+          });
+          continue;
+        }
+        const prior = current.find((row) => row.id === rowId)!;
+        const changedColumns = Object.entries(input.exercise).some(([key, value]) =>
+          value !== undefined && value !== prior[key as keyof typeof prior]);
+        const blocksChanged = input.blocks !== undefined
+          && comparableResistanceBlocks(prior.resistanceBlocks) !== comparableResistanceBlocks(input.blocks);
+        if ((prior._count.executions > 0 || prior._count.executionItems > 0)
+          && (changedColumns || blocksChanged)) {
+          throw new WorkoutPlanningLockedError();
+        }
+        if (!changedColumns && !blocksChanged) continue;
+        await tx.workoutExercise.update({
+          where: { id: rowId },
           data: {
-            ...item.exercise,
-            ...(item.blocks ? { resistanceBlocks: nestedResistanceBlocks(item.blocks) } : {}),
+            ...input.exercise,
+            ...(blocksChanged && input.blocks
+              ? { resistanceBlocks: { deleteMany: {}, ...nestedResistanceBlocks(input.blocks) } }
+              : {}),
           },
         });
+      }
+      for (const prior of current) {
+        if (!preserved.has(prior.id)) {
+          await tx.workoutExercise.delete({ where: { id: prior.id } });
+        }
       }
       return tx.workoutExercise.findMany({
         where: { workoutDayId },
@@ -812,7 +890,7 @@ export const workoutService = {
     const targetWorkoutDayId = data.workoutDayId ?? current.workoutDayId;
     const workoutDayIds = [...new Set([current.workoutDayId, targetWorkoutDayId])].sort();
 
-    const { resistanceBlocks, ...exercise } = data;
+    const { resistanceBlocks, workoutExerciseId: _existingRowId, ...exercise } = data;
     const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
     return prisma.$transaction(async (tx) => {
       for (const workoutDayId of workoutDayIds) {
