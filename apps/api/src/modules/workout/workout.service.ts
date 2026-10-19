@@ -1,6 +1,7 @@
 ﻿import { PrismaClient } from '@prisma/client';
 
 import { Prisma } from '@prisma/client';
+import { normalizeResistanceBlocks, type ResistanceBlockInput } from './resistance-structure.domain.js';
 
 const prisma = new PrismaClient();
 
@@ -100,6 +101,7 @@ export interface CreateWorkoutExerciseDTO {
   eParam?: number;
   load?: number;
   exerciseNotes?: string;
+  resistanceBlocks?: ResistanceBlockInput[];
 }
 
 export interface RecordExecutionDTO {
@@ -149,6 +151,44 @@ export class WorkoutPlanningLockedError extends Error {
   }
 }
 
+/** Preserve the released version as an immutable source of truth. */
+async function rejectFrozenPlanning(tx: Prisma.TransactionClient, workoutDayId: string) {
+  const day = await tx.workoutDay.findUnique({
+    where: { id: workoutDayId },
+    select: { template: { select: { released: true } } },
+  });
+  if (!day) throw new Error('Workout day not found');
+  if (day.template.released) throw new WorkoutPlanningLockedError();
+}
+
+function nestedResistanceBlocks(blocks: ResistanceBlockInput[]) {
+  return {
+    create: blocks.map((block) => ({
+      position: block.position,
+      kind: block.kind,
+      notes: block.notes,
+      plannedSets: {
+        create: block.plannedSets.map((set) => ({
+          position: set.position,
+          repsMin: set.repsMin,
+          repsMax: set.repsMax,
+          loadKg: set.loadKg,
+          loadPercent: set.loadPercent,
+          rir: set.rir,
+          rpe: set.rpe,
+          tempo: set.tempo,
+          restSec: set.restSec,
+          notes: set.notes,
+        })),
+      },
+    })),
+  };
+}
+const resistanceBlockInclude = {
+  orderBy: { position: 'asc' as const },
+  include: { plannedSets: { orderBy: { position: 'asc' as const } } },
+};
+
 export class LegacyWorkoutLifecycleDisabledError extends Error {
   readonly statusCode = 409;
   readonly code = 'WORKOUT_SESSION_EXECUTION_CANONICAL_ENDPOINT_REQUIRED';
@@ -180,6 +220,7 @@ async function lockWorkoutDayPlanningMutable(
     FOR UPDATE
   `);
 
+  await rejectFrozenPlanning(tx, workoutDayId);
   const execution = await tx.workoutSessionExecution.findUnique({
     where: { workoutDayId },
     select: { status: true },
@@ -199,6 +240,8 @@ async function lockWorkoutTemplatePlanningMutable(
     FOR UPDATE
   `);
 
+  const template = await tx.workoutTemplate.findUnique({ where: { id: templateId }, select: { released: true } });
+  if (template?.released) throw new WorkoutPlanningLockedError();
   const started = await tx.workoutSessionExecution.findFirst({
     where: {
       workoutDay: { templateId },
@@ -277,6 +320,7 @@ export const workoutService = {
             exercises: {
               include: {
                 exercise: true,
+                resistanceBlocks: resistanceBlockInclude,
               },
               orderBy: [
                 { section: 'asc' },
@@ -384,6 +428,7 @@ export const workoutService = {
             exercises: {
               include: {
                 exercise: true,
+                resistanceBlocks: resistanceBlockInclude,
               },
               orderBy: [
                 { section: 'asc' },
@@ -411,6 +456,7 @@ export const workoutService = {
             exercises: {
               include: {
                 exercise: true,
+                resistanceBlocks: resistanceBlockInclude,
               },
             },
           },
@@ -463,6 +509,7 @@ export const workoutService = {
             exercises: {
               include: {
                 exercise: true,
+                resistanceBlocks: resistanceBlockInclude,
               },
               orderBy: [
                 { section: 'asc' },
@@ -482,6 +529,8 @@ export const workoutService = {
    * Liberar template para o aluno
    */
   async releaseTemplate(id: string) {
+    const previous = await prisma.workoutTemplate.findUnique({ where: { id } });
+    if (previous?.released) return serializeWorkoutTemplate(previous);
     const template = await withWorkoutTemplatePlanningMutation(id, (tx) =>
       tx.workoutTemplate.update({
         where: { id },
@@ -511,6 +560,7 @@ export const workoutService = {
         exercises: {
           include: {
             exercise: true,
+            resistanceBlocks: resistanceBlockInclude,
           },
           orderBy: [
             { section: 'asc' },
@@ -681,6 +731,7 @@ export const workoutService = {
       where: { workoutDayId },
       include: {
         exercise: true,
+        resistanceBlocks: resistanceBlockInclude,
       },
       orderBy: [
         { section: 'asc' },
@@ -693,15 +744,59 @@ export const workoutService = {
    * Adicionar exercÃ­cio ao dia de treino
    */
   async addExerciseToDay(data: CreateWorkoutExerciseDTO) {
+    const { resistanceBlocks, ...exercise } = data;
+    const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
     return withWorkoutDayPlanningMutation(data.workoutDayId, (tx) =>
       tx.workoutExercise.create({
-        data,
+        data: {
+          ...exercise,
+          ...(blocks ? { resistanceBlocks: nestedResistanceBlocks(blocks) } : {}),
+        },
         include: {
           exercise: true,
           workoutDay: true,
+          resistanceBlocks: resistanceBlockInclude,
         },
       })
     );
+  },
+
+  /** Atomic replacement prevents partially saved days on a validation or persistence error. */
+  async replaceDayResistanceExercises(workoutDayId: string, exercises: CreateWorkoutExerciseDTO[]) {
+    if (!Array.isArray(exercises) || exercises.length > 200) {
+      throw new Error('Invalid resistance exercises list');
+    }
+    const perSection = new Map<string, number>();
+    const prepared = exercises.map((input) => {
+      if (!input || typeof input.exerciseId !== 'string' || !input.exerciseId.trim()
+        || input.workoutDayId !== workoutDayId
+        || !['mobilidade', 'sessao', 'resfriamento'].includes(input.section)) {
+        throw new Error('Invalid resistance exercise');
+      }
+      const expected = (perSection.get(input.section) ?? 0) + 1;
+      if (input.exerciseOrder !== expected) throw new Error('Invalid resistance exercise order');
+      perSection.set(input.section, expected);
+      const { resistanceBlocks, ...exercise } = input;
+      const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
+      return { exercise, blocks };
+    });
+
+    return withWorkoutDayPlanningMutation(workoutDayId, async (tx) => {
+      await tx.workoutExercise.deleteMany({ where: { workoutDayId } });
+      for (const item of prepared) {
+        await tx.workoutExercise.create({
+          data: {
+            ...item.exercise,
+            ...(item.blocks ? { resistanceBlocks: nestedResistanceBlocks(item.blocks) } : {}),
+          },
+        });
+      }
+      return tx.workoutExercise.findMany({
+        where: { workoutDayId },
+        include: { exercise: true, resistanceBlocks: resistanceBlockInclude },
+        orderBy: [{ section: 'asc' }, { exerciseOrder: 'asc' }],
+      });
+    });
   },
 
   /**
@@ -714,13 +809,21 @@ export const workoutService = {
     const targetWorkoutDayId = data.workoutDayId ?? current.workoutDayId;
     const workoutDayIds = [...new Set([current.workoutDayId, targetWorkoutDayId])].sort();
 
+    const { resistanceBlocks, ...exercise } = data;
+    const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
     return prisma.$transaction(async (tx) => {
       for (const workoutDayId of workoutDayIds) {
         await lockWorkoutDayPlanningMutable(tx, workoutDayId);
       }
       return tx.workoutExercise.update({
         where: { id },
-        data,
+        data: {
+          ...exercise,
+          ...(blocks !== undefined ? {
+            resistanceBlocks: { deleteMany: {}, ...nestedResistanceBlocks(blocks) },
+          } : {}),
+        },
+        include: { exercise: true, resistanceBlocks: resistanceBlockInclude },
       });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   },
@@ -737,7 +840,7 @@ export const workoutService = {
       include: {
         workoutDays: {
           include: {
-            exercises: true,
+            exercises: { include: { resistanceBlocks: resistanceBlockInclude } },
           },
         },
       },
@@ -841,6 +944,12 @@ export const workoutService = {
             eParam: exercise.eParam,
             load: exercise.load,
             exerciseNotes: exercise.exerciseNotes,
+            resistanceBlocks: nestedResistanceBlocks(exercise.resistanceBlocks.map((block) => ({
+              position: block.position, kind: block.kind, notes: block.notes,
+              plannedSets: block.plannedSets.map((set) => ({ position: set.position, repsMin: set.repsMin,
+                repsMax: set.repsMax, loadKg: set.loadKg, loadPercent: set.loadPercent,
+                rir: set.rir, rpe: set.rpe, tempo: set.tempo, restSec: set.restSec, notes: set.notes })),
+            }))),
           },
         });
       }
@@ -855,6 +964,7 @@ export const workoutService = {
             exercises: {
               include: {
                 exercise: true,
+                resistanceBlocks: resistanceBlockInclude,
               },
               orderBy: [
                 { section: 'asc' },
@@ -969,6 +1079,12 @@ export const workoutService = {
             eParam: exercise.eParam,
             load: exercise.load,
             exerciseNotes: exercise.exerciseNotes,
+            resistanceBlocks: nestedResistanceBlocks(exercise.resistanceBlocks.map((block) => ({
+              position: block.position, kind: block.kind, notes: block.notes,
+              plannedSets: block.plannedSets.map((set) => ({ position: set.position, repsMin: set.repsMin,
+                repsMax: set.repsMax, loadKg: set.loadKg, loadPercent: set.loadPercent,
+                rir: set.rir, rpe: set.rpe, tempo: set.tempo, restSec: set.restSec, notes: set.notes })),
+            }))),
           },
         });
       }

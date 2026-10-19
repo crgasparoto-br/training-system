@@ -302,6 +302,16 @@ router.post('/days/:id/copy', async (req, res) => {
   }
 });
 
+// Replace all resistance exercises in a canonical WorkoutDay atomically.
+router.put('/days/:id/resistance-exercises', async (req, res) => {
+  try {
+    const exercises = await workoutService.replaceDayResistanceExercises(req.params.id, req.body?.exercises);
+    res.json(exercises);
+  } catch (error: any) {
+    res.status(error?.statusCode ?? 400).json({ error: error?.message ?? 'Não foi possível salvar os exercícios.', code: error?.code });
+  }
+});
+
 // ============================================================================
 // WORKOUT EXERCISE ROUTES
 // ============================================================================
@@ -328,7 +338,7 @@ router.post('/exercises', async (req, res) => {
     res.status(201).json(exercise);
   } catch (error: any) {
     console.error('Error adding exercise:', error);
-    res.status(500).json({ error: error.message });
+    res.status(error?.statusCode ?? 500).json({ error: error?.statusCode ? error.message : 'Não foi possível salvar o exercício.', code: error?.code });
   }
 });
 
@@ -339,7 +349,7 @@ router.put('/exercises/:id', async (req, res) => {
     res.json(exercise);
   } catch (error: any) {
     console.error('Error updating exercise:', error);
-    res.status(500).json({ error: error.message });
+    res.status(error?.statusCode ?? 500).json({ error: error?.statusCode ? error.message : 'Não foi possível salvar o exercício.', code: error?.code });
   }
 });
 
