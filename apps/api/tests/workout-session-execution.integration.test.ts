@@ -768,3 +768,88 @@ describeDatabase('workout session execution persistence - issue 389', () => {
     expect(ownExercises.map((item) => item.id)).toEqual(own.exerciseIds);
   });
 });
+
+
+describeDatabase('resistance blocks - historical identity and transactional persistence (#399)', () => {
+  async function editableFixture(label: string) {
+    const fixture = await seedReleasedWorkout(label);
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      select: { templateId: true },
+    });
+    // Exercise persistence is exercised on an editable template, not via release.
+    await prisma.workoutTemplate.update({
+      where: { id: day.templateId },
+      data: { released: false, releasedAt: null },
+    });
+    const rows = await prisma.workoutExercise.findMany({
+      where: { id: { in: fixture.exerciseIds } },
+      orderBy: { exerciseOrder: 'asc' },
+    });
+    const input = rows.map((row, index) => ({
+      workoutDayId: fixture.dayId,
+      workoutExerciseId: row.id,
+      exerciseId: row.exerciseId,
+      section: 'sessao',
+      exerciseOrder: index + 1,
+      sets: row.sets ?? undefined,
+      reps: row.reps ?? undefined,
+      resistanceBlocks: index === 0
+        ? [{
+          position: 1,
+          kind: 'principal' as const,
+          plannedSets: [{ position: 1, repsMin: 8, repsMax: 12, loadKg: 32.5, rir: 2 }],
+        }]
+        : [],
+    }));
+    return { fixture, input };
+  }
+
+  it('salvamentos repetidos preservam ids de exercícios, blocos e séries', async () => {
+    const { fixture, input } = await editableFixture('issue399-replay');
+    const first = await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    expect(first.map((row) => row.id)).toEqual(fixture.exerciseIds);
+    expect(first[0].resistanceBlocks[0].plannedSets[0].repsMin).toBe(8);
+    const blockId = first[0].resistanceBlocks[0].id;
+    const setId = first[0].resistanceBlocks[0].plannedSets[0].id;
+    const second = await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    expect(second.map((row) => row.id)).toEqual(fixture.exerciseIds);
+    expect(second[0].resistanceBlocks[0].id).toBe(blockId);
+    expect(second[0].resistanceBlocks[0].plannedSets[0].id).toBe(setId);
+  });
+
+  it('protege execução histórica contra exclusão e garante rollback do dia', async () => {
+    const { fixture, input } = await editableFixture('issue399-historical');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    await prisma.workoutExecution.create({
+      data: {
+        workoutExerciseId: fixture.exerciseIds[0],
+        alunoId: fixture.alunoId,
+        executionDate: new Date('2026-10-07T09:00:00.000Z'),
+      },
+    });
+    const before = await prisma.workoutExercise.findMany({
+      where: { workoutDayId: fixture.dayId },
+      orderBy: { exerciseOrder: 'asc' },
+    });
+    await expect(workoutService.replaceDayResistanceExercises(fixture.dayId, [input[1]]))
+      .rejects.toMatchObject({ code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START' });
+    const after = await prisma.workoutExercise.findMany({
+      where: { workoutDayId: fixture.dayId },
+      orderBy: { exerciseOrder: 'asc' },
+    });
+    expect(after.map((row) => row.id)).toEqual(before.map((row) => row.id));
+    expect(await prisma.workoutExecution.count({
+      where: { workoutExerciseId: fixture.exerciseIds[0] },
+    })).toBe(1);
+  });
+
+  it('não aceita id de linha estrangeira e não provoca escrita parcial', async () => {
+    const { fixture, input } = await editableFixture('issue399-invalid');
+    await expect(workoutService.replaceDayResistanceExercises(fixture.dayId, [
+      { ...input[0], workoutExerciseId: 'foreign-row' },
+      input[1],
+    ])).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    expect(await prisma.workoutExercise.count({ where: { workoutDayId: fixture.dayId } })).toBe(2);
+  });
+});
