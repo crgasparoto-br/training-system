@@ -1,7 +1,7 @@
 ﻿import { PrismaClient } from '@prisma/client';
 
 import { Prisma } from '@prisma/client';
-import { matchResistanceExerciseRows, normalizeResistanceBlocks, ResistanceStructureValidationError, type ResistanceBlockInput, type ResistancePlannedSetInput } from './resistance-structure.domain.js';
+import { matchResistanceExerciseRows, normalizeResistanceBlocks, ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput, type ResistancePlannedSetInput } from './resistance-structure.domain.js';
 
 const prisma = new PrismaClient();
 
@@ -806,7 +806,7 @@ export const workoutService = {
    * Reconcile a day atomically without re-keying its exercises on every save.
    * Historical rows are never deleted or silently rewritten.
    */
-  async replaceDayResistanceExercises(workoutDayId: string, exercises: CreateWorkoutExerciseDTO[]) {
+  async replaceDayResistanceExercises(workoutDayId: string, exercises: CreateWorkoutExerciseDTO[], contractId?: string) {
     if (!Array.isArray(exercises) || exercises.length > 200) {
       throw new ResistanceStructureValidationError('Lista de exercícios inválida.');
     }
@@ -827,7 +827,32 @@ export const workoutService = {
       return { workoutExerciseId, exercise, blocks };
     });
 
+    // The public route requires an active professor and supplies their contract.
+    // Preflight avoids revealing frozen/started state for a foreign day.
+    if (contractId !== undefined) {
+      if (!contractId.trim()) throw new ResistanceStructureNotFoundError();
+      const owned = await prisma.workoutDay.findFirst({
+        where: { id: workoutDayId, template: { plan: { aluno: { contractId } } } },
+        select: { id: true },
+      });
+      if (!owned) throw new ResistanceStructureNotFoundError();
+    }
+
     return withWorkoutDayPlanningMutation(workoutDayId, async (tx) => {
+      if (contractId !== undefined) {
+        const owned = await tx.workoutDay.findFirst({
+          where: { id: workoutDayId, template: { plan: { aluno: { contractId } } } },
+          select: { id: true },
+        });
+        if (!owned) throw new ResistanceStructureNotFoundError();
+        const libraryIds = [...new Set(prepared.map((item) => item.exercise.exerciseId))];
+        const available = await tx.exerciseLibrary.count({
+          where: { id: { in: libraryIds }, contractId },
+        });
+        if (available !== libraryIds.length) {
+          throw new ResistanceStructureValidationError('Exercício fora do contrato.');
+        }
+      }
       const current = await tx.workoutExercise.findMany({
         where: { workoutDayId },
         include: {

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { workoutService } from '../modules/workout/workout.service.js';
 import { classifyResistanceWriteError } from '../modules/workout/resistance-structure.domain.js';
+import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
 
 const router: Router = Router();
 
@@ -304,9 +305,13 @@ router.post('/days/:id/copy', async (req, res) => {
 });
 
 // Replace all resistance exercises in a canonical WorkoutDay atomically.
-router.put('/days/:id/resistance-exercises', async (req, res) => {
+router.put('/days/:id/resistance-exercises', authMiddleware, professorMiddleware, async (req, res) => {
   try {
-    const exercises = await workoutService.replaceDayResistanceExercises(req.params.id, req.body?.exercises);
+    const contractId = req.user?.contractId;
+    if (!contractId) {
+      return res.status(403).json({ error: 'Acesso negado.', code: 'FORBIDDEN' });
+    }
+    const exercises = await workoutService.replaceDayResistanceExercises(req.params.id, req.body?.exercises, contractId);
     res.json(exercises);
   } catch (error: any) {
     console.error('Error replacing resistance exercises:', error);

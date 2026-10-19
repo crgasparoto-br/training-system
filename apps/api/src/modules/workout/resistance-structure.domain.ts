@@ -20,6 +20,15 @@ export interface ResistanceBlockInput {
   notes?: string | null;
   plannedSets: ResistancePlannedSetInput[];
 }
+export class ResistanceStructureNotFoundError extends Error {
+  readonly statusCode = 404;
+  readonly code = 'RESISTANCE_DAY_NOT_FOUND';
+
+  constructor() {
+    super('Treino não encontrado.');
+  }
+}
+
 export class ResistanceStructureValidationError extends Error {
   readonly statusCode = 400;
   readonly code = 'INVALID_RESISTANCE_STRUCTURE';
@@ -132,6 +141,9 @@ export function classifyResistanceWriteError(error: unknown): {
     : undefined;
   if (code === 'INVALID_RESISTANCE_STRUCTURE') {
     return { status: 400, body: { code, error: 'Revise os blocos e as séries informados.' } };
+  }
+  if (code === 'RESISTANCE_DAY_NOT_FOUND') {
+    return { status: 404, body: { code, error: 'Treino não encontrado.' } };
   }
   if (code === 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START') {
     return { status: 409, body: { code, error: 'Este treino possui histórico ou já foi liberado e não pode ser alterado.' } };

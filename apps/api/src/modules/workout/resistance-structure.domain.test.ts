@@ -63,5 +63,8 @@ describe('Issue #399 - identidade estável e respostas públicas', () => {
     expect(classifyResistanceWriteError({ code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START' })).toMatchObject({
       status: 409,
     });
+    expect(classifyResistanceWriteError({ code: 'RESISTANCE_DAY_NOT_FOUND' })).toEqual({
+      status: 404, body: { error: 'Treino não encontrado.', code: 'RESISTANCE_DAY_NOT_FOUND' },
+    });
   });
 });

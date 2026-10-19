@@ -866,6 +866,27 @@ describeDatabase('resistance blocks - historical identity and transactional pers
       before.map((row) => [row.id, row.section, row.reps]));
   });
 
+  it('impede operações cruzando contratos e catálogo de exercícios', async () => {
+    const own = await editableFixture('issue399-own-contract');
+    const foreign = await seedReleasedWorkout('issue399-foreign-contract');
+    await expect(workoutService.replaceDayResistanceExercises(
+      own.fixture.dayId, own.input, foreign.contractId,
+    )).rejects.toMatchObject({ code: 'RESISTANCE_DAY_NOT_FOUND' });
+    const foreignExercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: foreign.exerciseIds[0] },
+      select: { exerciseId: true },
+    });
+    await expect(workoutService.replaceDayResistanceExercises(
+      own.fixture.dayId,
+      [{ ...own.input[0], exerciseId: foreignExercise.exerciseId }, own.input[1]],
+      own.fixture.contractId,
+    )).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    const unchanged = await prisma.workoutExercise.findMany({
+      where: { workoutDayId: own.fixture.dayId },
+    });
+    expect(unchanged).toHaveLength(2);
+  });
+
   it('não aceita id de linha estrangeira e não provoca escrita parcial', async () => {
     const { fixture, input } = await editableFixture('issue399-invalid');
     await expect(workoutService.replaceDayResistanceExercises(fixture.dayId, [
