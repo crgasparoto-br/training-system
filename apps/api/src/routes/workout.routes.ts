@@ -417,6 +417,22 @@ router.post('/exercises', async (req, res) => {
   }
 });
 
+// Reorder exercises
+router.put('/exercises/reorder', async (req, res) => {
+  try {
+    const { workoutDayId, section, exerciseIds } = req.body as {
+      workoutDayId: string;
+      section: string;
+      exerciseIds: string[];
+    };
+    await workoutService.reorderExercises(workoutDayId, section, exerciseIds, req.user!.contractId);
+    res.status(204).send();
+  } catch (error: any) {
+    console.error('Error reordering exercises:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Update exercise
 router.put('/exercises/:id', async (req, res) => {
   try {
@@ -439,20 +455,5 @@ router.delete('/exercises/:id', async (req, res) => {
   }
 });
 
-// Reorder exercises
-router.put('/exercises/reorder', async (req, res) => {
-  try {
-    const { workoutDayId, section, exerciseIds } = req.body as {
-      workoutDayId: string;
-      section: string;
-      exerciseIds: string[];
-    };
-    await workoutService.reorderExercises(workoutDayId, section, exerciseIds, req.user!.contractId);
-    res.status(204).send();
-  } catch (error: any) {
-    console.error('Error reordering exercises:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
 export default router;
