@@ -187,3 +187,7 @@ Os gates PostgreSQL oficiais são:
 
 - `scripts/verify-adipometry-migration-existing-data.sh`;
 - `scripts/verify-adipometry-foundation.sh`.
+
+## Blocos/séries resistidos (#399)
+
+`WorkoutExerciseBlock` e `WorkoutExercisePlannedSet` dependem do `WorkoutExercise` canônico, com FKs, posição única por pai e checks numéricos. `WorkoutSessionExecutionItem.plannedSetId` é opcional para compatibilidade e tem FK e validação de pertencimento ao mesmo `plannedUnitId`. A migration `20261019190000_issue_399_resistance_blocks` não preenche valores legados presumidos; o schema de runtime é `apps/api/prisma/schema.prisma`. Triggers protegem o planejado liberado/começado da alteração direta.

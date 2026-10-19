@@ -55,3 +55,11 @@ Toda ação `Montar semana` abre diretamente o `WorkoutBuilder2`. Não deve exis
 - Cíclico e Resistido podem coexistir no mesmo dia.
 - Histórico liberado não deve ser sobrescrito silenciosamente.
 - Novos recursos de #397, incluindo #398 e #399, devem estender o grafo canônico e nunca reativar `Microcycle` como segunda árvore operacional.
+
+## Séries resistidas estruturadas (#399)
+
+A estrutura de cada `WorkoutExercise` pode incluir `WorkoutExerciseBlock[]` (posição, tipo e observação) com `WorkoutExercisePlannedSet[]` (posição, repetições mínimas/máximas, carga em kg ou percentual, RIR/RPE, tempo/cadência, descanso em segundos e observação). Blocos são filhos do exercício operacional do `WorkoutDay`, não grupos entre exercícios (#400).
+
+A ausência de blocos preserva o contrato simples existente (`sets`, `reps`, `load`, `intervalSec`), sem backfill presumido. Blocos têm ordem 1..N e tipos `aquecimento | principal | tecnica | complementar | finalizacao`; cada bloco possui de 1 a 30 séries ordenadas e opcionais sem coerção para zero. Campo ausente não vira carga prescrita. Os IDs estruturados fazem parte da prescrição e devem permanecer reproduzíveis após liberação.
+
+Leituras de template, dia e exercício incluem `resistanceBlocks[].plannedSets[]` ordenados. O Workout Builder permite editar a estrutura por exercício e salva a composição do dia atomicamente via `PUT /api/v1/workout/days/:id/resistance-exercises`, com payload `{ exercises: [...] }`. Escritas em template liberado e/ou execução iniciada são bloqueadas, inclusive por gatilho de banco. A execução real permanece separada em `WorkoutSessionExecutionItem`, cuja referência opcional `plannedSetId` aponta para uma série planejada pertencente ao mesmo exercício; a comparação será responsabilidade da #401. A migração é aditiva e não cria nova árvore de montagem.
