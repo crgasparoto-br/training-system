@@ -878,7 +878,8 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     });
     await expect(workoutService.replaceDayResistanceExercises(
       own.fixture.dayId,
-      [{ ...own.input[0], exerciseId: foreignExercise.exerciseId }, own.input[1]],
+      [{ workoutDayId: own.fixture.dayId, exerciseId: foreignExercise.exerciseId,
+        section: 'sessao', exerciseOrder: 1, resistanceBlocks: [] }, own.input[1]],
       own.fixture.contractId,
     )).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
     const unchanged = await prisma.workoutExercise.findMany({
