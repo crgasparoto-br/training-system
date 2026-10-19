@@ -72,3 +72,11 @@ O salvamento transacional de exercícios resistidos de um `WorkoutDay` deve reco
 As mutações de planejamento também consultam o histórico legado de `WorkoutExecution` dentro da transação, antes de atualizar, reordenar ou excluir exercícios e dias. O guard de séries no banco trata esse histórico como bloqueio de mutabilidade.
 
 O endpoint de substituição de exercícios estruturados requer token válido e vínculo ativo de professor. O serviço verifica o contrato do aluno associado ao `WorkoutDay` antes da mutação e novamente na transação, além de validar que todos os exercícios da biblioteca pertencem ao mesmo contrato; referências de outro contrato são rejeitadas sem efeito parcial.
+
+## Endurecimento da segurança e consistência — AUD-399-04/05/06
+
+Todas as rotas do Workout Builder exigem autenticação, vínculo ativo de professor e escopo do aluno no mesmo contrato. Os endpoints legados de mutação de exercícios revalidam contrato e biblioteca dentro da transação, não apenas no middleware.
+
+Os triggers dos blocos e séries verificam origem (`OLD`) e destino (`NEW`) em atualizações de vínculo. Uma estrutura liberada, iniciada ou com histórico executado não pode ser transferida para outro exercício editável.
+
+A resposta de template após correção de `weekStartDate` inclui `resistanceBlocks[].plannedSets[]`. A interface diferencia campo ausente (`undefined`, preservar planejamento) de array vazio (`[]`, remoção intencional). Nenhuma simples releitura pode apagar séries prescritas.
