@@ -79,14 +79,14 @@ export default function WorkoutBuilder2() {
           eParam: exercise.eParam ?? null,
           load: exercise.load ?? null,
           adjustment: exercise.exerciseNotes ?? null,
-          resistanceBlocks: exercise.resistanceBlocks?.map((block: any) => ({
+          resistanceBlocks: Array.isArray(exercise.resistanceBlocks) ? exercise.resistanceBlocks.map((block: any) => ({
             position: block.position, kind: block.kind, notes: block.notes,
             plannedSets: block.plannedSets?.map((set: any) => ({
               position: set.position, repsMin: set.repsMin, repsMax: set.repsMax,
               loadKg: set.loadKg, loadPercent: set.loadPercent,
               rir: set.rir, rpe: set.rpe, tempo: set.tempo, restSec: set.restSec, notes: set.notes,
             })) ?? [],
-          })) ?? [],
+          })) : undefined,
         });
       });
     });
