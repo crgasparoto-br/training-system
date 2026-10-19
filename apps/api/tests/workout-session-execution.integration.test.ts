@@ -886,6 +886,41 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     expect(unchanged).toHaveLength(2);
   });
 
+
+  it('mantém séries ao ajustar a data de início de uma semana editável', async () => {
+    const { fixture, input } = await editableFixture('issue399-change-start');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, include: { template: true },
+    });
+    const changed = await workoutService.getOrCreateTemplate({
+      planId: day.template.planId,
+      mesocycleNumber: day.template.mesocycleNumber,
+      weekNumber: day.template.weekNumber,
+      weekStartDate: new Date(day.template.weekStartDate.getTime() + 604800000),
+    });
+    const saved = changed?.workoutDays.find((row) => row.id === fixture.dayId);
+    expect(saved?.exercises[0].resistanceBlocks[0].plannedSets[0].loadKg).toBe(32.5);
+  });
+
+  it('nega operações de edição legada envolvendo contrato de outro aluno', async () => {
+    const own = await editableFixture('issue399-own-contract-legacy');
+    const foreign = await editableFixture('issue399-foreign-contract-legacy');
+    await expect(workoutService.addExercise({
+      workoutDayId: own.fixture.dayId,
+      exerciseId: own.input[0].exerciseId,
+      section: 'sessao', exerciseOrder: 3,
+    }, foreign.fixture.contractId)).rejects.toMatchObject({ code: 'RESISTANCE_DAY_NOT_FOUND' });
+    await expect(workoutService.updateExercise(own.fixture.exerciseIds[0], {
+      reps: 7,
+    }, foreign.fixture.contractId)).rejects.toMatchObject({ code: 'RESISTANCE_DAY_NOT_FOUND' });
+    await expect(workoutService.deleteExercise(own.fixture.exerciseIds[0],
+      foreign.fixture.contractId)).rejects.toMatchObject({ code: 'RESISTANCE_DAY_NOT_FOUND' });
+    expect(await prisma.workoutExercise.count({
+      where: { workoutDayId: own.fixture.dayId },
+    })).toBe(2);
+  });
+
   it('não aceita id de linha estrangeira e não provoca escrita parcial', async () => {
     const { fixture, input } = await editableFixture('issue399-invalid');
     await expect(workoutService.replaceDayResistanceExercises(fixture.dayId, [
