@@ -939,7 +939,10 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     });
     const block = origin[0].resistanceBlocks[0];
     const plannedSet = block.plannedSets[0];
-    const targetBlock = destination[0].resistanceBlocks[0];
+    // A free destination position distinguishes the freeze trigger from unique constraints.
+    const targetBlock = await prisma.workoutExerciseBlock.create({
+      data: { workoutExerciseId: target.fixture.exerciseIds[0], position: 2, kind: 'principal' },
+    });
 
     await expect(prisma.workoutExerciseBlock.update({
       where: { id: block.id },
