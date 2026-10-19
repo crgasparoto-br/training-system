@@ -23,3 +23,11 @@ Reuse the application's canonical `prismaRuntimeClient` in the contract lifecycl
 5. Profile memory and investigate other long-lived clients and scheduled work if memory continues to approach the 512 MiB cap. Consider increasing Render capacity only when sizing data supports it.
 
 Avoid increasing transaction timeouts or Node heap caps blindly; neither addresses the verified memory pressure by itself.
+
+## Investigacao complementar (2026-10-18)
+
+O Render confirmou cinco eventos `oomKilled` de 512 MiB em 13 e 17 de outubro (dois em 13/10; tres em 17/10). Foi identificado uso de `new PrismaClient()` em seis modulos de runtime adicionais, incluindo autenticacao/middleware, planos, biblioteca, agenda e auditoria cadastral. Estes modulos foram alinhados ao `prismaRuntimeClient` canonico na PR #514 para reduzir pools redundantes. A relacao causal isolada nao esta comprovada.
+
+Instrumentacao adicional na PR #514: sinais de `memory-pressure` quando RSS ultrapassa limiar configuravel e avisos de encerramento de requisicao antes de resposta (`request-aborted`), sem parametros, caminhos brutos nem dados pessoais. Observabilidade depende de ativacao e deploy controlado; nao constitue prova de estabilidade.
+
+Para validar: executar `pnpm validate` e testes de integracao; repetir jornadas autenticadas de login, central do aluno, agenda, planos e biblioteca em homologacao; medir RSS/heap/external, conexoes e latencia Prisma; comparar com eventos de falha no Render. Um limite de warning nao modifica capacidade nem evita OOM por si so.

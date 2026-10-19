@@ -1,4 +1,5 @@
-﻿import { PrismaClient, type AgendaBookingStatus, type AgendaBookingType } from '@prisma/client';
+import { prismaRuntimeClient } from '../../common/prisma-runtime-client.js';
+import { type AgendaBookingStatus, type AgendaBookingType } from '@prisma/client';
 import {
   checkFixedScheduleAvailability,
   FixedScheduleError,
@@ -7,7 +8,7 @@ import {
   type FixedScheduleSlotInput,
 } from './fixed-schedule.service.js';
 
-const prisma = new PrismaClient();
+const prisma = prismaRuntimeClient;
 
 const ACTIVE_BOOKING_STATUSES: AgendaBookingStatus[] = ['scheduled'];
 

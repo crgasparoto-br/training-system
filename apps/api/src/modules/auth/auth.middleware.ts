@@ -1,9 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import { prismaRuntimeClient } from '../../common/prisma-runtime-client.js';
 import { Request, Response, NextFunction } from 'express';
 import { authService } from './auth.service.js';
 import type { AuthenticatedUserPayload } from '@corrida/types';
 
-const prisma = new PrismaClient();
+const prisma = prismaRuntimeClient;
 const INACTIVE_PROFESSOR_STATUSES = new Set([
   'inactive',
   'inativo',
