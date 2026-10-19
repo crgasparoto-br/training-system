@@ -29,6 +29,7 @@ jest.mock('../src/modules/workout/workout.service', () => ({
   workoutService: {
     getOrCreateTemplate: jest.fn(),
     copyTemplate: jest.fn(),
+    reorderExercises: jest.fn(),
   },
 }));
 
@@ -216,6 +217,17 @@ describe('Issue #399 - route protection and contract isolation', () => {
     const response = await request(app).get('/workout/exercises?workoutDayId=other-contract-day');
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ code: 'RESISTANCE_DAY_NOT_FOUND', error: 'Treino não encontrado.' });
+  });
+
+  it('dispatches the reorder endpoint ahead of parameterized exercise edits', async () => {
+    (workoutService.reorderExercises as jest.Mock).mockResolvedValue(undefined);
+    const response = await request(app).put('/workout/exercises/reorder').send({
+      workoutDayId: 'day-1', section: 'sessao', exerciseIds: ['row-1'],
+    });
+    expect(response.status).toBe(204);
+    expect(workoutService.reorderExercises).toHaveBeenCalledWith(
+      'day-1', 'sessao', ['row-1'], 'contract-test',
+    );
   });
 
   it('rejects library exercises from a different contract', async () => {
