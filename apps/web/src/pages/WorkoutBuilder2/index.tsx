@@ -78,6 +78,14 @@ export default function WorkoutBuilder2() {
           eParam: exercise.eParam ?? null,
           load: exercise.load ?? null,
           adjustment: exercise.exerciseNotes ?? null,
+          resistanceBlocks: exercise.resistanceBlocks?.map((block: any) => ({
+            position: block.position, kind: block.kind, notes: block.notes,
+            plannedSets: block.plannedSets?.map((set: any) => ({
+              position: set.position, repsMin: set.repsMin, repsMax: set.repsMax,
+              loadKg: set.loadKg, loadPercent: set.loadPercent,
+              rir: set.rir, rpe: set.rpe, tempo: set.tempo, restSec: set.restSec, notes: set.notes,
+            })) ?? [],
+          })) ?? [],
         });
       });
     });
@@ -92,6 +100,7 @@ export default function WorkoutBuilder2() {
   >({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [copyWeekError, setCopyWeekError] = useState<string | null>(null);
   const [copyModeByWeek, setCopyModeByWeek] = useState<Record<number, { cyclic: boolean; resistance: boolean }>>({});
   const [templateDataByWeek, setTemplateDataByWeek] = useState<Record<number, any>>({});
@@ -696,7 +705,9 @@ export default function WorkoutBuilder2() {
   const handleSave = async (data: any) => {
     try {
       setSaving(true);
+      setSaveError(null);
       if (!data) return;
+      if (data.released) throw new Error('Treino liberado: o planejamento está protegido contra alterações.');
       if (data?.id) {
         await workoutService.updateTemplate(data.id, {
           cyclicFrequency: data.cyclicFrequency,
@@ -775,41 +786,34 @@ export default function WorkoutBuilder2() {
               workoutDate: correctedDate.toISOString(),
             });
 
-            const existingExercises = await workoutService.getExercises(targetDay.id);
-            if (existingExercises.length) {
-              await Promise.all(existingExercises.map((exercise) => workoutService.deleteExercise(exercise.id)));
-            }
-
             const daySections = data.resistedExercises?.[dayOfWeek] || {};
-            const sectionEntries = Object.entries(daySections) as Array<[string, any[]]>;
-            for (const [section, exercises] of sectionEntries) {
-              const list = Array.isArray(exercises) ? exercises : [];
-              await Promise.all(
-                list.map((exercise, index) => {
-                  if (!exercise?.exerciseId) return Promise.resolve();
-                  return workoutService.addExercise({
-                    workoutDayId: targetDay.id,
-                    exerciseId: exercise.exerciseId,
-                    section,
-                    exerciseOrder: index + 1,
-                    system: exercise.system ?? undefined,
-                    groupBreakBefore: exercise.groupBreakBefore ?? false,
-                    sets: exercise.sets ?? undefined,
-                    reps: exercise.reps ?? undefined,
-                    intervalSec: exercise.interval ?? undefined,
-                    cParam: exercise.cParam ?? undefined,
-                    eParam: exercise.eParam ?? undefined,
-                    load: exercise.load ?? undefined,
-                    exerciseNotes: exercise.adjustment ?? exercise.exerciseNotes ?? undefined,
-                  });
-                })
-              );
-            }
+            const orderedExercises = (['mobilidade', 'sessao', 'resfriamento'] as const).flatMap((section) =>
+              (Array.isArray(daySections[section]) ? daySections[section] : [])
+                .filter((exercise: any) => Boolean(exercise?.exerciseId))
+                .map((exercise: any, index: number) => ({
+                  workoutDayId: targetDay.id,
+                  exerciseId: exercise.exerciseId,
+                  section,
+                  exerciseOrder: index + 1,
+                  system: exercise.system ?? undefined,
+                  groupBreakBefore: exercise.groupBreakBefore ?? false,
+                  sets: exercise.sets ?? undefined,
+                  reps: exercise.reps ?? undefined,
+                  intervalSec: exercise.interval ?? undefined,
+                  cParam: exercise.cParam ?? undefined,
+                  eParam: exercise.eParam ?? undefined,
+                  load: exercise.load ?? undefined,
+                  exerciseNotes: exercise.adjustment ?? exercise.exerciseNotes ?? undefined,
+                  resistanceBlocks: exercise.resistanceBlocks ?? undefined,
+                }))
+            );
+            await workoutService.replaceDayResistanceExercises(targetDay.id, orderedExercises);
           }
         }
       }
     } catch (error) {
       console.error('Erro ao salvar:', error);
+      setSaveError(error instanceof Error ? error.message : 'Falha ao salvar treino. Revise os campos e tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -1006,19 +1010,15 @@ export default function WorkoutBuilder2() {
                 });
               }
 
-              const targetExercises = Array.isArray(targetDay.exercises) ? targetDay.exercises : [];
-              await Promise.all(
-                targetExercises.map((exercise: any) => workoutService.deleteExercise(exercise.id))
-              );
-
               const sourceExercises = Array.isArray(sourceDay?.exercises) ? sourceDay.exercises : [];
-              await Promise.all(
-                sourceExercises.map((exercise: any) =>
-                  workoutService.addExercise({
+              const ordered = (['mobilidade', 'sessao', 'resfriamento'] as const).flatMap((section) =>
+                sourceExercises.filter((exercise: any) => exercise.section === section)
+                  .sort((a: any, b: any) => a.exerciseOrder - b.exerciseOrder)
+                  .map((exercise: any, index: number) => ({
                     workoutDayId: targetDay.id,
                     exerciseId: exercise.exerciseId,
-                    section: exercise.section,
-                    exerciseOrder: exercise.exerciseOrder,
+                    section,
+                    exerciseOrder: index + 1,
                     system: exercise.system ?? undefined,
                     groupBreakBefore: exercise.groupBreakBefore ?? false,
                     sets: exercise.sets ?? undefined,
@@ -1028,9 +1028,17 @@ export default function WorkoutBuilder2() {
                     eParam: exercise.eParam ?? undefined,
                     load: exercise.load ?? undefined,
                     exerciseNotes: exercise.exerciseNotes ?? undefined,
-                  })
-                )
+                    resistanceBlocks: exercise.resistanceBlocks?.map((block: any) => ({
+                      position: block.position, kind: block.kind, notes: block.notes,
+                      plannedSets: block.plannedSets?.map((set: any) => ({
+                        position: set.position, repsMin: set.repsMin, repsMax: set.repsMax,
+                        loadKg: set.loadKg, loadPercent: set.loadPercent,
+                        rir: set.rir, rpe: set.rpe, tempo: set.tempo, restSec: set.restSec, notes: set.notes,
+                      })) ?? [],
+                    })) ?? [],
+                  }))
               );
+              await workoutService.replaceDayResistanceExercises(targetDay.id, ordered);
             })
           );
         }
@@ -1611,7 +1619,7 @@ export default function WorkoutBuilder2() {
           const sessionTimes = cyclicTimes.map((value, idx) => value + resistanceTimes[idx]);
           const fallbackWeekStartDate = resolveWeekStartDate(mesocycleNumber, weekNumber);
           const dayEditability = buildWeekDayEditability(fallbackWeekStartDate);
-          const weekEditable = dayEditability.some(Boolean);
+          const weekEditable = !weekTemplateData?.released && dayEditability.some(Boolean);
           return (
             <div
               key={weekNumber}
@@ -1892,12 +1900,17 @@ export default function WorkoutBuilder2() {
                 </div>
 
                 <div className="p-6">
+                  {saveError && (
+                    <p role="alert" className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                      {saveError}
+                    </p>
+                  )}
                   {activeTab === 'cyclic' ? (
                     <WorkoutBuilderCyclic
                       key={`cyclic-${weekTemplateData?.id ?? 'new'}-${weekNumber}-${mesocycleNumber}`}
                       templateData={weekTemplateData}
                       weekStartDateOverride={fallbackWeekStartDate}
-                      dayEditability={dayEditability}
+                      dayEditability={dayEditability.map((editable) => editable && !weekTemplateData?.released)}
                       weekEditable={weekEditable}
                       planId={planId}
                       alunoData={alunoData}

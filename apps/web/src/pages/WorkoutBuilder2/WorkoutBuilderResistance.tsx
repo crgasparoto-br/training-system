@@ -6,6 +6,8 @@ import { Input } from '../../components/ui/Input';
 import { ExerciseSelectorModal } from '../../components/ExerciseSelectorModal';
 import { libraryService, type Exercise } from '../../services/library.service';
 import { isDateWithinRange, parseDateOnly } from '../../utils/date';
+import type { ResistanceBlock } from '../../services/workout.service';
+import ResistanceBlocksEditor from './ResistanceBlocksEditor';
 
 interface WorkoutBuilderResistanceProps {
   templateData: any;
@@ -51,6 +53,7 @@ interface SelectedExercise {
   eParam?: number | null;
   load?: number | null;
   adjustment?: string | null;
+  resistanceBlocks?: ResistanceBlock[];
 }
 
 export default function WorkoutBuilderResistance({
@@ -1068,6 +1071,18 @@ export default function WorkoutBuilderResistance({
                           </label>
                         </div>
                       </>
+                    )}
+
+                    {!isCyclicExercise && (
+                      <div className="col-span-2 min-w-0 xl:col-span-10">
+                        <ResistanceBlocksEditor
+                          exerciseName={exercise.name}
+                          blocks={exercise.resistanceBlocks}
+                          onChange={(resistanceBlocks) =>
+                            updateExerciseFields(dayOfWeek, section.key, exercise.id, { resistanceBlocks })
+                          }
+                        />
+                      </div>
                     )}
 
                     <div className="col-span-2 flex items-center justify-end gap-0.5 xl:col-span-1">
