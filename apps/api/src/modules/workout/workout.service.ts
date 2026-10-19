@@ -825,7 +825,11 @@ export const workoutService = {
         },
         orderBy: [{ section: 'asc' }, { exerciseOrder: 'asc' }],
       });
-      const identity = matchResistanceExerciseRows(current, prepared);
+      const identity = matchResistanceExerciseRows(current, prepared.map((item) => ({
+        workoutExerciseId: item.workoutExerciseId,
+        exerciseId: item.exercise.exerciseId,
+        section: item.exercise.section,
+      })));
       const preserved = new Set(identity.filter((id): id is string => id !== null));
 
       // Validate removals before any writes to protect historical execution rows.
