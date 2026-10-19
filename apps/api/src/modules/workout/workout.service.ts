@@ -1207,6 +1207,16 @@ export const workoutService = {
       throw new Error('Duplicate workout exercise id');
     }
 
+    // Preserve the public validation contract for mismatched IDs even when
+    // a template is released. Recheck after the lock to avoid TOCTOU.
+    const candidateRows = await prisma.workoutExercise.findMany({
+      where: { id: { in: uniqueIds }, workoutDayId, section },
+      select: { id: true },
+    });
+    if (candidateRows.length !== uniqueIds.length) {
+      throw new Error('One or more workout exercises do not belong to the requested day/section');
+    }
+
     return withWorkoutDayPlanningMutation(workoutDayId, async (tx) => {
       const owned = await tx.workoutExercise.findMany({
         where: { id: { in: uniqueIds }, workoutDayId, section },
