@@ -926,7 +926,7 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     const source = await editableFixture('issue399-frozen-source');
     const target = await editableFixture('issue399-editable-target');
     const origin = await workoutService.replaceDayResistanceExercises(source.fixture.dayId, source.input);
-    const destination = await workoutService.replaceDayResistanceExercises(target.fixture.dayId, [
+    await workoutService.replaceDayResistanceExercises(target.fixture.dayId, [
       { ...target.input[0], resistanceBlocks: [{ position: 1, kind: 'principal' as const,
         plannedSets: [{ position: 1, repsMin: 6 }] }] },
       target.input[1],
