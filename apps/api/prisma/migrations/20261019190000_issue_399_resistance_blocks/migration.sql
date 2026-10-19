@@ -74,7 +74,11 @@ BEGIN
     JOIN "WorkoutDay" d ON d."id" = e."workoutDayId"
     JOIN "WorkoutTemplate" t ON t."id" = d."templateId"
     LEFT JOIN "WorkoutSessionExecution" x ON x."workoutDayId" = d."id"
-    WHERE e."id" = exercise_id AND (t."released" OR (x."id" IS NOT NULL AND x."status" <> 'not_started'))
+    WHERE e."id" = exercise_id AND (
+      t."released"
+      OR (x."id" IS NOT NULL AND x."status" <> 'not_started')
+      OR EXISTS (SELECT 1 FROM "WorkoutExecution" legacy WHERE legacy."workoutExerciseId" = e."id")
+    )
   ) THEN
     RAISE EXCEPTION 'planned resistance structure is frozen' USING ERRCODE = '23514';
   END IF;

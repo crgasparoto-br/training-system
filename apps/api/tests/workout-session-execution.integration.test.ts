@@ -842,6 +842,10 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     expect(await prisma.workoutExecution.count({
       where: { workoutExerciseId: fixture.exerciseIds[0] },
     })).toBe(1);
+    await expect(workoutService.deleteExercise(fixture.exerciseIds[0]))
+      .rejects.toMatchObject({ code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START' });
+    await expect(workoutService.updateExercise(fixture.exerciseIds[0], { reps: 6 }))
+      .rejects.toMatchObject({ code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START' });
   });
 
   it('não aceita id de linha estrangeira e não provoca escrita parcial', async () => {

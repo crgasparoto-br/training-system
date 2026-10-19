@@ -68,3 +68,5 @@ Leituras de template, dia e exercício incluem `resistanceBlocks[].plannedSets[]
 ### Preservação de identidade no editor de séries (#399)
 
 O salvamento transacional de exercícios resistidos de um `WorkoutDay` deve reconciliar os exercícios existentes pelo identificador persistido `workoutExerciseId`; clientes legados podem ser conciliados pelo exercício da biblioteca e seção quando não houver identificador explícito. O editor não deve excluir e recriar indiscriminadamente todas as linhas do dia, pois execuções históricas dependem dos identificadores de `WorkoutExercise`. A remoção ou alteração de linhas com histórico de execução é bloqueada; séries planejadas não são confundidas com os valores executados. Falhas inesperadas da persistência nunca expõem detalhes internos na resposta da API.
+
+As mutações de planejamento também consultam o histórico legado de `WorkoutExecution` dentro da transação, antes de atualizar, reordenar ou excluir exercícios e dias. O guard de séries no banco trata esse histórico como bloqueio de mutabilidade.

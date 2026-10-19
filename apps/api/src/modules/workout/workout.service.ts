@@ -253,6 +253,12 @@ async function lockWorkoutDayPlanningMutable(
     select: { status: true },
   });
   if (execution && execution.status !== 'not_started') throw new WorkoutPlanningLockedError();
+  // Legacy workout executions also represent history: never cascade-delete them.
+  const legacy = await tx.workoutExecution.findFirst({
+    where: { workoutExercise: { workoutDayId } },
+    select: { id: true },
+  });
+  if (legacy) throw new WorkoutPlanningLockedError();
 }
 
 async function lockWorkoutTemplatePlanningMutable(
@@ -277,6 +283,11 @@ async function lockWorkoutTemplatePlanningMutable(
     select: { id: true },
   });
   if (started) throw new WorkoutPlanningLockedError();
+  const legacy = await tx.workoutExecution.findFirst({
+    where: { workoutExercise: { workoutDay: { templateId } } },
+    select: { id: true },
+  });
+  if (legacy) throw new WorkoutPlanningLockedError();
 }
 
 async function withWorkoutDayPlanningMutation<T>(
