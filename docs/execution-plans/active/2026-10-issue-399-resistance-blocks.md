@@ -28,3 +28,11 @@ Implementação no branch `feat/399-resistance-blocks-sets`. Checkout local via 
 - Erros do endpoint recebem status/código públicos conhecidos, sem mensagens SQL/Prisma.
 - Controles unitários incluem correspondência estável, identidade duplicada/inválida e sanitização de erros.
 - Gate final: exigir CI `Validate repository` verde no HEAD e homologação visual/migration.
+
+## Remediação da auditoria — AUD-399-04/05/06
+
+- `AUD-399-04`: exigir autenticação de professor ativo e escopo contratual nos caminhos atuais e legados; bloquear leitura e escrita entre contratos.
+- `AUD-399-05`: triggers validam origem e destino ao transferir blocos/séries, inclusive quando origem está liberada ou possui execução.
+- `AUD-399-06`: manter blocos ao corrigir a data de uma semana e preservar distinção entre campo omitido e lista explicitamente vazia no cliente.
+- Regressões obrigatórias: caminhos anônimos/aluno/outro contrato, atualização de relacionamento via Prisma/SQL, reabrir e salvar uma semana após alteração da data.
+- Antes do fechamento: `Validate repository` verde no novo SHA, homologação da migration e evidência visual desktop/mobile, seguidas de auditoria independente.
