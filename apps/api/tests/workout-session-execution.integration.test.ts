@@ -921,6 +921,44 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     })).toBe(2);
   });
 
+
+  it('impede movimentar blocos ou séries de um treino liberado para outro', async () => {
+    const source = await editableFixture('issue399-frozen-source');
+    const target = await editableFixture('issue399-editable-target');
+    const origin = await workoutService.replaceDayResistanceExercises(source.fixture.dayId, source.input);
+    const destination = await workoutService.replaceDayResistanceExercises(target.fixture.dayId, [
+      { ...target.input[0], resistanceBlocks: [{ position: 1, kind: 'principal' as const,
+        plannedSets: [{ position: 1, repsMin: 6 }] }] },
+      target.input[1],
+    ]);
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: source.fixture.dayId }, select: { templateId: true },
+    });
+    await prisma.workoutTemplate.update({
+      where: { id: day.templateId }, data: { released: true, releasedAt: new Date() },
+    });
+    const block = origin[0].resistanceBlocks[0];
+    const plannedSet = block.plannedSets[0];
+    const targetBlock = destination[0].resistanceBlocks[0];
+
+    await expect(prisma.workoutExerciseBlock.update({
+      where: { id: block.id },
+      data: { workoutExercise: { connect: { id: target.fixture.exerciseIds[1] } } },
+    })).rejects.toThrow();
+    await expect(prisma.workoutExercisePlannedSet.update({
+      where: { id: plannedSet.id },
+      data: { block: { connect: { id: targetBlock.id } } },
+    })).rejects.toThrow();
+    const savedBlock = await prisma.workoutExerciseBlock.findUniqueOrThrow({
+      where: { id: block.id },
+    });
+    const savedSet = await prisma.workoutExercisePlannedSet.findUniqueOrThrow({
+      where: { id: plannedSet.id },
+    });
+    expect(savedBlock.workoutExerciseId).toBe(source.fixture.exerciseIds[0]);
+    expect(savedSet.blockId).toBe(block.id);
+  });
+
   it('não aceita id de linha estrangeira e não provoca escrita parcial', async () => {
     const { fixture, input } = await editableFixture('issue399-invalid');
     await expect(workoutService.replaceDayResistanceExercises(fixture.dayId, [
