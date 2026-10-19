@@ -2,8 +2,75 @@ import { Router } from 'express';
 import { workoutService } from '../modules/workout/workout.service.js';
 import { classifyResistanceWriteError } from '../modules/workout/resistance-structure.domain.js';
 import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
+import { prismaRuntimeClient } from '../common/prisma-runtime-client.js';
 
 const router: Router = Router();
+
+/**
+ * Protect every Workout Builder route, including the legacy exercise API.
+ * Route parameters and body ids never grant access across contracts.
+ */
+router.use(authMiddleware, professorMiddleware);
+router.use(async (req, res, next) => {
+  try {
+    const contractId = req.user?.contractId;
+    if (!contractId) return res.status(403).json({ code: 'FORBIDDEN', error: 'Acesso negado.' });
+    const [resource, id] = req.path.split('/').filter(Boolean);
+    let allowed = false;
+    if (resource === 'templates') {
+      if (id === 'get-or-create' && req.method === 'POST') {
+        allowed = typeof req.body?.planId === 'string' && Boolean(await prismaRuntimeClient.trainingPlan.findFirst({
+          where: { id: req.body.planId, aluno: { contractId } }, select: { id: true },
+        }));
+      } else if (id) {
+        allowed = Boolean(await prismaRuntimeClient.workoutTemplate.findFirst({
+          where: { id, plan: { aluno: { contractId } } }, select: { id: true },
+        }));
+      }
+    } else if (resource === 'days') {
+      if (id === 'get-or-create' && req.method === 'POST') {
+        allowed = typeof req.body?.templateId === 'string' && Boolean(await prismaRuntimeClient.workoutTemplate.findFirst({
+          where: { id: req.body.templateId, plan: { aluno: { contractId } } }, select: { id: true },
+        }));
+      } else if (id) {
+        allowed = Boolean(await prismaRuntimeClient.workoutDay.findFirst({
+          where: { id, template: { plan: { aluno: { contractId } } } }, select: { id: true },
+        }));
+      }
+    } else if (resource === 'exercises') {
+      if (!id || id === 'reorder') {
+        const dayId = req.method === 'GET' ? req.query.workoutDayId : req.body?.workoutDayId;
+        allowed = typeof dayId === 'string' && Boolean(await prismaRuntimeClient.workoutDay.findFirst({
+          where: { id: dayId, template: { plan: { aluno: { contractId } } } }, select: { id: true },
+        }));
+      } else {
+        allowed = Boolean(await prismaRuntimeClient.workoutExercise.findFirst({
+          where: { id, workoutDay: { template: { plan: { aluno: { contractId } } } } },
+          select: { id: true },
+        }));
+        if (allowed && req.body?.workoutDayId !== undefined) {
+          allowed = typeof req.body.workoutDayId === 'string' && Boolean(await prismaRuntimeClient.workoutDay.findFirst({
+            where: { id: req.body.workoutDayId, template: { plan: { aluno: { contractId } } } },
+            select: { id: true },
+          }));
+        }
+      }
+      if (allowed && (req.method === 'POST' || req.method === 'PUT') && id !== 'reorder'
+        && req.body?.exerciseId !== undefined) {
+        allowed = typeof req.body.exerciseId === 'string' && Boolean(await prismaRuntimeClient.exerciseLibrary.findFirst({
+          where: { id: req.body.exerciseId, contractId }, select: { id: true },
+        }));
+      }
+    }
+    if (!allowed) {
+      return res.status(404).json({ code: 'RESISTANCE_DAY_NOT_FOUND', error: 'Treino não encontrado.' });
+    }
+    next();
+  } catch (error) {
+    console.error('Error validating workout contract scope:', error);
+    return res.status(500).json({ code: 'WORKOUT_SCOPE_CHECK_FAILED', error: 'Não foi possível verificar o acesso.' });
+  }
+});
 
 const MONTH_INDEX: Record<string, number> = {
   jan: 1,
@@ -305,7 +372,7 @@ router.post('/days/:id/copy', async (req, res) => {
 });
 
 // Replace all resistance exercises in a canonical WorkoutDay atomically.
-router.put('/days/:id/resistance-exercises', authMiddleware, professorMiddleware, async (req, res) => {
+router.put('/days/:id/resistance-exercises', async (req, res) => {
   try {
     const contractId = req.user?.contractId;
     if (!contractId) {
@@ -342,7 +409,7 @@ router.get('/exercises', async (req, res) => {
 // Add exercise
 router.post('/exercises', async (req, res) => {
   try {
-    const exercise = await workoutService.addExercise(req.body);
+    const exercise = await workoutService.addExercise(req.body, req.user!.contractId);
     res.status(201).json(exercise);
   } catch (error: any) {
     console.error('Error adding exercise:', error);
@@ -353,7 +420,7 @@ router.post('/exercises', async (req, res) => {
 // Update exercise
 router.put('/exercises/:id', async (req, res) => {
   try {
-    const exercise = await workoutService.updateExercise(req.params.id, req.body);
+    const exercise = await workoutService.updateExercise(req.params.id, req.body, req.user!.contractId);
     res.json(exercise);
   } catch (error: any) {
     console.error('Error updating exercise:', error);
@@ -364,7 +431,7 @@ router.put('/exercises/:id', async (req, res) => {
 // Delete exercise
 router.delete('/exercises/:id', async (req, res) => {
   try {
-    await workoutService.deleteExercise(req.params.id);
+    await workoutService.deleteExercise(req.params.id, req.user!.contractId);
     res.status(204).send();
   } catch (error: any) {
     console.error('Error deleting exercise:', error);
@@ -380,7 +447,7 @@ router.put('/exercises/reorder', async (req, res) => {
       section: string;
       exerciseIds: string[];
     };
-    await workoutService.reorderExercises(workoutDayId, section, exerciseIds);
+    await workoutService.reorderExercises(workoutDayId, section, exerciseIds, req.user!.contractId);
     res.status(204).send();
   } catch (error: any) {
     console.error('Error reordering exercises:', error);
