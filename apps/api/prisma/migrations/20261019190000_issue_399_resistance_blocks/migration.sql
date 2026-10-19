@@ -58,26 +58,33 @@ BEFORE INSERT OR UPDATE OF "plannedSetId", "plannedUnitId" ON "WorkoutSessionExe
 FOR EACH ROW EXECUTE FUNCTION "issue399_match_execution_set"();
 
 CREATE FUNCTION "issue399_guard_planned_structure"() RETURNS trigger AS $$
-DECLARE exercise_id TEXT;
-DECLARE block_id TEXT;
+DECLARE old_exercise_id TEXT;
+DECLARE new_exercise_id TEXT;
 BEGIN
+  -- Enforce immutability at both endpoints of a reassignment.
   IF TG_TABLE_NAME = 'WorkoutExerciseBlock' THEN
-    IF TG_OP = 'DELETE' THEN exercise_id := OLD."workoutExerciseId";
-    ELSE exercise_id := NEW."workoutExerciseId"; END IF;
+    IF TG_OP <> 'INSERT' THEN old_exercise_id := OLD."workoutExerciseId"; END IF;
+    IF TG_OP <> 'DELETE' THEN new_exercise_id := NEW."workoutExerciseId"; END IF;
   ELSE
-    IF TG_OP = 'DELETE' THEN block_id := OLD."blockId";
-    ELSE block_id := NEW."blockId"; END IF;
-    SELECT b."workoutExerciseId" INTO exercise_id FROM "WorkoutExerciseBlock" b WHERE b."id" = block_id;
+    IF TG_OP <> 'INSERT' THEN
+      SELECT b."workoutExerciseId" INTO old_exercise_id
+      FROM "WorkoutExerciseBlock" b WHERE b."id" = OLD."blockId";
+    END IF;
+    IF TG_OP <> 'DELETE' THEN
+      SELECT b."workoutExerciseId" INTO new_exercise_id
+      FROM "WorkoutExerciseBlock" b WHERE b."id" = NEW."blockId";
+    END IF;
   END IF;
   IF EXISTS (
     SELECT 1 FROM "WorkoutExercise" e
     JOIN "WorkoutDay" d ON d."id" = e."workoutDayId"
     JOIN "WorkoutTemplate" t ON t."id" = d."templateId"
     LEFT JOIN "WorkoutSessionExecution" x ON x."workoutDayId" = d."id"
-    WHERE e."id" = exercise_id AND (
+    WHERE e."id" IN (old_exercise_id, new_exercise_id) AND (
       t."released"
       OR (x."id" IS NOT NULL AND x."status" <> 'not_started')
       OR EXISTS (SELECT 1 FROM "WorkoutExecution" legacy WHERE legacy."workoutExerciseId" = e."id")
+      OR EXISTS (SELECT 1 FROM "WorkoutSessionExecutionItem" item WHERE item."plannedUnitId" = e."id")
     )
   ) THEN
     RAISE EXCEPTION 'planned resistance structure is frozen' USING ERRCODE = '23514';
