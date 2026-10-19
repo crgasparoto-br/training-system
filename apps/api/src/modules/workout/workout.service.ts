@@ -153,6 +153,26 @@ export class WorkoutPlanningLockedError extends Error {
   }
 }
 
+
+async function assertDayContract(
+  tx: Prisma.TransactionClient,
+  workoutDayId: string,
+  contractId: string,
+  exerciseId?: string,
+) {
+  const day = await tx.workoutDay.findFirst({
+    where: { id: workoutDayId, template: { plan: { aluno: { contractId } } } },
+    select: { id: true },
+  });
+  if (!day) throw new ResistanceStructureNotFoundError();
+  if (exerciseId !== undefined) {
+    const libraryExercise = await tx.exerciseLibrary.findFirst({
+      where: { id: exerciseId, contractId }, select: { id: true },
+    });
+    if (!libraryExercise) throw new ResistanceStructureValidationError('Exercício fora do contrato.');
+  }
+}
+
 /** Preserve the released version as an immutable source of truth. */
 async function rejectFrozenPlanning(tx: Prisma.TransactionClient, workoutDayId: string) {
   const day = await tx.workoutDay.findUnique({
@@ -411,6 +431,7 @@ export const workoutService = {
                 exercises: {
                   include: {
                     exercise: true,
+                    resistanceBlocks: resistanceBlockInclude,
                   },
                   orderBy: [
                     { section: 'asc' },
@@ -741,16 +762,16 @@ export const workoutService = {
     return await this.deleteWorkoutDay(id);
   },
 
-  async addExercise(data: CreateWorkoutExerciseDTO) {
-    return await this.addExerciseToDay(data);
+  async addExercise(data: CreateWorkoutExerciseDTO, contractId?: string) {
+    return await this.addExerciseToDay(data, contractId);
   },
 
-  async updateExercise(id: string, data: Partial<CreateWorkoutExerciseDTO>) {
-    return await this.updateWorkoutExercise(id, data);
+  async updateExercise(id: string, data: Partial<CreateWorkoutExerciseDTO>, contractId?: string) {
+    return await this.updateWorkoutExercise(id, data, contractId);
   },
 
-  async deleteExercise(id: string) {
-    return await this.removeExerciseFromDay(id);
+  async deleteExercise(id: string, contractId?: string) {
+    return await this.removeExerciseFromDay(id, contractId);
   },
 
   /**
@@ -784,11 +805,12 @@ export const workoutService = {
   /**
    * Adicionar exercÃ­cio ao dia de treino
    */
-  async addExerciseToDay(data: CreateWorkoutExerciseDTO) {
+  async addExerciseToDay(data: CreateWorkoutExerciseDTO, contractId?: string) {
     const { resistanceBlocks, workoutExerciseId: _existingRowId, ...exercise } = data;
     const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
-    return withWorkoutDayPlanningMutation(data.workoutDayId, (tx) =>
-      tx.workoutExercise.create({
+    return withWorkoutDayPlanningMutation(data.workoutDayId, async (tx) => {
+      if (contractId) await assertDayContract(tx, data.workoutDayId, contractId, data.exerciseId);
+      return tx.workoutExercise.create({
         data: {
           ...exercise,
           ...(blocks ? { resistanceBlocks: nestedResistanceBlocks(blocks) } : {}),
@@ -798,8 +820,8 @@ export const workoutService = {
           workoutDay: true,
           resistanceBlocks: resistanceBlockInclude,
         },
-      })
-    );
+      });
+    });
   },
 
   /**
@@ -923,7 +945,7 @@ export const workoutService = {
   /**
    * Atualizar exercÃ­cio do treino
    */
-  async updateWorkoutExercise(id: string, data: Partial<CreateWorkoutExerciseDTO>) {
+  async updateWorkoutExercise(id: string, data: Partial<CreateWorkoutExerciseDTO>, contractId?: string) {
     const current = await prisma.workoutExercise.findUnique({ where: { id }, select: { workoutDayId: true } });
     if (!current) throw new Error('Workout exercise not found');
 
@@ -935,6 +957,7 @@ export const workoutService = {
     return prisma.$transaction(async (tx) => {
       for (const workoutDayId of workoutDayIds) {
         await lockWorkoutDayPlanningMutable(tx, workoutDayId);
+        if (contractId) await assertDayContract(tx, workoutDayId, contractId, data.exerciseId);
       }
       return tx.workoutExercise.update({
         where: { id },
@@ -1220,14 +1243,13 @@ export const workoutService = {
   /**
    * Remover exercÃ­cio do treino
    */
-  async removeExerciseFromDay(id: string) {
+  async removeExerciseFromDay(id: string, contractId?: string) {
     const current = await prisma.workoutExercise.findUnique({ where: { id }, select: { workoutDayId: true } });
     if (!current) throw new Error('Workout exercise not found');
-    return withWorkoutDayPlanningMutation(current.workoutDayId, (tx) =>
-      tx.workoutExercise.delete({
-        where: { id },
-      })
-    );
+    return withWorkoutDayPlanningMutation(current.workoutDayId, async (tx) => {
+      if (contractId) await assertDayContract(tx, current.workoutDayId, contractId);
+      return tx.workoutExercise.delete({ where: { id } });
+    });
   },
 
   /**
@@ -1236,7 +1258,8 @@ export const workoutService = {
   async reorderExercises(
     workoutDayId: string,
     section: string,
-    exerciseIds: string[]
+    exerciseIds: string[],
+    contractId?: string,
   ) {
     const uniqueIds = [...new Set(exerciseIds)];
     if (uniqueIds.length !== exerciseIds.length) {
@@ -1254,6 +1277,7 @@ export const workoutService = {
     }
 
     return withWorkoutDayPlanningMutation(workoutDayId, async (tx) => {
+      if (contractId) await assertDayContract(tx, workoutDayId, contractId);
       const owned = await tx.workoutExercise.findMany({
         where: { id: { in: uniqueIds }, workoutDayId, section },
         select: { id: true },
