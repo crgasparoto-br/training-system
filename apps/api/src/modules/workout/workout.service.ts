@@ -161,7 +161,7 @@ async function rejectFrozenPlanning(tx: Prisma.TransactionClient, workoutDayId: 
   if (day.template.released) throw new WorkoutPlanningLockedError();
 }
 
-function nestedResistanceBlocks(blocks: ResistanceBlockInput[]) {
+function nestedResistanceBlocks(blocks: Array<Omit<ResistanceBlockInput, 'kind'> & { kind: string }>) {
   return {
     create: blocks.map((block) => ({
       position: block.position,
