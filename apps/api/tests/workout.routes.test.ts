@@ -1,8 +1,29 @@
 import express from 'express';
 import workoutRouter from '../src/routes/workout.routes';
 import { workoutService } from '../src/modules/workout/workout.service';
+import { prismaRuntimeClient } from '../src/common/prisma-runtime-client';
 
 const request = require('supertest');
+
+jest.mock('../src/modules/auth/auth.middleware', () => ({
+  authMiddleware: (req: any, res: any, next: any) =>
+    req.headers['x-test-anonymous'] ? res.status(401).json({ error: 'Token não fornecido' }) : next(),
+  professorMiddleware: (req: any, res: any, next: any) => {
+    if (req.headers['x-test-student']) return res.status(403).json({ error: 'Apenas professores' });
+    req.user = { contractId: 'contract-test', type: 'professor' };
+    next();
+  },
+}));
+jest.mock('../src/common/prisma-runtime-client', () => ({
+  prismaRuntimeClient: {
+    trainingPlan: { findFirst: jest.fn().mockResolvedValue({ id: 'plan-1' }) },
+    workoutTemplate: { findFirst: jest.fn().mockResolvedValue({ id: 'template-1' }) },
+    workoutDay: { findFirst: jest.fn().mockResolvedValue({ id: 'day-1' }) },
+    workoutExercise: { findFirst: jest.fn().mockResolvedValue({ id: 'row-1' }) },
+    exerciseLibrary: { findFirst: jest.fn().mockResolvedValue({ id: 'exercise-1' }) },
+  },
+}));
+
 
 jest.mock('../src/modules/workout/workout.service', () => ({
   workoutService: {
@@ -162,4 +183,46 @@ describe('workout routes date normalization', () => {
       expect(workoutService.copyTemplate).not.toHaveBeenCalled();
     }
   );
+});
+
+describe('Issue #399 - route protection and contract isolation', () => {
+  const app = express();
+  app.use(express.json());
+  app.use('/workout', workoutRouter);
+  beforeEach(() => jest.clearAllMocks());
+
+  it.each([
+    ['get', '/workout/exercises?workoutDayId=day-1'],
+    ['post', '/workout/exercises'],
+    ['put', '/workout/exercises/row-1'],
+    ['delete', '/workout/exercises/row-1'],
+    ['put', '/workout/exercises/reorder'],
+    ['get', '/workout/days/day-1'],
+    ['get', '/workout/templates/template-1'],
+  ])('rejects anonymous %s %s before any scope lookup', async (method, url) => {
+    const response = await request(app)[method](url).set('x-test-anonymous', '1');
+    expect(response.status).toBe(401);
+    expect(prismaRuntimeClient.workoutDay.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('rejects student access to legacy exercise reads', async () => {
+    const response = await request(app).get('/workout/exercises?workoutDayId=day-1')
+      .set('x-test-student', '1');
+    expect(response.status).toBe(403);
+  });
+
+  it('returns 404 for a day belonging to another contract', async () => {
+    (prismaRuntimeClient.workoutDay.findFirst as jest.Mock).mockResolvedValueOnce(null);
+    const response = await request(app).get('/workout/exercises?workoutDayId=other-contract-day');
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ code: 'RESISTANCE_DAY_NOT_FOUND', error: 'Treino não encontrado.' });
+  });
+
+  it('rejects library exercises from a different contract', async () => {
+    (prismaRuntimeClient.exerciseLibrary.findFirst as jest.Mock).mockResolvedValueOnce(null);
+    const response = await request(app).post('/workout/exercises').send({
+      workoutDayId: 'day-1', exerciseId: 'other-contract-exercise',
+    });
+    expect(response.status).toBe(404);
+  });
 });
