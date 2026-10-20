@@ -302,9 +302,13 @@ router.post('/templates/:id/copy', async (req, res) => {
       targetWeekStartDate
     );
     res.json(template);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error copying template:', error);
-    res.status(500).json({ error: error.message });
+    const publicError = classifyResistanceWriteError(error);
+    if (publicError.status === 500) {
+      return res.status(500).json({ code: 'WORKOUT_COPY_FAILED', error: 'Não foi possível copiar a semana.' });
+    }
+    return res.status(publicError.status).json(publicError.body);
   }
 });
 
