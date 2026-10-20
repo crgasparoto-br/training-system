@@ -461,7 +461,18 @@ export const workoutService = {
       data: normalizeWorkoutTemplateCreateData(data),
       include: {
         plan: true,
-        workoutDays: true,
+        workoutDays: {
+          include: {
+            exercises: {
+              include: {
+                exercise: true,
+                resistanceBlocks: resistanceBlockInclude,
+              },
+              orderBy: [{ section: 'asc' }, { exerciseOrder: 'asc' }],
+            },
+          },
+          orderBy: { dayOfWeek: 'asc' },
+        },
       },
     });
 
