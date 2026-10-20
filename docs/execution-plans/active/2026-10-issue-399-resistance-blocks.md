@@ -19,7 +19,7 @@ Agrupamentos entre exercícios (#400), comparação planejado/executado (#401), 
 - Testes unitários, verificação `pnpm validate`, migração e evidência visual em três viewports.
 
 ## Estado de execução
-Implementação no branch `feat/399-resistance-blocks-sets`. Checkout local via GitHub bloqueado por DNS; checagens completas dependem de runner/CI. O plano fica ativo até homologação e auditoria independente.
+Implementação no branch `feat/399-resistance-blocks-sets`. A homologação operacional foi executada em PostgreSQL isolado; o estado atualizado de cada pendência e os limites desta sessão estão registrados em [relatório de homologação](../../evidence/issue-399/homologation-report.md). O plano fica ativo até os gates pendentes e auditoria independente.
 
 ## Correção de auditoria — AUD-399-01/02/03 e REC-399-01
 - Substituição transacional do dia reconcilia identidades em vez de `deleteMany` geral.
@@ -50,3 +50,11 @@ Implementação no branch `feat/399-resistance-blocks-sets`. Checkout local via 
 - `AUD-399-09`: `copyTemplate` relê a origem e executa lock de destino, exclusão, criação do template, dias, exercícios e todas as séries dentro de **uma transação PostgreSQL serializável**; o frontend não exclui previamente a semana. Testes integrados exercitam rollback com exceção SQL injetada depois da exclusão do destino e recusa de destino liberado.
 - `AUD-399-10`: a cobertura de CI inclui base de integração PostgreSQL e harness Chrome responsivo isolado. **Não confundir com homologação funcional em staging**: antes de liberar a PR, é necessário comprovar `prisma migrate deploy` com dados legados existentes em ambiente não produtivo equivalente, fazer replay/autenticação de professor ativo pelo fluxo completo criar → editar → salvar → reabrir → copiar → liberar e guardar evidências visuais 1440/768/390 px. Registrar versão exata do commit, migração aplicada, dataset desidentificado e resultados brutos por cenário; não expor dados pessoais.
 - Reexecutar `pnpm validate` ou gate oficial `Validate repository` no novo HEAD; CI verde e testes novos não substituem o aceite independente. Nenhum merge automático.
+
+## Recertificação operacional de 20/10/2026 — commit `c1648447…`
+
+- `AUD-399-08`: **PASS** no PostgreSQL real; datas da cópia correspondem à semana destino por `dayOfWeek`, incluindo virada de mês/ano, sem alterar a origem.
+- `AUD-399-09`: **PASS** no PostgreSQL real; integração 23/23 no SHA de referência, com rollback após falha injetada e recusa de destino liberado.
+- `AUD-399-10`: **PARCIAL**. Migração, dados sintéticos e fluxo autenticado principal foram verificados; correção para reabrir exercício legado em template liberado foi implementada. No SHA `c1648447…`, 75/75 testes de rota, ESLint e smoke do serviço contra PostgreSQL passaram. A recaptura visual autenticada do caso legado, o `pnpm validate` e o CI desse novo SHA ficaram pendentes por limite de memória no host.
+- As evidências SQL e capturas desidentificadas estão em [docs/evidence/issue-399](../../evidence/issue-399/). O relatório discrimina o SHA de cada evidência e os limites de recertificação.
+- Não houve merge ou fechamento da issue. O plano permanece ativo até validar os itens pendentes e encaminhar o SHA final para auditoria independente.
