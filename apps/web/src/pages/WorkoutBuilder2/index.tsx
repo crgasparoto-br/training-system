@@ -900,29 +900,16 @@ export default function WorkoutBuilder2() {
       let refreshed: any;
 
       if (copyMode === '1') {
-        if (targetTemplate?.id) {
-          await workoutService.deleteTemplate(targetTemplate.id);
-          clearCacheForWeek();
-        }
-
+        // The server replaces the destination atomically and assigns dates inside
+        // its transaction. Never delete a week or patch copied dates from the UI.
         const sourceFromApi = await workoutService.getTemplate(sourceTemplate.id);
         const copied = await workoutService.copyTemplate(
           sourceFromApi.id,
           targetWeekNumber,
           resolvedStartDate
         );
-
-        if (copied?.workoutDays?.length) {
-          await Promise.all(
-            copied.workoutDays.map((day: any) => {
-              if (!day?.id || !day?.dayOfWeek) return Promise.resolve();
-              const correctedDate = resolveWeekDate(weekStart, day.dayOfWeek);
-              return workoutService.updateDay(day.id, { workoutDate: correctedDate.toISOString() });
-            })
-          );
-        }
-
-        refreshed = await workoutService.getTemplate(copied.id);
+        clearCacheForWeek();
+        refreshed = copied;
       } else {
         const sourceFromApi = await workoutService.getTemplate(sourceTemplate.id);
         const targetTemplateFromApi = await workoutService.getOrCreateTemplate({
