@@ -238,3 +238,38 @@ describe('Issue #399 - route protection and contract isolation', () => {
     expect(response.status).toBe(404);
   });
 });
+
+describe('Issue #399 - copy failure boundary', () => {
+  const app = express();
+  app.use(express.json());
+  app.use('/workout', workoutRouter);
+  beforeEach(() => jest.clearAllMocks());
+
+  const requestCopy = () => request(app).post('/workout/templates/template-1/copy').send({
+    targetWeekNumber: 2, targetWeekStartDate: '2026-10-12T12:00:00.000Z',
+  });
+
+  it('returns conflict when destination is frozen instead of a raw 500', async () => {
+    (workoutService.copyTemplate as jest.Mock).mockRejectedValueOnce({
+      code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START',
+      message: 'Database internal lock diagnostics',
+    });
+    const response = await requestCopy();
+    expect(response.status).toBe(409);
+    expect(response.body).toMatchObject({
+      code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START',
+    });
+    expect(JSON.stringify(response.body)).not.toContain('Database internal');
+  });
+
+  it('does not expose SQL or database diagnostics on failed atomic copy', async () => {
+    (workoutService.copyTemplate as jest.Mock).mockRejectedValueOnce(
+      new Error('SQL deadlock at db.example.net, password=secret'),
+    );
+    const response = await requestCopy();
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({
+      code: 'WORKOUT_COPY_FAILED', error: 'Não foi possível copiar a semana.',
+    });
+  });
+});
