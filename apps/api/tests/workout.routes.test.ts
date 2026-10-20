@@ -273,3 +273,42 @@ describe('Issue #399 - copy failure boundary', () => {
     });
   });
 });
+
+describe('Issue #399 - template read failure boundary', () => {
+  const app = express();
+  app.use(express.json());
+  app.use('/workout', workoutRouter);
+  beforeEach(() => jest.clearAllMocks());
+
+  const requestTemplate = () => request(app).post('/workout/templates/get-or-create').send({
+    planId: 'plan-1',
+    mesocycleNumber: 1,
+    weekNumber: 1,
+    weekStartDate: '2026-10-12T12:00:00.000Z',
+  });
+
+  it('returns a safe conflict when template planning is locked', async () => {
+    (workoutService.getOrCreateTemplate as jest.Mock).mockRejectedValueOnce({
+      code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START',
+      message: 'Database internal lock diagnostics',
+    });
+    const response = await requestTemplate();
+    expect(response.status).toBe(409);
+    expect(response.body).toMatchObject({
+      code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START',
+    });
+    expect(JSON.stringify(response.body)).not.toContain('Database internal');
+  });
+
+  it('does not expose SQL or database diagnostics when template loading fails', async () => {
+    (workoutService.getOrCreateTemplate as jest.Mock).mockRejectedValueOnce(
+      new Error('SQL deadlock at db.example.net, ******'),
+    );
+    const response = await requestTemplate();
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({
+      code: 'WORKOUT_TEMPLATE_LOAD_FAILED',
+      error: 'Não foi possível carregar o treino.',
+    });
+  });
+});

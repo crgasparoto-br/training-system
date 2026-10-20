@@ -235,9 +235,16 @@ router.post('/templates/get-or-create', async (req, res) => {
       weekStartDate,
     });
     res.json(template);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in get-or-create template:', error);
-    res.status(500).json({ error: error.message });
+    const publicError = classifyResistanceWriteError(error);
+    if (publicError.status === 500) {
+      return res.status(500).json({
+        code: 'WORKOUT_TEMPLATE_LOAD_FAILED',
+        error: 'Não foi possível carregar o treino.',
+      });
+    }
+    return res.status(publicError.status).json(publicError.body);
   }
 });
 

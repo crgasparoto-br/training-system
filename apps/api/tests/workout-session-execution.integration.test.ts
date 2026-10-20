@@ -903,6 +903,42 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     expect(saved?.exercises[0].resistanceBlocks[0].plannedSets[0].loadKg).toBe(32.5);
   });
 
+  it('reabre exercício legado de treino liberado sem alterar as datas planejadas', async () => {
+    const fixture = await seedReleasedWorkout('issue399-reopen-released-legacy');
+    const before = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      include: {
+        template: true,
+        exercises: {
+          orderBy: { exerciseOrder: 'asc' },
+          include: { resistanceBlocks: { include: { plannedSets: true } } },
+        },
+      },
+    });
+
+    const result = await workoutService.getOrCreateTemplate({
+      planId: before.template.planId,
+      mesocycleNumber: before.template.mesocycleNumber,
+      weekNumber: before.template.weekNumber,
+      weekStartDate: new Date(before.template.weekStartDate.getTime() + 604800000),
+    });
+
+    const returnedDay = result?.workoutDays.find((day) => day.id === fixture.dayId);
+    expect(result?.id).toBe(before.templateId);
+    expect(result?.released).toBe(true);
+    expect(result?.weekStartDate).toEqual(before.template.weekStartDate);
+    expect(returnedDay?.workoutDate).toEqual(before.workoutDate);
+    expect(returnedDay?.exercises.map((exercise) => exercise.id)).toEqual(fixture.exerciseIds);
+    expect(returnedDay?.exercises[0].resistanceBlocks).toEqual([]);
+
+    const after = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      include: { template: true },
+    });
+    expect(after.template.weekStartDate).toEqual(before.template.weekStartDate);
+    expect(after.workoutDate).toEqual(before.workoutDate);
+  });
+
   it('nega operações de edição legada envolvendo contrato de outro aluno', async () => {
     const own = await editableFixture('issue399-own-contract-legacy');
     const foreign = await editableFixture('issue399-foreign-contract-legacy');

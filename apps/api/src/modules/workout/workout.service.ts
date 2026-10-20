@@ -407,6 +407,10 @@ export const workoutService = {
       const incomingStart = data.weekStartDate?.getTime?.() ?? null;
 
       if (existingStart && incomingStart && existingStart !== incomingStart) {
+        if (existing.released) {
+          return serializeWorkoutTemplate(existing);
+        }
+
         const weekStartDate = data.weekStartDate;
         await withWorkoutTemplatePlanningMutation(existing.id, async (tx) => {
           await tx.workoutTemplate.update({
@@ -1421,4 +1425,3 @@ export const workoutService = {
     };
   },
 };
-
