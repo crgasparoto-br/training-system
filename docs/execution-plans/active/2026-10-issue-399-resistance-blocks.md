@@ -36,3 +36,10 @@ Implementação no branch `feat/399-resistance-blocks-sets`. Checkout local via 
 - `AUD-399-06`: manter blocos ao corrigir a data de uma semana e preservar distinção entre campo omitido e lista explicitamente vazia no cliente.
 - Regressões obrigatórias: caminhos anônimos/aluno/outro contrato, atualização de relacionamento via Prisma/SQL, reabrir e salvar uma semana após alteração da data.
 - Antes do fechamento: `Validate repository` verde no novo SHA, homologação da migration e evidência visual desktop/mobile, seguidas de auditoria independente.
+
+## Remediação de 20/10/2026 — AUD-399-07 e evidências operacionais
+
+- `AUD-399-07`: o retorno de `createTemplate` passa a incluir `workoutDays[].exercises[].resistanceBlocks[].plannedSets[]`, com a mesma estrutura de `getOrCreateTemplate` ao consultar ou atualizar um template existente. O teste de integração da alteração de `weekStartDate` deve compilar sem cast e verificar a série com carga decimal após a releitura.
+- `apps/web/src/pages/WorkoutBuilder2/issue-399-browser-evidence.test.js` executa o editor real com React, CSS do produto e Chrome/Puppeteer em 1440, 768 e 390 px. Confere modo legado sem dados inventados, preenchimento e persistência do estado do componente, valores decimais, campos opcionais, rótulos, ausência de overflow e expansão por teclado. Evidência JSON e screenshots são gerados em `artifacts/issue-399/` no workspace do runner (a retenção externa depende da configuração existente de artefatos).
+- A validação obrigatória do backend deve incluir `apps/api/tests/workout-session-execution.integration.test.ts` em PostgreSQL real, incluindo preservação de IDs, rollback, isolamento entre contratos, mudança de data e bloqueios de histórico. `prisma migrate deploy` no perfil CRITICAL é necessário, mas não substitui a homologação operacional em staging com dados existentes.
+- Gate terminal permanece: `Validate repository` concluído com sucesso no HEAD exato, inspeção dos resultados de navegador, homologação da migração com histórico e auditoria independente. Nenhuma declaração de homologação ou aprovação deve ser inferida apenas da publicação deste plano.
