@@ -355,6 +355,17 @@ async function withWorkoutTemplatePlanningMutation<T>(
   }
 }
 
+/** Rebase each canonical weekday onto the target week, retaining the target anchor's UTC clock. */
+function workoutDateInTargetWeek(targetWeekStartDate: Date, dayOfWeek: number): Date {
+  if (!Number.isInteger(dayOfWeek) || dayOfWeek < 1 || dayOfWeek > 7) {
+    throw new Error('Invalid source workout weekday');
+  }
+  const targetWeekday = targetWeekStartDate.getUTCDay() || 7;
+  const result = new Date(targetWeekStartDate);
+  result.setUTCDate(result.getUTCDate() + dayOfWeek - targetWeekday);
+  return result;
+}
+
 /**
  * Service de Montagem e ExecuÃ§Ã£o de Treinos
  */
@@ -987,10 +998,11 @@ export const workoutService = {
    * Copiar template para outra semana
    */
   async copyTemplate(id: string, targetWeekNumber: number, targetWeekStartDate: Date) {
-    if (!Number.isFinite(targetWeekNumber) || targetWeekNumber <= 0) {
+    if (!Number.isInteger(targetWeekNumber) || targetWeekNumber <= 0 || !(targetWeekStartDate instanceof Date) || !Number.isFinite(targetWeekStartDate.getTime())) {
       throw new Error('Invalid targetWeekNumber');
     }
-    const source = await prisma.workoutTemplate.findUnique({
+    return prisma.$transaction(async (tx) => {
+      const source = await tx.workoutTemplate.findUnique({
       where: { id },
       include: {
         workoutDays: {
@@ -1009,7 +1021,7 @@ export const workoutService = {
       throw new Error('Target week must be different from source week');
     }
 
-    const existingTarget = await prisma.workoutTemplate.findUnique({
+    const existingTarget = await tx.workoutTemplate.findUnique({
       where: {
         planId_mesocycleNumber_weekNumber: {
           planId: source.planId,
@@ -1021,15 +1033,12 @@ export const workoutService = {
     });
 
     if (existingTarget && existingTarget.id !== source.id) {
-      await withWorkoutTemplatePlanningMutation(existingTarget.id, (tx) =>
-        tx.workoutTemplate.delete({
-          where: { id: existingTarget.id },
-        })
-      );
+      await lockWorkoutTemplatePlanningMutable(tx, existingTarget.id);
+      await tx.workoutTemplate.delete({ where: { id: existingTarget.id } });
     }
 
     // Criar novo template
-    const newTemplate = await prisma.workoutTemplate.create({
+    const newTemplate = await tx.workoutTemplate.create({
       data: {
         planId: source.planId,
         mesocycleNumber: source.mesocycleNumber,
@@ -1053,11 +1062,11 @@ export const workoutService = {
 
     // Copiar dias e exercÃ­cios
     for (const day of source.workoutDays) {
-      const newDay = await prisma.workoutDay.create({
+      const newDay = await tx.workoutDay.create({
         data: {
           templateId: newTemplate.id,
           dayOfWeek: day.dayOfWeek,
-          workoutDate: day.workoutDate,
+          workoutDate: workoutDateInTargetWeek(targetWeekStartDate, day.dayOfWeek),
           sessionDurationMin: day.sessionDurationMin,
           cyclicTimeMin: day.cyclicTimeMin,
           resistanceTimeMin: day.resistanceTimeMin,
@@ -1084,7 +1093,7 @@ export const workoutService = {
       });
 
       for (const exercise of day.exercises) {
-        await prisma.workoutExercise.create({
+        await tx.workoutExercise.create({
           data: {
             workoutDayId: newDay.id,
             exerciseId: exercise.exerciseId,
@@ -1110,7 +1119,7 @@ export const workoutService = {
       }
     }
 
-    const copiedTemplate = await prisma.workoutTemplate.findUnique({
+    const copiedTemplate = await tx.workoutTemplate.findUnique({
       where: { id: newTemplate.id },
       include: {
         plan: true,
@@ -1133,6 +1142,7 @@ export const workoutService = {
     });
 
     return serializeWorkoutTemplate(copiedTemplate);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10000, timeout: 60000 });
   },
 
   async getWorkoutDaysByRange(
