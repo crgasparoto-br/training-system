@@ -144,7 +144,9 @@ export function assertWorkoutParentIsImmutable(
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw new ResistanceStructureValidationError('Dados de treino inválidos.');
   }
-  if (Object.prototype.hasOwnProperty.call(data, parentField)) {
+  const relationField = parentField === 'planId' ? 'plan' : 'template';
+  if (Object.prototype.hasOwnProperty.call(data, parentField)
+    || Object.prototype.hasOwnProperty.call(data, relationField)) {
     throw new ResistanceStructureValidationError('Não é permitido transferir um treino para outro plano ou semana.');
   }
 }
