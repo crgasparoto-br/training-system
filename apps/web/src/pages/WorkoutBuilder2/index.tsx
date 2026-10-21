@@ -708,7 +708,10 @@ export default function WorkoutBuilder2() {
       setSaving(true);
       setSaveError(null);
       if (!data) return;
-      if (data.released) throw new Error('Treino liberado: o planejamento está protegido contra alterações.');
+      // A liberação pode ocorrer enquanto um timer de autosave antigo ainda está
+      // pendente. O backend continua sendo a barreira autoritativa; aqui apenas
+      // descartamos esse snapshot obsoleto sem exibir um falso erro ao usuário.
+      if (data.released) return;
       if (data?.id) {
         await workoutService.updateTemplate(data.id, {
           cyclicFrequency: data.cyclicFrequency,
@@ -1936,5 +1939,4 @@ export default function WorkoutBuilder2() {
     </div>
   );
 }
-
 

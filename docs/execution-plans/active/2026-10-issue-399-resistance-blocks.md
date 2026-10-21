@@ -67,3 +67,10 @@ Implementação no branch `feat/399-resistance-blocks-sets`. A homologação ope
 - Type-check API isolado, rotas 75/75, ESLint focado e validações Prisma passaram. `pnpm validate` e a reexecução do build da API foram interrompidos por exit 137/limite de memória; o CI do candidato ainda não foi observado.
 - O fluxo autenticado completo de criar/editar/copiar/liberar permanece comprovado na evidência histórica do SHA `f651ab6…`, não foi refeito integralmente neste candidato.
 - O relatório e o pacote de evidências identificam os SHAs exatos. A PR e a issue permanecem abertas; não houve merge, fechamento ou alteração de produção. Próximos gates: validação agregada, CI no HEAD publicado e auditoria independente em contexto separado.
+
+## Remediação de 21/10/2026 — AUD-399-01 e AUD-399-10
+
+- `AUD-399-01`: a migration `20261021200000_issue_399_legacy_release_immutability` amplia os guards PostgreSQL para bloquear UPDATE/DELETE direto de `WorkoutTemplate`, `WorkoutDay` e `WorkoutExercise` quando o template está liberado, mesmo sem `ConsolidatedPrescriptionOperationalRelease`. Os guards de blocos e séries permanecem ativos; campos de ciclo de execução do dia continuam permitidos.
+- `AUD-399-10`: a homologação foi repetida em fixture sintética isolada no candidato pós-remediação. O replay real executou login de professor, legado → bloco/série, autosave, fechamento/reabertura, cópia semanal com IDs novos e datas derivadas, liberação e reabertura em 1440/768/390 px. O relatório e os artefatos registram SHA, IDs, respostas HTTP, consultas PostgreSQL, hashes das capturas e o controle negativo SQL com rollback.
+- A correção do autosave descarta snapshots obsoletos quando a liberação ocorre durante um timer pendente, sem registrar falso erro no console; o bloqueio autoritativo continua no serviço e no banco.
+- O ciclo ainda exige validação agregada, CI no SHA publicado e auditoria independente antes de merge/release. Não houve merge nem fechamento da issue.
