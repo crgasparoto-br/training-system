@@ -1,4 +1,4 @@
-import { classifyResistanceWriteError, matchResistanceExerciseRows, normalizeResistanceBlocks, ResistanceStructureValidationError } from './resistance-structure.domain';
+import { assertWorkoutParentIsImmutable, classifyResistanceWriteError, matchResistanceExerciseRows, normalizeResistanceBlocks, ResistanceStructureValidationError } from './resistance-structure.domain';
 describe('Issue #399 - blocos e séries estruturadas', () => {
   const valid = () => [{ position: 1, kind: 'principal', plannedSets: [
     { position: 1, repsMin: 8, repsMax: 12, loadKg: 35.5, loadPercent: null, rir: 2, rpe: 8, tempo: '3-1-1-0', restSec: 90 },
@@ -66,5 +66,26 @@ describe('Issue #399 - identidade estável e respostas públicas', () => {
     expect(classifyResistanceWriteError({ code: 'RESISTANCE_DAY_NOT_FOUND' })).toEqual({
       status: 404, body: { error: 'Treino não encontrado.', code: 'RESISTANCE_DAY_NOT_FOUND' },
     });
+  });
+});
+
+describe('Issue #399 / AUD-399-12 - immutable ownership on edits', () => {
+  it.each([
+    ['planId', { planId: 'other-contract-plan' }],
+    ['templateId', { templateId: 'other-contract-template' }],
+    ['planId', { planId: undefined }],
+    ['templateId', { templateId: null }],
+  ] as const)('rejects explicit %s reassignment, even with empty values', (field, data) => {
+    expect(() => assertWorkoutParentIsImmutable(data, field))
+      .toThrow(ResistanceStructureValidationError);
+  });
+
+  it('accepts ordinary edits and rejects invalid payload shapes', () => {
+    expect(() => assertWorkoutParentIsImmutable({ observation1: 'ok' }, 'planId')).not.toThrow();
+    expect(() => assertWorkoutParentIsImmutable({ detailNotes: 'ok' }, 'templateId')).not.toThrow();
+    for (const invalid of [null, undefined, [], 'text']) {
+      expect(() => assertWorkoutParentIsImmutable(invalid, 'templateId'))
+        .toThrow(ResistanceStructureValidationError);
+    }
   });
 });
