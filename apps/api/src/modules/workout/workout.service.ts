@@ -58,6 +58,22 @@ function serializeWorkoutTemplate<T extends { studentGoal?: string | null } | nu
   };
 }
 
+function isWorkoutTemplateUniqueConflict(error: unknown): boolean {
+  if (
+    !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+    error.code !== 'P2002'
+  ) {
+    return false;
+  }
+
+  const target = error.meta?.target;
+  if (!Array.isArray(target)) return false;
+
+  return ['planId', 'mesocycleNumber', 'weekNumber'].every((field) =>
+    target.includes(field)
+  );
+}
+
 export interface CreateWorkoutDayDTO {
   templateId: string;
   dayOfWeek: number;
@@ -335,13 +351,23 @@ async function withWorkoutTemplatePlanningMutation<T>(
   templateId: string,
   mutation: (tx: Prisma.TransactionClient) => Promise<T>
 ) {
-  try {
-    return await prisma.$transaction(async (tx) => {
-      await lockWorkoutTemplatePlanningMutable(tx, templateId);
-      return mutation(tx);
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-  } catch (error) {
-    if (isSerializableTransactionConflict(error)) {
+  let retries = 0;
+  while (true) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        await lockWorkoutTemplatePlanningMutable(tx, templateId);
+        return mutation(tx);
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (!isSerializableTransactionConflict(error)) {
+        throw error;
+      }
+      if (retries < 2) {
+        retries += 1;
+        await new Promise((resolve) => setTimeout(resolve, retries * 25));
+        continue;
+      }
+
       const started = await prisma.workoutSessionExecution.findFirst({
         where: {
           workoutDay: { templateId },
@@ -350,8 +376,8 @@ async function withWorkoutTemplatePlanningMutation<T>(
         select: { id: true },
       });
       if (started) throw new WorkoutPlanningLockedError();
+      throw error;
     }
-    throw error;
   }
 }
 
@@ -465,7 +491,24 @@ export const workoutService = {
       return serializeWorkoutTemplate(existing);
     }
 
-    return await this.createTemplate(data);
+    try {
+      return await this.createTemplate(data);
+    } catch (error) {
+      if (!isWorkoutTemplateUniqueConflict(error)) {
+        throw error;
+      }
+
+      const concurrentlyCreated = await this.getTemplate(
+        data.planId,
+        data.mesocycleNumber,
+        data.weekNumber
+      );
+      if (!concurrentlyCreated) {
+        throw error;
+      }
+
+      return concurrentlyCreated;
+    }
   },
 
   /**

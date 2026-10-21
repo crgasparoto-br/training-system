@@ -903,6 +903,103 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     expect(saved?.exercises[0].resistanceBlocks[0].plannedSets[0].loadKg).toBe(32.5);
   });
 
+  it('resolve chamadas concorrentes ao criar o mesmo template semanal', async () => {
+    const { fixture } = await editableFixture('issue399-template-create-race');
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      select: { template: { select: { planId: true, mesocycleNumber: true } } },
+    });
+    const input = {
+      planId: day.template.planId,
+      mesocycleNumber: day.template.mesocycleNumber,
+      weekNumber: 2,
+      weekStartDate: new Date('2026-10-12T12:00:00.000Z'),
+    };
+    const suffix = randomUUID().replace(/-/g, '');
+    const triggerName = `issue399_template_create_race_trigger_${suffix}`;
+    const functionName = `issue399_template_create_race_fn_${suffix}`;
+    const planId = input.planId.replace(/'/g, "''");
+
+    await prisma.$executeRawUnsafe(`
+      CREATE FUNCTION "${functionName}"() RETURNS trigger AS $$
+      BEGIN
+        IF NEW."planId" = '${planId}'
+          AND NEW."mesocycleNumber" = ${input.mesocycleNumber}
+          AND NEW."weekNumber" = ${input.weekNumber} THEN
+          PERFORM pg_sleep(0.2);
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql
+    `);
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TRIGGER "${triggerName}" BEFORE INSERT ON "WorkoutTemplate"
+        FOR EACH ROW EXECUTE FUNCTION "${functionName}"()
+      `);
+      const [first, second] = await Promise.all([
+        workoutService.getOrCreateTemplate(input),
+        workoutService.getOrCreateTemplate(input),
+      ]);
+      expect(first?.id).toBe(second?.id);
+    } finally {
+      await prisma.$executeRawUnsafe(
+        `DROP TRIGGER IF EXISTS "${triggerName}" ON "WorkoutTemplate"`
+      );
+      await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS "${functionName}"()`);
+    }
+
+    expect(await prisma.workoutTemplate.count({
+      where: {
+        planId: input.planId,
+        mesocycleNumber: input.mesocycleNumber,
+        weekNumber: input.weekNumber,
+      },
+    })).toBe(1);
+  });
+
+  it('repete atualizações concorrentes após conflito serializável do template', async () => {
+    const { fixture } = await editableFixture('issue399-template-update-race');
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      select: { template: { select: { id: true } } },
+    });
+    const suffix = randomUUID().replace(/-/g, '');
+    const triggerName = `issue399_template_update_race_trigger_${suffix}`;
+    const functionName = `issue399_template_update_race_fn_${suffix}`;
+
+    await prisma.$executeRawUnsafe(`
+      CREATE FUNCTION "${functionName}"() RETURNS trigger AS $$
+      BEGIN
+        IF NEW."id" = '${day.template.id}' THEN
+          PERFORM pg_sleep(0.2);
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql
+    `);
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TRIGGER "${triggerName}" BEFORE UPDATE ON "WorkoutTemplate"
+        FOR EACH ROW EXECUTE FUNCTION "${functionName}"()
+      `);
+      const results = await Promise.all([
+        workoutService.updateTemplate(day.template.id, { cyclicFrequency: 0 }),
+        workoutService.updateTemplate(day.template.id, { cyclicFrequency: 0 }),
+      ]);
+      expect(results).toHaveLength(2);
+    } finally {
+      await prisma.$executeRawUnsafe(
+        `DROP TRIGGER IF EXISTS "${triggerName}" ON "WorkoutTemplate"`
+      );
+      await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS "${functionName}"()`);
+    }
+
+    expect((await prisma.workoutTemplate.findUniqueOrThrow({
+      where: { id: day.template.id },
+    })).cyclicFrequency).toBe(0);
+  });
+
   it('reabre exercício legado de treino liberado sem alterar as datas planejadas', async () => {
     const fixture = await seedReleasedWorkout('issue399-reopen-released-legacy');
     const before = await prisma.workoutDay.findUniqueOrThrow({
