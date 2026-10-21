@@ -30,6 +30,19 @@ jest.mock('../src/modules/workout/workout.service', () => ({
     getOrCreateTemplate: jest.fn(),
     copyTemplate: jest.fn(),
     reorderExercises: jest.fn(),
+    getTemplateById: jest.fn(),
+    updateTemplate: jest.fn(),
+    deleteTemplate: jest.fn(),
+    releaseTemplate: jest.fn(),
+    getOrCreateDay: jest.fn(),
+    getDay: jest.fn(),
+    updateDay: jest.fn(),
+    deleteDay: jest.fn(),
+    copyDay: jest.fn(),
+    getExercises: jest.fn(),
+    addExercise: jest.fn(),
+    updateExercise: jest.fn(),
+    deleteExercise: jest.fn(),
   },
 }));
 
@@ -310,5 +323,71 @@ describe('Issue #399 - template read failure boundary', () => {
       code: 'WORKOUT_TEMPLATE_LOAD_FAILED',
       error: 'Não foi possível carregar o treino.',
     });
+  });
+});
+
+describe('Issue #399 / AUD-399-11 - legacy workout public error boundary', () => {
+  const app = express();
+  app.use(express.json());
+  app.use('/workout', workoutRouter);
+  beforeEach(() => jest.clearAllMocks());
+
+  const scenarios: Array<[string, string, keyof typeof workoutService, Record<string, unknown> | null]> = [
+    ['get', '/workout/templates/template-1', 'getTemplateById', null],
+    ['put', '/workout/templates/template-1', 'updateTemplate', {}],
+    ['delete', '/workout/templates/template-1', 'deleteTemplate', null],
+    ['post', '/workout/templates/template-1/release', 'releaseTemplate', {}],
+    ['post', '/workout/days/get-or-create', 'getOrCreateDay', { templateId: 'template-1' }],
+    ['get', '/workout/days/day-1', 'getDay', null],
+    ['put', '/workout/days/day-1', 'updateDay', {}],
+    ['delete', '/workout/days/day-1', 'deleteDay', null],
+    ['post', '/workout/days/day-1/copy', 'copyDay', { targetDayOfWeek: 2, targetDate: '2026-10-13T12:00:00Z' }],
+    ['get', '/workout/exercises?workoutDayId=day-1', 'getExercises', null],
+    ['post', '/workout/exercises', 'addExercise', { workoutDayId: 'day-1', exerciseId: 'exercise-1' }],
+    ['put', '/workout/exercises/row-1', 'updateExercise', { workoutDayId: 'day-1', exerciseId: 'exercise-1' }],
+    ['delete', '/workout/exercises/row-1', 'deleteExercise', null],
+    ['put', '/workout/exercises/reorder', 'reorderExercises', {
+      workoutDayId: 'day-1', section: 'sessao', exerciseIds: ['row-1'],
+    }],
+  ];
+
+  it.each(scenarios)('redacts unexpected Prisma/SQL error on %s %s', async (
+    method, url, serviceMethod, payload,
+  ) => {
+    const secret = 'SQL P2010 database=db.internal.example password=secret-key-399';
+    (workoutService[serviceMethod] as jest.Mock).mockRejectedValueOnce(new Error(secret));
+    const call = (request(app) as any)[method](url);
+    const response = payload === null ? await call : await call.send(payload);
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({
+      code: 'WORKOUT_OPERATION_FAILED',
+      error: 'Não foi possível concluir a operação de treino.',
+    });
+    expect(JSON.stringify(response.body)).not.toContain(secret);
+    expect(JSON.stringify(response.body)).not.toContain('SQL');
+    expect(JSON.stringify(response.body)).not.toContain('password');
+  });
+
+  it.each([
+    ['put', '/workout/exercises/reorder', 'reorderExercises', {
+      workoutDayId: 'day-1', section: 'sessao', exerciseIds: ['row-1'],
+    }],
+    ['delete', '/workout/exercises/row-1', 'deleteExercise', null],
+    ['post', '/workout/days/day-1/copy', 'copyDay', {
+      targetDayOfWeek: 2, targetDate: '2026-10-13T12:00:00Z',
+    }],
+  ] as const)('keeps typed planning lock as sanitized 409 on %s %s', async (
+    method, url, serviceMethod, payload,
+  ) => {
+    (workoutService[serviceMethod] as jest.Mock).mockRejectedValueOnce({
+      code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START',
+      message: 'SQL diagnostic password=never-expose',
+    });
+    const call = (request(app) as any)[method](url);
+    const response = payload === null ? await call : await call.send(payload);
+    expect(response.status).toBe(409);
+    expect(response.body.code).toBe('WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START');
+    expect(response.body.error).toBe('Este treino possui histórico ou já foi liberado e não pode ser alterado.');
+    expect(JSON.stringify(response.body)).not.toContain('password');
   });
 });
