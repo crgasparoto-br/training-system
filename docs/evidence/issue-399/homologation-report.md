@@ -1,17 +1,27 @@
-# Relatório de homologação — Issue #399
+# RESULTADO: APROVADA INTERNAMENTE
 
-**Resultado: PARCIAL.** A migração e as cópias de semanas foram homologadas no PostgreSQL isolado; o fluxo autenticado principal já havia sido executado e a recertificação visual do exercício legado em treino liberado foi concluída no candidato `1de2ae9`. Regressões concorrentes de criação/atualização de templates também foram reproduzidas e corrigidas. `pnpm validate` e o build agregado continuam limitados por memória, e o CI do novo candidato ainda precisa ser observado.
+> **Conclusão:** `APROVADA INTERNAMENTE` — achados bloqueantes: `0` — recomendações opcionais: `0`
+>
+> **Motivo determinante:** a pendência `AUD-399-10` e o bypass `AUD-399-01` foram recertificados no commit `18fa3b3d9b54a6549505494fe045f6f116466fd9`, com migration aplicada, controle SQL negativo, integração PostgreSQL e replay autenticado responsivo aprovados.
+>
+> **Libera merge/release:** `NÃO`
+
+**Validade:** controller-adversarial/homologação operacional no mesmo contexto; não substitui auditoria independente nem CI remoto do SHA publicado.
+
+Este relatório preserva os resultados históricos abaixo e acrescenta a recertificação final pós-remediação. A homologação foi executada com dados sintéticos e desidentificados; nenhuma credencial, dado pessoal ou ambiente produtivo foi utilizado.
 
 ## Identidade e ambiente
 
 - Repositório: `crgasparoto-br/training-system`
 - Issue: [#399](https://github.com/crgasparoto-br/training-system/issues/399)
 - PR: [#516](https://github.com/crgasparoto-br/training-system/pull/516), branch `feat/399-resistance-blocks-sets`, base `develop`
+- Branch local de remediação: `fix/399-audit-remediation`, parent `c835f40bfe29add78738479d7a41cb4e8a722eac`, commit final local `18fa3b3d9b54a6549505494fe045f6f116466fd9`
 - SHA de referência do fluxo operacional, da migração e das capturas: `f651ab6185bc7bd2b0fca153b25369cbbe010954`
 - SHA da correção de leitura e dos testes de regressão: `c16484476bda5dab646e8c84972589b739dedc7b`
 - SHA do candidato funcional mais recente: `1de2ae9dac1d19014b918a77d466efba810a2808`.
+- O replay pós-remediação foi executado exatamente no commit local `18fa3b3d9b54a6549505494fe045f6f116466fd9`; o commit ainda depende de publicação na branch remota da PR para observação do CI.
 - Antes da publicação deste candidato, o HEAD remoto da PR ainda era `019d9fbadd373eebc56cb809908383ed9d4abe82`; os runs existentes não validam `1de2ae9…`.
-- PostgreSQL exclusivo de teste: 17.6, container `issue399-pg-f651ab6`, publicado somente em `127.0.0.1:19191`, banco `issue399_test`.
+- PostgreSQL exclusivo de teste da recertificação final: 16.15, banco `issue399_audit`, publicado somente em `127.0.0.1:5432` no sandbox.
 - API e preview web da recertificação foram publicados somente em `127.0.0.1:19192` e `127.0.0.1:19193`; a API usou uma rede de teste sem masquerading e a rede interna exclusiva do PostgreSQL. Conta e dados eram sintéticos; a senha temporária foi gerada em memória e restaurada para o hash de fixture. Nenhum serviço de produção, Caddy, Keycloak ou ambiente da Issue #385 foi alterado.
 - O container de API mais antigo permanece parado; o container efêmero da recertificação e a rede temporária criada para ele foram encerrados. O PostgreSQL isolado foi preservado.
 
@@ -97,7 +107,30 @@ WHERE id IN ('issue399-linked-execution-item',
 
 Resultados exportados sem credenciais: [migration-integrity.txt](./migration-integrity.txt) e [trigger-results.txt](./trigger-results.txt).
 
-## AUD-399-10 — fluxo autenticado e interface: PARCIAL
+## Recertificação pós-remediação — commit `18fa3b3d9b54a6549505494fe045f6f116466fd9`
+
+### AUD-399-01 — bypass de imutabilidade legada: PASS
+
+A migration `20261021200000_issue_399_legacy_release_immutability` foi aplicada no PostgreSQL 16.15, elevando o banco isolado para 154 migrations. Em um template legado com `WorkoutTemplate.released=true` e sem depender do ledger consolidado, o controle negativo executou UPDATE e DELETE de template, dia, exercício, bloco e série em transação com rollback. Todas as dez tentativas foram bloqueadas com SQLSTATE `23514`; o template permaneceu liberado e o bloco/série permaneceram presentes. A evidência bruta está em [legacy-release-immutability-18fa3b3d.txt](./legacy-release-immutability-18fa3b3d.txt) e o estado de migrations em [migration-status-18fa3b3d.txt](./migration-status-18fa3b3d.txt).
+
+### AUD-399-10 — fluxo autenticado e interface: PASS na homologação operacional
+
+No commit `18fa3b3d…`, em fixture sintética nova, o replay real com Chrome/Puppeteer executou: login de professor ativo; abertura de exercício legado; criação de bloco e série estruturada; carga decimal `32.5 kg`, RIR `2`, tempo `3-1-1-0` e faixa `8–12`; salvamento; fechamento/reabertura com leitura dos valores persistidos; cópia da semana 1 para a semana 2; confirmação de IDs novos e datas derivadas (`2026-10-19` → `2026-10-26`); liberação; e reabertura do treino liberado. O resultado foi `passed=true`, sem respostas HTTP fora de 2xx/304 e sem erros de browser/console.
+
+As capturas desidentificadas e seus hashes estão versionadas:
+
+| Captura | Estado | Viewport | SHA-256 |
+|---|---|---:|---|
+| [full-flow-1440-saved-18fa3b3d.png](./full-flow-1440-saved-18fa3b3d.png) | Série estruturada salva | 1440 × 900 | `15c61b4a05b7bcb850b1ab851aad189636e0508ee729b9453ff8cb278c543c79` |
+| [full-flow-1440-copied-18fa3b3d.png](./full-flow-1440-copied-18fa3b3d.png) | Semana copiada com estrutura | 1440 × 900 | `a2b2085d6fea8c0da628475488e633235cf52f3d9a404e70c851b300470f12cf` |
+| [full-flow-768-released-18fa3b3d.png](./full-flow-768-released-18fa3b3d.png) | Treino liberado e bloqueado | 768 × 1024 | `959494402b6518eff2e01e9fa5e845ed57d2c3465bcb1a45f0b05cd20152b0e7` |
+| [full-flow-390-released-18fa3b3d.png](./full-flow-390-released-18fa3b3d.png) | Treino liberado e bloqueado | 390 × 844 | `07120c9cbfe4f68126b6a2fbf1ffcf5f438707e80d6a7a1d8e9a74e01ce805ce` |
+
+O JSON completo do replay, incluindo passos, respostas HTTP, IDs persistidos e valores reabertos, está em [full-flow-18fa3b3d.json](./full-flow-18fa3b3d.json). O ajuste do frontend descarta um snapshot de autosave obsoleto quando a liberação ocorre durante um timer pendente; a proteção de autoridade continua no serviço e nos triggers do PostgreSQL.
+
+O harness oficial do componente executou 1/1 teste, incluindo teclado, modo legado sem dados inventados, campos opcionais e reflow: em 1440, 768 e 390 px, `scrollWidth` foi respectivamente `1440`, `768` e `390`, com `missingLabels=0`, `blockCount=1` e 16 controles interativos. O manifesto está em [editor-browser-18fa3b3d.json](./editor-browser-18fa3b3d.json), com capturas [1440](./editor-1440-18fa3b3d.png), [768](./editor-768-18fa3b3d.png) e [390](./editor-390-18fa3b3d.png).
+
+## AUD-399-10 — fluxo autenticado e interface: histórico
 
 No SHA de referência `f651ab6…`, a navegação autenticada como professor sintético criou um treino resistido, adicionou exercícios, cinco tipos de bloco e seis séries; salvou, reabriu, editou carga decimal (`32.5` → `33.75`), copiou semana 4 para semana 3 e liberou o destino. As chamadas de cópia e liberação retornaram HTTP 200. Consultas SQL confirmaram a preservação dos dados, as datas do destino e a origem inalterada.
 
@@ -136,6 +169,18 @@ O manifesto estruturado e as métricas estão em [authenticated-legacy-browser-1
 ## Corridas concorrentes de templates — candidato `1de2ae9…`
 
 O replay autenticado anterior havia exposto `P2002` ao criar em paralelo o mesmo template semanal e `P2034` em atualizações serializáveis concorrentes. O serviço agora recupera somente o conflito da chave composta do template e faz até duas novas tentativas para mutações serializáveis, revalidando dentro de cada transação os bloqueios de template liberado/iniciado. O teste PostgreSQL usa triggers com atraso controlado para reproduzir as duas corridas; ambas passaram no conjunto de 26 testes do candidato.
+
+## Validações pós-remediação — commit `18fa3b3d…`
+
+| Verificação | Resultado |
+|---|---|
+| Migration `20261021200000_issue_399_legacy_release_immutability` | PASS, aplicada; 154 migrations concluídas no PostgreSQL 16.15 |
+| Controle SQL negativo do release legado | PASS, 10/10 operações de UPDATE/DELETE bloqueadas; fixture preservada após rollback |
+| Integração PostgreSQL `workout-session-execution.integration.test.ts` | PASS, 26/26 |
+| Domínio estruturado + rotas HTTP | PASS, 11/11 + 103/103 |
+| Replay autenticado Chrome/Puppeteer | PASS; criar, editar, salvar, reabrir, copiar, liberar; 422 respostas observadas, nenhuma fora de 2xx/304; `browserErrors=[]` |
+| Harness visual oficial do editor | PASS, 1/1; 1440/768/390 px, teclado e labels |
+| Build web de produção | PASS; 1758 módulos transformados |
 
 ## Validações e CI
 

@@ -1,0 +1,99 @@
+{
+  "subjectSha": "18fa3b3d9b54a6549505494fe045f6f116466fd9",
+  "scope": "Chrome real with production component/CSS; isolated editor, not authenticated API or full page",
+  "observations": [
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "metrics": {
+        "width": 1440,
+        "scrollWidth": 1440,
+        "interactive": 16,
+        "missingLabels": 0,
+        "blockCount": 1
+      },
+      "planned": {
+        "position": 1,
+        "repsMin": 8,
+        "repsMax": 12,
+        "loadKg": 32.5,
+        "loadPercent": null,
+        "rir": 2,
+        "rpe": null,
+        "tempo": "3-1-1-0",
+        "restSec": null,
+        "notes": null
+      },
+      "screenshot": {
+        "path": "1440-editor-filled.png",
+        "sha256": "ccc242c7268d32a4df85264e9ddc52691b820278a875b813a9829ac7b3e23e37"
+      },
+      "passed": true
+    },
+    {
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "metrics": {
+        "width": 768,
+        "scrollWidth": 768,
+        "interactive": 16,
+        "missingLabels": 0,
+        "blockCount": 1
+      },
+      "planned": {
+        "position": 1,
+        "repsMin": 8,
+        "repsMax": 12,
+        "loadKg": 32.5,
+        "loadPercent": null,
+        "rir": 2,
+        "rpe": null,
+        "tempo": "3-1-1-0",
+        "restSec": null,
+        "notes": null
+      },
+      "screenshot": {
+        "path": "768-editor-filled.png",
+        "sha256": "9b6efd1de42a560915c38484bb6d6ce02b0aef090d89de7137efcd77b6ff54c7"
+      },
+      "passed": true
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "metrics": {
+        "width": 390,
+        "scrollWidth": 390,
+        "interactive": 16,
+        "missingLabels": 0,
+        "blockCount": 1
+      },
+      "planned": {
+        "position": 1,
+        "repsMin": 8,
+        "repsMax": 12,
+        "loadKg": 32.5,
+        "loadPercent": null,
+        "rir": 2,
+        "rpe": null,
+        "tempo": "3-1-1-0",
+        "restSec": null,
+        "notes": null
+      },
+      "screenshot": {
+        "path": "390-editor-filled.png",
+        "sha256": "1212ac412bf2573ad25e9e9a09b8b05741c852e69acb28b2248b278954da2fce"
+      },
+      "passed": true
+    }
+  ],
+  "browserErrors": []
+}
