@@ -1183,6 +1183,94 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     } })).toBe(1);
   });
 
+  it('AUD-399-12: rejects moving draft template/day across contracts without changing persisted ownership', async () => {
+    const own = await editableFixture('issue399-parent-own');
+    const foreign = await editableFixture('issue399-parent-foreign');
+    const [ownDay, foreignDay] = await Promise.all([
+      prisma.workoutDay.findUniqueOrThrow({
+        where: { id: own.fixture.dayId },
+        select: { templateId: true, template: { select: { planId: true } } },
+      }),
+      prisma.workoutDay.findUniqueOrThrow({
+        where: { id: foreign.fixture.dayId },
+        select: { templateId: true, template: { select: { planId: true } } },
+      }),
+    ]);
+    expect(own.fixture.contractId).not.toBe(foreign.fixture.contractId);
+
+    await expect(workoutService.updateTemplate(ownDay.templateId, {
+      planId: foreignDay.template.planId,
+    })).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    await expect(workoutService.updateDay(own.fixture.dayId, {
+      templateId: foreignDay.templateId,
+    })).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+
+    const [persistedDay, persistedTemplate] = await Promise.all([
+      prisma.workoutDay.findUniqueOrThrow({ where: { id: own.fixture.dayId } }),
+      prisma.workoutTemplate.findUniqueOrThrow({ where: { id: ownDay.templateId } }),
+    ]);
+    expect(persistedDay.templateId).toBe(ownDay.templateId);
+    expect(persistedTemplate.planId).toBe(ownDay.template.planId);
+
+    await workoutService.updateTemplate(ownDay.templateId, { observation1: 'Edição permitida' });
+    await workoutService.updateDay(own.fixture.dayId, { detailNotes: 'Edição permitida' });
+    expect((await prisma.workoutDay.findUniqueOrThrow({ where: { id: own.fixture.dayId } })).detailNotes)
+      .toBe('Edição permitida');
+  });
+
+  it('AUD-399-13: SQL rejects direct transfers INTO and OUT OF released templates even at free weekday positions', async () => {
+    const editable = await editableFixture('issue399-transfer-editable');
+    const released = await seedReleasedWorkout('issue399-transfer-released');
+    const legacy = await seedReleasedWorkout('issue399-transfer-legacy', { publish: false });
+    const [editableDay, releasedDay, legacyDay] = await Promise.all([
+      prisma.workoutDay.findUniqueOrThrow({ where: { id: editable.fixture.dayId } }),
+      prisma.workoutDay.findUniqueOrThrow({ where: { id: released.dayId } }),
+      prisma.workoutDay.findUniqueOrThrow({ where: { id: legacy.dayId } }),
+    ]);
+    await prisma.workoutTemplate.update({
+      where: { id: legacyDay.templateId },
+      data: { released: true, releasedAt: new Date() },
+    });
+
+    const expectReleaseGuard = async (write: Promise<unknown>) => {
+      try {
+        await write;
+        throw new Error('Expected SQLSTATE 23514: released planning must be immutable');
+      } catch (error) {
+        expect((error as { meta?: { code?: string } }).meta?.code).toBe('23514');
+      }
+    };
+
+    // dayOfWeek=7 is intentionally unused in either target to refute
+    // accidental protection by the [templateId,dayOfWeek] unique index.
+    await expectReleaseGuard(prisma.$executeRaw`
+      UPDATE "WorkoutDay" SET "templateId" = ${releasedDay.templateId}, "dayOfWeek" = 7
+      WHERE "id" = ${editable.fixture.dayId}
+    `);
+    await expectReleaseGuard(prisma.$executeRaw`
+      UPDATE "WorkoutDay" SET "templateId" = ${editableDay.templateId}, "dayOfWeek" = 7
+      WHERE "id" = ${released.dayId}
+    `);
+    await expectReleaseGuard(prisma.$executeRaw`
+      UPDATE "WorkoutDay" SET "templateId" = ${legacyDay.templateId}, "dayOfWeek" = 7
+      WHERE "id" = ${editable.fixture.dayId}
+    `);
+    await expectReleaseGuard(prisma.$executeRaw`
+      UPDATE "WorkoutDay" SET "templateId" = ${editableDay.templateId}, "dayOfWeek" = 7
+      WHERE "id" = ${legacy.dayId}
+    `);
+
+    for (const [id, original] of [
+      [editable.fixture.dayId, editableDay],
+      [released.dayId, releasedDay],
+      [legacy.dayId, legacyDay],
+    ] as const) {
+      const persisted = await prisma.workoutDay.findUniqueOrThrow({ where: { id } });
+      expect(persisted.templateId).toBe(original.templateId);
+      expect(persisted.dayOfWeek).toBe(original.dayOfWeek);
+    }
+  });
+
   it('copyTemplate refuses to replace a released destination and preserves its identifiers', async () => {
     const { fixture, input } = await editableFixture('issue399-copy-released');
     await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
