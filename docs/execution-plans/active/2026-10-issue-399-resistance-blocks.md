@@ -19,7 +19,7 @@ Agrupamentos entre exercícios (#400), comparação planejado/executado (#401), 
 - Testes unitários, verificação `pnpm validate`, migração e evidência visual em três viewports.
 
 ## Estado de execução
-Implementação no branch `feat/399-resistance-blocks-sets`. A homologação operacional foi executada em PostgreSQL isolado; o estado atualizado de cada pendência e os limites desta sessão estão registrados em [relatório de homologação](../../evidence/issue-399/homologation-report.md). O plano fica ativo até os gates pendentes e auditoria independente.
+Implementação no branch `feat/399-resistance-blocks-sets`. A homologação operacional foi executada em PostgreSQL isolado; o estado atualizado de cada pendência e os limites desta sessão estão registrados em [relatório de homologação](../../evidence/issue-399/homologation-report.md). `AUD-399-08` e `AUD-399-09` estão PASS; `AUD-399-10` permanece PARCIAL até validação agregada, CI no candidato e replay autenticado completo no SHA mais recente. O plano fica ativo até os gates pendentes e auditoria independente.
 
 ## Correção de auditoria — AUD-399-01/02/03 e REC-399-01
 - Substituição transacional do dia reconcilia identidades em vez de `deleteMany` geral.
@@ -58,3 +58,12 @@ Implementação no branch `feat/399-resistance-blocks-sets`. A homologação ope
 - `AUD-399-10`: **PARCIAL**. Migração, dados sintéticos e fluxo autenticado principal foram verificados; correção para reabrir exercício legado em template liberado foi implementada. No SHA `c1648447…`, 75/75 testes de rota, ESLint e smoke do serviço contra PostgreSQL passaram. A recaptura visual autenticada do caso legado, o `pnpm validate` e o CI desse novo SHA ficaram pendentes por limite de memória no host.
 - As evidências SQL e capturas desidentificadas estão em [docs/evidence/issue-399](../../evidence/issue-399/). O relatório discrimina o SHA de cada evidência e os limites de recertificação.
 - Não houve merge ou fechamento da issue. O plano permanece ativo até validar os itens pendentes e encaminhar o SHA final para auditoria independente.
+
+## Recertificação operacional de 21/10/2026 — candidato `1de2ae9…`
+
+- `AUD-399-08`: **PASS**, preservado no PostgreSQL real; datas de destino derivadas de `weekStartDate` e `dayOfWeek`, incluindo virada de mês/ano, sem mutar a origem.
+- `AUD-399-09`: **PASS**, integração PostgreSQL 26/26 no SHA `1de2ae9…`; rollback e bloqueio de destino liberado continuam cobertos, com regressões adicionais para concorrência `P2002` e `P2034`.
+- `AUD-399-10`: **PARCIAL**. Login/navegação reais no candidato exibiram `Remada issue399-replay` como exercício legado em treino liberado, com controles de edição desabilitados. Desktop 1440, tablet 768 e mobile 390 px passaram sem overflow e sem campos de entrada sem label; capturas e métricas estão no [relatório](../../evidence/issue-399/homologation-report.md). Um 404 não fatal de matriz de periodização decorre da ausência dessa matriz no fixture sintético.
+- Type-check API isolado, rotas 75/75, ESLint focado e validações Prisma passaram. `pnpm validate` e a reexecução do build da API foram interrompidos por exit 137/limite de memória; o CI do candidato ainda não foi observado.
+- O fluxo autenticado completo de criar/editar/copiar/liberar permanece comprovado na evidência histórica do SHA `f651ab6…`, não foi refeito integralmente neste candidato.
+- O relatório e o pacote de evidências identificam os SHAs exatos. A PR e a issue permanecem abertas; não houve merge, fechamento ou alteração de produção. Próximos gates: validação agregada, CI no HEAD publicado e auditoria independente em contexto separado.

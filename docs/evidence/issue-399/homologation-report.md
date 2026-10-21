@@ -1,6 +1,6 @@
 # Relatório de homologação — Issue #399
 
-**Resultado: PARCIAL.** A migração, a cópia de semanas e o fluxo autenticado principal foram homologados no PostgreSQL e na aplicação isolada. A correção de leitura de exercício legado em treino liberado foi implementada e verificada no banco real, mas a recertificação visual desse caso, o gate agregado e o CI no novo SHA não puderam ser concluídos nesta sessão.
+**Resultado: PARCIAL.** A migração e as cópias de semanas foram homologadas no PostgreSQL isolado; o fluxo autenticado principal já havia sido executado e a recertificação visual do exercício legado em treino liberado foi concluída no candidato `1de2ae9`. Regressões concorrentes de criação/atualização de templates também foram reproduzidas e corrigidas. `pnpm validate` e o build agregado continuam limitados por memória, e o CI do novo candidato ainda precisa ser observado.
 
 ## Identidade e ambiente
 
@@ -9,10 +9,11 @@
 - PR: [#516](https://github.com/crgasparoto-br/training-system/pull/516), branch `feat/399-resistance-blocks-sets`, base `develop`
 - SHA de referência do fluxo operacional, da migração e das capturas: `f651ab6185bc7bd2b0fca153b25369cbbe010954`
 - SHA da correção de leitura e dos testes de regressão: `c16484476bda5dab646e8c84972589b739dedc7b`
-- O SHA `c1648447…` foi criado localmente na branch; no momento desta evidência, o HEAD remoto da PR ainda era `f651ab6…`. Os runs anteriores não validam o SHA da correção.
+- SHA do candidato funcional mais recente: `1de2ae9dac1d19014b918a77d466efba810a2808`.
+- Antes da publicação deste candidato, o HEAD remoto da PR ainda era `019d9fbadd373eebc56cb809908383ed9d4abe82`; os runs existentes não validam `1de2ae9…`.
 - PostgreSQL exclusivo de teste: 17.6, container `issue399-pg-f651ab6`, publicado somente em `127.0.0.1:19191`, banco `issue399_test`.
-- A API e o preview web foram usados somente por portas loopback; dados e contas eram sintéticos. Não foram alterados produção, Caddy, Keycloak ou o ambiente da Issue #385.
-- O container temporário da API foi recriado sem política de remoção automática e ficou parado após não responder sob o limite de 512 MiB. Nenhum outro container foi parado ou alterado.
+- API e preview web da recertificação foram publicados somente em `127.0.0.1:19192` e `127.0.0.1:19193`; a API usou uma rede de teste sem masquerading e a rede interna exclusiva do PostgreSQL. Conta e dados eram sintéticos; a senha temporária foi gerada em memória e restaurada para o hash de fixture. Nenhum serviço de produção, Caddy, Keycloak ou ambiente da Issue #385 foi alterado.
+- O container de API mais antigo permanece parado; o container efêmero da recertificação e a rede temporária criada para ele foram encerrados. O PostgreSQL isolado foi preservado.
 
 ## AUD-399-08 — consistência das datas: PASS
 
@@ -32,7 +33,7 @@ No replay operacional, a âncora mudou de `2026-10-22` para `2026-10-15`; para `
 
 ## AUD-399-09 — atomicidade: PASS
 
-O teste de integração no PostgreSQL real executou cópia contendo exercícios, blocos e séries, substituição de destino editável, falha controlada após o início da substituição, rollback integral e recusa de destino liberado. O arquivo `workout-session-execution.integration.test.ts` passou 23/23 testes no SHA de referência `f651ab6…`; os trechos de regressão permanecem no próprio teste.
+O teste de integração no PostgreSQL real executou cópia contendo exercícios, blocos e séries, substituição de destino editável, falha controlada após o início da substituição, rollback integral e recusa de destino liberado. O arquivo `workout-session-execution.integration.test.ts` passou 23/23 testes no SHA de referência `f651ab6…`; a recertificação atual no SHA `1de2ae9…` passou 26/26, incluindo duas novas regressões de concorrência. Os trechos de regressão permanecem no próprio teste.
 
 Consulta de verificação do estado do destino após a falha:
 
@@ -110,37 +111,55 @@ Em `1440`, `768` e `390` px não houve overflow horizontal. Foram encontrados 78
 
 Durante a abertura de um exercício legado em template liberado, foi encontrado que `getOrCreateTemplate` tentava corrigir `weekStartDate`, embora a proteção corretamente impedisse mutação. O builder não carregava. A correção em `c1648447…` agora devolve o template liberado existente sem atualizar suas datas; erros inesperados do endpoint também deixaram de expor `error.message`.
 
-Recertificação no SHA `c1648447…`:
+Recertificação histórica no SHA `c1648447…`:
 
 - 75/75 testes de `workout.routes.test.ts` passaram.
 - Chamada direta ao serviço, carregando o código alterado e consultando o PostgreSQL 17.6 real, abriu o template liberado `issue399-template-1`, manteve `weekStartDate` e `workoutDate`, preservou o ID do exercício legado e confirmou ausência de blocos inventados.
-- A regressão correspondente foi adicionada a `workout-session-execution.integration.test.ts`, mas o runner Jest desse arquivo foi encerrado por falta de memória antes de produzir resultado.
-- A navegação autenticada em navegador e a captura visual da tela legada após a correção **não foram comprovadas**. O runtime API temporário atingiu o limite de 512 MiB e não respondeu; foi parado sem remoção do container.
+- A regressão correspondente foi adicionada a `workout-session-execution.integration.test.ts`; naquela execução o runner Jest foi encerrado por falta de memória.
+
+Recertificação autenticada no candidato `1de2ae9…`:
+
+- Login real pela rota `/login`, como professor sintético; rota do builder: `/plans/cmvgug83o00h32xmevwnqjdhh/workout-builder/1/1`.
+- A aba resistida exibiu `Remada issue399-replay` com a indicação `estrutura simples (legado)`, sem inventar blocos. O controle de detalhamento do exercício e a ação de liberação estavam desabilitados para o treino liberado.
+- Nos viewports 1440, 768 e 390 px, `scrollWidth` foi igual à largura do viewport; zero campos de entrada sem label/`aria-label`; um fieldset de edição desabilitado. Não houve erro de página nem resposta API 5xx.
+- A chamada não fatal `GET /api/v1/periodization/matrix/cmvgug83o00h32xmevwnqjdhh` retornou 404 porque o fixture sintético não contém essa matriz. O exercício legado e o estado liberado foram carregados normalmente; esta ausência de fixture permanece registrada.
+- Capturas desidentificadas, screenshots em página completa e hashes:
+
+| Captura | Rota/audiência/estado | Viewport | SHA do código | SHA-256 da captura |
+|---|---|---:|---|---|
+| [authenticated-legacy-1440-1de2ae9.png](./authenticated-legacy-1440-1de2ae9.png) | Builder autenticado, treino liberado, exercício legado visível e bloqueado | 1440 × 900 | `1de2ae9dac1d19014b918a77d466efba810a2808` | `577b5781a6553a7eea2609b915b4079012a75ff699112d3858ff642fa48d619c` |
+| [authenticated-legacy-768-1de2ae9.png](./authenticated-legacy-768-1de2ae9.png) | Mesmo estado e audiência | 768 × 900 | `1de2ae9dac1d19014b918a77d466efba810a2808` | `1399dba3e22829f3279ea3f8a17c739483bcd4d29266da03735b7e9db9c74b21` |
+| [authenticated-legacy-390-1de2ae9.png](./authenticated-legacy-390-1de2ae9.png) | Mesmo estado e audiência | 390 × 844 | `1de2ae9dac1d19014b918a77d466efba810a2808` | `9cff84fe73bc72e80c691fecd76f4c07d213be898235989afea3f3c86fb5bca1` |
+
+O manifesto estruturado e as métricas estão em [authenticated-legacy-browser-1de2ae9.json](./authenticated-legacy-browser-1de2ae9.json). O replay autenticado completo de criação/edição/cópia/liberação permanece evidência do SHA de referência `f651ab6…`; nesta rodada, a jornada autenticada no candidato mais recente recertificou a leitura e o bloqueio do treino legado.
+
+## Corridas concorrentes de templates — candidato `1de2ae9…`
+
+O replay autenticado anterior havia exposto `P2002` ao criar em paralelo o mesmo template semanal e `P2034` em atualizações serializáveis concorrentes. O serviço agora recupera somente o conflito da chave composta do template e faz até duas novas tentativas para mutações serializáveis, revalidando dentro de cada transação os bloqueios de template liberado/iniciado. O teste PostgreSQL usa triggers com atraso controlado para reproduzir as duas corridas; ambas passaram no conjunto de 26 testes do candidato.
 
 ## Validações e CI
 
 | Verificação | Resultado |
 |---|---|
-| Integração PostgreSQL anterior, incluindo cópia/datas/rollback/bloqueios | PASS, 23/23 no SHA `f651ab6…` |
-| Regressões de rotas no SHA `c1648447…` | PASS, 75/75 |
+| Integração PostgreSQL da Issue #399 no SHA `1de2ae9…` | PASS, 26/26; inclui datas, rollback, bloqueios, legado e corridas `P2002`/`P2034` |
+| Regressões de rotas no SHA `1de2ae9…` | PASS, 75/75 |
+| Type-check isolado da API no SHA `1de2ae9…` | PASS, `tsc --noEmit` |
+| Build web de produção com API loopback | PASS; fontes web inalteradas pelo commit de API |
+| ESLint focado em serviço e integração no SHA `1de2ae9…` | PASS |
 | Smoke de serviço legado no PostgreSQL real no SHA `c1648447…` | PASS |
-| ESLint dos quatro arquivos API alterados | PASS |
 | Diagnósticos do editor nos quatro arquivos alterados | Nenhum erro |
 | `prisma validate` | PASS |
 | `prisma migrate status` no PostgreSQL isolado | PASS, 153 migrações e schema atualizado |
 | `pnpm docs:check`, `pnpm arch:check`, `pnpm access:check`, `pnpm audit:source-proofs` | PASS |
-| ESLint agregado (`pnpm lint`) | BLOQUEADO por `SIGKILL`/exit 137 no lint de `apps/web`; ESLint API focado passou |
-| `pnpm validate` | BLOQUEADO por `SIGKILL`/exit 137 no `tsc --noEmit` de `apps/web`; lint, testes, build e demais etapas agregadas não foram iniciados pelo script |
-| Build agregado (`pnpm build`) | BLOQUEADO por `SIGKILL`/exit 137 durante `tsc` de `apps/web`/`packages/types`; o build da API não foi alcançado |
-| Build de produção web anterior | PASS no SHA de referência `f651ab6…`; nenhuma alteração web nesta correção |
-| `tsc --noEmit` da API e integração Jest do arquivo PostgreSQL após a alteração | BLOQUEADOS por limite de memória do host (`SIGKILL`/exit 137) |
-| CI remoto | [Run 39370249624](https://github.com/crgasparoto-br/training-system/actions/runs/39370249624) e [run 39370246336](https://github.com/crgasparoto-br/training-system/actions/runs/39370246336) estavam verdes no SHA `f651ab6…`. Nenhum deles certifica `c1648447…`. |
+| Build da API no SHA `1de2ae9…` | Reexecução bloqueada por SIGKILL/exit 137 no `tsc`; um build anterior do mesmo conteúdo funcional havia passado antes do commit |
+| `pnpm validate` no SHA `1de2ae9…` | PARCIAL: type-check web passou; `tsc --noEmit` da API foi encerrado por SIGKILL/exit 137 após 600 s. Lint, testes agregados e demais etapas não foram iniciados pelo script |
+| CI remoto anterior | [Run 39370249624](https://github.com/crgasparoto-br/training-system/actions/runs/39370249624) e [run 39370246336](https://github.com/crgasparoto-br/training-system/actions/runs/39370246336) estavam verdes em SHA anterior; não certificam `1de2ae9…`. O CI do candidato ainda precisa ser consultado após publicação. |
 
 ## Pendências para concluir
 
-1. Disponibilizar memória para executar `pnpm validate`, build/type-check e a regressão Jest PostgreSQL adicionada.
-2. Reiniciar a API isolada e repetir autenticação/navegação real até a tela do exercício legado liberado, verificar bloqueio de edição e capturar estado após a correção nas larguras necessárias.
-3. Publicar o candidato validado na branch da PR e confirmar CI verde no SHA remoto exato.
+1. Disponibilizar memória suficiente para concluir `pnpm validate` e o build da API; os checks focados da API e a integração PostgreSQL passaram.
+2. Reexecutar a jornada autenticada completa de criar/editar/copiar/liberar no candidato mais recente; o fluxo completo comprovado anteriormente é do SHA de referência `f651ab6…`, enquanto `1de2ae9…` foi autenticado para recertificar exercício legado liberado e bloqueio.
+3. Publicar o candidato na branch da PR e observar uma única vez o CI no SHA remoto exato.
 4. Encaminhar o SHA congelado para nova auditoria independente com `auditar-issue` em contexto separado.
 
 Não houve merge nem fechamento da issue. Não declarar aprovação independente nesta homologação.
