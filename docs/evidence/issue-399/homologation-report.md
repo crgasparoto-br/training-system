@@ -19,7 +19,7 @@ Este relatório preserva os resultados históricos abaixo e acrescenta a recerti
 - SHA de referência do fluxo operacional, da migração e das capturas: `f651ab6185bc7bd2b0fca153b25369cbbe010954`
 - SHA da correção de leitura e dos testes de regressão: `c16484476bda5dab646e8c84972589b739dedc7b`
 - SHA do candidato funcional mais recente: `1de2ae9dac1d19014b918a77d466efba810a2808`.
-- O replay autenticado completo e suas capturas foram executados exatamente no commit de código `18fa3b3d9b54a6549505494fe045f6f116466fd9`; a correção incremental posterior `3d2f1d0f…` é restrita ao guard SQL de INSERT e foi validada pelo teste histórico e controle SQL dedicados. O pacote final está publicado na branch da PR, cujo head remoto é `99d9f521147f445dd051950da6873754093e05c0`.
+- O replay autenticado completo e suas capturas foram executados exatamente no commit de código `18fa3b3d9b54a6549505494fe045f6f116466fd9`; a correção incremental posterior `3d2f1d0f…` é restrita ao guard SQL de INSERT e foi validada pelo teste histórico e controle SQL dedicados. O pacote final está publicado na branch da PR, cujo head remoto é `00bdffd6ab42e9edcbbf9e348a04c6f6dac67dbb`.
 - Antes da publicação deste candidato, o HEAD remoto da PR ainda era `019d9fbadd373eebc56cb809908383ed9d4abe82`; os runs existentes não validam `1de2ae9…`.
 - PostgreSQL exclusivo de teste da recertificação final: 16.15, banco `issue399_audit`, publicado somente em `127.0.0.1:5432` no sandbox.
 - API e preview web da recertificação foram publicados somente em `127.0.0.1:19192` e `127.0.0.1:19193`; a API usou uma rede de teste sem masquerading e a rede interna exclusiva do PostgreSQL. Conta e dados eram sintéticos; a senha temporária foi gerada em memória e restaurada para o hash de fixture. Nenhum serviço de produção, Caddy, Keycloak ou ambiente da Issue #385 foi alterado.
@@ -185,7 +185,7 @@ O replay autenticado anterior havia exposto `P2002` ao criar em paralelo o mesmo
 | Build web de produção | PASS; 1758 módulos transformados |
 | `pnpm validate` no workspace do código | PASS, exit code 0; duração 9m55s |
 | `pnpm test` após o guard incremental | LIMITADO pelo sandbox: `consolidated-prescription-persistence.integration.test.ts` exige o binário Docker (`spawnSync docker ENOENT`); os testes relevantes do candidato passaram. O CI CRITICAL executa com Docker disponível. |
-| CI exact-SHA [run 39664646497](https://github.com/crgasparoto-br/training-system/actions/runs/39664646497) no head `99d9f521…` | PASS; CRITICAL, Validate repository, testes completos, build, browser real, arquitetura, acesso e documentação |
+| CI exact-SHA [run 39667421530](https://github.com/crgasparoto-br/training-system/actions/runs/39667421530) no head `00bdffd6…` | PASS; CRITICAL, Validate repository, testes completos, build, browser real, arquitetura, acesso e documentação |
 
 ## Validações e CI
 
@@ -207,6 +207,6 @@ O replay autenticado anterior havia exposto `P2002` ao criar em paralelo o mesmo
 
 ## Pendências para concluir
 
-1. Encaminhar o SHA publicado congelado `99d9f521147f445dd051950da6873754093e05c0` para nova auditoria independente com `auditar-issue` em contexto separado.
+1. Encaminhar o SHA publicado congelado `00bdffd6ab42e9edcbbf9e348a04c6f6dac67dbb` para nova auditoria independente com `auditar-issue` em contexto separado.
 
 Não houve merge nem fechamento da issue. Não declarar aprovação independente nesta homologação.
