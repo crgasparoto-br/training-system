@@ -1,7 +1,7 @@
 ﻿import { PrismaClient } from '@prisma/client';
 
 import { Prisma } from '@prisma/client';
-import { matchResistanceExerciseRows, normalizeResistanceBlocks, ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput, type ResistancePlannedSetInput } from './resistance-structure.domain.js';
+import { assertWorkoutParentIsImmutable, matchResistanceExerciseRows, normalizeResistanceBlocks, ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput, type ResistancePlannedSetInput } from './resistance-structure.domain.js';
 
 const prisma = new PrismaClient();
 
@@ -603,6 +603,7 @@ export const workoutService = {
    * Atualizar template
    */
   async updateTemplate(id: string, data: Partial<CreateWorkoutTemplateDTO>) {
+    assertWorkoutParentIsImmutable(data, 'planId');
     const template = await withWorkoutTemplatePlanningMutation(id, (tx) =>
       tx.workoutTemplate.update({
         where: { id },
@@ -756,6 +757,7 @@ export const workoutService = {
    * Atualizar dia de treino
    */
   async updateWorkoutDay(id: string, data: WorkoutDayUpdateData) {
+    assertWorkoutParentIsImmutable(data, 'templateId');
     return withWorkoutDayPlanningMutation(id, (tx) =>
       tx.workoutDay.update({
         where: { id },
