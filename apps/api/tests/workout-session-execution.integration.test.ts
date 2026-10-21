@@ -1204,6 +1204,12 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     await expect(workoutService.updateDay(own.fixture.dayId, {
       templateId: foreignDay.templateId,
     })).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    await expect(workoutService.updateTemplate(ownDay.templateId, {
+      plan: { connect: { id: foreignDay.template.planId } },
+    } as never)).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    await expect(workoutService.updateDay(own.fixture.dayId, {
+      template: { connect: { id: foreignDay.templateId } },
+    } as never)).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
 
     const [persistedDay, persistedTemplate] = await Promise.all([
       prisma.workoutDay.findUniqueOrThrow({ where: { id: own.fixture.dayId } }),
