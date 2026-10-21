@@ -391,3 +391,29 @@ describe('Issue #399 / AUD-399-11 - legacy workout public error boundary', () =>
     expect(JSON.stringify(response.body)).not.toContain('password');
   });
 });
+
+describe('Issue #399 / AUD-399-12 - public parent reassignment boundary', () => {
+  const app = express();
+  app.use(express.json());
+  app.use('/workout', workoutRouter);
+  beforeEach(() => jest.clearAllMocks());
+
+  it.each([
+    ['put', '/workout/templates/template-1', 'updateTemplate', { planId: 'other-contract-plan' }],
+    ['put', '/workout/days/day-1', 'updateDay', { templateId: 'other-contract-template' }],
+  ] as const)('returns sanitized HTTP 400 for rejected ownership on %s %s', async (
+    method, url, serviceMethod, payload,
+  ) => {
+    (workoutService[serviceMethod] as jest.Mock).mockRejectedValueOnce({
+      code: 'INVALID_RESISTANCE_STRUCTURE',
+      message: 'internal reference must not leak',
+    });
+    const response = await request(app)[method](url).send(payload);
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      code: 'INVALID_RESISTANCE_STRUCTURE',
+      error: 'Revise os blocos e as séries informados.',
+    });
+    expect(JSON.stringify(response.body)).not.toContain('internal reference');
+  });
+});
