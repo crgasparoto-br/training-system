@@ -131,6 +131,24 @@ export function matchResistanceExerciseRows(
   });
 }
 
+/**
+ * A persisted template/day belongs to its canonical parent. Updating an
+ * existing row must never silently re-home it to another plan or template
+ * (and potentially another contract), even if the caller can edit the source.
+ * Reject explicit identity fields rather than ignoring an unsafe request.
+ */
+export function assertWorkoutParentIsImmutable(
+  data: unknown,
+  parentField: 'planId' | 'templateId',
+): void {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new ResistanceStructureValidationError('Dados de treino inválidos.');
+  }
+  if (Object.prototype.hasOwnProperty.call(data, parentField)) {
+    throw new ResistanceStructureValidationError('Não é permitido transferir um treino para outro plano ou semana.');
+  }
+}
+
 /** Prevent raw Prisma/SQL error details from crossing the public API boundary. */
 export function classifyResistanceWriteError(error: unknown): {
   status: number;
