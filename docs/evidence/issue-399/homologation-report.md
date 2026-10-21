@@ -19,7 +19,7 @@ Este relatório preserva os resultados históricos abaixo e acrescenta a recerti
 - SHA de referência do fluxo operacional, da migração e das capturas: `f651ab6185bc7bd2b0fca153b25369cbbe010954`
 - SHA da correção de leitura e dos testes de regressão: `c16484476bda5dab646e8c84972589b739dedc7b`
 - SHA do candidato funcional mais recente: `1de2ae9dac1d19014b918a77d466efba810a2808`.
-- O replay pós-remediação foi executado exatamente no commit local `18fa3b3d9b54a6549505494fe045f6f116466fd9`; o commit ainda depende de publicação na branch remota da PR para observação do CI.
+- O replay pós-remediação foi executado exatamente no commit de código `18fa3b3d9b54a6549505494fe045f6f116466fd9`; o pacote de evidências foi publicado na branch da PR, cujo head remoto corrente é `83d511532c9214ce0684ef141a7c31415015c7cd`.
 - Antes da publicação deste candidato, o HEAD remoto da PR ainda era `019d9fbadd373eebc56cb809908383ed9d4abe82`; os runs existentes não validam `1de2ae9…`.
 - PostgreSQL exclusivo de teste da recertificação final: 16.15, banco `issue399_audit`, publicado somente em `127.0.0.1:5432` no sandbox.
 - API e preview web da recertificação foram publicados somente em `127.0.0.1:19192` e `127.0.0.1:19193`; a API usou uma rede de teste sem masquerading e a rede interna exclusiva do PostgreSQL. Conta e dados eram sintéticos; a senha temporária foi gerada em memória e restaurada para o hash de fixture. Nenhum serviço de produção, Caddy, Keycloak ou ambiente da Issue #385 foi alterado.
@@ -181,6 +181,7 @@ O replay autenticado anterior havia exposto `P2002` ao criar em paralelo o mesmo
 | Replay autenticado Chrome/Puppeteer | PASS; criar, editar, salvar, reabrir, copiar, liberar; 422 respostas observadas, nenhuma fora de 2xx/304; `browserErrors=[]` |
 | Harness visual oficial do editor | PASS, 1/1; 1440/768/390 px, teclado e labels |
 | Build web de produção | PASS; 1758 módulos transformados |
+| `pnpm validate` no workspace do código | PASS, exit code 0; duração 9m55s |
 
 ## Validações e CI
 
@@ -202,9 +203,7 @@ O replay autenticado anterior havia exposto `P2002` ao criar em paralelo o mesmo
 
 ## Pendências para concluir
 
-1. Disponibilizar memória suficiente para concluir `pnpm validate` e o build da API; os checks focados da API e a integração PostgreSQL passaram.
-2. Reexecutar a jornada autenticada completa de criar/editar/copiar/liberar no candidato mais recente; o fluxo completo comprovado anteriormente é do SHA de referência `f651ab6…`, enquanto `1de2ae9…` foi autenticado para recertificar exercício legado liberado e bloqueio.
-3. Publicar o candidato na branch da PR e observar uma única vez o CI no SHA remoto exato.
-4. Encaminhar o SHA congelado para nova auditoria independente com `auditar-issue` em contexto separado.
+1. Observar a conclusão do workflow `Validate PR` no head remoto `83d511532c9214ce0684ef141a7c31415015c7cd`.
+2. Encaminhar o SHA publicado congelado para nova auditoria independente com `auditar-issue` em contexto separado.
 
 Não houve merge nem fechamento da issue. Não declarar aprovação independente nesta homologação.
