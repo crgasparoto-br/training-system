@@ -1,10 +1,22 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { workoutService } from '../modules/workout/workout.service.js';
 import { classifyResistanceWriteError } from '../modules/workout/resistance-structure.domain.js';
 import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
 import { prismaRuntimeClient } from '../common/prisma-runtime-client.js';
 
 const router: Router = Router();
+
+/** Keep raw Prisma/SQL errors in server logs, never in legacy HTTP responses. */
+function sendSafeWorkoutError(res: Response, error: unknown) {
+  const mapped = classifyResistanceWriteError(error);
+  if (mapped.status !== 500) {
+    return res.status(mapped.status).json(mapped.body);
+  }
+  return res.status(500).json({
+    code: 'WORKOUT_OPERATION_FAILED',
+    error: 'Não foi possível concluir a operação de treino.',
+  });
+}
 
 /**
  * Protect every Workout Builder route, including the legacy exercise API.
@@ -255,7 +267,7 @@ router.get('/templates/:id', async (req, res) => {
     res.json(template);
   } catch (error: any) {
     console.error('Error getting template:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -266,7 +278,7 @@ router.put('/templates/:id', async (req, res) => {
     res.json(template);
   } catch (error: any) {
     console.error('Error updating template:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -277,7 +289,7 @@ router.delete('/templates/:id', async (req, res) => {
     res.status(204).send();
   } catch (error: any) {
     console.error('Error deleting template:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -288,7 +300,7 @@ router.post('/templates/:id/release', async (req, res) => {
     res.json(template);
   } catch (error: any) {
     console.error('Error releasing template:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -330,7 +342,7 @@ router.post('/days/get-or-create', async (req, res) => {
     res.json(day);
   } catch (error: any) {
     console.error('Error in get-or-create day:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -341,7 +353,7 @@ router.get('/days/:id', async (req, res) => {
     res.json(day);
   } catch (error: any) {
     console.error('Error getting day:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -352,7 +364,7 @@ router.put('/days/:id', async (req, res) => {
     res.json(day);
   } catch (error: any) {
     console.error('Error updating day:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -363,7 +375,7 @@ router.delete('/days/:id', async (req, res) => {
     res.status(204).send();
   } catch (error: any) {
     console.error('Error deleting day:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -378,7 +390,7 @@ router.post('/days/:id/copy', async (req, res) => {
     res.json(day);
   } catch (error: any) {
     console.error('Error copying day:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -413,7 +425,7 @@ router.get('/exercises', async (req, res) => {
     res.json(exercises);
   } catch (error: any) {
     console.error('Error getting exercises:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -424,7 +436,7 @@ router.post('/exercises', async (req, res) => {
     res.status(201).json(exercise);
   } catch (error: any) {
     console.error('Error adding exercise:', error);
-    res.status(error?.statusCode ?? 500).json({ error: error?.statusCode ? error.message : 'Não foi possível salvar o exercício.', code: error?.code });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -440,7 +452,7 @@ router.put('/exercises/reorder', async (req, res) => {
     res.status(204).send();
   } catch (error: any) {
     console.error('Error reordering exercises:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -451,7 +463,7 @@ router.put('/exercises/:id', async (req, res) => {
     res.json(exercise);
   } catch (error: any) {
     console.error('Error updating exercise:', error);
-    res.status(error?.statusCode ?? 500).json({ error: error?.statusCode ? error.message : 'Não foi possível salvar o exercício.', code: error?.code });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -462,7 +474,7 @@ router.delete('/exercises/:id', async (req, res) => {
     res.status(204).send();
   } catch (error: any) {
     console.error('Error deleting exercise:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
