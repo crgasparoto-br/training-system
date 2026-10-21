@@ -75,6 +75,8 @@ describe('Issue #399 / AUD-399-12 - immutable ownership on edits', () => {
     ['templateId', { templateId: 'other-contract-template' }],
     ['planId', { planId: undefined }],
     ['templateId', { templateId: null }],
+    ['planId', { plan: { connect: { id: 'other-contract-plan' } } }],
+    ['templateId', { template: { connect: { id: 'other-contract-template' } } }],
   ] as const)('rejects explicit %s reassignment, even with empty values', (field, data) => {
     expect(() => assertWorkoutParentIsImmutable(data, field))
       .toThrow(ResistanceStructureValidationError);
