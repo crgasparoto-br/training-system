@@ -1,3 +1,5 @@
+APROVADO
+
 # RESULTADO: APROVADA INTERNAMENTE
 
 > **Conclusão:** `APROVADA INTERNAMENTE` — achados bloqueantes: `0` — recomendações opcionais: `0`
