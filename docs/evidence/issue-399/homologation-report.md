@@ -2,7 +2,7 @@
 
 > **Conclusão:** `APROVADA INTERNAMENTE` — achados bloqueantes: `0` — recomendações opcionais: `0`
 >
-> **Motivo determinante:** a pendência `AUD-399-10` e o bypass `AUD-399-01` foram recertificados no commit `18fa3b3d9b54a6549505494fe045f6f116466fd9`, com migration aplicada, controle SQL negativo, integração PostgreSQL e replay autenticado responsivo aprovados.
+> **Motivo determinante:** a pendência `AUD-399-10` e o bypass `AUD-399-01` foram recertificados no código `3d2f1d0f07679b45bbb6ee8367b1f3d33a47ea06`, com migration aplicada, controle SQL negativo, integração PostgreSQL e replay autenticado responsivo aprovados.
 >
 > **Libera merge/release:** `NÃO`
 
@@ -15,11 +15,11 @@ Este relatório preserva os resultados históricos abaixo e acrescenta a recerti
 - Repositório: `crgasparoto-br/training-system`
 - Issue: [#399](https://github.com/crgasparoto-br/training-system/issues/399)
 - PR: [#516](https://github.com/crgasparoto-br/training-system/pull/516), branch `feat/399-resistance-blocks-sets`, base `develop`
-- Branch local de remediação: `fix/399-audit-remediation`, parent `c835f40bfe29add78738479d7a41cb4e8a722eac`, commit final local `18fa3b3d9b54a6549505494fe045f6f116466fd9`
+- Branch local de remediação: `fix/399-audit-remediation`, parent `c835f40bfe29add78738479d7a41cb4e8a722eac`, commit funcional final `3d2f1d0f07679b45bbb6ee8367b1f3d33a47ea06`
 - SHA de referência do fluxo operacional, da migração e das capturas: `f651ab6185bc7bd2b0fca153b25369cbbe010954`
 - SHA da correção de leitura e dos testes de regressão: `c16484476bda5dab646e8c84972589b739dedc7b`
 - SHA do candidato funcional mais recente: `1de2ae9dac1d19014b918a77d466efba810a2808`.
-- O replay pós-remediação foi executado exatamente no commit de código `18fa3b3d9b54a6549505494fe045f6f116466fd9`; o pacote de evidências foi publicado na branch da PR, cujo head remoto corrente é `83d511532c9214ce0684ef141a7c31415015c7cd`.
+- O replay autenticado completo e suas capturas foram executados exatamente no commit de código `18fa3b3d9b54a6549505494fe045f6f116466fd9`; a correção incremental posterior `3d2f1d0f…` é restrita ao guard SQL de INSERT e foi validada pelo teste histórico e controle SQL dedicados. O pacote de evidências foi publicado na branch da PR; o head remoto corrente deve ser reconsultado após o novo push.
 - Antes da publicação deste candidato, o HEAD remoto da PR ainda era `019d9fbadd373eebc56cb809908383ed9d4abe82`; os runs existentes não validam `1de2ae9…`.
 - PostgreSQL exclusivo de teste da recertificação final: 16.15, banco `issue399_audit`, publicado somente em `127.0.0.1:5432` no sandbox.
 - API e preview web da recertificação foram publicados somente em `127.0.0.1:19192` e `127.0.0.1:19193`; a API usou uma rede de teste sem masquerading e a rede interna exclusiva do PostgreSQL. Conta e dados eram sintéticos; a senha temporária foi gerada em memória e restaurada para o hash de fixture. Nenhum serviço de produção, Caddy, Keycloak ou ambiente da Issue #385 foi alterado.
@@ -113,6 +113,8 @@ Resultados exportados sem credenciais: [migration-integrity.txt](./migration-int
 
 A migration `20261021200000_issue_399_legacy_release_immutability` foi aplicada no PostgreSQL 16.15, elevando o banco isolado para 154 migrations. Em um template legado com `WorkoutTemplate.released=true` e sem depender do ledger consolidado, o controle negativo executou UPDATE e DELETE de template, dia, exercício, bloco e série em transação com rollback. Todas as dez tentativas foram bloqueadas com SQLSTATE `23514`; o template permaneceu liberado e o bloco/série permaneceram presentes. A evidência bruta está em [legacy-release-immutability-18fa3b3d.txt](./legacy-release-immutability-18fa3b3d.txt) e o estado de migrations em [migration-status-18fa3b3d.txt](./migration-status-18fa3b3d.txt).
 
+O CI exact-SHA do head `428023b4…` encontrou um caso irmão não coberto: `WorkoutDay` podia ser inserido sob um template liberado porque, durante `BEFORE INSERT`, a linha nova ainda não existia para a consulta por `NEW.id`. A migration `20261021210000_issue_399_legacy_release_insert_guard`, no commit de código `3d2f1d0f07679b45bbb6ee8367b1f3d33a47ea06`, passou a resolver `NEW.templateId` diretamente. O teste histórico `consolidated-prescription-release-historical-immutability.integration.test.ts` passou 2/2 depois da correção, e o controle SQL dedicado bloqueou o INSERT com SQLSTATE `23514`, preservando a fixture após rollback. Evidência: [legacy-release-insert-3d2f1d0.txt](./legacy-release-insert-3d2f1d0.txt) e [migration-status-3d2f1d0.txt](./migration-status-3d2f1d0.txt).
+
 ### AUD-399-10 — fluxo autenticado e interface: PASS na homologação operacional
 
 No commit `18fa3b3d…`, em fixture sintética nova, o replay real com Chrome/Puppeteer executou: login de professor ativo; abertura de exercício legado; criação de bloco e série estruturada; carga decimal `32.5 kg`, RIR `2`, tempo `3-1-1-0` e faixa `8–12`; salvamento; fechamento/reabertura com leitura dos valores persistidos; cópia da semana 1 para a semana 2; confirmação de IDs novos e datas derivadas (`2026-10-19` → `2026-10-26`); liberação; e reabertura do treino liberado. O resultado foi `passed=true`, sem respostas HTTP fora de 2xx/304 e sem erros de browser/console.
@@ -170,11 +172,11 @@ O manifesto estruturado e as métricas estão em [authenticated-legacy-browser-1
 
 O replay autenticado anterior havia exposto `P2002` ao criar em paralelo o mesmo template semanal e `P2034` em atualizações serializáveis concorrentes. O serviço agora recupera somente o conflito da chave composta do template e faz até duas novas tentativas para mutações serializáveis, revalidando dentro de cada transação os bloqueios de template liberado/iniciado. O teste PostgreSQL usa triggers com atraso controlado para reproduzir as duas corridas; ambas passaram no conjunto de 26 testes do candidato.
 
-## Validações pós-remediação — commit `18fa3b3d…`
+## Validações pós-remediação — replay `18fa3b3d…` e correção SQL `3d2f1d0…`
 
 | Verificação | Resultado |
 |---|---|
-| Migration `20261021200000_issue_399_legacy_release_immutability` | PASS, aplicada; 154 migrations concluídas no PostgreSQL 16.15 |
+| Migrations `20261021200000_issue_399_legacy_release_immutability` + `20261021210000_issue_399_legacy_release_insert_guard` | PASS, aplicadas; 155 migrations concluídas no PostgreSQL 16.15 |
 | Controle SQL negativo do release legado | PASS, 10/10 operações de UPDATE/DELETE bloqueadas; fixture preservada após rollback |
 | Integração PostgreSQL `workout-session-execution.integration.test.ts` | PASS, 26/26 |
 | Domínio estruturado + rotas HTTP | PASS, 11/11 + 103/103 |
@@ -182,6 +184,7 @@ O replay autenticado anterior havia exposto `P2002` ao criar em paralelo o mesmo
 | Harness visual oficial do editor | PASS, 1/1; 1440/768/390 px, teclado e labels |
 | Build web de produção | PASS; 1758 módulos transformados |
 | `pnpm validate` no workspace do código | PASS, exit code 0; duração 9m55s |
+| `pnpm test` após o guard incremental | LIMITADO pelo sandbox: `consolidated-prescription-persistence.integration.test.ts` exige o binário Docker (`spawnSync docker ENOENT`); os testes relevantes do candidato passaram. O CI CRITICAL executa com Docker disponível. |
 
 ## Validações e CI
 
@@ -203,7 +206,7 @@ O replay autenticado anterior havia exposto `P2002` ao criar em paralelo o mesmo
 
 ## Pendências para concluir
 
-1. Observar a conclusão do workflow `Validate PR` no head remoto `83d511532c9214ce0684ef141a7c31415015c7cd`.
+1. Observar a conclusão do workflow `Validate PR` no novo head remoto após a publicação do commit `3d2f1d0…` e da documentação/evidência final.
 2. Encaminhar o SHA publicado congelado para nova auditoria independente com `auditar-issue` em contexto separado.
 
 Não houve merge nem fechamento da issue. Não declarar aprovação independente nesta homologação.
