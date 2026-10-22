@@ -1132,8 +1132,15 @@ export const workoutService = {
       });
 
       const sourceDays = new Map(source.workoutDays.map((day) => [day.dayOfWeek, day]));
-      for (let dayOfWeek = 1; dayOfWeek <= 7; dayOfWeek += 1) {
-        const sourceDay = sourceDays.get(dayOfWeek);
+      const sourceAnchorDayOfWeek = source.workoutDays.length > 0
+        ? source.workoutDays.reduce((minimum, day) => Math.min(minimum, day.dayOfWeek), 7)
+        : 1;
+      const partialCopyDate = (dayOfWeek: number) => {
+        const result = new Date(targetWeekStartDate);
+        result.setUTCDate(result.getUTCDate() + dayOfWeek - sourceAnchorDayOfWeek);
+        return result;
+      };
+      for (const [dayOfWeek, sourceDay] of sourceDays) {
         const targetDay = await tx.workoutDay.findUnique({
           where: { templateId_dayOfWeek: { templateId: target.id, dayOfWeek } },
           select: { id: true },
@@ -1141,17 +1148,16 @@ export const workoutService = {
           data: {
             templateId: target.id,
             dayOfWeek,
-            workoutDate: workoutDateInTargetWeek(targetWeekStartDate, dayOfWeek),
+            workoutDate: partialCopyDate(dayOfWeek),
           },
-          select: { id: true },
-        });
+            select: { id: true },
+          });
 
-        if (!sourceDay) continue;
         if (mode === 'cyclic') {
           await tx.workoutDay.update({
             where: { id: targetDay.id },
             data: {
-              workoutDate: workoutDateInTargetWeek(targetWeekStartDate, dayOfWeek),
+              workoutDate: partialCopyDate(dayOfWeek),
               sessionDurationMin: sourceDay.sessionDurationMin,
               cyclicTimeMin: sourceDay.cyclicTimeMin,
               stimulusDurationMin: sourceDay.stimulusDurationMin,
@@ -1181,7 +1187,7 @@ export const workoutService = {
         await tx.workoutDay.update({
           where: { id: targetDay.id },
           data: {
-            workoutDate: workoutDateInTargetWeek(targetWeekStartDate, dayOfWeek),
+            workoutDate: partialCopyDate(dayOfWeek),
             resistanceTimeMin: sourceDay.resistanceTimeMin,
           },
         });
@@ -1541,7 +1547,7 @@ export const workoutService = {
       select: { id: true },
     });
     if (candidateRows.length !== uniqueIds.length) {
-      throw new ResistanceStructureValidationError('Um ou mais exercícios não pertencem ao dia ou seção informados.');
+      throw new ResistanceStructureValidationError('One or more exercises do not belong to the requested day/section.');
     }
 
     return withWorkoutDayPlanningMutation(workoutDayId, async (tx) => {
@@ -1551,7 +1557,7 @@ export const workoutService = {
         select: { id: true },
       });
       if (owned.length !== uniqueIds.length) {
-        throw new ResistanceStructureValidationError('Um ou mais exercícios não pertencem ao dia ou seção informados.');
+        throw new ResistanceStructureValidationError('One or more exercises do not belong to the requested day/section.');
       }
 
       return Promise.all(
