@@ -40,7 +40,7 @@ type Fixture = {
 
 async function seedReleasedWorkout(
   label: string,
-  options: { publish?: boolean } = {},
+  options: { publish?: boolean; seedResistance?: boolean } = {},
 ): Promise<Fixture> {
   const suffix = `${label}-${randomUUID()}`;
   const contractId = `issue-389-${suffix}`;
@@ -195,6 +195,19 @@ async function seedReleasedWorkout(
       reps: 10,
     },
   });
+
+  if (options.seedResistance) {
+    await prisma.workoutExerciseBlock.create({
+      data: {
+        workoutExerciseId: exerciseA.id,
+        position: 1,
+        kind: 'principal',
+        plannedSets: {
+          create: { position: 1, repsMin: 8, repsMax: 12, loadKg: 32.5 },
+        },
+      },
+    });
+  }
 
   if (options.publish !== false) {
     const releasedAt = new Date('2026-10-05T12:00:00.000Z');
@@ -775,6 +788,49 @@ describeDatabase('workout session execution persistence - issue 389', () => {
 });
 
 
+describeDatabase('AUD-399-16/17: canonical planned-set execution link', () => {
+  it('persists and projects plannedSetId while rejecting a cross-unit reference', async () => {
+    const fixture = await seedReleasedWorkout('issue399-planned-set-link', { seedResistance: true });
+    const plannedSet = await prisma.workoutExercisePlannedSet.findFirstOrThrow({
+      where: { block: { workoutExerciseId: fixture.exerciseIds[0] } },
+    });
+    const started = await service.transition({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue399-planned-set-start',
+        expectedVersion: 0,
+        targetStatus: 'in_progress',
+        items: [{ plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSet.id, loadKg: 35.5 }],
+      },
+    });
+    expect(started.items[0]).toMatchObject({
+      plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSet.id, loadKg: 35.5,
+    });
+    await expect(service.saveValues({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue399-planned-set-cross-unit',
+        expectedVersion: 1,
+        items: [{ plannedUnitId: fixture.exerciseIds[1], plannedSetId: plannedSet.id, loadKg: 20 }],
+      },
+    })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, select: { id: true },
+    });
+    await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutSessionExecutionItem" ("id", "executionId", "plannedUnitId", "plannedSetId")
+      VALUES (${randomUUID()}, ${execution.id}, ${fixture.exerciseIds[1]}, ${plannedSet.id})
+    `).rejects.toThrow();
+  });
+});
+
 describeDatabase('resistance blocks - historical identity and transactional persistence (#399)', () => {
   async function editableFixture(label: string) {
     // Exercise persistence must start in a genuine draft. Published templates
@@ -1232,6 +1288,45 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     expect(await prisma.workoutTemplate.count({ where: {
       planId: source.template.planId, mesocycleNumber: 1, weekNumber: 2,
     } })).toBe(1);
+  });
+
+  it('copyTemplateSections rolls back the entire partial copy on a later insert failure', async () => {
+    const { fixture, input } = await editableFixture('issue399-partial-copy-rollback');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    const source = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, select: { templateId: true, template: { select: { planId: true } } },
+    });
+    const suffix = randomUUID().replace(/-/g, '');
+    const triggerName = `issue399_partial_copy_trigger_${suffix}`;
+    const functionName = `issue399_partial_copy_fn_${suffix}`;
+    const planId = source.template.planId.replace(/'/g, "''");
+    await prisma.$executeRawUnsafe(`
+      CREATE FUNCTION "${functionName}"() RETURNS trigger AS $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM "WorkoutDay" d
+          JOIN "WorkoutTemplate" t ON t."id" = d."templateId"
+          WHERE d."id" = NEW."workoutDayId" AND t."planId" = '${planId}' AND t."weekNumber" = 2
+        ) THEN RAISE EXCEPTION 'issue399 forced partial copy failure'; END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql
+    `);
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TRIGGER "${triggerName}" BEFORE INSERT ON "WorkoutExercise"
+        FOR EACH ROW EXECUTE FUNCTION "${functionName}"()
+      `);
+      await expect(workoutService.copyTemplateSections(
+        source.templateId, 2, new Date('2026-10-12T12:00:00.000Z'), 'resistance',
+      )).rejects.toThrow();
+    } finally {
+      await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS "${triggerName}" ON "WorkoutExercise"`);
+      await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS "${functionName}"()`);
+    }
+    expect(await prisma.workoutTemplate.count({
+      where: { planId: source.template.planId, mesocycleNumber: 1, weekNumber: 2 },
+    })).toBe(0);
   });
 
   it('AUD-399-12: rejects moving draft template/day across contracts without changing persisted ownership', async () => {

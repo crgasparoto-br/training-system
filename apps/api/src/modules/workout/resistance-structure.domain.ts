@@ -199,6 +199,11 @@ const FIELDS: Record<WorkoutInputKind, Record<string, FieldType>> = {
   },
 };
 const ID_FIELDS = new Set(['planId','templateId','workoutDayId','workoutExerciseId','exerciseId','section']);
+const REQUIRED_FIELDS: Record<WorkoutInputKind, ReadonlySet<string>> = {
+  template: new Set(['planId', 'mesocycleNumber', 'weekNumber', 'weekStartDate']),
+  day: new Set(['templateId', 'dayOfWeek', 'workoutDate']),
+  exercise: new Set(['workoutDayId', 'exerciseId', 'section', 'exerciseOrder']),
+};
 const BLOCK_FIELDS = new Set(['position','kind','notes','plannedSets']);
 const SET_FIELDS = new Set(['position','repsMin','repsMax','loadKg','loadPercent','rir','rpe','tempo','restSec','notes']);
 function assertAllowedKeys(value: unknown, fields: ReadonlySet<string>): void {
@@ -230,7 +235,8 @@ export function sanitizeWorkoutMutation<T>(value: T, kind: WorkoutInputKind, mod
     }
     if (fieldValue === undefined) continue;
     if (fieldValue === null) {
-      if (type === 'blocks' || type === 'date' || ID_FIELDS.has(key)) {
+      if (type === 'blocks' || type === 'date' || type === 'boolean'
+        || ID_FIELDS.has(key) || REQUIRED_FIELDS[kind].has(key)) {
         throw new ResistanceStructureValidationError('Campo de treino inválido.');
       }
       clean[key] = null;

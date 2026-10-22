@@ -1059,6 +1059,185 @@ export const workoutService = {
   /**
    * Copiar template para outra semana
    */
+  async copyTemplateSections(
+    id: string,
+    targetWeekNumber: number,
+    targetWeekStartDate: Date,
+    mode: 'cyclic' | 'resistance',
+  ) {
+    if (!Number.isInteger(targetWeekNumber) || targetWeekNumber <= 0
+      || !(targetWeekStartDate instanceof Date) || !Number.isFinite(targetWeekStartDate.getTime())
+      || (mode !== 'cyclic' && mode !== 'resistance')) {
+      throw new ResistanceStructureValidationError('Dados de cópia inválidos.');
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const source = await tx.workoutTemplate.findUnique({
+        where: { id },
+        include: {
+          workoutDays: {
+            include: { exercises: { include: { resistanceBlocks: resistanceBlockInclude } } },
+          },
+        },
+      });
+      if (!source) throw new ResistanceStructureNotFoundError();
+      if (source.weekNumber === targetWeekNumber) {
+        throw new ResistanceStructureValidationError('A semana de destino deve ser diferente da origem.');
+      }
+
+      const existingTarget = await tx.workoutTemplate.findUnique({
+        where: {
+          planId_mesocycleNumber_weekNumber: {
+            planId: source.planId,
+            mesocycleNumber: source.mesocycleNumber,
+            weekNumber: targetWeekNumber,
+          },
+        },
+        select: { id: true },
+      });
+      const target = existingTarget
+        ? (await tx.workoutTemplate.findUniqueOrThrow({ where: { id: existingTarget.id } }))
+        : await tx.workoutTemplate.create({
+          data: {
+            planId: source.planId,
+            mesocycleNumber: source.mesocycleNumber,
+            weekNumber: targetWeekNumber,
+            weekStartDate: targetWeekStartDate,
+          },
+        });
+
+      if (existingTarget) await lockWorkoutTemplatePlanningMutable(tx, target.id);
+      await tx.workoutTemplate.update({
+        where: { id: target.id },
+        data: mode === 'cyclic'
+          ? {
+              cyclicFrequency: source.cyclicFrequency,
+              totalVolumeMin: source.totalVolumeMin,
+              totalVolumeKm: source.totalVolumeKm,
+            }
+          : {
+              resistanceFrequency: source.resistanceFrequency,
+              loadPercentage: source.loadPercentage,
+              repZone: source.repZone,
+              repReserve: source.repReserve,
+              trainingMethod: source.trainingMethod,
+              trainingDivision: source.trainingDivision,
+              studentGoal: source.studentGoal,
+              coachGoal: source.coachGoal,
+              observation1: source.observation1,
+              observation2: source.observation2,
+            },
+      });
+
+      const sourceDays = new Map(source.workoutDays.map((day) => [day.dayOfWeek, day]));
+      for (let dayOfWeek = 1; dayOfWeek <= 7; dayOfWeek += 1) {
+        const sourceDay = sourceDays.get(dayOfWeek);
+        const targetDay = await tx.workoutDay.findUnique({
+          where: { templateId_dayOfWeek: { templateId: target.id, dayOfWeek } },
+          select: { id: true },
+        }) ?? await tx.workoutDay.create({
+          data: {
+            templateId: target.id,
+            dayOfWeek,
+            workoutDate: workoutDateInTargetWeek(targetWeekStartDate, dayOfWeek),
+          },
+          select: { id: true },
+        });
+
+        if (!sourceDay) continue;
+        if (mode === 'cyclic') {
+          await tx.workoutDay.update({
+            where: { id: targetDay.id },
+            data: {
+              workoutDate: workoutDateInTargetWeek(targetWeekStartDate, dayOfWeek),
+              sessionDurationMin: sourceDay.sessionDurationMin,
+              cyclicTimeMin: sourceDay.cyclicTimeMin,
+              stimulusDurationMin: sourceDay.stimulusDurationMin,
+              location: sourceDay.location,
+              method: sourceDay.method,
+              intensity1: sourceDay.intensity1,
+              intensity2: sourceDay.intensity2,
+              numSessions: sourceDay.numSessions,
+              numSets: sourceDay.numSets,
+              sessionTime: sourceDay.sessionTime,
+              restTime: sourceDay.restTime,
+              vo2maxIntervalPct: sourceDay.vo2maxIntervalPct,
+              iextIintTime: sourceDay.iextIintTime,
+              vo2maxPct: sourceDay.vo2maxPct,
+              targetHrMin: sourceDay.targetHrMin,
+              targetHrMax: sourceDay.targetHrMax,
+              targetSpeedMin: sourceDay.targetSpeedMin,
+              targetSpeedMax: sourceDay.targetSpeedMax,
+              detailNotes: sourceDay.detailNotes,
+              complementNotes: sourceDay.complementNotes,
+              generalGuidelines: sourceDay.generalGuidelines,
+            },
+          });
+          continue;
+        }
+
+        await tx.workoutDay.update({
+          where: { id: targetDay.id },
+          data: {
+            workoutDate: workoutDateInTargetWeek(targetWeekStartDate, dayOfWeek),
+            resistanceTimeMin: sourceDay.resistanceTimeMin,
+          },
+        });
+        await tx.workoutExercise.deleteMany({ where: { workoutDayId: targetDay.id } });
+        for (const exercise of sourceDay.exercises) {
+          await tx.workoutExercise.create({
+            data: {
+              workoutDayId: targetDay.id,
+              exerciseId: exercise.exerciseId,
+              section: exercise.section,
+              exerciseOrder: exercise.exerciseOrder,
+              system: exercise.system,
+              groupBreakBefore: exercise.groupBreakBefore,
+              sets: exercise.sets,
+              reps: exercise.reps,
+              intervalSec: exercise.intervalSec,
+              cParam: exercise.cParam,
+              eParam: exercise.eParam,
+              load: exercise.load,
+              exerciseNotes: exercise.exerciseNotes,
+              resistanceBlocks: nestedResistanceBlocks(exercise.resistanceBlocks.map((block) => ({
+                position: block.position,
+                kind: block.kind,
+                notes: block.notes,
+                plannedSets: block.plannedSets.map((set) => ({
+                  position: set.position,
+                  repsMin: set.repsMin,
+                  repsMax: set.repsMax,
+                  loadKg: set.loadKg,
+                  loadPercent: set.loadPercent,
+                  rir: set.rir,
+                  rpe: set.rpe,
+                  tempo: set.tempo,
+                  restSec: set.restSec,
+                  notes: set.notes,
+                })),
+              }))),
+            },
+          });
+        }
+      }
+
+      const copiedTemplate = await tx.workoutTemplate.findUnique({
+        where: { id: target.id },
+        include: {
+          plan: true,
+          workoutDays: {
+            include: {
+              exercises: { include: { exercise: true, resistanceBlocks: resistanceBlockInclude } },
+            },
+            orderBy: { dayOfWeek: 'asc' },
+          },
+        },
+      });
+      return serializeWorkoutTemplate(copiedTemplate);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10000, timeout: 60000 });
+  },
+
   async copyTemplate(id: string, targetWeekNumber: number, targetWeekStartDate: Date) {
     if (!Number.isInteger(targetWeekNumber) || targetWeekNumber <= 0 || !(targetWeekStartDate instanceof Date) || !Number.isFinite(targetWeekStartDate.getTime())) {
       throw new Error('Invalid targetWeekNumber');
@@ -1254,6 +1433,10 @@ export const workoutService = {
    * Copiar dia de treino
    */
   async copyDay(id: string, targetDayOfWeek: number, targetDate: Date) {
+    if (!Number.isInteger(targetDayOfWeek) || targetDayOfWeek < 1 || targetDayOfWeek > 7
+      || !(targetDate instanceof Date) || !Number.isFinite(targetDate.getTime())) {
+      throw new ResistanceStructureValidationError('Dados de cópia inválidos.');
+    }
     const source = await this.getWorkoutDay(id);
 
     if (!source) {

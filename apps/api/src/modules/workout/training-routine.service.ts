@@ -78,6 +78,7 @@ const sessionSelect = {
         orderBy: [{ plannedUnitId: 'asc' as const }, { setNumber: 'asc' as const }, { id: 'asc' as const }],
         select: {
           plannedUnitId: true,
+          plannedSetId: true,
           setNumber: true,
           loadKg: true,
           repetitions: true,

@@ -132,5 +132,14 @@ describe('AUD-399-14: strict HTTP and service write inputs', () => {
       expect(() => sanitizeWorkoutMutation(invalid, 'exercise')).toThrow(ResistanceStructureValidationError);
     }
   });
-});
 
+  it.each([
+    ['template', 'create', { planId: 'plan-1', mesocycleNumber: null }],
+    ['template', 'create', { planId: 'plan-1', weekNumber: null }],
+    ['day', 'create', { templateId: 'template-1', dayOfWeek: null }],
+    ['exercise', 'create', { workoutDayId: 'day-1', exerciseId: 'exercise-1', section: 'sessao', exerciseOrder: null }],
+    ['exercise', 'create', { workoutDayId: 'day-1', exerciseId: 'exercise-1', section: 'sessao', exerciseOrder: 1, groupBreakBefore: null }],
+  ] as const)('rejects null in required scalar input %#', (resource, mode, input) => {
+    expect(() => sanitizeWorkoutMutation(input, resource, mode)).toThrow(ResistanceStructureValidationError);
+  });
+});

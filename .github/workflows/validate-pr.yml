@@ -338,6 +338,16 @@ jobs:
         run: pnpm access:check
       - name: Documentation checks
         run: pnpm docs:check
+      - name: Retain issue-399 exact-head evidence
+        if: always()
+        env:
+          AUDIT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          AUDIT_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+        run: |
+          mkdir -p artifacts/issue-399
+          printf '{"schemaVersion":1,"kind":"issue-399-ci-evidence","repository":"%s","runId":"%s","headSha":"%s","checkoutSha":"%s","baseSha":"%s"}\n' \
+            "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$AUDIT_HEAD_SHA" "$(git rev-parse HEAD)" "$AUDIT_BASE_SHA" \
+            > artifacts/issue-399/ci-head.json
       - if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -349,6 +359,7 @@ jobs:
             artifacts/ci/training-next-session.sql
             artifacts/issue-388/**
             artifacts/issue-391/**
+            artifacts/issue-399/**
           if-no-files-found: error
           retention-days: 30
 

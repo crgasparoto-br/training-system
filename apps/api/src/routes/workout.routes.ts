@@ -312,7 +312,7 @@ router.post('/templates/:id/copy', async (req, res) => {
       return res.status(400).json({ error: 'Invalid targetWeekStartDate' });
     }
     const targetWeekNumber = Number(req.body.targetWeekNumber);
-    if (!Number.isFinite(targetWeekNumber) || targetWeekNumber <= 0) {
+    if (!Number.isInteger(targetWeekNumber) || targetWeekNumber <= 0) {
       return res.status(400).json({ error: 'Invalid targetWeekNumber' });
     }
     const template = await workoutService.copyTemplate(
@@ -328,6 +328,29 @@ router.post('/templates/:id/copy', async (req, res) => {
       return res.status(500).json({ code: 'WORKOUT_COPY_FAILED', error: 'Não foi possível copiar a semana.' });
     }
     return res.status(publicError.status).json(publicError.body);
+  }
+});
+
+// Copy only one modality atomically; the destination week is never left partial.
+router.post('/templates/:id/copy-sections', async (req, res) => {
+  try {
+    const targetWeekStartDate = parseRequiredDate(req.body?.targetWeekStartDate);
+    const targetWeekNumber = Number(req.body?.targetWeekNumber);
+    const mode = req.body?.mode;
+    if (!targetWeekStartDate || !Number.isInteger(targetWeekNumber) || targetWeekNumber <= 0
+      || (mode !== 'cyclic' && mode !== 'resistance')) {
+      return res.status(400).json({ code: 'INVALID_RESISTANCE_STRUCTURE', error: 'Dados de cópia inválidos.' });
+    }
+    const template = await workoutService.copyTemplateSections(
+      req.params.id,
+      targetWeekNumber,
+      targetWeekStartDate,
+      mode,
+    );
+    res.json(template);
+  } catch (error: unknown) {
+    console.error('Error copying workout sections:', error);
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -382,11 +405,12 @@ router.delete('/days/:id', async (req, res) => {
 // Copy day
 router.post('/days/:id/copy', async (req, res) => {
   try {
-    const day = await workoutService.copyDay(
-      req.params.id,
-      req.body.targetDayOfWeek,
-      req.body.targetDate
-    );
+    const targetDayOfWeek = Number(req.body?.targetDayOfWeek);
+    const targetDate = parseRequiredDate(req.body?.targetDate);
+    if (!Number.isInteger(targetDayOfWeek) || targetDayOfWeek < 1 || targetDayOfWeek > 7 || !targetDate) {
+      return res.status(400).json({ code: 'INVALID_RESISTANCE_STRUCTURE', error: 'Dados de cópia inválidos.' });
+    }
+    const day = await workoutService.copyDay(req.params.id, targetDayOfWeek, targetDate);
     res.json(day);
   } catch (error: any) {
     console.error('Error copying day:', error);

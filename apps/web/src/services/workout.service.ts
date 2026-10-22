@@ -236,6 +236,20 @@ class WorkoutService {
     return response.data;
   }
 
+  async copyTemplateSections(
+    id: string,
+    targetWeekNumber: number,
+    targetWeekStartDate: string,
+    mode: 'cyclic' | 'resistance',
+  ): Promise<WorkoutTemplate> {
+    const response = await api.post<WorkoutTemplate>(`/workout/templates/${id}/copy-sections`, {
+      targetWeekNumber,
+      targetWeekStartDate,
+      mode,
+    });
+    return response.data;
+  }
+
   // ============================================================================
   // WORKOUT DAY
   // ============================================================================
@@ -303,4 +317,3 @@ class WorkoutService {
 }
 
 export const workoutService = new WorkoutService();
-

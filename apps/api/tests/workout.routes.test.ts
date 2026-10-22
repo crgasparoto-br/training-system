@@ -29,6 +29,7 @@ jest.mock('../src/modules/workout/workout.service', () => ({
   workoutService: {
     getOrCreateTemplate: jest.fn(),
     copyTemplate: jest.fn(),
+    copyTemplateSections: jest.fn(),
     reorderExercises: jest.fn(),
     getTemplateById: jest.fn(),
     updateTemplate: jest.fn(),
@@ -481,3 +482,44 @@ describe('AUD-399-14: malicious nested HTTP payloads cannot reach Prisma service
   });
 });
 
+describe('AUD-399-23/24: public copy commands are strict and atomic', () => {
+  const app = express();
+  app.use(express.json());
+  app.use('/workout', workoutRouter);
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it.each([
+    { targetDayOfWeek: 0, targetDate: '2026-10-12T12:00:00Z' },
+    { targetDayOfWeek: 8, targetDate: '2026-10-12T12:00:00Z' },
+    { targetDayOfWeek: 2.5, targetDate: '2026-10-12T12:00:00Z' },
+    { targetDayOfWeek: 2, targetDate: '2026-02-31' },
+  ])('rejects invalid copy-day boundary %#', async (payload) => {
+    const response = await request(app).post('/workout/days/day-1/copy').send(payload);
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('INVALID_RESISTANCE_STRUCTURE');
+    expect(workoutService.copyDay).not.toHaveBeenCalled();
+  });
+
+  it.each([1.5, 0, -1, NaN])('rejects non-integer copy-week boundary %#', async (targetWeekNumber) => {
+    const response = await request(app).post('/workout/templates/template-1/copy').send({
+      targetWeekNumber,
+      targetWeekStartDate: '2026-10-12T12:00:00Z',
+    });
+    expect(response.status).toBe(400);
+    expect(workoutService.copyTemplate).not.toHaveBeenCalled();
+  });
+
+  it('routes a partial modality copy as one backend command', async () => {
+    (workoutService.copyTemplateSections as jest.Mock).mockResolvedValueOnce({ id: 'template-2' });
+    const response = await request(app).post('/workout/templates/template-1/copy-sections').send({
+      targetWeekNumber: 2,
+      targetWeekStartDate: '2026-10-12T12:00:00Z',
+      mode: 'resistance',
+    });
+    expect(response.status).toBe(200);
+    expect(workoutService.copyTemplateSections).toHaveBeenCalledWith(
+      'template-1', 2, new Date('2026-10-12T12:00:00.000Z'), 'resistance',
+    );
+  });
+});

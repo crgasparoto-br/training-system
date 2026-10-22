@@ -100,6 +100,7 @@ export default function WorkoutBuilder2() {
     Record<number, ResistedStimulus | null>
   >({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [copyWeekError, setCopyWeekError] = useState<string | null>(null);
@@ -161,8 +162,10 @@ export default function WorkoutBuilder2() {
   const [workoutGuideStep, setWorkoutGuideStep] = useState(0);
   const [workoutGuideWeekNumber, setWorkoutGuideWeekNumber] = useState<number | null>(null);
 
-  // Auto-save timer
-  const [autoSaveTimers, setAutoSaveTimers] = useState<Record<number, NodeJS.Timeout>>({});
+  // Auto-save is serialized per week so release can flush the latest snapshot.
+  const autoSaveTimersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  const pendingSaveRef = useRef<Record<number, any>>({});
+  const saveChainsRef = useRef(new Map<number, Promise<void>>());
   // Mantém o mesmo dia aberto no treino resistido de todas as semanas visíveis.
   const [resistanceSelectedDay, setResistanceSelectedDay] = useState<number | null>(null);
   const workoutGuideBannerRef = useRef<HTMLDivElement | null>(null);
@@ -248,9 +251,14 @@ export default function WorkoutBuilder2() {
   }, [mesocycleFilterStorageKey, mesocycleNumber]);
 
   useEffect(() => {
-    Object.values(autoSaveTimers).forEach(timer => clearTimeout(timer));
-    setAutoSaveTimers({});
+    Object.values(autoSaveTimersRef.current).forEach(timer => clearTimeout(timer));
+    autoSaveTimersRef.current = {};
+    pendingSaveRef.current = {};
   }, [mesocycleNumber]);
+
+  useEffect(() => () => {
+    Object.values(autoSaveTimersRef.current).forEach((timer) => clearTimeout(timer));
+  }, []);
 
   useEffect(() => {
     setCopyModeByWeek((prev) => {
@@ -457,6 +465,7 @@ export default function WorkoutBuilder2() {
   const loadTemplate = async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       setTemplateDataByWeek({});
 
       // Carregar dados do plano
@@ -593,6 +602,7 @@ export default function WorkoutBuilder2() {
             });
             const resistedFromApi = buildResistedExercisesFromTemplate(templateFromApi);
 
+            const persistedWeekStartDate = templateFromApi.weekStartDate || weekStartDate;
             const mergedTemplate = {
               ...templateFromApi,
               alunoId: plan.alunoId,
@@ -603,37 +613,14 @@ export default function WorkoutBuilder2() {
               distributionZ3,
               distributionZ4,
               distributionZ5,
-              weekStartDate,
+              weekStartDate: persistedWeekStartDate,
               mesocycleNumber,
               weekNumber,
               resistedExercises: resistedFromApi,
             };
 
-            const cachedKey = buildCacheKey(planId, mesocycleNumber, weekNumber, plan.updatedAt);
-            const cached = cachedKey ? localStorage.getItem(cachedKey) : null;
-            if (cached) {
-              try {
-                const cachedData = JSON.parse(cached);
-                const releasedData = {
-                  released: templateFromApi.released,
-                  releasedAt: templateFromApi.releasedAt,
-                };
-                return {
-                  ...mergedTemplate,
-                  ...cachedData,
-                  resistedExercises: cachedData?.resistedExercises ?? resistedFromApi,
-                  ...releasedData,
-                  id: templateFromApi.id,
-                  weekStartDate: mergedTemplate.weekStartDate,
-                  mesocycleNumber,
-                  weekNumber,
-                  planId
-                };
-              } catch (error) {
-                return mergedTemplate;
-              }
-            }
-
+            // localStorage is a pending-draft buffer only; it never overrides
+            // the authoritative API response during a fresh load.
             return mergedTemplate;
           })
         );
@@ -647,8 +634,7 @@ export default function WorkoutBuilder2() {
       }
     } catch (error) {
       console.error('Erro ao carregar template:', error);
-      alert('Erro ao carregar dados do plano');
-      navigate('/plans');
+      setLoadError('Não foi possível carregar os dados do plano. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -658,173 +644,157 @@ export default function WorkoutBuilder2() {
     const merged = {
       ...(templateDataByWeek[weekNumber] || {}),
       ...newData,
-      workoutDays:
-        newData?.workoutDays !== undefined
-          ? newData.workoutDays
-          : templateDataByWeek[weekNumber]?.workoutDays,
-      resistedExercises:
-        newData?.resistedExercises !== undefined
-          ? newData.resistedExercises
-          : templateDataByWeek[weekNumber]?.resistedExercises,
+      workoutDays: newData?.workoutDays !== undefined
+        ? newData.workoutDays
+        : templateDataByWeek[weekNumber]?.workoutDays,
+      resistedExercises: newData?.resistedExercises !== undefined
+        ? newData.resistedExercises
+        : templateDataByWeek[weekNumber]?.resistedExercises,
     };
 
-    setTemplateDataByWeek((prev) => ({
-      ...prev,
-      [weekNumber]: merged
-    }));
+    setTemplateDataByWeek((prev) => ({ ...prev, [weekNumber]: merged }));
+    pendingSaveRef.current[weekNumber] = merged;
     const resolvedPlanId = merged?.planId ?? planId;
-    const resolvedMesocycle = merged?.mesocycleNumber ?? mesocycleNumber;
-    const resolvedWeek = merged?.weekNumber ?? weekNumber;
     const key = resolvedPlanId
-      ? buildCacheKey(
-          resolvedPlanId,
-          resolvedMesocycle,
-          resolvedWeek,
-          planData?.updatedAt
-        )
+      ? buildCacheKey(resolvedPlanId, merged?.mesocycleNumber ?? mesocycleNumber, merged?.weekNumber ?? weekNumber, planData?.updatedAt)
       : null;
-
     if (key) {
-      localStorage.setItem(key, JSON.stringify(merged));
+      try {
+        localStorage.setItem(key, JSON.stringify({ schemaVersion: 2, status: 'pending-draft', data: merged }));
+      } catch (error) {
+        // localStorage is an optional recovery buffer, never the source of truth.
+      }
     }
 
-    // Auto-save após 2 segundos de inatividade
-    if (autoSaveTimers[weekNumber]) {
-      clearTimeout(autoSaveTimers[weekNumber]);
-    }
-
-    const timer = setTimeout(() => {
-      handleSave(merged);
+    if (autoSaveTimersRef.current[weekNumber]) clearTimeout(autoSaveTimersRef.current[weekNumber]);
+    autoSaveTimersRef.current[weekNumber] = setTimeout(() => {
+      delete autoSaveTimersRef.current[weekNumber];
+      void handleSave(merged, weekNumber).catch(() => undefined);
     }, 2000);
-
-    setAutoSaveTimers((prev) => ({
-      ...prev,
-      [weekNumber]: timer
-    }));
   };
 
-  const handleSave = async (data: any) => {
-    try {
+  const handleSave = async (data: any, weekNumber?: number): Promise<void> => {
+    const resolvedWeek = weekNumber ?? Number(data?.weekNumber);
+    if (!data || !Number.isInteger(resolvedWeek) || resolvedWeek <= 0) return;
+    const previous = saveChainsRef.current.get(resolvedWeek) ?? Promise.resolve();
+    const operation = previous.catch(() => undefined).then(async () => {
+      const snapshot = pendingSaveRef.current[resolvedWeek] ?? data;
+      if (!snapshot || snapshot.released) return;
       setSaving(true);
       setSaveError(null);
-      if (!data) return;
-      // A liberação pode ocorrer enquanto um timer de autosave antigo ainda está
-      // pendente. O backend continua sendo a barreira autoritativa; aqui apenas
-      // descartamos esse snapshot obsoleto sem exibir um falso erro ao usuário.
-      if (data.released) return;
-      if (data?.id) {
-        await workoutService.updateTemplate(data.id, {
-          cyclicFrequency: data.cyclicFrequency,
-          resistanceFrequency: data.resistanceFrequency,
-          totalVolumeMin: data.totalVolumeMin,
-          totalVolumeKm: data.totalVolumeKm,
-          loadPercentage: data.loadPercentage,
-          repZone: data.repZone,
-          repReserve: data.repReserve,
-          trainingMethod: data.trainingMethod,
-          trainingDivision: data.trainingDivision,
-          alunoGoal: data.alunoGoal,
-          coachGoal: data.coachGoal,
-          observation1: data.observation1,
-          observation2: data.observation2,
-        });
+      try {
+        if (snapshot.id) {
+          await workoutService.updateTemplate(snapshot.id, {
+            cyclicFrequency: snapshot.cyclicFrequency,
+            resistanceFrequency: snapshot.resistanceFrequency,
+            totalVolumeMin: snapshot.totalVolumeMin,
+            totalVolumeKm: snapshot.totalVolumeKm,
+            loadPercentage: snapshot.loadPercentage,
+            repZone: snapshot.repZone,
+            repReserve: snapshot.repReserve,
+            trainingMethod: snapshot.trainingMethod,
+            trainingDivision: snapshot.trainingDivision,
+            alunoGoal: snapshot.alunoGoal,
+            coachGoal: snapshot.coachGoal,
+            observation1: snapshot.observation1,
+            observation2: snapshot.observation2,
+          });
 
-        if (data.workoutDays) {
-          const daysArray = Array.isArray(data.workoutDays)
-            ? data.workoutDays
-            : Object.values(data.workoutDays);
+          if (snapshot.workoutDays) {
+            const daysArray = Array.isArray(snapshot.workoutDays) ? snapshot.workoutDays : Object.values(snapshot.workoutDays);
+            const weekStart = snapshot.weekStartDate ? new Date(snapshot.weekStartDate) : null;
+            for (const day of daysArray) {
+              if (!day?.dayOfWeek) continue;
+              const workoutDate = day.workoutDate ? new Date(day.workoutDate) : weekStart ? resolveWeekDate(weekStart, day.dayOfWeek) : new Date();
+              const savedDay = await workoutService.getOrCreateDay({ templateId: snapshot.id, dayOfWeek: day.dayOfWeek, workoutDate: workoutDate.toISOString() });
+              await workoutService.updateDay(savedDay.id, {
+                sessionDurationMin: day.sessionDurationMin,
+                cyclicTimeMin: day.cyclicTimeMin,
+                resistanceTimeMin: day.resistanceTimeMin,
+                stimulusDurationMin: day.stimulusDurationMin,
+                location: day.location,
+                method: day.method,
+                intensity1: day.intensity1,
+                intensity2: day.intensity2,
+                numSessions: day.numSessions,
+                numSets: day.numSets,
+                sessionTime: day.sessionTime,
+                restTime: day.restTime,
+                vo2maxIntervalPct: day.vo2maxIntervalPct,
+                iextIintTime: day.iextIintTime,
+                vo2maxPct: day.vo2maxPct,
+                targetHrMin: day.targetHrMin,
+                targetHrMax: day.targetHrMax,
+                targetSpeedMin: day.targetSpeedMin,
+                targetSpeedMax: day.targetSpeedMax,
+                detailNotes: day.detailNotes,
+                complementNotes: day.complementNotes,
+                generalGuidelines: day.generalGuidelines,
+              });
+            }
+          }
 
-          const weekStart = data.weekStartDate ? new Date(data.weekStartDate) : null;
-
-          for (const day of daysArray) {
-            if (!day?.dayOfWeek) continue;
-
-            const workoutDate = day.workoutDate
-              ? new Date(day.workoutDate)
-              : weekStart
-                ? resolveWeekDate(weekStart, day.dayOfWeek)
-                : new Date();
-
-            const savedDay = await workoutService.getOrCreateDay({
-              templateId: data.id,
-              dayOfWeek: day.dayOfWeek,
-              workoutDate: workoutDate.toISOString(),
-            });
-
-            await workoutService.updateDay(savedDay.id, {
-              sessionDurationMin: day.sessionDurationMin,
-              cyclicTimeMin: day.cyclicTimeMin,
-              resistanceTimeMin: day.resistanceTimeMin,
-              stimulusDurationMin: day.stimulusDurationMin,
-              location: day.location,
-              method: day.method,
-              intensity1: day.intensity1,
-              intensity2: day.intensity2,
-              numSessions: day.numSessions,
-              numSets: day.numSets,
-              sessionTime: day.sessionTime,
-              restTime: day.restTime,
-              vo2maxIntervalPct: day.vo2maxIntervalPct,
-              iextIintTime: day.iextIintTime,
-              vo2maxPct: day.vo2maxPct,
-              targetHrMin: day.targetHrMin,
-              targetHrMax: day.targetHrMax,
-              targetSpeedMin: day.targetSpeedMin,
-              targetSpeedMax: day.targetSpeedMax,
-              detailNotes: day.detailNotes,
-              complementNotes: day.complementNotes,
-              generalGuidelines: day.generalGuidelines,
-            });
+          if (snapshot.resistedExercises) {
+            const weekStart = snapshot.weekStartDate ? new Date(snapshot.weekStartDate) : null;
+            for (const dayOfWeek of dayNumbers) {
+              const correctedDate = weekStart ? resolveWeekDate(weekStart, dayOfWeek) : new Date();
+              const targetDay = await workoutService.getOrCreateDay({ templateId: snapshot.id, dayOfWeek, workoutDate: correctedDate.toISOString() });
+              const daySections = snapshot.resistedExercises?.[dayOfWeek] || {};
+              const orderedExercises = (['mobilidade', 'sessao', 'resfriamento'] as const).flatMap((section) =>
+                (Array.isArray(daySections[section]) ? daySections[section] : [])
+                  .filter((exercise: any) => Boolean(exercise?.exerciseId))
+                  .map((exercise: any, index: number) => ({
+                    workoutDayId: targetDay.id,
+                    workoutExerciseId: exercise.workoutExerciseId,
+                    exerciseId: exercise.exerciseId,
+                    section,
+                    exerciseOrder: index + 1,
+                    system: exercise.system ?? undefined,
+                    groupBreakBefore: exercise.groupBreakBefore ?? false,
+                    sets: exercise.sets ?? undefined,
+                    reps: exercise.reps ?? undefined,
+                    intervalSec: exercise.interval ?? undefined,
+                    cParam: exercise.cParam ?? undefined,
+                    eParam: exercise.eParam ?? undefined,
+                    load: exercise.load ?? undefined,
+                    exerciseNotes: exercise.adjustment ?? exercise.exerciseNotes ?? undefined,
+                    resistanceBlocks: exercise.resistanceBlocks ?? undefined,
+                  }))
+              );
+              await workoutService.replaceDayResistanceExercises(targetDay.id, orderedExercises);
+            }
           }
         }
-
-        if (data.resistedExercises) {
-          const weekStart = data.weekStartDate ? new Date(data.weekStartDate) : null;
-          for (const dayOfWeek of dayNumbers) {
-            const correctedDate = weekStart
-              ? resolveWeekDate(weekStart, dayOfWeek)
-              : new Date();
-            const targetDay = await workoutService.getOrCreateDay({
-              templateId: data.id,
-              dayOfWeek,
-              workoutDate: correctedDate.toISOString(),
-            });
-
-            const daySections = data.resistedExercises?.[dayOfWeek] || {};
-            const orderedExercises = (['mobilidade', 'sessao', 'resfriamento'] as const).flatMap((section) =>
-              (Array.isArray(daySections[section]) ? daySections[section] : [])
-                .filter((exercise: any) => Boolean(exercise?.exerciseId))
-                .map((exercise: any, index: number) => ({
-                  workoutDayId: targetDay.id,
-                  workoutExerciseId: exercise.workoutExerciseId,
-                  exerciseId: exercise.exerciseId,
-                  section,
-                  exerciseOrder: index + 1,
-                  system: exercise.system ?? undefined,
-                  groupBreakBefore: exercise.groupBreakBefore ?? false,
-                  sets: exercise.sets ?? undefined,
-                  reps: exercise.reps ?? undefined,
-                  intervalSec: exercise.interval ?? undefined,
-                  cParam: exercise.cParam ?? undefined,
-                  eParam: exercise.eParam ?? undefined,
-                  load: exercise.load ?? undefined,
-                  exerciseNotes: exercise.adjustment ?? exercise.exerciseNotes ?? undefined,
-                  resistanceBlocks: exercise.resistanceBlocks ?? undefined,
-                }))
-            );
-            await workoutService.replaceDayResistanceExercises(targetDay.id, orderedExercises);
+        if (pendingSaveRef.current[resolvedWeek] === snapshot) {
+          delete pendingSaveRef.current[resolvedWeek];
+          const key = planId ? buildCacheKey(planId, mesocycleNumber, resolvedWeek, planData?.updatedAt) : null;
+          if (key) {
+            try { localStorage.removeItem(key); } catch { /* Recovery buffer is optional. */ }
           }
         }
+      } catch (error) {
+        console.error('Erro ao salvar:', error);
+        const serverMessage = (error as { response?: { data?: { error?: unknown } } })?.response?.data?.error;
+        setSaveError(typeof serverMessage === 'string' ? serverMessage : 'Falha ao salvar treino. Revise os campos e tente novamente.');
+        throw error;
+      } finally {
+        setSaving(false);
       }
-    } catch (error) {
-      console.error('Erro ao salvar:', error);
-      const serverMessage = (error as { response?: { data?: { error?: unknown } } })?.response?.data?.error;
-      setSaveError(typeof serverMessage === 'string'
-        ? serverMessage
-        : 'Falha ao salvar treino. Revise os campos e tente novamente.');
-    } finally {
-      setSaving(false);
+    });
+    saveChainsRef.current.set(resolvedWeek, operation);
+    await operation;
+  };
+
+  const flushPendingSave = async (weekNumber: number) => {
+    const timer = autoSaveTimersRef.current[weekNumber];
+    if (timer) {
+      clearTimeout(timer);
+      delete autoSaveTimersRef.current[weekNumber];
     }
+    const pending = pendingSaveRef.current[weekNumber];
+    if (pending) await handleSave(pending, weekNumber);
+    const chain = saveChainsRef.current.get(weekNumber);
+    if (chain) await chain;
   };
 
   const handleCopyWeek = async (sourceWeekNumber: number) => {
@@ -881,6 +851,8 @@ export default function WorkoutBuilder2() {
     try {
       setSaving(true);
       setCopyWeekError(null);
+      await flushPendingSave(sourceWeekNumber);
+      await flushPendingSave(targetWeekNumber);
 
       const resolvedStartDate =
         resolveWeekStartDate(mesocycleNumber, targetWeekNumber) ||
@@ -892,154 +864,28 @@ export default function WorkoutBuilder2() {
         return;
       }
 
-      const weekStart = new Date(resolvedStartDate);
       const clearCacheForWeek = () => {
         const cacheKey = buildCacheKey(planId, mesocycleNumber, targetWeekNumber, planData?.updatedAt);
         if (cacheKey) {
-          localStorage.removeItem(cacheKey);
+          try { localStorage.removeItem(cacheKey); } catch { /* Recovery buffer is optional. */ }
         }
       };
 
       let refreshed: any;
 
+      const sourceFromApi = await workoutService.getTemplate(sourceTemplate.id);
       if (copyMode === '1') {
-        // The server replaces the destination atomically and assigns dates inside
-        // its transaction. Never delete a week or patch copied dates from the UI.
-        const sourceFromApi = await workoutService.getTemplate(sourceTemplate.id);
-        const copied = await workoutService.copyTemplate(
+        // Full-week copies and partial copies are both atomic server commands.
+        refreshed = await workoutService.copyTemplate(sourceFromApi.id, targetWeekNumber, resolvedStartDate);
+      } else {
+        refreshed = await workoutService.copyTemplateSections(
           sourceFromApi.id,
           targetWeekNumber,
-          resolvedStartDate
+          resolvedStartDate,
+          copyMode === '2' ? 'cyclic' : 'resistance',
         );
-        clearCacheForWeek();
-        refreshed = copied;
-      } else {
-        const sourceFromApi = await workoutService.getTemplate(sourceTemplate.id);
-        const targetTemplateFromApi = await workoutService.getOrCreateTemplate({
-          planId,
-          mesocycleNumber,
-          weekNumber: targetWeekNumber,
-          weekStartDate: resolvedStartDate,
-        });
-
-        const sourceDays = Array.isArray(sourceFromApi.workoutDays)
-          ? sourceFromApi.workoutDays
-          : Object.values(sourceFromApi.workoutDays || {});
-
-        const sourceDayMap = sourceDays.reduce<Record<number, any>>((acc, day) => {
-          const rawDay = (day ?? {}) as Record<string, any>;
-          if (rawDay.dayOfWeek) acc[rawDay.dayOfWeek] = rawDay;
-          return acc;
-        }, {});
-
-        if (copyMode === '2') {
-          await workoutService.updateTemplate(targetTemplateFromApi.id, {
-            cyclicFrequency: sourceFromApi.cyclicFrequency ?? null,
-            totalVolumeMin: sourceFromApi.totalVolumeMin ?? null,
-            totalVolumeKm: sourceFromApi.totalVolumeKm ?? null,
-          });
-
-          await Promise.all(
-            dayNumbers.map(async (dayOfWeek) => {
-              const sourceDay = sourceDayMap[dayOfWeek];
-              const correctedDate = resolveWeekDate(weekStart, dayOfWeek);
-              const targetDay = await workoutService.getOrCreateDay({
-                templateId: targetTemplateFromApi.id,
-                dayOfWeek,
-                workoutDate: correctedDate.toISOString(),
-              });
-              if (!sourceDay) return;
-              await workoutService.updateDay(targetDay.id, {
-                workoutDate: correctedDate.toISOString(),
-                sessionDurationMin: sourceDay.sessionDurationMin ?? null,
-                cyclicTimeMin: sourceDay.cyclicTimeMin ?? null,
-                stimulusDurationMin: sourceDay.stimulusDurationMin ?? null,
-                location: sourceDay.location ?? null,
-                method: sourceDay.method ?? null,
-                intensity1: sourceDay.intensity1 ?? null,
-                intensity2: sourceDay.intensity2 ?? null,
-                numSessions: sourceDay.numSessions ?? null,
-                numSets: sourceDay.numSets ?? null,
-                sessionTime: sourceDay.sessionTime ?? null,
-                restTime: sourceDay.restTime ?? null,
-                vo2maxIntervalPct: sourceDay.vo2maxIntervalPct ?? null,
-                iextIintTime: sourceDay.iextIintTime ?? null,
-                vo2maxPct: sourceDay.vo2maxPct ?? null,
-                targetHrMin: sourceDay.targetHrMin ?? null,
-                targetHrMax: sourceDay.targetHrMax ?? null,
-                targetSpeedMin: sourceDay.targetSpeedMin ?? null,
-                targetSpeedMax: sourceDay.targetSpeedMax ?? null,
-                detailNotes: sourceDay.detailNotes ?? null,
-                complementNotes: sourceDay.complementNotes ?? null,
-                generalGuidelines: sourceDay.generalGuidelines ?? null,
-              });
-            })
-          );
-        } else {
-          await workoutService.updateTemplate(targetTemplateFromApi.id, {
-            resistanceFrequency: sourceFromApi.resistanceFrequency ?? null,
-            loadPercentage: sourceFromApi.loadPercentage ?? null,
-            repZone: sourceFromApi.repZone ?? null,
-            repReserve: sourceFromApi.repReserve ?? null,
-            trainingMethod: sourceFromApi.trainingMethod ?? null,
-            trainingDivision: sourceFromApi.trainingDivision ?? null,
-            alunoGoal: sourceFromApi.alunoGoal ?? null,
-            coachGoal: sourceFromApi.coachGoal ?? null,
-            observation1: sourceFromApi.observation1 ?? null,
-            observation2: sourceFromApi.observation2 ?? null,
-          });
-
-          await Promise.all(
-            dayNumbers.map(async (dayOfWeek) => {
-              const sourceDay = sourceDayMap[dayOfWeek];
-              const correctedDate = resolveWeekDate(weekStart, dayOfWeek);
-              const targetDay = await workoutService.getOrCreateDay({
-                templateId: targetTemplateFromApi.id,
-                dayOfWeek,
-                workoutDate: correctedDate.toISOString(),
-              });
-
-              if (sourceDay?.resistanceTimeMin !== undefined) {
-                await workoutService.updateDay(targetDay.id, {
-                  resistanceTimeMin: sourceDay.resistanceTimeMin ?? null,
-                });
-              }
-
-              const sourceExercises = Array.isArray(sourceDay?.exercises) ? sourceDay.exercises : [];
-              const ordered = (['mobilidade', 'sessao', 'resfriamento'] as const).flatMap((section) =>
-                sourceExercises.filter((exercise: any) => exercise.section === section)
-                  .sort((a: any, b: any) => a.exerciseOrder - b.exerciseOrder)
-                  .map((exercise: any, index: number) => ({
-                    workoutDayId: targetDay.id,
-                    exerciseId: exercise.exerciseId,
-                    section,
-                    exerciseOrder: index + 1,
-                    system: exercise.system ?? undefined,
-                    groupBreakBefore: exercise.groupBreakBefore ?? false,
-                    sets: exercise.sets ?? undefined,
-                    reps: exercise.reps ?? undefined,
-                    intervalSec: exercise.intervalSec ?? undefined,
-                    cParam: exercise.cParam ?? undefined,
-                    eParam: exercise.eParam ?? undefined,
-                    load: exercise.load ?? undefined,
-                    exerciseNotes: exercise.exerciseNotes ?? undefined,
-                    resistanceBlocks: exercise.resistanceBlocks?.map((block: any) => ({
-                      position: block.position, kind: block.kind, notes: block.notes,
-                      plannedSets: block.plannedSets?.map((set: any) => ({
-                        position: set.position, repsMin: set.repsMin, repsMax: set.repsMax,
-                        loadKg: set.loadKg, loadPercent: set.loadPercent,
-                        rir: set.rir, rpe: set.rpe, tempo: set.tempo, restSec: set.restSec, notes: set.notes,
-                      })) ?? [],
-                    })) ?? [],
-                  }))
-              );
-              await workoutService.replaceDayResistanceExercises(targetDay.id, ordered);
-            })
-          );
-        }
-
-        refreshed = await workoutService.getTemplate(targetTemplateFromApi.id);
       }
+      clearCacheForWeek();
 
       const refreshedResisted = buildResistedExercisesFromTemplate(refreshed);
       const mergedTemplate = {
@@ -1047,7 +893,7 @@ export default function WorkoutBuilder2() {
         ...refreshed,
         resistedExercises: refreshedResisted,
         alunoId: planData?.alunoId,
-        weekStartDate: resolvedStartDate,
+        weekStartDate: refreshed.weekStartDate ?? resolvedStartDate,
         mesocycleNumber,
         weekNumber: targetWeekNumber,
         planId,
@@ -1064,11 +910,6 @@ export default function WorkoutBuilder2() {
         ...prev,
         [targetWeekNumber]: mergedTemplate,
       }));
-
-      const cacheKey = buildCacheKey(planId, mesocycleNumber, targetWeekNumber, planData?.updatedAt);
-      if (cacheKey) {
-        localStorage.setItem(cacheKey, JSON.stringify(mergedTemplate));
-      }
 
       alert('Semana copiada com sucesso!');
     } catch (error: any) {
@@ -1111,8 +952,14 @@ export default function WorkoutBuilder2() {
 
     try {
       setSaving(true);
-
-      const releasedTemplate = await workoutService.releaseTemplate(weekTemplate.id);
+      await flushPendingSave(weekNumber);
+      const persistedTemplate = await workoutService.getTemplate(weekTemplate.id);
+      const releasedTemplate = await workoutService.releaseTemplate(persistedTemplate.id);
+      delete pendingSaveRef.current[weekNumber];
+      const cacheKey = buildCacheKey(planId!, mesocycleNumber, weekNumber, planData?.updatedAt);
+      if (cacheKey) {
+        try { localStorage.removeItem(cacheKey); } catch { /* Recovery buffer is optional. */ }
+      }
       setTemplateDataByWeek((prev) => ({
         ...prev,
         [weekNumber]: {
@@ -1120,15 +967,6 @@ export default function WorkoutBuilder2() {
           ...releasedTemplate,
         }
       }));
-
-      const cacheKey = buildCacheKey(planId!, mesocycleNumber, weekNumber, planData?.updatedAt);
-      if (cacheKey) {
-        const cached = {
-          ...(templateDataByWeek[weekNumber] || {}),
-          ...releasedTemplate,
-        };
-        localStorage.setItem(cacheKey, JSON.stringify(cached));
-      }
 
       alert('Treino liberado com sucesso! O aluno ja pode visualiza-lo.');
     } catch (error) {
@@ -1249,9 +1087,28 @@ export default function WorkoutBuilder2() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex min-h-screen items-center justify-center" role="status" aria-live="polite" aria-busy="true">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span className="sr-only">Carregando dados do plano</span>
       </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+        <section className="max-w-md rounded-lg border border-red-200 bg-white p-6 shadow-sm" role="alert">
+          <h1 className="text-lg font-semibold text-gray-900">Não foi possível carregar o plano</h1>
+          <p className="mt-2 text-sm text-gray-600">{loadError}</p>
+          <button
+            type="button"
+            className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            onClick={() => void loadTemplate()}
+          >
+            Tentar novamente
+          </button>
+        </section>
+      </main>
     );
   }
 
@@ -1613,7 +1470,8 @@ export default function WorkoutBuilder2() {
           });
           const sessionTimes = cyclicTimes.map((value, idx) => value + resistanceTimes[idx]);
           const fallbackWeekStartDate = resolveWeekStartDate(mesocycleNumber, weekNumber);
-          const dayEditability = buildWeekDayEditability(fallbackWeekStartDate);
+          const persistedWeekStartDate = weekTemplateData?.weekStartDate ?? fallbackWeekStartDate;
+          const dayEditability = buildWeekDayEditability(persistedWeekStartDate);
           const weekEditable = !weekTemplateData?.released && dayEditability.some(Boolean);
           return (
             <div
@@ -1904,7 +1762,7 @@ export default function WorkoutBuilder2() {
                     <WorkoutBuilderCyclic
                       key={`cyclic-${weekTemplateData?.id ?? 'new'}-${weekNumber}-${mesocycleNumber}`}
                       templateData={weekTemplateData}
-                      weekStartDateOverride={fallbackWeekStartDate}
+                      weekStartDateOverride={persistedWeekStartDate}
                       dayEditability={dayEditability.map((editable) => editable && !weekTemplateData?.released)}
                       weekEditable={weekEditable}
                       planId={planId}
@@ -1919,7 +1777,7 @@ export default function WorkoutBuilder2() {
                   ) : (
                     <WorkoutBuilderResistance
                       templateData={weekTemplateData}
-                      weekStartDateOverride={fallbackWeekStartDate}
+                      weekStartDateOverride={persistedWeekStartDate}
                       dayEditability={dayEditability}
                       weekEditable={weekEditable}
                       resistedSummary={resistedSummaryByWeek[weekNumber] || null}
@@ -1939,4 +1797,3 @@ export default function WorkoutBuilder2() {
     </div>
   );
 }
-

@@ -1,14 +1,14 @@
-APROVADO
+HISTÓRICO — NÃO É RESULTADO DA AUDITORIA INDEPENDENTE ATUAL
 
-# RESULTADO: APROVADA INTERNAMENTE
+# REGISTRO HISTÓRICO: APROVADA INTERNAMENTE NO CONTEXTO ORIGINAL
 
-> **Conclusão:** `APROVADA INTERNAMENTE` — achados bloqueantes: `0` — recomendações opcionais: `0`
+> **Conclusão histórica:** `APROVADA INTERNAMENTE` — achados bloqueantes: `0` — recomendações opcionais: `0`
 >
 > **Motivo determinante:** a pendência `AUD-399-10` e o bypass `AUD-399-01` foram recertificados no código `3d2f1d0f07679b45bbb6ee8367b1f3d33a47ea06`, com migration aplicada, controle SQL negativo, integração PostgreSQL e replay autenticado responsivo aprovados.
 >
 > **Libera merge/release:** `NÃO`
 
-**Validade:** controller-adversarial/homologação operacional no mesmo contexto; não substitui auditoria independente nem CI remoto do SHA publicado.
+**Validade:** controller-adversarial/homologação operacional no contexto e SHA descritos abaixo; este arquivo é evidência histórica, não certifica o HEAD atual, não substitui auditoria independente nem CI remoto do SHA publicado e não autoriza merge.
 
 Este relatório preserva os resultados históricos abaixo e acrescenta a recertificação final pós-remediação. A homologação foi executada com dados sintéticos e desidentificados; nenhuma credencial, dado pessoal ou ambiente produtivo foi utilizado.
 

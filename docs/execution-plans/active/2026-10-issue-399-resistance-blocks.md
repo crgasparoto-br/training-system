@@ -95,3 +95,13 @@ Implementação no branch `feat/399-resistance-blocks-sets`. A homologação ope
 - Teste de integração PostgreSQL com âncoras em quinta-feira, domingo (virada de mês) e 31/12 (virada de ano), exercitando dias 1, 2 e 7, datas persistidas e retornadas, e preservação de IDs e séries com carga decimal. A implementação anterior somava `dayOfWeek - 1` à âncora e falha nestes casos.
 - Recertificar migrations, type-check, lint, testes, build e `Validate repository` no novo HEAD. Recomendação `REC-399-02`: replay autenticado completo em navegador real (criar, editar, reabrir, copiar, liberar) no SHA final; registros históricos de outros SHAs não equivalem a prova exact-SHA.
 - Não realizar merge ou fechar issue até nova auditoria independente; registrar qualquer impossibilidade de replay com evidência e motivo sem declarar homologação inexistente.
+
+## Remediação da auditoria independente — AUD-399-10 e AUD-399-16..24/26..29 (22/10/2026)
+
+- `AUD-399-16/17`: `plannedSetId` agora atravessa o contrato compartilhado, schema Zod, normalização, validação de pertencimento, upsert e projeções; a migration substitui o trigger por uma validação do grafo execução → aluno/contrato → dia → exercício → série.
+- `AUD-399-18`: nova migration congela template, dia e exercício no banco após início de qualquer execução, mantendo somente campos de ciclo de vida do dia editáveis.
+- `AUD-399-19/20/21`: o builder serializa autosaves por semana, faz flush antes de copiar/liberar, relê a API antes da liberação, mantém localStorage somente como snapshot pendente e usa a `weekStartDate` persistida para renderizar datas e editabilidade.
+- `AUD-399-22/24`: a fronteira de mutação rejeita `null` em escalares obrigatórios/booleanos e as rotas/serviço rejeitam datas e faixas de cópia inválidas com resposta 400 sanitizada.
+- `AUD-399-23`: a nova operação `POST /workout/templates/:id/copy-sections` executa cópia cíclica ou resistida parcial em uma transação serializável; o frontend não faz mais writes independentes por dia.
+- `AUD-399-26/27/28/29`: o workflow/documentação devem reter evidência do issue-399; a migration adiciona limites e contiguidade de posições; o builder apresenta loading/erro persistente com retry acessível; e o relatório de homologação anterior é explicitamente histórico.
+- Validações locais concluídas nesta etapa: Prisma generate, `pnpm type-check`, ESLint focado, testes unitários de domínio/rotas (149/149). A aplicação PostgreSQL das novas migrations, integração de banco, build completo, `pnpm validate`, CI remoto e replay autenticado exact-SHA permanecem gates de reauditoria; não equivalem a aprovação por esta anotação.
