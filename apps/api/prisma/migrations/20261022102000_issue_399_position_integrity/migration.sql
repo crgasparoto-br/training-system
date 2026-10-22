@@ -14,7 +14,8 @@ BEGIN
   FROM "WorkoutExercisePlannedSet"
   WHERE "position" < 1 OR "position" > 30;
   IF invalid_block_count > 0 OR invalid_set_count > 0 THEN
-    RAISE EXCEPTION 'issue399 position preflight failed: % block rows and % set rows exceed the supported ranges'
+    RAISE EXCEPTION 'issue399 position preflight failed: % block rows and % set rows exceed the supported ranges',
+      invalid_block_count, invalid_set_count
       USING ERRCODE = '23514';
   END IF;
   IF EXISTS (
