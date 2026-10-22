@@ -1,7 +1,7 @@
 ﻿import { PrismaClient } from '@prisma/client';
 
 import { Prisma } from '@prisma/client';
-import { assertWorkoutParentIsImmutable, matchResistanceExerciseRows, normalizeResistanceBlocks, ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput, type ResistancePlannedSetInput } from './resistance-structure.domain.js';
+import { assertWorkoutParentIsImmutable, matchResistanceExerciseRows, normalizeResistanceBlocks, sanitizeWorkoutMutation, ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput, type ResistancePlannedSetInput } from './resistance-structure.domain.js';
 
 const prisma = new PrismaClient();
 
@@ -80,6 +80,10 @@ export interface CreateWorkoutDayDTO {
   workoutDate: Date;
   sessionDurationMin?: number;
   stimulusDurationMin?: number;
+  cyclicTimeMin?: number;
+  resistanceTimeMin?: number;
+  paceMin?: number;
+  paceMax?: number;
   location?: string;
   method?: string;
   intensity1?: number;
@@ -400,6 +404,7 @@ export const workoutService = {
    * Get or create template (busca ou cria se nÃ£o existir)
    */
   async getOrCreateTemplate(data: CreateWorkoutTemplateDTO) {
+    data = sanitizeWorkoutMutation(data, 'template', 'create');
     const existing = await prisma.workoutTemplate.findUnique({
       where: {
         planId_mesocycleNumber_weekNumber: {
@@ -515,6 +520,7 @@ export const workoutService = {
    * Criar template semanal de treino
    */
   async createTemplate(data: CreateWorkoutTemplateDTO) {
+    data = sanitizeWorkoutMutation(data, 'template', 'create');
     const template = await prisma.workoutTemplate.create({
       data: normalizeWorkoutTemplateCreateData(data),
       include: {
@@ -604,6 +610,7 @@ export const workoutService = {
    */
   async updateTemplate(id: string, data: Partial<CreateWorkoutTemplateDTO>) {
     assertWorkoutParentIsImmutable(data, 'planId');
+    data = sanitizeWorkoutMutation(data, 'template');
     const template = await withWorkoutTemplatePlanningMutation(id, (tx) =>
       tx.workoutTemplate.update({
         where: { id },
@@ -677,6 +684,7 @@ export const workoutService = {
    * Get or create workout day (busca ou cria se nÃ£o existir)
    */
   async getOrCreateDay(data: CreateWorkoutDayDTO) {
+    data = sanitizeWorkoutMutation(data, 'day', 'create');
     const existing = await prisma.workoutDay.findUnique({
       where: {
         templateId_dayOfWeek: {
@@ -710,6 +718,7 @@ export const workoutService = {
    * Criar dia de treino
    */
   async createWorkoutDay(data: WorkoutDayCreateData) {
+    data = sanitizeWorkoutMutation(data, 'day', 'create');
     return withWorkoutTemplatePlanningMutation(data.templateId, (tx) =>
       tx.workoutDay.create({
         data,
@@ -758,6 +767,7 @@ export const workoutService = {
    */
   async updateWorkoutDay(id: string, data: WorkoutDayUpdateData) {
     assertWorkoutParentIsImmutable(data, 'templateId');
+    data = sanitizeWorkoutMutation(data, 'day');
     return withWorkoutDayPlanningMutation(id, (tx) =>
       tx.workoutDay.update({
         where: { id },
@@ -877,6 +887,7 @@ export const workoutService = {
    * Adicionar exercÃ­cio ao dia de treino
    */
   async addExerciseToDay(data: CreateWorkoutExerciseDTO, contractId?: string) {
+    data = sanitizeWorkoutMutation(data, 'exercise', 'create');
     const { resistanceBlocks, workoutExerciseId: _existingRowId, ...exercise } = data;
     const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
     return withWorkoutDayPlanningMutation(data.workoutDayId, async (tx) => {
@@ -904,7 +915,8 @@ export const workoutService = {
       throw new ResistanceStructureValidationError('Lista de exercícios inválida.');
     }
     const perSection = new Map<string, number>();
-    const prepared = exercises.map((input) => {
+    const prepared = exercises.map((rawInput) => {
+      const input = sanitizeWorkoutMutation(rawInput, 'exercise', 'create');
       if (!input || typeof input.exerciseId !== 'string' || !input.exerciseId.trim()
         || input.workoutDayId !== workoutDayId
         || (input.workoutExerciseId !== undefined
@@ -1017,7 +1029,8 @@ export const workoutService = {
    * Atualizar exercÃ­cio do treino
    */
   async updateWorkoutExercise(id: string, data: Partial<CreateWorkoutExerciseDTO>, contractId?: string) {
-    const current = await prisma.workoutExercise.findUnique({ where: { id }, select: { workoutDayId: true } });
+    data = sanitizeWorkoutMutation(data, 'exercise');
+    const current = await prisma.workoutExercise.findUnique({ where: { id }, select: { workoutDayId: true, exerciseId: true } });
     if (!current) throw new Error('Workout exercise not found');
 
     const targetWorkoutDayId = data.workoutDayId ?? current.workoutDayId;
@@ -1028,7 +1041,7 @@ export const workoutService = {
     return prisma.$transaction(async (tx) => {
       for (const workoutDayId of workoutDayIds) {
         await lockWorkoutDayPlanningMutable(tx, workoutDayId);
-        if (contractId) await assertDayContract(tx, workoutDayId, contractId, data.exerciseId);
+        if (contractId) await assertDayContract(tx, workoutDayId, contractId, data.exerciseId ?? current.exerciseId);
       }
       return tx.workoutExercise.update({
         where: { id },

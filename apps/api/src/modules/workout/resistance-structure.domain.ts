@@ -170,3 +170,99 @@ export function classifyResistanceWriteError(error: unknown): {
   }
   return { status: 500, body: { code: 'WORKOUT_SAVE_FAILED', error: 'Não foi possível salvar os exercícios.' } };
 }
+
+/** AUD-399-14: never forward untrusted Prisma relation writes from legacy DTOs. */
+type WorkoutInputKind = 'template' | 'day' | 'exercise';
+type FieldType = 'text' | 'number' | 'boolean' | 'date' | 'blocks';
+const FIELDS: Record<WorkoutInputKind, Record<string, FieldType>> = {
+  template: {
+    planId:'text', mesocycleNumber:'number', weekNumber:'number', weekStartDate:'date',
+    cyclicFrequency:'number', totalVolumeMin:'number', totalVolumeKm:'number',
+    resistanceFrequency:'number', loadPercentage:'number', repZone:'number', repReserve:'number',
+    trainingMethod:'text', trainingDivision:'text', alunoGoal:'text', coachGoal:'text',
+    observation1:'text', observation2:'text',
+  },
+  day: {
+    templateId:'text', dayOfWeek:'number', workoutDate:'date', sessionDurationMin:'number',
+    stimulusDurationMin:'number', cyclicTimeMin:'number', resistanceTimeMin:'number',
+    paceMin:'number', paceMax:'number', location:'text', method:'text', intensity1:'number',
+    intensity2:'number', numSessions:'number', numSets:'number', sessionTime:'number',
+    restTime:'number', vo2maxIntervalPct:'number', iextIintTime:'number', vo2maxPct:'number',
+    targetHrMin:'text', targetHrMax:'text', targetSpeedMin:'text', targetSpeedMax:'text',
+    detailNotes:'text', complementNotes:'text', generalGuidelines:'text',
+  },
+  exercise: {
+    workoutExerciseId:'text', workoutDayId:'text', exerciseId:'text', section:'text',
+    exerciseOrder:'number', system:'text', groupBreakBefore:'boolean', sets:'number',
+    reps:'number', intervalSec:'number', cParam:'number', eParam:'number', load:'number',
+    exerciseNotes:'text', resistanceBlocks:'blocks',
+  },
+};
+const ID_FIELDS = new Set(['planId','templateId','workoutDayId','workoutExerciseId','exerciseId','section']);
+const BLOCK_FIELDS = new Set(['position','kind','notes','plannedSets']);
+const SET_FIELDS = new Set(['position','repsMin','repsMax','loadKg','loadPercent','rir','rpe','tempo','restSec','notes']);
+function assertAllowedKeys(value: unknown, fields: ReadonlySet<string>): void {
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || Object.keys(value).some((key) => !fields.has(key))) {
+    throw new ResistanceStructureValidationError('Estrutura de treino inválida ou campo não permitido.');
+  }
+}
+function safeBlocks(value: unknown): ResistanceBlockInput[] {
+  if (!Array.isArray(value)) throw new ResistanceStructureValidationError('Blocos inválidos.');
+  for (const block of value) {
+    assertAllowedKeys(block, BLOCK_FIELDS);
+    if (!Array.isArray(block.plannedSets)) throw new ResistanceStructureValidationError('Séries inválidas.');
+    for (const set of block.plannedSets) assertAllowedKeys(set, SET_FIELDS);
+  }
+  return normalizeResistanceBlocks(value);
+}
+/** Validates and copies only explicit scalar metadata and prescribed block/set values. */
+export function sanitizeWorkoutMutation<T>(value: T, kind: WorkoutInputKind, mode: 'create'|'update' = 'update'): T {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new ResistanceStructureValidationError('Dados de treino inválidos.');
+  }
+  const clean: Record<string, unknown> = {};
+  for (const [key, fieldValue] of Object.entries(value)) {
+    const type = FIELDS[kind][key];
+    if (!type || (mode === 'update' && ((kind === 'template' && key === 'planId')
+      || (kind === 'day' && key === 'templateId')))) {
+      throw new ResistanceStructureValidationError('Campo de treino não permitido.');
+    }
+    if (fieldValue === undefined) continue;
+    if (fieldValue === null) {
+      if (type === 'blocks' || type === 'date' || ID_FIELDS.has(key)) {
+        throw new ResistanceStructureValidationError('Campo de treino inválido.');
+      }
+      clean[key] = null;
+      continue;
+    }
+    if (type === 'blocks') {
+      clean[key] = safeBlocks(fieldValue);
+      continue;
+    }
+    if (type === 'number') {
+      if (typeof fieldValue !== 'number' || !Number.isFinite(fieldValue)) {
+        throw new ResistanceStructureValidationError('Número de treino inválido.');
+      }
+      if (['dayOfWeek','exerciseOrder','mesocycleNumber','weekNumber'].includes(key)
+        && (!Number.isInteger(fieldValue) || fieldValue < 1
+          || (key === 'dayOfWeek' && fieldValue > 7))) {
+        throw new ResistanceStructureValidationError('Ordem de treino inválida.');
+      }
+    } else if (type === 'text') {
+      if (typeof fieldValue !== 'string' || (ID_FIELDS.has(key) && !fieldValue.trim())) {
+        throw new ResistanceStructureValidationError('Texto de treino inválido.');
+      }
+    } else if (type === 'boolean') {
+      if (typeof fieldValue !== 'boolean') throw new ResistanceStructureValidationError('Booleano inválido.');
+    } else if (type === 'date') {
+      if (!(fieldValue instanceof Date && !Number.isNaN(fieldValue.getTime()))
+        && !(typeof fieldValue === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(fieldValue)
+          && !Number.isNaN(Date.parse(fieldValue)))) {
+        throw new ResistanceStructureValidationError('Data de treino inválida.');
+      }
+    }
+    clean[key] = fieldValue;
+  }
+  return clean as T;
+}

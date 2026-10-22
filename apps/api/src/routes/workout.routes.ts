@@ -1,6 +1,6 @@
 import { Router, type Response } from 'express';
 import { workoutService } from '../modules/workout/workout.service.js';
-import { classifyResistanceWriteError } from '../modules/workout/resistance-structure.domain.js';
+import { classifyResistanceWriteError, sanitizeWorkoutMutation, ResistanceStructureValidationError } from '../modules/workout/resistance-structure.domain.js';
 import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
 import { prismaRuntimeClient } from '../common/prisma-runtime-client.js';
 
@@ -243,7 +243,7 @@ router.post('/templates/get-or-create', async (req, res) => {
     }
 
     const template = await workoutService.getOrCreateTemplate({
-      ...req.body,
+      ...sanitizeWorkoutMutation(req.body, 'template', 'create'),
       weekStartDate,
     });
     res.json(template);
@@ -274,7 +274,7 @@ router.get('/templates/:id', async (req, res) => {
 // Update template
 router.put('/templates/:id', async (req, res) => {
   try {
-    const template = await workoutService.updateTemplate(req.params.id, req.body);
+    const template = await workoutService.updateTemplate(req.params.id, sanitizeWorkoutMutation(req.body, 'template'));
     res.json(template);
   } catch (error: any) {
     console.error('Error updating template:', error);
@@ -338,7 +338,7 @@ router.post('/templates/:id/copy', async (req, res) => {
 // Get or create day
 router.post('/days/get-or-create', async (req, res) => {
   try {
-    const day = await workoutService.getOrCreateDay(req.body);
+    const day = await workoutService.getOrCreateDay(sanitizeWorkoutMutation(req.body, 'day', 'create'));
     res.json(day);
   } catch (error: any) {
     console.error('Error in get-or-create day:', error);
@@ -360,7 +360,7 @@ router.get('/days/:id', async (req, res) => {
 // Update day
 router.put('/days/:id', async (req, res) => {
   try {
-    const day = await workoutService.updateDay(req.params.id, req.body);
+    const day = await workoutService.updateDay(req.params.id, sanitizeWorkoutMutation(req.body, 'day'));
     res.json(day);
   } catch (error: any) {
     console.error('Error updating day:', error);
@@ -401,7 +401,9 @@ router.put('/days/:id/resistance-exercises', async (req, res) => {
     if (!contractId) {
       return res.status(403).json({ error: 'Acesso negado.', code: 'FORBIDDEN' });
     }
-    const exercises = await workoutService.replaceDayResistanceExercises(req.params.id, req.body?.exercises, contractId);
+    if (!Array.isArray(req.body?.exercises)) throw new ResistanceStructureValidationError('Lista de exercícios inválida.');
+    const safe = (req.body.exercises as unknown[]).map((x) => sanitizeWorkoutMutation(x, 'exercise', 'create')) as Parameters<typeof workoutService.replaceDayResistanceExercises>[1];
+    const exercises = await workoutService.replaceDayResistanceExercises(req.params.id, safe, contractId);
     res.json(exercises);
   } catch (error: any) {
     console.error('Error replacing resistance exercises:', error);
@@ -432,7 +434,7 @@ router.get('/exercises', async (req, res) => {
 // Add exercise
 router.post('/exercises', async (req, res) => {
   try {
-    const exercise = await workoutService.addExercise(req.body, req.user!.contractId);
+    const exercise = await workoutService.addExercise(sanitizeWorkoutMutation(req.body, 'exercise', 'create'), req.user!.contractId);
     res.status(201).json(exercise);
   } catch (error: any) {
     console.error('Error adding exercise:', error);
@@ -459,7 +461,7 @@ router.put('/exercises/reorder', async (req, res) => {
 // Update exercise
 router.put('/exercises/:id', async (req, res) => {
   try {
-    const exercise = await workoutService.updateExercise(req.params.id, req.body, req.user!.contractId);
+    const exercise = await workoutService.updateExercise(req.params.id, sanitizeWorkoutMutation(req.body, 'exercise'), req.user!.contractId);
     res.json(exercise);
   } catch (error: any) {
     console.error('Error updating exercise:', error);
