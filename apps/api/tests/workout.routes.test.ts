@@ -405,17 +405,15 @@ describe('Issue #399 / AUD-399-12 - public parent reassignment boundary', () => 
   ] as const)('returns sanitized HTTP 400 for rejected ownership on %s %s', async (
     method, url, serviceMethod, payload,
   ) => {
-    (workoutService[serviceMethod] as jest.Mock).mockRejectedValueOnce({
-      code: 'INVALID_RESISTANCE_STRUCTURE',
-      message: 'internal reference must not leak',
-    });
+    // The HTTP input guard now rejects ownership changes before the mocked
+    // service is invoked; do not leave an unused rejected mock for later tests.
     const response = await request(app)[method](url).send(payload);
     expect(response.status).toBe(400);
     expect(response.body).toEqual({
       code: 'INVALID_RESISTANCE_STRUCTURE',
       error: 'Revise os blocos e as séries informados.',
     });
-    expect(JSON.stringify(response.body)).not.toContain('internal reference');
+    expect(workoutService[serviceMethod]).not.toHaveBeenCalled();
   });
 });
 
