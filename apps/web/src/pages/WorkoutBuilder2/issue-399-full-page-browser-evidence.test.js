@@ -8,7 +8,10 @@ import { describe, expect, it } from 'vitest';
 
 const apiRequire = createRequire(path.resolve(process.cwd(), '../api/package.json'));
 const puppeteer = apiRequire('puppeteer');
-const suite = process.env.GITHUB_ACTIONS === 'true' || process.env.ISSUE_399_BROWSER_EVIDENCE === '1'
+// This journey owns a real Chromium + Vite + HTTP harness. Keep it out of the
+// repository-wide browser batch so it cannot contend for browser/process
+// resources with unrelated evidence suites; CI invokes it in a dedicated step.
+const suite = process.env.ISSUE_399_BROWSER_EVIDENCE === '1'
   ? describe : describe.skip;
 const outputDir = path.resolve(process.cwd(), '../../artifacts/issue-399');
 

@@ -326,6 +326,11 @@ jobs:
           mkdir -p artifacts/ci
           # Keep diagnostic output even on failure; pipefail preserves the test gate.
           pnpm test 2>&1 | tee artifacts/ci/full-tests.log
+      - name: Issue #399 full-page browser evidence
+        env:
+          ISSUE_399_BROWSER_EVIDENCE: '1'
+          VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: pnpm --filter @corrida/web exec vitest run --no-file-parallelism src/pages/WorkoutBuilder2/issue-399-full-page-browser-evidence.test.js
       - name: Build
         run: pnpm build
       - name: Validate settings parameters in real browser
