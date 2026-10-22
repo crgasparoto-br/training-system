@@ -451,9 +451,9 @@ export const workoutService = {
 
           if (existing.workoutDays?.length) {
             for (const day of existing.workoutDays) {
-              const offset = Math.max(0, (day.dayOfWeek || 1) - 1);
-              const workoutDate = new Date(weekStartDate);
-              workoutDate.setDate(workoutDate.getDate() + offset);
+              // weekStartDate may be any weekday. Keep every persisted WorkoutDay
+              // aligned to its canonical ISO weekday in UTC, as in copyTemplate.
+              const workoutDate = workoutDateInTargetWeek(weekStartDate, day.dayOfWeek);
               await tx.workoutDay.update({
                 where: { id: day.id },
                 data: { workoutDate },

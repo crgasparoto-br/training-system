@@ -887,20 +887,71 @@ describeDatabase('resistance blocks - historical identity and transactional pers
   });
 
 
-  it('mantém séries ao ajustar a data de início de uma semana editável', async () => {
-    const { fixture, input } = await editableFixture('issue399-change-start');
-    await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+  it.each([
+    {
+      caseName: 'âncora na quinta-feira',
+      anchor: '2026-10-15T12:00:00.000Z',
+      dates: ['2026-10-12T12:00:00.000Z', '2026-10-13T12:00:00.000Z', '2026-10-18T12:00:00.000Z'],
+    },
+    {
+      caseName: 'âncora no domingo com mudança de mês',
+      anchor: '2026-11-01T12:00:00.000Z',
+      dates: ['2026-10-26T12:00:00.000Z', '2026-10-27T12:00:00.000Z', '2026-11-01T12:00:00.000Z'],
+    },
+    {
+      caseName: 'âncora na virada de ano',
+      anchor: '2026-12-31T12:00:00.000Z',
+      dates: ['2026-12-28T12:00:00.000Z', '2026-12-29T12:00:00.000Z', '2027-01-03T12:00:00.000Z'],
+    },
+  ])('AUD-399-15: recalcula dias em UTC com $caseName sem perder séries e identidades', async ({ anchor, dates }) => {
+    const { fixture, input } = await editableFixture('issue399-weekday-rebase');
     const day = await prisma.workoutDay.findUniqueOrThrow({
       where: { id: fixture.dayId }, include: { template: true },
     });
+    await prisma.workoutDay.createMany({
+      data: [
+        { templateId: day.templateId, dayOfWeek: 1, workoutDate: new Date('2026-10-05T00:00:00.000Z') },
+        { templateId: day.templateId, dayOfWeek: 7, workoutDate: new Date('2026-10-11T00:00:00.000Z') },
+      ],
+    });
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    const include = { exercises: { include: { resistanceBlocks: { include: { plannedSets: true } } } } } as const;
+    const before = await prisma.workoutDay.findMany({
+      where: { templateId: day.templateId }, orderBy: { dayOfWeek: 'asc' }, include,
+    });
+    expect(before.map((row) => row.dayOfWeek)).toEqual([1, 2, 7]);
+    const originalIdentity = before.map((row) => ({
+      dayId: row.id,
+      exerciseIds: row.exercises.map((exercise) => exercise.id),
+      blockIds: row.exercises.flatMap((exercise) => exercise.resistanceBlocks.map((block) => block.id)),
+      plannedSetIds: row.exercises.flatMap((exercise) =>
+        exercise.resistanceBlocks.flatMap((block) => block.plannedSets.map((set) => set.id))),
+    }));
+
     const changed = await workoutService.getOrCreateTemplate({
       planId: day.template.planId,
       mesocycleNumber: day.template.mesocycleNumber,
       weekNumber: day.template.weekNumber,
-      weekStartDate: new Date(day.template.weekStartDate.getTime() + 604800000),
+      weekStartDate: new Date(anchor),
     });
-    const saved = changed?.workoutDays.find((row) => row.id === fixture.dayId);
-    expect(saved?.exercises[0].resistanceBlocks[0].plannedSets[0].loadKg).toBe(32.5);
+    expect(changed?.weekStartDate).toEqual(new Date(anchor));
+    expect(changed?.workoutDays.map((row) => row.workoutDate.toISOString())).toEqual(dates);
+
+    const after = await prisma.workoutDay.findMany({
+      where: { templateId: day.templateId }, orderBy: { dayOfWeek: 'asc' }, include,
+    });
+    expect(after.map((row) => row.workoutDate.toISOString())).toEqual(dates);
+    expect(after.map((row) => ({
+      dayId: row.id,
+      exerciseIds: row.exercises.map((exercise) => exercise.id),
+      blockIds: row.exercises.flatMap((exercise) => exercise.resistanceBlocks.map((block) => block.id)),
+      plannedSetIds: row.exercises.flatMap((exercise) =>
+        exercise.resistanceBlocks.flatMap((block) => block.plannedSets.map((set) => set.id))),
+    }))).toEqual(originalIdentity);
+    expect(after[1].exercises[0].resistanceBlocks[0].plannedSets[0]).toMatchObject({
+      repsMin: 8, repsMax: 12, loadKg: 32.5, rir: 2,
+    });
+    expect(after[1].id).toBe(fixture.dayId);
   });
 
   it('resolve chamadas concorrentes ao criar o mesmo template semanal', async () => {

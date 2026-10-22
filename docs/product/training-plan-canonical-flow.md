@@ -81,6 +81,8 @@ Os triggers dos blocos e séries verificam origem (`OLD`) e destino (`NEW`) em a
 
 A resposta de template após correção de `weekStartDate` inclui `resistanceBlocks[].plannedSets[]`. A interface diferencia campo ausente (`undefined`, preservar planejamento) de array vazio (`[]`, remoção intencional). Nenhuma simples releitura pode apagar séries prescritas.
 
+Ao alterar `weekStartDate` de um template editável, o serviço recalcula cada `WorkoutDay.workoutDate` a partir do **dia real da semana da âncora em UTC** e de `dayOfWeek` (1=segunda, 7=domingo), preservando horário UTC, identificadores de dias/exercícios/blocos/séries e conteúdo prescrito. A âncora não precisa ser segunda-feira; mudanças de mês/ano não deslocam os dias para a semana errada. Templates liberados continuam imutáveis. Regressões PostgreSQL verificam datas persistidas, controle negativo da fórmula antiga, identidade e séries planejadas.
+
 As cópias de semanas pelo endpoint `POST /api/v1/workout/templates/:id/copy` calculam `WorkoutDay.workoutDate` a partir de `targetWeekStartDate` e de `dayOfWeek` (1=segunda, 7=domingo) dentro da transação de destino. A substituição de um template de destino editável exclui o destino anterior e cria template, dias, exercícios, blocos e séries em **uma única transação serializável**: qualquer falha restaura integralmente a versão anterior. Destinos liberados ou com execução/histórico são recusados antes da exclusão. O frontend não pode excluir o destino nem ajustar as datas depois da cópia; o payload retornado já representa a semana persistida.
 
 ## Integridade de vínculos e histórico liberado — AUD-399-12/13

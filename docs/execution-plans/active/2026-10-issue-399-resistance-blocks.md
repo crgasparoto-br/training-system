@@ -88,3 +88,10 @@ Implementação no branch `feat/399-resistance-blocks-sets`. A homologação ope
 - Regressões: HTTP 400 sem chamar serviço, testes unitários do esquema, PostgreSQL sem persistência parcial para payloads aninhados e verificação de edição legítima.
 - Fechamento exige CI `Validate repository` verde no SHA final e auditoria independente posterior. Sem merge.
 
+
+## Remediação AUD-399-15 — consistência temporal no getOrCreateTemplate (22/10/2026)
+
+- Corrigir o caminho de atualização de `weekStartDate` para reutilizar o cálculo canônico em UTC de `workoutDateInTargetWeek`, sem pressupor que a âncora seja segunda-feira.
+- Teste de integração PostgreSQL com âncoras em quinta-feira, domingo (virada de mês) e 31/12 (virada de ano), exercitando dias 1, 2 e 7, datas persistidas e retornadas, e preservação de IDs e séries com carga decimal. A implementação anterior somava `dayOfWeek - 1` à âncora e falha nestes casos.
+- Recertificar migrations, type-check, lint, testes, build e `Validate repository` no novo HEAD. Recomendação `REC-399-02`: replay autenticado completo em navegador real (criar, editar, reabrir, copiar, liberar) no SHA final; registros históricos de outros SHAs não equivalem a prova exact-SHA.
+- Não realizar merge ou fechar issue até nova auditoria independente; registrar qualquer impossibilidade de replay com evidência e motivo sem declarar homologação inexistente.
