@@ -245,6 +245,18 @@ describe('Issue #399 - route protection and contract isolation', () => {
     );
   });
 
+  it.each([
+    { workoutDayId: 'day-1', section: 'sessao', exerciseIds: null },
+    { workoutDayId: 'day-1', section: 'sessao', exerciseIds: 'row-1' },
+    { workoutDayId: 'day-1', section: 'sessao', exerciseIds: ['row-1', null] },
+    { workoutDayId: 'day-1', section: '', exerciseIds: ['row-1'] },
+  ])('rejects malformed reorder payload %# as 400', async (payload) => {
+    const response = await request(app).put('/workout/exercises/reorder').send(payload);
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    expect(workoutService.reorderExercises).not.toHaveBeenCalled();
+  });
+
   it('rejects library exercises from a different contract', async () => {
     (prismaRuntimeClient.exerciseLibrary.findFirst as jest.Mock).mockResolvedValueOnce(null);
     const response = await request(app).post('/workout/exercises').send({

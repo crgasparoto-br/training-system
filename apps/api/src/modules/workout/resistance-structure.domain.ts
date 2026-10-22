@@ -206,6 +206,19 @@ const REQUIRED_FIELDS: Record<WorkoutInputKind, ReadonlySet<string>> = {
 };
 const BLOCK_FIELDS = new Set(['position','kind','notes','plannedSets']);
 const SET_FIELDS = new Set(['position','repsMin','repsMax','loadKg','loadPercent','rir','rpe','tempo','restSec','notes']);
+const ISO_DATE_TIME_PREFIX = /^(\d{4})-(\d{2})-(\d{2})T/;
+function isValidWorkoutDate(value: unknown): boolean {
+  if (value instanceof Date) return !Number.isNaN(value.getTime());
+  if (typeof value !== 'string') return false;
+  const match = value.match(ISO_DATE_TIME_PREFIX);
+  if (!match || Number.isNaN(Date.parse(value))) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth[month - 1];
+}
 function assertAllowedKeys(value: unknown, fields: ReadonlySet<string>): void {
   if (!value || typeof value !== 'object' || Array.isArray(value)
     || Object.keys(value).some((key) => !fields.has(key))) {
@@ -262,9 +275,7 @@ export function sanitizeWorkoutMutation<T>(value: T, kind: WorkoutInputKind, mod
     } else if (type === 'boolean') {
       if (typeof fieldValue !== 'boolean') throw new ResistanceStructureValidationError('Booleano inválido.');
     } else if (type === 'date') {
-      if (!(fieldValue instanceof Date && !Number.isNaN(fieldValue.getTime()))
-        && !(typeof fieldValue === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(fieldValue)
-          && !Number.isNaN(Date.parse(fieldValue)))) {
+      if (!isValidWorkoutDate(fieldValue)) {
         throw new ResistanceStructureValidationError('Data de treino inválida.');
       }
     }

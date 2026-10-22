@@ -469,11 +469,13 @@ router.post('/exercises', async (req, res) => {
 // Reorder exercises
 router.put('/exercises/reorder', async (req, res) => {
   try {
-    const { workoutDayId, section, exerciseIds } = req.body as {
-      workoutDayId: string;
-      section: string;
-      exerciseIds: string[];
-    };
+    const { workoutDayId, section, exerciseIds } = req.body ?? {};
+    if (typeof workoutDayId !== 'string' || !workoutDayId.trim()
+      || typeof section !== 'string' || !section.trim()
+      || !Array.isArray(exerciseIds)
+      || exerciseIds.some((id: unknown) => typeof id !== 'string' || !id.trim())) {
+      throw new ResistanceStructureValidationError('Dados de ordenação inválidos.');
+    }
     await workoutService.reorderExercises(workoutDayId, section, exerciseIds, req.user!.contractId);
     res.status(204).send();
   } catch (error: any) {

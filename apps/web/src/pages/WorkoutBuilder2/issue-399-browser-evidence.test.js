@@ -96,11 +96,11 @@ suite('Issue #399 - editor em navegador real', () => {
         const fill = async (label, value) => {
           await page.type('input[aria-label="' + label + '"]', value);
         };
-        await fill('Rep. mín., série 1 de Agachamento', '8');
-        await fill('Rep. máx., série 1 de Agachamento', '12');
-        await fill('Carga (kg), série 1 de Agachamento', '32.5');
-        await fill('RIR, série 1 de Agachamento', '2');
-        await fill('Tempo da série 1 de Agachamento', '3-1-1-0');
+        await fill('Rep. mín., bloco 1, série 1 de Agachamento', '8');
+        await fill('Rep. máx., bloco 1, série 1 de Agachamento', '12');
+        await fill('Carga (kg), bloco 1, série 1 de Agachamento', '32.5');
+        await fill('RIR, bloco 1, série 1 de Agachamento', '2');
+        await fill('Tempo da série 1 do bloco 1 de Agachamento', '3-1-1-0');
         await page.waitForFunction(() => window.issue399Read()?.[0]?.plannedSets?.[0]?.tempo === '3-1-1-0');
         const written = await page.evaluate(() => window.issue399Read()[0].plannedSets[0]);
         expect(written).toMatchObject({

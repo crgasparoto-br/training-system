@@ -83,9 +83,12 @@ function normalizeItems(items: TrainingSessionExecutionItemValue[] | undefined):
   return items.map((item) => {
     const plannedUnitId = item.plannedUnitId.trim();
     if (!plannedUnitId) throw new WorkoutSessionExecutionInputError('Identificador da unidade planejada é obrigatório.');
-    const plannedSetId = item.plannedSetId === undefined || item.plannedSetId === null
-      ? null
-      : item.plannedSetId.trim();
+    const hasPlannedSetId = item.plannedSetId !== undefined;
+    const plannedSetId = item.plannedSetId === undefined
+      ? undefined
+      : item.plannedSetId === null
+        ? null
+        : item.plannedSetId.trim();
     if (item.plannedSetId !== undefined && item.plannedSetId !== null && !plannedSetId) {
       throw new WorkoutSessionExecutionInputError('Identificador da série planejada inválido.');
     }
@@ -100,7 +103,7 @@ function normalizeItems(items: TrainingSessionExecutionItemValue[] | undefined):
     };
     const normalized: TrainingSessionExecutionItemValue = {
       plannedUnitId,
-      plannedSetId,
+      ...(hasPlannedSetId ? { plannedSetId } : {}),
       setNumber,
       loadKg: nonNegative(item.loadKg, 'Carga executada'),
       repetitions: nonNegative(item.repetitions, 'Repetições executadas', true),
@@ -315,7 +318,7 @@ async function persistValues(
       create: {
         executionId,
         plannedUnitId: item.plannedUnitId,
-        plannedSetId: item.plannedSetId,
+        plannedSetId: item.plannedSetId ?? null,
         setNumber,
         loadKg: item.loadKg,
         repetitions: item.repetitions,
@@ -326,7 +329,7 @@ async function persistValues(
         heartRateZone: item.heartRateZone,
       },
       update: {
-        plannedSetId: item.plannedSetId,
+        ...(item.plannedSetId !== undefined ? { plannedSetId: item.plannedSetId } : {}),
         loadKg: item.loadKg,
         repetitions: item.repetitions,
         durationSec: item.durationSec,

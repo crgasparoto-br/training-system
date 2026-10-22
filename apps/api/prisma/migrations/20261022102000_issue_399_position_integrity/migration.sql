@@ -2,6 +2,36 @@
 -- boundary too. Deferred triggers allow nested replacement writes to settle
 -- before contiguity is checked at transaction commit.
 
+DO $$
+DECLARE
+  invalid_block_count INTEGER;
+  invalid_set_count INTEGER;
+BEGIN
+  SELECT COUNT(*)::INTEGER INTO invalid_block_count
+  FROM "WorkoutExerciseBlock"
+  WHERE "position" < 1 OR "position" > 12;
+  SELECT COUNT(*)::INTEGER INTO invalid_set_count
+  FROM "WorkoutExercisePlannedSet"
+  WHERE "position" < 1 OR "position" > 30;
+  IF invalid_block_count > 0 OR invalid_set_count > 0 THEN
+    RAISE EXCEPTION 'issue399 position preflight failed: % block rows and % set rows exceed the supported ranges'
+      USING ERRCODE = '23514';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM "WorkoutExerciseBlock"
+    GROUP BY "workoutExerciseId"
+    HAVING MIN("position") <> 1 OR MAX("position") <> COUNT(*)
+  ) OR EXISTS (
+    SELECT 1 FROM "WorkoutExercisePlannedSet"
+    GROUP BY "blockId"
+    HAVING MIN("position") <> 1 OR MAX("position") <> COUNT(*)
+  ) THEN
+    RAISE EXCEPTION 'issue399 position preflight failed: existing positions are not contiguous'
+      USING ERRCODE = '23514';
+  END IF;
+END;
+$$;
+
 ALTER TABLE "WorkoutExerciseBlock"
   DROP CONSTRAINT IF EXISTS "WorkoutExerciseBlock_position_check",
   ADD CONSTRAINT "WorkoutExerciseBlock_position_check"

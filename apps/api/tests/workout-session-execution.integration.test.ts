@@ -809,6 +809,20 @@ describeDatabase('AUD-399-16/17: canonical planned-set execution link', () => {
     expect(started.items[0]).toMatchObject({
       plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSet.id, loadKg: 35.5,
     });
+    const legacyUpdate = await service.saveValues({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue399-planned-set-legacy-update',
+        expectedVersion: 1,
+        items: [{ plannedUnitId: fixture.exerciseIds[0], loadKg: 36.5 }],
+      },
+    });
+    expect(legacyUpdate.items[0]).toMatchObject({
+      plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSet.id, loadKg: 36.5,
+    });
     await expect(service.saveValues({
       sessionId: fixture.dayId,
       alunoId: fixture.alunoId,
@@ -816,7 +830,7 @@ describeDatabase('AUD-399-16/17: canonical planned-set execution link', () => {
       actorUserId: fixture.alunoUserId,
       payload: {
         operationKey: 'issue399-planned-set-cross-unit',
-        expectedVersion: 1,
+        expectedVersion: 2,
         items: [{ plannedUnitId: fixture.exerciseIds[1], plannedSetId: plannedSet.id, loadKg: 20 }],
       },
     })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
@@ -827,6 +841,15 @@ describeDatabase('AUD-399-16/17: canonical planned-set execution link', () => {
     await expect(prisma.$executeRaw`
       INSERT INTO "WorkoutSessionExecutionItem" ("id", "executionId", "plannedUnitId", "plannedSetId")
       VALUES (${randomUUID()}, ${execution.id}, ${fixture.exerciseIds[1]}, ${plannedSet.id})
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutSessionExecution" SET "status" = 'not_started' WHERE "id" = ${execution.id}
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutSessionExecution" SET "workoutDayId" = ${randomUUID()} WHERE "id" = ${execution.id}
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      DELETE FROM "WorkoutSessionExecution" WHERE "id" = ${execution.id}
     `).rejects.toThrow();
   });
 });
@@ -1329,6 +1352,24 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     })).toBe(0);
   });
 
+  it('copyTemplateSections persists the destination anchor when replacing an existing week', async () => {
+    const { fixture, input } = await editableFixture('issue399-partial-copy-anchor');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    const source = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, select: { templateId: true, template: { select: { planId: true } } },
+    });
+    await workoutService.copyTemplate(source.templateId, 2, new Date('2026-10-12T12:00:00.000Z'));
+    await workoutService.copyTemplateSections(
+      source.templateId, 2, new Date('2026-10-15T12:00:00.000Z'), 'resistance',
+    );
+    const target = await prisma.workoutTemplate.findFirstOrThrow({
+      where: { planId: source.template.planId, mesocycleNumber: 1, weekNumber: 2 },
+      include: { workoutDays: true },
+    });
+    expect(target.weekStartDate).toEqual(new Date('2026-10-15T12:00:00.000Z'));
+    expect(target.workoutDays[0].workoutDate).toEqual(new Date('2026-10-15T12:00:00.000Z'));
+  });
+
   it('AUD-399-12: rejects moving draft template/day across contracts without changing persisted ownership', async () => {
     const own = await editableFixture('issue399-parent-own');
     const foreign = await editableFixture('issue399-parent-foreign');
@@ -1380,8 +1421,24 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     const foreignExercise = await prisma.workoutExercise.findUniqueOrThrow({
       where: { id: foreign.fixture.exerciseIds[0] }, select: { exerciseId: true },
     });
+    const foreignDay = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: foreign.fixture.dayId }, select: { templateId: true, template: { select: { planId: true } } },
+    });
     expect(own.fixture.contractId).not.toBe(foreign.fixture.contractId);
     const beforeCount = await prisma.workoutExercise.count({ where: { workoutDayId: own.fixture.dayId } });
+
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutExercise" SET "exerciseId" = ${foreignExercise.exerciseId}
+      WHERE "id" = ${own.fixture.exerciseIds[0]}
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutDay" SET "templateId" = ${foreignDay.templateId}
+      WHERE "id" = ${own.fixture.dayId}
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutTemplate" SET "planId" = ${foreignDay.template.planId}
+      WHERE "id" = ${ownDay.templateId}
+    `).rejects.toThrow();
 
     const attempts: Array<() => Promise<unknown>> = [
       () => workoutService.updateDay(own.fixture.dayId, {

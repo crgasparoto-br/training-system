@@ -1111,11 +1111,13 @@ export const workoutService = {
         where: { id: target.id },
         data: mode === 'cyclic'
           ? {
+              weekStartDate: targetWeekStartDate,
               cyclicFrequency: source.cyclicFrequency,
               totalVolumeMin: source.totalVolumeMin,
               totalVolumeKm: source.totalVolumeKm,
             }
           : {
+              weekStartDate: targetWeekStartDate,
               resistanceFrequency: source.resistanceFrequency,
               loadPercentage: source.loadPercentage,
               repZone: source.repZone,
@@ -1529,7 +1531,7 @@ export const workoutService = {
   ) {
     const uniqueIds = [...new Set(exerciseIds)];
     if (uniqueIds.length !== exerciseIds.length) {
-      throw new Error('Duplicate workout exercise id');
+      throw new ResistanceStructureValidationError('Exercício duplicado na ordenação.');
     }
 
     // Preserve the public validation contract for mismatched IDs even when
@@ -1539,7 +1541,7 @@ export const workoutService = {
       select: { id: true },
     });
     if (candidateRows.length !== uniqueIds.length) {
-      throw new Error('One or more workout exercises do not belong to the requested day/section');
+      throw new ResistanceStructureValidationError('Um ou mais exercícios não pertencem ao dia ou seção informados.');
     }
 
     return withWorkoutDayPlanningMutation(workoutDayId, async (tx) => {
@@ -1549,7 +1551,7 @@ export const workoutService = {
         select: { id: true },
       });
       if (owned.length !== uniqueIds.length) {
-        throw new Error('One or more workout exercises do not belong to the requested day/section');
+        throw new ResistanceStructureValidationError('Um ou mais exercícios não pertencem ao dia ou seção informados.');
       }
 
       return Promise.all(

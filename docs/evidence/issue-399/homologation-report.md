@@ -12,6 +12,10 @@ HISTÓRICO — NÃO É RESULTADO DA AUDITORIA INDEPENDENTE ATUAL
 
 Este relatório preserva os resultados históricos abaixo e acrescenta a recertificação final pós-remediação. A homologação foi executada com dados sintéticos e desidentificados; nenhuma credencial, dado pessoal ou ambiente produtivo foi utilizado.
 
+## Estado do candidato atual — não certificado por este relatório
+
+O candidato `fe4f81426ca642d5ffd6addab9ad6413c74cd894` foi validado pelo CI exact-SHA `39777074227`, cujo artifact de browser cobre somente o componente `ResistanceBlocksEditor` isolado em Chrome nos viewports 1440/768/390. O próprio manifesto registra `isolated editor, not authenticated API or full page`; portanto não há, neste arquivo, PASS atual para `AUD-399-10` nem para o replay autenticado completo criar → editar → salvar → reabrir → copiar → liberar. Todos os PASS de `AUD-399-10` nas seções abaixo são históricos e pertencem aos SHAs explicitamente indicados. A nova reauditoria deve usar o SHA publicado após as correções e não pode promover esta evidência histórica a certificação atual.
+
 ## Identidade e ambiente
 
 - Repositório: `crgasparoto-br/training-system`

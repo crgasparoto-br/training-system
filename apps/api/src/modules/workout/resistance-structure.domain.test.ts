@@ -127,6 +127,15 @@ describe('AUD-399-14: strict HTTP and service write inputs', () => {
       .toEqual({ observation1: 'normal' });
   });
 
+  it('rejects calendar dates that JavaScript would otherwise normalize', () => {
+    expect(() => sanitizeWorkoutMutation({
+      templateId: 'template-1', dayOfWeek: 1, workoutDate: '2026-02-31T00:00:00.000Z',
+    }, 'day', 'create')).toThrow(ResistanceStructureValidationError);
+    expect(() => sanitizeWorkoutMutation({
+      templateId: 'template-1', dayOfWeek: 1, workoutDate: '2026-02-28T00:00:00.000Z',
+    }, 'day', 'create')).not.toThrow();
+  });
+
   it('rejects relation-shaped scalars and invalid primitives', () => {
     for (const invalid of [{ exerciseOrder: '1' }, { groupBreakBefore: 'false' }, { workoutDayId: [] }]) {
       expect(() => sanitizeWorkoutMutation(invalid, 'exercise')).toThrow(ResistanceStructureValidationError);

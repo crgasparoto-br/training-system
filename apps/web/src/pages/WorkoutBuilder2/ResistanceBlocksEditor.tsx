@@ -56,7 +56,7 @@ export default function ResistanceBlocksEditor({ blocks, onChange, exerciseName 
           max={options.max}
           step={options.step ?? '1'}
           value={(set[key] as number | null | undefined) ?? ''}
-          aria-label={`${label}, série ${setIndex + 1} de ${exerciseName}`}
+          aria-label={`${label}, bloco ${blockIndex + 1}, série ${setIndex + 1} de ${exerciseName}`}
           onChange={(event) => updateSet(blockIndex, setIndex, {
             [key]: event.target.value === '' ? null : Number(event.target.value),
           })}
@@ -130,7 +130,7 @@ export default function ResistanceBlocksEditor({ blocks, onChange, exerciseName 
                             .map((part, index) => ({ ...part, position: index + 1 })),
                         })}
                         className="rounded-md px-2 text-muted-foreground hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
-                        aria-label={`Remover série ${setIndex + 1}`}
+                        aria-label={`Remover série ${setIndex + 1} do bloco ${blockIndex + 1} de ${exerciseName}`}
                       >Remover série</button>
                     </div>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
@@ -146,7 +146,7 @@ export default function ResistanceBlocksEditor({ blocks, onChange, exerciseName 
                         <input type="text" maxLength={64} value={set.tempo ?? ''}
                           onChange={(event) => updateSet(blockIndex, setIndex, { tempo: event.target.value || null })}
                           className="h-9 w-full rounded-md border border-input bg-card px-2 text-sm text-foreground"
-                          aria-label={`Tempo da série ${setIndex + 1} de ${exerciseName}`}
+                          aria-label={`Tempo da série ${setIndex + 1} do bloco ${blockIndex + 1} de ${exerciseName}`}
                           placeholder="Ex.: 3-1-1-0"
                         />
                       </label>

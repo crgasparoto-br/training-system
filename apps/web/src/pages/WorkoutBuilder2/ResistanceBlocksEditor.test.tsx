@@ -12,7 +12,7 @@ describe('Issue #399 - editor de séries', () => {
     const blocks = onChange.mock.calls.at(-1)?.[0];
     expect(blocks[0]).toMatchObject({ position: 1, kind: 'principal', plannedSets: [{ position: 1, repsMin: null, loadKg: null }] });
     rerender(<ResistanceBlocksEditor exerciseName="Agachamento" blocks={blocks} onChange={onChange} />);
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Rep. mín., série 1 de Agachamento' }), { target: { value: '8' } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Rep. mín., bloco 1, série 1 de Agachamento' }), { target: { value: '8' } });
     expect(onChange.mock.calls.at(-1)?.[0][0].plannedSets[0]).toMatchObject({ repsMin: 8, repsMax: null });
   });
   it('remove série, renumera as demais e mantém outros valores', () => {
@@ -23,7 +23,7 @@ describe('Issue #399 - editor de séries', () => {
       ],
     }]} />);
     fireEvent.click(screen.getByRole('button', { name: 'Detalhar séries de Supino' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Remover série 2' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remover série 2 do bloco 1 de Supino' }));
     expect(onChange.mock.calls.at(-1)?.[0][0].plannedSets).toEqual([
       expect.objectContaining({ position: 1, repsMin: 5 }),
       expect.objectContaining({ position: 2, repsMin: 10 }),

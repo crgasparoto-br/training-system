@@ -103,9 +103,13 @@ export default function WorkoutBuilder2() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveErrorWeek, setSaveErrorWeek] = useState<number | null>(null);
   const [copyWeekError, setCopyWeekError] = useState<string | null>(null);
+  const [copyRetryWeek, setCopyRetryWeek] = useState<number | null>(null);
+  const [releaseError, setReleaseError] = useState<{ weekNumber: number; message: string } | null>(null);
   const [copyModeByWeek, setCopyModeByWeek] = useState<Record<number, { cyclic: boolean; resistance: boolean }>>({});
   const [templateDataByWeek, setTemplateDataByWeek] = useState<Record<number, any>>({});
+  const [templateRefreshByWeek, setTemplateRefreshByWeek] = useState<Record<number, number>>({});
   const [totalMesocycles, setTotalMesocycles] = useState(12);
   const [weeksPerMesocycle, setWeeksPerMesocycle] = useState(4);
   const [alunoData, setAlunoData] = useState<Aluno | null>(null);
@@ -682,6 +686,7 @@ export default function WorkoutBuilder2() {
       if (!snapshot || snapshot.released) return;
       setSaving(true);
       setSaveError(null);
+      setSaveErrorWeek(null);
       try {
         if (snapshot.id) {
           await workoutService.updateTemplate(snapshot.id, {
@@ -776,6 +781,7 @@ export default function WorkoutBuilder2() {
         console.error('Erro ao salvar:', error);
         const serverMessage = (error as { response?: { data?: { error?: unknown } } })?.response?.data?.error;
         setSaveError(typeof serverMessage === 'string' ? serverMessage : 'Falha ao salvar treino. Revise os campos e tente novamente.');
+        setSaveErrorWeek(resolvedWeek);
         throw error;
       } finally {
         setSaving(false);
@@ -851,6 +857,7 @@ export default function WorkoutBuilder2() {
     try {
       setSaving(true);
       setCopyWeekError(null);
+      setCopyRetryWeek(null);
       await flushPendingSave(sourceWeekNumber);
       await flushPendingSave(targetWeekNumber);
 
@@ -897,18 +904,22 @@ export default function WorkoutBuilder2() {
         mesocycleNumber,
         weekNumber: targetWeekNumber,
         planId,
-        totalVolumeMin: sourceTemplate.totalVolumeMin ?? refreshed.totalVolumeMin,
-        totalVolumeKm: sourceTemplate.totalVolumeKm ?? refreshed.totalVolumeKm,
-        distributionZ1: sourceTemplate.distributionZ1 ?? targetTemplate?.distributionZ1,
-        distributionZ2: sourceTemplate.distributionZ2 ?? targetTemplate?.distributionZ2,
-        distributionZ3: sourceTemplate.distributionZ3 ?? targetTemplate?.distributionZ3,
-        distributionZ4: sourceTemplate.distributionZ4 ?? targetTemplate?.distributionZ4,
-        distributionZ5: sourceTemplate.distributionZ5 ?? targetTemplate?.distributionZ5,
+        totalVolumeMin: refreshed.totalVolumeMin ?? targetTemplate?.totalVolumeMin,
+        totalVolumeKm: refreshed.totalVolumeKm ?? targetTemplate?.totalVolumeKm,
+        distributionZ1: refreshed.distributionZ1 ?? targetTemplate?.distributionZ1,
+        distributionZ2: refreshed.distributionZ2 ?? targetTemplate?.distributionZ2,
+        distributionZ3: refreshed.distributionZ3 ?? targetTemplate?.distributionZ3,
+        distributionZ4: refreshed.distributionZ4 ?? targetTemplate?.distributionZ4,
+        distributionZ5: refreshed.distributionZ5 ?? targetTemplate?.distributionZ5,
       };
 
       setTemplateDataByWeek((prev) => ({
         ...prev,
         [targetWeekNumber]: mergedTemplate,
+      }));
+      setTemplateRefreshByWeek((prev) => ({
+        ...prev,
+        [targetWeekNumber]: (prev[targetWeekNumber] ?? 0) + 1,
       }));
 
       alert('Semana copiada com sucesso!');
@@ -917,6 +928,7 @@ export default function WorkoutBuilder2() {
       const message = apiMessage ? `Erro ao copiar semana: ${apiMessage}` : 'Erro ao copiar semana';
       console.error('Erro ao copiar semana:', error);
       setCopyWeekError(message);
+      setCopyRetryWeek(sourceWeekNumber);
       alert(message);
     } finally {
       setSaving(false);
@@ -952,6 +964,7 @@ export default function WorkoutBuilder2() {
 
     try {
       setSaving(true);
+      setReleaseError(null);
       await flushPendingSave(weekNumber);
       const persistedTemplate = await workoutService.getTemplate(weekTemplate.id);
       const releasedTemplate = await workoutService.releaseTemplate(persistedTemplate.id);
@@ -971,6 +984,7 @@ export default function WorkoutBuilder2() {
       alert('Treino liberado com sucesso! O aluno ja pode visualiza-lo.');
     } catch (error) {
       console.error('Erro ao liberar treino:', error);
+      setReleaseError({ weekNumber, message: 'Erro ao liberar treino. Tente novamente.' });
       alert('Erro ao liberar treino');
     } finally {
       setSaving(false);
@@ -1120,7 +1134,10 @@ export default function WorkoutBuilder2() {
           <div className="flex flex-wrap items-center gap-6">
             <div className="flex items-center gap-4">
               <button
+                type="button"
                 onClick={() => navigate(-1)}
+                aria-label="Voltar"
+                title="Voltar"
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <ArrowLeft className="w-5 h-5" />
@@ -1556,7 +1573,8 @@ export default function WorkoutBuilder2() {
                   <button
                     ref={registerWorkoutGuideButtonRef('copyAction', weekNumber)}
                     onClick={() => handleCopyWeek(weekNumber)}
-                    className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-gray-700 transition-colors ${
+                    disabled={saving}
+                    className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-gray-700 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                       isWorkoutGuideStep(2, weekNumber)
                         ? 'border-sky-300 bg-sky-50 shadow-sm'
                         : 'border-gray-300 bg-white hover:bg-gray-50'
@@ -1587,7 +1605,30 @@ export default function WorkoutBuilder2() {
                 </div>
                 {copyWeekError && (
                   <div className="mt-3 w-full rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {copyWeekError}
+                    <div>{copyWeekError}</div>
+                    {copyRetryWeek !== null && (
+                      <button
+                        type="button"
+                        className="mt-2 rounded-md border border-red-300 bg-white px-3 py-1.5 font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={saving}
+                        onClick={() => void handleCopyWeek(copyRetryWeek)}
+                      >
+                        Tentar novamente
+                      </button>
+                    )}
+                  </div>
+                )}
+                {releaseError?.weekNumber === weekNumber && (
+                  <div role="alert" className="mt-3 w-full rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    <div>{releaseError.message}</div>
+                    <button
+                      type="button"
+                      className="mt-2 rounded-md border border-red-300 bg-white px-3 py-1.5 font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={saving}
+                      onClick={() => void handleRelease(weekNumber)}
+                    >
+                      Tentar novamente
+                    </button>
                   </div>
                 )}
               </div>
@@ -1755,7 +1796,17 @@ export default function WorkoutBuilder2() {
                 <div className="p-6">
                   {saveError && (
                     <p role="alert" className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                      {saveError}
+                      <span>{saveError}</span>
+                      {saveErrorWeek !== null && pendingSaveRef.current[saveErrorWeek] && (
+                        <button
+                          type="button"
+                          className="ml-3 rounded-md border border-destructive/40 px-2 py-1 font-medium hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={saving}
+                          onClick={() => void handleSave(pendingSaveRef.current[saveErrorWeek], saveErrorWeek).catch(() => undefined)}
+                        >
+                          Tentar novamente
+                        </button>
+                      )}
                     </p>
                   )}
                   {activeTab === 'cyclic' ? (
@@ -1776,6 +1827,7 @@ export default function WorkoutBuilder2() {
                     />
                   ) : (
                     <WorkoutBuilderResistance
+                      key={`resistance-${weekTemplateData?.id ?? 'new'}-${weekNumber}-${mesocycleNumber}-${templateRefreshByWeek[weekNumber] ?? 0}`}
                       templateData={weekTemplateData}
                       weekStartDateOverride={persistedWeekStartDate}
                       dayEditability={dayEditability}
