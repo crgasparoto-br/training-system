@@ -242,10 +242,10 @@ router.post('/templates/get-or-create', async (req, res) => {
       return res.status(400).json({ error: 'Invalid weekStartDate' });
     }
 
-    const template = await workoutService.getOrCreateTemplate({
-      ...sanitizeWorkoutMutation(req.body, 'template', 'create'),
+    const template = await workoutService.getOrCreateTemplate(sanitizeWorkoutMutation({
+      ...req.body,
       weekStartDate,
-    });
+    }, 'template', 'create'));
     res.json(template);
   } catch (error: unknown) {
     console.error('Error in get-or-create template:', error);
