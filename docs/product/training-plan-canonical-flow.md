@@ -92,3 +92,10 @@ O trigger `guard_consolidated_released_workout_day` inspeciona os identificadore
 ## Erros públicos das rotas de treino — AUD-399-11
 
 Toda a família `/api/v1/workout` mantém autenticação e verificação de contrato antes do serviço. Erros inesperados de leitura ou mutação nas rotas legadas retornam HTTP 500 com `code: WORKOUT_OPERATION_FAILED` e mensagem pública genérica, sem diagnóstico de SQL/Prisma ou mensagem de exceção; o detalhe permanece apenas no log interno. Erros de domínio reconhecidos permanecem explicitamente classificados: validação inválida (400), dia não encontrado (404) e planejamento liberado ou com execução (409). Os caminhos `templates/get-or-create` e cópia de template mantêm códigos públicos específicos já documentados, sem expor causas internas. Testes HTTP negativos cobrem todas as rotas legadas alteradas, inclusive cópia de dia, reordenação e exclusão de exercícios.
+
+## Fronteira estrita de entrada e persistência (AUD-399-14)
+
+As operações de criação/edição de templates, dias e exercícios aceitam somente campos escalares documentados e os blocos/séries expressamente tipados. A validação ocorre na rota HTTP e novamente no serviço. Campos inesperados, operadores Prisma (`set`, `increment`) e relações aninhadas (`workoutDays`, `exercises`, `exercise`, `executions`, `executionItems`) são rejeitados com 400 `INVALID_RESISTANCE_STRUCTURE`; nunca são repassados diretamente ao Prisma. A mesma política vale para o endpoint transacional de substituição de exercícios.
+
+Somente arrays `resistanceBlocks[].plannedSets[]` com campos previstos, posições determinísticas e de 1 a 30 séries por bloco são aceitos. Campos ausentes permanecem ausentes, sem prescrição implícita. O backend confirma, dentro da transação, que o exercício de biblioteca pertence ao `contractId` autenticado, inclusive quando um exercício existente é editado ou movido. Edição legítima de metadados, observações, duração e parâmetros resistidos permanece suportada; nenhuma edição genérica pode manipular relações do Prisma.
+

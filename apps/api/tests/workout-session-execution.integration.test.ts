@@ -1224,6 +1224,60 @@ describeDatabase('resistance blocks - historical identity and transactional pers
       .toBe('Edição permitida');
   });
 
+
+  it('AUD-399-14: blocks cross-contract nested Prisma writes with zero partial persistence', async () => {
+    const own = await editableFixture('issue399-nested-own');
+    const foreign = await editableFixture('issue399-nested-other-contract');
+    const ownDay = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: own.fixture.dayId }, select: { templateId: true, detailNotes: true },
+    });
+    const foreignExercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: foreign.fixture.exerciseIds[0] }, select: { exerciseId: true },
+    });
+    expect(own.fixture.contractId).not.toBe(foreign.fixture.contractId);
+    const beforeCount = await prisma.workoutExercise.count({ where: { workoutDayId: own.fixture.dayId } });
+
+    const attempts: Array<() => Promise<unknown>> = [
+      () => workoutService.updateDay(own.fixture.dayId, {
+        exercises: { create: [{ exerciseId: foreignExercise.exerciseId, section: 'sessao' }] },
+      } as never),
+      () => workoutService.updateTemplate(ownDay.templateId, {
+        workoutDays: { create: [{ dayOfWeek: 7 }] },
+      } as never),
+      () => workoutService.createWorkoutDay({
+        templateId: ownDay.templateId, dayOfWeek: 7, workoutDate: new Date(),
+        exercises: { create: [{ exerciseId: foreignExercise.exerciseId }] },
+      } as never),
+      () => workoutService.addExercise({
+        ...own.input[0], exercise: { connect: { id: foreignExercise.exerciseId } },
+      } as never, own.fixture.contractId),
+      () => workoutService.updateExercise(own.fixture.exerciseIds[0], {
+        executions: { create: [{ loadUsed: 500 }] },
+      } as never, own.fixture.contractId),
+      () => workoutService.replaceDayResistanceExercises(own.fixture.dayId, [
+        { ...own.input[0], executionItems: { create: [{}] } },
+      ] as never, own.fixture.contractId),
+      () => workoutService.addExercise({
+        ...own.input[0], exerciseId: foreignExercise.exerciseId,
+      }, own.fixture.contractId),
+    ];
+    for (const action of attempts) {
+      await expect(action()).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    }
+
+    expect(await prisma.workoutExercise.count({
+      where: { workoutDayId: own.fixture.dayId },
+    })).toBe(beforeCount);
+    expect(await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: own.fixture.dayId }, select: { templateId: true, detailNotes: true },
+    })).toEqual(ownDay);
+    await workoutService.updateDay(own.fixture.dayId, { detailNotes: 'edição legítima' });
+    await workoutService.replaceDayResistanceExercises(own.fixture.dayId, own.input, own.fixture.contractId);
+    expect((await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: own.fixture.dayId },
+    })).detailNotes).toBe('edição legítima');
+  });
+
   it('AUD-399-13: SQL rejects direct transfers INTO and OUT OF released templates even at free weekday positions', async () => {
     const editable = await editableFixture('issue399-transfer-editable');
     const released = await seedReleasedWorkout('issue399-transfer-released');

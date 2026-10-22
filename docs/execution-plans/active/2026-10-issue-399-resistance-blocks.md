@@ -80,3 +80,11 @@ Implementação no branch `feat/399-resistance-blocks-sets`. A homologação ope
 - `AUD-399-12`: as atualizações de `WorkoutTemplate` e `WorkoutDay` rejeitam qualquer `planId`/`templateId` explícito no payload para impedir migração implícita de dados entre contratos. O serviço faz o bloqueio antes da escrita; a fronteira HTTP preserva status 400 e mensagem sanitizada. Regressões cobrem tentativa cross-contract, ausência de efeito e edição legítima.
 - `AUD-399-13`: a migration adicional `20261021222000_issue_399_workout_day_parent_release_guard` usa `OLD.templateId` e `NEW.templateId` diretamente nos guards de release (incluindo flag legado sem ledger). Regressão PostgreSQL usa dias de destino sem colisão de posição para impedir falso positivo por unique index e verifica SQLSTATE `23514` nos dois sentidos, além de identidade/estado persistidos após a tentativa.
 - **Portões ainda necessários:** migration + regressões PostgreSQL, tests/lint/build e `Validate repository` verdes no novo SHA. Evidências históricas de UI não são tratadas como recertificação visual independente do novo SHA; não realizar merge nem fechar a issue antes da auditoria independente.
+
+## Remediação AUD-399-14
+
+- Proteção dupla HTTP/serviço com whitelist e validação de tipos para templates, dias, exercícios e substituição resistida; bloquear escrita Prisma aninhada e preservar contratos e campos opcionais.
+- Segurança cross-contract: confirmar exercício da biblioteca no contrato da transação em mudanças de exercício existente.
+- Regressões: HTTP 400 sem chamar serviço, testes unitários do esquema, PostgreSQL sem persistência parcial para payloads aninhados e verificação de edição legítima.
+- Fechamento exige CI `Validate repository` verde no SHA final e auditoria independente posterior. Sem merge.
+

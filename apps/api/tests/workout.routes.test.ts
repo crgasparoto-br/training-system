@@ -42,6 +42,7 @@ jest.mock('../src/modules/workout/workout.service', () => ({
     getExercises: jest.fn(),
     addExercise: jest.fn(),
     updateExercise: jest.fn(),
+    replaceDayResistanceExercises: jest.fn(),
     deleteExercise: jest.fn(),
   },
 }));
@@ -417,3 +418,68 @@ describe('Issue #399 / AUD-399-12 - public parent reassignment boundary', () => 
     expect(JSON.stringify(response.body)).not.toContain('internal reference');
   });
 });
+
+describe('AUD-399-14: malicious nested HTTP payloads cannot reach Prisma services', () => {
+  const app = express();
+  app.use(express.json());
+  app.use('/workout', workoutRouter);
+  beforeEach(() => jest.clearAllMocks());
+
+  it.each([
+    ['post', '/workout/templates/get-or-create', 'getOrCreateTemplate', {
+      planId: 'plan-1', weekStartDate: '2026-10-12T12:00:00.000Z',
+      workoutDays: { create: [{ dayOfWeek: 1 }] },
+    }],
+    ['put', '/workout/templates/template-1', 'updateTemplate', {
+      workoutDays: { create: [{ dayOfWeek: 1 }] },
+    }],
+    ['post', '/workout/days/get-or-create', 'getOrCreateDay', {
+      templateId: 'template-1', exercises: { create: [{ exerciseId: 'other-contract' }] },
+    }],
+    ['put', '/workout/days/day-1', 'updateDay', {
+      exercises: { create: [{ exerciseId: 'other-contract' }] },
+    }],
+    ['post', '/workout/exercises', 'addExercise', {
+      workoutDayId: 'day-1', exerciseId: 'exercise-1',
+      exercise: { connect: { id: 'other-contract' } },
+    }],
+    ['put', '/workout/exercises/row-1', 'updateExercise', {
+      resistanceBlocks: { create: [{ kind: 'principal', plannedSets: { create: [] } }] },
+    }],
+    ['put', '/workout/days/day-1/resistance-exercises', 'replaceDayResistanceExercises', {
+      exercises: [{
+        workoutDayId: 'day-1', exerciseId: 'exercise-1', section: 'sessao', exerciseOrder: 1,
+        executionItems: { create: [{ loadKg: 100 }] },
+      }],
+    }],
+    ['post', '/workout/exercises', 'addExercise', {
+      workoutDayId: 'day-1', exerciseId: 'exercise-1',
+      resistanceBlocks: [{ position: 1, kind: 'principal', plannedSets: [] }],
+    }],
+  ] as const)('returns safe HTTP 400 on %s %s and does not call %s', async (method, url, action, payload) => {
+    const response = await (request(app) as any)[method](url).send(payload);
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      code: 'INVALID_RESISTANCE_STRUCTURE', error: 'Revise os blocos e as séries informados.',
+    });
+    expect(workoutService[action]).not.toHaveBeenCalled();
+  });
+
+  it('continues to accept legitimate legacy metadata edits', async () => {
+    (workoutService.updateTemplate as jest.Mock).mockResolvedValueOnce({ id: 'template-1' });
+    (workoutService.updateDay as jest.Mock).mockResolvedValueOnce({ id: 'day-1' });
+    expect((await request(app).put('/workout/templates/template-1').send({
+      observation1: 'Observação', resistanceFrequency: 2,
+    })).status).toBe(200);
+    expect((await request(app).put('/workout/days/day-1').send({
+      cyclicTimeMin: 12, detailNotes: 'Treino', intensity1: null,
+    })).status).toBe(200);
+    expect(workoutService.updateTemplate).toHaveBeenCalledWith('template-1', {
+      observation1: 'Observação', resistanceFrequency: 2,
+    });
+    expect(workoutService.updateDay).toHaveBeenCalledWith('day-1', {
+      cyclicTimeMin: 12, detailNotes: 'Treino', intensity1: null,
+    });
+  });
+});
+

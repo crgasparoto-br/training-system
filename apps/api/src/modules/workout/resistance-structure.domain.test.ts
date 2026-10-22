@@ -1,4 +1,4 @@
-import { assertWorkoutParentIsImmutable, classifyResistanceWriteError, matchResistanceExerciseRows, normalizeResistanceBlocks, ResistanceStructureValidationError } from './resistance-structure.domain';
+import { assertWorkoutParentIsImmutable, classifyResistanceWriteError, matchResistanceExerciseRows, normalizeResistanceBlocks, sanitizeWorkoutMutation, ResistanceStructureValidationError } from './resistance-structure.domain';
 describe('Issue #399 - blocos e séries estruturadas', () => {
   const valid = () => [{ position: 1, kind: 'principal', plannedSets: [
     { position: 1, repsMin: 8, repsMax: 12, loadKg: 35.5, loadPercent: null, rir: 2, rpe: 8, tempo: '3-1-1-0', restSec: 90 },
@@ -91,3 +91,46 @@ describe('Issue #399 / AUD-399-12 - immutable ownership on edits', () => {
     }
   });
 });
+
+describe('AUD-399-14: strict HTTP and service write inputs', () => {
+  it.each([
+    ['template', 'create', { plan: { connect: { id: 'another-contract' } } }],
+    ['template', 'update', { workoutDays: { create: [{ dayOfWeek: 1 }] } }],
+    ['template', 'update', { resistanceFrequency: { increment: 20 } }],
+    ['day', 'create', { template: { connect: { id: 'another-contract' } } }],
+    ['day', 'update', { exercises: { create: [{ exerciseId: 'another-contract' }] } }],
+    ['day', 'update', { workoutDate: { set: '2026-10-22' } }],
+    ['exercise', 'create', { exercise: { connect: { id: 'another-contract' } } }],
+    ['exercise', 'update', { executions: { create: [{ loadUsed: 100 }] } }],
+    ['exercise', 'create', { resistanceBlocks: { create: [{ position: 1 }] } }],
+    ['exercise', 'update', { resistanceBlocks: [{ position: 1, kind: 'principal', plannedSets: [] }] }],
+    ['exercise', 'update', { resistanceBlocks: [{ position: 1, kind: 'principal',
+      plannedSets: [{ position: 1, executionItems: { create: [{}] } }] }] }],
+    ['exercise', 'update', { resistanceBlocks: [{ position: 1, kind: 'principal',
+      plannedSets: [{ position: 1, repsMin: 8, unexpected: 1 }] }] }],
+  ] as const)('rejects unknown or nested Prisma write %#', (resource, mode, input) => {
+    expect(() => sanitizeWorkoutMutation(input, resource, mode))
+      .toThrow(ResistanceStructureValidationError);
+  });
+
+  it('preserves legitimate optional metadata and validates block/set inputs', () => {
+    const valid = { workoutDayId: 'day-1', exerciseId: 'exercise-1', section: 'sessao',
+      exerciseOrder: 1, resistanceBlocks: [{
+        position: 1, kind: 'principal' as const,
+        plannedSets: [{ position: 1, repsMin: 8, repsMax: 12, loadKg: 32.5, rir: null }],
+      }],
+    };
+    expect(sanitizeWorkoutMutation(valid, 'exercise', 'create')).toMatchObject(valid);
+    expect(sanitizeWorkoutMutation({ cyclicTimeMin: 12, detailNotes: null }, 'day'))
+      .toEqual({ cyclicTimeMin: 12, detailNotes: null });
+    expect(sanitizeWorkoutMutation({ observation1: 'normal', coachGoal: undefined }, 'template'))
+      .toEqual({ observation1: 'normal' });
+  });
+
+  it('rejects relation-shaped scalars and invalid primitives', () => {
+    for (const invalid of [{ exerciseOrder: '1' }, { groupBreakBefore: 'false' }, { workoutDayId: [] }]) {
+      expect(() => sanitizeWorkoutMutation(invalid, 'exercise')).toThrow(ResistanceStructureValidationError);
+    }
+  });
+});
+
