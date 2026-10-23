@@ -39,6 +39,22 @@ export const toIsoDateAtNoonUTC = (value: string): string => {
   return new Date(Date.UTC(year, month - 1, day, 12, 0, 0)).toISOString();
 };
 
+/** Resolve a weekday from a calendar week anchor without interpreting an ISO
+ * midnight as a local instant. The returned Date is local-calendar based and
+ * can safely be serialized with toDateInputValue/toIsoDateAtNoonUTC. */
+export const resolveDateForDayOfWeek = (
+  weekStartDate: string | Date | null | undefined,
+  dayOfWeek: number
+): Date | null => {
+  const start = parseDateOnly(weekStartDate);
+  if (!start || !Number.isInteger(dayOfWeek) || dayOfWeek < 1 || dayOfWeek > 7) return null;
+  const jsDay = start.getDay();
+  const startWeekday = jsDay === 0 ? 7 : jsDay;
+  const result = new Date(start);
+  result.setDate(start.getDate() + dayOfWeek - startWeekday);
+  return result;
+};
+
 export const formatDateBR = (value: string | Date | null | undefined): string => {
   const date = parseDateOnly(value);
   if (!date) return '';

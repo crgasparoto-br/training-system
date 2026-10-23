@@ -1225,6 +1225,65 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     expect(savedSet.blockId).toBe(block.id);
   });
 
+  it('AUD-399-27: rejeita posições fora da faixa e gaps por bypass SQL', async () => {
+    const { fixture, input } = await editableFixture('issue399-position-negative-controls');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    const block = await prisma.workoutExerciseBlock.findFirstOrThrow({
+      where: { workoutExerciseId: fixture.exerciseIds[0] },
+    });
+
+    await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutExerciseBlock" ("id", "workoutExerciseId", "position", "kind")
+      VALUES (${randomUUID()}, ${fixture.exerciseIds[0]}, 13, 'principal')
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutExercisePlannedSet" ("id", "blockId", "position")
+      VALUES (${randomUUID()}, ${block.id}, 31)
+    `).rejects.toThrow();
+
+    await expect(prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        INSERT INTO "WorkoutExerciseBlock" ("id", "workoutExerciseId", "position", "kind")
+        VALUES (${randomUUID()}, ${fixture.exerciseIds[0]}, 3, 'principal')
+      `;
+    })).rejects.toThrow();
+  });
+
+  it('AUD-399-17/18: rejeita execução legada estrangeira e congela seu grafo por SQL', async () => {
+    const own = await seedReleasedWorkout('issue399-legacy-execution-own');
+    const foreign = await seedReleasedWorkout('issue399-legacy-execution-foreign');
+    const ownExecutionData = {
+      id: randomUUID(),
+      workoutExerciseId: own.exerciseIds[0],
+      alunoId: own.alunoId,
+      executionDate: new Date('2026-10-06T12:00:00.000Z'),
+    };
+
+    await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutExecution" ("id", "workoutExerciseId", "alunoId", "executionDate")
+      VALUES (${randomUUID()}, ${foreign.exerciseIds[0]}, ${own.alunoId}, ${ownExecutionData.executionDate})
+    `).rejects.toThrow();
+
+    await prisma.$executeRaw`
+      INSERT INTO "WorkoutExecution" ("id", "workoutExerciseId", "alunoId", "executionDate")
+      VALUES (${ownExecutionData.id}, ${ownExecutionData.workoutExerciseId}, ${ownExecutionData.alunoId}, ${ownExecutionData.executionDate})
+    `;
+
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutExercise"
+      SET "reps" = 11
+      WHERE "id" = ${own.exerciseIds[0]}
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutTemplate"
+      SET "weekStartDate" = '2026-10-12T12:00:00.000Z'
+      WHERE "id" = (SELECT "templateId" FROM "WorkoutDay" WHERE "id" = ${own.dayId})
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      DELETE FROM "WorkoutExecution" WHERE "id" = ${ownExecutionData.id}
+    `).rejects.toThrow();
+  });
+
   it('não aceita id de linha estrangeira e não provoca escrita parcial', async () => {
     const { fixture, input } = await editableFixture('issue399-invalid');
     await expect(workoutService.replaceDayResistanceExercises(fixture.dayId, [
@@ -1367,7 +1426,25 @@ describeDatabase('resistance blocks - historical identity and transactional pers
       include: { workoutDays: true },
     });
     expect(target.weekStartDate).toEqual(new Date('2026-10-15T12:00:00.000Z'));
-    expect(target.workoutDays[0].workoutDate).toEqual(new Date('2026-10-15T12:00:00.000Z'));
+    expect(target.workoutDays[0].workoutDate).toEqual(new Date('2026-10-16T12:00:00.000Z'));
+  });
+
+  it('copyTemplateSections preserves sparse source day labels with canonical target dates', async () => {
+    const { fixture, input } = await editableFixture('issue399-partial-copy-sparse-day');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    await prisma.workoutDay.update({
+      where: { id: fixture.dayId },
+      data: { dayOfWeek: 5, workoutDate: new Date('2026-10-09T12:00:00.000Z') },
+    });
+    const source = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, select: { templateId: true },
+    });
+
+    const copied = await workoutService.copyTemplateSections(
+      source.templateId, 2, new Date('2026-10-12T12:00:00.000Z'), 'resistance',
+    );
+    const destination = copied?.workoutDays.find((day) => day.dayOfWeek === 5);
+    expect(destination?.workoutDate).toEqual(new Date('2026-10-16T12:00:00.000Z'));
   });
 
   it('AUD-399-12: rejects moving draft template/day across contracts without changing persisted ownership', async () => {

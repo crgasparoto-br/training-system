@@ -9,7 +9,7 @@ import { alunoService, type Aluno } from '../../services/aluno.service';
 import { assessmentService } from '../../services/assessment.service';
 import { periodizationService, ResistedStimulus } from '../../services/periodization.service';
 import { workoutService } from '../../services/workout.service';
-import { isDateWithinRange, parseDateOnly, toDateInputValue, toIsoDateAtNoonUTC } from '../../utils/date';
+import { isDateWithinRange, parseDateOnly, resolveDateForDayOfWeek, toDateInputValue, toIsoDateAtNoonUTC } from '../../utils/date';
 import { resolveWorkoutBuilderWeekOptions } from '../../utils/workout-builder-week-options';
 import { workoutBuilderGuideCopy } from '../../i18n/ptBR';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -103,7 +103,7 @@ export default function WorkoutBuilder2() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveErrorWeek, setSaveErrorWeek] = useState<number | null>(null);
+  const [saveErrorKey, setSaveErrorKey] = useState<string | null>(null);
   const [copyWeekError, setCopyWeekError] = useState<string | null>(null);
   const [copyRetryWeek, setCopyRetryWeek] = useState<number | null>(null);
   const [releaseError, setReleaseError] = useState<{ weekNumber: number; message: string } | null>(null);
@@ -166,10 +166,22 @@ export default function WorkoutBuilder2() {
   const [workoutGuideStep, setWorkoutGuideStep] = useState(0);
   const [workoutGuideWeekNumber, setWorkoutGuideWeekNumber] = useState<number | null>(null);
 
-  // Auto-save is serialized per week so release can flush the latest snapshot.
-  const autoSaveTimersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
-  const pendingSaveRef = useRef<Record<number, any>>({});
-  const saveChainsRef = useRef(new Map<number, Promise<void>>());
+  // Auto-save is serialized per mesocycle/week so a context switch cannot
+  // overwrite or silently discard a pending snapshot from the previous view.
+  const autoSaveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const pendingSaveRef = useRef<Record<string, any>>({});
+  const saveChainsRef = useRef(new Map<string, Promise<void>>());
+  const flushAllPendingSavesRef = useRef<() => Promise<void>>(async () => undefined);
+  const activeOperationsRef = useRef(0);
+  const beginOperation = () => {
+    activeOperationsRef.current += 1;
+    setSaving(true);
+  };
+  const endOperation = () => {
+    activeOperationsRef.current = Math.max(0, activeOperationsRef.current - 1);
+    setSaving(activeOperationsRef.current > 0);
+  };
+  const loadRequestRef = useRef(0);
   // Mantém o mesmo dia aberto no treino resistido de todas as semanas visíveis.
   const [resistanceSelectedDay, setResistanceSelectedDay] = useState<number | null>(null);
   const workoutGuideBannerRef = useRef<HTMLDivElement | null>(null);
@@ -213,7 +225,11 @@ export default function WorkoutBuilder2() {
   const navigateToMesocycle = useCallback((nextMesocycle: number) => {
     if (!planId) return;
     const weekNumber = resolveWeekParam();
-    navigate(`/plans/${planId}/workout-builder/${nextMesocycle}/${weekNumber}`, { replace: true });
+    void flushAllPendingSavesRef.current()
+      .catch(() => undefined)
+      .finally(() => {
+        navigate(`/plans/${planId}/workout-builder/${nextMesocycle}/${weekNumber}`, { replace: true });
+      });
   }, [navigate, planId, resolveWeekParam]);
 
   const hasAppliedStoredMesoRef = useRef(false);
@@ -254,15 +270,12 @@ export default function WorkoutBuilder2() {
     }
   }, [mesocycleFilterStorageKey, mesocycleNumber]);
 
-  useEffect(() => {
-    Object.values(autoSaveTimersRef.current).forEach(timer => clearTimeout(timer));
-    autoSaveTimersRef.current = {};
-    pendingSaveRef.current = {};
-  }, [mesocycleNumber]);
-
   useEffect(() => () => {
-    Object.values(autoSaveTimersRef.current).forEach((timer) => clearTimeout(timer));
-  }, []);
+    // React cleanup cannot await, but starting the flush before the old
+    // context is discarded keeps the last draft alive on route/mesocycle
+    // changes and on unmount. The queue itself is keyed by context.
+    void flushAllPendingSavesRef.current().catch(() => undefined);
+  }, [planId, mesocycleNumber]);
 
   useEffect(() => {
     setCopyModeByWeek((prev) => {
@@ -424,6 +437,14 @@ export default function WorkoutBuilder2() {
     return `workoutBuilder2:${planId}:${mesocycle}:${week}:${version}`;
   };
 
+  const buildSaveKey = (mesocycle: number, week: number) => `${mesocycle}:${week}`;
+  const parseSaveKey = (key: string) => {
+    const [mesocycle, week] = key.split(':').map(Number);
+    return Number.isInteger(mesocycle) && Number.isInteger(week)
+      ? { mesocycle, week }
+      : null;
+  };
+
   const resolveWeekStartDate = (mesocycle: number, week: number) => {
     if (!planData?.startDate) return null;
     const start = parseDateOnly(planData.startDate);
@@ -436,13 +457,7 @@ export default function WorkoutBuilder2() {
   };
 
   const resolveWeekDayDate = (weekStartDate: string | Date, dayOfWeek: number) => {
-    const start = parseDateOnly(weekStartDate) ?? new Date(weekStartDate);
-    const startJsDay = start.getDay();
-    const startWeekday = startJsDay === 0 ? 7 : startJsDay; // 1=Seg ... 7=Dom
-    const offset = dayOfWeek - startWeekday;
-    const date = new Date(start);
-    date.setDate(start.getDate() + offset);
-    return date;
+    return resolveDateForDayOfWeek(weekStartDate, dayOfWeek) ?? new Date(Number.NaN);
   };
 
   const buildWeekDayEditability = (weekStartDate: string | null) => {
@@ -457,16 +472,12 @@ export default function WorkoutBuilder2() {
   };
 
   const resolveWeekDate = (weekStartDate: string | Date, dayOfWeek: number) => {
-    const start = typeof weekStartDate === 'string' ? new Date(weekStartDate) : new Date(weekStartDate);
-    const startJsDay = start.getDay();
-    const startWeekday = startJsDay === 0 ? 7 : startJsDay; // 1=Seg ... 7=Dom
-    const offset = dayOfWeek - startWeekday;
-    const date = new Date(start);
-    date.setDate(start.getDate() + offset);
-    return date;
+    return resolveDateForDayOfWeek(weekStartDate, dayOfWeek) ?? new Date(Number.NaN);
   };
 
   const loadTemplate = async () => {
+    const requestId = ++loadRequestRef.current;
+    const isCurrentRequest = () => requestId === loadRequestRef.current;
     try {
       setLoading(true);
       setLoadError(null);
@@ -475,6 +486,7 @@ export default function WorkoutBuilder2() {
       // Carregar dados do plano
       if (planId) {
         const plan = await planService.getById(planId);
+        if (!isCurrentRequest()) return;
         setPlanData(plan);
         if (plan?.alunoId) {
           try {
@@ -522,6 +534,7 @@ export default function WorkoutBuilder2() {
         }
 
         const matrix = await periodizationService.getMatrixByPlanId(planId);
+        if (!isCurrentRequest()) return;
         const {
           weeksPerMesocycle: resolvedWeeksPerMesocycle,
           weekOptions: resolvedWeekOptions,
@@ -529,6 +542,7 @@ export default function WorkoutBuilder2() {
 
         if (matrix) {
           const resistedStimuli = await periodizationService.getResistedStimulusByMatrix(matrix.id);
+          if (!isCurrentRequest()) return;
           const groupedResisted = periodizationService.groupResistedByMesocycleAndWeek(resistedStimuli);
           const resistedByWeek: Record<number, ResistedStimulus | null> = {};
           resolvedWeekOptions.forEach((week) => {
@@ -629,6 +643,7 @@ export default function WorkoutBuilder2() {
           })
         );
 
+        if (!isCurrentRequest()) return;
         const templatesByWeek = templates.reduce<Record<number, any>>((acc, template) => {
           acc[template.weekNumber] = template;
           return acc;
@@ -637,10 +652,11 @@ export default function WorkoutBuilder2() {
         setTemplateDataByWeek(templatesByWeek);
       }
     } catch (error) {
+      if (!isCurrentRequest()) return;
       console.error('Erro ao carregar template:', error);
       setLoadError('Não foi possível carregar os dados do plano. Tente novamente.');
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   };
 
@@ -655,38 +671,50 @@ export default function WorkoutBuilder2() {
         ? newData.resistedExercises
         : templateDataByWeek[weekNumber]?.resistedExercises,
     };
+    const resolvedMesocycle = Number(merged?.mesocycleNumber ?? mesocycleNumber);
+    const resolvedWeek = Number(merged?.weekNumber ?? weekNumber);
+    const saveKey = buildSaveKey(resolvedMesocycle, resolvedWeek);
+    const snapshot = {
+      ...merged,
+      planId: merged?.planId ?? planId,
+      mesocycleNumber: resolvedMesocycle,
+      weekNumber: resolvedWeek,
+    };
 
-    setTemplateDataByWeek((prev) => ({ ...prev, [weekNumber]: merged }));
-    pendingSaveRef.current[weekNumber] = merged;
-    const resolvedPlanId = merged?.planId ?? planId;
-    const key = resolvedPlanId
-      ? buildCacheKey(resolvedPlanId, merged?.mesocycleNumber ?? mesocycleNumber, merged?.weekNumber ?? weekNumber, planData?.updatedAt)
+    setTemplateDataByWeek((prev) => ({ ...prev, [weekNumber]: snapshot }));
+    pendingSaveRef.current[saveKey] = snapshot;
+    const cacheKey = snapshot.planId
+      ? buildCacheKey(snapshot.planId, resolvedMesocycle, resolvedWeek, planData?.updatedAt)
       : null;
-    if (key) {
+    if (cacheKey) {
       try {
-        localStorage.setItem(key, JSON.stringify({ schemaVersion: 2, status: 'pending-draft', data: merged }));
-      } catch (error) {
+        localStorage.setItem(cacheKey, JSON.stringify({ schemaVersion: 2, status: 'pending-draft', data: snapshot }));
+      } catch {
         // localStorage is an optional recovery buffer, never the source of truth.
       }
     }
 
-    if (autoSaveTimersRef.current[weekNumber]) clearTimeout(autoSaveTimersRef.current[weekNumber]);
-    autoSaveTimersRef.current[weekNumber] = setTimeout(() => {
-      delete autoSaveTimersRef.current[weekNumber];
-      void handleSave(merged, weekNumber).catch(() => undefined);
+    if (autoSaveTimersRef.current[saveKey]) clearTimeout(autoSaveTimersRef.current[saveKey]);
+    autoSaveTimersRef.current[saveKey] = setTimeout(() => {
+      delete autoSaveTimersRef.current[saveKey];
+      void handleSave(pendingSaveRef.current[saveKey], resolvedWeek).catch(() => undefined);
     }, 2000);
   };
 
   const handleSave = async (data: any, weekNumber?: number): Promise<void> => {
+    if (!data) return;
+    const resolvedMesocycle = Number(data?.mesocycleNumber ?? mesocycleNumber);
     const resolvedWeek = weekNumber ?? Number(data?.weekNumber);
-    if (!data || !Number.isInteger(resolvedWeek) || resolvedWeek <= 0) return;
-    const previous = saveChainsRef.current.get(resolvedWeek) ?? Promise.resolve();
+    if (!Number.isInteger(resolvedMesocycle) || resolvedMesocycle <= 0
+      || !Number.isInteger(resolvedWeek) || resolvedWeek <= 0) return;
+    const saveKey = buildSaveKey(resolvedMesocycle, resolvedWeek);
+    const previous = saveChainsRef.current.get(saveKey) ?? Promise.resolve();
     const operation = previous.catch(() => undefined).then(async () => {
-      const snapshot = pendingSaveRef.current[resolvedWeek] ?? data;
+      const snapshot = pendingSaveRef.current[saveKey] ?? data;
       if (!snapshot || snapshot.released) return;
-      setSaving(true);
+      beginOperation();
       setSaveError(null);
-      setSaveErrorWeek(null);
+      setSaveErrorKey(null);
       try {
         if (snapshot.id) {
           await workoutService.updateTemplate(snapshot.id, {
@@ -707,11 +735,14 @@ export default function WorkoutBuilder2() {
 
           if (snapshot.workoutDays) {
             const daysArray = Array.isArray(snapshot.workoutDays) ? snapshot.workoutDays : Object.values(snapshot.workoutDays);
-            const weekStart = snapshot.weekStartDate ? new Date(snapshot.weekStartDate) : null;
+            const weekStart = snapshot.weekStartDate ? parseDateOnly(snapshot.weekStartDate) : null;
             for (const day of daysArray) {
               if (!day?.dayOfWeek) continue;
-              const workoutDate = day.workoutDate ? new Date(day.workoutDate) : weekStart ? resolveWeekDate(weekStart, day.dayOfWeek) : new Date();
-              const savedDay = await workoutService.getOrCreateDay({ templateId: snapshot.id, dayOfWeek: day.dayOfWeek, workoutDate: workoutDate.toISOString() });
+              const workoutDate = day.workoutDate
+                ? parseDateOnly(day.workoutDate)
+                : weekStart ? resolveWeekDate(weekStart, day.dayOfWeek) : new Date();
+              if (!workoutDate || !Number.isFinite(workoutDate.getTime())) throw new Error('Data do treino inválida.');
+              const savedDay = await workoutService.getOrCreateDay({ templateId: snapshot.id, dayOfWeek: day.dayOfWeek, workoutDate: toIsoDateAtNoonUTC(toDateInputValue(workoutDate)) });
               await workoutService.updateDay(savedDay.id, {
                 sessionDurationMin: day.sessionDurationMin,
                 cyclicTimeMin: day.cyclicTimeMin,
@@ -740,10 +771,11 @@ export default function WorkoutBuilder2() {
           }
 
           if (snapshot.resistedExercises) {
-            const weekStart = snapshot.weekStartDate ? new Date(snapshot.weekStartDate) : null;
+            const weekStart = snapshot.weekStartDate ? parseDateOnly(snapshot.weekStartDate) : null;
             for (const dayOfWeek of dayNumbers) {
               const correctedDate = weekStart ? resolveWeekDate(weekStart, dayOfWeek) : new Date();
-              const targetDay = await workoutService.getOrCreateDay({ templateId: snapshot.id, dayOfWeek, workoutDate: correctedDate.toISOString() });
+              if (!Number.isFinite(correctedDate.getTime())) throw new Error('Data do treino inválida.');
+              const targetDay = await workoutService.getOrCreateDay({ templateId: snapshot.id, dayOfWeek, workoutDate: toIsoDateAtNoonUTC(toDateInputValue(correctedDate)) });
               const daySections = snapshot.resistedExercises?.[dayOfWeek] || {};
               const orderedExercises = (['mobilidade', 'sessao', 'resfriamento'] as const).flatMap((section) =>
                 (Array.isArray(daySections[section]) ? daySections[section] : [])
@@ -770,37 +802,69 @@ export default function WorkoutBuilder2() {
             }
           }
         }
-        if (pendingSaveRef.current[resolvedWeek] === snapshot) {
-          delete pendingSaveRef.current[resolvedWeek];
-          const key = planId ? buildCacheKey(planId, mesocycleNumber, resolvedWeek, planData?.updatedAt) : null;
-          if (key) {
-            try { localStorage.removeItem(key); } catch { /* Recovery buffer is optional. */ }
+        if (pendingSaveRef.current[saveKey] === snapshot) {
+          delete pendingSaveRef.current[saveKey];
+          const cacheKey = snapshot.planId
+            ? buildCacheKey(snapshot.planId, resolvedMesocycle, resolvedWeek, planData?.updatedAt)
+            : null;
+          if (cacheKey) {
+            try { localStorage.removeItem(cacheKey); } catch { /* Recovery buffer is optional. */ }
           }
         }
       } catch (error) {
         console.error('Erro ao salvar:', error);
         const serverMessage = (error as { response?: { data?: { error?: unknown } } })?.response?.data?.error;
         setSaveError(typeof serverMessage === 'string' ? serverMessage : 'Falha ao salvar treino. Revise os campos e tente novamente.');
-        setSaveErrorWeek(resolvedWeek);
+        setSaveErrorKey(saveKey);
         throw error;
       } finally {
-        setSaving(false);
+        endOperation();
       }
     });
-    saveChainsRef.current.set(resolvedWeek, operation);
-    await operation;
+    saveChainsRef.current.set(saveKey, operation);
+    try {
+      await operation;
+    } finally {
+      if (saveChainsRef.current.get(saveKey) === operation && !pendingSaveRef.current[saveKey]) {
+        saveChainsRef.current.delete(saveKey);
+      }
+    }
   };
 
-  const flushPendingSave = async (weekNumber: number) => {
-    const timer = autoSaveTimersRef.current[weekNumber];
+  const flushPendingSave = async (weekNumber: number, mesocycle = mesocycleNumber) => {
+    const saveKey = buildSaveKey(mesocycle, weekNumber);
+    const timer = autoSaveTimersRef.current[saveKey];
     if (timer) {
       clearTimeout(timer);
-      delete autoSaveTimersRef.current[weekNumber];
+      delete autoSaveTimersRef.current[saveKey];
     }
-    const pending = pendingSaveRef.current[weekNumber];
+    const pending = pendingSaveRef.current[saveKey];
     if (pending) await handleSave(pending, weekNumber);
-    const chain = saveChainsRef.current.get(weekNumber);
+    const chain = saveChainsRef.current.get(saveKey);
     if (chain) await chain;
+  };
+
+  flushAllPendingSavesRef.current = async () => {
+    const keys = new Set([
+      ...Object.keys(autoSaveTimersRef.current),
+      ...Object.keys(pendingSaveRef.current),
+      ...saveChainsRef.current.keys(),
+    ]);
+    for (const key of keys) {
+      const timer = autoSaveTimersRef.current[key];
+      if (timer) {
+        clearTimeout(timer);
+        delete autoSaveTimersRef.current[key];
+      }
+    }
+    await Promise.all([...keys].map(async (key) => {
+      const parsed = parseSaveKey(key);
+      if (!parsed) return;
+      const pending = pendingSaveRef.current[key];
+      if (pending) await handleSave(pending, parsed.week);
+      const chain = saveChainsRef.current.get(key);
+      if (chain) await chain;
+    }));
   };
 
   const handleCopyWeek = async (sourceWeekNumber: number) => {
@@ -855,7 +919,7 @@ export default function WorkoutBuilder2() {
     if (!confirm(confirmMessage)) return;
 
     try {
-      setSaving(true);
+      beginOperation();
       setCopyWeekError(null);
       setCopyRetryWeek(null);
       await flushPendingSave(sourceWeekNumber);
@@ -931,7 +995,7 @@ export default function WorkoutBuilder2() {
       setCopyRetryWeek(sourceWeekNumber);
       alert(message);
     } finally {
-      setSaving(false);
+      endOperation();
     }
   };
   const toggleSummaryVisibility = (
@@ -963,12 +1027,12 @@ export default function WorkoutBuilder2() {
     }
 
     try {
-      setSaving(true);
+      beginOperation();
       setReleaseError(null);
       await flushPendingSave(weekNumber);
       const persistedTemplate = await workoutService.getTemplate(weekTemplate.id);
       const releasedTemplate = await workoutService.releaseTemplate(persistedTemplate.id);
-      delete pendingSaveRef.current[weekNumber];
+      delete pendingSaveRef.current[buildSaveKey(mesocycleNumber, weekNumber)];
       const cacheKey = buildCacheKey(planId!, mesocycleNumber, weekNumber, planData?.updatedAt);
       if (cacheKey) {
         try { localStorage.removeItem(cacheKey); } catch { /* Recovery buffer is optional. */ }
@@ -987,7 +1051,7 @@ export default function WorkoutBuilder2() {
       setReleaseError({ weekNumber, message: 'Erro ao liberar treino. Tente novamente.' });
       alert('Erro ao liberar treino');
     } finally {
-      setSaving(false);
+      endOperation();
     }
   };
 
@@ -1604,7 +1668,7 @@ export default function WorkoutBuilder2() {
                   </button>
                 </div>
                 {copyWeekError && (
-                  <div className="mt-3 w-full rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  <div role="alert" aria-live="assertive" className="mt-3 w-full rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                     <div>{copyWeekError}</div>
                     {copyRetryWeek !== null && (
                       <button
@@ -1797,12 +1861,14 @@ export default function WorkoutBuilder2() {
                   {saveError && (
                     <p role="alert" className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                       <span>{saveError}</span>
-                      {saveErrorWeek !== null && pendingSaveRef.current[saveErrorWeek] && (
+                      {saveErrorKey === buildSaveKey(mesocycleNumber, weekNumber)
+                        && pendingSaveRef.current[saveErrorKey]
+                        && (
                         <button
                           type="button"
                           className="ml-3 rounded-md border border-destructive/40 px-2 py-1 font-medium hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={saving}
-                          onClick={() => void handleSave(pendingSaveRef.current[saveErrorWeek], saveErrorWeek).catch(() => undefined)}
+                          onClick={() => void handleSave(pendingSaveRef.current[saveErrorKey], weekNumber).catch(() => undefined)}
                         >
                           Tentar novamente
                         </button>

@@ -146,14 +146,25 @@ const resolveUtcDate = (input: string | Date, endOfDay: boolean) => {
       const year = Number(match[1]);
       const month = Number(match[2]);
       const day = Number(match[3]);
+      const midnight = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+      if (
+        midnight.getUTCFullYear() !== year
+        || midnight.getUTCMonth() !== month - 1
+        || midnight.getUTCDate() !== day
+      ) {
+        throw new ResistanceStructureValidationError('Data civil inválida.');
+      }
       if (endOfDay) {
         return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
       }
-      return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+      return midnight;
     }
   }
 
   const date = input instanceof Date ? input : new Date(input);
+  if (!Number.isFinite(date.getTime())) {
+    throw new ResistanceStructureValidationError('Data civil inválida.');
+  }
   const year = date.getUTCFullYear();
   const month = date.getUTCMonth();
   const day = date.getUTCDate();
@@ -1132,12 +1143,9 @@ export const workoutService = {
       });
 
       const sourceDays = new Map(source.workoutDays.map((day) => [day.dayOfWeek, day]));
-      const sourceAnchorDayOfWeek = source.workoutDays.length > 0
-        ? source.workoutDays.reduce((minimum, day) => Math.min(minimum, day.dayOfWeek), 7)
-        : 1;
       const partialCopyDate = (dayOfWeek: number) => {
         const result = new Date(targetWeekStartDate);
-        result.setUTCDate(result.getUTCDate() + dayOfWeek - sourceAnchorDayOfWeek);
+        result.setUTCDate(result.getUTCDate() + dayOfWeek - 1);
         return result;
       };
       for (const [dayOfWeek, sourceDay] of sourceDays) {
@@ -1575,19 +1583,26 @@ export const workoutService = {
    * Registrar execuÃ§Ã£o de exercÃ­cio
    */
   async recordExecution(data: RecordExecutionDTO) {
-    // Registrar execuÃ§Ã£o
-    const execution = await prisma.workoutExecution.create({
-      data,
-    });
-
-    // Atualizar progresso do aluno se houver carga
-    if (data.loadUsed) {
-      const workoutExercise = await prisma.workoutExercise.findUnique({
-        where: { id: data.workoutExerciseId },
+    return prisma.$transaction(async (tx) => {
+      const workoutExercise = await tx.workoutExercise.findFirst({
+        where: {
+          id: data.workoutExerciseId,
+          workoutDay: {
+            template: {
+              released: true,
+              plan: { alunoId: data.alunoId },
+            },
+          },
+        },
+        select: { id: true, exerciseId: true },
       });
+      if (!workoutExercise) throw new ResistanceStructureNotFoundError();
 
-      if (workoutExercise) {
-        const progress = await prisma.alunoExerciseProgress.findUnique({
+      const execution = await tx.workoutExecution.create({ data });
+
+      // Atualizar progresso do aluno se houver carga, na mesma transação.
+      if (data.loadUsed !== undefined && data.loadUsed !== null) {
+        const progress = await tx.alunoExerciseProgress.findUnique({
           where: {
             alunoId_exerciseId: {
               alunoId: data.alunoId,
@@ -1601,7 +1616,7 @@ export const workoutService = {
             ? data.loadUsed
             : progress.maxLoad;
 
-        await prisma.alunoExerciseProgress.upsert({
+        await tx.alunoExerciseProgress.upsert({
           where: {
             alunoId_exerciseId: {
               alunoId: data.alunoId,
@@ -1621,9 +1636,9 @@ export const workoutService = {
           },
         });
       }
-    }
 
-    return execution;
+      return execution;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   },
 
   /**

@@ -6,6 +6,7 @@ import {
   normalizeRequestedStudentContractId,
   resolveActiveStudentMembership,
 } from '../modules/alunos/student-account-context.service.js';
+import { ResistanceStructureNotFoundError, ResistanceStructureValidationError } from '../modules/workout/resistance-structure.domain.js';
 
 const router: Router = Router();
 
@@ -165,7 +166,13 @@ router.post('/workout-exercise/:id/records', alunoMiddleware, async (req: Reques
     return res.status(201).json(execution);
   } catch (error: any) {
     console.error('Error recording execution:', error);
-    return res.status(500).json({ error: error.message });
+    if (error instanceof ResistanceStructureNotFoundError) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code });
+    }
+    if (error instanceof ResistanceStructureValidationError) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code });
+    }
+    return res.status(500).json({ error: 'Não foi possível registrar a execução.' });
   }
 });
 
@@ -180,6 +187,21 @@ router.get('/aluno', alunoMiddleware, async (req: Request, res: Response) => {
     const { startDate, endDate } = req.query;
     if (!startDate || !endDate || typeof startDate !== 'string' || typeof endDate !== 'string') {
       return res.status(400).json({ error: 'startDate and endDate are required' });
+    }
+
+    // Do not let Date.UTC normalize impossible civil dates into another day.
+    const civilDate = /^(\d{4})-(\d{2})-(\d{2})$/;
+    for (const value of [startDate, endDate]) {
+      const match = civilDate.exec(value.trim());
+      if (!match) return res.status(400).json({ error: 'startDate and endDate must use YYYY-MM-DD' });
+      const candidate = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+      if (
+        candidate.getUTCFullYear() !== Number(match[1])
+        || candidate.getUTCMonth() !== Number(match[2]) - 1
+        || candidate.getUTCDate() !== Number(match[3])
+      ) {
+        return res.status(400).json({ error: 'startDate and endDate must be valid civil dates' });
+      }
     }
 
     const data = await workoutService.getExecutionsByAluno(
@@ -296,4 +318,3 @@ router.get('/professor/workout-days', professorMiddleware, async (req: Request, 
 });
 
 export default router;
-

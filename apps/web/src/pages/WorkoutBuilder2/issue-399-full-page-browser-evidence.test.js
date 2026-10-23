@@ -101,6 +101,7 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
     const requests = [];
     const observations = [];
     const browserErrors = [];
+    let copyFailuresRemaining = 1;
     const previousApi = process.env.VITE_API_URL;
     const json = (res, status, body, origin) => {
       res.writeHead(status, {
@@ -152,6 +153,10 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
           return json(res, 200, clone(template), origin);
         }
         if (req.method === 'POST' && /^\/api\/v1\/workout\/templates\/[^/]+\/copy$/.test(pathname)) {
+          if (copyFailuresRemaining > 0) {
+            copyFailuresRemaining -= 1;
+            return json(res, 503, { error: 'Falha transitória controlada no replay #399' }, origin);
+          }
           const source = findTemplate(pathname.split('/')[5]);
           const targetWeek = Number(body.targetWeekNumber);
           const target = clone(source);
@@ -258,7 +263,12 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
           await page.type('input[aria-label*="Rep. máx."]', '12');
           await page.type('input[aria-label*="Carga (kg)"]', '32.5');
           await clickText('Copiar Semana');
-          await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Semana copiada com sucesso!') || document.querySelector('main')?.innerText.includes('Erro ao copiar semana'), { timeout: 20000 }).catch(() => {});
+          await page.waitForFunction(() => document.querySelector('[role="alert"]')?.innerText.includes('Erro ao copiar semana'), { timeout: 20000 });
+          await clickText('Tentar novamente');
+          // Success is announced with a browser dialog, not rendered into the
+          // page. The negative alert disappearing is the deterministic DOM
+          // observation that the retry completed without another copy error.
+          await page.waitForFunction(() => !document.querySelector('[role="alert"]')?.innerText.includes('Erro ao copiar semana'), { timeout: 20000 });
           await clickText('Liberar');
           await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Treino liberado com sucesso') || document.querySelector('main')?.innerText.includes('Erro ao liberar treino'), { timeout: 20000 }).catch(() => {});
           await page.reload({ waitUntil: 'domcontentloaded' });
@@ -281,7 +291,7 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
         observations.push({ viewport, observed, screenshot: { sha256: createHash('sha256').update(screenshot).digest('hex') }, passed: true });
       }
       expect(requests.some((request) => request.path.endsWith('/resistance-exercises'))).toBe(true);
-      expect(requests.some((request) => request.path.endsWith('/copy'))).toBe(true);
+      expect(requests.filter((request) => request.path.endsWith('/copy')).length).toBeGreaterThanOrEqual(2);
       expect(requests.some((request) => request.path.endsWith('/release'))).toBe(true);
       expect(browserErrors).toEqual([]);
     } finally {
