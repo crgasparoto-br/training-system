@@ -42,6 +42,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`product/consolidated-prescription-operational-integration.md`](product/consolidated-prescription-operational-integration.md): ponte por ID entre capacidades, biblioteca e Workout Builder sem publicação operacional na #319.
 - [`product/consolidated-prescription-operational-release.md`](product/consolidated-prescription-operational-release.md): comando #320 de liberação no Workout Builder, autorização, idempotência e rastreabilidade relacional.
 - [`product/consolidated-prescription-operational-traceability.md`](product/consolidated-prescription-operational-traceability.md): consulta #320 por IDs do Workout Builder até release, montagem, capacidades e fontes.
+- [`product/training-plan-canonical-flow.md`](product/training-plan-canonical-flow.md): fonte operacional, blocos e séries resistidas (#399).
 - [`product/student-centered-training-experience.md`](product/student-centered-training-experience.md): experiencia de corrida, musculacao e treino combinado centrada no aluno.
 - [`product/future-evolution-roadmap.md`](product/future-evolution-roadmap.md): recorte complementar da issue #139, subordinado ao roadmap canonico e preservado ate seus itens virarem issues especificas.
 - [`product/navigation-information-architecture.md`](product/navigation-information-architecture.md): navegacao por hubs, Aluno 360 e rollout.

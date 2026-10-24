@@ -1,0 +1,3 @@
+PostgreSQL 16.15; database issue399_audit; fixture synthetic; transaction rolled back.
+case=day_insert_on_released_template result=BLOCKED sqlstate=23514 message=released workout cannot receive new planning days
+temp_template rows after rollback: 0

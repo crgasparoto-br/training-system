@@ -32,6 +32,8 @@ export interface TrainingSessionExecutionSessionValues {
 
 export interface TrainingSessionExecutionItemValue {
   plannedUnitId: string;
+  /** Série planejada correspondente; nulo somente para unidades sem séries estruturadas. */
+  plannedSetId?: string | null;
   setNumber?: number;
   loadKg?: number | null;
   repetitions?: number | null;

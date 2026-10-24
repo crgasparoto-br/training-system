@@ -1,0 +1,13 @@
+DO
+DO
+DO
+  evidence   |          id          | repsMin | repsMax | loadKg | rir 
+-------------+----------------------+---------+---------+--------+-----
+ planned set | issue399-planned-set |       8 |      12 |   32.5 |   2
+(1 row)
+
+    evidence    |               id               |    plannedUnitId    |     plannedSetId     | loadKg | repetitions 
+----------------+--------------------------------+---------------------+----------------------+--------+-------------
+ execution item | issue399-linked-execution-item | issue399-exercise-3 | issue399-planned-set |   35.5 |          10
+(1 row)
+

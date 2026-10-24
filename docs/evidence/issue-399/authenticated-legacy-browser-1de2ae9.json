@@ -1,0 +1,99 @@
+{
+  "subjectSha": "1de2ae9dac1d19014b918a77d466efba810a2808",
+  "branch": "feat/399-resistance-blocks-sets",
+  "environment": "isolated PostgreSQL 17.6 and loopback-only API/web preview; synthetic account/data",
+  "login": "passed through /login",
+  "route": "/plans/cmvgug83o00h32xmevwnqjdhh/workout-builder/1/1",
+  "scenario": "released legacy exercise compatibility, responsive layout, and read-only state",
+  "observations": [
+    {
+      "route": "/plans/cmvgug83o00h32xmevwnqjdhh/workout-builder/1/1",
+      "audience": "synthetic authenticated professor",
+      "scenario": "released workout, legacy exercise in resistance tab",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "metrics": {
+        "width": 1440,
+        "scrollWidth": 1440,
+        "visibleLegacyExercise": true,
+        "legacyText": true,
+        "legacyDetailControl": true,
+        "legacyDetailDisabled": true,
+        "releaseVisible": true,
+        "releaseButtonDisabled": true,
+        "disabledFieldsets": 1,
+        "enabledInputs": 13,
+        "missingLabels": 0
+      },
+      "screenshot": {
+        "path": "authenticated-legacy-1440-1de2ae9.png",
+        "sha256": "577b5781a6553a7eea2609b915b4079012a75ff699112d3858ff642fa48d619c"
+      },
+      "passed": true
+    },
+    {
+      "route": "/plans/cmvgug83o00h32xmevwnqjdhh/workout-builder/1/1",
+      "audience": "synthetic authenticated professor",
+      "scenario": "released workout, legacy exercise in resistance tab",
+      "viewport": {
+        "width": 768,
+        "height": 900
+      },
+      "metrics": {
+        "width": 768,
+        "scrollWidth": 768,
+        "visibleLegacyExercise": true,
+        "legacyText": true,
+        "legacyDetailControl": true,
+        "legacyDetailDisabled": true,
+        "releaseVisible": true,
+        "releaseButtonDisabled": true,
+        "disabledFieldsets": 1,
+        "enabledInputs": 13,
+        "missingLabels": 0
+      },
+      "screenshot": {
+        "path": "authenticated-legacy-768-1de2ae9.png",
+        "sha256": "1399dba3e22829f3279ea3f8a17c739483bcd4d29266da03735b7e9db9c74b21"
+      },
+      "passed": true
+    },
+    {
+      "route": "/plans/cmvgug83o00h32xmevwnqjdhh/workout-builder/1/1",
+      "audience": "synthetic authenticated professor",
+      "scenario": "released workout, legacy exercise in resistance tab",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "metrics": {
+        "width": 390,
+        "scrollWidth": 390,
+        "visibleLegacyExercise": true,
+        "legacyText": true,
+        "legacyDetailControl": true,
+        "legacyDetailDisabled": true,
+        "releaseVisible": true,
+        "releaseButtonDisabled": true,
+        "disabledFieldsets": 1,
+        "enabledInputs": 13,
+        "missingLabels": 0
+      },
+      "screenshot": {
+        "path": "authenticated-legacy-390-1de2ae9.png",
+        "sha256": "9cff84fe73bc72e80c691fecd76f4c07d213be898235989afea3f3c86fb5bca1"
+      },
+      "passed": true
+    }
+  ],
+  "apiFailures": [
+    {
+      "status": 404,
+      "path": "/api/v1/periodization/matrix/cmvgug83o00h32xmevwnqjdhh"
+    }
+  ],
+  "browserErrors": [],
+  "passed": true
+}

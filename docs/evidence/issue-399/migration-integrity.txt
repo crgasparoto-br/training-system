@@ -1,0 +1,13 @@
+postgres|PostgreSQL 17.6 (Debian 17.6-2.pgdg13+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+applied_migrations|153
+latest_migration|20261019190000_issue_399_resistance_blocks|2026-10-20 15:30:58.709448+00
+new_tables|WorkoutExerciseBlock
+new_tables|WorkoutExercisePlannedSet
+legacy_exercise|issue399-exercise-1|issue399-day-1|principal|1|3|10|t
+legacy_workout_execution|issue399-legacy-execution|issue399-exercise-1|3|10|40.5
+legacy_session_item|issue399-legacy-session-item|issue399-legacy-session|issue399-exercise-1||42.5|10
+legacy_session_item|issue399-started-session-item|issue399-started-session|issue399-exercise-2||25.25|12
+fk_constraints|5
+migration_triggers|issue399_freeze_blocks|WorkoutExerciseBlock
+migration_triggers|issue399_freeze_sets|WorkoutExercisePlannedSet
+migration_triggers|issue399_match_execution_set_trigger|WorkoutSessionExecutionItem

@@ -1,0 +1,14 @@
+Pager usage is off.
+BEGIN
+psql:/tmp/audit-399/direct-immutability-final.sql:23: NOTICE:  case=template_update result=BLOCKED sqlstate=23514 message=released workout template planning is immutable
+psql:/tmp/audit-399/direct-immutability-final.sql:23: NOTICE:  case=template_delete result=BLOCKED sqlstate=23514 message=released workout template is immutable
+psql:/tmp/audit-399/direct-immutability-final.sql:23: NOTICE:  case=day_update result=BLOCKED sqlstate=23514 message=released workout day planning is immutable
+psql:/tmp/audit-399/direct-immutability-final.sql:23: NOTICE:  case=day_delete result=BLOCKED sqlstate=23514 message=released workout day is immutable
+psql:/tmp/audit-399/direct-immutability-final.sql:23: NOTICE:  case=exercise_update result=BLOCKED sqlstate=23514 message=released workout exercise is immutable
+psql:/tmp/audit-399/direct-immutability-final.sql:23: NOTICE:  case=exercise_delete result=BLOCKED sqlstate=23514 message=released workout exercise is immutable
+psql:/tmp/audit-399/direct-immutability-final.sql:23: NOTICE:  case=block_update result=BLOCKED sqlstate=23514 message=planned resistance structure is frozen
+psql:/tmp/audit-399/direct-immutability-final.sql:23: NOTICE:  case=block_delete result=BLOCKED sqlstate=23514 message=planned resistance structure is frozen
+psql:/tmp/audit-399/direct-immutability-final.sql:23: NOTICE:  case=set_update result=BLOCKED sqlstate=23514 message=planned resistance structure is frozen
+psql:/tmp/audit-399/direct-immutability-final.sql:23: NOTICE:  case=set_delete result=BLOCKED sqlstate=23514 message=planned resistance structure is frozen
+DO
+ROLLBACK

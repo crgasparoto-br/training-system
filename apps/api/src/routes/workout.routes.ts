@@ -1,7 +1,88 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { workoutService } from '../modules/workout/workout.service.js';
+import { classifyResistanceWriteError, sanitizeWorkoutMutation, ResistanceStructureValidationError } from '../modules/workout/resistance-structure.domain.js';
+import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
+import { prismaRuntimeClient } from '../common/prisma-runtime-client.js';
 
 const router: Router = Router();
+
+/** Keep raw Prisma/SQL errors in server logs, never in legacy HTTP responses. */
+function sendSafeWorkoutError(res: Response, error: unknown) {
+  const mapped = classifyResistanceWriteError(error);
+  if (mapped.status !== 500) {
+    return res.status(mapped.status).json(mapped.body);
+  }
+  return res.status(500).json({
+    code: 'WORKOUT_OPERATION_FAILED',
+    error: 'Não foi possível concluir a operação de treino.',
+  });
+}
+
+/**
+ * Protect every Workout Builder route, including the legacy exercise API.
+ * Route parameters and body ids never grant access across contracts.
+ */
+router.use(authMiddleware, professorMiddleware);
+router.use(async (req, res, next) => {
+  try {
+    const contractId = req.user?.contractId;
+    if (!contractId) return res.status(403).json({ code: 'FORBIDDEN', error: 'Acesso negado.' });
+    const [resource, id] = req.path.split('/').filter(Boolean);
+    let allowed = false;
+    if (resource === 'templates') {
+      if (id === 'get-or-create' && req.method === 'POST') {
+        allowed = typeof req.body?.planId === 'string' && Boolean(await prismaRuntimeClient.trainingPlan.findFirst({
+          where: { id: req.body.planId, aluno: { contractId } }, select: { id: true },
+        }));
+      } else if (id) {
+        allowed = Boolean(await prismaRuntimeClient.workoutTemplate.findFirst({
+          where: { id, plan: { aluno: { contractId } } }, select: { id: true },
+        }));
+      }
+    } else if (resource === 'days') {
+      if (id === 'get-or-create' && req.method === 'POST') {
+        allowed = typeof req.body?.templateId === 'string' && Boolean(await prismaRuntimeClient.workoutTemplate.findFirst({
+          where: { id: req.body.templateId, plan: { aluno: { contractId } } }, select: { id: true },
+        }));
+      } else if (id) {
+        allowed = Boolean(await prismaRuntimeClient.workoutDay.findFirst({
+          where: { id, template: { plan: { aluno: { contractId } } } }, select: { id: true },
+        }));
+      }
+    } else if (resource === 'exercises') {
+      if (!id || id === 'reorder') {
+        const dayId = req.method === 'GET' ? req.query.workoutDayId : req.body?.workoutDayId;
+        allowed = typeof dayId === 'string' && Boolean(await prismaRuntimeClient.workoutDay.findFirst({
+          where: { id: dayId, template: { plan: { aluno: { contractId } } } }, select: { id: true },
+        }));
+      } else {
+        allowed = Boolean(await prismaRuntimeClient.workoutExercise.findFirst({
+          where: { id, workoutDay: { template: { plan: { aluno: { contractId } } } } },
+          select: { id: true },
+        }));
+        if (allowed && req.body?.workoutDayId !== undefined) {
+          allowed = typeof req.body.workoutDayId === 'string' && Boolean(await prismaRuntimeClient.workoutDay.findFirst({
+            where: { id: req.body.workoutDayId, template: { plan: { aluno: { contractId } } } },
+            select: { id: true },
+          }));
+        }
+      }
+      if (allowed && (req.method === 'POST' || req.method === 'PUT') && id !== 'reorder'
+        && req.body?.exerciseId !== undefined) {
+        allowed = typeof req.body.exerciseId === 'string' && Boolean(await prismaRuntimeClient.exerciseLibrary.findFirst({
+          where: { id: req.body.exerciseId, contractId }, select: { id: true },
+        }));
+      }
+    }
+    if (!allowed) {
+      return res.status(404).json({ code: 'RESISTANCE_DAY_NOT_FOUND', error: 'Treino não encontrado.' });
+    }
+    next();
+  } catch (error) {
+    console.error('Error validating workout contract scope:', error);
+    return res.status(500).json({ code: 'WORKOUT_SCOPE_CHECK_FAILED', error: 'Não foi possível verificar o acesso.' });
+  }
+});
 
 const MONTH_INDEX: Record<string, number> = {
   jan: 1,
@@ -161,14 +242,21 @@ router.post('/templates/get-or-create', async (req, res) => {
       return res.status(400).json({ error: 'Invalid weekStartDate' });
     }
 
-    const template = await workoutService.getOrCreateTemplate({
+    const template = await workoutService.getOrCreateTemplate(sanitizeWorkoutMutation({
       ...req.body,
       weekStartDate,
-    });
+    }, 'template', 'create'));
     res.json(template);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in get-or-create template:', error);
-    res.status(500).json({ error: error.message });
+    const publicError = classifyResistanceWriteError(error);
+    if (publicError.status === 500) {
+      return res.status(500).json({
+        code: 'WORKOUT_TEMPLATE_LOAD_FAILED',
+        error: 'Não foi possível carregar o treino.',
+      });
+    }
+    return res.status(publicError.status).json(publicError.body);
   }
 });
 
@@ -179,18 +267,18 @@ router.get('/templates/:id', async (req, res) => {
     res.json(template);
   } catch (error: any) {
     console.error('Error getting template:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
 // Update template
 router.put('/templates/:id', async (req, res) => {
   try {
-    const template = await workoutService.updateTemplate(req.params.id, req.body);
+    const template = await workoutService.updateTemplate(req.params.id, sanitizeWorkoutMutation(req.body, 'template'));
     res.json(template);
   } catch (error: any) {
     console.error('Error updating template:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -201,7 +289,7 @@ router.delete('/templates/:id', async (req, res) => {
     res.status(204).send();
   } catch (error: any) {
     console.error('Error deleting template:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -212,7 +300,7 @@ router.post('/templates/:id/release', async (req, res) => {
     res.json(template);
   } catch (error: any) {
     console.error('Error releasing template:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -224,7 +312,7 @@ router.post('/templates/:id/copy', async (req, res) => {
       return res.status(400).json({ error: 'Invalid targetWeekStartDate' });
     }
     const targetWeekNumber = Number(req.body.targetWeekNumber);
-    if (!Number.isFinite(targetWeekNumber) || targetWeekNumber <= 0) {
+    if (!Number.isInteger(targetWeekNumber) || targetWeekNumber <= 0) {
       return res.status(400).json({ error: 'Invalid targetWeekNumber' });
     }
     const template = await workoutService.copyTemplate(
@@ -233,9 +321,36 @@ router.post('/templates/:id/copy', async (req, res) => {
       targetWeekStartDate
     );
     res.json(template);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error copying template:', error);
-    res.status(500).json({ error: error.message });
+    const publicError = classifyResistanceWriteError(error);
+    if (publicError.status === 500) {
+      return res.status(500).json({ code: 'WORKOUT_COPY_FAILED', error: 'Não foi possível copiar a semana.' });
+    }
+    return res.status(publicError.status).json(publicError.body);
+  }
+});
+
+// Copy only one modality atomically; the destination week is never left partial.
+router.post('/templates/:id/copy-sections', async (req, res) => {
+  try {
+    const targetWeekStartDate = parseRequiredDate(req.body?.targetWeekStartDate);
+    const targetWeekNumber = Number(req.body?.targetWeekNumber);
+    const mode = req.body?.mode;
+    if (!targetWeekStartDate || !Number.isInteger(targetWeekNumber) || targetWeekNumber <= 0
+      || (mode !== 'cyclic' && mode !== 'resistance')) {
+      return res.status(400).json({ code: 'INVALID_RESISTANCE_STRUCTURE', error: 'Dados de cópia inválidos.' });
+    }
+    const template = await workoutService.copyTemplateSections(
+      req.params.id,
+      targetWeekNumber,
+      targetWeekStartDate,
+      mode,
+    );
+    res.json(template);
+  } catch (error: unknown) {
+    console.error('Error copying workout sections:', error);
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -246,11 +361,11 @@ router.post('/templates/:id/copy', async (req, res) => {
 // Get or create day
 router.post('/days/get-or-create', async (req, res) => {
   try {
-    const day = await workoutService.getOrCreateDay(req.body);
+    const day = await workoutService.getOrCreateDay(sanitizeWorkoutMutation(req.body, 'day', 'create'));
     res.json(day);
   } catch (error: any) {
     console.error('Error in get-or-create day:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -261,18 +376,18 @@ router.get('/days/:id', async (req, res) => {
     res.json(day);
   } catch (error: any) {
     console.error('Error getting day:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
 // Update day
 router.put('/days/:id', async (req, res) => {
   try {
-    const day = await workoutService.updateDay(req.params.id, req.body);
+    const day = await workoutService.updateDay(req.params.id, sanitizeWorkoutMutation(req.body, 'day'));
     res.json(day);
   } catch (error: any) {
     console.error('Error updating day:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
@@ -283,22 +398,41 @@ router.delete('/days/:id', async (req, res) => {
     res.status(204).send();
   } catch (error: any) {
     console.error('Error deleting day:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
 // Copy day
 router.post('/days/:id/copy', async (req, res) => {
   try {
-    const day = await workoutService.copyDay(
-      req.params.id,
-      req.body.targetDayOfWeek,
-      req.body.targetDate
-    );
+    const targetDayOfWeek = Number(req.body?.targetDayOfWeek);
+    const targetDate = parseRequiredDate(req.body?.targetDate);
+    if (!Number.isInteger(targetDayOfWeek) || targetDayOfWeek < 1 || targetDayOfWeek > 7 || !targetDate) {
+      return res.status(400).json({ code: 'INVALID_RESISTANCE_STRUCTURE', error: 'Dados de cópia inválidos.' });
+    }
+    const day = await workoutService.copyDay(req.params.id, targetDayOfWeek, targetDate);
     res.json(day);
   } catch (error: any) {
     console.error('Error copying day:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
+  }
+});
+
+// Replace all resistance exercises in a canonical WorkoutDay atomically.
+router.put('/days/:id/resistance-exercises', async (req, res) => {
+  try {
+    const contractId = req.user?.contractId;
+    if (!contractId) {
+      return res.status(403).json({ error: 'Acesso negado.', code: 'FORBIDDEN' });
+    }
+    if (!Array.isArray(req.body?.exercises)) throw new ResistanceStructureValidationError('Lista de exercícios inválida.');
+    const safe = (req.body.exercises as unknown[]).map((x) => sanitizeWorkoutMutation(x, 'exercise', 'create')) as Parameters<typeof workoutService.replaceDayResistanceExercises>[1];
+    const exercises = await workoutService.replaceDayResistanceExercises(req.params.id, safe, contractId);
+    res.json(exercises);
+  } catch (error: any) {
+    console.error('Error replacing resistance exercises:', error);
+    const response = classifyResistanceWriteError(error);
+    res.status(response.status).json(response.body);
   }
 });
 
@@ -317,57 +451,60 @@ router.get('/exercises', async (req, res) => {
     res.json(exercises);
   } catch (error: any) {
     console.error('Error getting exercises:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
 // Add exercise
 router.post('/exercises', async (req, res) => {
   try {
-    const exercise = await workoutService.addExercise(req.body);
+    const exercise = await workoutService.addExercise(sanitizeWorkoutMutation(req.body, 'exercise', 'create'), req.user!.contractId);
     res.status(201).json(exercise);
   } catch (error: any) {
     console.error('Error adding exercise:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Update exercise
-router.put('/exercises/:id', async (req, res) => {
-  try {
-    const exercise = await workoutService.updateExercise(req.params.id, req.body);
-    res.json(exercise);
-  } catch (error: any) {
-    console.error('Error updating exercise:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Delete exercise
-router.delete('/exercises/:id', async (req, res) => {
-  try {
-    await workoutService.deleteExercise(req.params.id);
-    res.status(204).send();
-  } catch (error: any) {
-    console.error('Error deleting exercise:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
 
 // Reorder exercises
 router.put('/exercises/reorder', async (req, res) => {
   try {
-    const { workoutDayId, section, exerciseIds } = req.body as {
-      workoutDayId: string;
-      section: string;
-      exerciseIds: string[];
-    };
-    await workoutService.reorderExercises(workoutDayId, section, exerciseIds);
+    const { workoutDayId, section, exerciseIds } = req.body ?? {};
+    if (typeof workoutDayId !== 'string' || !workoutDayId.trim()
+      || typeof section !== 'string' || !section.trim()
+      || !Array.isArray(exerciseIds)
+      || exerciseIds.some((id: unknown) => typeof id !== 'string' || !id.trim())) {
+      throw new ResistanceStructureValidationError('Dados de ordenação inválidos.');
+    }
+    await workoutService.reorderExercises(workoutDayId, section, exerciseIds, req.user!.contractId);
     res.status(204).send();
   } catch (error: any) {
     console.error('Error reordering exercises:', error);
-    res.status(500).json({ error: error.message });
+    return sendSafeWorkoutError(res, error);
   }
 });
+
+// Update exercise
+router.put('/exercises/:id', async (req, res) => {
+  try {
+    const exercise = await workoutService.updateExercise(req.params.id, sanitizeWorkoutMutation(req.body, 'exercise'), req.user!.contractId);
+    res.json(exercise);
+  } catch (error: any) {
+    console.error('Error updating exercise:', error);
+    return sendSafeWorkoutError(res, error);
+  }
+});
+
+// Delete exercise
+router.delete('/exercises/:id', async (req, res) => {
+  try {
+    await workoutService.deleteExercise(req.params.id, req.user!.contractId);
+    res.status(204).send();
+  } catch (error: any) {
+    console.error('Error deleting exercise:', error);
+    return sendSafeWorkoutError(res, error);
+  }
+});
+
 
 export default router;

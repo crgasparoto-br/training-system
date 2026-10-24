@@ -83,6 +83,15 @@ function normalizeItems(items: TrainingSessionExecutionItemValue[] | undefined):
   return items.map((item) => {
     const plannedUnitId = item.plannedUnitId.trim();
     if (!plannedUnitId) throw new WorkoutSessionExecutionInputError('Identificador da unidade planejada é obrigatório.');
+    const hasPlannedSetId = item.plannedSetId !== undefined;
+    const plannedSetId = item.plannedSetId === undefined
+      ? undefined
+      : item.plannedSetId === null
+        ? null
+        : item.plannedSetId.trim();
+    if (item.plannedSetId !== undefined && item.plannedSetId !== null && !plannedSetId) {
+      throw new WorkoutSessionExecutionInputError('Identificador da série planejada inválido.');
+    }
     const setNumber = item.setNumber ?? 0;
     if (!Number.isInteger(setNumber) || setNumber < 0) throw new WorkoutSessionExecutionInputError('Número da série executada inválido.');
     const key = `${plannedUnitId}:${setNumber}`;
@@ -94,6 +103,7 @@ function normalizeItems(items: TrainingSessionExecutionItemValue[] | undefined):
     };
     const normalized: TrainingSessionExecutionItemValue = {
       plannedUnitId,
+      ...(hasPlannedSetId ? { plannedSetId } : {}),
       setNumber,
       loadKg: nonNegative(item.loadKg, 'Carga executada'),
       repetitions: nonNegative(item.repetitions, 'Repetições executadas', true),
@@ -206,6 +216,7 @@ type ExecutionProjectionRow = {
   sessionValues: Prisma.JsonValue;
   items: Array<{
     plannedUnitId: string;
+    plannedSetId: string | null;
     setNumber: number;
     loadKg: number | null;
     repetitions: number | null;
@@ -238,6 +249,7 @@ export function projectWorkoutSessionExecution(
     sessionValues: (row.sessionValues ?? {}) as TrainingSessionExecutionSessionValues,
     items: row.items.map((item) => ({
       plannedUnitId: item.plannedUnitId,
+      plannedSetId: item.plannedSetId,
       setNumber: item.setNumber,
       loadKg: item.loadKg,
       repetitions: item.repetitions,
@@ -262,6 +274,21 @@ async function validatePlannedUnits(
     select: { id: true },
   });
   if (found.length !== ids.length) throw new WorkoutSessionExecutionInputError('Uma ou mais unidades executadas não pertencem ao treino planejado.');
+
+  const setIds = [...new Set(items.flatMap((item) => item.plannedSetId ? [item.plannedSetId] : []))];
+  if (!setIds.length) return;
+  const plannedSets = await tx.workoutExercisePlannedSet.findMany({
+    where: { id: { in: setIds } },
+    select: { id: true, block: { select: { workoutExerciseId: true } } },
+  });
+  const setsById = new Map(plannedSets.map((set) => [set.id, set]));
+  for (const item of items) {
+    if (!item.plannedSetId) continue;
+    const plannedSet = setsById.get(item.plannedSetId);
+    if (!plannedSet || plannedSet.block.workoutExerciseId !== item.plannedUnitId) {
+      throw new WorkoutSessionExecutionInputError('Uma ou mais séries planejadas não pertencem à unidade executada.');
+    }
+  }
 }
 
 async function persistValues(
@@ -291,6 +318,7 @@ async function persistValues(
       create: {
         executionId,
         plannedUnitId: item.plannedUnitId,
+        plannedSetId: item.plannedSetId ?? null,
         setNumber,
         loadKg: item.loadKg,
         repetitions: item.repetitions,
@@ -301,6 +329,7 @@ async function persistValues(
         heartRateZone: item.heartRateZone,
       },
       update: {
+        ...(item.plannedSetId !== undefined ? { plannedSetId: item.plannedSetId } : {}),
         loadKg: item.loadKg,
         repetitions: item.repetitions,
         durationSec: item.durationSec,
