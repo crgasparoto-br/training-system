@@ -108,6 +108,7 @@ export default function WorkoutBuilder2() {
   const [copyRetryWeek, setCopyRetryWeek] = useState<number | null>(null);
   const [releaseError, setReleaseError] = useState<{ weekNumber: number; message: string } | null>(null);
   const [isNavigatingBack, setIsNavigatingBack] = useState(false);
+  const [interactionLocked, setInteractionLocked] = useState(false);
   const [copyModeByWeek, setCopyModeByWeek] = useState<Record<number, { cyclic: boolean; resistance: boolean }>>({});
   const [templateDataByWeek, setTemplateDataByWeek] = useState<Record<number, any>>({});
   const [templateRefreshByWeek, setTemplateRefreshByWeek] = useState<Record<number, number>>({});
@@ -176,6 +177,7 @@ export default function WorkoutBuilder2() {
   const activeOperationsRef = useRef(0);
   const copyActionInFlightRef = useRef(false);
   const releaseActionInFlightRef = useRef(false);
+  const contextNavigationInFlightRef = useRef(false);
   const beginOperation = () => {
     activeOperationsRef.current += 1;
     setSaving(true);
@@ -231,14 +233,26 @@ export default function WorkoutBuilder2() {
   }, [weekParam]);
 
   const navigateToMesocycle = useCallback((nextMesocycle: number) => {
-    if (!planId) return;
+    if (!planId || contextNavigationInFlightRef.current || nextMesocycle === mesocycleNumber) return;
     const weekNumber = resolveWeekParam();
+    const operationMesocycle = mesocycleNumber;
+    contextNavigationInFlightRef.current = true;
+    setInteractionLocked(true);
     void flushAllPendingSavesRef.current()
-      .catch(() => undefined)
-      .finally(() => {
+      .then(() => {
+        if (builderContextRef.current.planId !== planId || builderContextRef.current.mesocycleNumber !== operationMesocycle) return;
         navigate(`/plans/${planId}/workout-builder/${nextMesocycle}/${weekNumber}`, { replace: true });
+      })
+      .catch((error) => {
+        console.error('Erro ao salvar antes de trocar o mesociclo:', error);
+        setSaveError('Não foi possível salvar o mesociclo atual. Tente novamente antes de trocar de contexto.');
+        setSaveErrorKey(null);
+      })
+      .finally(() => {
+        contextNavigationInFlightRef.current = false;
+        setInteractionLocked(false);
       });
-  }, [navigate, planId, resolveWeekParam]);
+  }, [mesocycleNumber, navigate, planId, resolveWeekParam]);
 
   const hasAppliedStoredMesoRef = useRef(false);
 
@@ -641,6 +655,8 @@ export default function WorkoutBuilder2() {
                 const stored = localStorage.getItem(cacheKey);
                 const parsed = stored ? JSON.parse(stored) : null;
                 if (
+                  !templateFromApi.released
+                  &&
                   parsed?.status === 'pending-draft'
                   && parsed.data?.id === templateFromApi.id
                   && parsed.data?.planId === planId
@@ -655,11 +671,15 @@ export default function WorkoutBuilder2() {
                     planUpdatedAt: plan.updatedAt,
                   };
                 }
+                if (templateFromApi.released) {
+                  localStorage.removeItem(cacheKey);
+                  delete pendingSaveRef.current[buildSaveKey(mesocycleNumber, weekNumber, planId)];
+                }
               } catch {
                 // Recovery storage is optional; the API remains authoritative when unreadable.
               }
             }
-            const authoritativeTemplate = recoveredDraft
+            const authoritativeTemplate = recoveredDraft && !templateFromApi.released
               ? { ...templateFromApi, ...recoveredDraft, id: templateFromApi.id }
               : templateFromApi;
             const resistedFromApi = buildResistedExercisesFromTemplate(authoritativeTemplate);
@@ -709,6 +729,7 @@ export default function WorkoutBuilder2() {
   };
 
   const handleDataChange = (weekNumber: number, newData: any) => {
+    if (interactionLocked || templateDataByWeek[weekNumber]?.released) return;
     const merged = {
       ...(templateDataByWeek[weekNumber] || {}),
       ...newData,
@@ -979,6 +1000,7 @@ export default function WorkoutBuilder2() {
     if (!confirm(confirmMessage)) return;
     if (copyActionInFlightRef.current) return;
     copyActionInFlightRef.current = true;
+    setInteractionLocked(true);
 
     try {
       beginOperation();
@@ -1064,6 +1086,7 @@ export default function WorkoutBuilder2() {
     } finally {
       endOperation();
       copyActionInFlightRef.current = false;
+      setInteractionLocked(false);
     }
   };
   const toggleSummaryVisibility = (
@@ -1095,6 +1118,7 @@ export default function WorkoutBuilder2() {
     }
     if (releaseActionInFlightRef.current) return;
     releaseActionInFlightRef.current = true;
+    setInteractionLocked(true);
     const operationPlanId = planId;
     const operationMesocycle = mesocycleNumber;
     const operationPlanUpdatedAt = planData?.updatedAt;
@@ -1131,12 +1155,14 @@ export default function WorkoutBuilder2() {
     } finally {
       endOperation();
       releaseActionInFlightRef.current = false;
+      setInteractionLocked(false);
     }
   };
 
   const handleBack = async () => {
     if (isNavigatingBack) return;
     setIsNavigatingBack(true);
+    setInteractionLocked(true);
     try {
       await flushAllPendingSavesRef.current();
       navigate(-1);
@@ -1146,6 +1172,7 @@ export default function WorkoutBuilder2() {
       setSaveErrorKey(null);
     } finally {
       setIsNavigatingBack(false);
+      setInteractionLocked(false);
     }
   };
 
@@ -1545,15 +1572,8 @@ export default function WorkoutBuilder2() {
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={() => {
-                  setMesocycleNumber((prev) => {
-                    const next = Math.max(1, prev - 1);
-                    if (next !== prev) {
-                      navigateToMesocycle(next);
-                    }
-                    return next;
-                  });
-                }}
+                onClick={() => navigateToMesocycle(Math.max(1, mesocycleNumber - 1))}
+                disabled={interactionLocked}
                 className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -1563,15 +1583,14 @@ export default function WorkoutBuilder2() {
                 Mesociclo
                 <select
                   value={mesocycleNumber}
+                  disabled={interactionLocked}
                   onChange={(e) => {
                     const value = parseInt(e.target.value);
                     if (!Number.isFinite(value)) {
-                      setMesocycleNumber(1);
                       navigateToMesocycle(1);
                       return;
                     }
                     const next = Math.min(Math.max(1, value), totalMesocycles);
-                    setMesocycleNumber(next);
                     navigateToMesocycle(next);
                   }}
                   className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1585,15 +1604,8 @@ export default function WorkoutBuilder2() {
               </label>
               <button
                 type="button"
-                onClick={() => {
-                  setMesocycleNumber((prev) => {
-                    const next = Math.min(totalMesocycles, prev + 1);
-                    if (next !== prev) {
-                      navigateToMesocycle(next);
-                    }
-                    return next;
-                  });
-                }}
+                onClick={() => navigateToMesocycle(Math.min(totalMesocycles, mesocycleNumber + 1))}
+                disabled={interactionLocked}
                 className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 Próximo Mesociclo
@@ -1648,7 +1660,8 @@ export default function WorkoutBuilder2() {
           const fallbackWeekStartDate = resolveWeekStartDate(mesocycleNumber, weekNumber);
           const persistedWeekStartDate = weekTemplateData?.weekStartDate ?? fallbackWeekStartDate;
           const dayEditability = buildWeekDayEditability(persistedWeekStartDate);
-          const weekEditable = !weekTemplateData?.released && dayEditability.some(Boolean);
+          const weekEditable = !interactionLocked && !weekTemplateData?.released && dayEditability.some(Boolean);
+          const weekSaveKey = buildSaveKey(mesocycleNumber, weekNumber, planId);
           return (
             <div
               key={weekNumber}
@@ -1686,6 +1699,7 @@ export default function WorkoutBuilder2() {
                           }))
                         }
                         className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                        disabled={interactionLocked}
                       />
                       Cíclico
                     </label>
@@ -1703,6 +1717,7 @@ export default function WorkoutBuilder2() {
                           }))
                         }
                         className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                        disabled={interactionLocked}
                       />
                       Resistido
                     </label>
@@ -1732,7 +1747,7 @@ export default function WorkoutBuilder2() {
                   <button
                     ref={registerWorkoutGuideButtonRef('copyAction', weekNumber)}
                     onClick={() => handleCopyWeek(weekNumber)}
-                    disabled={saving}
+                    disabled={saving || interactionLocked}
                     className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-gray-700 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                       isWorkoutGuideStep(2, weekNumber)
                         ? 'border-sky-300 bg-sky-50 shadow-sm'
@@ -1746,7 +1761,7 @@ export default function WorkoutBuilder2() {
                   <button
                     ref={registerWorkoutGuideButtonRef('releaseAction', weekNumber)}
                     onClick={() => handleRelease(weekNumber)}
-                    disabled={saving || weekTemplateData?.released}
+                    disabled={saving || interactionLocked || weekTemplateData?.released}
                     className={`flex items-center gap-2 rounded-lg px-4 py-2 text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                       isWorkoutGuideStep(3, weekNumber)
                         ? 'bg-sky-600 shadow-sm hover:bg-sky-700'
@@ -1922,6 +1937,7 @@ export default function WorkoutBuilder2() {
                   >
                     <button
                       onClick={() => setActiveTab('cyclic')}
+                      disabled={interactionLocked}
                       className={`px-4 py-3 font-medium transition-colors relative ${
                         activeTab === 'cyclic'
                           ? 'text-blue-600'
@@ -1937,6 +1953,7 @@ export default function WorkoutBuilder2() {
 
                     <button
                       onClick={() => setActiveTab('resistance')}
+                      disabled={interactionLocked}
                       className={`px-4 py-3 font-medium transition-colors relative ${
                         activeTab === 'resistance'
                           ? 'text-blue-600'
@@ -1953,17 +1970,16 @@ export default function WorkoutBuilder2() {
                 </div>
 
                 <div className="p-6">
-                  {saveError && (
+                  {saveError && saveErrorKey === weekSaveKey && (
                     <p role="alert" className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                       <span>{saveError}</span>
-                      {saveErrorKey === buildSaveKey(mesocycleNumber, weekNumber)
-                        && pendingSaveRef.current[saveErrorKey]
+                      {pendingSaveRef.current[weekSaveKey]
                         && (
                         <button
                           type="button"
                           className="ml-3 rounded-md border border-destructive/40 px-2 py-1 font-medium hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={saving}
-                          onClick={() => void handleSave(pendingSaveRef.current[saveErrorKey], weekNumber).catch(() => undefined)}
+                          onClick={() => void handleSave(pendingSaveRef.current[weekSaveKey], weekNumber).catch(() => undefined)}
                         >
                           Tentar novamente
                         </button>
@@ -1975,7 +1991,7 @@ export default function WorkoutBuilder2() {
                       key={`cyclic-${weekTemplateData?.id ?? 'new'}-${weekNumber}-${mesocycleNumber}`}
                       templateData={weekTemplateData}
                       weekStartDateOverride={persistedWeekStartDate}
-                      dayEditability={dayEditability.map((editable) => editable && !weekTemplateData?.released)}
+                      dayEditability={dayEditability.map((editable) => editable && !weekTemplateData?.released && !interactionLocked)}
                       weekEditable={weekEditable}
                       planId={planId}
                       alunoData={alunoData}
@@ -1991,7 +2007,7 @@ export default function WorkoutBuilder2() {
                       key={`resistance-${weekTemplateData?.id ?? 'new'}-${weekNumber}-${mesocycleNumber}-${templateRefreshByWeek[weekNumber] ?? 0}`}
                       templateData={weekTemplateData}
                       weekStartDateOverride={persistedWeekStartDate}
-                      dayEditability={dayEditability}
+                      dayEditability={dayEditability.map((editable) => editable && !interactionLocked)}
                       weekEditable={weekEditable}
                       resistedSummary={resistedSummaryByWeek[weekNumber] || null}
                       planStartDate={planData?.startDate}

@@ -199,3 +199,14 @@ A migration `20261022105000_issue_399_legacy_execution_guards` fecha a superfíc
 A migration `20261023100000_issue_399_execution_serialization` redefine os guards finais para tomar o lock do `WorkoutDay` canônico na mesma ordem usada pelo início da execução. Isso fecha a janela entre o preflight de planejamento e a confirmação de uma execução concorrente. O mesmo migration cria a proteção do ledger `WorkoutSessionExecutionItem`: medições podem ser atualizadas durante a execução, mas identidade, `plannedUnitId`, `plannedSetId`, `setNumber` e remoção ficam congelados depois que a sessão deixa `not_started`.
 
 O script `scripts/verify-issue-399-existing-data.sh` aplica a cadeia completa em um banco isolado que primeiro recebe um conjunto desidentificado de `WorkoutTemplate`, `WorkoutDay`, `WorkoutExercise` e `WorkoutExecution` legados. Após as migrations da issue, ele confirma a preservação das linhas e a existência das tabelas de blocos/séries e da referência `plannedSetId`. O workflow crítico executa esse replay além do deploy normal, sem usar dados produtivos.
+
+A migration `20261024100000_issue_399_resistance_structure_integrity` reforça a fronteira
+de blocos e séries com um trigger seguro por tabela. O trigger resolve o exercício
+antigo e o novo, toma lock ordenado dos `WorkoutDay` envolvidos e verifica que ambos
+permanecem no mesmo aluno/contrato e no catálogo do contrato do plano. Assim, um
+`UPDATE` SQL que transfira um bloco ou uma série entre grafos distintos falha mesmo
+quando os dois templates ainda estão em draft; a operação não deixa escrita parcial.
+O mesmo guard relê release, execução iniciada, histórico legado e itens executados
+antes de permitir mutações. A integração adversarial mantém uma transação de início
+com lock do dia aberta e confirma que a inserção estrutural concorrente aguarda o
+commit e então é rejeitada.

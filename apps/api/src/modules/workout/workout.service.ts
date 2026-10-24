@@ -317,6 +317,13 @@ async function lockWorkoutTemplatePlanningMutable(
   templateId: string
 ) {
   await tx.$queryRaw(Prisma.sql`
+    SELECT t."id"
+    FROM "WorkoutTemplate" t
+    WHERE t."id" = ${templateId}
+    FOR UPDATE
+  `);
+
+  await tx.$queryRaw(Prisma.sql`
     SELECT wd."id"
     FROM "WorkoutDay" wd
     WHERE wd."templateId" = ${templateId}
@@ -345,20 +352,27 @@ async function withWorkoutDayPlanningMutation<T>(
   workoutDayId: string,
   mutation: (tx: Prisma.TransactionClient) => Promise<T>
 ) {
-  try {
-    return await prisma.$transaction(async (tx) => {
-      await lockWorkoutDayPlanningMutable(tx, workoutDayId);
-      return mutation(tx);
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-  } catch (error) {
-    if (isSerializableTransactionConflict(error)) {
+  let retries = 0;
+  while (true) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        await lockWorkoutDayPlanningMutable(tx, workoutDayId);
+        return mutation(tx);
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (!isSerializableTransactionConflict(error)) throw error;
       const execution = await prisma.workoutSessionExecution.findUnique({
         where: { workoutDayId },
         select: { status: true },
       });
       if (execution && execution.status !== 'not_started') throw new WorkoutPlanningLockedError();
+      if (retries < 4) {
+        retries += 1;
+        await new Promise((resolve) => setTimeout(resolve, retries * 25));
+        continue;
+      }
+      throw error;
     }
-    throw error;
   }
 }
 
@@ -377,7 +391,7 @@ async function withWorkoutTemplatePlanningMutation<T>(
       if (!isSerializableTransactionConflict(error)) {
         throw error;
       }
-      if (retries < 2) {
+      if (retries < 4) {
         retries += 1;
         await new Promise((resolve) => setTimeout(resolve, retries * 25));
         continue;

@@ -103,6 +103,7 @@ suite('Issue #399 - fluxo full-page contra API real', () => {
     let browser;
     const responses = [];
     const browserErrors = [];
+    const apiLogs = [];
     const observations = [];
     const apiPort = Number(process.env.ISSUE_399_REAL_API_PORT || 19193);
     const apiOrigin = `http://127.0.0.1:${apiPort}`;
@@ -121,8 +122,6 @@ suite('Issue #399 - fluxo full-page contra API real', () => {
       const template = await prisma.workoutTemplate.create({ data: { id: ids.template, planId: plan.id, mesocycleNumber: 1, weekNumber: 1, weekStartDate: new Date('2026-10-05T12:00:00.000Z') } });
       const day = await prisma.workoutDay.create({ data: { id: ids.day, templateId: template.id, dayOfWeek: 1, workoutDate: new Date('2026-10-05T12:00:00.000Z') } });
       const workoutExercise = await prisma.workoutExercise.create({ data: { id: ids.workoutExercise, workoutDayId: day.id, exerciseId: exercise.id, section: 'sessao', exerciseOrder: 1 } });
-      const block = await prisma.workoutExerciseBlock.create({ data: { id: ids.block, workoutExerciseId: workoutExercise.id, position: 1, kind: 'principal' } });
-      await prisma.workoutExercisePlannedSet.create({ data: { id: ids.set, blockId: block.id, position: 1, repsMin: 8, repsMax: 12, loadKg: 32.5 } });
 
       const web = await startVite(apiOrigin);
       vite = web.vite;
@@ -138,8 +137,10 @@ suite('Issue #399 - fluxo full-page contra API real', () => {
           CORS_ORIGIN: webOrigin,
           FRONTEND_URL: webOrigin,
         },
-        stdio: 'ignore',
+        stdio: ['ignore', 'pipe', 'pipe'],
       });
+      apiProcess.stdout?.on('data', (chunk) => apiLogs.push(String(chunk).slice(0, 2000)));
+      apiProcess.stderr?.on('data', (chunk) => apiLogs.push(String(chunk).slice(0, 2000)));
       await waitForHealth(apiOrigin);
 
       browser = await puppeteer.launch({ executablePath: executablePath(), headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
@@ -147,7 +148,14 @@ suite('Issue #399 - fluxo full-page contra API real', () => {
       page.on('pageerror', (error) => browserErrors.push(error.message));
       page.on('response', (response) => {
         const pathname = new URL(response.url()).pathname;
-        if (pathname.includes('/api/v1/')) responses.push({ method: response.request().method(), path: pathname, status: response.status() });
+        if (pathname.includes('/api/v1/')) {
+          const entry = { method: response.request().method(), path: pathname, status: response.status() };
+          if (response.status() >= 400) {
+            entry.requestBody = response.request().postData()?.slice(0, 2000);
+            void response.text().then((body) => { entry.body = body.slice(0, 500); }).catch(() => undefined);
+          }
+          responses.push(entry);
+        }
       });
       page.on('dialog', async (dialog) => {
         if (dialog.type() === 'prompt') await dialog.accept('2');
@@ -173,11 +181,17 @@ suite('Issue #399 - fluxo full-page contra API real', () => {
         }, { wanted: text, targetIndex: index });
         expect(clicked).toBe(true);
       };
+      const replaceInputValue = async (selector, value) => {
+        await page.click(selector, { clickCount: 3 });
+        await page.keyboard.press('Backspace');
+        await page.type(selector, value);
+      };
       const viewports = [
         { width: 1440, height: 900 },
         { width: 768, height: 1024 },
         { width: 390, height: 844, isMobile: true, hasTouch: true },
       ];
+      mkdirSync(outputDir, { recursive: true });
       for (const viewport of viewports) {
         await page.setViewport(viewport);
         await page.goto(`${webOrigin}/plans/${ids.plan}/workout-builder/1/1`, { waitUntil: 'domcontentloaded' });
@@ -189,9 +203,9 @@ suite('Issue #399 - fluxo full-page contra API real', () => {
           await page.click('button[aria-label="Detalhar séries de Agachamento real #399"]');
           await clickText('Adicionar bloco');
           await page.waitForFunction(() => document.querySelector('input[aria-label*="Rep. mín."]') !== null, { timeout: 15000 });
-          await page.type('input[aria-label*="Rep. mín."]', '8');
-          await page.type('input[aria-label*="Rep. máx."]', '12');
-          await page.type('input[aria-label*="Carga (kg)"]', '32.5');
+          await replaceInputValue('input[aria-label*="Rep. mín."]', '8');
+          await replaceInputValue('input[aria-label*="Rep. máx."]', '12');
+          await replaceInputValue('input[aria-label*="Carga (kg)"]', '32.5');
           await new Promise((resolve) => setTimeout(resolve, 2500));
           await page.reload({ waitUntil: 'domcontentloaded' });
           await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Parâmetros do Treino'), { timeout: 30000 });
@@ -199,9 +213,11 @@ suite('Issue #399 - fluxo full-page contra API real', () => {
             where: { id: ids.workoutExercise },
             include: { resistanceBlocks: { include: { plannedSets: true } } },
           });
-          expect(persistedEditorData.resistanceBlocks.length).toBeGreaterThanOrEqual(1);
-          expect(persistedEditorData.resistanceBlocks.some((block) =>
-            block.plannedSets.some((plannedSet) => plannedSet.loadKg === 32.5))).toBe(true);
+          expect(persistedEditorData.resistanceBlocks).toHaveLength(1);
+          expect(persistedEditorData.resistanceBlocks[0].plannedSets).toHaveLength(1);
+          expect(persistedEditorData.resistanceBlocks[0].plannedSets[0]).toMatchObject({ repsMin: 8, repsMax: 12, loadKg: 32.5 });
+          const sourceBlockId = persistedEditorData.resistanceBlocks[0].id;
+          const sourceSetId = persistedEditorData.resistanceBlocks[0].plannedSets[0].id;
           await clickText('Treinamento Resistido');
           await page.waitForSelector('button[aria-label="Detalhar séries de Agachamento real #399"]', { timeout: 20000 });
           const copyResponse = page.waitForResponse((response) => response.url().includes('/api/v1/workout/templates/') && response.url().endsWith('/copy') && response.request().method() === 'POST', { timeout: 30000 });
@@ -220,9 +236,15 @@ suite('Issue #399 - fluxo full-page contra API real', () => {
           });
           expect(copiedTarget.released).toBe(true);
           expect(copiedTarget.workoutDays.length).toBeGreaterThan(0);
-          expect(copiedTarget.workoutDays.some((copiedDay) => copiedDay.exercises.some((copiedExercise) =>
-            copiedExercise.resistanceBlocks.some((copiedBlock) =>
-              copiedBlock.plannedSets.some((plannedSet) => plannedSet.loadKg === 32.5))))).toBe(true);
+          const copiedExercise = copiedTarget.workoutDays.flatMap((copiedDay) => copiedDay.exercises)
+            .find((candidate) => candidate.exerciseId === ids.exercise);
+          expect(copiedExercise).toBeDefined();
+          expect(copiedExercise?.id).not.toBe(ids.workoutExercise);
+          expect(copiedExercise?.resistanceBlocks).toHaveLength(1);
+          expect(copiedExercise?.resistanceBlocks[0].id).not.toBe(sourceBlockId);
+          expect(copiedExercise?.resistanceBlocks[0].plannedSets).toHaveLength(1);
+          expect(copiedExercise?.resistanceBlocks[0].plannedSets[0].id).not.toBe(sourceSetId);
+          expect(copiedExercise?.resistanceBlocks[0].plannedSets[0]).toMatchObject({ repsMin: 8, repsMax: 12, loadKg: 32.5 });
           await page.goto(`${webOrigin}/plans/${ids.plan}/workout-builder/1/2`, { waitUntil: 'domcontentloaded' });
           await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Parâmetros do Treino'), { timeout: 30000 });
           await clickText('Treinamento Resistido');
@@ -256,9 +278,9 @@ suite('Issue #399 - fluxo full-page contra API real', () => {
           missingLabels: [...document.querySelectorAll('input,textarea,select')].filter((field) => !field.labels.length && !field.getAttribute('aria-label')).length,
           disabledFields: [...document.querySelectorAll('input,textarea,select')].filter((field) => field.disabled).length,
         }));
-        expect(observed.scrollWidth).toBeLessThanOrEqual(observed.width + 1);
-        expect(observed.missingLabels).toBe(0);
-        expect(observed.text).toContain('Agachamento real #399');
+          expect(observed.scrollWidth).toBeLessThanOrEqual(observed.width + 1);
+          expect(observed.missingLabels).toBe(0);
+          expect(observed.text).toContain('Agachamento real #399');
         const screenshot = await page.screenshot({ path: path.join(outputDir, `real-api-${viewport.width}.png`), fullPage: true });
         observations.push({ viewport, observed, screenshotSha256: createHash('sha256').update(screenshot).digest('hex') });
       }
@@ -266,7 +288,10 @@ suite('Issue #399 - fluxo full-page contra API real', () => {
       expect(responses.some((response) => response.path.endsWith('/resistance-exercises') && response.status >= 200 && response.status < 300)).toBe(true);
       expect(responses.some((response) => response.path.endsWith('/copy') && response.status === 200)).toBe(true);
       expect(responses.some((response) => response.path.endsWith('/release') && response.status === 200)).toBe(true);
-      expect(responses.some((response) => response.status >= 500)).toBe(false);
+      const allowedMatrixMiss = (response) => response.status === 404
+        && response.path === `/api/v1/periodization/matrix/${ids.plan}`;
+      const unexpectedErrors = responses.filter((response) => response.status >= 400 && !allowedMatrixMiss(response));
+      expect(unexpectedErrors).toEqual([]);
       expect(browserErrors).toEqual([]);
     } finally {
       mkdirSync(outputDir, { recursive: true });
@@ -276,6 +301,7 @@ suite('Issue #399 - fluxo full-page contra API real', () => {
         responses,
         observations,
         browserErrors,
+        apiLogs: apiLogs.slice(-40),
         fixture: ids,
       }, null, 2));
       await browser?.close();

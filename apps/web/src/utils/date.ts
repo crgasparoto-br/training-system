@@ -1,4 +1,12 @@
 const padTwo = (value: number) => String(value).padStart(2, '0');
+const civilDates = new WeakSet<Date>();
+
+const markCivilDate = (date: Date): Date => {
+  civilDates.add(date);
+  return date;
+};
+
+const isMarkedCivilDate = (date: Date): boolean => civilDates.has(date);
 
 const fromCivilParts = (year: number, month: number, day: number): Date | null => {
   const date = new Date(year, month - 1, day, 12, 0, 0, 0);
@@ -9,7 +17,7 @@ const fromCivilParts = (year: number, month: number, day: number): Date | null =
   ) {
     return null;
   }
-  return date;
+  return markCivilDate(date);
 };
 
 export const parseDateOnly = (value: string | Date | null | undefined): Date | null => {
@@ -49,6 +57,13 @@ export const parseDateOnly = (value: string | Date | null | undefined): Date | n
 };
 
 export const toDateInputValue = (value: string | Date | null | undefined): string => {
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return '';
+    if (isMarkedCivilDate(value)) {
+      return `${value.getFullYear()}-${padTwo(value.getMonth() + 1)}-${padTwo(value.getDate())}`;
+    }
+    return value.toISOString().slice(0, 10);
+  }
   const date = parseDateOnly(value);
   if (!date) return '';
   return `${date.getFullYear()}-${padTwo(date.getMonth() + 1)}-${padTwo(date.getDate())}`;
@@ -73,7 +88,7 @@ export const resolveDateForDayOfWeek = (
   const startWeekday = jsDay === 0 ? 7 : jsDay;
   const result = new Date(start);
   result.setDate(start.getDate() + dayOfWeek - startWeekday);
-  return result;
+  return markCivilDate(result);
 };
 
 export const formatDateBR = (value: string | Date | null | undefined): string => {

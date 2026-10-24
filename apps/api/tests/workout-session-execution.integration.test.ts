@@ -1261,6 +1261,89 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     expect(savedSet.blockId).toBe(block.id);
   });
 
+  it('rejeita reparenting SQL de blocos e séries entre alunos/contratos ainda em draft', async () => {
+    const own = await editableFixture('issue399-draft-owner-source');
+    const foreign = await editableFixture('issue399-draft-owner-target');
+    const ownRows = await workoutService.replaceDayResistanceExercises(own.fixture.dayId, own.input);
+    const foreignRows = await workoutService.replaceDayResistanceExercises(foreign.fixture.dayId, foreign.input);
+    const ownBlock = ownRows[0].resistanceBlocks[0];
+    const ownSet = ownBlock.plannedSets[0];
+    const foreignBlock = foreignRows[0].resistanceBlocks[0];
+
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutExerciseBlock"
+      SET "workoutExerciseId" = ${foreign.fixture.exerciseIds[0]}
+      WHERE "id" = ${ownBlock.id}
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutExercisePlannedSet"
+      SET "blockId" = ${foreignBlock.id}
+      WHERE "id" = ${ownSet.id}
+    `).rejects.toThrow();
+
+    await expect(prisma.workoutExerciseBlock.findUniqueOrThrow({ where: { id: ownBlock.id } }))
+      .resolves.toMatchObject({ workoutExerciseId: own.fixture.exerciseIds[0] });
+    await expect(prisma.workoutExercisePlannedSet.findUniqueOrThrow({ where: { id: ownSet.id } }))
+      .resolves.toMatchObject({ blockId: ownBlock.id });
+  });
+
+  it('serializa início de execução antes de aceitar inserção SQL estrutural', async () => {
+    const fixture = await editableFixture('issue399-structure-start-race');
+    await workoutService.replaceDayResistanceExercises(fixture.fixture.dayId, fixture.input);
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.fixture.dayId },
+      include: { template: { include: { plan: true } } },
+    });
+    const assembly = await prisma.consolidatedPrescription.findFirstOrThrow({
+      where: { alunoId: fixture.fixture.alunoId },
+    });
+    const approved = await prisma.consolidatedPrescriptionVersion.findFirstOrThrow({
+      where: { assemblyId: assembly.id, status: 'approved' },
+    });
+    const released = await prisma.consolidatedPrescriptionVersion.findFirstOrThrow({
+      where: { assemblyId: assembly.id, status: 'released' },
+    });
+    const releaseDate = new Date('2026-10-05T12:00:00.000Z');
+    const releaseId = randomUUID();
+    await prisma.$executeRaw`
+      INSERT INTO "ConsolidatedPrescriptionOperationalRelease" (
+        "id", "assemblyId", "sourceAssemblyVersionId", "sourceAssemblyVersion",
+        "releasedAssemblyVersionId", "releasedAssemblyVersion", "contractId", "alunoId",
+        "trainingPlanId", "workoutTemplateId", "requestFingerprint",
+        "releasedByProfessorId", "releasedAt", "createdAt"
+      ) VALUES (
+        ${releaseId}, ${assembly.id}, ${approved.id}, 1, ${released.id}, 2,
+        ${fixture.fixture.contractId}, ${fixture.fixture.alunoId}, ${day.template.plan.id},
+        ${day.template.id}, ${randomUUID()}, ${day.template.plan.professorId}, ${releaseDate}, ${releaseDate}
+      )
+    `;
+    const executionId = randomUUID();
+    const starting = concurrentPrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        SELECT "id" FROM "WorkoutDay" WHERE "id" = ${fixture.fixture.dayId} FOR UPDATE
+      `;
+      await tx.$executeRaw`
+        INSERT INTO "WorkoutSessionExecution" (
+          "id", "workoutDayId", "alunoId", "contractId", "originReleaseId",
+          "originWorkoutTemplateId", "originTrainingPlanId", "status", "startedAt", "updatedAt"
+        ) VALUES (
+          ${executionId}, ${fixture.fixture.dayId}, ${fixture.fixture.alunoId},
+          ${fixture.fixture.contractId}, ${releaseId}, ${day.template.id},
+          ${day.template.plan.id}, 'in_progress', ${releaseDate}, ${releaseDate}
+        )
+      `;
+      await tx.$executeRaw`SELECT pg_sleep(0.25)`;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const blockInsert = prisma.$executeRaw`
+      INSERT INTO "WorkoutExerciseBlock" ("id", "workoutExerciseId", "position", "kind")
+      VALUES (${randomUUID()}, ${fixture.fixture.exerciseIds[0]}, 2, 'complementar')
+    `;
+
+    await expect(starting).resolves.toBeUndefined();
+    await expect(blockInsert).rejects.toThrow();
+  });
+
   it('AUD-399-27: rejeita posições fora da faixa e gaps por bypass SQL', async () => {
     const { fixture, input } = await editableFixture('issue399-position-negative-controls');
     await workoutService.replaceDayResistanceExercises(fixture.dayId, input);

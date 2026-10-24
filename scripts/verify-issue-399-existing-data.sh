@@ -21,7 +21,7 @@ copy_migrations_before_issue399() {
   local migration migration_name
   for migration in "$MIGRATIONS_DIR"/*; do
     migration_name="$(basename "$migration")"
-    if [[ "$migration_name" < "20261021200000_issue_399_legacy_release_immutability" ]]; then
+    if [[ "$migration_name" < "20261019190000_issue_399_resistance_blocks" ]]; then
       cp -R "$migration" "$REPLAY_MIGRATIONS/"
     fi
   done
@@ -31,7 +31,7 @@ copy_migrations_after_issue399() {
   local migration migration_name
   for migration in "$MIGRATIONS_DIR"/*; do
     migration_name="$(basename "$migration")"
-    if ! [[ "$migration_name" < "20261021200000_issue_399_legacy_release_immutability" ]]; then
+    if ! [[ "$migration_name" < "20261019190000_issue_399_resistance_blocks" ]]; then
       cp -R "$migration" "$REPLAY_MIGRATIONS/"
     fi
   done
@@ -55,8 +55,24 @@ BEGIN
   IF (SELECT count(*) FROM "WorkoutExercise" WHERE "id" = 'issue399-legacy-workout-exercise') <> 1 THEN
     RAISE EXCEPTION 'legacy workout exercise was not preserved';
   END IF;
+  IF (SELECT "name" FROM "TrainingPlan" WHERE "id" = 'issue399-legacy-plan') <> 'Issue 399 legacy plan' THEN
+    RAISE EXCEPTION 'legacy training plan values changed';
+  END IF;
+  IF (SELECT "weekStartDate"::date FROM "WorkoutTemplate" WHERE "id" = 'issue399-legacy-template') <> DATE '2026-10-05' THEN
+    RAISE EXCEPTION 'legacy template date changed';
+  END IF;
+  IF (SELECT "workoutDate"::date FROM "WorkoutDay" WHERE "id" = 'issue399-legacy-day') <> DATE '2026-10-05' THEN
+    RAISE EXCEPTION 'legacy workout day date changed';
+  END IF;
   IF (SELECT count(*) FROM "WorkoutExecution" WHERE "id" = 'issue399-legacy-execution') <> 1 THEN
     RAISE EXCEPTION 'legacy workout execution was not preserved';
+  END IF;
+  IF (SELECT "loadUsed" FROM "WorkoutExecution" WHERE "id" = 'issue399-legacy-execution') <> 20.5 THEN
+    RAISE EXCEPTION 'legacy workout execution values changed';
+  END IF;
+  IF (SELECT count(*) FROM "WorkoutExerciseBlock") <> 0
+    OR (SELECT count(*) FROM "WorkoutExercisePlannedSet") <> 0 THEN
+    RAISE EXCEPTION 'legacy data replay invented planned resistance structure';
   END IF;
   IF to_regclass('public."WorkoutExerciseBlock"') IS NULL
     OR to_regclass('public."WorkoutExercisePlannedSet"') IS NULL THEN
