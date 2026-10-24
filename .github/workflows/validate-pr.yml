@@ -302,6 +302,14 @@ jobs:
           bash scripts/verify-adipometry-persistence-boundaries.sh
           bash scripts/verify-student-lifecycle-legacy-backfill.sh
           docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            postgres:16-alpine \
+            psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c 'DROP DATABASE IF EXISTS training_system_issue399_existing_data' \
+            -c 'CREATE DATABASE training_system_issue399_existing_data'
+          DATABASE_URL='postgresql://postgres:postgres@localhost:5432/training_system_issue399_existing_data?schema=public&connection_limit=1&pool_timeout=30' \
+            bash scripts/verify-issue-399-existing-data.sh
+          docker run --rm --network host \
             -v "$GITHUB_WORKSPACE:/workspace" \
             -e PGPASSWORD=postgres \
             postgres:16-alpine \
@@ -337,7 +345,10 @@ jobs:
           ISSUE_399_REAL_API_PORT: '19193'
           ISSUE_399_REAL_JWT_SECRET: 'issue399-ci-secret'
           VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: pnpm --filter @corrida/web exec vitest run --no-file-parallelism src/pages/WorkoutBuilder2/issue-399-real-api-browser-evidence.test.js
+        run: |
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
+          pnpm --filter @corrida/web exec vitest run --no-file-parallelism src/pages/WorkoutBuilder2/issue-399-real-api-browser-evidence.test.js
       - name: Build
         run: pnpm build
       - name: Validate settings parameters in real browser

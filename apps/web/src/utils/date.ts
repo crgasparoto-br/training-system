@@ -1,9 +1,26 @@
 const padTwo = (value: number) => String(value).padStart(2, '0');
 
+const fromCivilParts = (year: number, month: number, day: number): Date | null => {
+  const date = new Date(year, month - 1, day, 12, 0, 0, 0);
+  if (
+    date.getFullYear() !== year
+    || date.getMonth() !== month - 1
+    || date.getDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+};
+
 export const parseDateOnly = (value: string | Date | null | undefined): Date | null => {
   if (!value) return null;
   if (value instanceof Date) {
-    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+    if (Number.isNaN(value.getTime())) return null;
+    const isoDate = value.toISOString().slice(0, 10);
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+    return match
+      ? fromCivilParts(Number(match[1]), Number(match[2]), Number(match[3]))
+      : null;
   }
 
   if (typeof value === 'string') {
@@ -16,12 +33,16 @@ export const parseDateOnly = (value: string | Date | null | undefined): Date | n
       const year = Number(match[1]);
       const month = Number(match[2]);
       const day = Number(match[3]);
-      return new Date(year, month - 1, day);
+      return fromCivilParts(year, month, day);
     }
 
     const parsed = new Date(trimmed);
     if (Number.isNaN(parsed.getTime())) return null;
-    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+    const isoDate = parsed.toISOString().slice(0, 10);
+    const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+    return isoMatch
+      ? fromCivilParts(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]))
+      : null;
   }
 
   return null;

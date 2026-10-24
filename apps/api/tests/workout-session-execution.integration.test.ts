@@ -766,6 +766,35 @@ describeDatabase('workout session execution persistence - issue 389', () => {
     expect(exercises.map((item) => item.exerciseOrder)).toEqual([1, 2]);
   });
 
+  it('serializa início concorrente com atualização do template e rejeita o write tardio', async () => {
+    const fixture = await seedReleasedWorkout('template-planning-race');
+    const templateId = (await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      select: { templateId: true },
+    })).templateId;
+    const removeTrigger = await installLifecycleEventTrigger(fixture.alunoId, 'delay');
+
+    try {
+      const starting = transition(fixture, 'issue399-race-template-start', 0, 'in_progress');
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      const updatingTemplate = workoutService.updateTemplate(templateId, {
+        observation1: 'não pode vencer o início concorrente',
+      });
+
+      await expect(starting).resolves.toMatchObject({ status: 'in_progress' });
+      await expect(updatingTemplate).rejects.toMatchObject({
+        code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START',
+      });
+    } finally {
+      await removeTrigger();
+    }
+
+    expect((await prisma.workoutTemplate.findUniqueOrThrow({
+      where: { id: templateId },
+      select: { observation1: true },
+    })).observation1).not.toBe('não pode vencer o início concorrente');
+  });
+
   it('rejeita reordenação com exercício de outro dia mesmo antes do início', async () => {
     const own = await seedReleasedWorkout('reorder-own');
     const foreign = await seedReleasedWorkout('reorder-foreign');
@@ -850,6 +879,13 @@ describeDatabase('AUD-399-16/17: canonical planned-set execution link', () => {
     `).rejects.toThrow();
     await expect(prisma.$executeRaw`
       DELETE FROM "WorkoutSessionExecution" WHERE "id" = ${execution.id}
+    `).rejects.toThrow();
+    const executionItem = await prisma.workoutSessionExecutionItem.findFirstOrThrow({
+      where: { executionId: execution.id },
+      select: { id: true },
+    });
+    await expect(prisma.$executeRaw`
+      DELETE FROM "WorkoutSessionExecutionItem" WHERE "id" = ${executionItem.id}
     `).rejects.toThrow();
   });
 });
@@ -1426,7 +1462,7 @@ describeDatabase('resistance blocks - historical identity and transactional pers
       include: { workoutDays: true },
     });
     expect(target.weekStartDate).toEqual(new Date('2026-10-15T12:00:00.000Z'));
-    expect(target.workoutDays[0].workoutDate).toEqual(new Date('2026-10-16T12:00:00.000Z'));
+    expect(target.workoutDays[0].workoutDate).toEqual(new Date('2026-10-13T12:00:00.000Z'));
   });
 
   it('copyTemplateSections preserves sparse source day labels with canonical target dates', async () => {

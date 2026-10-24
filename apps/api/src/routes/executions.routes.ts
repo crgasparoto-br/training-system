@@ -12,6 +12,16 @@ const router: Router = Router();
 
 router.use(authMiddleware);
 
+const sendInternalExecutionError = (
+  res: Response,
+  context: string,
+  error: unknown,
+  message: string,
+) => {
+  console.error(context, error);
+  return res.status(500).json({ code: 'EXECUTION_OPERATION_FAILED', error: message });
+};
+
 const getAlunoId = async (req: Request) => {
   const userId = req.user?.userId;
   if (!userId) return null;
@@ -49,9 +59,8 @@ router.get('/workout-day/:id', alunoMiddleware, async (req: Request, res: Respon
     }
 
     return res.json(day);
-  } catch (error: any) {
-    console.error('Error getting workout day:', error);
-    return res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    return sendInternalExecutionError(res, 'Error getting workout day:', error, 'Não foi possível consultar o treino.');
   }
 });
 
@@ -75,9 +84,8 @@ router.get('/workout-day', alunoMiddleware, async (req: Request, res: Response) 
     }
 
     return res.json(day);
-  } catch (error: any) {
-    console.error('Error getting workout day by date:', error);
-    return res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    return sendInternalExecutionError(res, 'Error getting workout day by date:', error, 'Não foi possível consultar o treino.');
   }
 });
 
@@ -99,9 +107,8 @@ router.get('/workout-days', alunoMiddleware, async (req: Request, res: Response)
     });
 
     return res.json(days);
-  } catch (error: any) {
-    console.error('Error listing workout days:', error);
-    return res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    return sendInternalExecutionError(res, 'Error listing workout days:', error, 'Não foi possível consultar os treinos.');
   }
 });
 
@@ -136,9 +143,8 @@ router.put('/workout-day/:id/status', alunoMiddleware, async (req: Request, res:
     });
 
     return res.json(updated);
-  } catch (error: any) {
-    console.error('Error updating workout day status:', error);
-    return res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    return sendInternalExecutionError(res, 'Error updating workout day status:', error, 'Não foi possível atualizar o treino.');
   }
 });
 
@@ -211,9 +217,8 @@ router.get('/aluno', alunoMiddleware, async (req: Request, res: Response) => {
     );
 
     return res.json(data);
-  } catch (error: any) {
-    console.error('Error listing executions:', error);
-    return res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    return sendInternalExecutionError(res, 'Error listing executions:', error, 'Não foi possível consultar as execuções.');
   }
 });
 
@@ -248,9 +253,8 @@ router.get('/professor/workout-day/:id', professorMiddleware, async (req: Reques
     }
 
     return res.json(day);
-  } catch (error: any) {
-    console.error('Error getting workout day (professor):', error);
-    return res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    return sendInternalExecutionError(res, 'Error getting workout day (professor):', error, 'Não foi possível consultar o treino.');
   }
 });
 
@@ -280,9 +284,8 @@ router.get('/professor/workout-day', professorMiddleware, async (req: Request, r
     }
 
     return res.json(day);
-  } catch (error: any) {
-    console.error('Error getting workout day by date (professor):', error);
-    return res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    return sendInternalExecutionError(res, 'Error getting workout day by date (professor):', error, 'Não foi possível consultar o treino.');
   }
 });
 
@@ -311,9 +314,8 @@ router.get('/professor/workout-days', professorMiddleware, async (req: Request, 
     });
 
     return res.json(days);
-  } catch (error: any) {
-    console.error('Error listing workout days (professor):', error);
-    return res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    return sendInternalExecutionError(res, 'Error listing workout days (professor):', error, 'Não foi possível consultar os treinos.');
   }
 });
 

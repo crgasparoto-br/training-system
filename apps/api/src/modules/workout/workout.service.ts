@@ -1143,11 +1143,7 @@ export const workoutService = {
       });
 
       const sourceDays = new Map(source.workoutDays.map((day) => [day.dayOfWeek, day]));
-      const partialCopyDate = (dayOfWeek: number) => {
-        const result = new Date(targetWeekStartDate);
-        result.setUTCDate(result.getUTCDate() + dayOfWeek - 1);
-        return result;
-      };
+      const partialCopyDate = (dayOfWeek: number) => workoutDateInTargetWeek(targetWeekStartDate, dayOfWeek);
       for (const [dayOfWeek, sourceDay] of sourceDays) {
         const targetDay = await tx.workoutDay.findUnique({
           where: { templateId_dayOfWeek: { templateId: target.id, dayOfWeek } },

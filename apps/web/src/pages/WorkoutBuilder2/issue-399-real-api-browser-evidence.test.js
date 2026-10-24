@@ -162,6 +162,17 @@ suite('Issue #399 - fluxo full-page contra API real', () => {
         }, text);
         expect(clicked).toBe(true);
       };
+      const clickExactTextAt = async (text, index) => {
+        const clicked = await page.evaluate(({ wanted, targetIndex }) => {
+          const matches = [...document.querySelectorAll('button')]
+            .filter((candidate) => candidate.textContent?.trim() === wanted && !candidate.disabled);
+          const button = matches[targetIndex];
+          if (!button) return false;
+          button.click();
+          return true;
+        }, { wanted: text, targetIndex: index });
+        expect(clicked).toBe(true);
+      };
       const viewports = [
         { width: 1440, height: 900 },
         { width: 768, height: 1024 },
@@ -184,14 +195,55 @@ suite('Issue #399 - fluxo full-page contra API real', () => {
           await new Promise((resolve) => setTimeout(resolve, 2500));
           await page.reload({ waitUntil: 'domcontentloaded' });
           await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Parâmetros do Treino'), { timeout: 30000 });
+          const persistedEditorData = await prisma.workoutExercise.findUniqueOrThrow({
+            where: { id: ids.workoutExercise },
+            include: { resistanceBlocks: { include: { plannedSets: true } } },
+          });
+          expect(persistedEditorData.resistanceBlocks.length).toBeGreaterThanOrEqual(1);
+          expect(persistedEditorData.resistanceBlocks.some((block) =>
+            block.plannedSets.some((plannedSet) => plannedSet.loadKg === 32.5))).toBe(true);
           await clickText('Treinamento Resistido');
           await page.waitForSelector('button[aria-label="Detalhar séries de Agachamento real #399"]', { timeout: 20000 });
           const copyResponse = page.waitForResponse((response) => response.url().includes('/api/v1/workout/templates/') && response.url().endsWith('/copy') && response.request().method() === 'POST', { timeout: 30000 });
           await clickText('Copiar Semana');
           expect((await copyResponse).status()).toBe(200);
           const releaseResponse = page.waitForResponse((response) => response.url().includes('/api/v1/workout/templates/') && response.url().endsWith('/release') && response.request().method() === 'POST', { timeout: 30000 });
-          await clickText('Liberar');
+          await clickExactTextAt('Liberar', 1);
           expect((await releaseResponse).status()).toBe(200);
+          const copiedTarget = await prisma.workoutTemplate.findFirstOrThrow({
+            where: { planId: ids.plan, mesocycleNumber: 1, weekNumber: 2 },
+            include: {
+              workoutDays: {
+                include: { exercises: { include: { resistanceBlocks: { include: { plannedSets: true } } } } },
+              },
+            },
+          });
+          expect(copiedTarget.released).toBe(true);
+          expect(copiedTarget.workoutDays.length).toBeGreaterThan(0);
+          expect(copiedTarget.workoutDays.some((copiedDay) => copiedDay.exercises.some((copiedExercise) =>
+            copiedExercise.resistanceBlocks.some((copiedBlock) =>
+              copiedBlock.plannedSets.some((plannedSet) => plannedSet.loadKg === 32.5))))).toBe(true);
+          await page.goto(`${webOrigin}/plans/${ids.plan}/workout-builder/1/2`, { waitUntil: 'domcontentloaded' });
+          await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Parâmetros do Treino'), { timeout: 30000 });
+          await clickText('Treinamento Resistido');
+          await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Agachamento real #399'), { timeout: 20000 });
+          const openedTargetDetail = await page.evaluate(() => {
+            const buttons = [...document.querySelectorAll('button[aria-label="Detalhar séries de Agachamento real #399"]')];
+            const button = buttons[1];
+            if (!button) return false;
+            button.click();
+            return true;
+          });
+          expect(openedTargetDetail).toBe(true);
+          const releasedState = await page.evaluate(() => ({
+            releaseButtons: [...document.querySelectorAll('button')]
+              .filter((button) => button.textContent?.trim() === 'Liberar')
+              .map((button) => button.disabled),
+            releasedLabels: [...document.querySelectorAll('main *')]
+              .filter((element) => element.textContent?.trim() === 'Liberado').length,
+          }));
+          expect(releasedState.releaseButtons[1]).toBe(true);
+          expect(releasedState.releasedLabels).toBeGreaterThan(0);
           await page.reload({ waitUntil: 'domcontentloaded' });
           await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Parâmetros do Treino'), { timeout: 30000 });
         }
