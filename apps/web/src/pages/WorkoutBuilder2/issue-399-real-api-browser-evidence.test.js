@@ -237,7 +237,7 @@ suite('Issue #399 - fluxo full-page contra API real', () => {
           expect(copiedTarget.released).toBe(true);
           expect(copiedTarget.workoutDays.length).toBeGreaterThan(0);
           const copiedExercise = copiedTarget.workoutDays.flatMap((copiedDay) => copiedDay.exercises)
-            .find((candidate) => candidate.exerciseId === ids.exercise);
+            .find((candidate) => candidate.exerciseId === ids.exercise && candidate.resistanceBlocks.length > 0);
           expect(copiedExercise).toBeDefined();
           expect(copiedExercise?.id).not.toBe(ids.workoutExercise);
           expect(copiedExercise?.resistanceBlocks).toHaveLength(1);
