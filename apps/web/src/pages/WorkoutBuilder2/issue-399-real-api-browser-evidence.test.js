@@ -194,7 +194,8 @@ suite('Issue #399 - fluxo full-page contra API real', () => {
       mkdirSync(outputDir, { recursive: true });
       for (const viewport of viewports) {
         await page.setViewport(viewport);
-        await page.goto(`${webOrigin}/plans/${ids.plan}/workout-builder/1/1`, { waitUntil: 'domcontentloaded' });
+        const routeWeek = viewport.width === 1440 ? 1 : 2;
+        await page.goto(`${webOrigin}/plans/${ids.plan}/workout-builder/1/${routeWeek}`, { waitUntil: 'domcontentloaded' });
         await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Parâmetros do Treino'), { timeout: 30000 });
         await page.waitForFunction(() => document.querySelectorAll('button').length > 10, { timeout: 30000 });
         if (viewport.width === 1440) {
@@ -263,9 +264,14 @@ suite('Issue #399 - fluxo full-page contra API real', () => {
               .map((button) => button.disabled),
             releasedLabels: [...document.querySelectorAll('main *')]
               .filter((element) => element.textContent?.trim() === 'Liberado').length,
+            readOnlyFieldsets: [...document.querySelectorAll('[data-workout-week="2"] fieldset[disabled]')].length,
+            editableFields: [...document.querySelectorAll('[data-workout-week="2"] fieldset:not([disabled]) input,[data-workout-week="2"] fieldset:not([disabled]) textarea')]
+              .filter((field) => !field.disabled && field.getAttribute('aria-disabled') !== 'true').length,
           }));
           expect(releasedState.releaseButtons[1]).toBe(true);
           expect(releasedState.releasedLabels).toBeGreaterThan(0);
+          expect(releasedState.readOnlyFieldsets).toBeGreaterThan(0);
+          expect(releasedState.editableFields).toBe(0);
           await page.reload({ waitUntil: 'domcontentloaded' });
           await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Parâmetros do Treino'), { timeout: 30000 });
         }
@@ -277,15 +283,20 @@ suite('Issue #399 - fluxo full-page contra API real', () => {
           scrollWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
           missingLabels: [...document.querySelectorAll('input,textarea,select')].filter((field) => !field.labels.length && !field.getAttribute('aria-label')).length,
           disabledFields: [...document.querySelectorAll('input,textarea,select')].filter((field) => field.disabled).length,
+          editableFields: [...document.querySelectorAll('[data-workout-week="2"] fieldset:not([disabled]) input,[data-workout-week="2"] fieldset:not([disabled]) textarea')]
+            .filter((field) => !field.disabled && field.getAttribute('aria-disabled') !== 'true').length,
+          readOnlyFieldsets: [...document.querySelectorAll('[data-workout-week="2"] fieldset[disabled]')].length,
         }));
           expect(observed.scrollWidth).toBeLessThanOrEqual(observed.width + 1);
           expect(observed.missingLabels).toBe(0);
           expect(observed.text).toContain('Agachamento real #399');
+          expect(observed.readOnlyFieldsets).toBeGreaterThan(0);
+          expect(observed.editableFields).toBe(0);
         const screenshot = await page.screenshot({ path: path.join(outputDir, `real-api-${viewport.width}.png`), fullPage: true });
         observations.push({ viewport, observed, screenshotSha256: createHash('sha256').update(screenshot).digest('hex') });
       }
 
-      expect(responses.some((response) => response.path.endsWith('/resistance-exercises') && response.status >= 200 && response.status < 300)).toBe(true);
+      expect(responses.some((response) => response.path.endsWith('/save-week') && response.status >= 200 && response.status < 300)).toBe(true);
       expect(responses.some((response) => response.path.endsWith('/copy') && response.status === 200)).toBe(true);
       expect(responses.some((response) => response.path.endsWith('/release') && response.status === 200)).toBe(true);
       const allowedMatrixMiss = (response) => response.status === 404

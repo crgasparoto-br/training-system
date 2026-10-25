@@ -127,6 +127,12 @@ export interface UpdateWorkoutTemplateDTO {
   observation2?: string | null;
 }
 
+export interface SaveWorkoutWeekDTO {
+  template?: Record<string, unknown>;
+  workoutDays?: Array<Record<string, unknown>>;
+  resistedExercises?: Record<string, Record<string, Array<Record<string, unknown>>>>;
+}
+
 export interface CreateWorkoutDayDTO {
   templateId: string;
   dayOfWeek: number;
@@ -217,6 +223,32 @@ class WorkoutService {
   async updateTemplate(id: string, data: UpdateWorkoutTemplateDTO): Promise<WorkoutTemplate> {
     const response = await api.put<WorkoutTemplate>(`/workout/templates/${id}`, data);
     return response.data;
+  }
+
+  async saveTemplateWeek(id: string, data: SaveWorkoutWeekDTO): Promise<WorkoutTemplate> {
+    const response = await api.put<WorkoutTemplate>(`/workout/templates/${id}/save-week`, data);
+    return response.data;
+  }
+
+  /**
+   * Best-effort unload persistence. This is deliberately separate from the
+   * acknowledged Axios queue: keepalive lets the browser finish the latest
+   * snapshot after pagehide without making navigation synchronous.
+   */
+  saveTemplateWeekKeepalive(id: string, data: SaveWorkoutWeekDTO): void {
+    if (typeof window === 'undefined' || typeof window.fetch !== 'function') return;
+    const baseUrl = api.defaults.baseURL || '/api/v1';
+    const url = `${baseUrl.replace(/\/+$/, '')}/workout/templates/${encodeURIComponent(id)}/save-week`;
+    const token = window.localStorage.getItem('token');
+    void window.fetch(url, {
+      method: 'PUT',
+      keepalive: true,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(data),
+    }).catch(() => undefined);
   }
 
   async releaseTemplate(id: string): Promise<WorkoutTemplate> {

@@ -178,6 +178,7 @@ export default function WorkoutBuilder2() {
   const copyActionInFlightRef = useRef(false);
   const releaseActionInFlightRef = useRef(false);
   const contextNavigationInFlightRef = useRef(false);
+  const pagehideSnapshotsSentRef = useRef(new Set<string>());
   const beginOperation = () => {
     activeOperationsRef.current += 1;
     setSaving(true);
@@ -242,6 +243,7 @@ export default function WorkoutBuilder2() {
       .then(() => {
         if (builderContextRef.current.planId !== planId || builderContextRef.current.mesocycleNumber !== operationMesocycle) return;
         navigate(`/plans/${planId}/workout-builder/${nextMesocycle}/${weekNumber}`, { replace: true });
+        setMesocycleNumber(nextMesocycle);
       })
       .catch((error) => {
         console.error('Erro ao salvar antes de trocar o mesociclo:', error);
@@ -276,7 +278,6 @@ export default function WorkoutBuilder2() {
       const normalized = Math.min(Math.max(1, parsed), totalMesocycles);
       if (!hasParam && normalized !== mesocycleNumber) {
         hasAppliedStoredMesoRef.current = true;
-        setMesocycleNumber(normalized);
         navigateToMesocycle(normalized);
       }
     } catch (error) {
@@ -298,6 +299,18 @@ export default function WorkoutBuilder2() {
     // changes and on unmount. The queue itself is keyed by context.
     void flushAllPendingSavesRef.current().catch(() => undefined);
   }, [planId, mesocycleNumber]);
+
+  useEffect(() => {
+    const handlePageHide = () => {
+      for (const [saveKey, snapshot] of Object.entries(pendingSaveRef.current)) {
+        if (!snapshot?.id || snapshot.planId !== planId || pagehideSnapshotsSentRef.current.has(saveKey)) continue;
+        pagehideSnapshotsSentRef.current.add(saveKey);
+        workoutService.saveTemplateWeekKeepalive(snapshot.id, buildWeekSavePayload(snapshot));
+      }
+    };
+    window.addEventListener('pagehide', handlePageHide);
+    return () => window.removeEventListener('pagehide', handlePageHide);
+  }, [planId]);
 
   useEffect(() => {
     setCopyModeByWeek((prev) => {
@@ -771,6 +784,95 @@ export default function WorkoutBuilder2() {
     }, 2000);
   };
 
+  const buildWeekSavePayload = (snapshot: any) => {
+    const daysArray = Array.isArray(snapshot?.workoutDays)
+      ? snapshot.workoutDays
+      : Object.values(snapshot?.workoutDays ?? {});
+    const weekStart = snapshot?.weekStartDate ? parseDateOnly(snapshot.weekStartDate) : null;
+    const workoutDays = daysArray
+      .filter((day: any) => Number.isInteger(Number(day?.dayOfWeek)) && Number(day.dayOfWeek) >= 1 && Number(day.dayOfWeek) <= 7)
+      .map((day: any) => {
+        const date = day.workoutDate
+          ? parseDateOnly(day.workoutDate)
+          : weekStart ? resolveWeekDate(weekStart, Number(day.dayOfWeek)) : null;
+        return {
+          dayOfWeek: Number(day.dayOfWeek),
+          workoutDate: date && Number.isFinite(date.getTime())
+            ? toIsoDateAtNoonUTC(toDateInputValue(date))
+            : undefined,
+          sessionDurationMin: day.sessionDurationMin,
+          cyclicTimeMin: day.cyclicTimeMin,
+          resistanceTimeMin: day.resistanceTimeMin,
+          stimulusDurationMin: day.stimulusDurationMin,
+          location: day.location,
+          method: day.method,
+          intensity1: day.intensity1,
+          intensity2: day.intensity2,
+          numSessions: day.numSessions,
+          numSets: day.numSets,
+          sessionTime: day.sessionTime,
+          restTime: day.restTime,
+          vo2maxIntervalPct: day.vo2maxIntervalPct,
+          iextIintTime: day.iextIintTime,
+          vo2maxPct: day.vo2maxPct,
+          targetHrMin: day.targetHrMin,
+          targetHrMax: day.targetHrMax,
+          targetSpeedMin: day.targetSpeedMin,
+          targetSpeedMax: day.targetSpeedMax,
+          detailNotes: day.detailNotes,
+          complementNotes: day.complementNotes,
+          generalGuidelines: day.generalGuidelines,
+        };
+      });
+
+    const resistedExercises: Record<string, Record<string, Array<Record<string, unknown>>>> = {};
+    for (const [dayKey, sections] of Object.entries(snapshot?.resistedExercises ?? {})) {
+      resistedExercises[dayKey] = {};
+      for (const section of ['mobilidade', 'sessao', 'resfriamento'] as const) {
+        const exercises = (sections as any)?.[section];
+        if (!Array.isArray(exercises)) continue;
+        resistedExercises[dayKey][section] = exercises
+          .filter((exercise: any) => Boolean(exercise?.exerciseId))
+          .map((exercise: any, index: number) => ({
+            workoutExerciseId: exercise.workoutExerciseId,
+            exerciseId: exercise.exerciseId,
+            section,
+            exerciseOrder: index + 1,
+            system: exercise.system ?? undefined,
+            groupBreakBefore: exercise.groupBreakBefore ?? false,
+            sets: exercise.sets ?? undefined,
+            reps: exercise.reps ?? undefined,
+            intervalSec: exercise.interval ?? exercise.intervalSec ?? undefined,
+            cParam: exercise.cParam ?? undefined,
+            eParam: exercise.eParam ?? undefined,
+            load: exercise.load ?? undefined,
+            exerciseNotes: exercise.adjustment ?? exercise.exerciseNotes ?? undefined,
+            resistanceBlocks: exercise.resistanceBlocks ?? undefined,
+          }));
+      }
+    }
+
+    return {
+      template: {
+        cyclicFrequency: snapshot?.cyclicFrequency,
+        resistanceFrequency: snapshot?.resistanceFrequency,
+        totalVolumeMin: snapshot?.totalVolumeMin,
+        totalVolumeKm: snapshot?.totalVolumeKm,
+        loadPercentage: snapshot?.loadPercentage,
+        repZone: snapshot?.repZone,
+        repReserve: snapshot?.repReserve,
+        trainingMethod: snapshot?.trainingMethod,
+        trainingDivision: snapshot?.trainingDivision,
+        alunoGoal: snapshot?.alunoGoal,
+        coachGoal: snapshot?.coachGoal,
+        observation1: snapshot?.observation1,
+        observation2: snapshot?.observation2,
+      },
+      workoutDays,
+      resistedExercises,
+    };
+  };
+
   const handleSave = async (data: any, weekNumber?: number): Promise<void> => {
     if (!data) return;
     const resolvedMesocycle = Number(data?.mesocycleNumber ?? mesocycleNumber);
@@ -789,90 +891,7 @@ export default function WorkoutBuilder2() {
       }
       try {
         if (snapshot.id) {
-          await workoutService.updateTemplate(snapshot.id, {
-            cyclicFrequency: snapshot.cyclicFrequency,
-            resistanceFrequency: snapshot.resistanceFrequency,
-            totalVolumeMin: snapshot.totalVolumeMin,
-            totalVolumeKm: snapshot.totalVolumeKm,
-            loadPercentage: snapshot.loadPercentage,
-            repZone: snapshot.repZone,
-            repReserve: snapshot.repReserve,
-            trainingMethod: snapshot.trainingMethod,
-            trainingDivision: snapshot.trainingDivision,
-            alunoGoal: snapshot.alunoGoal,
-            coachGoal: snapshot.coachGoal,
-            observation1: snapshot.observation1,
-            observation2: snapshot.observation2,
-          });
-
-          if (snapshot.workoutDays) {
-            const daysArray = Array.isArray(snapshot.workoutDays) ? snapshot.workoutDays : Object.values(snapshot.workoutDays);
-            const weekStart = snapshot.weekStartDate ? parseDateOnly(snapshot.weekStartDate) : null;
-            for (const day of daysArray) {
-              if (!day?.dayOfWeek) continue;
-              const workoutDate = day.workoutDate
-                ? parseDateOnly(day.workoutDate)
-                : weekStart ? resolveWeekDate(weekStart, day.dayOfWeek) : new Date();
-              if (!workoutDate || !Number.isFinite(workoutDate.getTime())) throw new Error('Data do treino inválida.');
-              const savedDay = await workoutService.getOrCreateDay({ templateId: snapshot.id, dayOfWeek: day.dayOfWeek, workoutDate: toIsoDateAtNoonUTC(toDateInputValue(workoutDate)) });
-              await workoutService.updateDay(savedDay.id, {
-                sessionDurationMin: day.sessionDurationMin,
-                cyclicTimeMin: day.cyclicTimeMin,
-                resistanceTimeMin: day.resistanceTimeMin,
-                stimulusDurationMin: day.stimulusDurationMin,
-                location: day.location,
-                method: day.method,
-                intensity1: day.intensity1,
-                intensity2: day.intensity2,
-                numSessions: day.numSessions,
-                numSets: day.numSets,
-                sessionTime: day.sessionTime,
-                restTime: day.restTime,
-                vo2maxIntervalPct: day.vo2maxIntervalPct,
-                iextIintTime: day.iextIintTime,
-                vo2maxPct: day.vo2maxPct,
-                targetHrMin: day.targetHrMin,
-                targetHrMax: day.targetHrMax,
-                targetSpeedMin: day.targetSpeedMin,
-                targetSpeedMax: day.targetSpeedMax,
-                detailNotes: day.detailNotes,
-                complementNotes: day.complementNotes,
-                generalGuidelines: day.generalGuidelines,
-              });
-            }
-          }
-
-          if (snapshot.resistedExercises) {
-            const weekStart = snapshot.weekStartDate ? parseDateOnly(snapshot.weekStartDate) : null;
-            for (const dayOfWeek of dayNumbers) {
-              const correctedDate = weekStart ? resolveWeekDate(weekStart, dayOfWeek) : new Date();
-              if (!Number.isFinite(correctedDate.getTime())) throw new Error('Data do treino inválida.');
-              const targetDay = await workoutService.getOrCreateDay({ templateId: snapshot.id, dayOfWeek, workoutDate: toIsoDateAtNoonUTC(toDateInputValue(correctedDate)) });
-              const daySections = snapshot.resistedExercises?.[dayOfWeek] || {};
-              const orderedExercises = (['mobilidade', 'sessao', 'resfriamento'] as const).flatMap((section) =>
-                (Array.isArray(daySections[section]) ? daySections[section] : [])
-                  .filter((exercise: any) => Boolean(exercise?.exerciseId))
-                  .map((exercise: any, index: number) => ({
-                    workoutDayId: targetDay.id,
-                    workoutExerciseId: exercise.workoutExerciseId,
-                    exerciseId: exercise.exerciseId,
-                    section,
-                    exerciseOrder: index + 1,
-                    system: exercise.system ?? undefined,
-                    groupBreakBefore: exercise.groupBreakBefore ?? false,
-                    sets: exercise.sets ?? undefined,
-                    reps: exercise.reps ?? undefined,
-                    intervalSec: exercise.interval ?? undefined,
-                    cParam: exercise.cParam ?? undefined,
-                    eParam: exercise.eParam ?? undefined,
-                    load: exercise.load ?? undefined,
-                    exerciseNotes: exercise.adjustment ?? exercise.exerciseNotes ?? undefined,
-                    resistanceBlocks: exercise.resistanceBlocks ?? undefined,
-                  }))
-              );
-              await workoutService.replaceDayResistanceExercises(targetDay.id, orderedExercises);
-            }
-          }
+          await workoutService.saveTemplateWeek(snapshot.id, buildWeekSavePayload(snapshot));
         }
         if (pendingSaveRef.current[saveKey] === snapshot) {
           delete pendingSaveRef.current[saveKey];
@@ -1665,6 +1684,7 @@ export default function WorkoutBuilder2() {
           return (
             <div
               key={weekNumber}
+              data-workout-week={weekNumber}
               className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 max-w-[1800px]"
             >
               <div

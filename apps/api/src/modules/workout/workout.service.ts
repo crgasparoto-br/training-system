@@ -126,6 +126,12 @@ export interface CreateWorkoutExerciseDTO {
   resistanceBlocks?: ResistanceBlockInput[];
 }
 
+export interface SaveWorkoutWeekDTO {
+  template?: Record<string, unknown>;
+  workoutDays?: Array<Record<string, unknown>>;
+  resistedExercises?: Record<string, Record<string, Array<Record<string, unknown>>>>;
+}
+
 export interface RecordExecutionDTO {
   workoutExerciseId: string;
   alunoId: string;
@@ -710,6 +716,15 @@ export const workoutService = {
    */
   async getOrCreateDay(data: CreateWorkoutDayDTO) {
     data = sanitizeWorkoutMutation(data, 'day', 'create');
+    const template = await prisma.workoutTemplate.findUnique({
+      where: { id: data.templateId },
+      select: { weekStartDate: true },
+    });
+    if (!template) throw new ResistanceStructureNotFoundError();
+    data = {
+      ...data,
+      workoutDate: workoutDateInTargetWeek(template.weekStartDate, data.dayOfWeek),
+    };
     const existing = await prisma.workoutDay.findUnique({
       where: {
         templateId_dayOfWeek: {
@@ -744,6 +759,15 @@ export const workoutService = {
    */
   async createWorkoutDay(data: WorkoutDayCreateData) {
     data = sanitizeWorkoutMutation(data, 'day', 'create');
+    const template = await prisma.workoutTemplate.findUnique({
+      where: { id: data.templateId },
+      select: { weekStartDate: true },
+    });
+    if (!template) throw new ResistanceStructureNotFoundError();
+    data = {
+      ...data,
+      workoutDate: workoutDateInTargetWeek(template.weekStartDate, data.dayOfWeek),
+    };
     return withWorkoutTemplatePlanningMutation(data.templateId, (tx) =>
       tx.workoutDay.create({
         data,
@@ -793,12 +817,232 @@ export const workoutService = {
   async updateWorkoutDay(id: string, data: WorkoutDayUpdateData) {
     assertWorkoutParentIsImmutable(data, 'templateId');
     data = sanitizeWorkoutMutation(data, 'day');
+    if (data.workoutDate !== undefined) {
+      const current = await prisma.workoutDay.findUnique({
+        where: { id },
+        select: { dayOfWeek: true, template: { select: { weekStartDate: true } } },
+      });
+      if (!current) throw new ResistanceStructureNotFoundError();
+      data = {
+        ...data,
+        workoutDate: workoutDateInTargetWeek(current.template.weekStartDate, current.dayOfWeek),
+      };
+    }
     return withWorkoutDayPlanningMutation(id, (tx) =>
       tx.workoutDay.update({
         where: { id },
         data,
       })
     );
+  },
+
+  /**
+   * Persist a complete builder week as one serializable transaction. The web
+   * builder may still queue snapshots per week, but readers never observe a
+   * template updated without its days or resistance structure.
+   */
+  async saveTemplateWeek(id: string, data: SaveWorkoutWeekDTO, contractId?: string) {
+    if (!data || typeof data !== 'object') {
+      throw new ResistanceStructureValidationError('Snapshot semanal inválido.');
+    }
+
+    return withWorkoutTemplatePlanningMutation(id, async (tx) => {
+      const template = await tx.workoutTemplate.findUnique({
+        where: { id },
+        select: { id: true, planId: true, weekStartDate: true },
+      });
+      if (!template) throw new ResistanceStructureNotFoundError();
+      if (contractId) {
+        const owned = await tx.workoutTemplate.findFirst({
+          where: { id, plan: { aluno: { contractId } } },
+          select: { id: true },
+        });
+        if (!owned) throw new ResistanceStructureNotFoundError();
+      }
+
+      const templateInput = sanitizeWorkoutMutation(data.template ?? {}, 'template');
+      if (Object.keys(templateInput).length > 0) {
+        await tx.workoutTemplate.update({
+          where: { id },
+          data: normalizeWorkoutTemplateUpdateData(templateInput),
+        });
+      }
+
+      const daysByWeekday = new Map<number, { id: string }>();
+      const rawDays = data.workoutDays ?? [];
+      if (!Array.isArray(rawDays) || rawDays.length > 7) {
+        throw new ResistanceStructureValidationError('Dias do snapshot inválidos.');
+      }
+
+      for (const rawDay of rawDays) {
+        if (!rawDay || typeof rawDay !== 'object') {
+          throw new ResistanceStructureValidationError('Dia do snapshot inválido.');
+        }
+        const sanitizedDay = sanitizeWorkoutMutation({
+          ...rawDay,
+          templateId: id,
+          workoutDate: rawDay.workoutDate ?? template.weekStartDate,
+        }, 'day', 'create') as any;
+        const canonicalDate = workoutDateInTargetWeek(template.weekStartDate, sanitizedDay.dayOfWeek);
+        const dayData = { ...sanitizedDay, workoutDate: canonicalDate };
+        const { templateId: _templateId, ...updateData } = dayData;
+        const day = await tx.workoutDay.upsert({
+          where: {
+            templateId_dayOfWeek: {
+              templateId: id,
+              dayOfWeek: sanitizedDay.dayOfWeek,
+            },
+          },
+          create: dayData,
+          update: updateData,
+          select: { id: true },
+        });
+        daysByWeekday.set(sanitizedDay.dayOfWeek, day);
+      }
+
+      const existingDays = await tx.workoutDay.findMany({
+        where: { templateId: id },
+        select: { id: true, dayOfWeek: true },
+      });
+      for (const day of existingDays) daysByWeekday.set(day.dayOfWeek, { id: day.id });
+
+      const resisted = data.resistedExercises;
+      if (resisted !== undefined) {
+        if (!resisted || typeof resisted !== 'object' || Array.isArray(resisted)) {
+          throw new ResistanceStructureValidationError('Estrutura resistida semanal inválida.');
+        }
+        for (const [dayKey, sections] of Object.entries(resisted)) {
+          const dayOfWeek = Number(dayKey);
+          if (!Number.isInteger(dayOfWeek) || dayOfWeek < 1 || dayOfWeek > 7
+            || !sections || typeof sections !== 'object' || Array.isArray(sections)) {
+            throw new ResistanceStructureValidationError('Dia resistido inválido.');
+          }
+          let targetDay = daysByWeekday.get(dayOfWeek);
+          if (!targetDay) {
+            const created = await tx.workoutDay.create({
+              data: {
+                templateId: id,
+                dayOfWeek,
+                workoutDate: workoutDateInTargetWeek(template.weekStartDate, dayOfWeek),
+              },
+              select: { id: true },
+            });
+            targetDay = created;
+            daysByWeekday.set(dayOfWeek, created);
+          }
+          const resolvedTargetDay = targetDay;
+          if (contractId) await assertDayContract(tx, resolvedTargetDay.id, contractId);
+
+          const sectionNames = ['mobilidade', 'sessao', 'resfriamento'] as const;
+          const rawExercises = sectionNames.flatMap((section) => {
+            const values = (sections as Record<string, unknown>)[section];
+            if (values === undefined) return [];
+            if (!Array.isArray(values)) throw new ResistanceStructureValidationError('Exercícios resistidos inválidos.');
+            return values.map((exercise) => ({
+              ...(exercise as Record<string, unknown>),
+              workoutDayId: resolvedTargetDay.id,
+              section,
+            }));
+          });
+          if (rawExercises.length > 200) throw new ResistanceStructureValidationError('Lista de exercícios inválida.');
+
+          const perSection = new Map<string, number>();
+          const prepared = rawExercises.map((rawInput) => {
+            const input: any = sanitizeWorkoutMutation(rawInput, 'exercise', 'create') as any;
+            if (!input || typeof input.exerciseId !== 'string' || !input.exerciseId.trim()
+              || input.workoutDayId !== resolvedTargetDay.id
+              || (input.workoutExerciseId !== undefined
+                && (typeof input.workoutExerciseId !== 'string' || !input.workoutExerciseId.trim()))) {
+              throw new ResistanceStructureValidationError('Exercício inválido.');
+            }
+            const expected = (perSection.get(input.section) ?? 0) + 1;
+            if (input.exerciseOrder !== expected) throw new ResistanceStructureValidationError('Ordem de exercício inválida.');
+            perSection.set(input.section, expected);
+            const { resistanceBlocks, workoutExerciseId, workoutDayId: _dayId, ...exercise } = input;
+            return {
+              workoutExerciseId,
+              exercise,
+              blocks: resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks),
+            };
+          });
+
+          if (contractId) {
+            const libraryIds = [...new Set(prepared.map((item) => item.exercise.exerciseId))];
+            const available = await tx.exerciseLibrary.count({ where: { id: { in: libraryIds }, contractId } });
+            if (available !== libraryIds.length) throw new ResistanceStructureValidationError('Exercício fora do contrato.');
+          }
+
+          const current = await tx.workoutExercise.findMany({
+            where: { workoutDayId: resolvedTargetDay.id },
+            include: {
+              resistanceBlocks: resistanceBlockInclude,
+              _count: { select: { executions: true, executionItems: true } },
+            },
+            orderBy: [{ section: 'asc' }, { exerciseOrder: 'asc' }],
+          });
+          const identity = matchResistanceExerciseRows(current, prepared.map((item) => ({
+            workoutExerciseId: item.workoutExerciseId,
+            exerciseId: item.exercise.exerciseId,
+            section: item.exercise.section,
+          })));
+          const preserved = new Set(identity.filter((value): value is string => value !== null));
+          for (const prior of current) {
+            if (!preserved.has(prior.id)
+              && (prior._count.executions > 0 || prior._count.executionItems > 0)) {
+              throw new WorkoutPlanningLockedError();
+            }
+          }
+
+          for (let index = 0; index < prepared.length; index += 1) {
+            const input = prepared[index];
+            const rowId = identity[index];
+            if (!rowId) {
+              await tx.workoutExercise.create({
+                data: {
+                  ...(input.exercise as any),
+                  ...(input.blocks ? { resistanceBlocks: nestedResistanceBlocks(input.blocks) } : {}),
+                },
+              });
+              continue;
+            }
+            const prior = current.find((row) => row.id === rowId)!;
+            const changedColumns = Object.entries(input.exercise).some(([key, value]) =>
+              value !== undefined && value !== prior[key as keyof typeof prior]);
+            const blocksChanged = input.blocks !== undefined
+              && comparableResistanceBlocks(prior.resistanceBlocks) !== comparableResistanceBlocks(input.blocks);
+            if ((prior._count.executions > 0 || prior._count.executionItems > 0)
+              && (changedColumns || blocksChanged)) {
+              throw new WorkoutPlanningLockedError();
+            }
+            if (!changedColumns && !blocksChanged) continue;
+            await tx.workoutExercise.update({
+              where: { id: rowId },
+              data: {
+                ...(input.exercise as any),
+                ...(blocksChanged && input.blocks
+                  ? { resistanceBlocks: { deleteMany: {}, ...nestedResistanceBlocks(input.blocks) } }
+                  : {}),
+              },
+            });
+          }
+          for (const prior of current) {
+            if (!preserved.has(prior.id)) await tx.workoutExercise.delete({ where: { id: prior.id } });
+          }
+        }
+      }
+
+      const saved = await tx.workoutTemplate.findUnique({
+        where: { id },
+        include: {
+          plan: true,
+          workoutDays: {
+            include: { exercises: { include: { exercise: true, resistanceBlocks: resistanceBlockInclude } } },
+            orderBy: { dayOfWeek: 'asc' },
+          },
+        },
+      });
+      return serializeWorkoutTemplate(saved);
+    });
   },
 
   async updateWorkoutDayStatus(
@@ -1058,8 +1302,11 @@ export const workoutService = {
     const current = await prisma.workoutExercise.findUnique({ where: { id }, select: { workoutDayId: true, exerciseId: true } });
     if (!current) throw new Error('Workout exercise not found');
 
-    const targetWorkoutDayId = data.workoutDayId ?? current.workoutDayId;
-    const workoutDayIds = [...new Set([current.workoutDayId, targetWorkoutDayId])].sort();
+    if (data.workoutDayId !== undefined && data.workoutDayId !== current.workoutDayId) {
+      throw new ResistanceStructureValidationError('Não é permitido mover um exercício entre dias.');
+    }
+
+    const workoutDayIds = [current.workoutDayId];
 
     const { resistanceBlocks, workoutExerciseId: _existingRowId, ...exercise } = data;
     const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
@@ -1469,12 +1716,18 @@ export const workoutService = {
       throw new Error('Workout day not found');
     }
 
+    // `targetDate` is retained in the legacy contract for compatibility, but
+    // the persisted date is always derived from the template anchor and the
+    // canonical weekday. This prevents a valid date from being paired with a
+    // different dayOfWeek.
+    const canonicalTargetDate = workoutDateInTargetWeek(source.template.weekStartDate, targetDayOfWeek);
+
     const newDay = await withWorkoutTemplatePlanningMutation(source.templateId, async (tx) => {
       const created = await tx.workoutDay.create({
         data: {
           templateId: source.templateId,
           dayOfWeek: targetDayOfWeek,
-          workoutDate: targetDate,
+          workoutDate: canonicalTargetDate,
           sessionDurationMin: source.sessionDurationMin,
           cyclicTimeMin: source.cyclicTimeMin,
           resistanceTimeMin: source.resistanceTimeMin,

@@ -27,7 +27,7 @@ const plan = {
   name: 'Plano sintético issue #399',
   alunoId: 'aluno-browser-399',
   startDate: '2026-10-05T12:00:00.000Z',
-  endDate: '2026-11-01T12:00:00.000Z',
+  endDate: '2026-12-31T12:00:00.000Z',
   updatedAt: '2026-10-05T12:00:00.000Z',
   aluno: { id: 'aluno-browser-399', user: { id: 'user-browser-399', profile: { name: 'Atleta sintético #399' } } },
 };
@@ -152,6 +152,29 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
           Object.assign(template, body);
           return json(res, 200, clone(template), origin);
         }
+        if (req.method === 'PUT' && /^\/api\/v1\/workout\/templates\/[^/]+\/save-week$/.test(pathname)) {
+          const template = findTemplate(pathname.split('/')[5]);
+          if (!template) return json(res, 404, { error: 'template not found' }, origin);
+          Object.assign(template, body.template || {});
+          for (const rawDay of body.workoutDays || []) {
+            const day = template.workoutDays.find((candidate) => candidate.dayOfWeek === Number(rawDay.dayOfWeek));
+            if (day) Object.assign(day, rawDay);
+          }
+          for (const [dayKey, sections] of Object.entries(body.resistedExercises || {})) {
+            const day = template.workoutDays.find((candidate) => candidate.dayOfWeek === Number(dayKey));
+            if (!day) continue;
+            const exercises = ['mobilidade', 'sessao', 'resfriamento'].flatMap((section) =>
+              Array.isArray(sections?.[section]) ? sections[section] : []);
+            day.exercises = exercises.map((exercise, index) => ({
+              ...exercise,
+              id: exercise.workoutExerciseId || `exercise-browser-399-${template.weekNumber}-${index}`,
+              workoutDayId: day.id,
+              exercise: { name: 'Agachamento browser #399', category: 'pernas' },
+              resistanceBlocks: exercise.resistanceBlocks || [],
+            }));
+          }
+          return json(res, 200, clone(template), origin);
+        }
         if (req.method === 'POST' && /^\/api\/v1\/workout\/templates\/[^/]+\/copy$/.test(pathname)) {
           if (copyFailuresRemaining > 0) {
             copyFailuresRemaining -= 1;
@@ -243,6 +266,16 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
         }, text);
         expect(clicked).toBe(true);
       };
+      const clickTextAt = async (text, targetIndex) => {
+        const clicked = await page.evaluate(({ wanted, index }) => {
+          const matches = [...document.querySelectorAll('button')]
+            .filter((candidate) => candidate.textContent?.trim().includes(wanted));
+          if (!matches[index]) return false;
+          matches[index].click();
+          return true;
+        }, { wanted: text, index: targetIndex });
+        expect(clicked).toBe(true);
+      };
       const viewports = [
         { width: 1440, height: 900 },
         { width: 768, height: 1024 },
@@ -250,10 +283,18 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
       ];
       for (const viewport of viewports) {
         await page.setViewport(viewport);
-        await page.goto(`${webOrigin}/plans/plan-browser-399/workout-builder/1/1`, { waitUntil: 'domcontentloaded' });
+        const routeWeek = viewport.width === 1440 ? 1 : 2;
+        await page.goto(`${webOrigin}/plans/plan-browser-399/workout-builder/1/${routeWeek}`, { waitUntil: 'domcontentloaded' });
         await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Parâmetros do Treino'), { timeout: 20000 });
         await page.waitForFunction(() => document.querySelectorAll('button').length > 10, { timeout: 20000 });
         if (viewport.width === 1440) {
+          await clickText('Próximo Mesociclo');
+          await page.waitForFunction(() => location.pathname.includes('/workout-builder/2/1'), { timeout: 20000 });
+          await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Parâmetros do Treino'), { timeout: 20000 });
+          await page.waitForFunction(() => [...document.querySelectorAll('button')].some((button) => button.textContent?.includes('Mesociclo Anterior')), { timeout: 20000 });
+          await clickText('Mesociclo Anterior');
+          await page.waitForFunction(() => location.pathname.includes('/workout-builder/1/1'), { timeout: 20000 });
+          await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Parâmetros do Treino'), { timeout: 20000 });
           await clickText('Treinamento Resistido');
           await page.waitForSelector('button[aria-label="Detalhar séries de Agachamento browser #399"]', { timeout: 15000 });
           await page.click('button[aria-label="Detalhar séries de Agachamento browser #399"]');
@@ -262,6 +303,16 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
           await page.type('input[aria-label*="Rep. mín."]', '8');
           await page.type('input[aria-label*="Rep. máx."]', '12');
           await page.type('input[aria-label*="Carga (kg)"]', '32.5');
+          await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+          await new Promise((resolve, reject) => {
+            const deadline = Date.now() + 20000;
+            const check = () => {
+              if (requests.some((request) => request.path.endsWith('/save-week'))) return resolve();
+              if (Date.now() >= deadline) return reject(new Error('pagehide save-week request was not observed'));
+              setTimeout(check, 50);
+            };
+            check();
+          });
           await clickText('Copiar Semana');
           await page.waitForFunction(() => document.querySelector('[role="alert"]')?.innerText.includes('Erro ao copiar semana'), { timeout: 20000 });
           await clickText('Tentar novamente');
@@ -269,9 +320,9 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
           // page. The negative alert disappearing is the deterministic DOM
           // observation that the retry completed without another copy error.
           await page.waitForFunction(() => !document.querySelector('[role="alert"]')?.innerText.includes('Erro ao copiar semana'), { timeout: 20000 });
-          await clickText('Liberar');
+          await clickTextAt('Liberar', 1);
           await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Treino liberado com sucesso') || document.querySelector('main')?.innerText.includes('Erro ao liberar treino'), { timeout: 20000 }).catch(() => {});
-          await page.reload({ waitUntil: 'domcontentloaded' });
+          await page.goto(`${webOrigin}/plans/plan-browser-399/workout-builder/1/2`, { waitUntil: 'domcontentloaded' });
           await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Parâmetros do Treino'), { timeout: 20000 });
         }
         await clickText('Treinamento Resistido');
@@ -281,16 +332,21 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
           width: innerWidth,
           scrollWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
           missingLabels: [...document.querySelectorAll('input,textarea,select')].filter((field) => !field.labels.length && !field.getAttribute('aria-label')).length,
-          releasedDisabled: [...document.querySelectorAll('input,textarea,select')].some((field) => field.disabled),
+          releasedDisabled: [...document.querySelectorAll('[data-workout-week="2"] input,[data-workout-week="2"] textarea,[data-workout-week="2"] select')].some((field) => field.disabled),
+          releasedReadOnlyFieldset: [...document.querySelectorAll('[data-workout-week="2"] fieldset[disabled]')].length > 0,
+          releasedEditableFields: [...document.querySelectorAll('[data-workout-week="2"] fieldset:not([disabled]) input,[data-workout-week="2"] fieldset:not([disabled]) textarea')]
+            .filter((field) => !field.disabled && field.getAttribute('aria-disabled') !== 'true').length,
           weekHeaders: [...document.querySelectorAll('h2')].filter((heading) => heading.textContent?.includes('Semana')).length,
         }));
         expect(observed.scrollWidth).toBeLessThanOrEqual(observed.width + 1);
         expect(observed.missingLabels).toBe(0);
         expect(observed.text).toContain('Agachamento browser #399');
+        expect(observed.releasedReadOnlyFieldset).toBe(true);
+        expect(observed.releasedEditableFields).toBe(0);
         const screenshot = await page.screenshot({ path: path.join(outputDir, `${viewport.width}-full-page.png`), fullPage: true });
         observations.push({ viewport, observed, screenshot: { sha256: createHash('sha256').update(screenshot).digest('hex') }, passed: true });
       }
-      expect(requests.some((request) => request.path.endsWith('/resistance-exercises'))).toBe(true);
+      expect(requests.some((request) => request.path.endsWith('/save-week'))).toBe(true);
       expect(requests.filter((request) => request.path.endsWith('/copy')).length).toBeGreaterThanOrEqual(2);
       expect(requests.some((request) => request.path.endsWith('/release'))).toBe(true);
       expect(browserErrors).toEqual([]);

@@ -282,6 +282,26 @@ router.put('/templates/:id', async (req, res) => {
   }
 });
 
+// Save one complete builder week atomically. The service owns the strict
+// whitelist and structure validation because this payload contains nested
+// days, exercises, blocks and planned sets.
+router.put('/templates/:id/save-week', async (req, res) => {
+  try {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+      return res.status(400).json({ code: 'INVALID_RESISTANCE_STRUCTURE', error: 'Snapshot semanal inválido.' });
+    }
+    const template = await workoutService.saveTemplateWeek(
+      req.params.id,
+      req.body,
+      req.user?.contractId,
+    );
+    res.json(template);
+  } catch (error: any) {
+    console.error('Error saving workout week:', error);
+    return sendSafeWorkoutError(res, error);
+  }
+});
+
 // Delete template
 router.delete('/templates/:id', async (req, res) => {
   try {

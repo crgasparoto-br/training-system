@@ -931,6 +931,48 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     expect(second[0].resistanceBlocks[0].plannedSets[0].id).toBe(setId);
   });
 
+  it('salva template, dias e resistência atomicamente e reverte metadados quando a estrutura falha', async () => {
+    const { fixture, input } = await editableFixture('issue399-week-save-atomic');
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      include: { template: true },
+    });
+    const before = await prisma.workoutTemplate.findUniqueOrThrow({ where: { id: day.templateId } });
+    const invalidPayload = {
+      template: { trainingMethod: 'must-rollback' },
+      workoutDays: [{ dayOfWeek: 2, workoutDate: '2026-10-19T12:00:00.000Z' }],
+      resistedExercises: {
+        2: {
+          sessao: [{ ...input[0], exerciseId: 'exercise-from-another-contract' }],
+        },
+      },
+    };
+    await expect(workoutService.saveTemplateWeek(day.templateId, invalidPayload, fixture.contractId))
+      .rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    expect((await prisma.workoutTemplate.findUniqueOrThrow({ where: { id: day.templateId } })).trainingMethod)
+      .toBe(before.trainingMethod);
+
+    const validPayload = {
+      template: { trainingMethod: 'saved-atomically' },
+      workoutDays: [{ dayOfWeek: 2, workoutDate: '2026-10-19T12:00:00.000Z', detailNotes: 'nota semanal' }],
+      resistedExercises: {
+        2: {
+          sessao: input.map((exercise) => ({ ...exercise, section: 'sessao' })),
+        },
+      },
+    };
+    await workoutService.saveTemplateWeek(day.templateId, validPayload, fixture.contractId);
+    const saved = await prisma.workoutTemplate.findUniqueOrThrow({
+      where: { id: day.templateId },
+      include: { workoutDays: { include: { exercises: true } } },
+    });
+    expect(saved.trainingMethod).toBe('saved-atomically');
+    expect(saved.workoutDays.find((candidate) => candidate.dayOfWeek === 2)?.workoutDate.toISOString())
+      .toBe('2026-10-06T00:00:00.000Z');
+    expect(saved.workoutDays.find((candidate) => candidate.dayOfWeek === 2)?.detailNotes).toBe('nota semanal');
+    expect(saved.workoutDays.find((candidate) => candidate.dayOfWeek === 2)?.exercises).toHaveLength(2);
+  });
+
   it('protege execução histórica contra exclusão e garante rollback do dia', async () => {
     const { fixture, input } = await editableFixture('issue399-historical');
     await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
@@ -999,6 +1041,50 @@ describeDatabase('resistance blocks - historical identity and transactional pers
       where: { workoutDayId: own.fixture.dayId },
     });
     expect(unchanged).toHaveLength(2);
+  });
+
+  it('deriva a data civil do dia a partir da âncora do template em criação e cópia legadas', async () => {
+    const { fixture } = await editableFixture('issue399-canonical-day-date');
+    const source = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      select: { templateId: true },
+    });
+    const canonical = await workoutService.getOrCreateDay({
+      templateId: source.templateId,
+      dayOfWeek: 3,
+      workoutDate: new Date('2026-10-18T12:00:00.000Z'),
+    } as never);
+    expect(canonical.workoutDate.toISOString()).toBe('2026-10-07T00:00:00.000Z');
+    const copied = await workoutService.copyDay(
+      fixture.dayId,
+      4,
+      new Date('2026-10-18T12:00:00.000Z'),
+    );
+    expect(copied).not.toBeNull();
+    if (!copied) throw new Error('copyDay did not return the copied day');
+    expect(copied.workoutDate.toISOString()).toBe('2026-10-08T00:00:00.000Z');
+  });
+
+  it('rejeita reparenting de exercício entre dias do mesmo contrato', async () => {
+    const { fixture } = await editableFixture('issue399-exercise-reparenting');
+    const source = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      select: { templateId: true },
+    });
+    const target = await workoutService.getOrCreateDay({
+      templateId: source.templateId,
+      dayOfWeek: 3,
+      workoutDate: new Date('2026-10-07T12:00:00.000Z'),
+    } as never);
+    await expect(workoutService.updateExercise(fixture.exerciseIds[0], {
+      workoutDayId: target.id,
+      reps: 6,
+    }, fixture.contractId)).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    const unchanged = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] },
+      select: { workoutDayId: true, reps: true },
+    });
+    expect(unchanged).toEqual({ workoutDayId: fixture.dayId, reps: 10 });
   });
 
 

@@ -30,6 +30,7 @@ jest.mock('../src/modules/workout/workout.service', () => ({
     getOrCreateTemplate: jest.fn(),
     copyTemplate: jest.fn(),
     copyTemplateSections: jest.fn(),
+    saveTemplateWeek: jest.fn(),
     reorderExercises: jest.fn(),
     getTemplateById: jest.fn(),
     updateTemplate: jest.fn(),
@@ -263,6 +264,24 @@ describe('Issue #399 - route protection and contract isolation', () => {
       workoutDayId: 'day-1', exerciseId: 'other-contract-exercise',
     });
     expect(response.status).toBe(404);
+  });
+
+  it('routes a complete weekly snapshot through the atomic save command', async () => {
+    const payload = {
+      template: { resistanceFrequency: 2 },
+      workoutDays: [{ dayOfWeek: 2, workoutDate: '2026-10-06T12:00:00.000Z' }],
+      resistedExercises: { 2: { sessao: [] } },
+    };
+    (workoutService.saveTemplateWeek as jest.Mock).mockResolvedValueOnce({ id: 'template-1' });
+    const response = await request(app).put('/workout/templates/template-1/save-week').send(payload);
+    expect(response.status).toBe(200);
+    expect(workoutService.saveTemplateWeek).toHaveBeenCalledWith('template-1', payload, 'contract-test');
+  });
+
+  it('rejects a malformed weekly snapshot before entering the service', async () => {
+    const response = await request(app).put('/workout/templates/template-1/save-week').send([]);
+    expect(response.status).toBe(400);
+    expect(workoutService.saveTemplateWeek).not.toHaveBeenCalled();
   });
 });
 
