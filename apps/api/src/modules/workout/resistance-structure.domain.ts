@@ -33,6 +33,14 @@ export class ResistanceStructureValidationError extends Error {
   readonly statusCode = 400;
   readonly code = 'INVALID_RESISTANCE_STRUCTURE';
 }
+export class WorkoutPlanningVersionConflictError extends Error {
+  readonly statusCode = 409;
+  readonly code = 'WORKOUT_PLANNING_VERSION_CONFLICT';
+
+  constructor() {
+    super('O treino foi alterado em outra sessão. Recarregue os dados antes de salvar novamente.');
+  }
+}
 const numberField = (item: Record<string, unknown>, key: string, path: string, max: number, integer = false) => {
   const value = item[key];
   if (value === null || value === undefined) return null;
@@ -167,6 +175,9 @@ export function classifyResistanceWriteError(error: unknown): {
   }
   if (code === 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START') {
     return { status: 409, body: { code, error: 'Este treino possui histórico ou já foi liberado e não pode ser alterado.' } };
+  }
+  if (code === 'WORKOUT_PLANNING_VERSION_CONFLICT') {
+    return { status: 409, body: { code, error: 'O treino foi alterado em outra sessão. Recarregue os dados antes de salvar novamente.' } };
   }
   return { status: 500, body: { code: 'WORKOUT_SAVE_FAILED', error: 'Não foi possível salvar os exercícios.' } };
 }

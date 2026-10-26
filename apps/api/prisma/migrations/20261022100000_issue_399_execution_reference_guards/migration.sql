@@ -43,6 +43,15 @@ BEGIN
     RAISE EXCEPTION 'execution graph ownership does not match planned day' USING ERRCODE = '23514';
   END IF;
 
+  IF NEW."plannedSetId" IS NULL
+    AND EXISTS (
+      SELECT 1
+      FROM "WorkoutExerciseBlock" b
+      WHERE b."workoutExerciseId" = NEW."plannedUnitId"
+    ) THEN
+    RAISE EXCEPTION 'structured planned unit requires a planned set reference' USING ERRCODE = '23514';
+  END IF;
+
   IF NEW."plannedSetId" IS NOT NULL THEN
     SELECT b."workoutExerciseId", e."workoutDayId"
       INTO planned_set_unit_id, planned_set_day_id

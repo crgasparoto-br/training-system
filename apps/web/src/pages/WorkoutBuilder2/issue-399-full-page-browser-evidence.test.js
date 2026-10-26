@@ -45,6 +45,7 @@ function makeTemplate(weekNumber) {
     mesocycleNumber: 1,
     weekNumber,
     weekStartDate: dayDate(weekNumber, 1),
+    updatedAt: plan.updatedAt,
     released: false,
     resistanceFrequency: 2,
     workoutDays: [],
@@ -102,6 +103,7 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
     const observations = [];
     const browserErrors = [];
     let copyFailuresRemaining = 1;
+    let saveConflictsRemaining = 1;
     const previousApi = process.env.VITE_API_URL;
     const json = (res, status, body, origin) => {
       res.writeHead(status, {
@@ -155,6 +157,13 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
         if (req.method === 'PUT' && /^\/api\/v1\/workout\/templates\/[^/]+\/save-week$/.test(pathname)) {
           const template = findTemplate(pathname.split('/')[5]);
           if (!template) return json(res, 404, { error: 'template not found' }, origin);
+          if (saveConflictsRemaining > 0 && body.baseUpdatedAt) {
+            saveConflictsRemaining -= 1;
+            return json(res, 409, {
+              code: 'WORKOUT_PLANNING_VERSION_CONFLICT',
+              error: 'O treino foi alterado em outra sessão.',
+            }, origin);
+          }
           Object.assign(template, body.template || {});
           for (const rawDay of body.workoutDays || []) {
             const day = template.workoutDays.find((candidate) => candidate.dayOfWeek === Number(rawDay.dayOfWeek));
@@ -173,6 +182,7 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
               resistanceBlocks: exercise.resistanceBlocks || [],
             }));
           }
+          template.updatedAt = new Date(Date.parse(template.updatedAt || plan.updatedAt) + 1000).toISOString();
           return json(res, 200, clone(template), origin);
         }
         if (req.method === 'POST' && /^\/api\/v1\/workout\/templates\/[^/]+\/copy$/.test(pathname)) {
@@ -347,6 +357,9 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
         observations.push({ viewport, observed, screenshot: { sha256: createHash('sha256').update(screenshot).digest('hex') }, passed: true });
       }
       expect(requests.some((request) => request.path.endsWith('/save-week'))).toBe(true);
+      expect(requests.filter((request) => request.path.endsWith('/save-week')).length).toBeGreaterThanOrEqual(2);
+      expect(requests.filter((request) => request.path.endsWith('/save-week'))
+        .some((request) => typeof request.body?.baseUpdatedAt === 'string')).toBe(true);
       expect(requests.filter((request) => request.path.endsWith('/copy')).length).toBeGreaterThanOrEqual(2);
       expect(requests.some((request) => request.path.endsWith('/release'))).toBe(true);
       expect(browserErrors).toEqual([]);

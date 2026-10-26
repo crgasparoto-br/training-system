@@ -128,6 +128,7 @@ export interface UpdateWorkoutTemplateDTO {
 }
 
 export interface SaveWorkoutWeekDTO {
+  baseUpdatedAt?: string;
   template?: Record<string, unknown>;
   workoutDays?: Array<Record<string, unknown>>;
   resistedExercises?: Record<string, Record<string, Array<Record<string, unknown>>>>;

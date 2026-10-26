@@ -148,6 +148,7 @@ export default function WorkoutBuilder2() {
   const weekFilterStorageKey = planId
     ? `workoutBuilder2:weekFilter:${planId}:${mesocycleNumber}:${summaryVisibilityUserKey}`
     : 'workoutBuilder2:weekFilter:unknown';
+  const draftActorKey = user?.professor?.id;
   const workoutGuideStorageKey = useMemo(() => {
     if (user?.type !== 'professor' || !user.professor?.id || !planId) {
       return null;
@@ -203,7 +204,7 @@ export default function WorkoutBuilder2() {
 
   useEffect(() => {
     loadTemplate();
-  }, [planId, mesocycleNumber]);
+  }, [planId, mesocycleNumber, draftActorKey]);
 
   useEffect(() => {
     try {
@@ -308,8 +309,15 @@ export default function WorkoutBuilder2() {
         workoutService.saveTemplateWeekKeepalive(snapshot.id, buildWeekSavePayload(snapshot));
       }
     };
+    const handlePageShow = () => {
+      void flushAllPendingSavesRef.current().catch(() => undefined);
+    };
     window.addEventListener('pagehide', handlePageHide);
-    return () => window.removeEventListener('pagehide', handlePageHide);
+    window.addEventListener('pageshow', handlePageShow);
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('pageshow', handlePageShow);
+    };
   }, [planId]);
 
   useEffect(() => {
@@ -465,11 +473,12 @@ export default function WorkoutBuilder2() {
     planId: string | undefined,
     mesocycle: number,
     week: number,
-    planUpdatedAt?: string
+    planUpdatedAt?: string,
+    templateUpdatedAt?: string,
   ) => {
-    if (!planId) return null;
-    const version = planUpdatedAt || 'unknown-version';
-    return `workoutBuilder2:${planId}:${mesocycle}:${week}:${version}`;
+    if (!planId || !draftActorKey) return null;
+    const version = templateUpdatedAt || planUpdatedAt || 'unknown-version';
+    return `workoutBuilder2:${draftActorKey}:${planId}:${mesocycle}:${week}:${version}`;
   };
 
   const buildSaveKey = (mesocycle: number, week: number, contextPlanId = planId) =>
@@ -661,7 +670,7 @@ export default function WorkoutBuilder2() {
               weekNumber,
               weekStartDate
             });
-            const cacheKey = buildCacheKey(planId, mesocycleNumber, weekNumber, plan.updatedAt);
+            const cacheKey = buildCacheKey(planId, mesocycleNumber, weekNumber, plan.updatedAt, templateFromApi.updatedAt);
             let recoveredDraft: any = null;
             if (cacheKey) {
               try {
@@ -675,6 +684,8 @@ export default function WorkoutBuilder2() {
                   && parsed.data?.planId === planId
                   && Number(parsed.data?.mesocycleNumber) === mesocycleNumber
                   && Number(parsed.data?.weekNumber) === weekNumber
+                  && typeof templateFromApi.updatedAt === 'string'
+                  && parsed.data?.baseTemplateUpdatedAt === templateFromApi.updatedAt
                 ) {
                   recoveredDraft = parsed.data;
                   const saveKey = buildSaveKey(mesocycleNumber, weekNumber, planId);
@@ -682,6 +693,7 @@ export default function WorkoutBuilder2() {
                   pendingSaveRef.current[saveKey] = {
                     ...recoveredDraft,
                     planUpdatedAt: plan.updatedAt,
+                    baseTemplateUpdatedAt: templateFromApi.updatedAt,
                   };
                 }
                 if (templateFromApi.released) {
@@ -711,6 +723,7 @@ export default function WorkoutBuilder2() {
               weekStartDate: persistedWeekStartDate,
               mesocycleNumber,
               weekNumber,
+              baseTemplateUpdatedAt: templateFromApi.updatedAt,
               resistedExercises: resistedFromApi,
             };
 
@@ -759,6 +772,7 @@ export default function WorkoutBuilder2() {
       ...merged,
       planId: merged?.planId ?? planId,
       planUpdatedAt: merged?.planUpdatedAt ?? planData?.updatedAt,
+      baseTemplateUpdatedAt: merged?.baseTemplateUpdatedAt ?? merged?.updatedAt,
       mesocycleNumber: resolvedMesocycle,
       weekNumber: resolvedWeek,
     };
@@ -766,8 +780,9 @@ export default function WorkoutBuilder2() {
 
     setTemplateDataByWeek((prev) => ({ ...prev, [weekNumber]: snapshot }));
     pendingSaveRef.current[saveKey] = snapshot;
+    pagehideSnapshotsSentRef.current.delete(saveKey);
     const cacheKey = snapshot.planId
-      ? buildCacheKey(snapshot.planId, resolvedMesocycle, resolvedWeek, snapshot.planUpdatedAt)
+      ? buildCacheKey(snapshot.planId, resolvedMesocycle, resolvedWeek, snapshot.planUpdatedAt, snapshot.baseTemplateUpdatedAt)
       : null;
     if (cacheKey) {
       try {
@@ -853,6 +868,7 @@ export default function WorkoutBuilder2() {
     }
 
     return {
+      baseUpdatedAt: snapshot?.baseTemplateUpdatedAt ?? snapshot?.updatedAt,
       template: {
         cyclicFrequency: snapshot?.cyclicFrequency,
         resistanceFrequency: snapshot?.resistanceFrequency,
@@ -891,12 +907,23 @@ export default function WorkoutBuilder2() {
       }
       try {
         if (snapshot.id) {
-          await workoutService.saveTemplateWeek(snapshot.id, buildWeekSavePayload(snapshot));
+          const saved = await workoutService.saveTemplateWeek(snapshot.id, buildWeekSavePayload(snapshot));
+          if (isCurrentBuilderContext(snapshot.planId, resolvedMesocycle)
+            && pendingSaveRef.current[saveKey] === snapshot) {
+            setTemplateDataByWeek((prev) => ({
+              ...prev,
+              [resolvedWeek]: {
+                ...prev[resolvedWeek],
+                updatedAt: saved.updatedAt,
+                baseTemplateUpdatedAt: saved.updatedAt,
+              },
+            }));
+          }
         }
         if (pendingSaveRef.current[saveKey] === snapshot) {
           delete pendingSaveRef.current[saveKey];
           const cacheKey = snapshot.planId
-            ? buildCacheKey(snapshot.planId, resolvedMesocycle, resolvedWeek, snapshot.planUpdatedAt)
+            ? buildCacheKey(snapshot.planId, resolvedMesocycle, resolvedWeek, snapshot.planUpdatedAt, snapshot.baseTemplateUpdatedAt)
             : null;
           if (cacheKey) {
             try { localStorage.removeItem(cacheKey); } catch { /* Recovery buffer is optional. */ }
@@ -905,7 +932,43 @@ export default function WorkoutBuilder2() {
       } catch (error) {
         console.error('Erro ao salvar:', error);
         const serverMessage = (error as { response?: { data?: { error?: unknown } } })?.response?.data?.error;
-        if (isCurrentBuilderContext(snapshot.planId, resolvedMesocycle)) {
+        if (isCurrentBuilderContext(snapshot.planId, resolvedMesocycle)
+          && pendingSaveRef.current[saveKey] === snapshot) {
+          const responseData = (error as { response?: { status?: number; data?: { code?: unknown } } })?.response?.data;
+          if (responseData?.code === 'WORKOUT_PLANNING_VERSION_CONFLICT' && snapshot.id) {
+            try {
+              const authoritative = await workoutService.getTemplate(snapshot.id);
+              const rebasedSnapshot = {
+                ...snapshot,
+                baseTemplateUpdatedAt: authoritative.updatedAt,
+              };
+              pendingSaveRef.current[saveKey] = rebasedSnapshot;
+              const rebasedCacheKey = buildCacheKey(
+                rebasedSnapshot.planId,
+                resolvedMesocycle,
+                resolvedWeek,
+                rebasedSnapshot.planUpdatedAt,
+                rebasedSnapshot.baseTemplateUpdatedAt,
+              );
+              if (rebasedCacheKey) {
+                try {
+                  localStorage.setItem(rebasedCacheKey, JSON.stringify({
+                    schemaVersion: 2,
+                    status: 'pending-draft',
+                    data: rebasedSnapshot,
+                  }));
+                } catch {
+                  // localStorage remains an optional recovery buffer.
+                }
+              }
+              setSaveError('O treino mudou em outra sessão; o rascunho local foi rebaseado e será reenviado.');
+              setSaveErrorKey(saveKey);
+              void handleSave(rebasedSnapshot, resolvedWeek).catch(() => undefined);
+              return;
+            } catch (rebaseError) {
+              console.error('Erro ao rebasear o snapshot após conflito:', rebaseError);
+            }
+          }
           setSaveError(typeof serverMessage === 'string' ? serverMessage : 'Falha ao salvar treino. Revise os campos e tente novamente.');
           setSaveErrorKey(saveKey);
         }
