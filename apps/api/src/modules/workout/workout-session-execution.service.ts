@@ -313,19 +313,15 @@ async function persistValues(
   sessionId: string,
   sessionValues: TrainingSessionExecutionSessionValues | undefined,
   items: TrainingSessionExecutionItemValue[]
-) {
+): Promise<Prisma.InputJsonValue | undefined> {
   await validatePlannedUnits(tx, executionId, sessionId, items);
+  let mergedSessionValues: Prisma.InputJsonValue | undefined;
   if (sessionValues) {
     const existing = await tx.workoutSessionExecution.findUnique({ where: { id: executionId }, select: { sessionValues: true } });
-    await tx.workoutSessionExecution.update({
-      where: { id: executionId },
-      data: {
-        sessionValues: {
-          ...((existing?.sessionValues ?? {}) as Record<string, unknown>),
-          ...sessionValues,
-        } as Prisma.InputJsonValue,
-      },
-    });
+    mergedSessionValues = {
+      ...((existing?.sessionValues ?? {}) as Record<string, unknown>),
+      ...sessionValues,
+    } as Prisma.InputJsonValue;
   }
   for (const item of items) {
     const setNumber = item.setNumber ?? 0;
@@ -363,6 +359,7 @@ async function persistValues(
       },
     });
   }
+  return mergedSessionValues;
 }
 
 function ensureOperationKey(value: string) {
@@ -470,7 +467,7 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
         });
       }
 
-      await persistValues(tx, execution.id, input.sessionId, sessionValues, items);
+      const mergedSessionValues = await persistValues(tx, execution.id, input.sessionId, sessionValues, items);
 
       let nextStatus = currentStatus;
       let startedAt = execution.startedAt;
@@ -500,6 +497,21 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
       }
 
       const nextVersion = currentVersion + 1;
+      // Insert the intent ledger while the execution is still non-terminal.
+      // The operation, state transition and lifecycle link remain atomic, but
+      // the database can now reject every direct INSERT into terminal history.
+      const operation = await tx.workoutSessionExecutionOperation.create({
+        data: {
+          executionId: execution.id,
+          operationKey,
+          payloadFingerprint,
+          action,
+          targetStatus: input.targetStatus,
+          expectedVersion: currentVersion,
+          resultingVersion: nextVersion,
+        },
+      });
+
       await tx.workoutSessionExecution.update({
         where: { id: execution.id },
         data: {
@@ -510,6 +522,7 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
           currentPauseStartedAt,
           pausedDurationMs,
           interruptionReason,
+          ...(mergedSessionValues !== undefined ? { sessionValues: mergedSessionValues } : {}),
         },
       });
 
@@ -519,18 +532,6 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
           status: legacyProjection(nextStatus),
           ...(startedAt ? { startedAt } : {}),
           ...(finishedAt ? { finishedAt } : {}),
-        },
-      });
-
-      const operation = await tx.workoutSessionExecutionOperation.create({
-        data: {
-          executionId: execution.id,
-          operationKey,
-          payloadFingerprint,
-          action,
-          targetStatus: input.targetStatus,
-          expectedVersion: currentVersion,
-          resultingVersion: nextVersion,
         },
       });
 

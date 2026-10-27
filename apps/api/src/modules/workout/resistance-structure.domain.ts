@@ -230,12 +230,93 @@ function isValidWorkoutDate(value: unknown): boolean {
   const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
   return month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth[month - 1];
 }
-function assertAllowedKeys(value: unknown, fields: ReadonlySet<string>): void {
+export function assertAllowedKeys(value: unknown, fields: ReadonlySet<string>): void {
   if (!value || typeof value !== 'object' || Array.isArray(value)
     || Object.keys(value).some((key) => !fields.has(key))) {
     throw new ResistanceStructureValidationError('Estrutura de treino inválida ou campo não permitido.');
   }
 }
+
+const SAVE_WEEK_FIELDS = new Set(['baseUpdatedAt', 'template', 'workoutDays', 'resistedExercises']);
+const SAVE_WEEK_DAY_FIELDS = new Set(Object.keys(FIELDS.day).filter((key) => key !== 'templateId'));
+const SAVE_WEEK_EXERCISE_FIELDS = new Set(Object.keys(FIELDS.exercise));
+const RESISTED_SECTION_FIELDS = new Set(['mobilidade', 'sessao', 'resfriamento']);
+
+/** Validate the complete weekly command before nested values are consumed. */
+export function validateWorkoutWeekEnvelope(value: unknown): asserts value is {
+  baseUpdatedAt?: string;
+  template?: Record<string, unknown>;
+  workoutDays?: Array<Record<string, unknown>>;
+  resistedExercises?: Record<string, Record<string, Array<Record<string, unknown>>>>;
+} {
+  assertAllowedKeys(value, SAVE_WEEK_FIELDS);
+  const envelope = value as Record<string, unknown>;
+  if (envelope.baseUpdatedAt !== undefined && typeof envelope.baseUpdatedAt !== 'string') {
+    throw new ResistanceStructureValidationError('Versão base do treino inválida.');
+  }
+  if (envelope.template !== undefined) sanitizeWorkoutMutation(envelope.template, 'template');
+
+  if (envelope.workoutDays !== undefined) {
+    if (!Array.isArray(envelope.workoutDays)) {
+      throw new ResistanceStructureValidationError('Dias do snapshot inválidos.');
+    }
+    for (const day of envelope.workoutDays) {
+      assertAllowedKeys(day, SAVE_WEEK_DAY_FIELDS);
+      sanitizeWorkoutMutation(day, 'day');
+    }
+  }
+
+  if (envelope.resistedExercises !== undefined) {
+    const resisted = envelope.resistedExercises;
+    if (!resisted || typeof resisted !== 'object' || Array.isArray(resisted)) {
+      throw new ResistanceStructureValidationError('Estrutura resistida semanal inválida.');
+    }
+    for (const [dayKey, sections] of Object.entries(resisted as Record<string, unknown>)) {
+      const dayOfWeek = Number(dayKey);
+      if (!Number.isInteger(dayOfWeek) || dayOfWeek < 1 || dayOfWeek > 7) {
+        throw new ResistanceStructureValidationError('Dia resistido inválido.');
+      }
+      assertAllowedKeys(sections, RESISTED_SECTION_FIELDS);
+      for (const exercises of Object.values(sections as Record<string, unknown>)) {
+        if (!Array.isArray(exercises)) {
+          throw new ResistanceStructureValidationError('Exercícios resistidos inválidos.');
+        }
+        for (const exercise of exercises) {
+          assertAllowedKeys(exercise, SAVE_WEEK_EXERCISE_FIELDS);
+          sanitizeWorkoutMutation(exercise, 'exercise');
+        }
+      }
+    }
+  }
+}
+
+export function validateTemplateCopyEnvelope(value: unknown, sections = false): asserts value is Record<string, unknown> {
+  const fields = sections
+    ? new Set(['targetWeekNumber', 'targetWeekStartDate', 'mode'])
+    : new Set(['targetWeekNumber', 'targetWeekStartDate']);
+  assertAllowedKeys(value, fields);
+  if (!sections) return;
+  const body = value as Record<string, unknown>;
+  if (!Number.isInteger(body.targetWeekNumber) || (body.targetWeekNumber as number) <= 0
+    || typeof body.targetWeekStartDate !== 'string') {
+    throw new ResistanceStructureValidationError('Dados de cópia inválidos.');
+  }
+  if (sections && body.mode !== 'cyclic' && body.mode !== 'resistance') {
+    throw new ResistanceStructureValidationError('Dados de cópia inválidos.');
+  }
+}
+
+export function validateReorderEnvelope(value: unknown): asserts value is Record<string, unknown> {
+  assertAllowedKeys(value, new Set(['workoutDayId', 'section', 'exerciseIds']));
+  const body = value as Record<string, unknown>;
+  if (typeof body.workoutDayId !== 'string' || !body.workoutDayId.trim()
+    || typeof body.section !== 'string' || !body.section.trim()
+    || !Array.isArray(body.exerciseIds)
+    || body.exerciseIds.some((id) => typeof id !== 'string' || !id.trim())) {
+    throw new ResistanceStructureValidationError('Dados de ordenação inválidos.');
+  }
+}
+
 function safeBlocks(value: unknown): ResistanceBlockInput[] {
   if (!Array.isArray(value)) throw new ResistanceStructureValidationError('Blocos inválidos.');
   for (const block of value) {

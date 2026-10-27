@@ -8,8 +8,8 @@ Criar a base estrutural para separar no Sistema Acesso o que e cadastro declarad
 
 - A iniciativa esta registrada nas issues #78 e #79.
 - O fluxo atual de alunos mistura dados antropometricos na tabela principal, intake em `AlunoIntakeForm`, financeiro em campos livres do formulario e integracoes em `Integration` com pouca especializacao.
-- O Prisma ativo do repositorio aponta para `prisma/schema.prisma`.
-- Existe um schema paralelo em `apps/api/prisma/schema.prisma`, mas ele nao e a fonte ativa configurada pelo `prisma.config.ts`.
+- A API usa `apps/api/prisma/schema.prisma` e `apps/api/prisma/migrations` como fonte operacional única, também declarada no `prisma.config.ts` raiz.
+- `prisma/schema.prisma` e `prisma/migrations` permanecem como snapshot histórico de domínios anteriores; não devem ser usados para gerar o client ou aplicar migrations da API.
 - A issue #80 usa esta fundacao para expor endpoints segmentados do aluno sem quebrar o contrato legado da tela atual.
 - A issue #81 reorganiza a leitura do frontend para deixar explicito o que vem do aluno, o que vem da equipe e o que vira de integracoes futuras.
 
@@ -21,8 +21,10 @@ Criar a base estrutural para separar no Sistema Acesso o que e cadastro declarad
 
 ## Arquivos e modulos principais
 
-- `prisma/schema.prisma`
-- `prisma/migrations/20260522012000_add_student_domain_foundation/migration.sql`
+- `prisma/schema.prisma` (snapshot histórico da fundação original)
+- `prisma/migrations/20260522012000_add_student_domain_foundation/migration.sql` (migration histórica)
+- `apps/api/prisma/schema.prisma` (fonte operacional atual da API)
+- `apps/api/prisma/migrations` (cadeia operacional atual)
 - `apps/api/src/modules/alunos/student-domain.service.ts`
 - `apps/api/src/modules/alunos/student-domain.routes.ts`
 - `apps/api/src/modules/alunos/index.ts`
@@ -40,7 +42,7 @@ Criar a base estrutural para separar no Sistema Acesso o que e cadastro declarad
 - `contractId` deve ser preservado como barreira multi-tenant em todos os novos dominios sensiveis.
 - A alteracao precisa ser aditiva para nao quebrar o fluxo atual enquanto API e frontend nao migram.
 - A base nova deve permitir rastrear origem do dado (`student`, `professional`, `integration`, `system`).
-- O schema ativo e `prisma/schema.prisma`; evitar propagar mudancas no schema paralelo ate haver plano especifico de consolidacao.
+- Não propagar mudanças entre os dois snapshots. A checagem `pnpm prisma:source-check` impede que a configuração operacional volte a apontar para o snapshot histórico.
 - Os endpoints novos devem conviver com o modulo legado de alunos, usando fallback para dados que ainda nao migraram.
 - No frontend, a primeira entrega prioriza separacao semantica, ordem das abas e contratos de consumo da API segmentada, preservando o fluxo operacional atual.
 
@@ -78,9 +80,8 @@ Criar a base estrutural para separar no Sistema Acesso o que e cadastro declarad
 ## Decisoes e pendencias
 
 - Decisao: a fundacao sera aditiva, sem remover `AlunoIntakeForm`, `Integration` ou campos atuais de `Aluno` nesta etapa.
-- Decisao: o dominio novo sera criado no schema ativo `prisma/schema.prisma`.
+- Decisão operacional posterior: o schema da API é a fonte única para runtime; a aposentadoria física do snapshot raiz permanece fora do escopo desta issue e exige PR próprio.
 - Decisao: a issue #80 foi implementada com endpoints de leitura segmentados e resumo consolidado; as escritas permanecem no fluxo legado por enquanto.
 - Decisao: a primeira entrega da issue #81 reorganiza o frontend por semantica e contratos de dados, antes de uma refatoracao maior da pagina principal de detalhes.
-- Pendencia: decidir em PR proprio como consolidar ou aposentar o schema paralelo em `apps/api/prisma/schema.prisma`.
 - Pendencia: conectar a pagina `AlunoDetails` inteira aos endpoints segmentados para integrar nativamente `integrations` e `timeline` em abas dedicadas.
 - Pendencia: a issue #82 passara a gravar provedores e atividades reais no dominio novo de integracoes.

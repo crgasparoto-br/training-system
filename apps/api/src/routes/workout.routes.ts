@@ -1,6 +1,13 @@
 import { Router, type Response } from 'express';
 import { workoutService } from '../modules/workout/workout.service.js';
-import { classifyResistanceWriteError, sanitizeWorkoutMutation, ResistanceStructureValidationError } from '../modules/workout/resistance-structure.domain.js';
+import {
+  classifyResistanceWriteError,
+  sanitizeWorkoutMutation,
+  ResistanceStructureValidationError,
+  validateReorderEnvelope,
+  validateTemplateCopyEnvelope,
+  validateWorkoutWeekEnvelope,
+} from '../modules/workout/resistance-structure.domain.js';
 import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
 import { prismaRuntimeClient } from '../common/prisma-runtime-client.js';
 
@@ -287,9 +294,7 @@ router.put('/templates/:id', async (req, res) => {
 // days, exercises, blocks and planned sets.
 router.put('/templates/:id/save-week', async (req, res) => {
   try {
-    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
-      return res.status(400).json({ code: 'INVALID_RESISTANCE_STRUCTURE', error: 'Snapshot semanal inválido.' });
-    }
+    validateWorkoutWeekEnvelope(req.body);
     const template = await workoutService.saveTemplateWeek(
       req.params.id,
       req.body,
@@ -327,6 +332,7 @@ router.post('/templates/:id/release', async (req, res) => {
 // Copy template
 router.post('/templates/:id/copy', async (req, res) => {
   try {
+    validateTemplateCopyEnvelope(req.body);
     const targetWeekStartDate = parseRequiredDate(req.body?.targetWeekStartDate);
     if (!targetWeekStartDate) {
       return res.status(400).json({ error: 'Invalid targetWeekStartDate' });
@@ -354,12 +360,13 @@ router.post('/templates/:id/copy', async (req, res) => {
 // Copy only one modality atomically; the destination week is never left partial.
 router.post('/templates/:id/copy-sections', async (req, res) => {
   try {
+    validateTemplateCopyEnvelope(req.body, true);
     const targetWeekStartDate = parseRequiredDate(req.body?.targetWeekStartDate);
-    const targetWeekNumber = Number(req.body?.targetWeekNumber);
+    const targetWeekNumber = req.body?.targetWeekNumber as number;
     const mode = req.body?.mode;
     if (!targetWeekStartDate || !Number.isInteger(targetWeekNumber) || targetWeekNumber <= 0
       || (mode !== 'cyclic' && mode !== 'resistance')) {
-      return res.status(400).json({ code: 'INVALID_RESISTANCE_STRUCTURE', error: 'Dados de cópia inválidos.' });
+      throw new ResistanceStructureValidationError('Dados de cópia inválidos.');
     }
     const template = await workoutService.copyTemplateSections(
       req.params.id,
@@ -489,13 +496,12 @@ router.post('/exercises', async (req, res) => {
 // Reorder exercises
 router.put('/exercises/reorder', async (req, res) => {
   try {
-    const { workoutDayId, section, exerciseIds } = req.body ?? {};
-    if (typeof workoutDayId !== 'string' || !workoutDayId.trim()
-      || typeof section !== 'string' || !section.trim()
-      || !Array.isArray(exerciseIds)
-      || exerciseIds.some((id: unknown) => typeof id !== 'string' || !id.trim())) {
-      throw new ResistanceStructureValidationError('Dados de ordenação inválidos.');
-    }
+    validateReorderEnvelope(req.body);
+    const { workoutDayId, section, exerciseIds } = req.body as {
+      workoutDayId: string;
+      section: string;
+      exerciseIds: string[];
+    };
     await workoutService.reorderExercises(workoutDayId, section, exerciseIds, req.user!.contractId);
     res.status(204).send();
   } catch (error: any) {

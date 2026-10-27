@@ -1,7 +1,7 @@
 ﻿import { PrismaClient } from '@prisma/client';
 
 import { Prisma } from '@prisma/client';
-import { assertWorkoutParentIsImmutable, matchResistanceExerciseRows, normalizeResistanceBlocks, sanitizeWorkoutMutation, ResistanceStructureNotFoundError, ResistanceStructureValidationError, WorkoutPlanningVersionConflictError, type ResistanceBlockInput, type ResistancePlannedSetInput } from './resistance-structure.domain.js';
+import { assertWorkoutParentIsImmutable, matchResistanceExerciseRows, normalizeResistanceBlocks, sanitizeWorkoutMutation, validateWorkoutWeekEnvelope, ResistanceStructureNotFoundError, ResistanceStructureValidationError, WorkoutPlanningVersionConflictError, type ResistanceBlockInput, type ResistancePlannedSetInput } from './resistance-structure.domain.js';
 
 const prisma = new PrismaClient();
 
@@ -355,6 +355,16 @@ async function lockWorkoutTemplatePlanningMutable(
   if (legacy) throw new WorkoutPlanningLockedError();
 }
 
+async function touchWorkoutTemplateRevision(
+  tx: Prisma.TransactionClient,
+  templateId: string,
+) {
+  await tx.workoutTemplate.update({
+    where: { id: templateId },
+    data: { updatedAt: new Date() },
+  });
+}
+
 async function withWorkoutDayPlanningMutation<T>(
   workoutDayId: string,
   mutation: (tx: Prisma.TransactionClient) => Promise<T>
@@ -364,7 +374,14 @@ async function withWorkoutDayPlanningMutation<T>(
     try {
       return await prisma.$transaction(async (tx) => {
         await lockWorkoutDayPlanningMutable(tx, workoutDayId);
-        return mutation(tx);
+        const parent = await tx.workoutDay.findUnique({
+          where: { id: workoutDayId },
+          select: { templateId: true },
+        });
+        if (!parent) throw new ResistanceStructureNotFoundError();
+        const result = await mutation(tx);
+        await touchWorkoutTemplateRevision(tx, parent.templateId);
+        return result;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {
       if (!isSerializableTransactionConflict(error)) throw error;
@@ -785,8 +802,8 @@ export const workoutService = {
       ...data,
       workoutDate: workoutDateInTargetWeek(template.weekStartDate, data.dayOfWeek),
     };
-    return withWorkoutTemplatePlanningMutation(data.templateId, (tx) =>
-      tx.workoutDay.create({
+    return withWorkoutTemplatePlanningMutation(data.templateId, async (tx) => {
+      const created = await tx.workoutDay.create({
         data,
         include: {
           template: true,
@@ -797,8 +814,10 @@ export const workoutService = {
             },
           },
         },
-      })
-    );
+      });
+      await touchWorkoutTemplateRevision(tx, data.templateId);
+      return created;
+    });
   },
 
   /**
@@ -863,6 +882,8 @@ export const workoutService = {
       throw new ResistanceStructureValidationError('Snapshot semanal inválido.');
     }
 
+    validateWorkoutWeekEnvelope(data);
+
     return withWorkoutTemplatePlanningMutation(id, async (tx) => {
       const template = await tx.workoutTemplate.findUnique({
         where: { id },
@@ -885,6 +906,7 @@ export const workoutService = {
       }
 
       const templateInput = sanitizeWorkoutMutation(data.template ?? {}, 'template');
+      let childGraphChanged = false;
       const requestedWeekStartDate = (templateInput as { weekStartDate?: Date | string }).weekStartDate;
       const nextWeekStartDate = requestedWeekStartDate === undefined
         ? template.weekStartDate
@@ -907,6 +929,7 @@ export const workoutService = {
       if (!Array.isArray(rawDays) || rawDays.length > 7) {
         throw new ResistanceStructureValidationError('Dias do snapshot inválidos.');
       }
+      if (rawDays.length > 0) childGraphChanged = true;
 
       for (const rawDay of rawDays) {
         if (!rawDay || typeof rawDay !== 'object') {
@@ -957,6 +980,7 @@ export const workoutService = {
 
       const resisted = data.resistedExercises;
       if (resisted !== undefined) {
+        childGraphChanged = true;
         if (!resisted || typeof resisted !== 'object' || Array.isArray(resisted)) {
           throw new ResistanceStructureValidationError('Estrutura resistida semanal inválida.');
         }
@@ -1080,6 +1104,10 @@ export const workoutService = {
         }
       }
 
+      if (childGraphChanged && Object.keys(templateInput).length === 0) {
+        await touchWorkoutTemplateRevision(tx, id);
+      }
+
       const saved = await tx.workoutTemplate.findUnique({
         where: { id },
         include: {
@@ -1102,13 +1130,13 @@ export const workoutService = {
       throw new LegacyWorkoutLifecycleDisabledError();
     }
 
-    await prisma.workoutDay.update({
+    await withWorkoutDayPlanningMutation(id, (tx) => tx.workoutDay.update({
       where: { id },
       data: {
         ...(data.psrResponse !== undefined ? { psrResponse: data.psrResponse } : {}),
         ...(data.pseResponse !== undefined ? { pseResponse: data.pseResponse } : {}),
       },
-    });
+    }));
 
     return await this.getWorkoutDay(id);
   },
@@ -1842,6 +1870,7 @@ export const workoutService = {
         });
       }
 
+      await touchWorkoutTemplateRevision(tx, source.templateId);
       return created;
     });
 

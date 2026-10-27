@@ -216,3 +216,19 @@ O replay autenticado anterior havia exposto `P2002` ao criar em paralelo o mesmo
 1. Encaminhar o SHA publicado congelado `0fd3711e09dfd16ae97aa5ce0c1d88f2498a029e` para nova auditoria independente com `auditar-issue` em contexto separado.
 
 Não houve merge nem fechamento da issue. Não declarar aprovação independente nesta homologação.
+
+## Delimitação da evidência do candidato `d375bf7e…` — 27/10/2026
+
+Os artifacts `full-page-browser.json` e `real-api-browser.json` associados ao SHA
+`d375bf7e77e5dd215f21f748fab3f6e2b61043c8` são evidência exact-SHA de uma execução
+`push` do job crítico. Eles demonstram o replay registrado naquele commit, mas não
+comprovam o contexto `pull_request` da PR #516: não incluem `classify`,
+`merge_preview` e o aggregate `Validate repository` exigidos nesse evento. O
+artefato não deve ser reutilizado como prova do candidato posterior.
+
+A rodada de remediação de 27/10/2026 adiciona guards SQL, allowlists HTTP, revisão
+agregada do grafo, fail-safe de conflitos do builder, coordenação de pagehide e o
+gate de fonte do Prisma. A aplicação local da migration
+`20261027100000_issue_399_execution_state_guards` passou em PostgreSQL 16, mas esta
+nota não declara aprovação: o SHA final ainda precisa ser publicado, validado nos
+dois contextos remotos aplicáveis e submetido a auditoria independente.

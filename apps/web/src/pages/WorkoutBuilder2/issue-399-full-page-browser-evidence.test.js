@@ -103,7 +103,7 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
     const observations = [];
     const browserErrors = [];
     let copyFailuresRemaining = 1;
-    let saveConflictsRemaining = 1;
+    let saveConflictTriggered = false;
     const previousApi = process.env.VITE_API_URL;
     const json = (res, status, body, origin) => {
       res.writeHead(status, {
@@ -157,8 +157,13 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
         if (req.method === 'PUT' && /^\/api\/v1\/workout\/templates\/[^/]+\/save-week$/.test(pathname)) {
           const template = findTemplate(pathname.split('/')[5]);
           if (!template) return json(res, 404, { error: 'template not found' }, origin);
-          if (saveConflictsRemaining > 0 && body.baseUpdatedAt) {
-            saveConflictsRemaining -= 1;
+          const hasStructuredEdit = Object.values(body.resistedExercises || {})
+            .some((sections) => Object.values(sections || {}).some((exercises) =>
+              Array.isArray(exercises) && exercises.some((exercise) => (exercise.resistanceBlocks || []).length > 0)));
+          if (!saveConflictTriggered && hasStructuredEdit && body.baseUpdatedAt) {
+            saveConflictTriggered = true;
+            template.workoutDays[0].detailNotes = 'alteração remota preservada #399';
+            template.updatedAt = new Date(Date.parse(template.updatedAt || plan.updatedAt) + 5000).toISOString();
             return json(res, 409, {
               code: 'WORKOUT_PLANNING_VERSION_CONFLICT',
               error: 'O treino foi alterado em outra sessão.',
@@ -299,7 +304,17 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
         await page.waitForFunction(() => document.querySelectorAll('button').length > 10, { timeout: 20000 });
         if (viewport.width === 1440) {
           await clickText('Próximo Mesociclo');
-          await page.waitForFunction(() => location.pathname.includes('/workout-builder/2/1'), { timeout: 20000 });
+          try {
+            await page.waitForFunction(() => location.pathname.includes('/workout-builder/2/1'), { timeout: 20000 });
+          } catch (error) {
+            const navigationState = await page.evaluate(() => ({
+              pathname: location.pathname,
+              nextDisabled: [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('Próximo Mesociclo'))?.disabled,
+              alert: document.querySelector('[role="alert"]')?.textContent || null,
+              saving: document.body.innerText.includes('Salvando'),
+            }));
+            throw new Error(`${error.message}; navigationState=${JSON.stringify(navigationState)}`);
+          }
           await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Parâmetros do Treino'), { timeout: 20000 });
           await page.waitForFunction(() => [...document.querySelectorAll('button')].some((button) => button.textContent?.includes('Mesociclo Anterior')), { timeout: 20000 });
           await clickText('Mesociclo Anterior');
@@ -323,6 +338,14 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
             };
             check();
           });
+          await page.reload({ waitUntil: 'domcontentloaded' });
+          await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Parâmetros do Treino'), { timeout: 20000 });
+          const remoteAfterConflict = await page.evaluate(async () => {
+            const response = await fetch('/api/v1/workout/templates/template-browser-399-1');
+            const payload = await response.json();
+            return payload.workoutDays?.[0]?.detailNotes;
+          });
+          expect(remoteAfterConflict).toBe('alteração remota preservada #399');
           await clickText('Copiar Semana');
           await page.waitForFunction(() => document.querySelector('[role="alert"]')?.innerText.includes('Erro ao copiar semana'), { timeout: 20000 });
           await clickText('Tentar novamente');
@@ -335,6 +358,10 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
           await page.goto(`${webOrigin}/plans/plan-browser-399/workout-builder/1/2`, { waitUntil: 'domcontentloaded' });
           await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Parâmetros do Treino'), { timeout: 20000 });
         }
+        const cyclicMissingLabels = await page.evaluate(() =>
+          [...document.querySelectorAll('input,textarea,select')]
+            .filter((field) => !field.labels.length && !field.getAttribute('aria-label')).length);
+        expect(cyclicMissingLabels).toBe(0);
         await clickText('Treinamento Resistido');
         await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Agachamento browser #399'), { timeout: 15000 });
         const observed = await page.evaluate(() => ({

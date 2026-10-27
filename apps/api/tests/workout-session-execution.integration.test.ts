@@ -976,8 +976,93 @@ describeDatabase('AUD-399-16/17: canonical planned-set execution link', () => {
       UPDATE "WorkoutSessionExecutionItem" SET "loadKg" = 999 WHERE "id" = ${item.id}
     `).rejects.toThrow();
     await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutSessionExecutionOperation" (
+        "id", "executionId", "operationKey", "payloadFingerprint", "action",
+        "targetStatus", "expectedVersion", "resultingVersion"
+      ) VALUES (
+        ${randomUUID()}, ${execution.id}, 'issue399-direct-terminal-operation', 'fingerprint',
+        'transition', 'completed', ${completed.version}, ${completed.version + 1}
+      )
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutSessionPauseInterval" ("id", "executionId", "startedAt")
+      VALUES (${randomUUID()}, ${execution.id}, ${new Date('2026-10-27T10:00:00.000Z')})
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutSessionExecutionItem" (
+        "id", "executionId", "plannedUnitId", "setNumber", "loadKg"
+      ) VALUES (
+        ${randomUUID()}, ${execution.id}, ${fixture.exerciseIds[0]}, 99, 1
+      )
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
       DELETE FROM "WorkoutSessionExecutionOperation" WHERE "id" = ${operation.id}
     `).rejects.toThrow();
+  });
+
+  it('rejects a direct root execution INSERT that skips the not_started shell', async () => {
+    const fixture = await seedReleasedWorkout('issue399-invalid-root-insert');
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      include: { template: { include: { plan: true } } },
+    });
+    const releaseRows = await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "ConsolidatedPrescriptionOperationalRelease"
+      WHERE "workoutTemplateId" = ${day.templateId}
+      LIMIT 1
+    `;
+    const release = releaseRows[0];
+    if (!release) throw new Error('fixture release missing');
+
+    await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutSessionExecution" (
+        "id", "workoutDayId", "alunoId", "contractId", "originReleaseId",
+        "originWorkoutTemplateId", "originTrainingPlanId", "status", "version",
+        "startedAt", "finishedAt"
+      ) VALUES (
+        ${randomUUID()}, ${fixture.dayId}, ${fixture.alunoId}, ${fixture.contractId},
+        ${release.id}, ${day.templateId}, ${day.template.planId}, 'completed', 1,
+        ${new Date('2026-10-27T10:00:00.000Z')}, ${new Date('2026-10-27T11:00:00.000Z')}
+      )
+    `).rejects.toThrow();
+  });
+
+  it('rejects status updates that omit the lifecycle fields required by each state', async () => {
+    const expectInvalidUpdate = async (status: string, fields: string) => {
+      const fixture = await seedReleasedWorkout(`issue399-invalid-state-${status}`);
+      const day = await prisma.workoutDay.findUniqueOrThrow({
+        where: { id: fixture.dayId },
+        include: { template: true },
+      });
+      const releaseRows = await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "ConsolidatedPrescriptionOperationalRelease"
+        WHERE "workoutTemplateId" = ${day.templateId} LIMIT 1
+      `;
+      const release = releaseRows[0];
+      if (!release) throw new Error('fixture release missing');
+      const executionId = randomUUID();
+      await prisma.$executeRaw`
+        INSERT INTO "WorkoutSessionExecution" (
+          "id", "workoutDayId", "alunoId", "contractId", "originReleaseId",
+          "originWorkoutTemplateId", "originTrainingPlanId", "status", "version", "updatedAt"
+        ) VALUES (
+          ${executionId}, ${fixture.dayId}, ${fixture.alunoId}, ${fixture.contractId},
+          ${release.id}, ${day.templateId}, ${day.template.planId}, 'not_started', 0, CURRENT_TIMESTAMP
+        )
+      `;
+      await expect(prisma.$executeRawUnsafe(`
+        UPDATE "WorkoutSessionExecution"
+        SET "status" = '${status}', "version" = 1, ${fields}
+        WHERE "id" = '${executionId}'
+      `)).rejects.toThrow();
+    };
+
+    await expectInvalidUpdate('in_progress', '"startedAt" = NULL');
+    await expectInvalidUpdate('paused', '"startedAt" = TIMESTAMP \'2026-10-27 10:00:00+00\', "currentPauseStartedAt" = NULL');
+    await expectInvalidUpdate('completed', '"startedAt" = TIMESTAMP \'2026-10-27 10:00:00+00\', "finishedAt" = NULL');
+    await expectInvalidUpdate('partial', '"startedAt" = TIMESTAMP \'2026-10-27 10:00:00+00\', "finishedAt" = TIMESTAMP \'2026-10-27 11:00:00+00\', "interruptionReason" = \'  \'');
+    await expectInvalidUpdate('not_performed', '"finishedAt" = NULL, "interruptionReason" = \'sem motivo\'');
   });
 });
 
@@ -1069,6 +1154,49 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     }, fixture.contractId)).rejects.toMatchObject({ code: 'WORKOUT_PLANNING_VERSION_CONFLICT' });
     expect((await prisma.workoutTemplate.findUniqueOrThrow({ where: { id: day.templateId } })).trainingMethod)
       .toBe('saved-atomically');
+  });
+
+  it('avança a revisão e rejeita concorrência quando só um bloco/série muda', async () => {
+    const { fixture, input } = await editableFixture('issue399-child-only-version');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input, fixture.contractId);
+    const day = await prisma.workoutDay.findUniqueOrThrow({ where: { id: fixture.dayId } });
+    const before = await prisma.workoutTemplate.findUniqueOrThrow({ where: { id: day.templateId } });
+    const childOnlyPayload = {
+      baseUpdatedAt: before.updatedAt.toISOString(),
+      resistedExercises: {
+        2: {
+          sessao: input.map((exercise, index) => ({
+            ...exercise,
+            section: 'sessao',
+            resistanceBlocks: index === 0
+              ? [{ ...exercise.resistanceBlocks![0], plannedSets: [{ ...exercise.resistanceBlocks![0].plannedSets[0], loadKg: 33.5 }] }]
+              : [],
+          })),
+        },
+      },
+    };
+    await workoutService.saveTemplateWeek(day.templateId, childOnlyPayload, fixture.contractId);
+    const after = await prisma.workoutTemplate.findUniqueOrThrow({ where: { id: day.templateId } });
+    expect(after.updatedAt.getTime()).toBeGreaterThan(before.updatedAt.getTime());
+
+    await expect(workoutService.saveTemplateWeek(day.templateId, {
+      ...childOnlyPayload,
+      resistedExercises: {
+        2: {
+          sessao: childOnlyPayload.resistedExercises[2].sessao.map((exercise, index) => ({
+            ...exercise,
+            resistanceBlocks: index === 0
+              ? [{ ...exercise.resistanceBlocks![0], plannedSets: [{ ...exercise.resistanceBlocks![0].plannedSets[0], loadKg: 34.5 }] }]
+              : [],
+          })),
+        },
+      },
+    }, fixture.contractId)).rejects.toMatchObject({ code: 'WORKOUT_PLANNING_VERSION_CONFLICT' });
+    const persisted = await prisma.workoutExerciseBlock.findFirstOrThrow({
+      where: { workoutExerciseId: fixture.exerciseIds[0] },
+      include: { plannedSets: true },
+    });
+    expect(persisted.plannedSets[0].loadKg).toBe(33.5);
   });
 
   it('usa a nova âncora do snapshot e rejeita dias duplicados', async () => {
@@ -1542,12 +1670,17 @@ describeDatabase('resistance blocks - historical identity and transactional pers
       await tx.$executeRaw`
         INSERT INTO "WorkoutSessionExecution" (
           "id", "workoutDayId", "alunoId", "contractId", "originReleaseId",
-          "originWorkoutTemplateId", "originTrainingPlanId", "status", "startedAt", "updatedAt"
+          "originWorkoutTemplateId", "originTrainingPlanId", "status", "version", "updatedAt"
         ) VALUES (
           ${executionId}, ${fixture.fixture.dayId}, ${fixture.fixture.alunoId},
           ${fixture.fixture.contractId}, ${releaseId}, ${day.template.id},
-          ${day.template.plan.id}, 'in_progress', ${releaseDate}, ${releaseDate}
+          ${day.template.plan.id}, 'not_started', 0, ${releaseDate}
         )
+      `;
+      await tx.$executeRaw`
+        UPDATE "WorkoutSessionExecution"
+        SET "status" = 'in_progress', "version" = 1, "startedAt" = ${releaseDate}
+        WHERE "id" = ${executionId}
       `;
       await tx.$executeRaw`SELECT pg_sleep(0.25)`;
     });

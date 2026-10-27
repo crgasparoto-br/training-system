@@ -174,12 +174,14 @@ export default function WorkoutBuilder2() {
   const autoSaveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const pendingSaveRef = useRef<Record<string, any>>({});
   const saveChainsRef = useRef(new Map<string, Promise<void>>());
+  const conflictedSaveKeysRef = useRef(new Set<string>());
+  const pagehideFlushRef = useRef<Promise<void> | null>(null);
+  const pagehideDeliveryRef = useRef(new Map<string, { snapshot: any; status: 'pending' | 'completed' | 'failed' }>());
   const flushAllPendingSavesRef = useRef<() => Promise<void>>(async () => undefined);
   const activeOperationsRef = useRef(0);
   const copyActionInFlightRef = useRef(false);
   const releaseActionInFlightRef = useRef(false);
   const contextNavigationInFlightRef = useRef(false);
-  const pagehideSnapshotsSentRef = useRef(new Set<string>());
   const beginOperation = () => {
     activeOperationsRef.current += 1;
     setSaving(true);
@@ -303,14 +305,45 @@ export default function WorkoutBuilder2() {
 
   useEffect(() => {
     const handlePageHide = () => {
+      if (pagehideFlushRef.current) return;
       for (const [saveKey, snapshot] of Object.entries(pendingSaveRef.current)) {
-        if (!snapshot?.id || snapshot.planId !== planId || pagehideSnapshotsSentRef.current.has(saveKey)) continue;
-        pagehideSnapshotsSentRef.current.add(saveKey);
-        workoutService.saveTemplateWeekKeepalive(snapshot.id, buildWeekSavePayload(snapshot));
+        if (snapshot?.id && snapshot.planId === planId) {
+          pagehideDeliveryRef.current.set(saveKey, { snapshot, status: 'pending' });
+        }
       }
+      const flush = flushAllPendingSavesRef.current()
+        .then(() => {
+          for (const [saveKey, delivery] of pagehideDeliveryRef.current) {
+            if (pendingSaveRef.current[saveKey] !== delivery.snapshot) delivery.status = 'completed';
+          }
+        })
+        .catch(() => {
+          for (const delivery of pagehideDeliveryRef.current.values()) delivery.status = 'failed';
+        });
+      pagehideFlushRef.current = flush;
+      void flush.finally(() => {
+        if (pagehideFlushRef.current === flush) pagehideFlushRef.current = null;
+      });
     };
     const handlePageShow = () => {
-      void flushAllPendingSavesRef.current().catch(() => undefined);
+      void (async () => {
+        const inFlight = pagehideFlushRef.current;
+        if (inFlight) await inFlight.catch(() => undefined);
+        for (const [saveKey, delivery] of pagehideDeliveryRef.current) {
+          if (delivery.status !== 'failed' || pendingSaveRef.current[saveKey] !== delivery.snapshot) continue;
+          const parsed = parseSaveKey(saveKey);
+          if (!parsed || conflictedSaveKeysRef.current.has(saveKey)) continue;
+          try {
+            const authoritative = await workoutService.getTemplate(delivery.snapshot.id);
+            if (authoritative.updatedAt !== delivery.snapshot.baseTemplateUpdatedAt) continue;
+            await handleSave(delivery.snapshot, parsed.week);
+          } catch {
+            // Keep the snapshot and let the next explicit edit/re-entry retry.
+          }
+        }
+        pagehideDeliveryRef.current.clear();
+        await flushAllPendingSavesRef.current().catch(() => undefined);
+      })();
     };
     window.addEventListener('pagehide', handlePageHide);
     window.addEventListener('pageshow', handlePageShow);
@@ -479,6 +512,71 @@ export default function WorkoutBuilder2() {
     if (!planId || !draftActorKey) return null;
     const version = templateUpdatedAt || planUpdatedAt || 'unknown-version';
     return `workoutBuilder2:${draftActorKey}:${planId}:${mesocycle}:${week}:${version}`;
+  };
+  const buildCachePrefix = (contextPlanId: string | undefined, mesocycle: number, week: number) => {
+    if (!contextPlanId || !draftActorKey) return null;
+    return `workoutBuilder2:${draftActorKey}:${contextPlanId}:${mesocycle}:${week}:`;
+  };
+  const clearDraftCacheForWeek = (contextPlanId: string | undefined, mesocycle: number, week: number) => {
+    const prefix = buildCachePrefix(contextPlanId, mesocycle, week);
+    if (!prefix) return;
+    try {
+      for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+        const key = localStorage.key(index);
+        if (key?.startsWith(prefix)) localStorage.removeItem(key);
+      }
+    } catch {
+      // localStorage is an optional recovery buffer.
+    }
+  };
+  const rehydrateDraftFromApi = (templateFromApi: any, candidate: any) => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return null;
+    const allowedKeys = new Set([
+      'id', 'planId', 'alunoId', 'mesocycleNumber', 'weekNumber', 'weekStartDate',
+      'released', 'releasedAt', 'updatedAt', 'baseTemplateUpdatedAt', 'planUpdatedAt',
+      'cyclicFrequency', 'resistanceFrequency', 'totalVolumeMin', 'totalVolumeKm',
+      'loadPercentage', 'repZone', 'repReserve', 'trainingMethod', 'trainingDivision',
+      'alunoGoal', 'coachGoal', 'observation1', 'observation2',
+      'workoutDays', 'resistedExercises',
+      'distributionZ1', 'distributionZ2', 'distributionZ3', 'distributionZ4', 'distributionZ5',
+    ]);
+    if (Object.keys(candidate).some((key) => !allowedKeys.has(key))) return null;
+    if (candidate.id !== templateFromApi.id
+      || candidate.planId !== templateFromApi.planId
+      || Number(candidate.mesocycleNumber) !== Number(templateFromApi.mesocycleNumber)
+      || Number(candidate.weekNumber) !== Number(templateFromApi.weekNumber)
+      || candidate.baseTemplateUpdatedAt !== templateFromApi.updatedAt) return null;
+    if (candidate.workoutDays !== undefined
+      && !Array.isArray(candidate.workoutDays)
+      && (!candidate.workoutDays || typeof candidate.workoutDays !== 'object')) return null;
+    if (candidate.resistedExercises !== undefined
+      && (!candidate.resistedExercises || typeof candidate.resistedExercises !== 'object'
+        || Array.isArray(candidate.resistedExercises))) return null;
+
+    const editableKeys = [
+      'cyclicFrequency', 'resistanceFrequency', 'totalVolumeMin', 'totalVolumeKm',
+      'loadPercentage', 'repZone', 'repReserve', 'trainingMethod', 'trainingDivision',
+      'alunoGoal', 'coachGoal', 'observation1', 'observation2',
+      'workoutDays', 'resistedExercises',
+    ];
+    const editable = Object.fromEntries(
+      editableKeys.filter((key) => Object.prototype.hasOwnProperty.call(candidate, key))
+        .map((key) => [key, candidate[key]]),
+    );
+    return {
+      ...templateFromApi,
+      ...editable,
+      // Server lifecycle and identity fields always win over local storage.
+      id: templateFromApi.id,
+      planId: templateFromApi.planId,
+      mesocycleNumber: templateFromApi.mesocycleNumber,
+      weekNumber: templateFromApi.weekNumber,
+      weekStartDate: templateFromApi.weekStartDate,
+      released: templateFromApi.released,
+      releasedAt: templateFromApi.releasedAt,
+      updatedAt: templateFromApi.updatedAt,
+      baseTemplateUpdatedAt: templateFromApi.updatedAt,
+    };
   };
 
   const buildSaveKey = (mesocycle: number, week: number, contextPlanId = planId) =>
@@ -687,17 +785,19 @@ export default function WorkoutBuilder2() {
                   && typeof templateFromApi.updatedAt === 'string'
                   && parsed.data?.baseTemplateUpdatedAt === templateFromApi.updatedAt
                 ) {
-                  recoveredDraft = parsed.data;
-                  const saveKey = buildSaveKey(mesocycleNumber, weekNumber, planId);
-                  recoveredDraftKeys.push(saveKey);
-                  pendingSaveRef.current[saveKey] = {
-                    ...recoveredDraft,
-                    planUpdatedAt: plan.updatedAt,
-                    baseTemplateUpdatedAt: templateFromApi.updatedAt,
-                  };
+                  recoveredDraft = rehydrateDraftFromApi(templateFromApi, parsed.data);
+                  if (recoveredDraft) {
+                    const saveKey = buildSaveKey(mesocycleNumber, weekNumber, planId);
+                    recoveredDraftKeys.push(saveKey);
+                    pendingSaveRef.current[saveKey] = {
+                      ...recoveredDraft,
+                      planUpdatedAt: plan.updatedAt,
+                      baseTemplateUpdatedAt: templateFromApi.updatedAt,
+                    };
+                  }
                 }
                 if (templateFromApi.released) {
-                  localStorage.removeItem(cacheKey);
+                  clearDraftCacheForWeek(planId, mesocycleNumber, weekNumber);
                   delete pendingSaveRef.current[buildSaveKey(mesocycleNumber, weekNumber, planId)];
                 }
               } catch {
@@ -705,7 +805,7 @@ export default function WorkoutBuilder2() {
               }
             }
             const authoritativeTemplate = recoveredDraft && !templateFromApi.released
-              ? { ...templateFromApi, ...recoveredDraft, id: templateFromApi.id }
+              ? recoveredDraft
               : templateFromApi;
             const resistedFromApi = buildResistedExercisesFromTemplate(authoritativeTemplate);
 
@@ -778,9 +878,9 @@ export default function WorkoutBuilder2() {
     };
     const saveKey = buildSaveKey(resolvedMesocycle, resolvedWeek, snapshot.planId);
 
+    conflictedSaveKeysRef.current.delete(saveKey);
     setTemplateDataByWeek((prev) => ({ ...prev, [weekNumber]: snapshot }));
     pendingSaveRef.current[saveKey] = snapshot;
-    pagehideSnapshotsSentRef.current.delete(saveKey);
     const cacheKey = snapshot.planId
       ? buildCacheKey(snapshot.planId, resolvedMesocycle, resolvedWeek, snapshot.planUpdatedAt, snapshot.baseTemplateUpdatedAt)
       : null;
@@ -896,6 +996,13 @@ export default function WorkoutBuilder2() {
     if (!Number.isInteger(resolvedMesocycle) || resolvedMesocycle <= 0
       || !Number.isInteger(resolvedWeek) || resolvedWeek <= 0) return;
     const saveKey = buildSaveKey(resolvedMesocycle, resolvedWeek, data?.planId ?? planId);
+    if (conflictedSaveKeysRef.current.has(saveKey)) {
+      if (isCurrentBuilderContext(data?.planId ?? planId, resolvedMesocycle)) {
+        setSaveError('O treino foi alterado em outra sessão. Edite o estado atual antes de salvar novamente.');
+        setSaveErrorKey(saveKey);
+      }
+      throw new Error('WORKOUT_PLANNING_CONFLICT_REVIEW_REQUIRED');
+    }
     const previous = saveChainsRef.current.get(saveKey) ?? Promise.resolve();
     const operation = previous.catch(() => undefined).then(async () => {
       const snapshot = pendingSaveRef.current[saveKey] ?? data;
@@ -921,13 +1028,9 @@ export default function WorkoutBuilder2() {
           }
         }
         if (pendingSaveRef.current[saveKey] === snapshot) {
+          conflictedSaveKeysRef.current.delete(saveKey);
           delete pendingSaveRef.current[saveKey];
-          const cacheKey = snapshot.planId
-            ? buildCacheKey(snapshot.planId, resolvedMesocycle, resolvedWeek, snapshot.planUpdatedAt, snapshot.baseTemplateUpdatedAt)
-            : null;
-          if (cacheKey) {
-            try { localStorage.removeItem(cacheKey); } catch { /* Recovery buffer is optional. */ }
-          }
+          clearDraftCacheForWeek(snapshot.planId, resolvedMesocycle, resolvedWeek);
         }
       } catch (error) {
         console.error('Erro ao salvar:', error);
@@ -938,38 +1041,30 @@ export default function WorkoutBuilder2() {
           if (responseData?.code === 'WORKOUT_PLANNING_VERSION_CONFLICT' && snapshot.id) {
             try {
               const authoritative = await workoutService.getTemplate(snapshot.id);
-              const rebasedSnapshot = {
-                ...snapshot,
-                baseTemplateUpdatedAt: authoritative.updatedAt,
-              };
-              pendingSaveRef.current[saveKey] = rebasedSnapshot;
-              const rebasedCacheKey = buildCacheKey(
-                rebasedSnapshot.planId,
-                resolvedMesocycle,
-                resolvedWeek,
-                rebasedSnapshot.planUpdatedAt,
-                rebasedSnapshot.baseTemplateUpdatedAt,
-              );
-              if (rebasedCacheKey) {
-                try {
-                  localStorage.setItem(rebasedCacheKey, JSON.stringify({
-                    schemaVersion: 2,
-                    status: 'pending-draft',
-                    data: rebasedSnapshot,
-                  }));
-                } catch {
-                  // localStorage remains an optional recovery buffer.
-                }
-              }
-              setSaveError('O treino mudou em outra sessão; o rascunho local foi rebaseado e será reenviado.');
+              conflictedSaveKeysRef.current.add(saveKey);
+              setTemplateDataByWeek((prev) => ({
+                ...prev,
+                [resolvedWeek]: {
+                  ...prev[resolvedWeek],
+                  ...authoritative,
+                  resistedExercises: buildResistedExercisesFromTemplate(authoritative),
+                  planId: snapshot.planId,
+                  mesocycleNumber: resolvedMesocycle,
+                  weekNumber: resolvedWeek,
+                  baseTemplateUpdatedAt: authoritative.updatedAt,
+                },
+              }));
+              // Keep the original pending snapshot/local recovery entry for an
+              // explicit user decision; never resend it against a new base.
+              setSaveError('O treino mudou em outra sessão. O rascunho local foi preservado; compare com o estado atual e edite antes de salvar novamente.');
               setSaveErrorKey(saveKey);
-              void handleSave(rebasedSnapshot, resolvedWeek).catch(() => undefined);
-              return;
-            } catch (rebaseError) {
-              console.error('Erro ao rebasear o snapshot após conflito:', rebaseError);
+            } catch (authoritativeReadError) {
+              console.error('Erro ao carregar o estado autoritativo após conflito:', authoritativeReadError);
             }
           }
-          setSaveError(typeof serverMessage === 'string' ? serverMessage : 'Falha ao salvar treino. Revise os campos e tente novamente.');
+          if (!conflictedSaveKeysRef.current.has(saveKey)) {
+            setSaveError(typeof serverMessage === 'string' ? serverMessage : 'Falha ao salvar treino. Revise os campos e tente novamente.');
+          }
           setSaveErrorKey(saveKey);
         }
         throw error;
@@ -1031,7 +1126,6 @@ export default function WorkoutBuilder2() {
     if (!planId) return;
     const operationPlanId = planId;
     const operationMesocycle = mesocycleNumber;
-    const operationPlanUpdatedAt = planData?.updatedAt;
 
     const sourceTemplate = templateDataByWeek[sourceWeekNumber];
     if (!sourceTemplate?.id) {
@@ -1103,10 +1197,7 @@ export default function WorkoutBuilder2() {
       }
 
       const clearCacheForWeek = () => {
-        const cacheKey = buildCacheKey(operationPlanId, operationMesocycle, targetWeekNumber, operationPlanUpdatedAt);
-        if (cacheKey) {
-          try { localStorage.removeItem(cacheKey); } catch { /* Recovery buffer is optional. */ }
-        }
+        clearDraftCacheForWeek(operationPlanId, operationMesocycle, targetWeekNumber);
       };
 
       let refreshed: any;
@@ -1203,7 +1294,6 @@ export default function WorkoutBuilder2() {
     setInteractionLocked(true);
     const operationPlanId = planId;
     const operationMesocycle = mesocycleNumber;
-    const operationPlanUpdatedAt = planData?.updatedAt;
 
     try {
       beginOperation();
@@ -1215,10 +1305,7 @@ export default function WorkoutBuilder2() {
       const releasedTemplate = await workoutService.releaseTemplate(persistedTemplate.id);
       if (!isCurrentBuilderContext(operationPlanId, operationMesocycle)) return;
       delete pendingSaveRef.current[buildSaveKey(operationMesocycle, weekNumber, operationPlanId)];
-      const cacheKey = buildCacheKey(operationPlanId!, operationMesocycle, weekNumber, operationPlanUpdatedAt);
-      if (cacheKey) {
-        try { localStorage.removeItem(cacheKey); } catch { /* Recovery buffer is optional. */ }
-      }
+      clearDraftCacheForWeek(operationPlanId!, operationMesocycle, weekNumber);
       if (!isCurrentBuilderContext(operationPlanId, operationMesocycle)) return;
       setTemplateDataByWeek((prev) => ({
         ...prev,
@@ -2057,6 +2144,7 @@ export default function WorkoutBuilder2() {
                     <p role="alert" className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                       <span>{saveError}</span>
                       {pendingSaveRef.current[weekSaveKey]
+                        && !conflictedSaveKeysRef.current.has(weekSaveKey)
                         && (
                         <button
                           type="button"

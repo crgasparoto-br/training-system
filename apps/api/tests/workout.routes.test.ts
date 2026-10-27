@@ -283,6 +283,47 @@ describe('Issue #399 - route protection and contract isolation', () => {
     expect(response.status).toBe(400);
     expect(workoutService.saveTemplateWeek).not.toHaveBeenCalled();
   });
+
+  it('rejects unknown weekly envelope keys and resisted sections', async () => {
+    const extraKey = await request(app).put('/workout/templates/template-1/save-week').send({
+      template: {}, unexpected: true,
+    });
+    expect(extraKey.status).toBe(400);
+    expect(workoutService.saveTemplateWeek).not.toHaveBeenCalled();
+
+    const unknownSection = await request(app).put('/workout/templates/template-1/save-week').send({
+      resistedExercises: { 2: { desconhecida: [] } },
+    });
+    expect(unknownSection.status).toBe(400);
+    expect(workoutService.saveTemplateWeek).not.toHaveBeenCalled();
+  });
+});
+
+describe('Issue #399 - strict copy and reorder envelopes', () => {
+  const app = express();
+  app.use(express.json());
+  app.use('/workout', workoutRouter);
+  beforeEach(() => jest.clearAllMocks());
+
+  it('rejects extra keys in copy commands before calling the service', async () => {
+    const response = await request(app).post('/workout/templates/template-1/copy').send({
+      targetWeekNumber: 2,
+      targetWeekStartDate: '2026-10-12T12:00:00.000Z',
+      ignored: 'must-not-be-silent',
+    });
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('INVALID_RESISTANCE_STRUCTURE');
+    expect(workoutService.copyTemplate).not.toHaveBeenCalled();
+  });
+
+  it('rejects extra keys in reorder commands before calling the service', async () => {
+    const response = await request(app).put('/workout/exercises/reorder').send({
+      workoutDayId: 'day-1', section: 'sessao', exerciseIds: ['row-1'], extra: true,
+    });
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('INVALID_RESISTANCE_STRUCTURE');
+    expect(workoutService.reorderExercises).not.toHaveBeenCalled();
+  });
 });
 
 describe('Issue #399 - copy failure boundary', () => {
