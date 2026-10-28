@@ -246,7 +246,6 @@ export async function saveTemplateWeek(prisma: PrismaClient, id: string, data: S
     });
     return serializeWorkoutTemplate(saved);
   });
-  },
 }
 
 export async function replaceDayResistanceExercises(prisma: PrismaClient, workoutDayId: string, exercises: CreateWorkoutExerciseDTO[], contractId?: string) {
@@ -362,8 +361,4 @@ export async function replaceDayResistanceExercises(prisma: PrismaClient, workou
       orderBy: [{ section: 'asc' }, { exerciseOrder: 'asc' }],
     });
   });
-  },
-
-  /**
-   * Atualizar exercÃ­cio do treino
 }
