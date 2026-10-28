@@ -5,6 +5,7 @@ import type {
   TrainingRoutineBlockKey,
   TrainingRoutineConsolidatedRelease,
   TrainingRoutineCyclicTargets,
+  TrainingRoutineCyclicStage,
   TrainingRoutineDay,
   TrainingRoutineModality,
   TrainingRoutineRange,
@@ -101,6 +102,11 @@ const sessionSelect = {
   generalGuidelines: true,
   detailNotes: true,
   complementNotes: true,
+  cyclicStages: {
+    where: { parentStageId: null },
+    orderBy: { position: 'asc' as const },
+    include: { children: { orderBy: { position: 'asc' as const } } },
+  },
   template: {
     select: {
       id: true,
@@ -227,7 +233,7 @@ function buildCyclicTargets(row: SessionRow): TrainingRoutineCyclicTargets | nul
 function resolveModalities(row: SessionRow, capacities: string[]): TrainingRoutineModality[] {
   const modalities: TrainingRoutineModality[] = [];
   if (row.exercises.length > 0) modalities.push('resistance');
-  if (buildCyclicTargets(row)) modalities.push('cyclic');
+  if (row.cyclicStages.length > 0 || buildCyclicTargets(row)) modalities.push('cyclic');
   if (capacities.includes('flexibility')) modalities.push('flexibility');
   if (capacities.includes('balance')) modalities.push('balance');
   return modalities;
@@ -327,6 +333,29 @@ function toSummary(
   };
 }
 
+function projectCyclicStages(row: SessionRow): TrainingRoutineCyclicStage[] {
+  const map = (stage: SessionRow['cyclicStages'][number]): TrainingRoutineCyclicStage => ({
+    id: stage.id,
+    position: stage.position,
+    kind: stage.kind as TrainingRoutineCyclicStage['kind'],
+    durationUnit: stage.durationUnit as TrainingRoutineCyclicStage['durationUnit'],
+    durationValue: stage.durationValue,
+    targetKind: stage.targetKind as TrainingRoutineCyclicStage['targetKind'],
+    targetValue: stage.targetValue,
+    targetMin: stage.targetMin,
+    targetMax: stage.targetMax,
+    repeatCount: stage.repeatCount,
+    inclinePercent: stage.inclinePercent,
+    cadenceSpm: stage.cadenceSpm,
+    notes: stage.notes,
+    children: [],
+  });
+  return row.cyclicStages.map((stage) => ({
+    ...map(stage),
+    children: stage.children.map((child) => map(child as SessionRow['cyclicStages'][number])),
+  }));
+}
+
 function toDetail(
   row: SessionRow,
   audience: TrainingRoutineAudience,
@@ -346,6 +375,7 @@ function toDetail(
       .map(cleanText)
       .filter((value): value is string => value !== null),
     cyclic: buildCyclicTargets(row),
+    cyclicStages: projectCyclicStages(row),
     blocks: buildBlocks(row),
     ...(includePreWorkoutCheckIn ? { preWorkoutCheckIn: checkIn ? projectPreWorkoutCheckIn(checkIn, audience, execution.status) : null } : {}),
     ...(includePostWorkoutFeedback ? { postWorkoutFeedback: feedback.map((row) => projectPostWorkoutFeedback(row, row.execution.status, audience, true)) } : {}),

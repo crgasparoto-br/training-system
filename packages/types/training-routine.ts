@@ -140,6 +140,24 @@ export interface TrainingRoutineBlock {
   exercises: TrainingRoutineExercise[];
 }
 
+/** Immutable cyclic prescription; repeated stages contain ordered work and recovery children. */
+export interface TrainingRoutineCyclicStage {
+  id: string;
+  position: number;
+  kind: 'warmup' | 'work' | 'recovery' | 'cooldown' | 'repeat';
+  durationUnit: 'seconds' | 'meters' | null;
+  durationValue: number | null;
+  targetKind: 'pace_min_per_km' | 'speed_kmh' | 'heart_rate_bpm' | 'zone' | 'pse' | null;
+  targetValue: number | null;
+  targetMin: number | null;
+  targetMax: number | null;
+  repeatCount: number | null;
+  inclinePercent: number | null;
+  cadenceSpm: number | null;
+  notes: string | null;
+  children: TrainingRoutineCyclicStage[];
+}
+
 export interface TrainingRoutineCyclicTargets {
   durationMin: number | null;
   distanceKm: number | null;
@@ -161,6 +179,7 @@ export interface TrainingRoutineSessionDetail extends TrainingRoutineSessionSumm
   objective: string | null;
   guidelines: string[];
   cyclic: TrainingRoutineCyclicTargets | null;
+  cyclicStages: TrainingRoutineCyclicStage[];
   blocks: TrainingRoutineBlock[];
   preWorkoutCheckIn?: PreWorkoutCheckInView | null;
   postWorkoutFeedback?: CanonicalPostWorkoutFeedbackRevisionView[];

@@ -183,6 +183,27 @@ export function buildWorkoutWeekDayEditability(weekStartDate: string | null, pla
     isDateWithinRange(resolveWorkoutWeekDate(weekStartDate, idx + 1), planStartDate, planEndDate));
 }
 
+/** Server owns the IDs. A builder snapshot may carry persisted metadata, never send it as a write. */
+export function cyclicStagesForSave(stages: any[]): any[] {
+  const clone = (stage: any, position: number): Record<string, unknown> => {
+    const keys = [
+      'kind', 'durationUnit', 'durationValue', 'targetKind', 'targetValue',
+      'targetMin', 'targetMax', 'repeatCount', 'inclinePercent', 'cadenceSpm', 'notes',
+    ];
+    const item = Object.fromEntries(keys
+      .filter((key) => stage?.[key] !== undefined && stage[key] !== null && stage[key] !== '')
+      .map((key) => [key, stage[key]]));
+    return {
+      position,
+      ...item,
+      ...(stage?.kind === 'repeat'
+        ? { children: (stage.children ?? []).map((child: any, index: number) => clone(child, index + 1)) }
+        : {}),
+    };
+  };
+  return stages.map((stage, index) => clone(stage, index + 1));
+}
+
 export function buildWorkoutWeekSavePayload(snapshot: any) {
   const daysArray = Array.isArray(snapshot?.workoutDays)
     ? snapshot.workoutDays
@@ -223,6 +244,17 @@ export function buildWorkoutWeekSavePayload(snapshot: any) {
         generalGuidelines: day.generalGuidelines,
       };
     });
+
+  const cyclicStages: Record<string, Array<Record<string, unknown>>> = {};
+  for (const day of daysArray) {
+    const weekday = Number(day?.dayOfWeek);
+    if (Number.isInteger(weekday) && weekday >= 1 && weekday <= 7
+      && day.cyclicStages !== undefined) {
+      cyclicStages[String(weekday)] = Array.isArray(day.cyclicStages)
+        ? cyclicStagesForSave(day.cyclicStages)
+        : day.cyclicStages;
+    }
+  }
 
   const resistedExercises: Record<string, Record<string, Array<Record<string, unknown>>>> = {};
   for (const [dayKey, sections] of Object.entries(snapshot?.resistedExercises ?? {})) {
@@ -270,5 +302,6 @@ export function buildWorkoutWeekSavePayload(snapshot: any) {
     },
     workoutDays,
     resistedExercises,
+    ...(Object.keys(cyclicStages).length > 0 ? { cyclicStages } : {}),
   };
 }
