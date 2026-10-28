@@ -7,6 +7,7 @@ import { Button } from '../ui/Button';
 type Props = {
   sessionId: string;
   status: TrainingSessionExecutionStatus;
+  version: number;
   load: (sessionId: string) => Promise<GuidedResistanceView>;
   complete: (sessionId: string, payload: GuidedResistanceCompletePayload) => Promise<GuidedResistanceView>;
   onExecutionChanged?: () => Promise<void>;
@@ -30,7 +31,7 @@ function parseActualNumber(text: string, integer: boolean): number | null {
 }
 
 export function GuidedResistanceCard({
-  sessionId, status, load, complete, onExecutionChanged, onOverview,
+  sessionId, status, version, load, complete, onExecutionChanged, onOverview,
 }: Props) {
   const headingId = useId();
   const repsId = useId();
@@ -75,10 +76,10 @@ export function GuidedResistanceCard({
     // A mudança de estado canônico (pausa, retomada, outra sessão) invalida
     // a leitura anterior; nunca depender de memória local para a posição.
     void refresh();
-  }, [refresh, status]);
+  }, [refresh, status, version]);
 
   async function confirmCurrent() {
-    if (!view?.current || view.status !== 'in_progress' || busy || loading) return;
+    if (!view?.current || view.status !== 'in_progress' || status !== 'in_progress' || busy || loading) return;
     const current = view.current;
     let actualReps: number | null;
     let actualLoad: number | null;
@@ -188,7 +189,7 @@ export function GuidedResistanceCard({
                   <div className="space-y-1">
                     <label htmlFor={repsId} className="text-sm font-medium">Repetições realizadas</label>
                     <input id={repsId} value={repetitions} onChange={(event) => setRepetitions(event.target.value)}
-                      inputMode="numeric" autoComplete="off" disabled={busy || view.status !== 'in_progress'}
+                      inputMode="numeric" autoComplete="off" disabled={busy || view.status !== 'in_progress' || status !== 'in_progress'}
                       placeholder="Informe as repetições" className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-base" />
                   </div>
                   <div className="space-y-1">
@@ -199,7 +200,7 @@ export function GuidedResistanceCard({
                   </div>
                 </div>
                 {view.status === 'paused' && <p role="status" className="text-sm text-amber-800">Treino pausado. Retome a sessão para registrar esta série.</p>}
-                <Button type="submit" className="w-full sm:w-auto" disabled={busy || loading || view.status !== 'in_progress'}>
+                <Button type="submit" className="w-full sm:w-auto" disabled={busy || loading || view.status !== 'in_progress' || status !== 'in_progress'}>
                   {busy ? 'Salvando série...' : 'Concluir série'}
                 </Button>
               </form>

@@ -10,7 +10,7 @@ import type {
   GuidedResistanceCompletePayload,
   GuidedResistanceView,
 } from '@corrida/types';
-import { deriveGuidedResistancePlan, projectGuidedResistance } from './guided-resistance.domain.js';
+import { deriveGuidedResistancePlan, matchesCurrentGuidedUnit, projectGuidedResistance } from './guided-resistance.domain.js';
 import { persistWorkoutSessionValues, WorkoutSessionExecutionInputError } from './workout-session-execution-values.js';
 export { WorkoutSessionExecutionInputError } from './workout-session-execution-values.js';
 import {
@@ -26,7 +26,7 @@ async function loadGuidedResistancePlan(tx: Prisma.TransactionClient, sessionId:
   const exercises = await tx.workoutExercise.findMany({
     where: { workoutDayId: sessionId },
     select: {
-      id: true, section: true, exerciseOrder: true, system: true,
+      id: true, section: true, exerciseOrder: true, system: true, groupBreakBefore: true,
       exercise: { select: { name: true } },
       resistanceBlocks: {
         orderBy: { position: 'asc' },
@@ -397,12 +397,7 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
         const persisted = await readExecution(tx, input.sessionId);
         if (!persisted) throw new WorkoutSessionExecutionNotFoundError('Execução de treino não encontrada.');
         const guided = projectGuidedResistance(input.sessionId, projectWorkoutSessionExecution(persisted), plan);
-        const current = guided.availability === 'available' ? guided.current : null;
-        const submitted = items[0];
-        if (!current
-          || current.plannedUnitId !== submitted.plannedUnitId
-          || current.plannedSetId !== submitted.plannedSetId
-          || current.setNumber !== submitted.setNumber) {
+        if (!matchesCurrentGuidedUnit(guided, items[0])) {
           throw new WorkoutSessionExecutionConflictError(
             'Esta série não é a próxima do planejamento. Atualize o treino antes de continuar.',
             'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT'

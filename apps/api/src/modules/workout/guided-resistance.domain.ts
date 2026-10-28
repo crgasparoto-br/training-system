@@ -9,6 +9,7 @@ export interface GuidedResistancePlannedExercise {
   section: string;
   exerciseOrder: number;
   system: string | null;
+  groupBreakBefore?: boolean;
   exercise: { name: string };
   resistanceBlocks: ReadonlyArray<{
     position: number;
@@ -43,7 +44,7 @@ export function deriveGuidedResistancePlan(
   exercises: ReadonlyArray<GuidedResistancePlannedExercise>,
 ): { availability: GuidedResistanceAvailability; units: GuidedResistanceUnit[] } {
   if (!exercises.length) return { availability: 'no_structured_resistance', units: [] };
-  if (exercises.some((item) => /super\s*-?\s*s[eé]rie|bi[\s-]*set|tri[\s-]*set|circuito/i.test(item.system ?? ''))) {
+  if (exercises.some((item) => item.groupBreakBefore || /super\s*-?\s*s[eé]rie|bi[\s-]*set|tri[\s-]*set|circuito/i.test(item.system ?? ''))) {
     return { availability: 'grouping_pending', units: [] };
   }
   if (exercises.some((item) => !item.resistanceBlocks.length
@@ -96,20 +97,32 @@ export function deriveGuidedResistancePlan(
   return { availability: 'available', units };
 }
 
+export function matchesCurrentGuidedUnit(
+  view: GuidedResistanceView,
+  item: { plannedUnitId: string; plannedSetId: string | null | undefined; setNumber: number },
+): boolean {
+  const current = view.availability === 'available' && view.status === 'in_progress' ? view.current : null;
+  return Boolean(current && current.plannedUnitId === item.plannedUnitId
+    && current.plannedSetId === item.plannedSetId && current.setNumber === item.setNumber);
+}
+
 export function projectGuidedResistance(
   sessionId: string,
   execution: TrainingSessionExecutionView,
   plan: ReturnType<typeof deriveGuidedResistancePlan>,
 ): GuidedResistanceView {
-  const completedIds = new Set(execution.items
-    .filter((item) => item.completedAt && item.plannedSetId)
-    .map((item) => item.plannedSetId));
-  const completed = plan.units.filter((unit) => completedIds.has(unit.plannedSetId)).length;
-  const currentIndex = plan.units.findIndex((unit) => !completedIds.has(unit.plannedSetId));
-  // Out-of-order data is not interpreted as an executable position.
+  const identity = (item: { plannedUnitId: string; plannedSetId?: string | null; setNumber: number }) =>
+    [item.plannedUnitId, item.plannedSetId, item.setNumber].join(':');
+  const validKeys = new Set(plan.units.map(identity));
+  const completedItems = execution.items.filter((item) => Boolean(item.completedAt));
+  const completedKeys = new Set(completedItems.map(identity));
+  const completed = plan.units.filter((unit) => completedKeys.has(identity(unit))).length;
+  const currentIndex = plan.units.findIndex((unit) => !completedKeys.has(identity(unit)));
+  // A partial/misaligned execution history is not safe to navigate from.
+  const invalidIdentity = completedItems.some((item) => !validKeys.has(identity(item)));
   const invalidOrder = currentIndex >= 0 && plan.units.slice(currentIndex + 1)
-    .some((unit) => completedIds.has(unit.plannedSetId));
-  const availability = invalidOrder ? 'legacy_read_only' : plan.availability;
+    .some((unit) => completedKeys.has(identity(unit)));
+  const availability = invalidOrder || invalidIdentity ? 'legacy_read_only' : plan.availability;
   const current = availability === 'available' && currentIndex >= 0
     ? plan.units[currentIndex] : null;
   const next = current ? plan.units[currentIndex + 1] ?? null : null;

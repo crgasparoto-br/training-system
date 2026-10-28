@@ -5,7 +5,7 @@ ALTER TABLE "WorkoutSessionExecutionItem"
 
 CREATE UNIQUE INDEX IF NOT EXISTS "WorkoutSessionExecutionItem_plannedSet_unique"
   ON "WorkoutSessionExecutionItem" ("executionId", "plannedSetId")
-  WHERE "plannedSetId" IS NOT NULL;
+  WHERE "plannedSetId" IS NOT NULL AND "completedAt" IS NOT NULL;
 
 CREATE OR REPLACE FUNCTION "issue487_guard_completed_set"()
 RETURNS trigger AS $$

@@ -282,6 +282,7 @@ function TodaySession({
         <GuidedResistanceCard
           sessionId={session.sessionId}
           status={session.execution.status}
+          version={session.execution.version}
           load={loadGuided}
           complete={completeGuided}
           onExecutionChanged={onExecutionChanged}

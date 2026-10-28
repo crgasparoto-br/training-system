@@ -1,6 +1,6 @@
 import type { TrainingSessionExecutionView } from '@corrida/types';
 import {
-  deriveGuidedResistancePlan, projectGuidedResistance,
+  deriveGuidedResistancePlan, matchesCurrentGuidedUnit, projectGuidedResistance,
   type GuidedResistancePlannedExercise,
 } from './guided-resistance.domain.js';
 
@@ -51,9 +51,30 @@ describe('issue #487 - plano resistido canônico', () => {
     expect(after.status).toBe('paused');
   });
 
+  it('validates the entire planned exercise/set/ordinal identity, including paused state', () => {
+    const plan = deriveGuidedResistancePlan([exercise('a', 1)]);
+    const view = projectGuidedResistance('session', execution(), plan);
+    expect(matchesCurrentGuidedUnit(view, { plannedUnitId: 'a', plannedSetId: 'a-set-1', setNumber: 1 })).toBe(true);
+    expect(matchesCurrentGuidedUnit(view, { plannedUnitId: 'a', plannedSetId: 'a-set-1', setNumber: 2 })).toBe(false);
+    expect(matchesCurrentGuidedUnit(view, { plannedUnitId: 'b', plannedSetId: 'a-set-1', setNumber: 1 })).toBe(false);
+    expect(matchesCurrentGuidedUnit(view, { plannedUnitId: 'a', plannedSetId: 'a-set-2', setNumber: 1 })).toBe(false);
+    const paused = projectGuidedResistance('session', execution([], 'paused'), plan);
+    expect(matchesCurrentGuidedUnit(paused, { plannedUnitId: 'a', plannedSetId: 'a-set-1', setNumber: 1 })).toBe(false);
+  });
+
+  it('fails closed when a completed marker references an incorrect ordinal', () => {
+    const plan = deriveGuidedResistancePlan([exercise('a', 1)]);
+    const view = projectGuidedResistance('session', execution([
+      { plannedUnitId: 'a', plannedSetId: 'a-set-1', setNumber: 2, completedAt: '2026-10-28T12:00:00.000Z' },
+    ]), plan);
+    expect(view.availability).toBe('legacy_read_only');
+    expect(view.current).toBeNull();
+  });
+
   it('não inventa séries legadas ou agrupamentos a partir de textos livres', () => {
     expect(deriveGuidedResistancePlan([{ ...exercise('a', 1), resistanceBlocks: [] }]).availability).toBe('legacy_read_only');
     expect(deriveGuidedResistancePlan([{ ...exercise('a', 1), system: 'Bi-set' }]).availability).toBe('grouping_pending');
+    expect(deriveGuidedResistancePlan([{ ...exercise('a', 1), groupBreakBefore: true }]).availability).toBe('grouping_pending');
     expect(deriveGuidedResistancePlan([]).availability).toBe('no_structured_resistance');
   });
 

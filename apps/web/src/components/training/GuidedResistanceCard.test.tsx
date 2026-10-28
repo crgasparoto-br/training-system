@@ -31,7 +31,7 @@ const panel = (options: {
   const onChanged = vi.fn().mockResolvedValue(undefined);
   const onOverview = vi.fn();
   render(<GuidedResistanceCard
-    sessionId="day-1" status={options.status ?? 'in_progress'}
+    sessionId="day-1" status={options.status ?? 'in_progress'} version={1}
     load={load as (sessionId: string) => Promise<GuidedResistanceView>}
     complete={complete as (sessionId: string, payload: GuidedResistanceCompletePayload) => Promise<GuidedResistanceView>}
     onExecutionChanged={onChanged}
