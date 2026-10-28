@@ -6,6 +6,8 @@ import { Input } from '../../components/ui/Input';
 import { ExerciseSelectorModal } from '../../components/ExerciseSelectorModal';
 import { libraryService, type Exercise } from '../../services/library.service';
 import { isDateWithinRange, parseDateOnly } from '../../utils/date';
+import type { ResistanceBlock } from '../../services/workout.service';
+import ResistanceBlocksEditor from './ResistanceBlocksEditor';
 
 interface WorkoutBuilderResistanceProps {
   templateData: any;
@@ -39,6 +41,7 @@ const parseQuickFillValue = (value: string) => (value.trim() === '' ? undefined 
 
 interface SelectedExercise {
   id: string;
+  workoutExerciseId?: string;
   exerciseId?: string;
   name: string;
   category?: string;
@@ -51,6 +54,7 @@ interface SelectedExercise {
   eParam?: number | null;
   load?: number | null;
   adjustment?: string | null;
+  resistanceBlocks?: ResistanceBlock[];
 }
 
 export default function WorkoutBuilderResistance({
@@ -83,16 +87,26 @@ export default function WorkoutBuilderResistance({
     return date;
   };
 
-  const isDayEditable = (dayOfWeek: number) => {
-    if (!weekEditable) return false;
-    if (dayEditability && dayEditability[dayOfWeek - 1] !== undefined) {
-      return dayEditability[dayOfWeek - 1];
-    }
+  const isDayWithinPlanPeriod = (dayOfWeek: number) => {
     if (!planStartDate || !planEndDate) return true;
     const start = parseDateOnly(planStartDate);
     const end = parseDateOnly(planEndDate);
     if (!start || !end) return true;
     return isDateWithinRange(resolveDayDate(dayOfWeek), start, end);
+  };
+
+  const isDayEditable = (dayOfWeek: number) => {
+    if (!weekEditable) return false;
+    if (dayEditability && dayEditability[dayOfWeek - 1] !== undefined) {
+      return dayEditability[dayOfWeek - 1];
+    }
+    return isDayWithinPlanPeriod(dayOfWeek);
+  };
+
+  const getDayReadOnlyMessage = (dayOfWeek: number) => {
+    if (templateData?.released) return 'Treino liberado: somente leitura.';
+    if (!isDayWithinPlanPeriod(dayOfWeek)) return 'Dia fora do período do plano: somente leitura.';
+    return 'Edição temporariamente indisponível: somente leitura.';
   };
 
   const days = useMemo(() => {
@@ -606,7 +620,7 @@ export default function WorkoutBuilderResistance({
 
       const list = [...currentDay[section]];
       const original = list[index];
-      const copy = { ...original, id: `${original.id}-${Date.now()}`, groupBreakBefore: false };
+      const copy = { ...original, id: `${original.id}-${Date.now()}`, workoutExerciseId: undefined, groupBreakBefore: false };
       list.splice(index + 1, 0, copy);
 
       const finalList = section === 'sessao' ? applyIntervalRulesIfConfigured(list) : list;
@@ -1070,6 +1084,18 @@ export default function WorkoutBuilderResistance({
                       </>
                     )}
 
+                    {!isCyclicExercise && (
+                      <div className="col-span-2 min-w-0 xl:col-span-10">
+                        <ResistanceBlocksEditor
+                          exerciseName={exercise.name}
+                          blocks={exercise.resistanceBlocks}
+                          onChange={(resistanceBlocks) =>
+                            updateExerciseFields(dayOfWeek, section.key, exercise.id, { resistanceBlocks })
+                          }
+                        />
+                      </div>
+                    )}
+
                     <div className="col-span-2 flex items-center justify-end gap-0.5 xl:col-span-1">
                       {canToggleCircuitBreak && (
                         <button
@@ -1219,7 +1245,7 @@ export default function WorkoutBuilderResistance({
         {!activeDayEditable && (
           <p className="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
             <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
-            Dia fora do período do plano: somente leitura.
+            {getDayReadOnlyMessage(activeDayInfo.dayOfWeek)}
           </p>
         )}
 

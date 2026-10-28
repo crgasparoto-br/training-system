@@ -9,13 +9,24 @@ import { alunoService, type Aluno } from '../../services/aluno.service';
 import { assessmentService } from '../../services/assessment.service';
 import { periodizationService, ResistedStimulus } from '../../services/periodization.service';
 import { workoutService } from '../../services/workout.service';
-import { isDateWithinRange, parseDateOnly, toDateInputValue, toIsoDateAtNoonUTC } from '../../utils/date';
+import { parseDateOnly, toDateInputValue, toIsoDateAtNoonUTC } from '../../utils/date';
 import { resolveWorkoutBuilderWeekOptions } from '../../utils/workout-builder-week-options';
 import { workoutBuilderGuideCopy } from '../../i18n/ptBR';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { ProfessorManualContextPanel } from '../../components/ProfessorManualContextPanel';
+import {
+  buildResistedExercisesFromTemplate,
+  buildWorkoutCacheKey,
+  buildWorkoutSaveKey,
+  buildWorkoutWeekDayEditability,
+  buildWorkoutWeekSavePayload,
+  clearWorkoutDraftCacheForWeek,
+  normalizeWorkoutDays,
+  parseWorkoutSaveKey,
+  rehydrateDraftFromApi,
+  resolveWorkoutWeekStartDate,
+} from './workout-builder-structure';
 
-type ResistedSectionKey = 'mobilidade' | 'sessao' | 'resfriamento';
 type WorkoutGuidePanelMode = 'intro' | 'manual' | null;
 type WorkoutGuideStepTarget = 'weekHeader' | 'tabs' | 'copyAction' | 'releaseAction';
 
@@ -26,75 +37,24 @@ export default function WorkoutBuilder2() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
 
-  const normalizeWorkoutDays = (workoutDays: any) => {
-    if (Array.isArray(workoutDays)) {
-      return workoutDays.reduce<Record<number, any>>((acc, day) => {
-        acc[day.dayOfWeek] = day;
-        return acc;
-      }, {});
-    }
-    if (workoutDays && typeof workoutDays === 'object') {
-      return Object.entries(workoutDays).reduce<Record<number, any>>((acc, [key, day]) => {
-        const rawDay = (day ?? {}) as Record<string, any>;
-        const dayOfWeek = Number(rawDay.dayOfWeek ?? key);
-        acc[dayOfWeek] = { ...rawDay, dayOfWeek };
-        return acc;
-      }, {});
-    }
-    return {};
-  };
-
-  const buildResistedExercisesFromTemplate = (template: any) => {
-    const base: Record<number, Record<ResistedSectionKey, any[]>> = {};
-    for (let day = 1; day <= 7; day += 1) {
-      base[day] = { mobilidade: [], sessao: [], resfriamento: [] };
-    }
-
-    const workoutDays = Array.isArray(template?.workoutDays)
-      ? template.workoutDays
-      : Object.values(template?.workoutDays || {});
-
-    workoutDays.forEach((day: any) => {
-      const dayOfWeek = day?.dayOfWeek;
-      if (!dayOfWeek) return;
-      const exercises = Array.isArray(day?.exercises) ? day.exercises : [];
-      exercises.forEach((exercise: any) => {
-        const section = (exercise.section as ResistedSectionKey) || 'sessao';
-        if (!base[dayOfWeek]) {
-          base[dayOfWeek] = { mobilidade: [], sessao: [], resfriamento: [] };
-        }
-        base[dayOfWeek][section] = base[dayOfWeek][section] || [];
-        base[dayOfWeek][section].push({
-          id: exercise.id,
-          exerciseId: exercise.exerciseId,
-          name: exercise.exercise?.name ?? '',
-          category: exercise.exercise?.category ?? exercise.exerciseCategory,
-          system: exercise.system ?? null,
-          groupBreakBefore: exercise.groupBreakBefore ?? false,
-          sets: exercise.sets ?? null,
-          reps: exercise.reps ?? null,
-          interval: exercise.intervalSec ?? null,
-          cParam: exercise.cParam ?? null,
-          eParam: exercise.eParam ?? null,
-          load: exercise.load ?? null,
-          adjustment: exercise.exerciseNotes ?? null,
-        });
-      });
-    });
-
-    return base;
-  };
-
   const [activeTab, setActiveTab] = useState<'cyclic' | 'resistance'>('cyclic');
   const [planData, setPlanData] = useState<any>(null);
   const [resistedSummaryByWeek, setResistedSummaryByWeek] = useState<
     Record<number, ResistedStimulus | null>
   >({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveErrorKey, setSaveErrorKey] = useState<string | null>(null);
   const [copyWeekError, setCopyWeekError] = useState<string | null>(null);
+  const [copyRetryWeek, setCopyRetryWeek] = useState<number | null>(null);
+  const [releaseError, setReleaseError] = useState<{ weekNumber: number; message: string } | null>(null);
+  const [isNavigatingBack, setIsNavigatingBack] = useState(false);
+  const [interactionLocked, setInteractionLocked] = useState(false);
   const [copyModeByWeek, setCopyModeByWeek] = useState<Record<number, { cyclic: boolean; resistance: boolean }>>({});
   const [templateDataByWeek, setTemplateDataByWeek] = useState<Record<number, any>>({});
+  const [templateRefreshByWeek, setTemplateRefreshByWeek] = useState<Record<number, number>>({});
   const [totalMesocycles, setTotalMesocycles] = useState(12);
   const [weeksPerMesocycle, setWeeksPerMesocycle] = useState(4);
   const [alunoData, setAlunoData] = useState<Aluno | null>(null);
@@ -131,6 +91,7 @@ export default function WorkoutBuilder2() {
   const weekFilterStorageKey = planId
     ? `workoutBuilder2:weekFilter:${planId}:${mesocycleNumber}:${summaryVisibilityUserKey}`
     : 'workoutBuilder2:weekFilter:unknown';
+  const draftActorKey = user?.professor?.id;
   const workoutGuideStorageKey = useMemo(() => {
     if (user?.type !== 'professor' || !user.professor?.id || !planId) {
       return null;
@@ -151,8 +112,33 @@ export default function WorkoutBuilder2() {
   const [workoutGuideStep, setWorkoutGuideStep] = useState(0);
   const [workoutGuideWeekNumber, setWorkoutGuideWeekNumber] = useState<number | null>(null);
 
-  // Auto-save timer
-  const [autoSaveTimers, setAutoSaveTimers] = useState<Record<number, NodeJS.Timeout>>({});
+  // Auto-save is serialized per mesocycle/week so a context switch cannot
+  // overwrite or silently discard a pending snapshot from the previous view.
+  const autoSaveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const pendingSaveRef = useRef<Record<string, any>>({});
+  const saveChainsRef = useRef(new Map<string, Promise<void>>());
+  const conflictedSaveKeysRef = useRef(new Set<string>());
+  const pagehideFlushRef = useRef<Promise<void> | null>(null);
+  const pagehideDeliveryRef = useRef(new Map<string, { snapshot: any; status: 'pending' | 'completed' | 'failed' }>());
+  const flushAllPendingSavesRef = useRef<() => Promise<void>>(async () => undefined);
+  const activeOperationsRef = useRef(0);
+  const copyActionInFlightRef = useRef(false);
+  const releaseActionInFlightRef = useRef(false);
+  const contextNavigationInFlightRef = useRef(false);
+  const beginOperation = () => {
+    activeOperationsRef.current += 1;
+    setSaving(true);
+  };
+  const endOperation = () => {
+    activeOperationsRef.current = Math.max(0, activeOperationsRef.current - 1);
+    setSaving(activeOperationsRef.current > 0);
+  };
+  const loadRequestRef = useRef(0);
+  const builderContextRef = useRef({ planId, mesocycleNumber });
+  builderContextRef.current = { planId, mesocycleNumber };
+  const isCurrentBuilderContext = (expectedPlanId: string | undefined, expectedMesocycle: number) =>
+    builderContextRef.current.planId === expectedPlanId
+    && builderContextRef.current.mesocycleNumber === expectedMesocycle;
   // Mantém o mesmo dia aberto no treino resistido de todas as semanas visíveis.
   const [resistanceSelectedDay, setResistanceSelectedDay] = useState<number | null>(null);
   const workoutGuideBannerRef = useRef<HTMLDivElement | null>(null);
@@ -163,7 +149,7 @@ export default function WorkoutBuilder2() {
 
   useEffect(() => {
     loadTemplate();
-  }, [planId, mesocycleNumber]);
+  }, [planId, mesocycleNumber, draftActorKey]);
 
   useEffect(() => {
     try {
@@ -194,10 +180,27 @@ export default function WorkoutBuilder2() {
   }, [weekParam]);
 
   const navigateToMesocycle = useCallback((nextMesocycle: number) => {
-    if (!planId) return;
+    if (!planId || contextNavigationInFlightRef.current || nextMesocycle === mesocycleNumber) return;
     const weekNumber = resolveWeekParam();
-    navigate(`/plans/${planId}/workout-builder/${nextMesocycle}/${weekNumber}`, { replace: true });
-  }, [navigate, planId, resolveWeekParam]);
+    const operationMesocycle = mesocycleNumber;
+    contextNavigationInFlightRef.current = true;
+    setInteractionLocked(true);
+    void flushAllPendingSavesRef.current()
+      .then(() => {
+        if (builderContextRef.current.planId !== planId || builderContextRef.current.mesocycleNumber !== operationMesocycle) return;
+        navigate(`/plans/${planId}/workout-builder/${nextMesocycle}/${weekNumber}`, { replace: true });
+        setMesocycleNumber(nextMesocycle);
+      })
+      .catch((error) => {
+        console.error('Erro ao salvar antes de trocar o mesociclo:', error);
+        setSaveError('Não foi possível salvar o mesociclo atual. Tente novamente antes de trocar de contexto.');
+        setSaveErrorKey(null);
+      })
+      .finally(() => {
+        contextNavigationInFlightRef.current = false;
+        setInteractionLocked(false);
+      });
+  }, [mesocycleNumber, navigate, planId, resolveWeekParam]);
 
   const hasAppliedStoredMesoRef = useRef(false);
 
@@ -221,7 +224,6 @@ export default function WorkoutBuilder2() {
       const normalized = Math.min(Math.max(1, parsed), totalMesocycles);
       if (!hasParam && normalized !== mesocycleNumber) {
         hasAppliedStoredMesoRef.current = true;
-        setMesocycleNumber(normalized);
         navigateToMesocycle(normalized);
       }
     } catch (error) {
@@ -237,10 +239,62 @@ export default function WorkoutBuilder2() {
     }
   }, [mesocycleFilterStorageKey, mesocycleNumber]);
 
+  useEffect(() => () => {
+    // React cleanup cannot await, but starting the flush before the old
+    // context is discarded keeps the last draft alive on route/mesocycle
+    // changes and on unmount. The queue itself is keyed by context.
+    void flushAllPendingSavesRef.current().catch(() => undefined);
+  }, [planId, mesocycleNumber]);
+
   useEffect(() => {
-    Object.values(autoSaveTimers).forEach(timer => clearTimeout(timer));
-    setAutoSaveTimers({});
-  }, [mesocycleNumber]);
+    const handlePageHide = () => {
+      if (pagehideFlushRef.current) return;
+      for (const [saveKey, snapshot] of Object.entries(pendingSaveRef.current)) {
+        if (snapshot?.id && snapshot.planId === planId) {
+          pagehideDeliveryRef.current.set(saveKey, { snapshot, status: 'pending' });
+        }
+      }
+      const flush = flushAllPendingSavesRef.current()
+        .then(() => {
+          for (const [saveKey, delivery] of pagehideDeliveryRef.current) {
+            if (pendingSaveRef.current[saveKey] !== delivery.snapshot) delivery.status = 'completed';
+          }
+        })
+        .catch(() => {
+          for (const delivery of pagehideDeliveryRef.current.values()) delivery.status = 'failed';
+        });
+      pagehideFlushRef.current = flush;
+      void flush.finally(() => {
+        if (pagehideFlushRef.current === flush) pagehideFlushRef.current = null;
+      });
+    };
+    const handlePageShow = () => {
+      void (async () => {
+        const inFlight = pagehideFlushRef.current;
+        if (inFlight) await inFlight.catch(() => undefined);
+        for (const [saveKey, delivery] of pagehideDeliveryRef.current) {
+          if (delivery.status !== 'failed' || pendingSaveRef.current[saveKey] !== delivery.snapshot) continue;
+          const parsed = parseSaveKey(saveKey);
+          if (!parsed || conflictedSaveKeysRef.current.has(saveKey)) continue;
+          try {
+            const authoritative = await workoutService.getTemplate(delivery.snapshot.id);
+            if (authoritative.updatedAt !== delivery.snapshot.baseTemplateUpdatedAt) continue;
+            await handleSave(delivery.snapshot, parsed.week);
+          } catch {
+            // Keep the snapshot and let the next explicit edit/re-entry retry.
+          }
+        }
+        pagehideDeliveryRef.current.clear();
+        await flushAllPendingSavesRef.current().catch(() => undefined);
+      })();
+    };
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('pageshow', handlePageShow);
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+  }, [planId]);
 
   useEffect(() => {
     setCopyModeByWeek((prev) => {
@@ -391,77 +445,44 @@ export default function WorkoutBuilder2() {
     });
   }, [workoutGuideActive, workoutGuideCurrentStep, workoutGuideWeekNumber]);
 
-  const buildCacheKey = (
-    planId: string,
-    mesocycle: number,
-    week: number,
-    planUpdatedAt?: string
-  ) => {
-    if (!planId) return null;
-    const version = planUpdatedAt || 'unknown-version';
-    return `workoutBuilder2:${planId}:${mesocycle}:${week}:${version}`;
-  };
-
-  const resolveWeekStartDate = (mesocycle: number, week: number) => {
-    if (!planData?.startDate) return null;
-    const start = parseDateOnly(planData.startDate);
-    if (!start) return null;
-    const weekIndex = (mesocycle - 1) * weeksPerMesocycle + (week - 1);
-    const date = new Date(start);
-    date.setDate(start.getDate() + weekIndex * 7);
-    const dateInput = toDateInputValue(date);
-    return toIsoDateAtNoonUTC(dateInput);
-  };
-
-  const resolveWeekDayDate = (weekStartDate: string | Date, dayOfWeek: number) => {
-    const start = parseDateOnly(weekStartDate) ?? new Date(weekStartDate);
-    const startJsDay = start.getDay();
-    const startWeekday = startJsDay === 0 ? 7 : startJsDay; // 1=Seg ... 7=Dom
-    const offset = dayOfWeek - startWeekday;
-    const date = new Date(start);
-    date.setDate(start.getDate() + offset);
-    return date;
-  };
-
-  const buildWeekDayEditability = (weekStartDate: string | null) => {
-    if (!weekStartDate || !planData?.startDate || !planData?.endDate) {
-      return Array.from({ length: 7 }, () => true);
-    }
-    return Array.from({ length: 7 }, (_, idx) => {
-      const dayOfWeek = idx + 1;
-      const date = resolveWeekDayDate(weekStartDate, dayOfWeek);
-      return isDateWithinRange(date, planData.startDate, planData.endDate);
-    });
-  };
-
-  const resolveWeekDate = (weekStartDate: string | Date, dayOfWeek: number) => {
-    const start = typeof weekStartDate === 'string' ? new Date(weekStartDate) : new Date(weekStartDate);
-    const startJsDay = start.getDay();
-    const startWeekday = startJsDay === 0 ? 7 : startJsDay; // 1=Seg ... 7=Dom
-    const offset = dayOfWeek - startWeekday;
-    const date = new Date(start);
-    date.setDate(start.getDate() + offset);
-    return date;
-  };
+  const buildCacheKey = (contextPlanId: string | undefined, mesocycle: number, week: number, planUpdatedAt?: string, templateUpdatedAt?: string) =>
+    buildWorkoutCacheKey(draftActorKey, contextPlanId, mesocycle, week, planUpdatedAt, templateUpdatedAt);
+  const clearDraftCacheForWeek = (contextPlanId: string | undefined, mesocycle: number, week: number) =>
+    clearWorkoutDraftCacheForWeek(draftActorKey, contextPlanId, mesocycle, week);
+  const buildSaveKey = (mesocycle: number, week: number, contextPlanId = planId) =>
+    buildWorkoutSaveKey(contextPlanId, mesocycle, week);
+  const parseSaveKey = parseWorkoutSaveKey;
+  const resolveWeekStartDate = (mesocycle: number, week: number) =>
+    resolveWorkoutWeekStartDate(planData?.startDate, weeksPerMesocycle, mesocycle, week);
+  const buildWeekDayEditability = (weekStartDate: string | null) =>
+    buildWorkoutWeekDayEditability(weekStartDate, planData?.startDate, planData?.endDate);
+  const buildWeekSavePayload = buildWorkoutWeekSavePayload;
 
   const loadTemplate = async () => {
+    const requestId = ++loadRequestRef.current;
+    const isCurrentRequest = () => requestId === loadRequestRef.current;
     try {
       setLoading(true);
+      setLoadError(null);
       setTemplateDataByWeek({});
 
       // Carregar dados do plano
       if (planId) {
         const plan = await planService.getById(planId);
+        if (!isCurrentRequest()) return;
         setPlanData(plan);
         if (plan?.alunoId) {
           try {
             const aluno = await alunoService.getById(plan.alunoId);
+            if (!isCurrentRequest()) return;
             setAlunoData(aluno);
           } catch (error) {
+            if (!isCurrentRequest()) return;
             setAlunoData(null);
           }
           try {
             const assessments = await assessmentService.listByAluno(plan.alunoId);
+            if (!isCurrentRequest()) return;
             const latest = assessments
               .filter((assessment) => assessment.assessmentDate)
               .sort(
@@ -491,6 +512,7 @@ export default function WorkoutBuilder2() {
               latest?.extractedData?.['VAM'];
             setVamValue(toNumber(vamCandidate));
           } catch (error) {
+            if (!isCurrentRequest()) return;
             setVamValue(null);
           }
         } else {
@@ -499,6 +521,7 @@ export default function WorkoutBuilder2() {
         }
 
         const matrix = await periodizationService.getMatrixByPlanId(planId);
+        if (!isCurrentRequest()) return;
         const {
           weeksPerMesocycle: resolvedWeeksPerMesocycle,
           weekOptions: resolvedWeekOptions,
@@ -506,6 +529,7 @@ export default function WorkoutBuilder2() {
 
         if (matrix) {
           const resistedStimuli = await periodizationService.getResistedStimulusByMatrix(matrix.id);
+          if (!isCurrentRequest()) return;
           const groupedResisted = periodizationService.groupResistedByMesocycleAndWeek(resistedStimuli);
           const resistedByWeek: Record<number, ResistedStimulus | null> = {};
           resolvedWeekOptions.forEach((week) => {
@@ -564,6 +588,7 @@ export default function WorkoutBuilder2() {
           : 0;
 
         const weeksPerMesocycle = resolvedWeeksPerMesocycle;
+        const recoveredDraftKeys: string[] = [];
         const templates = await Promise.all(
           resolvedWeekOptions.map(async (weekNumber) => {
             const weekStartDate = (() => {
@@ -581,10 +606,50 @@ export default function WorkoutBuilder2() {
               weekNumber,
               weekStartDate
             });
-            const resistedFromApi = buildResistedExercisesFromTemplate(templateFromApi);
+            const cacheKey = buildCacheKey(planId, mesocycleNumber, weekNumber, plan.updatedAt, templateFromApi.updatedAt);
+            let recoveredDraft: any = null;
+            if (cacheKey) {
+              try {
+                const stored = localStorage.getItem(cacheKey);
+                const parsed = stored ? JSON.parse(stored) : null;
+                if (
+                  !templateFromApi.released
+                  &&
+                  parsed?.status === 'pending-draft'
+                  && parsed.data?.id === templateFromApi.id
+                  && parsed.data?.planId === planId
+                  && Number(parsed.data?.mesocycleNumber) === mesocycleNumber
+                  && Number(parsed.data?.weekNumber) === weekNumber
+                  && typeof templateFromApi.updatedAt === 'string'
+                  && parsed.data?.baseTemplateUpdatedAt === templateFromApi.updatedAt
+                ) {
+                  recoveredDraft = rehydrateDraftFromApi(templateFromApi, parsed.data);
+                  if (recoveredDraft) {
+                    const saveKey = buildSaveKey(mesocycleNumber, weekNumber, planId);
+                    recoveredDraftKeys.push(saveKey);
+                    pendingSaveRef.current[saveKey] = {
+                      ...recoveredDraft,
+                      planUpdatedAt: plan.updatedAt,
+                      baseTemplateUpdatedAt: templateFromApi.updatedAt,
+                    };
+                  }
+                }
+                if (templateFromApi.released) {
+                  clearDraftCacheForWeek(planId, mesocycleNumber, weekNumber);
+                  delete pendingSaveRef.current[buildSaveKey(mesocycleNumber, weekNumber, planId)];
+                }
+              } catch {
+                // Recovery storage is optional; the API remains authoritative when unreadable.
+              }
+            }
+            const authoritativeTemplate = recoveredDraft && !templateFromApi.released
+              ? recoveredDraft
+              : templateFromApi;
+            const resistedFromApi = buildResistedExercisesFromTemplate(authoritativeTemplate);
 
+            const persistedWeekStartDate = templateFromApi.weekStartDate || weekStartDate;
             const mergedTemplate = {
-              ...templateFromApi,
+              ...authoritativeTemplate,
               alunoId: plan.alunoId,
               totalVolumeMin: mockPeriodization.totalVolumeMinutes,
               totalVolumeKm: mockPeriodization.totalVolumeKm,
@@ -593,230 +658,222 @@ export default function WorkoutBuilder2() {
               distributionZ3,
               distributionZ4,
               distributionZ5,
-              weekStartDate,
+              weekStartDate: persistedWeekStartDate,
               mesocycleNumber,
               weekNumber,
+              baseTemplateUpdatedAt: templateFromApi.updatedAt,
               resistedExercises: resistedFromApi,
             };
 
-            const cachedKey = buildCacheKey(planId, mesocycleNumber, weekNumber, plan.updatedAt);
-            const cached = cachedKey ? localStorage.getItem(cachedKey) : null;
-            if (cached) {
-              try {
-                const cachedData = JSON.parse(cached);
-                const releasedData = {
-                  released: templateFromApi.released,
-                  releasedAt: templateFromApi.releasedAt,
-                };
-                return {
-                  ...mergedTemplate,
-                  ...cachedData,
-                  resistedExercises: cachedData?.resistedExercises ?? resistedFromApi,
-                  ...releasedData,
-                  id: templateFromApi.id,
-                  weekStartDate: mergedTemplate.weekStartDate,
-                  mesocycleNumber,
-                  weekNumber,
-                  planId
-                };
-              } catch (error) {
-                return mergedTemplate;
-              }
-            }
-
+            // A pending draft is recovered only when it belongs to this exact
+            // template/context; all other loads remain API-authoritative.
             return mergedTemplate;
           })
         );
 
+        if (!isCurrentRequest()) return;
         const templatesByWeek = templates.reduce<Record<number, any>>((acc, template) => {
           acc[template.weekNumber] = template;
           return acc;
         }, {});
 
         setTemplateDataByWeek(templatesByWeek);
+        if (recoveredDraftKeys.length > 0) {
+          setSaveError('Há um rascunho local pendente. Tente salvar novamente para sincronizá-lo.');
+          setSaveErrorKey(recoveredDraftKeys[0]);
+        }
       }
     } catch (error) {
+      if (!isCurrentRequest()) return;
       console.error('Erro ao carregar template:', error);
-      alert('Erro ao carregar dados do plano');
-      navigate('/plans');
+      setLoadError('Não foi possível carregar os dados do plano. Tente novamente.');
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   };
 
   const handleDataChange = (weekNumber: number, newData: any) => {
+    if (interactionLocked || templateDataByWeek[weekNumber]?.released) return;
     const merged = {
       ...(templateDataByWeek[weekNumber] || {}),
       ...newData,
-      workoutDays:
-        newData?.workoutDays !== undefined
-          ? newData.workoutDays
-          : templateDataByWeek[weekNumber]?.workoutDays,
-      resistedExercises:
-        newData?.resistedExercises !== undefined
-          ? newData.resistedExercises
-          : templateDataByWeek[weekNumber]?.resistedExercises,
+      workoutDays: newData?.workoutDays !== undefined
+        ? newData.workoutDays
+        : templateDataByWeek[weekNumber]?.workoutDays,
+      resistedExercises: newData?.resistedExercises !== undefined
+        ? newData.resistedExercises
+        : templateDataByWeek[weekNumber]?.resistedExercises,
     };
+    const resolvedMesocycle = Number(merged?.mesocycleNumber ?? mesocycleNumber);
+    const resolvedWeek = Number(merged?.weekNumber ?? weekNumber);
+    const snapshot = {
+      ...merged,
+      planId: merged?.planId ?? planId,
+      planUpdatedAt: merged?.planUpdatedAt ?? planData?.updatedAt,
+      baseTemplateUpdatedAt: merged?.baseTemplateUpdatedAt ?? merged?.updatedAt,
+      mesocycleNumber: resolvedMesocycle,
+      weekNumber: resolvedWeek,
+    };
+    const saveKey = buildSaveKey(resolvedMesocycle, resolvedWeek, snapshot.planId);
 
-    setTemplateDataByWeek((prev) => ({
-      ...prev,
-      [weekNumber]: merged
-    }));
-    const resolvedPlanId = merged?.planId ?? planId;
-    const resolvedMesocycle = merged?.mesocycleNumber ?? mesocycleNumber;
-    const resolvedWeek = merged?.weekNumber ?? weekNumber;
-    const key = resolvedPlanId
-      ? buildCacheKey(
-          resolvedPlanId,
-          resolvedMesocycle,
-          resolvedWeek,
-          planData?.updatedAt
-        )
+    conflictedSaveKeysRef.current.delete(saveKey);
+    setTemplateDataByWeek((prev) => ({ ...prev, [weekNumber]: snapshot }));
+    pendingSaveRef.current[saveKey] = snapshot;
+    const cacheKey = snapshot.planId
+      ? buildCacheKey(snapshot.planId, resolvedMesocycle, resolvedWeek, snapshot.planUpdatedAt, snapshot.baseTemplateUpdatedAt)
       : null;
-
-    if (key) {
-      localStorage.setItem(key, JSON.stringify(merged));
+    if (cacheKey) {
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({ schemaVersion: 2, status: 'pending-draft', data: snapshot }));
+      } catch {
+        // localStorage is an optional recovery buffer, never the source of truth.
+      }
     }
 
-    // Auto-save após 2 segundos de inatividade
-    if (autoSaveTimers[weekNumber]) {
-      clearTimeout(autoSaveTimers[weekNumber]);
-    }
-
-    const timer = setTimeout(() => {
-      handleSave(merged);
+    if (autoSaveTimersRef.current[saveKey]) clearTimeout(autoSaveTimersRef.current[saveKey]);
+    autoSaveTimersRef.current[saveKey] = setTimeout(() => {
+      delete autoSaveTimersRef.current[saveKey];
+      void handleSave(pendingSaveRef.current[saveKey], resolvedWeek).catch(() => undefined);
     }, 2000);
-
-    setAutoSaveTimers((prev) => ({
-      ...prev,
-      [weekNumber]: timer
-    }));
   };
 
-  const handleSave = async (data: any) => {
-    try {
-      setSaving(true);
-      if (!data) return;
-      if (data?.id) {
-        await workoutService.updateTemplate(data.id, {
-          cyclicFrequency: data.cyclicFrequency,
-          resistanceFrequency: data.resistanceFrequency,
-          totalVolumeMin: data.totalVolumeMin,
-          totalVolumeKm: data.totalVolumeKm,
-          loadPercentage: data.loadPercentage,
-          repZone: data.repZone,
-          repReserve: data.repReserve,
-          trainingMethod: data.trainingMethod,
-          trainingDivision: data.trainingDivision,
-          alunoGoal: data.alunoGoal,
-          coachGoal: data.coachGoal,
-          observation1: data.observation1,
-          observation2: data.observation2,
-        });
-
-        if (data.workoutDays) {
-          const daysArray = Array.isArray(data.workoutDays)
-            ? data.workoutDays
-            : Object.values(data.workoutDays);
-
-          const weekStart = data.weekStartDate ? new Date(data.weekStartDate) : null;
-
-          for (const day of daysArray) {
-            if (!day?.dayOfWeek) continue;
-
-            const workoutDate = day.workoutDate
-              ? new Date(day.workoutDate)
-              : weekStart
-                ? resolveWeekDate(weekStart, day.dayOfWeek)
-                : new Date();
-
-            const savedDay = await workoutService.getOrCreateDay({
-              templateId: data.id,
-              dayOfWeek: day.dayOfWeek,
-              workoutDate: workoutDate.toISOString(),
-            });
-
-            await workoutService.updateDay(savedDay.id, {
-              sessionDurationMin: day.sessionDurationMin,
-              cyclicTimeMin: day.cyclicTimeMin,
-              resistanceTimeMin: day.resistanceTimeMin,
-              stimulusDurationMin: day.stimulusDurationMin,
-              location: day.location,
-              method: day.method,
-              intensity1: day.intensity1,
-              intensity2: day.intensity2,
-              numSessions: day.numSessions,
-              numSets: day.numSets,
-              sessionTime: day.sessionTime,
-              restTime: day.restTime,
-              vo2maxIntervalPct: day.vo2maxIntervalPct,
-              iextIintTime: day.iextIintTime,
-              vo2maxPct: day.vo2maxPct,
-              targetHrMin: day.targetHrMin,
-              targetHrMax: day.targetHrMax,
-              targetSpeedMin: day.targetSpeedMin,
-              targetSpeedMax: day.targetSpeedMax,
-              detailNotes: day.detailNotes,
-              complementNotes: day.complementNotes,
-              generalGuidelines: day.generalGuidelines,
-            });
-          }
-        }
-
-        if (data.resistedExercises) {
-          const weekStart = data.weekStartDate ? new Date(data.weekStartDate) : null;
-          for (const dayOfWeek of dayNumbers) {
-            const correctedDate = weekStart
-              ? resolveWeekDate(weekStart, dayOfWeek)
-              : new Date();
-            const targetDay = await workoutService.getOrCreateDay({
-              templateId: data.id,
-              dayOfWeek,
-              workoutDate: correctedDate.toISOString(),
-            });
-
-            const existingExercises = await workoutService.getExercises(targetDay.id);
-            if (existingExercises.length) {
-              await Promise.all(existingExercises.map((exercise) => workoutService.deleteExercise(exercise.id)));
-            }
-
-            const daySections = data.resistedExercises?.[dayOfWeek] || {};
-            const sectionEntries = Object.entries(daySections) as Array<[string, any[]]>;
-            for (const [section, exercises] of sectionEntries) {
-              const list = Array.isArray(exercises) ? exercises : [];
-              await Promise.all(
-                list.map((exercise, index) => {
-                  if (!exercise?.exerciseId) return Promise.resolve();
-                  return workoutService.addExercise({
-                    workoutDayId: targetDay.id,
-                    exerciseId: exercise.exerciseId,
-                    section,
-                    exerciseOrder: index + 1,
-                    system: exercise.system ?? undefined,
-                    groupBreakBefore: exercise.groupBreakBefore ?? false,
-                    sets: exercise.sets ?? undefined,
-                    reps: exercise.reps ?? undefined,
-                    intervalSec: exercise.interval ?? undefined,
-                    cParam: exercise.cParam ?? undefined,
-                    eParam: exercise.eParam ?? undefined,
-                    load: exercise.load ?? undefined,
-                    exerciseNotes: exercise.adjustment ?? exercise.exerciseNotes ?? undefined,
-                  });
-                })
-              );
-            }
-          }
-        }
+  const handleSave = async (data: any, weekNumber?: number): Promise<void> => {
+    if (!data) return;
+    const resolvedMesocycle = Number(data?.mesocycleNumber ?? mesocycleNumber);
+    const resolvedWeek = weekNumber ?? Number(data?.weekNumber);
+    if (!Number.isInteger(resolvedMesocycle) || resolvedMesocycle <= 0
+      || !Number.isInteger(resolvedWeek) || resolvedWeek <= 0) return;
+    const saveKey = buildSaveKey(resolvedMesocycle, resolvedWeek, data?.planId ?? planId);
+    if (conflictedSaveKeysRef.current.has(saveKey)) {
+      if (isCurrentBuilderContext(data?.planId ?? planId, resolvedMesocycle)) {
+        setSaveError('O treino foi alterado em outra sessão. Edite o estado atual antes de salvar novamente.');
+        setSaveErrorKey(saveKey);
       }
-    } catch (error) {
-      console.error('Erro ao salvar:', error);
-    } finally {
-      setSaving(false);
+      throw new Error('WORKOUT_PLANNING_CONFLICT_REVIEW_REQUIRED');
     }
+    const previous = saveChainsRef.current.get(saveKey) ?? Promise.resolve();
+    const operation = previous.catch(() => undefined).then(async () => {
+      const snapshot = pendingSaveRef.current[saveKey] ?? data;
+      if (!snapshot || snapshot.released) return;
+      beginOperation();
+      if (isCurrentBuilderContext(snapshot.planId, resolvedMesocycle)) {
+        setSaveError(null);
+        setSaveErrorKey(null);
+      }
+      try {
+        if (snapshot.id) {
+          const saved = await workoutService.saveTemplateWeek(snapshot.id, buildWeekSavePayload(snapshot));
+          if (isCurrentBuilderContext(snapshot.planId, resolvedMesocycle)
+            && pendingSaveRef.current[saveKey] === snapshot) {
+            setTemplateDataByWeek((prev) => ({
+              ...prev,
+              [resolvedWeek]: {
+                ...prev[resolvedWeek],
+                updatedAt: saved.updatedAt,
+                baseTemplateUpdatedAt: saved.updatedAt,
+              },
+            }));
+          }
+        }
+        if (pendingSaveRef.current[saveKey] === snapshot) {
+          conflictedSaveKeysRef.current.delete(saveKey);
+          delete pendingSaveRef.current[saveKey];
+          clearDraftCacheForWeek(snapshot.planId, resolvedMesocycle, resolvedWeek);
+        }
+      } catch (error) {
+        console.error('Erro ao salvar:', error);
+        const serverMessage = (error as { response?: { data?: { error?: unknown } } })?.response?.data?.error;
+        if (isCurrentBuilderContext(snapshot.planId, resolvedMesocycle)
+          && pendingSaveRef.current[saveKey] === snapshot) {
+          const responseData = (error as { response?: { status?: number; data?: { code?: unknown } } })?.response?.data;
+          if (responseData?.code === 'WORKOUT_PLANNING_VERSION_CONFLICT' && snapshot.id) {
+            try {
+              const authoritative = await workoutService.getTemplate(snapshot.id);
+              conflictedSaveKeysRef.current.add(saveKey);
+              setTemplateDataByWeek((prev) => ({
+                ...prev,
+                [resolvedWeek]: {
+                  ...prev[resolvedWeek],
+                  ...authoritative,
+                  resistedExercises: buildResistedExercisesFromTemplate(authoritative),
+                  planId: snapshot.planId,
+                  mesocycleNumber: resolvedMesocycle,
+                  weekNumber: resolvedWeek,
+                  baseTemplateUpdatedAt: authoritative.updatedAt,
+                },
+              }));
+              // Keep the original pending snapshot/local recovery entry for an
+              // explicit user decision; never resend it against a new base.
+              setSaveError('O treino mudou em outra sessão. O rascunho local foi preservado; compare com o estado atual e edite antes de salvar novamente.');
+              setSaveErrorKey(saveKey);
+            } catch (authoritativeReadError) {
+              console.error('Erro ao carregar o estado autoritativo após conflito:', authoritativeReadError);
+            }
+          }
+          if (!conflictedSaveKeysRef.current.has(saveKey)) {
+            setSaveError(typeof serverMessage === 'string' ? serverMessage : 'Falha ao salvar treino. Revise os campos e tente novamente.');
+          }
+          setSaveErrorKey(saveKey);
+        }
+        throw error;
+      } finally {
+        endOperation();
+      }
+    });
+    saveChainsRef.current.set(saveKey, operation);
+    try {
+      await operation;
+    } finally {
+      if (saveChainsRef.current.get(saveKey) === operation && !pendingSaveRef.current[saveKey]) {
+        saveChainsRef.current.delete(saveKey);
+      }
+    }
+  };
+
+  const flushPendingSave = async (
+    weekNumber: number,
+    mesocycle = mesocycleNumber,
+    contextPlanId = planId,
+  ) => {
+    const saveKey = buildSaveKey(mesocycle, weekNumber, contextPlanId);
+    const timer = autoSaveTimersRef.current[saveKey];
+    if (timer) {
+      clearTimeout(timer);
+      delete autoSaveTimersRef.current[saveKey];
+    }
+    const pending = pendingSaveRef.current[saveKey];
+    if (pending) await handleSave(pending, weekNumber);
+    const chain = saveChainsRef.current.get(saveKey);
+    if (chain) await chain;
+  };
+
+  flushAllPendingSavesRef.current = async () => {
+    const keys = new Set([
+      ...Object.keys(autoSaveTimersRef.current),
+      ...Object.keys(pendingSaveRef.current),
+      ...saveChainsRef.current.keys(),
+    ]);
+    for (const key of keys) {
+      const timer = autoSaveTimersRef.current[key];
+      if (timer) {
+        clearTimeout(timer);
+        delete autoSaveTimersRef.current[key];
+      }
+    }
+    await Promise.all([...keys].map(async (key) => {
+      const parsed = parseSaveKey(key);
+      if (!parsed) return;
+      const pending = pendingSaveRef.current[key];
+      if (pending) await handleSave(pending, parsed.week);
+      const chain = saveChainsRef.current.get(key);
+      if (chain) await chain;
+    }));
   };
 
   const handleCopyWeek = async (sourceWeekNumber: number) => {
     if (!planId) return;
+    const operationPlanId = planId;
+    const operationMesocycle = mesocycleNumber;
 
     const sourceTemplate = templateDataByWeek[sourceWeekNumber];
     if (!sourceTemplate?.id) {
@@ -865,10 +922,17 @@ export default function WorkoutBuilder2() {
       : `Deseja copiar a semana ${absoluteSourceWeek} para a semana ${absoluteTargetWeek}?`;
 
     if (!confirm(confirmMessage)) return;
+    if (copyActionInFlightRef.current) return;
+    copyActionInFlightRef.current = true;
+    setInteractionLocked(true);
 
     try {
-      setSaving(true);
+      beginOperation();
       setCopyWeekError(null);
+      setCopyRetryWeek(null);
+      await flushPendingSave(sourceWeekNumber, operationMesocycle, operationPlanId);
+      await flushPendingSave(targetWeekNumber, operationMesocycle, operationPlanId);
+      if (!isCurrentBuilderContext(operationPlanId, operationMesocycle)) return;
 
       const resolvedStartDate =
         resolveWeekStartDate(mesocycleNumber, targetWeekNumber) ||
@@ -880,163 +944,27 @@ export default function WorkoutBuilder2() {
         return;
       }
 
-      const weekStart = new Date(resolvedStartDate);
       const clearCacheForWeek = () => {
-        const cacheKey = buildCacheKey(planId, mesocycleNumber, targetWeekNumber, planData?.updatedAt);
-        if (cacheKey) {
-          localStorage.removeItem(cacheKey);
-        }
+        clearDraftCacheForWeek(operationPlanId, operationMesocycle, targetWeekNumber);
       };
 
       let refreshed: any;
 
+      const sourceFromApi = await workoutService.getTemplate(sourceTemplate.id);
+      if (!isCurrentBuilderContext(operationPlanId, operationMesocycle)) return;
       if (copyMode === '1') {
-        if (targetTemplate?.id) {
-          await workoutService.deleteTemplate(targetTemplate.id);
-          clearCacheForWeek();
-        }
-
-        const sourceFromApi = await workoutService.getTemplate(sourceTemplate.id);
-        const copied = await workoutService.copyTemplate(
+        // Full-week copies and partial copies are both atomic server commands.
+        refreshed = await workoutService.copyTemplate(sourceFromApi.id, targetWeekNumber, resolvedStartDate);
+      } else {
+        refreshed = await workoutService.copyTemplateSections(
           sourceFromApi.id,
           targetWeekNumber,
-          resolvedStartDate
+          resolvedStartDate,
+          copyMode === '2' ? 'cyclic' : 'resistance',
         );
-
-        if (copied?.workoutDays?.length) {
-          await Promise.all(
-            copied.workoutDays.map((day: any) => {
-              if (!day?.id || !day?.dayOfWeek) return Promise.resolve();
-              const correctedDate = resolveWeekDate(weekStart, day.dayOfWeek);
-              return workoutService.updateDay(day.id, { workoutDate: correctedDate.toISOString() });
-            })
-          );
-        }
-
-        refreshed = await workoutService.getTemplate(copied.id);
-      } else {
-        const sourceFromApi = await workoutService.getTemplate(sourceTemplate.id);
-        const targetTemplateFromApi = await workoutService.getOrCreateTemplate({
-          planId,
-          mesocycleNumber,
-          weekNumber: targetWeekNumber,
-          weekStartDate: resolvedStartDate,
-        });
-
-        const sourceDays = Array.isArray(sourceFromApi.workoutDays)
-          ? sourceFromApi.workoutDays
-          : Object.values(sourceFromApi.workoutDays || {});
-
-        const sourceDayMap = sourceDays.reduce<Record<number, any>>((acc, day) => {
-          const rawDay = (day ?? {}) as Record<string, any>;
-          if (rawDay.dayOfWeek) acc[rawDay.dayOfWeek] = rawDay;
-          return acc;
-        }, {});
-
-        if (copyMode === '2') {
-          await workoutService.updateTemplate(targetTemplateFromApi.id, {
-            cyclicFrequency: sourceFromApi.cyclicFrequency ?? null,
-            totalVolumeMin: sourceFromApi.totalVolumeMin ?? null,
-            totalVolumeKm: sourceFromApi.totalVolumeKm ?? null,
-          });
-
-          await Promise.all(
-            dayNumbers.map(async (dayOfWeek) => {
-              const sourceDay = sourceDayMap[dayOfWeek];
-              const correctedDate = resolveWeekDate(weekStart, dayOfWeek);
-              const targetDay = await workoutService.getOrCreateDay({
-                templateId: targetTemplateFromApi.id,
-                dayOfWeek,
-                workoutDate: correctedDate.toISOString(),
-              });
-              if (!sourceDay) return;
-              await workoutService.updateDay(targetDay.id, {
-                workoutDate: correctedDate.toISOString(),
-                sessionDurationMin: sourceDay.sessionDurationMin ?? null,
-                cyclicTimeMin: sourceDay.cyclicTimeMin ?? null,
-                stimulusDurationMin: sourceDay.stimulusDurationMin ?? null,
-                location: sourceDay.location ?? null,
-                method: sourceDay.method ?? null,
-                intensity1: sourceDay.intensity1 ?? null,
-                intensity2: sourceDay.intensity2 ?? null,
-                numSessions: sourceDay.numSessions ?? null,
-                numSets: sourceDay.numSets ?? null,
-                sessionTime: sourceDay.sessionTime ?? null,
-                restTime: sourceDay.restTime ?? null,
-                vo2maxIntervalPct: sourceDay.vo2maxIntervalPct ?? null,
-                iextIintTime: sourceDay.iextIintTime ?? null,
-                vo2maxPct: sourceDay.vo2maxPct ?? null,
-                targetHrMin: sourceDay.targetHrMin ?? null,
-                targetHrMax: sourceDay.targetHrMax ?? null,
-                targetSpeedMin: sourceDay.targetSpeedMin ?? null,
-                targetSpeedMax: sourceDay.targetSpeedMax ?? null,
-                detailNotes: sourceDay.detailNotes ?? null,
-                complementNotes: sourceDay.complementNotes ?? null,
-                generalGuidelines: sourceDay.generalGuidelines ?? null,
-              });
-            })
-          );
-        } else {
-          await workoutService.updateTemplate(targetTemplateFromApi.id, {
-            resistanceFrequency: sourceFromApi.resistanceFrequency ?? null,
-            loadPercentage: sourceFromApi.loadPercentage ?? null,
-            repZone: sourceFromApi.repZone ?? null,
-            repReserve: sourceFromApi.repReserve ?? null,
-            trainingMethod: sourceFromApi.trainingMethod ?? null,
-            trainingDivision: sourceFromApi.trainingDivision ?? null,
-            alunoGoal: sourceFromApi.alunoGoal ?? null,
-            coachGoal: sourceFromApi.coachGoal ?? null,
-            observation1: sourceFromApi.observation1 ?? null,
-            observation2: sourceFromApi.observation2 ?? null,
-          });
-
-          await Promise.all(
-            dayNumbers.map(async (dayOfWeek) => {
-              const sourceDay = sourceDayMap[dayOfWeek];
-              const correctedDate = resolveWeekDate(weekStart, dayOfWeek);
-              const targetDay = await workoutService.getOrCreateDay({
-                templateId: targetTemplateFromApi.id,
-                dayOfWeek,
-                workoutDate: correctedDate.toISOString(),
-              });
-
-              if (sourceDay?.resistanceTimeMin !== undefined) {
-                await workoutService.updateDay(targetDay.id, {
-                  resistanceTimeMin: sourceDay.resistanceTimeMin ?? null,
-                });
-              }
-
-              const targetExercises = Array.isArray(targetDay.exercises) ? targetDay.exercises : [];
-              await Promise.all(
-                targetExercises.map((exercise: any) => workoutService.deleteExercise(exercise.id))
-              );
-
-              const sourceExercises = Array.isArray(sourceDay?.exercises) ? sourceDay.exercises : [];
-              await Promise.all(
-                sourceExercises.map((exercise: any) =>
-                  workoutService.addExercise({
-                    workoutDayId: targetDay.id,
-                    exerciseId: exercise.exerciseId,
-                    section: exercise.section,
-                    exerciseOrder: exercise.exerciseOrder,
-                    system: exercise.system ?? undefined,
-                    groupBreakBefore: exercise.groupBreakBefore ?? false,
-                    sets: exercise.sets ?? undefined,
-                    reps: exercise.reps ?? undefined,
-                    intervalSec: exercise.intervalSec ?? undefined,
-                    cParam: exercise.cParam ?? undefined,
-                    eParam: exercise.eParam ?? undefined,
-                    load: exercise.load ?? undefined,
-                    exerciseNotes: exercise.exerciseNotes ?? undefined,
-                  })
-                )
-              );
-            })
-          );
-        }
-
-        refreshed = await workoutService.getTemplate(targetTemplateFromApi.id);
       }
+      if (!isCurrentBuilderContext(operationPlanId, operationMesocycle)) return;
+      clearCacheForWeek();
 
       const refreshedResisted = buildResistedExercisesFromTemplate(refreshed);
       const mergedTemplate = {
@@ -1044,38 +972,42 @@ export default function WorkoutBuilder2() {
         ...refreshed,
         resistedExercises: refreshedResisted,
         alunoId: planData?.alunoId,
-        weekStartDate: resolvedStartDate,
-        mesocycleNumber,
+        weekStartDate: refreshed.weekStartDate ?? resolvedStartDate,
+        mesocycleNumber: operationMesocycle,
         weekNumber: targetWeekNumber,
-        planId,
-        totalVolumeMin: sourceTemplate.totalVolumeMin ?? refreshed.totalVolumeMin,
-        totalVolumeKm: sourceTemplate.totalVolumeKm ?? refreshed.totalVolumeKm,
-        distributionZ1: sourceTemplate.distributionZ1 ?? targetTemplate?.distributionZ1,
-        distributionZ2: sourceTemplate.distributionZ2 ?? targetTemplate?.distributionZ2,
-        distributionZ3: sourceTemplate.distributionZ3 ?? targetTemplate?.distributionZ3,
-        distributionZ4: sourceTemplate.distributionZ4 ?? targetTemplate?.distributionZ4,
-        distributionZ5: sourceTemplate.distributionZ5 ?? targetTemplate?.distributionZ5,
+        planId: operationPlanId,
+        totalVolumeMin: refreshed.totalVolumeMin ?? targetTemplate?.totalVolumeMin,
+        totalVolumeKm: refreshed.totalVolumeKm ?? targetTemplate?.totalVolumeKm,
+        distributionZ1: refreshed.distributionZ1 ?? targetTemplate?.distributionZ1,
+        distributionZ2: refreshed.distributionZ2 ?? targetTemplate?.distributionZ2,
+        distributionZ3: refreshed.distributionZ3 ?? targetTemplate?.distributionZ3,
+        distributionZ4: refreshed.distributionZ4 ?? targetTemplate?.distributionZ4,
+        distributionZ5: refreshed.distributionZ5 ?? targetTemplate?.distributionZ5,
       };
 
+      if (!isCurrentBuilderContext(operationPlanId, operationMesocycle)) return;
       setTemplateDataByWeek((prev) => ({
         ...prev,
         [targetWeekNumber]: mergedTemplate,
       }));
-
-      const cacheKey = buildCacheKey(planId, mesocycleNumber, targetWeekNumber, planData?.updatedAt);
-      if (cacheKey) {
-        localStorage.setItem(cacheKey, JSON.stringify(mergedTemplate));
-      }
+      setTemplateRefreshByWeek((prev) => ({
+        ...prev,
+        [targetWeekNumber]: (prev[targetWeekNumber] ?? 0) + 1,
+      }));
 
       alert('Semana copiada com sucesso!');
     } catch (error: any) {
+      if (!isCurrentBuilderContext(operationPlanId, operationMesocycle)) return;
       const apiMessage = error?.response?.data?.error;
       const message = apiMessage ? `Erro ao copiar semana: ${apiMessage}` : 'Erro ao copiar semana';
       console.error('Erro ao copiar semana:', error);
       setCopyWeekError(message);
+      setCopyRetryWeek(sourceWeekNumber);
       alert(message);
     } finally {
-      setSaving(false);
+      endOperation();
+      copyActionInFlightRef.current = false;
+      setInteractionLocked(false);
     }
   };
   const toggleSummaryVisibility = (
@@ -1105,11 +1037,24 @@ export default function WorkoutBuilder2() {
       alert('Não foi possível localizar o template da semana.');
       return;
     }
+    if (releaseActionInFlightRef.current) return;
+    releaseActionInFlightRef.current = true;
+    setInteractionLocked(true);
+    const operationPlanId = planId;
+    const operationMesocycle = mesocycleNumber;
 
     try {
-      setSaving(true);
-
-      const releasedTemplate = await workoutService.releaseTemplate(weekTemplate.id);
+      beginOperation();
+      setReleaseError(null);
+      await flushPendingSave(weekNumber, operationMesocycle, operationPlanId);
+      if (!isCurrentBuilderContext(operationPlanId, operationMesocycle)) return;
+      const persistedTemplate = await workoutService.getTemplate(weekTemplate.id);
+      if (!isCurrentBuilderContext(operationPlanId, operationMesocycle)) return;
+      const releasedTemplate = await workoutService.releaseTemplate(persistedTemplate.id);
+      if (!isCurrentBuilderContext(operationPlanId, operationMesocycle)) return;
+      delete pendingSaveRef.current[buildSaveKey(operationMesocycle, weekNumber, operationPlanId)];
+      clearDraftCacheForWeek(operationPlanId!, operationMesocycle, weekNumber);
+      if (!isCurrentBuilderContext(operationPlanId, operationMesocycle)) return;
       setTemplateDataByWeek((prev) => ({
         ...prev,
         [weekNumber]: {
@@ -1118,21 +1063,33 @@ export default function WorkoutBuilder2() {
         }
       }));
 
-      const cacheKey = buildCacheKey(planId!, mesocycleNumber, weekNumber, planData?.updatedAt);
-      if (cacheKey) {
-        const cached = {
-          ...(templateDataByWeek[weekNumber] || {}),
-          ...releasedTemplate,
-        };
-        localStorage.setItem(cacheKey, JSON.stringify(cached));
-      }
-
       alert('Treino liberado com sucesso! O aluno ja pode visualiza-lo.');
     } catch (error) {
+      if (!isCurrentBuilderContext(operationPlanId, operationMesocycle)) return;
       console.error('Erro ao liberar treino:', error);
+      setReleaseError({ weekNumber, message: 'Erro ao liberar treino. Tente novamente.' });
       alert('Erro ao liberar treino');
     } finally {
-      setSaving(false);
+      endOperation();
+      releaseActionInFlightRef.current = false;
+      setInteractionLocked(false);
+    }
+  };
+
+  const handleBack = async () => {
+    if (isNavigatingBack) return;
+    setIsNavigatingBack(true);
+    setInteractionLocked(true);
+    try {
+      await flushAllPendingSavesRef.current();
+      navigate(-1);
+    } catch (error) {
+      console.error('Erro ao salvar antes de voltar:', error);
+      setSaveError('Não foi possível concluir o salvamento antes de voltar. Tente novamente.');
+      setSaveErrorKey(null);
+    } finally {
+      setIsNavigatingBack(false);
+      setInteractionLocked(false);
     }
   };
 
@@ -1246,9 +1203,28 @@ export default function WorkoutBuilder2() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex min-h-screen items-center justify-center" role="status" aria-live="polite" aria-busy="true">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span className="sr-only">Carregando dados do plano</span>
       </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+        <section className="max-w-md rounded-lg border border-red-200 bg-white p-6 shadow-sm" role="alert">
+          <h1 className="text-lg font-semibold text-gray-900">Não foi possível carregar o plano</h1>
+          <p className="mt-2 text-sm text-gray-600">{loadError}</p>
+          <button
+            type="button"
+            className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            onClick={() => void loadTemplate()}
+          >
+            Tentar novamente
+          </button>
+        </section>
+      </main>
     );
   }
 
@@ -1260,8 +1236,12 @@ export default function WorkoutBuilder2() {
           <div className="flex flex-wrap items-center gap-6">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => navigate(-1)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                type="button"
+                onClick={() => void handleBack()}
+                disabled={isNavigatingBack}
+                aria-label="Voltar"
+                title="Voltar"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
@@ -1509,15 +1489,8 @@ export default function WorkoutBuilder2() {
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={() => {
-                  setMesocycleNumber((prev) => {
-                    const next = Math.max(1, prev - 1);
-                    if (next !== prev) {
-                      navigateToMesocycle(next);
-                    }
-                    return next;
-                  });
-                }}
+                onClick={() => navigateToMesocycle(Math.max(1, mesocycleNumber - 1))}
+                disabled={interactionLocked}
                 className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -1527,15 +1500,14 @@ export default function WorkoutBuilder2() {
                 Mesociclo
                 <select
                   value={mesocycleNumber}
+                  disabled={interactionLocked}
                   onChange={(e) => {
                     const value = parseInt(e.target.value);
                     if (!Number.isFinite(value)) {
-                      setMesocycleNumber(1);
                       navigateToMesocycle(1);
                       return;
                     }
                     const next = Math.min(Math.max(1, value), totalMesocycles);
-                    setMesocycleNumber(next);
                     navigateToMesocycle(next);
                   }}
                   className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1549,15 +1521,8 @@ export default function WorkoutBuilder2() {
               </label>
               <button
                 type="button"
-                onClick={() => {
-                  setMesocycleNumber((prev) => {
-                    const next = Math.min(totalMesocycles, prev + 1);
-                    if (next !== prev) {
-                      navigateToMesocycle(next);
-                    }
-                    return next;
-                  });
-                }}
+                onClick={() => navigateToMesocycle(Math.min(totalMesocycles, mesocycleNumber + 1))}
+                disabled={interactionLocked}
                 className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 Próximo Mesociclo
@@ -1610,11 +1575,14 @@ export default function WorkoutBuilder2() {
           });
           const sessionTimes = cyclicTimes.map((value, idx) => value + resistanceTimes[idx]);
           const fallbackWeekStartDate = resolveWeekStartDate(mesocycleNumber, weekNumber);
-          const dayEditability = buildWeekDayEditability(fallbackWeekStartDate);
-          const weekEditable = dayEditability.some(Boolean);
+          const persistedWeekStartDate = weekTemplateData?.weekStartDate ?? fallbackWeekStartDate;
+          const dayEditability = buildWeekDayEditability(persistedWeekStartDate);
+          const weekEditable = !interactionLocked && !weekTemplateData?.released && dayEditability.some(Boolean);
+          const weekSaveKey = buildSaveKey(mesocycleNumber, weekNumber, planId);
           return (
             <div
               key={weekNumber}
+              data-workout-week={weekNumber}
               className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 max-w-[1800px]"
             >
               <div
@@ -1649,6 +1617,7 @@ export default function WorkoutBuilder2() {
                           }))
                         }
                         className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                        disabled={interactionLocked}
                       />
                       Cíclico
                     </label>
@@ -1666,6 +1635,7 @@ export default function WorkoutBuilder2() {
                           }))
                         }
                         className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                        disabled={interactionLocked}
                       />
                       Resistido
                     </label>
@@ -1695,7 +1665,8 @@ export default function WorkoutBuilder2() {
                   <button
                     ref={registerWorkoutGuideButtonRef('copyAction', weekNumber)}
                     onClick={() => handleCopyWeek(weekNumber)}
-                    className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-gray-700 transition-colors ${
+                    disabled={saving || interactionLocked}
+                    className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-gray-700 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                       isWorkoutGuideStep(2, weekNumber)
                         ? 'border-sky-300 bg-sky-50 shadow-sm'
                         : 'border-gray-300 bg-white hover:bg-gray-50'
@@ -1708,7 +1679,7 @@ export default function WorkoutBuilder2() {
                   <button
                     ref={registerWorkoutGuideButtonRef('releaseAction', weekNumber)}
                     onClick={() => handleRelease(weekNumber)}
-                    disabled={saving || weekTemplateData?.released}
+                    disabled={saving || interactionLocked || weekTemplateData?.released}
                     className={`flex items-center gap-2 rounded-lg px-4 py-2 text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                       isWorkoutGuideStep(3, weekNumber)
                         ? 'bg-sky-600 shadow-sm hover:bg-sky-700'
@@ -1725,8 +1696,31 @@ export default function WorkoutBuilder2() {
                   </button>
                 </div>
                 {copyWeekError && (
-                  <div className="mt-3 w-full rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {copyWeekError}
+                  <div role="alert" aria-live="assertive" className="mt-3 w-full rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    <div>{copyWeekError}</div>
+                    {copyRetryWeek !== null && (
+                      <button
+                        type="button"
+                        className="mt-2 rounded-md border border-red-300 bg-white px-3 py-1.5 font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={saving}
+                        onClick={() => void handleCopyWeek(copyRetryWeek)}
+                      >
+                        Tentar novamente
+                      </button>
+                    )}
+                  </div>
+                )}
+                {releaseError?.weekNumber === weekNumber && (
+                  <div role="alert" className="mt-3 w-full rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    <div>{releaseError.message}</div>
+                    <button
+                      type="button"
+                      className="mt-2 rounded-md border border-red-300 bg-white px-3 py-1.5 font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={saving}
+                      onClick={() => void handleRelease(weekNumber)}
+                    >
+                      Tentar novamente
+                    </button>
                   </div>
                 )}
               </div>
@@ -1861,6 +1855,7 @@ export default function WorkoutBuilder2() {
                   >
                     <button
                       onClick={() => setActiveTab('cyclic')}
+                      disabled={interactionLocked}
                       className={`px-4 py-3 font-medium transition-colors relative ${
                         activeTab === 'cyclic'
                           ? 'text-blue-600'
@@ -1876,6 +1871,7 @@ export default function WorkoutBuilder2() {
 
                     <button
                       onClick={() => setActiveTab('resistance')}
+                      disabled={interactionLocked}
                       className={`px-4 py-3 font-medium transition-colors relative ${
                         activeTab === 'resistance'
                           ? 'text-blue-600'
@@ -1892,12 +1888,29 @@ export default function WorkoutBuilder2() {
                 </div>
 
                 <div className="p-6">
+                  {saveError && saveErrorKey === weekSaveKey && (
+                    <p role="alert" className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                      <span>{saveError}</span>
+                      {pendingSaveRef.current[weekSaveKey]
+                        && !conflictedSaveKeysRef.current.has(weekSaveKey)
+                        && (
+                        <button
+                          type="button"
+                          className="ml-3 rounded-md border border-destructive/40 px-2 py-1 font-medium hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={saving}
+                          onClick={() => void handleSave(pendingSaveRef.current[weekSaveKey], weekNumber).catch(() => undefined)}
+                        >
+                          Tentar novamente
+                        </button>
+                      )}
+                    </p>
+                  )}
                   {activeTab === 'cyclic' ? (
                     <WorkoutBuilderCyclic
                       key={`cyclic-${weekTemplateData?.id ?? 'new'}-${weekNumber}-${mesocycleNumber}`}
                       templateData={weekTemplateData}
-                      weekStartDateOverride={fallbackWeekStartDate}
-                      dayEditability={dayEditability}
+                      weekStartDateOverride={persistedWeekStartDate}
+                      dayEditability={dayEditability.map((editable) => editable && !weekTemplateData?.released && !interactionLocked)}
                       weekEditable={weekEditable}
                       planId={planId}
                       alunoData={alunoData}
@@ -1910,9 +1923,10 @@ export default function WorkoutBuilder2() {
                     />
                   ) : (
                     <WorkoutBuilderResistance
+                      key={`resistance-${weekTemplateData?.id ?? 'new'}-${weekNumber}-${mesocycleNumber}-${templateRefreshByWeek[weekNumber] ?? 0}`}
                       templateData={weekTemplateData}
-                      weekStartDateOverride={fallbackWeekStartDate}
-                      dayEditability={dayEditability}
+                      weekStartDateOverride={persistedWeekStartDate}
+                      dayEditability={dayEditability.map((editable) => editable && !interactionLocked)}
                       weekEditable={weekEditable}
                       resistedSummary={resistedSummaryByWeek[weekNumber] || null}
                       planStartDate={planData?.startDate}
@@ -1931,5 +1945,3 @@ export default function WorkoutBuilder2() {
     </div>
   );
 }
-
-

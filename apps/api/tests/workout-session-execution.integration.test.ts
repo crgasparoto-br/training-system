@@ -38,7 +38,10 @@ type Fixture = {
   exerciseIds: [string, string];
 };
 
-async function seedReleasedWorkout(label: string): Promise<Fixture> {
+async function seedReleasedWorkout(
+  label: string,
+  options: { publish?: boolean; seedResistance?: boolean } = {},
+): Promise<Fixture> {
   const suffix = `${label}-${randomUUID()}`;
   const contractId = `issue-389-${suffix}`;
 
@@ -193,24 +196,39 @@ async function seedReleasedWorkout(label: string): Promise<Fixture> {
     },
   });
 
-  const releasedAt = new Date('2026-10-05T12:00:00.000Z');
-  await prisma.$executeRaw`
-    INSERT INTO "ConsolidatedPrescriptionOperationalRelease" (
-      "id", "assemblyId", "sourceAssemblyVersionId", "sourceAssemblyVersion",
-      "releasedAssemblyVersionId", "releasedAssemblyVersion", "contractId", "alunoId",
-      "trainingPlanId", "workoutTemplateId", "requestFingerprint",
-      "releasedByProfessorId", "releasedAt", "createdAt"
-    ) VALUES (
-      ${randomUUID()}, ${assembly.id}, ${approved.id}, 1,
-      ${released.id}, 2, ${contractId}, ${aluno.id},
-      ${plan.id}, ${template.id}, ${randomUUID()},
-      ${professor.id}, ${releasedAt}, ${releasedAt}
-    )
-  `;
-  await prisma.workoutTemplate.update({
-    where: { id: template.id },
-    data: { released: true, releasedAt },
-  });
+  if (options.seedResistance) {
+    await prisma.workoutExerciseBlock.create({
+      data: {
+        workoutExerciseId: exerciseA.id,
+        position: 1,
+        kind: 'principal',
+        plannedSets: {
+          create: { position: 1, repsMin: 8, repsMax: 12, loadKg: 32.5 },
+        },
+      },
+    });
+  }
+
+  if (options.publish !== false) {
+    const releasedAt = new Date('2026-10-05T12:00:00.000Z');
+    await prisma.$executeRaw`
+      INSERT INTO "ConsolidatedPrescriptionOperationalRelease" (
+        "id", "assemblyId", "sourceAssemblyVersionId", "sourceAssemblyVersion",
+        "releasedAssemblyVersionId", "releasedAssemblyVersion", "contractId", "alunoId",
+        "trainingPlanId", "workoutTemplateId", "requestFingerprint",
+        "releasedByProfessorId", "releasedAt", "createdAt"
+      ) VALUES (
+        ${randomUUID()}, ${assembly.id}, ${approved.id}, 1,
+        ${released.id}, 2, ${contractId}, ${aluno.id},
+        ${plan.id}, ${template.id}, ${randomUUID()},
+        ${professor.id}, ${releasedAt}, ${releasedAt}
+      )
+    `;
+    await prisma.workoutTemplate.update({
+      where: { id: template.id },
+      data: { released: true, releasedAt },
+    });
+  }
 
   return {
     contractId,
@@ -748,6 +766,35 @@ describeDatabase('workout session execution persistence - issue 389', () => {
     expect(exercises.map((item) => item.exerciseOrder)).toEqual([1, 2]);
   });
 
+  it('serializa início concorrente com atualização do template e rejeita o write tardio', async () => {
+    const fixture = await seedReleasedWorkout('template-planning-race');
+    const templateId = (await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      select: { templateId: true },
+    })).templateId;
+    const removeTrigger = await installLifecycleEventTrigger(fixture.alunoId, 'delay');
+
+    try {
+      const starting = transition(fixture, 'issue399-race-template-start', 0, 'in_progress');
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      const updatingTemplate = workoutService.updateTemplate(templateId, {
+        observation1: 'não pode vencer o início concorrente',
+      });
+
+      await expect(starting).resolves.toMatchObject({ status: 'in_progress' });
+      await expect(updatingTemplate).rejects.toMatchObject({
+        code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START',
+      });
+    } finally {
+      await removeTrigger();
+    }
+
+    expect((await prisma.workoutTemplate.findUniqueOrThrow({
+      where: { id: templateId },
+      select: { observation1: true },
+    })).observation1).not.toBe('não pode vencer o início concorrente');
+  });
+
   it('rejeita reordenação com exercício de outro dia mesmo antes do início', async () => {
     const own = await seedReleasedWorkout('reorder-own');
     const foreign = await seedReleasedWorkout('reorder-foreign');
@@ -767,4 +814,1319 @@ describeDatabase('workout session execution persistence - issue 389', () => {
     });
     expect(ownExercises.map((item) => item.id)).toEqual(own.exerciseIds);
   });
+});
+
+
+describeDatabase('AUD-399-16/17: canonical planned-set execution link', () => {
+  it('persists and projects plannedSetId while rejecting a cross-unit reference', async () => {
+    const fixture = await seedReleasedWorkout('issue399-planned-set-link', { seedResistance: true });
+    const plannedSet = await prisma.workoutExercisePlannedSet.findFirstOrThrow({
+      where: { block: { workoutExerciseId: fixture.exerciseIds[0] } },
+    });
+    const started = await service.transition({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue399-planned-set-start',
+        expectedVersion: 0,
+        targetStatus: 'in_progress',
+        items: [{ plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSet.id, loadKg: 35.5 }],
+      },
+    });
+    expect(started.items[0]).toMatchObject({
+      plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSet.id, loadKg: 35.5,
+    });
+    const legacyUpdate = await service.saveValues({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue399-planned-set-legacy-update',
+        expectedVersion: 1,
+        items: [{ plannedUnitId: fixture.exerciseIds[0], loadKg: 36.5 }],
+      },
+    });
+    expect(legacyUpdate.items[0]).toMatchObject({
+      plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSet.id, loadKg: 36.5,
+    });
+    await expect(service.saveValues({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue399-planned-set-cross-unit',
+        expectedVersion: 2,
+        items: [{ plannedUnitId: fixture.exerciseIds[1], plannedSetId: plannedSet.id, loadKg: 20 }],
+      },
+    })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, select: { id: true },
+    });
+    await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutSessionExecutionItem" ("id", "executionId", "plannedUnitId", "plannedSetId")
+      VALUES (${randomUUID()}, ${execution.id}, ${fixture.exerciseIds[1]}, ${plannedSet.id})
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutSessionExecution" SET "status" = 'not_started' WHERE "id" = ${execution.id}
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutSessionExecution" SET "workoutDayId" = ${randomUUID()} WHERE "id" = ${execution.id}
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      DELETE FROM "WorkoutSessionExecution" WHERE "id" = ${execution.id}
+    `).rejects.toThrow();
+    const executionItem = await prisma.workoutSessionExecutionItem.findFirstOrThrow({
+      where: { executionId: execution.id },
+      select: { id: true },
+    });
+    await expect(prisma.$executeRaw`
+      DELETE FROM "WorkoutSessionExecutionItem" WHERE "id" = ${executionItem.id}
+    `).rejects.toThrow();
+  });
+
+  it('requires a planned set for a structured unit and rejects explicit unlinking', async () => {
+    const fixture = await seedReleasedWorkout('issue399-planned-set-required', { seedResistance: true });
+    const plannedSet = await prisma.workoutExercisePlannedSet.findFirstOrThrow({
+      where: { block: { workoutExerciseId: fixture.exerciseIds[0] } },
+    });
+
+    await expect(service.transition({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue399-planned-set-required-missing',
+        expectedVersion: 0,
+        targetStatus: 'in_progress',
+        items: [{ plannedUnitId: fixture.exerciseIds[0], loadKg: 30 }],
+      },
+    })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+
+    const started = await service.transition({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue399-planned-set-required-start',
+        expectedVersion: 0,
+        targetStatus: 'in_progress',
+        items: [{ plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSet.id, loadKg: 30 }],
+      },
+    });
+
+    await expect(service.saveValues({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue399-planned-set-required-unlink',
+        expectedVersion: started.version,
+        items: [{ plannedUnitId: fixture.exerciseIds[0], plannedSetId: null, loadKg: 31 }],
+      },
+    })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+  });
+
+  it('blocks direct SQL mutation of terminal execution values and child ledger rows', async () => {
+    const fixture = await seedReleasedWorkout('issue399-terminal-ledger', { seedResistance: true });
+    const plannedSet = await prisma.workoutExercisePlannedSet.findFirstOrThrow({
+      where: { block: { workoutExerciseId: fixture.exerciseIds[0] } },
+    });
+    const started = await service.transition({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue399-terminal-start',
+        expectedVersion: 0,
+        targetStatus: 'in_progress',
+        items: [{ plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSet.id, loadKg: 30 }],
+      },
+    });
+    const completed = await service.transition({
+      sessionId: fixture.dayId,
+      alunoId: fixture.alunoId,
+      contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue399-terminal-complete',
+        expectedVersion: started.version,
+        targetStatus: 'completed',
+      },
+    });
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: completed.sessionId },
+      include: { items: true, operations: true },
+    });
+    const item = execution.items[0];
+    const operation = execution.operations[0];
+
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutSessionExecution" SET "sessionValues" = '{"durationSec":999}'::jsonb WHERE "id" = ${execution.id}
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutSessionExecutionItem" SET "loadKg" = 999 WHERE "id" = ${item.id}
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutSessionExecutionOperation" (
+        "id", "executionId", "operationKey", "payloadFingerprint", "action",
+        "targetStatus", "expectedVersion", "resultingVersion"
+      ) VALUES (
+        ${randomUUID()}, ${execution.id}, 'issue399-direct-terminal-operation', 'fingerprint',
+        'transition', 'completed', ${completed.version}, ${completed.version + 1}
+      )
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutSessionPauseInterval" ("id", "executionId", "startedAt")
+      VALUES (${randomUUID()}, ${execution.id}, ${new Date('2026-10-27T10:00:00.000Z')})
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutSessionExecutionItem" (
+        "id", "executionId", "plannedUnitId", "setNumber", "loadKg"
+      ) VALUES (
+        ${randomUUID()}, ${execution.id}, ${fixture.exerciseIds[0]}, 99, 1
+      )
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      DELETE FROM "WorkoutSessionExecutionOperation" WHERE "id" = ${operation.id}
+    `).rejects.toThrow();
+  });
+
+  it('rejects a direct root execution INSERT that skips the not_started shell', async () => {
+    const fixture = await seedReleasedWorkout('issue399-invalid-root-insert');
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      include: { template: { include: { plan: true } } },
+    });
+    const releaseRows = await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "ConsolidatedPrescriptionOperationalRelease"
+      WHERE "workoutTemplateId" = ${day.templateId}
+      LIMIT 1
+    `;
+    const release = releaseRows[0];
+    if (!release) throw new Error('fixture release missing');
+
+    await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutSessionExecution" (
+        "id", "workoutDayId", "alunoId", "contractId", "originReleaseId",
+        "originWorkoutTemplateId", "originTrainingPlanId", "status", "version",
+        "startedAt", "finishedAt"
+      ) VALUES (
+        ${randomUUID()}, ${fixture.dayId}, ${fixture.alunoId}, ${fixture.contractId},
+        ${release.id}, ${day.templateId}, ${day.template.planId}, 'completed', 1,
+        ${new Date('2026-10-27T10:00:00.000Z')}, ${new Date('2026-10-27T11:00:00.000Z')}
+      )
+    `).rejects.toThrow();
+  });
+
+  it('rejects status updates that omit the lifecycle fields required by each state', async () => {
+    const expectInvalidUpdate = async (status: string, fields: string) => {
+      const fixture = await seedReleasedWorkout(`issue399-invalid-state-${status}`);
+      const day = await prisma.workoutDay.findUniqueOrThrow({
+        where: { id: fixture.dayId },
+        include: { template: true },
+      });
+      const releaseRows = await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "ConsolidatedPrescriptionOperationalRelease"
+        WHERE "workoutTemplateId" = ${day.templateId} LIMIT 1
+      `;
+      const release = releaseRows[0];
+      if (!release) throw new Error('fixture release missing');
+      const executionId = randomUUID();
+      await prisma.$executeRaw`
+        INSERT INTO "WorkoutSessionExecution" (
+          "id", "workoutDayId", "alunoId", "contractId", "originReleaseId",
+          "originWorkoutTemplateId", "originTrainingPlanId", "status", "version", "updatedAt"
+        ) VALUES (
+          ${executionId}, ${fixture.dayId}, ${fixture.alunoId}, ${fixture.contractId},
+          ${release.id}, ${day.templateId}, ${day.template.planId}, 'not_started', 0, CURRENT_TIMESTAMP
+        )
+      `;
+      await expect(prisma.$executeRawUnsafe(`
+        UPDATE "WorkoutSessionExecution"
+        SET "status" = '${status}', "version" = 1, ${fields}
+        WHERE "id" = '${executionId}'
+      `)).rejects.toThrow();
+    };
+
+    await expectInvalidUpdate('in_progress', '"startedAt" = NULL');
+    await expectInvalidUpdate('paused', '"startedAt" = TIMESTAMP \'2026-10-27 10:00:00+00\', "currentPauseStartedAt" = NULL');
+    await expectInvalidUpdate('completed', '"startedAt" = TIMESTAMP \'2026-10-27 10:00:00+00\', "finishedAt" = NULL');
+    await expectInvalidUpdate('partial', '"startedAt" = TIMESTAMP \'2026-10-27 10:00:00+00\', "finishedAt" = TIMESTAMP \'2026-10-27 11:00:00+00\', "interruptionReason" = \'  \'');
+    await expectInvalidUpdate('not_performed', '"finishedAt" = NULL, "interruptionReason" = \'sem motivo\'');
+  });
+});
+
+describeDatabase('resistance blocks - historical identity and transactional persistence (#399)', () => {
+  async function editableFixture(label: string) {
+    // Exercise persistence must start in a genuine draft. Published templates
+    // are immutable; tests must not attempt to unpublish operational releases.
+    const fixture = await seedReleasedWorkout(label, { publish: false });
+    const rows = await prisma.workoutExercise.findMany({
+      where: { id: { in: fixture.exerciseIds } },
+      orderBy: { exerciseOrder: 'asc' },
+    });
+    const input = rows.map((row, index) => ({
+      workoutDayId: fixture.dayId,
+      workoutExerciseId: row.id,
+      exerciseId: row.exerciseId,
+      section: 'sessao',
+      exerciseOrder: index + 1,
+      sets: row.sets ?? undefined,
+      reps: row.reps ?? undefined,
+      resistanceBlocks: index === 0
+        ? [{
+          position: 1,
+          kind: 'principal' as const,
+          plannedSets: [{ position: 1, repsMin: 8, repsMax: 12, loadKg: 32.5, rir: 2 }],
+        }]
+        : [],
+    }));
+    return { fixture, input };
+  }
+
+  it('salvamentos repetidos preservam ids de exercícios, blocos e séries', async () => {
+    const { fixture, input } = await editableFixture('issue399-replay');
+    const first = await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    expect(first.map((row) => row.id)).toEqual(fixture.exerciseIds);
+    expect(first[0].resistanceBlocks[0].plannedSets[0].repsMin).toBe(8);
+    const blockId = first[0].resistanceBlocks[0].id;
+    const setId = first[0].resistanceBlocks[0].plannedSets[0].id;
+    const second = await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    expect(second.map((row) => row.id)).toEqual(fixture.exerciseIds);
+    expect(second[0].resistanceBlocks[0].id).toBe(blockId);
+    expect(second[0].resistanceBlocks[0].plannedSets[0].id).toBe(setId);
+  });
+
+  it('salva template, dias e resistência atomicamente e reverte metadados quando a estrutura falha', async () => {
+    const { fixture, input } = await editableFixture('issue399-week-save-atomic');
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      include: { template: true },
+    });
+    const before = await prisma.workoutTemplate.findUniqueOrThrow({ where: { id: day.templateId } });
+    const invalidPayload = {
+      template: { trainingMethod: 'must-rollback' },
+      workoutDays: [{ dayOfWeek: 2, workoutDate: '2026-10-19T12:00:00.000Z' }],
+      resistedExercises: {
+        2: {
+          sessao: [{ ...input[0], exerciseId: 'exercise-from-another-contract' }],
+        },
+      },
+    };
+    await expect(workoutService.saveTemplateWeek(day.templateId, invalidPayload, fixture.contractId))
+      .rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    expect((await prisma.workoutTemplate.findUniqueOrThrow({ where: { id: day.templateId } })).trainingMethod)
+      .toBe(before.trainingMethod);
+
+    const validPayload = {
+      baseUpdatedAt: before.updatedAt.toISOString(),
+      template: { trainingMethod: 'saved-atomically' },
+      workoutDays: [{ dayOfWeek: 2, workoutDate: '2026-10-19T12:00:00.000Z', detailNotes: 'nota semanal' }],
+      resistedExercises: {
+        2: {
+          sessao: input.map((exercise) => ({ ...exercise, section: 'sessao' })),
+        },
+      },
+    };
+    await workoutService.saveTemplateWeek(day.templateId, validPayload, fixture.contractId);
+    const saved = await prisma.workoutTemplate.findUniqueOrThrow({
+      where: { id: day.templateId },
+      include: { workoutDays: { include: { exercises: true } } },
+    });
+    expect(saved.trainingMethod).toBe('saved-atomically');
+    expect(saved.workoutDays.find((candidate) => candidate.dayOfWeek === 2)?.workoutDate.toISOString())
+      .toBe('2026-10-06T00:00:00.000Z');
+    expect(saved.workoutDays.find((candidate) => candidate.dayOfWeek === 2)?.detailNotes).toBe('nota semanal');
+    expect(saved.workoutDays.find((candidate) => candidate.dayOfWeek === 2)?.exercises).toHaveLength(2);
+    await expect(workoutService.saveTemplateWeek(day.templateId, {
+      baseUpdatedAt: before.updatedAt.toISOString(),
+      template: { trainingMethod: 'stale-write-must-not-win' },
+    }, fixture.contractId)).rejects.toMatchObject({ code: 'WORKOUT_PLANNING_VERSION_CONFLICT' });
+    expect((await prisma.workoutTemplate.findUniqueOrThrow({ where: { id: day.templateId } })).trainingMethod)
+      .toBe('saved-atomically');
+  });
+
+  it('avança a revisão e rejeita concorrência quando só um bloco/série muda', async () => {
+    const { fixture, input } = await editableFixture('issue399-child-only-version');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input, fixture.contractId);
+    const day = await prisma.workoutDay.findUniqueOrThrow({ where: { id: fixture.dayId } });
+    const before = await prisma.workoutTemplate.findUniqueOrThrow({ where: { id: day.templateId } });
+    const childOnlyPayload = {
+      baseUpdatedAt: before.updatedAt.toISOString(),
+      resistedExercises: {
+        2: {
+          sessao: input.map((exercise, index) => ({
+            ...exercise,
+            section: 'sessao',
+            resistanceBlocks: index === 0
+              ? [{ ...exercise.resistanceBlocks![0], plannedSets: [{ ...exercise.resistanceBlocks![0].plannedSets[0], loadKg: 33.5 }] }]
+              : [],
+          })),
+        },
+      },
+    };
+    await workoutService.saveTemplateWeek(day.templateId, childOnlyPayload, fixture.contractId);
+    const after = await prisma.workoutTemplate.findUniqueOrThrow({ where: { id: day.templateId } });
+    expect(after.updatedAt.getTime()).toBeGreaterThan(before.updatedAt.getTime());
+
+    await expect(workoutService.saveTemplateWeek(day.templateId, {
+      ...childOnlyPayload,
+      resistedExercises: {
+        2: {
+          sessao: childOnlyPayload.resistedExercises[2].sessao.map((exercise, index) => ({
+            ...exercise,
+            resistanceBlocks: index === 0
+              ? [{ ...exercise.resistanceBlocks![0], plannedSets: [{ ...exercise.resistanceBlocks![0].plannedSets[0], loadKg: 34.5 }] }]
+              : [],
+          })),
+        },
+      },
+    }, fixture.contractId)).rejects.toMatchObject({ code: 'WORKOUT_PLANNING_VERSION_CONFLICT' });
+    const persisted = await prisma.workoutExerciseBlock.findFirstOrThrow({
+      where: { workoutExerciseId: fixture.exerciseIds[0] },
+      include: { plannedSets: true },
+    });
+    expect(persisted.plannedSets[0].loadKg).toBe(33.5);
+  });
+
+  it('usa a nova âncora do snapshot e rejeita dias duplicados', async () => {
+    const { fixture } = await editableFixture('issue399-week-anchor');
+    const templateId = (await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      select: { templateId: true },
+    })).templateId;
+    const before = await prisma.workoutTemplate.findUniqueOrThrow({
+      where: { id: templateId },
+      include: { workoutDays: true },
+    });
+    const nextAnchor = new Date(before.weekStartDate);
+    nextAnchor.setUTCDate(nextAnchor.getUTCDate() + 7);
+
+    await expect(workoutService.saveTemplateWeek(templateId, {
+      template: { weekStartDate: nextAnchor.toISOString() },
+      workoutDays: [{ dayOfWeek: 1 }, { dayOfWeek: 1 }],
+    })).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+
+    await workoutService.saveTemplateWeek(templateId, {
+      template: { weekStartDate: nextAnchor.toISOString() },
+    });
+    const saved = await prisma.workoutTemplate.findUniqueOrThrow({
+      where: { id: templateId },
+      include: { workoutDays: true },
+    });
+    for (const day of saved.workoutDays) {
+      const expected = new Date(nextAnchor);
+      const anchorWeekday = expected.getUTCDay() || 7;
+      expected.setUTCDate(expected.getUTCDate() + day.dayOfWeek - anchorWeekday);
+      expect(day.workoutDate.toISOString()).toBe(expected.toISOString());
+    }
+  });
+
+  it('protege execução histórica contra exclusão e garante rollback do dia', async () => {
+    const { fixture, input } = await editableFixture('issue399-historical');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    await prisma.workoutExecution.create({
+      data: {
+        workoutExerciseId: fixture.exerciseIds[0],
+        alunoId: fixture.alunoId,
+        executionDate: new Date('2026-10-07T09:00:00.000Z'),
+      },
+    });
+    const before = await prisma.workoutExercise.findMany({
+      where: { workoutDayId: fixture.dayId },
+      orderBy: { exerciseOrder: 'asc' },
+    });
+    await expect(workoutService.replaceDayResistanceExercises(fixture.dayId, [{ ...input[1], exerciseOrder: 1 }]))
+      .rejects.toMatchObject({ code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START' });
+    const after = await prisma.workoutExercise.findMany({
+      where: { workoutDayId: fixture.dayId },
+      orderBy: { exerciseOrder: 'asc' },
+    });
+    expect(after.map((row) => row.id)).toEqual(before.map((row) => row.id));
+    expect(await prisma.workoutExecution.count({
+      where: { workoutExerciseId: fixture.exerciseIds[0] },
+    })).toBe(1);
+    await expect(workoutService.deleteExercise(fixture.exerciseIds[0]))
+      .rejects.toMatchObject({ code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START' });
+    await expect(workoutService.updateExercise(fixture.exerciseIds[0], { reps: 6 }))
+      .rejects.toMatchObject({ code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START' });
+  });
+
+  it('reverte a atualização anterior quando a segunda gravação falha dentro da transação', async () => {
+    const { fixture, input } = await editableFixture('issue399-atomic-rollback');
+    const before = await prisma.workoutExercise.findMany({
+      where: { workoutDayId: fixture.dayId },
+      orderBy: { exerciseOrder: 'asc' },
+    });
+    await expect(workoutService.replaceDayResistanceExercises(fixture.dayId, [
+      { ...input[0], reps: 7 },
+      { ...input[1], reps: 'invalid' as unknown as number },
+    ])).rejects.toThrow();
+    const after = await prisma.workoutExercise.findMany({
+      where: { workoutDayId: fixture.dayId },
+      orderBy: { exerciseOrder: 'asc' },
+    });
+    expect(after.map((row) => [row.id, row.section, row.reps])).toEqual(
+      before.map((row) => [row.id, row.section, row.reps]));
+  });
+
+  it('impede operações cruzando contratos e catálogo de exercícios', async () => {
+    const own = await editableFixture('issue399-own-contract');
+    const foreign = await seedReleasedWorkout('issue399-foreign-contract');
+    await expect(workoutService.replaceDayResistanceExercises(
+      own.fixture.dayId, own.input, foreign.contractId,
+    )).rejects.toMatchObject({ code: 'RESISTANCE_DAY_NOT_FOUND' });
+    const foreignExercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: foreign.exerciseIds[0] },
+      select: { exerciseId: true },
+    });
+    await expect(workoutService.replaceDayResistanceExercises(
+      own.fixture.dayId,
+      [{ workoutDayId: own.fixture.dayId, exerciseId: foreignExercise.exerciseId,
+        section: 'sessao', exerciseOrder: 1, resistanceBlocks: [] }, own.input[1]],
+      own.fixture.contractId,
+    )).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    const unchanged = await prisma.workoutExercise.findMany({
+      where: { workoutDayId: own.fixture.dayId },
+    });
+    expect(unchanged).toHaveLength(2);
+  });
+
+  it('deriva a data civil do dia a partir da âncora do template em criação e cópia legadas', async () => {
+    const { fixture } = await editableFixture('issue399-canonical-day-date');
+    const source = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      select: { templateId: true },
+    });
+    const canonical = await workoutService.getOrCreateDay({
+      templateId: source.templateId,
+      dayOfWeek: 3,
+      workoutDate: new Date('2026-10-18T12:00:00.000Z'),
+    } as never);
+    expect(canonical.workoutDate.toISOString()).toBe('2026-10-07T00:00:00.000Z');
+    const copied = await workoutService.copyDay(
+      fixture.dayId,
+      4,
+      new Date('2026-10-18T12:00:00.000Z'),
+    );
+    expect(copied).not.toBeNull();
+    if (!copied) throw new Error('copyDay did not return the copied day');
+    expect(copied.workoutDate.toISOString()).toBe('2026-10-08T00:00:00.000Z');
+  });
+
+  it('rejeita reparenting de exercício entre dias do mesmo contrato', async () => {
+    const { fixture } = await editableFixture('issue399-exercise-reparenting');
+    const source = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      select: { templateId: true },
+    });
+    const target = await workoutService.getOrCreateDay({
+      templateId: source.templateId,
+      dayOfWeek: 3,
+      workoutDate: new Date('2026-10-07T12:00:00.000Z'),
+    } as never);
+    await expect(workoutService.updateExercise(fixture.exerciseIds[0], {
+      workoutDayId: target.id,
+      reps: 6,
+    }, fixture.contractId)).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    const unchanged = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] },
+      select: { workoutDayId: true, reps: true },
+    });
+    expect(unchanged).toEqual({ workoutDayId: fixture.dayId, reps: 10 });
+  });
+
+
+  it.each([
+    {
+      caseName: 'âncora na quinta-feira',
+      anchor: '2026-10-15T12:00:00.000Z',
+      dates: ['2026-10-12T12:00:00.000Z', '2026-10-13T12:00:00.000Z', '2026-10-18T12:00:00.000Z'],
+    },
+    {
+      caseName: 'âncora no domingo com mudança de mês',
+      anchor: '2026-11-01T12:00:00.000Z',
+      dates: ['2026-10-26T12:00:00.000Z', '2026-10-27T12:00:00.000Z', '2026-11-01T12:00:00.000Z'],
+    },
+    {
+      caseName: 'âncora na virada de ano',
+      anchor: '2026-12-31T12:00:00.000Z',
+      dates: ['2026-12-28T12:00:00.000Z', '2026-12-29T12:00:00.000Z', '2027-01-03T12:00:00.000Z'],
+    },
+  ])('AUD-399-15: recalcula dias em UTC com $caseName sem perder séries e identidades', async ({ anchor, dates }) => {
+    const { fixture, input } = await editableFixture('issue399-weekday-rebase');
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, include: { template: true },
+    });
+    await prisma.workoutDay.createMany({
+      data: [
+        { templateId: day.templateId, dayOfWeek: 1, workoutDate: new Date('2026-10-05T00:00:00.000Z') },
+        { templateId: day.templateId, dayOfWeek: 7, workoutDate: new Date('2026-10-11T00:00:00.000Z') },
+      ],
+    });
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    const include = { exercises: { include: { resistanceBlocks: { include: { plannedSets: true } } } } } as const;
+    const before = await prisma.workoutDay.findMany({
+      where: { templateId: day.templateId }, orderBy: { dayOfWeek: 'asc' }, include,
+    });
+    expect(before.map((row) => row.dayOfWeek)).toEqual([1, 2, 7]);
+    const originalIdentity = before.map((row) => ({
+      dayId: row.id,
+      exerciseIds: row.exercises.map((exercise) => exercise.id),
+      blockIds: row.exercises.flatMap((exercise) => exercise.resistanceBlocks.map((block) => block.id)),
+      plannedSetIds: row.exercises.flatMap((exercise) =>
+        exercise.resistanceBlocks.flatMap((block) => block.plannedSets.map((set) => set.id))),
+    }));
+
+    const changed = await workoutService.getOrCreateTemplate({
+      planId: day.template.planId,
+      mesocycleNumber: day.template.mesocycleNumber,
+      weekNumber: day.template.weekNumber,
+      weekStartDate: new Date(anchor),
+    });
+    expect(changed?.weekStartDate).toEqual(new Date(anchor));
+    expect(changed?.workoutDays.map((row) => row.workoutDate.toISOString())).toEqual(dates);
+
+    const after = await prisma.workoutDay.findMany({
+      where: { templateId: day.templateId }, orderBy: { dayOfWeek: 'asc' }, include,
+    });
+    expect(after.map((row) => row.workoutDate.toISOString())).toEqual(dates);
+    expect(after.map((row) => ({
+      dayId: row.id,
+      exerciseIds: row.exercises.map((exercise) => exercise.id),
+      blockIds: row.exercises.flatMap((exercise) => exercise.resistanceBlocks.map((block) => block.id)),
+      plannedSetIds: row.exercises.flatMap((exercise) =>
+        exercise.resistanceBlocks.flatMap((block) => block.plannedSets.map((set) => set.id))),
+    }))).toEqual(originalIdentity);
+    expect(after[1].exercises[0].resistanceBlocks[0].plannedSets[0]).toMatchObject({
+      repsMin: 8, repsMax: 12, loadKg: 32.5, rir: 2,
+    });
+    expect(after[1].id).toBe(fixture.dayId);
+  });
+
+  it('resolve chamadas concorrentes ao criar o mesmo template semanal', async () => {
+    const { fixture } = await editableFixture('issue399-template-create-race');
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      select: { template: { select: { planId: true, mesocycleNumber: true } } },
+    });
+    const input = {
+      planId: day.template.planId,
+      mesocycleNumber: day.template.mesocycleNumber,
+      weekNumber: 2,
+      weekStartDate: new Date('2026-10-12T12:00:00.000Z'),
+    };
+    const suffix = randomUUID().replace(/-/g, '');
+    const triggerName = `issue399_template_create_race_trigger_${suffix}`;
+    const functionName = `issue399_template_create_race_fn_${suffix}`;
+    const planId = input.planId.replace(/'/g, "''");
+
+    await prisma.$executeRawUnsafe(`
+      CREATE FUNCTION "${functionName}"() RETURNS trigger AS $$
+      BEGIN
+        IF NEW."planId" = '${planId}'
+          AND NEW."mesocycleNumber" = ${input.mesocycleNumber}
+          AND NEW."weekNumber" = ${input.weekNumber} THEN
+          PERFORM pg_sleep(0.2);
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql
+    `);
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TRIGGER "${triggerName}" BEFORE INSERT ON "WorkoutTemplate"
+        FOR EACH ROW EXECUTE FUNCTION "${functionName}"()
+      `);
+      const [first, second] = await Promise.all([
+        workoutService.getOrCreateTemplate(input),
+        workoutService.getOrCreateTemplate(input),
+      ]);
+      expect(first?.id).toBe(second?.id);
+    } finally {
+      await prisma.$executeRawUnsafe(
+        `DROP TRIGGER IF EXISTS "${triggerName}" ON "WorkoutTemplate"`
+      );
+      await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS "${functionName}"()`);
+    }
+
+    expect(await prisma.workoutTemplate.count({
+      where: {
+        planId: input.planId,
+        mesocycleNumber: input.mesocycleNumber,
+        weekNumber: input.weekNumber,
+      },
+    })).toBe(1);
+  });
+
+  it('repete atualizações concorrentes após conflito serializável do template', async () => {
+    const { fixture } = await editableFixture('issue399-template-update-race');
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      select: { template: { select: { id: true } } },
+    });
+    const suffix = randomUUID().replace(/-/g, '');
+    const triggerName = `issue399_template_update_race_trigger_${suffix}`;
+    const functionName = `issue399_template_update_race_fn_${suffix}`;
+
+    await prisma.$executeRawUnsafe(`
+      CREATE FUNCTION "${functionName}"() RETURNS trigger AS $$
+      BEGIN
+        IF NEW."id" = '${day.template.id}' THEN
+          PERFORM pg_sleep(0.2);
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql
+    `);
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TRIGGER "${triggerName}" BEFORE UPDATE ON "WorkoutTemplate"
+        FOR EACH ROW EXECUTE FUNCTION "${functionName}"()
+      `);
+      const results = await Promise.all([
+        workoutService.updateTemplate(day.template.id, { cyclicFrequency: 0 }),
+        workoutService.updateTemplate(day.template.id, { cyclicFrequency: 0 }),
+      ]);
+      expect(results).toHaveLength(2);
+    } finally {
+      await prisma.$executeRawUnsafe(
+        `DROP TRIGGER IF EXISTS "${triggerName}" ON "WorkoutTemplate"`
+      );
+      await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS "${functionName}"()`);
+    }
+
+    expect((await prisma.workoutTemplate.findUniqueOrThrow({
+      where: { id: day.template.id },
+    })).cyclicFrequency).toBe(0);
+  });
+
+  it('reabre exercício legado de treino liberado sem alterar as datas planejadas', async () => {
+    const fixture = await seedReleasedWorkout('issue399-reopen-released-legacy');
+    const before = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      include: {
+        template: true,
+        exercises: {
+          orderBy: { exerciseOrder: 'asc' },
+          include: { resistanceBlocks: { include: { plannedSets: true } } },
+        },
+      },
+    });
+
+    const result = await workoutService.getOrCreateTemplate({
+      planId: before.template.planId,
+      mesocycleNumber: before.template.mesocycleNumber,
+      weekNumber: before.template.weekNumber,
+      weekStartDate: new Date(before.template.weekStartDate.getTime() + 604800000),
+    });
+
+    const returnedDay = result?.workoutDays.find((day) => day.id === fixture.dayId);
+    expect(result?.id).toBe(before.templateId);
+    expect(result?.released).toBe(true);
+    expect(result?.weekStartDate).toEqual(before.template.weekStartDate);
+    expect(returnedDay?.workoutDate).toEqual(before.workoutDate);
+    expect(returnedDay?.exercises.map((exercise) => exercise.id)).toEqual(fixture.exerciseIds);
+    expect(returnedDay?.exercises[0].resistanceBlocks).toEqual([]);
+
+    const after = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId },
+      include: { template: true },
+    });
+    expect(after.template.weekStartDate).toEqual(before.template.weekStartDate);
+    expect(after.workoutDate).toEqual(before.workoutDate);
+  });
+
+  it('nega operações de edição legada envolvendo contrato de outro aluno', async () => {
+    const own = await editableFixture('issue399-own-contract-legacy');
+    const foreign = await editableFixture('issue399-foreign-contract-legacy');
+    await expect(workoutService.addExercise({
+      workoutDayId: own.fixture.dayId,
+      exerciseId: own.input[0].exerciseId,
+      section: 'sessao', exerciseOrder: 3,
+    }, foreign.fixture.contractId)).rejects.toMatchObject({ code: 'RESISTANCE_DAY_NOT_FOUND' });
+    await expect(workoutService.updateExercise(own.fixture.exerciseIds[0], {
+      reps: 7,
+    }, foreign.fixture.contractId)).rejects.toMatchObject({ code: 'RESISTANCE_DAY_NOT_FOUND' });
+    await expect(workoutService.deleteExercise(own.fixture.exerciseIds[0],
+      foreign.fixture.contractId)).rejects.toMatchObject({ code: 'RESISTANCE_DAY_NOT_FOUND' });
+    expect(await prisma.workoutExercise.count({
+      where: { workoutDayId: own.fixture.dayId },
+    })).toBe(2);
+  });
+
+
+  it('impede movimentar blocos ou séries de um treino liberado para outro', async () => {
+    const source = await editableFixture('issue399-frozen-source');
+    const target = await editableFixture('issue399-editable-target');
+    const origin = await workoutService.replaceDayResistanceExercises(source.fixture.dayId, source.input);
+    await workoutService.replaceDayResistanceExercises(target.fixture.dayId, [
+      { ...target.input[0], resistanceBlocks: [{ position: 1, kind: 'principal' as const,
+        plannedSets: [{ position: 1, repsMin: 6 }] }] },
+      target.input[1],
+    ]);
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: source.fixture.dayId }, select: { templateId: true },
+    });
+    await prisma.workoutTemplate.update({
+      where: { id: day.templateId }, data: { released: true, releasedAt: new Date() },
+    });
+    const block = origin[0].resistanceBlocks[0];
+    const plannedSet = block.plannedSets[0];
+    // A free destination position distinguishes the freeze trigger from unique constraints.
+    const targetBlock = await prisma.workoutExerciseBlock.create({
+      data: { workoutExerciseId: target.fixture.exerciseIds[0], position: 2, kind: 'principal' },
+    });
+
+    await expect(prisma.workoutExerciseBlock.update({
+      where: { id: block.id },
+      data: { workoutExercise: { connect: { id: target.fixture.exerciseIds[1] } } },
+    })).rejects.toThrow();
+    await expect(prisma.workoutExercisePlannedSet.update({
+      where: { id: plannedSet.id },
+      data: { block: { connect: { id: targetBlock.id } } },
+    })).rejects.toThrow();
+    const savedBlock = await prisma.workoutExerciseBlock.findUniqueOrThrow({
+      where: { id: block.id },
+    });
+    const savedSet = await prisma.workoutExercisePlannedSet.findUniqueOrThrow({
+      where: { id: plannedSet.id },
+    });
+    expect(savedBlock.workoutExerciseId).toBe(source.fixture.exerciseIds[0]);
+    expect(savedSet.blockId).toBe(block.id);
+  });
+
+  it('rejeita reparenting SQL de blocos e séries entre alunos/contratos ainda em draft', async () => {
+    const own = await editableFixture('issue399-draft-owner-source');
+    const foreign = await editableFixture('issue399-draft-owner-target');
+    const ownRows = await workoutService.replaceDayResistanceExercises(own.fixture.dayId, own.input);
+    const foreignRows = await workoutService.replaceDayResistanceExercises(foreign.fixture.dayId, foreign.input);
+    const ownBlock = ownRows[0].resistanceBlocks[0];
+    const ownSet = ownBlock.plannedSets[0];
+    const foreignBlock = foreignRows[0].resistanceBlocks[0];
+
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutExerciseBlock"
+      SET "workoutExerciseId" = ${foreign.fixture.exerciseIds[0]}
+      WHERE "id" = ${ownBlock.id}
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutExercisePlannedSet"
+      SET "blockId" = ${foreignBlock.id}
+      WHERE "id" = ${ownSet.id}
+    `).rejects.toThrow();
+
+    await expect(prisma.workoutExerciseBlock.findUniqueOrThrow({ where: { id: ownBlock.id } }))
+      .resolves.toMatchObject({ workoutExerciseId: own.fixture.exerciseIds[0] });
+    await expect(prisma.workoutExercisePlannedSet.findUniqueOrThrow({ where: { id: ownSet.id } }))
+      .resolves.toMatchObject({ blockId: ownBlock.id });
+  });
+
+  it('serializa início de execução antes de aceitar inserção SQL estrutural', async () => {
+    const fixture = await editableFixture('issue399-structure-start-race');
+    await workoutService.replaceDayResistanceExercises(fixture.fixture.dayId, fixture.input);
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.fixture.dayId },
+      include: { template: { include: { plan: true } } },
+    });
+    const assembly = await prisma.consolidatedPrescription.findFirstOrThrow({
+      where: { alunoId: fixture.fixture.alunoId },
+    });
+    const approved = await prisma.consolidatedPrescriptionVersion.findFirstOrThrow({
+      where: { assemblyId: assembly.id, status: 'approved' },
+    });
+    const released = await prisma.consolidatedPrescriptionVersion.findFirstOrThrow({
+      where: { assemblyId: assembly.id, status: 'released' },
+    });
+    const releaseDate = new Date('2026-10-05T12:00:00.000Z');
+    const releaseId = randomUUID();
+    await prisma.$executeRaw`
+      INSERT INTO "ConsolidatedPrescriptionOperationalRelease" (
+        "id", "assemblyId", "sourceAssemblyVersionId", "sourceAssemblyVersion",
+        "releasedAssemblyVersionId", "releasedAssemblyVersion", "contractId", "alunoId",
+        "trainingPlanId", "workoutTemplateId", "requestFingerprint",
+        "releasedByProfessorId", "releasedAt", "createdAt"
+      ) VALUES (
+        ${releaseId}, ${assembly.id}, ${approved.id}, 1, ${released.id}, 2,
+        ${fixture.fixture.contractId}, ${fixture.fixture.alunoId}, ${day.template.plan.id},
+        ${day.template.id}, ${randomUUID()}, ${day.template.plan.professorId}, ${releaseDate}, ${releaseDate}
+      )
+    `;
+    const executionId = randomUUID();
+    const starting = concurrentPrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        SELECT "id" FROM "WorkoutDay" WHERE "id" = ${fixture.fixture.dayId} FOR UPDATE
+      `;
+      await tx.$executeRaw`
+        INSERT INTO "WorkoutSessionExecution" (
+          "id", "workoutDayId", "alunoId", "contractId", "originReleaseId",
+          "originWorkoutTemplateId", "originTrainingPlanId", "status", "version", "updatedAt"
+        ) VALUES (
+          ${executionId}, ${fixture.fixture.dayId}, ${fixture.fixture.alunoId},
+          ${fixture.fixture.contractId}, ${releaseId}, ${day.template.id},
+          ${day.template.plan.id}, 'not_started', 0, ${releaseDate}
+        )
+      `;
+      await tx.$executeRaw`
+        UPDATE "WorkoutSessionExecution"
+        SET "status" = 'in_progress', "version" = 1, "startedAt" = ${releaseDate}
+        WHERE "id" = ${executionId}
+      `;
+      await tx.$executeRaw`SELECT pg_sleep(0.25)`;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const blockInsert = prisma.$executeRaw`
+      INSERT INTO "WorkoutExerciseBlock" ("id", "workoutExerciseId", "position", "kind")
+      VALUES (${randomUUID()}, ${fixture.fixture.exerciseIds[0]}, 2, 'complementar')
+    `;
+
+    await expect(starting).resolves.toBeUndefined();
+    await expect(blockInsert).rejects.toThrow();
+  });
+
+  it('AUD-399-27: rejeita posições fora da faixa e gaps por bypass SQL', async () => {
+    const { fixture, input } = await editableFixture('issue399-position-negative-controls');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    const block = await prisma.workoutExerciseBlock.findFirstOrThrow({
+      where: { workoutExerciseId: fixture.exerciseIds[0] },
+    });
+
+    await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutExerciseBlock" ("id", "workoutExerciseId", "position", "kind")
+      VALUES (${randomUUID()}, ${fixture.exerciseIds[0]}, 13, 'principal')
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutExercisePlannedSet" ("id", "blockId", "position")
+      VALUES (${randomUUID()}, ${block.id}, 31)
+    `).rejects.toThrow();
+
+    await expect(prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        INSERT INTO "WorkoutExerciseBlock" ("id", "workoutExerciseId", "position", "kind")
+        VALUES (${randomUUID()}, ${fixture.exerciseIds[0]}, 3, 'principal')
+      `;
+    })).rejects.toThrow();
+  });
+
+  it('AUD-399-17/18: rejeita execução legada estrangeira e congela seu grafo por SQL', async () => {
+    const own = await seedReleasedWorkout('issue399-legacy-execution-own');
+    const foreign = await seedReleasedWorkout('issue399-legacy-execution-foreign');
+    const ownExecutionData = {
+      id: randomUUID(),
+      workoutExerciseId: own.exerciseIds[0],
+      alunoId: own.alunoId,
+      executionDate: new Date('2026-10-06T12:00:00.000Z'),
+    };
+
+    await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutExecution" ("id", "workoutExerciseId", "alunoId", "executionDate")
+      VALUES (${randomUUID()}, ${foreign.exerciseIds[0]}, ${own.alunoId}, ${ownExecutionData.executionDate})
+    `).rejects.toThrow();
+
+    await prisma.$executeRaw`
+      INSERT INTO "WorkoutExecution" ("id", "workoutExerciseId", "alunoId", "executionDate")
+      VALUES (${ownExecutionData.id}, ${ownExecutionData.workoutExerciseId}, ${ownExecutionData.alunoId}, ${ownExecutionData.executionDate})
+    `;
+
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutExercise"
+      SET "reps" = 11
+      WHERE "id" = ${own.exerciseIds[0]}
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutTemplate"
+      SET "weekStartDate" = '2026-10-12T12:00:00.000Z'
+      WHERE "id" = (SELECT "templateId" FROM "WorkoutDay" WHERE "id" = ${own.dayId})
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      DELETE FROM "WorkoutExecution" WHERE "id" = ${ownExecutionData.id}
+    `).rejects.toThrow();
+  });
+
+  it('não aceita id de linha estrangeira e não provoca escrita parcial', async () => {
+    const { fixture, input } = await editableFixture('issue399-invalid');
+    await expect(workoutService.replaceDayResistanceExercises(fixture.dayId, [
+      { ...input[0], workoutExerciseId: 'foreign-row' },
+      input[1],
+    ])).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    expect(await prisma.workoutExercise.count({ where: { workoutDayId: fixture.dayId } })).toBe(2);
+  });
+
+  it('copyTemplate keeps destination dates, planned series and new identities at the target week', async () => {
+    const { fixture, input } = await editableFixture('issue399-copy-dates');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    const sourceDay = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, select: { templateId: true, workoutDate: true },
+    });
+    const targetAnchor = new Date('2026-10-12T12:00:00.000Z');
+    const copied = await workoutService.copyTemplate(sourceDay.templateId, 2, targetAnchor);
+    const destination = copied?.workoutDays.find((day) => day.dayOfWeek === 2);
+    expect(copied?.weekStartDate).toEqual(targetAnchor);
+    expect(destination?.workoutDate).toEqual(new Date('2026-10-13T12:00:00.000Z'));
+    expect(destination?.workoutDate).not.toEqual(sourceDay.workoutDate);
+    expect(destination?.id).not.toBe(fixture.dayId);
+    expect(destination?.exercises.map((exercise) => exercise.id)).not.toEqual(fixture.exerciseIds);
+    expect(destination?.exercises[0].resistanceBlocks[0].plannedSets[0]).toMatchObject({
+      repsMin: 8, repsMax: 12, loadKg: 32.5, rir: 2,
+    });
+    expect((await prisma.workoutDay.findUniqueOrThrow({ where: { id: fixture.dayId } })).workoutDate)
+      .toEqual(sourceDay.workoutDate);
+  });
+
+  it('copyTemplate rolls back destination deletion when a later exercise insert fails', async () => {
+    const { fixture, input } = await editableFixture('issue399-copy-rollback');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    const source = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, select: { template: { select: { id: true, planId: true } } },
+    });
+    const originalTarget = await workoutService.copyTemplate(
+      source.template.id, 2, new Date('2026-10-12T12:00:00.000Z'),
+    );
+    const suffix = randomUUID().replace(/-/g, '');
+    const triggerName = `issue399_copy_rollback_trigger_${suffix}`;
+    const functionName = `issue399_copy_rollback_fn_${suffix}`;
+    const planId = source.template.planId.replace(/'/g, "''");
+    // Scope the fault injection to this fixture's plan and target week.
+    // An exception after destination deletion must restore the old template,
+    // its canonical days and all planned series.
+    await prisma.$executeRawUnsafe(`
+      CREATE FUNCTION "${functionName}"() RETURNS trigger AS $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM "WorkoutDay" d
+          JOIN "WorkoutTemplate" t ON t."id" = d."templateId"
+          WHERE d."id" = NEW."workoutDayId"
+            AND t."planId" = '${planId}' AND t."weekNumber" = 2
+        ) THEN
+          RAISE EXCEPTION 'issue399 forced copy failure';
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql
+    `);
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TRIGGER "${triggerName}" BEFORE INSERT ON "WorkoutExercise"
+        FOR EACH ROW EXECUTE FUNCTION "${functionName}"()
+      `);
+      await expect(workoutService.copyTemplate(
+        source.template.id, 2, new Date('2026-10-12T12:00:00.000Z'),
+      )).rejects.toThrow();
+    } finally {
+      await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS "${triggerName}" ON "WorkoutExercise"`);
+      await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS "${functionName}"()`);
+    }
+    const restored = await prisma.workoutTemplate.findUniqueOrThrow({
+      where: { id: originalTarget!.id },
+      include: { workoutDays: { include: { exercises: { include: {
+        resistanceBlocks: { include: { plannedSets: true } },
+      } } } } },
+    });
+    expect(restored.workoutDays).toHaveLength(1);
+    expect(restored.workoutDays[0].exercises).toHaveLength(2);
+    expect(restored.workoutDays[0].exercises[0].resistanceBlocks[0].plannedSets[0].loadKg)
+      .toBe(32.5);
+    expect(await prisma.workoutTemplate.count({ where: {
+      planId: source.template.planId, mesocycleNumber: 1, weekNumber: 2,
+    } })).toBe(1);
+  });
+
+  it('copyTemplateSections rolls back the entire partial copy on a later insert failure', async () => {
+    const { fixture, input } = await editableFixture('issue399-partial-copy-rollback');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    const source = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, select: { templateId: true, template: { select: { planId: true } } },
+    });
+    const suffix = randomUUID().replace(/-/g, '');
+    const triggerName = `issue399_partial_copy_trigger_${suffix}`;
+    const functionName = `issue399_partial_copy_fn_${suffix}`;
+    const planId = source.template.planId.replace(/'/g, "''");
+    await prisma.$executeRawUnsafe(`
+      CREATE FUNCTION "${functionName}"() RETURNS trigger AS $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM "WorkoutDay" d
+          JOIN "WorkoutTemplate" t ON t."id" = d."templateId"
+          WHERE d."id" = NEW."workoutDayId" AND t."planId" = '${planId}' AND t."weekNumber" = 2
+        ) THEN RAISE EXCEPTION 'issue399 forced partial copy failure'; END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql
+    `);
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TRIGGER "${triggerName}" BEFORE INSERT ON "WorkoutExercise"
+        FOR EACH ROW EXECUTE FUNCTION "${functionName}"()
+      `);
+      await expect(workoutService.copyTemplateSections(
+        source.templateId, 2, new Date('2026-10-12T12:00:00.000Z'), 'resistance',
+      )).rejects.toThrow();
+    } finally {
+      await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS "${triggerName}" ON "WorkoutExercise"`);
+      await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS "${functionName}"()`);
+    }
+    expect(await prisma.workoutTemplate.count({
+      where: { planId: source.template.planId, mesocycleNumber: 1, weekNumber: 2 },
+    })).toBe(0);
+  });
+
+  it('copyTemplateSections persists the destination anchor when replacing an existing week', async () => {
+    const { fixture, input } = await editableFixture('issue399-partial-copy-anchor');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    const source = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, select: { templateId: true, template: { select: { planId: true } } },
+    });
+    await workoutService.copyTemplate(source.templateId, 2, new Date('2026-10-12T12:00:00.000Z'));
+    await workoutService.copyTemplateSections(
+      source.templateId, 2, new Date('2026-10-15T12:00:00.000Z'), 'resistance',
+    );
+    const target = await prisma.workoutTemplate.findFirstOrThrow({
+      where: { planId: source.template.planId, mesocycleNumber: 1, weekNumber: 2 },
+      include: { workoutDays: true },
+    });
+    expect(target.weekStartDate).toEqual(new Date('2026-10-15T12:00:00.000Z'));
+    expect(target.workoutDays[0].workoutDate).toEqual(new Date('2026-10-13T12:00:00.000Z'));
+  });
+
+  it('copyTemplateSections preserves sparse source day labels with canonical target dates', async () => {
+    const { fixture, input } = await editableFixture('issue399-partial-copy-sparse-day');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    await prisma.workoutDay.update({
+      where: { id: fixture.dayId },
+      data: { dayOfWeek: 5, workoutDate: new Date('2026-10-09T12:00:00.000Z') },
+    });
+    const source = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, select: { templateId: true },
+    });
+
+    const copied = await workoutService.copyTemplateSections(
+      source.templateId, 2, new Date('2026-10-12T12:00:00.000Z'), 'resistance',
+    );
+    const destination = copied?.workoutDays.find((day) => day.dayOfWeek === 5);
+    expect(destination?.workoutDate).toEqual(new Date('2026-10-16T12:00:00.000Z'));
+  });
+
+  it('rebases destination-only days when a partial copy changes the anchor', async () => {
+    const { fixture, input } = await editableFixture('issue399-partial-copy-extra-day');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    const source = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, select: { templateId: true },
+    });
+    await workoutService.copyTemplate(source.templateId, 2, new Date('2026-10-12T12:00:00.000Z'));
+    const target = await prisma.workoutTemplate.findFirstOrThrow({
+      where: { planId: (await prisma.workoutTemplate.findUniqueOrThrow({ where: { id: source.templateId } })).planId,
+        mesocycleNumber: 1, weekNumber: 2 },
+      include: { workoutDays: true },
+    });
+    const extraDay = await prisma.workoutDay.create({
+      data: { templateId: target.id, dayOfWeek: 3, workoutDate: new Date('2026-10-14T12:00:00.000Z') },
+    });
+    await prisma.$executeRaw`
+      UPDATE "WorkoutDay" SET "workoutDate" = '2026-10-14T12:00:00.000Z' WHERE "id" = ${extraDay.id}
+    `;
+
+    await workoutService.copyTemplateSections(
+      source.templateId, 2, new Date('2026-10-19T12:00:00.000Z'), 'resistance',
+    );
+    const rebased = await prisma.workoutDay.findUniqueOrThrow({ where: { id: extraDay.id } });
+    expect(rebased.workoutDate).toEqual(new Date('2026-10-21T12:00:00.000Z'));
+  });
+
+  it('AUD-399-12: rejects moving draft template/day across contracts without changing persisted ownership', async () => {
+    const own = await editableFixture('issue399-parent-own');
+    const foreign = await editableFixture('issue399-parent-foreign');
+    const [ownDay, foreignDay] = await Promise.all([
+      prisma.workoutDay.findUniqueOrThrow({
+        where: { id: own.fixture.dayId },
+        select: { templateId: true, template: { select: { planId: true } } },
+      }),
+      prisma.workoutDay.findUniqueOrThrow({
+        where: { id: foreign.fixture.dayId },
+        select: { templateId: true, template: { select: { planId: true } } },
+      }),
+    ]);
+    expect(own.fixture.contractId).not.toBe(foreign.fixture.contractId);
+
+    await expect(workoutService.updateTemplate(ownDay.templateId, {
+      planId: foreignDay.template.planId,
+    })).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    await expect(workoutService.updateDay(own.fixture.dayId, {
+      templateId: foreignDay.templateId,
+    })).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    await expect(workoutService.updateTemplate(ownDay.templateId, {
+      plan: { connect: { id: foreignDay.template.planId } },
+    } as never)).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    await expect(workoutService.updateDay(own.fixture.dayId, {
+      template: { connect: { id: foreignDay.templateId } },
+    } as never)).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+
+    const [persistedDay, persistedTemplate] = await Promise.all([
+      prisma.workoutDay.findUniqueOrThrow({ where: { id: own.fixture.dayId } }),
+      prisma.workoutTemplate.findUniqueOrThrow({ where: { id: ownDay.templateId } }),
+    ]);
+    expect(persistedDay.templateId).toBe(ownDay.templateId);
+    expect(persistedTemplate.planId).toBe(ownDay.template.planId);
+
+    await workoutService.updateTemplate(ownDay.templateId, { observation1: 'Edição permitida' });
+    await workoutService.updateDay(own.fixture.dayId, { detailNotes: 'Edição permitida' });
+    expect((await prisma.workoutDay.findUniqueOrThrow({ where: { id: own.fixture.dayId } })).detailNotes)
+      .toBe('Edição permitida');
+  });
+
+
+  it('AUD-399-14: blocks cross-contract nested Prisma writes with zero partial persistence', async () => {
+    const own = await editableFixture('issue399-nested-own');
+    const foreign = await editableFixture('issue399-nested-other-contract');
+    const ownDay = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: own.fixture.dayId }, select: { templateId: true, detailNotes: true },
+    });
+    const foreignExercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: foreign.fixture.exerciseIds[0] }, select: { exerciseId: true },
+    });
+    const foreignDay = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: foreign.fixture.dayId }, select: { templateId: true, template: { select: { planId: true } } },
+    });
+    expect(own.fixture.contractId).not.toBe(foreign.fixture.contractId);
+    const beforeCount = await prisma.workoutExercise.count({ where: { workoutDayId: own.fixture.dayId } });
+
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutExercise" SET "exerciseId" = ${foreignExercise.exerciseId}
+      WHERE "id" = ${own.fixture.exerciseIds[0]}
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutDay" SET "templateId" = ${foreignDay.templateId}
+      WHERE "id" = ${own.fixture.dayId}
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutTemplate" SET "planId" = ${foreignDay.template.planId}
+      WHERE "id" = ${ownDay.templateId}
+    `).rejects.toThrow();
+
+    const attempts: Array<() => Promise<unknown>> = [
+      () => workoutService.updateDay(own.fixture.dayId, {
+        exercises: { create: [{ exerciseId: foreignExercise.exerciseId, section: 'sessao' }] },
+      } as never),
+      () => workoutService.updateTemplate(ownDay.templateId, {
+        workoutDays: { create: [{ dayOfWeek: 7 }] },
+      } as never),
+      () => workoutService.createWorkoutDay({
+        templateId: ownDay.templateId, dayOfWeek: 7, workoutDate: new Date(),
+        exercises: { create: [{ exerciseId: foreignExercise.exerciseId }] },
+      } as never),
+      () => workoutService.addExercise({
+        ...own.input[0], exercise: { connect: { id: foreignExercise.exerciseId } },
+      } as never, own.fixture.contractId),
+      () => workoutService.updateExercise(own.fixture.exerciseIds[0], {
+        executions: { create: [{ loadUsed: 500 }] },
+      } as never, own.fixture.contractId),
+      () => workoutService.replaceDayResistanceExercises(own.fixture.dayId, [
+        { ...own.input[0], executionItems: { create: [{}] } },
+      ] as never, own.fixture.contractId),
+      () => workoutService.addExercise({
+        ...own.input[0], exerciseId: foreignExercise.exerciseId,
+      }, own.fixture.contractId),
+    ];
+    for (const action of attempts) {
+      await expect(action()).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    }
+
+    expect(await prisma.workoutExercise.count({
+      where: { workoutDayId: own.fixture.dayId },
+    })).toBe(beforeCount);
+    expect(await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: own.fixture.dayId }, select: { templateId: true, detailNotes: true },
+    })).toEqual(ownDay);
+    await workoutService.updateDay(own.fixture.dayId, { detailNotes: 'edição legítima' });
+    await workoutService.replaceDayResistanceExercises(own.fixture.dayId, own.input, own.fixture.contractId);
+    expect((await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: own.fixture.dayId },
+    })).detailNotes).toBe('edição legítima');
+  });
+
+  it('AUD-399-13: SQL rejects direct transfers INTO and OUT OF released templates even at free weekday positions', async () => {
+    const editable = await editableFixture('issue399-transfer-editable');
+    const released = await seedReleasedWorkout('issue399-transfer-released');
+    const legacy = await seedReleasedWorkout('issue399-transfer-legacy', { publish: false });
+    const [editableDay, releasedDay, legacyDay] = await Promise.all([
+      prisma.workoutDay.findUniqueOrThrow({ where: { id: editable.fixture.dayId } }),
+      prisma.workoutDay.findUniqueOrThrow({ where: { id: released.dayId } }),
+      prisma.workoutDay.findUniqueOrThrow({ where: { id: legacy.dayId } }),
+    ]);
+    await prisma.workoutTemplate.update({
+      where: { id: legacyDay.templateId },
+      data: { released: true, releasedAt: new Date() },
+    });
+
+    const expectReleaseGuard = async (write: Promise<unknown>) => {
+      try {
+        await write;
+        throw new Error('Expected SQLSTATE 23514: released planning must be immutable');
+      } catch (error) {
+        expect((error as { meta?: { code?: string } }).meta?.code).toBe('23514');
+      }
+    };
+
+    // dayOfWeek=7 is intentionally unused in either target to refute
+    // accidental protection by the [templateId,dayOfWeek] unique index.
+    await expectReleaseGuard(prisma.$executeRaw`
+      UPDATE "WorkoutDay" SET "templateId" = ${releasedDay.templateId}, "dayOfWeek" = 7
+      WHERE "id" = ${editable.fixture.dayId}
+    `);
+    await expectReleaseGuard(prisma.$executeRaw`
+      UPDATE "WorkoutDay" SET "templateId" = ${editableDay.templateId}, "dayOfWeek" = 7
+      WHERE "id" = ${released.dayId}
+    `);
+    await expectReleaseGuard(prisma.$executeRaw`
+      UPDATE "WorkoutDay" SET "templateId" = ${legacyDay.templateId}, "dayOfWeek" = 7
+      WHERE "id" = ${editable.fixture.dayId}
+    `);
+    await expectReleaseGuard(prisma.$executeRaw`
+      UPDATE "WorkoutDay" SET "templateId" = ${editableDay.templateId}, "dayOfWeek" = 7
+      WHERE "id" = ${legacy.dayId}
+    `);
+
+    for (const [id, original] of [
+      [editable.fixture.dayId, editableDay],
+      [released.dayId, releasedDay],
+      [legacy.dayId, legacyDay],
+    ] as const) {
+      const persisted = await prisma.workoutDay.findUniqueOrThrow({ where: { id } });
+      expect(persisted.templateId).toBe(original.templateId);
+      expect(persisted.dayOfWeek).toBe(original.dayOfWeek);
+    }
+  });
+
+  it('copyTemplate refuses to replace a released destination and preserves its identifiers', async () => {
+    const { fixture, input } = await editableFixture('issue399-copy-released');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input);
+    const source = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, select: { templateId: true },
+    });
+    const destination = await workoutService.copyTemplate(
+      source.templateId, 2, new Date('2026-10-12T12:00:00.000Z'),
+    );
+    await prisma.workoutTemplate.update({
+      where: { id: destination!.id }, data: { released: true, releasedAt: new Date() },
+    });
+    await expect(workoutService.copyTemplate(
+      source.templateId, 2, new Date('2026-10-12T12:00:00.000Z'),
+    )).rejects.toMatchObject({ code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START' });
+    const persisted = await prisma.workoutTemplate.findUniqueOrThrow({
+      where: { id: destination!.id },
+      include: { workoutDays: { include: { exercises: true } } },
+    });
+    expect(persisted.released).toBe(true);
+    expect(persisted.workoutDays[0].exercises).toHaveLength(2);
+  });
+
 });

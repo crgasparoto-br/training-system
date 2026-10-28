@@ -705,10 +705,15 @@ export default function WorkoutBuilderCyclic({
     const disabledClass = disabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : '';
     const rawValue = dayData[dayOfWeek]?.[field];
     const value = rawValue ?? '';
+    const fieldLabel = `Dia ${dayOfWeek}: ${field}`;
+    const fieldId = `cyclic-day-${dayOfWeek}-${field}`;
 
     if (type === 'select' && options) {
       return (
         <select
+          id={fieldId}
+          name={fieldId}
+          aria-label={fieldLabel}
           value={value}
           onChange={(e) => handleChange(dayOfWeek, field, e.target.value)}
           disabled={disabled}
@@ -725,6 +730,9 @@ export default function WorkoutBuilderCyclic({
     if (type === 'textarea') {
       return (
         <textarea
+          id={fieldId}
+          name={fieldId}
+          aria-label={fieldLabel}
           value={value}
           onChange={(e) => handleChange(dayOfWeek, field, e.target.value)}
           disabled={disabled}
@@ -738,6 +746,9 @@ export default function WorkoutBuilderCyclic({
       return (
         <div className="flex items-center gap-1">
           <input
+            id={fieldId}
+            name={fieldId}
+            aria-label={fieldLabel}
             type="number"
             step="0.1"
             value={value}
@@ -754,6 +765,9 @@ export default function WorkoutBuilderCyclic({
 
     return (
       <input
+        id={fieldId}
+        name={fieldId}
+        aria-label={fieldLabel}
         type="number"
         step={field.includes('Speed') || field.includes('Hr') ? '0.1' : '1'}
         value={value}

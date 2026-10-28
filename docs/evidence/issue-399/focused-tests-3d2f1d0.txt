@@ -1,0 +1,8 @@
+PASS tests/workout-session-execution.integration.test.ts (9.433 s)
+PASS tests/consolidated-prescription-release-historical-immutability.integration.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       28 passed, 28 total
+Snapshots:   0 total
+Time:        9.986 s, estimated 17 s
+Ran all test suites matching /tests\/workout-session-execution.integration.test.ts|tests\/consolidated-prescription-release-historical-immutability.integration.test.ts/i.

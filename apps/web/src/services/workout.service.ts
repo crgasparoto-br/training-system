@@ -55,6 +55,26 @@ export interface WorkoutDay {
   updatedAt: string;
 }
 
+export type ResistanceBlockKind = 'aquecimento' | 'principal' | 'tecnica' | 'complementar' | 'finalizacao';
+export interface ResistancePlannedSet {
+  position: number;
+  repsMin?: number | null;
+  repsMax?: number | null;
+  loadKg?: number | null;
+  loadPercent?: number | null;
+  rir?: number | null;
+  rpe?: number | null;
+  tempo?: string | null;
+  restSec?: number | null;
+  notes?: string | null;
+}
+export interface ResistanceBlock {
+  position: number;
+  kind: ResistanceBlockKind;
+  notes?: string | null;
+  plannedSets: ResistancePlannedSet[];
+}
+
 export interface WorkoutExercise {
   id: string;
   workoutDayId: string;
@@ -70,6 +90,7 @@ export interface WorkoutExercise {
   eParam?: number;
   load?: number;
   exerciseNotes?: string;
+  resistanceBlocks?: ResistanceBlock[];
   exercise?: {
     id: string;
     name: string;
@@ -104,6 +125,13 @@ export interface UpdateWorkoutTemplateDTO {
   coachGoal?: string | null;
   observation1?: string | null;
   observation2?: string | null;
+}
+
+export interface SaveWorkoutWeekDTO {
+  baseUpdatedAt?: string;
+  template?: Record<string, unknown>;
+  workoutDays?: Array<Record<string, unknown>>;
+  resistedExercises?: Record<string, Record<string, Array<Record<string, unknown>>>>;
 }
 
 export interface CreateWorkoutDayDTO {
@@ -142,6 +170,7 @@ export interface UpdateWorkoutDayDTO {
 }
 
 export interface AddExerciseDTO {
+  workoutExerciseId?: string;
   workoutDayId: string;
   exerciseId: string;
   section: string;
@@ -155,6 +184,7 @@ export interface AddExerciseDTO {
   eParam?: number;
   load?: number;
   exerciseNotes?: string;
+  resistanceBlocks?: ResistanceBlock[];
 }
 
 export interface UpdateExerciseDTO {
@@ -167,6 +197,7 @@ export interface UpdateExerciseDTO {
   intervalSec?: number;
   load?: number;
   exerciseNotes?: string;
+  resistanceBlocks?: ResistanceBlock[];
 }
 
 export interface ReorderExercisesDTO {
@@ -195,6 +226,32 @@ class WorkoutService {
     return response.data;
   }
 
+  async saveTemplateWeek(id: string, data: SaveWorkoutWeekDTO): Promise<WorkoutTemplate> {
+    const response = await api.put<WorkoutTemplate>(`/workout/templates/${id}/save-week`, data);
+    return response.data;
+  }
+
+  /**
+   * Best-effort unload persistence. This is deliberately separate from the
+   * acknowledged Axios queue: keepalive lets the browser finish the latest
+   * snapshot after pagehide without making navigation synchronous.
+   */
+  saveTemplateWeekKeepalive(id: string, data: SaveWorkoutWeekDTO): void {
+    if (typeof window === 'undefined' || typeof window.fetch !== 'function') return;
+    const baseUrl = api.defaults.baseURL || '/api/v1';
+    const url = `${baseUrl.replace(/\/+$/, '')}/workout/templates/${encodeURIComponent(id)}/save-week`;
+    const token = window.localStorage.getItem('token');
+    void window.fetch(url, {
+      method: 'PUT',
+      keepalive: true,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(data),
+    }).catch(() => undefined);
+  }
+
   async releaseTemplate(id: string): Promise<WorkoutTemplate> {
     const response = await api.post<WorkoutTemplate>(`/workout/templates/${id}/release`);
     return response.data;
@@ -208,6 +265,20 @@ class WorkoutService {
     const response = await api.post<WorkoutTemplate>(`/workout/templates/${id}/copy`, {
       targetWeekNumber,
       targetWeekStartDate,
+    });
+    return response.data;
+  }
+
+  async copyTemplateSections(
+    id: string,
+    targetWeekNumber: number,
+    targetWeekStartDate: string,
+    mode: 'cyclic' | 'resistance',
+  ): Promise<WorkoutTemplate> {
+    const response = await api.post<WorkoutTemplate>(`/workout/templates/${id}/copy-sections`, {
+      targetWeekNumber,
+      targetWeekStartDate,
+      mode,
     });
     return response.data;
   }
@@ -254,6 +325,11 @@ class WorkoutService {
     return response.data;
   }
 
+  async replaceDayResistanceExercises(workoutDayId: string, exercises: AddExerciseDTO[]): Promise<WorkoutExercise[]> {
+    const response = await api.put<WorkoutExercise[]>(`/workout/days/${workoutDayId}/resistance-exercises`, { exercises });
+    return response.data;
+  }
+
   async addExercise(data: AddExerciseDTO): Promise<WorkoutExercise> {
     const response = await api.post<WorkoutExercise>('/workout/exercises', data);
     return response.data;
@@ -274,4 +350,3 @@ class WorkoutService {
 }
 
 export const workoutService = new WorkoutService();
-

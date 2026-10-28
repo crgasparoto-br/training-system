@@ -1510,9 +1510,44 @@ model WorkoutExercise {
   executions    WorkoutExecution[]
   exercise      ExerciseLibrary    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
   workoutDay    WorkoutDay         @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  resistanceBlocks WorkoutExerciseBlock[]
 
   @@index([workoutDayId])
   @@index([workoutDayId, section, exerciseOrder])
+}
+
+
+model WorkoutExerciseBlock {
+  id                String                      @id @default(cuid())
+  workoutExerciseId String
+  position          Int
+  kind              String
+  notes             String?
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  workoutExercise   WorkoutExercise             @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+  plannedSets       WorkoutExercisePlannedSet[]
+
+  @@unique([workoutExerciseId, position])
+}
+
+model WorkoutExercisePlannedSet {
+  id              String                        @id @default(cuid())
+  blockId         String
+  position        Int
+  repsMin         Int?
+  repsMax         Int?
+  loadKg          Float?
+  loadPercent     Float?
+  rir             Float?
+  rpe             Float?
+  tempo           String?
+  restSec         Int?
+  notes           String?
+  createdAt       DateTime                      @default(now())
+  updatedAt       DateTime                      @updatedAt
+  block           WorkoutExerciseBlock          @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  @@unique([blockId, position])
 }
 
 model WorkoutExecution {
