@@ -217,6 +217,7 @@ export async function copyTemplate(
     include: {
       workoutDays: {
         include: {
+          cyclicStages: cyclicStageInclude,
           exercises: { include: { resistanceBlocks: resistanceBlockInclude } },
         },
       },

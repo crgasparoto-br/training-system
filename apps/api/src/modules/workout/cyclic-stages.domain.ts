@@ -120,7 +120,8 @@ export const cyclicStageInclude = {
   orderBy: { position: 'asc' as const },
   include: { children: { orderBy: { position: 'asc' as const } } },
 };
-export function nestedCyclicStages(stages: CyclicStageInput[], workoutDayId: string) {
+/** Prisma nested writes consume only the already-whitelisted values above. */
+export function nestedCyclicStages(stages: CyclicStageInput[], workoutDayId: string): any[] {
   return stages.map((s) => ({
     workoutDayId, position: s.position, kind: s.kind,
     durationUnit: s.durationUnit, durationValue: s.durationValue,
