@@ -112,6 +112,8 @@ export async function saveTemplateWeek(prisma: PrismaClient, id: string, data: S
       for (const [dayKey, stages] of Object.entries(data.cyclicStages)) {
         const dayOfWeek = Number(dayKey);
         let targetDay = daysByWeekday.get(dayOfWeek);
+        // Clearing an already-absent stage list must not invent a workout day.
+        if (!targetDay && Array.isArray(stages) && stages.length === 0) continue;
         if (!targetDay) {
           targetDay = await tx.workoutDay.create({
             data: { templateId: id, dayOfWeek, workoutDate: workoutDateInTargetWeek(nextWeekStartDate, dayOfWeek) },
