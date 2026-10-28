@@ -195,7 +195,6 @@ export async function copyTemplateSections(
     });
     return serializeWorkoutTemplate(copiedTemplate);
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10000, timeout: 60000 }));
-  },
 }
 
 export async function copyTemplate(
@@ -349,5 +348,4 @@ export async function copyTemplate(
 
   return serializeWorkoutTemplate(copiedTemplate);
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10000, timeout: 60000 }));
-  },
 }
