@@ -56,7 +56,8 @@ export async function persistWorkoutSessionValues(
   executionId: string,
   sessionId: string,
   sessionValues: TrainingSessionExecutionSessionValues | undefined,
-  items: TrainingSessionExecutionItemValue[]
+  items: TrainingSessionExecutionItemValue[],
+  completedAt?: Date
 ): Promise<Prisma.InputJsonValue | undefined> {
   await validatePlannedUnits(tx, executionId, sessionId, items);
   let mergedSessionValues: Prisma.InputJsonValue | undefined;
@@ -71,8 +72,14 @@ export async function persistWorkoutSessionValues(
     const setNumber = item.setNumber ?? 0;
     const existingItem = await tx.workoutSessionExecutionItem.findUnique({
       where: { executionId_plannedUnitId_setNumber: { executionId, plannedUnitId: item.plannedUnitId, setNumber } },
-      select: { plannedSetId: true },
+      select: { plannedSetId: true, completedAt: true },
     });
+    if (existingItem?.completedAt) {
+      throw new WorkoutSessionExecutionInputError('Esta série já foi concluída e não pode ser reescrita.');
+    }
+    if (existingItem?.plannedSetId && item.plannedSetId && existingItem.plannedSetId !== item.plannedSetId) {
+      throw new WorkoutSessionExecutionInputError('A série planejada não corresponde ao registro existente.');
+    }
     const persistedPlannedSetId = item.plannedSetId === undefined
       ? existingItem?.plannedSetId ?? null
       : item.plannedSetId;
@@ -83,6 +90,7 @@ export async function persistWorkoutSessionValues(
         plannedUnitId: item.plannedUnitId,
         plannedSetId: persistedPlannedSetId,
         setNumber,
+        ...(completedAt ? { completedAt } : {}),
         loadKg: item.loadKg,
         repetitions: item.repetitions,
         durationSec: item.durationSec,
@@ -93,6 +101,7 @@ export async function persistWorkoutSessionValues(
       },
       update: {
         plannedSetId: persistedPlannedSetId,
+        ...(completedAt ? { completedAt } : {}),
         loadKg: item.loadKg,
         repetitions: item.repetitions,
         durationSec: item.durationSec,

@@ -80,6 +80,7 @@ const sessionSelect = {
           plannedUnitId: true,
           plannedSetId: true,
           setNumber: true,
+          completedAt: true,
           loadKg: true,
           repetitions: true,
           durationSec: true,

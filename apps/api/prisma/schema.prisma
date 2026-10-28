@@ -2133,6 +2133,7 @@ model WorkoutSessionExecutionItem {
   pace           String?
   heartRateBpm   Int?
   heartRateZone  String?
+  completedAt    DateTime?
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
   execution      WorkoutSessionExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
