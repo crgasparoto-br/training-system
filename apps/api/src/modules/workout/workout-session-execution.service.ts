@@ -47,7 +47,7 @@ async function loadGuidedResistancePlan(tx: Prisma.TransactionClient, sessionId:
   return deriveGuidedResistancePlan(exercises);
 }
 
-type LockedReleasedSession =
+type LockedReleasedSession = {
   id: string;
   legacyStatus: 'planned' | 'in_progress' | 'completed';
   workoutTemplateId: string;
