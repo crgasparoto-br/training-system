@@ -10,7 +10,8 @@ export interface GuidedResistancePlannedExercise {
   exerciseOrder: number;
   system: string | null;
   groupBreakBefore?: boolean;
-  exercise: { name: string; videoUrl?: string | null };
+  exerciseNotes?: string | null;
+  exercise: { name: string; videoUrl?: string | null; notes?: string | null };
   resistanceBlocks: ReadonlyArray<{
     position: number;
     kind: string;
@@ -97,7 +98,8 @@ export function deriveGuidedResistancePlan(
           rpe: set.rpe,
           tempo: set.tempo,
           restSec: set.restSec,
-          notes: set.notes?.trim() || block.notes?.trim() || null,
+          notes: set.notes?.trim() || block.notes?.trim()
+            || exercise.exerciseNotes?.trim() || exercise.exercise.notes?.trim() || null,
         });
       }
     }

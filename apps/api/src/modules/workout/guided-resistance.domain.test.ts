@@ -87,7 +87,16 @@ describe('issue #487 - plano resistido canônico', () => {
     expect(projected.current).toBeNull();
   });
 
-  it('exposes only configured HTTPS exercise guidance media', () => {
+  it('uses authored set/block/exercise/catalog guidance, never invented instructions', () => {
+    const base = exercise('a', 1);
+    expect(deriveGuidedResistancePlan([base]).units[0].notes).toBeNull();
+    const withCatalog = { ...base, exercise: { ...base.exercise, notes: 'Postura neutra' } };
+    expect(deriveGuidedResistancePlan([withCatalog]).units[0].notes).toBe('Postura neutra');
+    const withExercise = { ...withCatalog, exerciseNotes: 'Controle a amplitude' };
+    expect(deriveGuidedResistancePlan([withExercise]).units[0].notes).toBe('Controle a amplitude');
+  });
+
+  it('exposes only configured HTTPS exercise guidance media',
     expect(approvedGuidedExerciseMediaUrl('https://example.org/videos/exercise')).toBe('https://example.org/videos/exercise');
     for (const unsafe of [null, '', 'javascript:alert(1)', 'data:text/html,invalid', 'http://example.org/video', 'https://user:password@example.org']) {
       expect(approvedGuidedExerciseMediaUrl(unsafe)).toBeNull();
