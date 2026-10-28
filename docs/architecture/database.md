@@ -221,3 +221,7 @@ unicidade por `executionId/plannedSetId` e guarda de imutabilidade dos
 registros já confirmados. Os IDs planejados e o release de origem não
 são alterados. A confirmação e o avanço de versão ocorrem em transação
 serializável da #389.
+
+A constraint trigger diferida de #487 também exige operação canônica de
+`complete_resistance_set`, versão resultante e evento lifecycle vinculado
+na mesma transação; uma escrita SQL isolada não pode forjar `completedAt`.

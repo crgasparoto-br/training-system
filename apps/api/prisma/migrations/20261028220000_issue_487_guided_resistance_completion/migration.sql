@@ -36,3 +36,31 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER "issue487_guard_completed_set_trigger"
 BEFORE INSERT OR UPDATE OR DELETE ON "WorkoutSessionExecutionItem"
 FOR EACH ROW EXECUTE FUNCTION "issue487_guard_completed_set"();
+
+-- A direct SQL write must not move the cursor without the canonical operation,
+-- resulting version and derived event. Deferred evaluation sees the final state.
+CREATE OR REPLACE FUNCTION "issue487_require_completion_ledger"()
+RETURNS trigger AS $$
+BEGIN
+  IF NEW."completedAt" IS NOT NULL AND NOT EXISTS (
+    SELECT 1
+    FROM "WorkoutSessionExecution" execution
+    JOIN "WorkoutSessionExecutionOperation" operation
+      ON operation."executionId" = execution."id"
+    WHERE execution."id" = NEW."executionId"
+      AND execution."status" = 'in_progress'
+      AND operation."action" = 'complete_resistance_set'
+      AND operation."resultingVersion" = execution."version"
+      AND operation."lifecycleEventId" IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'guided completion requires canonical execution operation' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE CONSTRAINT TRIGGER "issue487_require_completion_ledger_trigger"
+AFTER INSERT OR UPDATE ON "WorkoutSessionExecutionItem"
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW WHEN (NEW."completedAt" IS NOT NULL)
+EXECUTE FUNCTION "issue487_require_completion_ledger"();

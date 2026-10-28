@@ -976,6 +976,28 @@ describeDatabase('workout session execution persistence - issue 389', () => {
     expect(row.items).toHaveLength(1);
   });
 
+  it('issue #487: direct SQL cannot forge a completion without its canonical operation', async () => {
+    const fixture = await seedReleasedWorkout('487-direct-completion', { seedGuidedResistance: true });
+    const scope = { sessionId: fixture.dayId, alunoId: fixture.alunoId, contractId: fixture.contractId };
+    await transition(fixture, 'issue487-start-direct-sql', 0, 'in_progress');
+    const current = (await service.getGuidedForSession(scope)).current!;
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId },
+    });
+    await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutSessionExecutionItem" (
+        "id", "executionId", "plannedUnitId", "plannedSetId", "setNumber", "completedAt"
+      ) VALUES (
+        ${randomUUID()}, ${execution.id}, ${current.plannedUnitId},
+        ${current.plannedSetId}, ${current.setNumber}, CURRENT_TIMESTAMP
+      )
+    `).rejects.toThrow();
+    expect((await service.getGuidedForSession(scope)).completed).toBe(0);
+    expect(await prisma.workoutSessionExecutionItem.count({
+      where: { executionId: execution.id },
+    })).toBe(0);
+  });
+
 });
 
 
