@@ -40,7 +40,7 @@ type Fixture = {
 
 async function seedReleasedWorkout(
   label: string,
-  options: { publish?: boolean; seedResistance?: boolean } = {},
+  options: { publish?: boolean; seedResistance?: boolean; seedGuidedResistance?: boolean } = {},
 ): Promise<Fixture> {
   const suffix = `${label}-${randomUUID()}`;
   const contractId = `issue-389-${suffix}`;
@@ -205,6 +205,24 @@ async function seedReleasedWorkout(
         plannedSets: {
           create: { position: 1, repsMin: 8, repsMax: 12, loadKg: 32.5 },
         },
+      },
+    });
+  }
+
+  if (options.seedGuidedResistance) {
+    await prisma.workoutExerciseBlock.create({
+      data: {
+        workoutExerciseId: exerciseA.id, position: 1, kind: 'principal',
+        plannedSets: { create: [
+          { position: 1, repsMin: 8, repsMax: 12, loadKg: 32.5, restSec: 60 },
+          { position: 2, repsMin: 6, repsMax: 10, loadKg: 35, restSec: 90 },
+        ] },
+      },
+    });
+    await prisma.workoutExerciseBlock.create({
+      data: {
+        workoutExerciseId: exerciseB.id, position: 1, kind: 'principal',
+        plannedSets: { create: [{ position: 1, repsMin: 10, repsMax: 12, loadKg: null, restSec: 45 }] },
       },
     });
   }
@@ -814,6 +832,150 @@ describeDatabase('workout session execution persistence - issue 389', () => {
     });
     expect(ownExercises.map((item) => item.id)).toEqual(own.exerciseIds);
   });
+
+  it('issue #487: persists ordered steps, replays without advancing twice, and resumes on another client', async () => {
+    const fixture = await seedReleasedWorkout('487-guided-ordered', { seedGuidedResistance: true });
+    const scope = { sessionId: fixture.dayId, alunoId: fixture.alunoId, contractId: fixture.contractId };
+    const initial = await service.getGuidedForSession(scope);
+    expect(initial).toMatchObject({ availability: 'available', status: 'not_started', total: 3, completed: 0 });
+    await transition(fixture, 'issue487-start-ordered', 0, 'in_progress');
+    const first = await service.getGuidedForSession(scope);
+    expect(first.current).toMatchObject({ plannedUnitId: fixture.exerciseIds[0], setNumber: 1, repsMin: 8, repsMax: 12, loadKg: 32.5 });
+    const payload = {
+      operationKey: 'issue487-ordered-confirm-1', expectedVersion: 1,
+      plannedUnitId: first.current!.plannedUnitId, plannedSetId: first.current!.plannedSetId,
+      setNumber: first.current!.setNumber, repetitions: 7, loadKg: 30.5,
+    };
+    const completed = await service.completeGuided({ ...scope, actorUserId: fixture.alunoUserId, payload });
+    expect(completed).toMatchObject({ availability: 'available', version: 2, completed: 1, total: 3 });
+    expect(completed.current).toMatchObject({ plannedUnitId: fixture.exerciseIds[0], setNumber: 2 });
+    const replay = await concurrentService.completeGuided({ ...scope, actorUserId: fixture.alunoUserId, payload });
+    expect(replay).toMatchObject({ version: 2, completed: 1 });
+    expect(replay.current?.plannedSetId).toBe(completed.current?.plannedSetId);
+    const reconstructed = await concurrentService.getGuidedForSession(scope);
+    expect(reconstructed.current?.plannedSetId).toBe(completed.current?.plannedSetId);
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, include: { items: true, operations: true },
+    });
+    expect(execution.operations).toHaveLength(2);
+    expect(execution.items).toHaveLength(1);
+    expect(execution.items[0]).toMatchObject({
+      plannedSetId: payload.plannedSetId, plannedUnitId: payload.plannedUnitId,
+      setNumber: 1, loadKg: 30.5, repetitions: 7,
+    });
+    expect(execution.items[0].completedAt).not.toBeNull();
+    const unchanged = await prisma.workoutExercisePlannedSet.findUniqueOrThrow({
+      where: { id: payload.plannedSetId }, select: { loadKg: true, repsMin: true },
+    });
+    expect(unchanged).toEqual({ loadKg: 32.5, repsMin: 8 });
+  });
+
+  it('issue #487: rejects skipped series, foreign tenants and completion during pause without writes', async () => {
+    const fixture = await seedReleasedWorkout('487-boundary', { seedGuidedResistance: true });
+    const foreign = await seedReleasedWorkout('487-foreign');
+    const scope = { sessionId: fixture.dayId, alunoId: fixture.alunoId, contractId: fixture.contractId };
+    await transition(fixture, 'issue487-start-boundary', 0, 'in_progress');
+    const first = await service.getGuidedForSession(scope);
+    const second = (await prisma.workoutExercisePlannedSet.findMany({
+      where: { block: { workoutExerciseId: fixture.exerciseIds[0] } },
+      orderBy: { position: 'asc' },
+    }))[1];
+    const payload = {
+      operationKey: 'issue487-wrong-set', expectedVersion: 1,
+      plannedUnitId: fixture.exerciseIds[0], plannedSetId: second.id,
+      setNumber: 2, repetitions: 8, loadKg: 40,
+    };
+    await expect(service.completeGuided({ ...scope, actorUserId: fixture.alunoUserId, payload }))
+      .rejects.toBeInstanceOf(WorkoutSessionExecutionConflictError);
+    await expect(service.getGuidedForSession({
+      sessionId: fixture.dayId, alunoId: foreign.alunoId, contractId: foreign.contractId,
+    })).rejects.toBeInstanceOf(WorkoutSessionExecutionNotFoundError);
+    await expect(service.completeGuided({
+      sessionId: fixture.dayId, alunoId: foreign.alunoId, contractId: foreign.contractId,
+      actorUserId: foreign.alunoUserId, payload: { ...payload, operationKey: 'issue487-cross-tenant' },
+    })).rejects.toBeInstanceOf(WorkoutSessionExecutionNotFoundError);
+    expect((await service.getGuidedForSession(scope)).current?.plannedSetId).toBe(first.current?.plannedSetId);
+    await transition(fixture, 'issue487-pause-boundary', 1, 'paused');
+    await expect(service.completeGuided({
+      ...scope, actorUserId: fixture.alunoUserId,
+      payload: { ...payload, operationKey: 'issue487-while-paused', expectedVersion: 2, plannedSetId: first.current!.plannedSetId, setNumber: 1 },
+    })).rejects.toBeInstanceOf(WorkoutSessionExecutionConflictError);
+    expect((await service.getGuidedForSession(scope)).status).toBe('paused');
+    expect((await service.getGuidedForSession(scope)).current?.plannedSetId).toBe(first.current?.plannedSetId);
+    await transition(fixture, 'issue487-resume-boundary', 2, 'in_progress');
+    const res = await service.completeGuided({
+      ...scope, actorUserId: fixture.alunoUserId,
+      payload: { ...payload, operationKey: 'issue487-after-resume', expectedVersion: 3, plannedSetId: first.current!.plannedSetId, setNumber: 1 },
+    });
+    expect(res.completed).toBe(1);
+  });
+
+  it('issue #487: raw value entry never implies guided completion and rollback preserves progress', async () => {
+    const fixture = await seedReleasedWorkout('487-raw-and-rollback', { seedGuidedResistance: true });
+    const scope = { sessionId: fixture.dayId, alunoId: fixture.alunoId, contractId: fixture.contractId };
+    await transition(fixture, 'issue487-start-raw', 0, 'in_progress');
+    const initial = await service.getGuidedForSession(scope);
+    const first = initial.current!;
+    await service.saveValues({
+      ...scope, actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue487-save-raw', expectedVersion: 1,
+        items: [{ plannedUnitId: first.plannedUnitId, plannedSetId: first.plannedSetId, setNumber: 1, repetitions: 8 }],
+      },
+    });
+    expect((await service.getGuidedForSession(scope)).current?.plannedSetId).toBe(first.plannedSetId);
+    expect((await service.getGuidedForSession(scope)).completed).toBe(0);
+    const removeTrigger = await installLifecycleEventTrigger(fixture.alunoId, 'fail');
+    try {
+      await expect(service.completeGuided({
+        ...scope, actorUserId: fixture.alunoUserId,
+        payload: {
+          operationKey: 'issue487-forced-rollback', expectedVersion: 2,
+          plannedUnitId: first.plannedUnitId, plannedSetId: first.plannedSetId,
+          setNumber: 1, repetitions: 9, loadKg: 40,
+        },
+      })).rejects.toThrow('issue389 forced lifecycle event failure');
+    } finally {
+      await removeTrigger();
+    }
+    expect((await service.getGuidedForSession(scope)).completed).toBe(0);
+    const row = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, include: { items: true, operations: true },
+    });
+    expect(row.version).toBe(2);
+    expect(row.operations).toHaveLength(2);
+    expect(row.items[0].completedAt).toBeNull();
+    expect(row.items[0].repetitions).toBe(8);
+  });
+
+  it('issue #487: serializes two simultaneous confirmations of the same planned set', async () => {
+    const fixture = await seedReleasedWorkout('487-concurrency', { seedGuidedResistance: true });
+    const scope = { sessionId: fixture.dayId, alunoId: fixture.alunoId, contractId: fixture.contractId };
+    await transition(fixture, 'issue487-start-concurrent', 0, 'in_progress');
+    const first = (await service.getGuidedForSession(scope)).current!;
+    const confirm = (client: typeof service, key: string) => client.completeGuided({
+      ...scope, actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: key, expectedVersion: 1, plannedUnitId: first.plannedUnitId,
+        plannedSetId: first.plannedSetId, setNumber: first.setNumber,
+        repetitions: 8, loadKg: 32.5,
+      },
+    });
+    const results = await Promise.allSettled([
+      confirm(service, 'issue487-first-confirm'),
+      confirm(concurrentService, 'issue487-second-confirm'),
+    ]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const failures = results.filter((result) => result.status === 'rejected') as PromiseRejectedResult[];
+    expect(failures).toHaveLength(1);
+    expect(failures[0].reason).toBeInstanceOf(WorkoutSessionExecutionConflictError);
+    expect((await service.getGuidedForSession(scope)).completed).toBe(1);
+    const row = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, include: { items: true },
+    });
+    expect(row.items).toHaveLength(1);
+  });
+
 });
 
 
