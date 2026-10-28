@@ -65,7 +65,11 @@ A ausência de blocos preserva o contrato simples existente (`sets`, `reps`, `lo
 Leituras de template, dia e exercício incluem `resistanceBlocks[].plannedSets[]` ordenados. O Workout Builder permite editar a estrutura por exercício e salva a composição do dia atomicamente via `PUT /api/v1/workout/days/:id/resistance-exercises`, com payload `{ exercises: [...] }`. Escritas de planejamento em template liberado e/ou execução iniciada são bloqueadas no serviço e no banco. Os gatilhos cobrem tanto releases ligados a `ConsolidatedPrescriptionOperationalRelease` quanto o caminho legado com `WorkoutTemplate.released=true` sem ledger; somente campos de ciclo de execução do dia permanecem mutáveis. A execução real permanece separada em `WorkoutSessionExecutionItem`, cuja referência opcional `plannedSetId` aponta para uma série planejada pertencente ao mesmo exercício; a comparação será responsabilidade da #401. A migração é aditiva e não cria nova árvore de montagem.
 
 
-### Preservação de identidade no editor de séries (#399)
+### Mensagens de somente leitura no treino resistido (#399)
+
+O Workout Builder mantém a edição bloqueada quando o treino está liberado, o dia está fora do período do plano ou há uma operação impeditiva em andamento. O aviso reflete a causa real: **treino liberado** tem prioridade, **dia fora do período** só é apresentado quando a data está efetivamente fora dos limites, e bloqueios operacionais sem essas causas exibem mensagem de indisponibilidade. Os avisos não alteram a autorização, as restrições da API ou os guards de integridade no banco.
+
+## Preservação de identidade no editor de séries (#399)
 
 O salvamento transacional de exercícios resistidos de um `WorkoutDay` deve reconciliar os exercícios existentes pelo identificador persistido `workoutExerciseId`; clientes legados podem ser conciliados pelo exercício da biblioteca e seção quando não houver identificador explícito. O editor não deve excluir e recriar indiscriminadamente todas as linhas do dia, pois execuções históricas dependem dos identificadores de `WorkoutExercise`. A remoção ou alteração de linhas com histórico de execução é bloqueada; séries planejadas não são confundidas com os valores executados. Falhas inesperadas da persistência nunca expõem detalhes internos na resposta da API.
 

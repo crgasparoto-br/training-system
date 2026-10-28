@@ -87,16 +87,26 @@ export default function WorkoutBuilderResistance({
     return date;
   };
 
-  const isDayEditable = (dayOfWeek: number) => {
-    if (!weekEditable) return false;
-    if (dayEditability && dayEditability[dayOfWeek - 1] !== undefined) {
-      return dayEditability[dayOfWeek - 1];
-    }
+  const isDayWithinPlanPeriod = (dayOfWeek: number) => {
     if (!planStartDate || !planEndDate) return true;
     const start = parseDateOnly(planStartDate);
     const end = parseDateOnly(planEndDate);
     if (!start || !end) return true;
     return isDateWithinRange(resolveDayDate(dayOfWeek), start, end);
+  };
+
+  const isDayEditable = (dayOfWeek: number) => {
+    if (!weekEditable) return false;
+    if (dayEditability && dayEditability[dayOfWeek - 1] !== undefined) {
+      return dayEditability[dayOfWeek - 1];
+    }
+    return isDayWithinPlanPeriod(dayOfWeek);
+  };
+
+  const getDayReadOnlyMessage = (dayOfWeek: number) => {
+    if (templateData?.released) return 'Treino liberado: somente leitura.';
+    if (!isDayWithinPlanPeriod(dayOfWeek)) return 'Dia fora do período do plano: somente leitura.';
+    return 'Edição temporariamente indisponível: somente leitura.';
   };
 
   const days = useMemo(() => {
@@ -1235,7 +1245,7 @@ export default function WorkoutBuilderResistance({
         {!activeDayEditable && (
           <p className="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
             <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
-            Dia fora do período do plano: somente leitura.
+            {getDayReadOnlyMessage(activeDayInfo.dayOfWeek)}
           </p>
         )}
 

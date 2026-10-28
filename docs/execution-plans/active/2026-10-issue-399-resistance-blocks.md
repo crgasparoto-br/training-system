@@ -162,3 +162,10 @@ Implementação no branch `feat/399-resistance-blocks-sets`. A homologação ope
 - Na observação desta data, a issue #399 continua aberta; `main` ainda não inclui essa integração. O aceite/certificado independente permanece pendente e deve ocorrer em contexto de revisão separado, sobre a versão definitiva.
 - A remediação complementar de higiene corrige linhas vazias finais em dois arquivos TypeScript e na documentação canônica, sem alterar comportamento. O log SQL histórico `docs/evidence/issue-399/trigger-results.txt` mantém os bytes originais (SHA-256 `94071e63f3f7d41c8b759d33191854ba4b78d8d4872ae2f5efce5a2acf31bff1`); a regra estritamente localizada em `.gitattributes` ignora apenas os espaços inerentes à captura de saída da consulta.
 - A integração da remediação complementar e o encerramento formal não são declarados nesta etapa. Não há merge automático.
+
+## Remediação AUD-399-30 — motivo correto do modo somente leitura (28/10/2026)
+
+- Achado no SHA `4679980bbe09aa7526473d0520468f0a9b135eb4`: treino liberado dentro do período mostrava indevidamente o aviso de data fora do plano.
+- Correção da apresentação: diferenciar liberação, período real e bloqueio operacional, preservando as travas de edição e as proteções de backend.
+- Testes de componente discriminam liberado dentro do período, fora do período, indisponibilidade operacional e dia editável. O replay autenticado Chrome/API/PostgreSQL verifica a mensagem de treino liberado em 1440, 768 e 390 px.
+- Validações requeridas: `Validate repository` e os demais gates no SHA final desta PR, seguidos de auditoria independente em contexto separado. Sem merge ou release automático.

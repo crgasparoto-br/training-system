@@ -286,12 +286,16 @@ suite('Issue #399 - fluxo full-page contra API real', () => {
           editableFields: [...document.querySelectorAll('[data-workout-week="2"] fieldset:not([disabled]) input,[data-workout-week="2"] fieldset:not([disabled]) textarea')]
             .filter((field) => !field.disabled && field.getAttribute('aria-disabled') !== 'true').length,
           readOnlyFieldsets: [...document.querySelectorAll('[data-workout-week="2"] fieldset[disabled]')].length,
+          readOnlyNotice: [...document.querySelectorAll('[data-workout-week="2"] [role="tabpanel"] p')]
+            .map((element) => element.textContent?.trim() ?? '')
+            .find((value) => value.includes('somente leitura.')) ?? null,
         }));
           expect(observed.scrollWidth).toBeLessThanOrEqual(observed.width + 1);
           expect(observed.missingLabels).toBe(0);
           expect(observed.text).toContain('Agachamento real #399');
           expect(observed.readOnlyFieldsets).toBeGreaterThan(0);
           expect(observed.editableFields).toBe(0);
+          expect(observed.readOnlyNotice).toBe('Treino liberado: somente leitura.');
         const screenshot = await page.screenshot({ path: path.join(outputDir, `real-api-${viewport.width}.png`), fullPage: true });
         observations.push({ viewport, observed, screenshotSha256: createHash('sha256').update(screenshot).digest('hex') });
       }
