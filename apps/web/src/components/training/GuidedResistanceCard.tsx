@@ -14,6 +14,25 @@ type Props = {
   onOverview: () => void;
 };
 
+const sectionLabels: Record<string, string> = {
+  mobilidade: 'Mobilidade',
+  aquecimento: 'Aquecimento',
+  sessao: 'Sessão',
+  principal: 'Parte principal',
+  resfriamento: 'Desaceleração',
+  finalizacao: 'Finalização',
+};
+const blockLabels: Record<string, string> = {
+  aquecimento: 'Aquecimento',
+  principal: 'Principal',
+  tecnica: 'Técnica',
+  complementar: 'Complementar',
+  finalizacao: 'Finalização',
+};
+function readableContext(key: string, labels: Record<string, string>) {
+  return labels[key] ?? key.replaceAll('_', ' ');
+}
+
 function describeRepetitions(min: number | null, max: number | null) {
   if (min === null && max === null) return 'Não informado';
   if (min !== null && max !== null && min !== max) return String(min) + ' a ' + max;
@@ -170,7 +189,7 @@ export function GuidedResistanceCard({
             <div className="space-y-4 rounded-lg border border-border bg-background p-4">
               <div className="space-y-1">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {current.section} · {current.blockKind} · Série {current.setNumber} de {current.exerciseSetTotal}
+                  {readableContext(current.section, sectionLabels)} · {readableContext(current.blockKind, blockLabels)} · Série {current.setNumber} de {current.exerciseSetTotal}
                 </p>
                 <h5 className="text-xl font-semibold text-foreground">{current.exerciseName}</h5>
               </div>

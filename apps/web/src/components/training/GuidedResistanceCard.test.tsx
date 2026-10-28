@@ -45,6 +45,7 @@ describe('issue #487 - guia resistido', () => {
     const { complete, onChanged } = panel();
     expect(await screen.findByRole('heading', { name: 'Passo a passo' })).toBeInTheDocument();
     expect(screen.getByText('Agachamento')).toBeInTheDocument();
+    expect(screen.getByText('Sessão · Principal · Série 1 de 2')).toBeInTheDocument();
     expect(screen.getByText('8 a 12')).toBeInTheDocument();
     expect(screen.getByText('47 kg')).toBeInTheDocument();
     expect(screen.getByText('Controle a descida')).toBeInTheDocument();
