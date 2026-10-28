@@ -233,7 +233,7 @@ function buildCyclicTargets(row: SessionRow): TrainingRoutineCyclicTargets | nul
 function resolveModalities(row: SessionRow, capacities: string[]): TrainingRoutineModality[] {
   const modalities: TrainingRoutineModality[] = [];
   if (row.exercises.length > 0) modalities.push('resistance');
-  if (row.cyclicStages.length > 0 || buildCyclicTargets(row)) modalities.push('cyclic');
+  if ((row.cyclicStages?.length ?? 0) > 0 || buildCyclicTargets(row)) modalities.push('cyclic');
   if (capacities.includes('flexibility')) modalities.push('flexibility');
   if (capacities.includes('balance')) modalities.push('balance');
   return modalities;
@@ -350,7 +350,7 @@ function projectCyclicStages(row: SessionRow): TrainingRoutineCyclicStage[] {
     notes: stage.notes,
     children: [],
   });
-  return row.cyclicStages.map((stage) => ({
+  return (row.cyclicStages ?? []).map((stage) => ({
     ...map(stage),
     children: stage.children.map((child) => map(child as SessionRow['cyclicStages'][number])),
   }));

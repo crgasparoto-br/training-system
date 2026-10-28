@@ -152,7 +152,7 @@ export interface SaveWorkoutWeekDTO {
   template?: Record<string, unknown>;
   workoutDays?: Array<Record<string, unknown>>;
   resistedExercises?: Record<string, Record<string, Array<Record<string, unknown>>>>;
-  cyclicStages?: Record<string, CyclicStage[]>;
+  cyclicStages?: Record<string, Array<Record<string, unknown>>>;
 }
 
 export interface CreateWorkoutDayDTO {

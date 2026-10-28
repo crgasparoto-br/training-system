@@ -83,7 +83,8 @@ function StageRow({
   stage, label, nested = false, disabled, update, changeKind, remove, up, down,
   canUp, canDown, updateChild, changeChildKind, addChild, removeChild, moveChild,
 }: RowProps) {
-  const range = stage.targetMin !== undefined || stage.targetMax !== undefined;
+  const [rangeMode, setRangeMode] = useState(stage.targetMin != null || stage.targetMax != null);
+  const range = rangeMode;
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -142,9 +143,7 @@ function StageRow({
               <>
                 <label className="block text-xs font-medium text-slate-700">Formato do alvo
                   <select value={range ? 'range' : 'single'} disabled={disabled}
-                    onChange={(event) => update(event.target.value === 'range'
-                      ? { targetValue: undefined, targetMin: undefined, targetMax: undefined }
-                      : { targetMin: undefined, targetMax: undefined, targetValue: undefined })}
+                    onChange={(event) => { setRangeMode(event.target.value === 'range'); update({ targetValue: undefined, targetMin: undefined, targetMax: undefined }); }}
                     className="mt-1 w-full rounded border px-2 py-2 text-sm">
                     <option value="single">Valor único</option>
                     <option value="range">Faixa mínima/máxima</option>
