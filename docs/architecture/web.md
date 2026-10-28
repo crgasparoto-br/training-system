@@ -60,3 +60,13 @@ O erro canônico usa `error` e `details.code`. HTTP 409 com `PRE_WORKOUT_CHECK_I
 `BodyDiscomfortMap` compoe a ilustracao, as areas clicaveis e os marcadores visiveis no mesmo SVG com `viewBox="0 0 400 600"`. Todos escalam juntos; nao posicionar marcadores por pixels de tela ou em uma camada HTML independente. As coordenadas de `bodyRegions.ts` foram calibradas para `body-front.png` e `body-back-clinical.png`; ao trocar uma ilustracao, revisar ambas as vistas em desktop e mobile.
 
 Os IDs das regioes identificam registros existentes e devem permanecer estaveis. Na vista frontal, o lado direito anatomico aparece a esquerda da imagem; na posterior, aparece a direita. A ilustracao posterior usa contornos clinicos sem vestuario para permitir a indicacao de desconforto nas nadegas.
+
+
+## Execução guiada no Treino de hoje (#487)
+
+Durante a sessão resistida ativa o aluno vê uma série estruturada por vez,
+com os valores prescritos separados das repetições e cargas realizadas.
+O avanço é determinado pelo servidor; refresh, erro de rede e conflito 409
+não produzem avanço local fictício. A sessão pausada não aceita confirmação.
+A ficha completa permanece acessível. A indisponibilidade de agrupamento
+estruturado é apresentada com orientação em vez de inventar uma rodada.

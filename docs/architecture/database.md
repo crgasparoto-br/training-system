@@ -210,3 +210,14 @@ O mesmo guard relê release, execução iniciada, histórico legado e itens exec
 antes de permitir mutações. A integração adversarial mantém uma transação de início
 com lock do dia aberta e confirma que a inserção estrutural concorrente aguarda o
 commit e então é rejeitada.
+
+
+## Marcação canônica de série concluída (#487)
+
+`WorkoutSessionExecutionItem.completedAt` distingue confirmação guiada
+de simples preenchimento de valores executados. A migration
+`20261028220000_issue_487_guided_resistance_completion` adiciona o campo,
+unicidade por `executionId/plannedSetId` e guarda de imutabilidade dos
+registros já confirmados. Os IDs planejados e o release de origem não
+são alterados. A confirmação e o avanço de versão ocorrem em transação
+serializável da #389.

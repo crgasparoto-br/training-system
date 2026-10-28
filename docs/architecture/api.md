@@ -119,3 +119,13 @@ O contrato detalhado e as fontes canônicas estão registrados em `docs/architec
 - `pnpm test`
 - `pnpm arch:check`
 - `pnpm access:check`
+
+
+## Execução resistida guiada (#487)
+
+As rotas de aluno `GET /student/me/training-sessions/:sessionId/execution/guided` e
+`POST /student/me/training-sessions/:sessionId/execution/guided/complete` usam
+a autoridade de sessão/tenant/release/versionamento de #389. O backend valida
+a próxima série estruturada da #399 antes da confirmação atômica. Agrupamentos
+sem contrato canônico de #400 permanecem indisponíveis no guia. O contrato
+e os limites estão em `docs/execution-plans/active/2026-10-issue-487-guided-resistance.md`.
