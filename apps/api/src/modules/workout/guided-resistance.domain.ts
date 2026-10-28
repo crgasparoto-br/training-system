@@ -99,7 +99,7 @@ export function deriveGuidedResistancePlan(
 
 export function matchesCurrentGuidedUnit(
   view: GuidedResistanceView,
-  item: { plannedUnitId: string; plannedSetId: string | null | undefined; setNumber: number },
+  item: { plannedUnitId: string; plannedSetId?: string | null; setNumber?: number },
 ): boolean {
   const current = view.availability === 'available' && view.status === 'in_progress' ? view.current : null;
   return Boolean(current && current.plannedUnitId === item.plannedUnitId
