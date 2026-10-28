@@ -842,6 +842,7 @@ const executionSessionValuesSchema = z.object({
 
 const executionItemSchema = z.object({
   plannedUnitId: z.string().trim().min(1),
+  plannedSetId: z.string().trim().min(1).nullable().optional(),
   setNumber: z.number().int().nonnegative().optional(),
   loadKg: z.number().nonnegative().nullable().optional(),
   repetitions: z.number().int().nonnegative().nullable().optional(),

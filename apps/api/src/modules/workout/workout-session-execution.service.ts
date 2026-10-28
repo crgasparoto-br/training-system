@@ -8,6 +8,8 @@ import type {
   TrainingSessionExecutionValuesPayload,
   TrainingSessionExecutionView,
 } from '@corrida/types';
+import { persistWorkoutSessionValues, WorkoutSessionExecutionInputError } from './workout-session-execution-values.js';
+export { WorkoutSessionExecutionInputError } from './workout-session-execution-values.js';
 import {
   assertWorkoutSessionTransition,
   TERMINAL_EXECUTION_STATUSES,
@@ -28,11 +30,6 @@ type LockedReleasedSession = {
 export class WorkoutSessionExecutionNotFoundError extends Error {
   readonly statusCode = 404;
   readonly code = 'WORKOUT_SESSION_EXECUTION_SESSION_NOT_FOUND';
-}
-
-export class WorkoutSessionExecutionInputError extends Error {
-  readonly statusCode = 400;
-  readonly code = 'WORKOUT_SESSION_EXECUTION_INVALID';
 }
 
 export class WorkoutSessionExecutionConflictError extends Error {
@@ -83,6 +80,15 @@ function normalizeItems(items: TrainingSessionExecutionItemValue[] | undefined):
   return items.map((item) => {
     const plannedUnitId = item.plannedUnitId.trim();
     if (!plannedUnitId) throw new WorkoutSessionExecutionInputError('Identificador da unidade planejada é obrigatório.');
+    const hasPlannedSetId = item.plannedSetId !== undefined;
+    const plannedSetId = item.plannedSetId === undefined
+      ? undefined
+      : item.plannedSetId === null
+        ? null
+        : item.plannedSetId.trim();
+    if (item.plannedSetId !== undefined && item.plannedSetId !== null && !plannedSetId) {
+      throw new WorkoutSessionExecutionInputError('Identificador da série planejada inválido.');
+    }
     const setNumber = item.setNumber ?? 0;
     if (!Number.isInteger(setNumber) || setNumber < 0) throw new WorkoutSessionExecutionInputError('Número da série executada inválido.');
     const key = `${plannedUnitId}:${setNumber}`;
@@ -94,6 +100,7 @@ function normalizeItems(items: TrainingSessionExecutionItemValue[] | undefined):
     };
     const normalized: TrainingSessionExecutionItemValue = {
       plannedUnitId,
+      ...(hasPlannedSetId ? { plannedSetId } : {}),
       setNumber,
       loadKg: nonNegative(item.loadKg, 'Carga executada'),
       repetitions: nonNegative(item.repetitions, 'Repetições executadas', true),
@@ -206,6 +213,7 @@ type ExecutionProjectionRow = {
   sessionValues: Prisma.JsonValue;
   items: Array<{
     plannedUnitId: string;
+    plannedSetId: string | null;
     setNumber: number;
     loadKg: number | null;
     repetitions: number | null;
@@ -238,6 +246,7 @@ export function projectWorkoutSessionExecution(
     sessionValues: (row.sessionValues ?? {}) as TrainingSessionExecutionSessionValues,
     items: row.items.map((item) => ({
       plannedUnitId: item.plannedUnitId,
+      plannedSetId: item.plannedSetId,
       setNumber: item.setNumber,
       loadKg: item.loadKg,
       repetitions: item.repetitions,
@@ -248,69 +257,6 @@ export function projectWorkoutSessionExecution(
       heartRateZone: item.heartRateZone,
     })),
   };
-}
-
-async function validatePlannedUnits(
-  tx: Prisma.TransactionClient,
-  sessionId: string,
-  items: TrainingSessionExecutionItemValue[]
-) {
-  if (!items.length) return;
-  const ids = [...new Set(items.map((item) => item.plannedUnitId))];
-  const found = await tx.workoutExercise.findMany({
-    where: { id: { in: ids }, workoutDayId: sessionId },
-    select: { id: true },
-  });
-  if (found.length !== ids.length) throw new WorkoutSessionExecutionInputError('Uma ou mais unidades executadas não pertencem ao treino planejado.');
-}
-
-async function persistValues(
-  tx: Prisma.TransactionClient,
-  executionId: string,
-  sessionId: string,
-  sessionValues: TrainingSessionExecutionSessionValues | undefined,
-  items: TrainingSessionExecutionItemValue[]
-) {
-  await validatePlannedUnits(tx, sessionId, items);
-  if (sessionValues) {
-    const existing = await tx.workoutSessionExecution.findUnique({ where: { id: executionId }, select: { sessionValues: true } });
-    await tx.workoutSessionExecution.update({
-      where: { id: executionId },
-      data: {
-        sessionValues: {
-          ...((existing?.sessionValues ?? {}) as Record<string, unknown>),
-          ...sessionValues,
-        } as Prisma.InputJsonValue,
-      },
-    });
-  }
-  for (const item of items) {
-    const setNumber = item.setNumber ?? 0;
-    await tx.workoutSessionExecutionItem.upsert({
-      where: { executionId_plannedUnitId_setNumber: { executionId, plannedUnitId: item.plannedUnitId, setNumber } },
-      create: {
-        executionId,
-        plannedUnitId: item.plannedUnitId,
-        setNumber,
-        loadKg: item.loadKg,
-        repetitions: item.repetitions,
-        durationSec: item.durationSec,
-        distanceKm: item.distanceKm,
-        pace: item.pace,
-        heartRateBpm: item.heartRateBpm,
-        heartRateZone: item.heartRateZone,
-      },
-      update: {
-        loadKg: item.loadKg,
-        repetitions: item.repetitions,
-        durationSec: item.durationSec,
-        distanceKm: item.distanceKm,
-        pace: item.pace,
-        heartRateBpm: item.heartRateBpm,
-        heartRateZone: item.heartRateZone,
-      },
-    });
-  }
 }
 
 function ensureOperationKey(value: string) {
@@ -418,7 +364,7 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
         });
       }
 
-      await persistValues(tx, execution.id, input.sessionId, sessionValues, items);
+      const mergedSessionValues = await persistWorkoutSessionValues(tx, execution.id, input.sessionId, sessionValues, items);
 
       let nextStatus = currentStatus;
       let startedAt = execution.startedAt;
@@ -448,6 +394,21 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
       }
 
       const nextVersion = currentVersion + 1;
+      // Insert the intent ledger while the execution is still non-terminal.
+      // The operation, state transition and lifecycle link remain atomic, but
+      // the database can now reject every direct INSERT into terminal history.
+      const operation = await tx.workoutSessionExecutionOperation.create({
+        data: {
+          executionId: execution.id,
+          operationKey,
+          payloadFingerprint,
+          action,
+          targetStatus: input.targetStatus,
+          expectedVersion: currentVersion,
+          resultingVersion: nextVersion,
+        },
+      });
+
       await tx.workoutSessionExecution.update({
         where: { id: execution.id },
         data: {
@@ -458,6 +419,7 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
           currentPauseStartedAt,
           pausedDurationMs,
           interruptionReason,
+          ...(mergedSessionValues !== undefined ? { sessionValues: mergedSessionValues } : {}),
         },
       });
 
@@ -467,18 +429,6 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
           status: legacyProjection(nextStatus),
           ...(startedAt ? { startedAt } : {}),
           ...(finishedAt ? { finishedAt } : {}),
-        },
-      });
-
-      const operation = await tx.workoutSessionExecutionOperation.create({
-        data: {
-          executionId: execution.id,
-          operationKey,
-          payloadFingerprint,
-          action,
-          targetStatus: input.targetStatus,
-          expectedVersion: currentVersion,
-          resultingVersion: nextVersion,
         },
       });
 

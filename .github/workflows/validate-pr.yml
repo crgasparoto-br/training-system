@@ -218,6 +218,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @corrida/api exec prisma generate
+      - name: Prisma source-of-truth check
+        run: pnpm prisma:source-check
       - name: Type check
         run: pnpm type-check
       - name: Lint
@@ -290,6 +292,8 @@ jobs:
         run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
       - name: Generate Prisma Client
         run: pnpm --filter @corrida/api exec prisma generate
+      - name: Prisma source-of-truth check
+        run: pnpm prisma:source-check
       - name: Verify critical database and migration regressions
         shell: bash
         run: |
@@ -301,6 +305,14 @@ jobs:
           bash scripts/verify-adipometry-audit-remediation.sh
           bash scripts/verify-adipometry-persistence-boundaries.sh
           bash scripts/verify-student-lifecycle-legacy-backfill.sh
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            postgres:16-alpine \
+            psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c 'DROP DATABASE IF EXISTS training_system_issue399_existing_data' \
+            -c 'CREATE DATABASE training_system_issue399_existing_data'
+          DATABASE_URL='postgresql://postgres:postgres@localhost:5432/training_system_issue399_existing_data?schema=public&connection_limit=1&pool_timeout=30' \
+            bash scripts/verify-issue-399-existing-data.sh
           docker run --rm --network host \
             -v "$GITHUB_WORKSPACE:/workspace" \
             -e PGPASSWORD=postgres \
@@ -326,6 +338,21 @@ jobs:
           mkdir -p artifacts/ci
           # Keep diagnostic output even on failure; pipefail preserves the test gate.
           pnpm test 2>&1 | tee artifacts/ci/full-tests.log
+      - name: Issue #399 full-page browser evidence
+        env:
+          ISSUE_399_BROWSER_EVIDENCE: '1'
+          VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: pnpm --filter @corrida/web exec vitest run --no-file-parallelism src/pages/WorkoutBuilder2/issue-399-full-page-browser-evidence.test.js
+      - name: Issue #399 real API browser evidence
+        env:
+          ISSUE_399_REAL_API_BROWSER_EVIDENCE: '1'
+          ISSUE_399_REAL_API_PORT: '19193'
+          ISSUE_399_REAL_JWT_SECRET: 'issue399-ci-secret'
+          VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
+          pnpm --filter @corrida/web exec vitest run --no-file-parallelism src/pages/WorkoutBuilder2/issue-399-real-api-browser-evidence.test.js
       - name: Build
         run: pnpm build
       - name: Validate settings parameters in real browser
@@ -338,6 +365,39 @@ jobs:
         run: pnpm access:check
       - name: Documentation checks
         run: pnpm docs:check
+      - name: Retain issue-399 exact-head evidence
+        if: always()
+        env:
+          AUDIT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          AUDIT_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+        run: |
+          mkdir -p artifacts/issue-399
+          printf '{"schemaVersion":1,"kind":"issue-399-ci-evidence","repository":"%s","runId":"%s","headSha":"%s","checkoutSha":"%s","baseSha":"%s"}\n' \
+            "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$AUDIT_HEAD_SHA" "$(git rev-parse HEAD)" "$AUDIT_BASE_SHA" \
+            > artifacts/issue-399/ci-head.json
+      - name: Retain exact Git bundle for independent audit
+        if: always() && github.event_name == 'pull_request'
+        env:
+          AUDIT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          AUDIT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          AUDIT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/audit-git-bundle
+          git update-ref refs/ci-verification/base "$AUDIT_BASE_SHA"
+          git update-ref refs/ci-verification/head "$AUDIT_HEAD_SHA"
+          git bundle create artifacts/audit-git-bundle/repository.bundle             refs/ci-verification/base refs/ci-verification/head
+          printf '{"schemaVersion":1,"repository":"%s","baseRef":"%s","baseSha":"%s","headSha":"%s","runId":"%s"}\n'             "$GITHUB_REPOSITORY" "$AUDIT_BASE_REF" "$AUDIT_BASE_SHA" "$AUDIT_HEAD_SHA" "$GITHUB_RUN_ID"             > artifacts/audit-git-bundle/manifest.json
+      - name: Upload exact Git bundle for independent audit
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-git-bundle-${{ github.event.pull_request.head.sha }}
+          path: |
+            artifacts/audit-git-bundle/manifest.json
+            artifacts/audit-git-bundle/repository.bundle
+          if-no-files-found: error
+          retention-days: 30
       - if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -349,6 +409,7 @@ jobs:
             artifacts/ci/training-next-session.sql
             artifacts/issue-388/**
             artifacts/issue-391/**
+            artifacts/issue-399/**
           if-no-files-found: error
           retention-days: 30
 

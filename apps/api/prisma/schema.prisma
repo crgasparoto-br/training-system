@@ -1990,10 +1990,46 @@ model WorkoutExercise {
   executions    WorkoutExecution[]
   exercise      ExerciseLibrary    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
   workoutDay    WorkoutDay         @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  resistanceBlocks WorkoutExerciseBlock[]
   executionItems WorkoutSessionExecutionItem[]
 
   @@index([workoutDayId])
   @@index([workoutDayId, section, exerciseOrder])
+}
+
+
+model WorkoutExerciseBlock {
+  id                String                      @id @default(cuid())
+  workoutExerciseId String
+  position          Int
+  kind              String
+  notes             String?
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  workoutExercise   WorkoutExercise             @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+  plannedSets       WorkoutExercisePlannedSet[]
+
+  @@unique([workoutExerciseId, position])
+}
+
+model WorkoutExercisePlannedSet {
+  id              String                        @id @default(cuid())
+  blockId         String
+  position        Int
+  repsMin         Int?
+  repsMax         Int?
+  loadKg          Float?
+  loadPercent     Float?
+  rir             Float?
+  rpe             Float?
+  tempo           String?
+  restSec         Int?
+  notes           String?
+  createdAt       DateTime                      @default(now())
+  updatedAt       DateTime                      @updatedAt
+  block           WorkoutExerciseBlock          @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  executionItems  WorkoutSessionExecutionItem[]
+  @@unique([blockId, position])
 }
 
 model WorkoutExecution {
@@ -2088,6 +2124,7 @@ model WorkoutSessionExecutionItem {
   id             String                  @id @default(cuid())
   executionId    String
   plannedUnitId  String
+  plannedSetId   String?
   setNumber      Int                     @default(0)
   loadKg         Float?
   repetitions    Int?
@@ -2100,9 +2137,11 @@ model WorkoutSessionExecutionItem {
   updatedAt      DateTime                @updatedAt
   execution      WorkoutSessionExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
   plannedUnit    WorkoutExercise          @relation(fields: [plannedUnitId], references: [id], onDelete: Restrict)
+  plannedSet     WorkoutExercisePlannedSet? @relation(fields: [plannedSetId], references: [id], onDelete: Restrict)
 
   @@unique([executionId, plannedUnitId, setNumber])
   @@index([plannedUnitId])
+  @@index([plannedSetId])
 }
 
 

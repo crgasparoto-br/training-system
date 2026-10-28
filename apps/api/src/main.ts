@@ -45,6 +45,7 @@ import {
 } from './modules/pre-registration-invites/index.js';
 import { startStudentContractLifecycleScheduler } from './modules/student-contracts/student-contract-lifecycle.scheduler.js';
 import libraryRoutes from './routes/library.routes.js';
+import executionsRoutes from './routes/executions.routes.js';
 import studentRoutes from './routes/student.routes.js';
 import workoutRoutes from './routes/workout.routes.js';
 import { getUploadStorageRoot } from './common/asset-storage.js';
@@ -168,6 +169,7 @@ app.get('/api/v1', (_req, res) => {
       services: '/api/v1/services',
       student: '/api/v1/student',
       workout: '/api/v1/workout',
+      executions: '/api/v1/executions',
       preRegistrationAdmin: '/api/v1/pre-registration-admin/leads',
       preRegistrationEnrollmentReview: '/api/v1/pre-registration-admin/leads/:id/enrollment-review',
       preRegistrationInvites: '/api/v1/alunos/:alunoId/pre-registration-invites',
@@ -219,6 +221,7 @@ app.use('/api/v1/professores', professorRoutes);
 app.use('/api/v1/services', serviceRoutes);
 app.use('/api/v1/student', studentRoutes);
 app.use('/api/v1/workout', workoutRoutes);
+app.use('/api/v1/executions', executionsRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'Route not found' });
@@ -236,8 +239,11 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`
+export { app };
+
+if (process.env.API_DISABLE_LISTEN !== '1') {
+  app.listen(PORT, () => {
+    console.log(`
 Sistema Acesso Saude e Performance API
 Servidor iniciado com sucesso
 URL: http://localhost:${PORT}
@@ -245,8 +251,11 @@ Health: http://localhost:${PORT}/health
 API: http://localhost:${PORT}/api/v1
 Auth: http://localhost:${PORT}/api/v1/auth
 Environment: ${NODE_ENV}
-  `);
-});
+    `);
+  });
+}
 
-startProfileReviewScheduler();
-startStudentContractLifecycleScheduler();
+if (process.env.API_DISABLE_LISTEN !== '1') {
+  startProfileReviewScheduler();
+  startStudentContractLifecycleScheduler();
+}

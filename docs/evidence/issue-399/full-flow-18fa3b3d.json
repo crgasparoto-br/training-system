@@ -1,0 +1,2713 @@
+{
+  "subjectSha": "18fa3b3d9b54a6549505494fe045f6f116466fd9",
+  "planId": "cmviho5hq000c6mbzfdcc7pea",
+  "steps": [
+    {
+      "action": "open-login",
+      "url": "https://5200-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/login"
+    },
+    {
+      "action": "login",
+      "passed": true,
+      "url": "https://5200-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/inicio"
+    },
+    {
+      "action": "open-builder-and-legacy",
+      "passed": true,
+      "url": "https://5200-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/plans/cmviho5hq000c6mbzfdcc7pea/workout-builder/1/1"
+    },
+    {
+      "action": "create-edit-save-structured-set",
+      "passed": true,
+      "sourceExerciseId": "cmviho5i6000o6mbz2vlw9y3l",
+      "blockId": "cmvihomb600piwjijnmktn406",
+      "plannedSetId": "cmvihomb600pjwjij4jrf1cet"
+    },
+    {
+      "action": "close-reopen-read",
+      "passed": true,
+      "values": [
+        {
+          "aria": "Rep. mín., série 1 de Agachamento QA 399",
+          "value": "8"
+        },
+        {
+          "aria": "Rep. máx., série 1 de Agachamento QA 399",
+          "value": "12"
+        },
+        {
+          "aria": "Carga (kg), série 1 de Agachamento QA 399",
+          "value": "32.5"
+        },
+        {
+          "aria": "Carga (%), série 1 de Agachamento QA 399",
+          "value": ""
+        },
+        {
+          "aria": "RIR, série 1 de Agachamento QA 399",
+          "value": "2"
+        },
+        {
+          "aria": "RPE, série 1 de Agachamento QA 399",
+          "value": ""
+        },
+        {
+          "aria": "Descanso (s), série 1 de Agachamento QA 399",
+          "value": ""
+        },
+        {
+          "aria": "Tempo da série 1 de Agachamento QA 399",
+          "value": "3-1-1-0"
+        }
+      ]
+    },
+    {
+      "action": "dialog",
+      "type": "prompt",
+      "message": "Copiar a semana 1 para qual semana do mesociclo 1? (1-4)"
+    },
+    {
+      "action": "dialog",
+      "type": "confirm",
+      "message": "Isso irá substituir os dados da semana 2. Deseja continuar?"
+    },
+    {
+      "action": "dialog",
+      "type": "alert",
+      "message": "Semana copiada com sucesso!"
+    },
+    {
+      "action": "copy-week-1-to-week-2",
+      "passed": true,
+      "sourceExerciseId": "cmviho5i6000o6mbz2vlw9y3l",
+      "targetExerciseId": "cmvihov3b00r6wjijnwtrjp2o",
+      "targetWeekStartDate": "2026-10-26T12:00:00.000Z",
+      "targetWorkoutDate": "2026-10-26T12:00:00.000Z"
+    },
+    {
+      "action": "dialog",
+      "type": "alert",
+      "message": "Treino liberado com sucesso! O aluno ja pode visualiza-lo."
+    },
+    {
+      "action": "release-and-reopen",
+      "passed": true,
+      "released": true,
+      "releasedAt": "2026-10-21T19:12:52.880Z",
+      "releasedUi": null
+    }
+  ],
+  "apiResponses": [
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/auth/login"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/auth/login"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/auth/me"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/auth/me"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/plans/cmviho5hq000c6mbzfdcc7pea"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=montagem"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=metodo"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=objetivo"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=carga_microciclo"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/auth/me"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=objetivo"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=carga_microciclo"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=montagem"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/plans/cmviho5hq000c6mbzfdcc7pea"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=metodo"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/alunos/cmviho5hj000a6mbz7kx3hld2"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/alunos/cmviho5hj000a6mbz7kx3hld2"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/alunos/cmviho5hj000a6mbz7kx3hld2/assessments"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/alunos/cmviho5hj000a6mbz7kx3hld2/assessments"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/matrix/cmviho5hq000c6mbzfdcc7pea"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/matrix/cmviho5hq000c6mbzfdcc7pea"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/resisted/cmviho5hs000e6mbzo6cuxz0e"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/resisted/cmviho5hs000e6mbzo6cuxz0e"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmvihofr400m4wjijykpvzzsb"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmvihofrg00m8wjijehaitwpa"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmviho5hz000k6mbz3gdqms4v"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmvihofr800m6wjijnr7lz2p6"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmviho5hz000k6mbz3gdqms4v"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmvihofrg00m8wjijehaitwpa"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmvihofr400m4wjijykpvzzsb"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmvihofr800m6wjijnr7lz2p6"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmviho5i2000m6mbz18qzdhbr"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohjc00mgwjijht436uod/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohjl00miwjijoimd2v2d/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohjx00mmwjij9xz3c1jk/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmviho5i2000m6mbz18qzdhbr"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohjc00mgwjijht436uod/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohjl00miwjijoimd2v2d/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmviho5i2000m6mbz18qzdhbr/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohjx00mmwjij9xz3c1jk/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohm100mtwjijid1cupkh/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohmb00mvwjijmpwad0ld/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmviho5i2000m6mbz18qzdhbr/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohn300mzwjij2svx82e1/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohm100mtwjijid1cupkh/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohmb00mvwjijmpwad0ld/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohoc00n4wjijfnr99juu/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohn300mzwjij2svx82e1/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohp100n8wjij9v12fii6/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohpd00nbwjijx1w5mude/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohoc00n4wjijfnr99juu/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohq000nfwjijgafcq3sv/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohp100n8wjij9v12fii6/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohpd00nbwjijx1w5mude/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohr200nkwjijo6m1uquk/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohq000nfwjijgafcq3sv/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohrp00nowjijotc0oz2t/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohs200nswjijj0p20kfy/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohr200nkwjijo6m1uquk/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohrp00nowjijotc0oz2t/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohsp00nwwjij7oj7tvi8/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohs200nswjijj0p20kfy/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohto00o0wjijuaw70luf/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohsp00nwwjij7oj7tvi8/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohua00o4wjijbypgo23k/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohum00o7wjijcuxrfdqb/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohto00o0wjijuaw70luf/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohvl00obwjij1zmbjawz/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohua00o4wjijbypgo23k/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohum00o7wjijcuxrfdqb/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohwo00ogwjijva6tww8t/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohvl00obwjij1zmbjawz/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohxb00okwjijd5eubu2m/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohxo00onwjij7kx9bixz/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohwo00ogwjijva6tww8t/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohyb00orwjijem78oquh/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohxb00okwjijd5eubu2m/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohxo00onwjij7kx9bixz/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohzf00oxwjijrplglg9c/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohyb00orwjijem78oquh/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi0000p0wjijfbavvih5/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi0d00p3wjijv66xsbar/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohzf00oxwjijrplglg9c/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi0z00p7wjijyozwcc2q/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi0000p0wjijfbavvih5/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi0d00p3wjijv66xsbar/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi2200pcwjij7b8lwqfm/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi0z00p7wjijyozwcc2q/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi2200pcwjij7b8lwqfm/resistance-exercises"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=metodo"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=metodo"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=metodo"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=metodo"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmviho5hz000k6mbz3gdqms4v"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmviho5hz000k6mbz3gdqms4v"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmviho5i2000m6mbz18qzdhbr"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmviho5i2000m6mbz18qzdhbr"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmviho5i2000m6mbz18qzdhbr/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmviho5i2000m6mbz18qzdhbr/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohoc00n4wjijfnr99juu/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohoc00n4wjijfnr99juu/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohr200nkwjijo6m1uquk/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohr200nkwjijo6m1uquk/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohto00o0wjijuaw70luf/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohto00o0wjijuaw70luf/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohwo00ogwjijva6tww8t/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohwo00ogwjijva6tww8t/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohzf00oxwjijrplglg9c/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohzf00oxwjijrplglg9c/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi2200pcwjij7b8lwqfm/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi2200pcwjij7b8lwqfm/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/auth/me"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/auth/me"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/plans/cmviho5hq000c6mbzfdcc7pea"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=carga_microciclo"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=montagem"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=objetivo"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=metodo"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/auth/me"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=carga_microciclo"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=montagem"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=objetivo"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/plans/cmviho5hq000c6mbzfdcc7pea"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=metodo"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/alunos/cmviho5hj000a6mbz7kx3hld2"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/alunos/cmviho5hj000a6mbz7kx3hld2"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/alunos/cmviho5hj000a6mbz7kx3hld2/assessments"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/alunos/cmviho5hj000a6mbz7kx3hld2/assessments"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/matrix/cmviho5hq000c6mbzfdcc7pea"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/matrix/cmviho5hq000c6mbzfdcc7pea"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/resisted/cmviho5hs000e6mbzo6cuxz0e"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/resisted/cmviho5hs000e6mbzo6cuxz0e"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmviho5hz000k6mbz3gdqms4v"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmvihofr400m4wjijykpvzzsb"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmvihofrg00m8wjijehaitwpa"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmvihofr800m6wjijnr7lz2p6"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmviho5hz000k6mbz3gdqms4v"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmvihofrg00m8wjijehaitwpa"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmvihofr400m4wjijykpvzzsb"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmvihofr800m6wjijnr7lz2p6"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohjl00miwjijoimd2v2d/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmviho5i2000m6mbz18qzdhbr"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohjc00mgwjijht436uod/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohjx00mmwjij9xz3c1jk/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmviho5i2000m6mbz18qzdhbr"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohjl00miwjijoimd2v2d/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohjc00mgwjijht436uod/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohjx00mmwjij9xz3c1jk/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmviho5i2000m6mbz18qzdhbr/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohmb00mvwjijmpwad0ld/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohm100mtwjijid1cupkh/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohn300mzwjij2svx82e1/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmviho5i2000m6mbz18qzdhbr/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohmb00mvwjijmpwad0ld/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohm100mtwjijid1cupkh/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohn300mzwjij2svx82e1/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohoc00n4wjijfnr99juu/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohpd00nbwjijx1w5mude/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohp100n8wjij9v12fii6/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohq000nfwjijgafcq3sv/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohoc00n4wjijfnr99juu/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohpd00nbwjijx1w5mude/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohp100n8wjij9v12fii6/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohq000nfwjijgafcq3sv/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohr200nkwjijo6m1uquk/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohs200nswjijj0p20kfy/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohrp00nowjijotc0oz2t/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohsp00nwwjij7oj7tvi8/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohr200nkwjijo6m1uquk/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohrp00nowjijotc0oz2t/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohs200nswjijj0p20kfy/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohsp00nwwjij7oj7tvi8/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohto00o0wjijuaw70luf/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohua00o4wjijbypgo23k/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohum00o7wjijcuxrfdqb/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohvl00obwjij1zmbjawz/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohto00o0wjijuaw70luf/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohua00o4wjijbypgo23k/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohum00o7wjijcuxrfdqb/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohvl00obwjij1zmbjawz/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohwo00ogwjijva6tww8t/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohxb00okwjijd5eubu2m/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohxo00onwjij7kx9bixz/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohyb00orwjijem78oquh/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohxb00okwjijd5eubu2m/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohwo00ogwjijva6tww8t/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohxo00onwjij7kx9bixz/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohyb00orwjijem78oquh/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi0000p0wjijfbavvih5/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohzf00oxwjijrplglg9c/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi0d00p3wjijv66xsbar/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi0z00p7wjijyozwcc2q/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi0000p0wjijfbavvih5/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohzf00oxwjijrplglg9c/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi0d00p3wjijv66xsbar/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi0z00p7wjijyozwcc2q/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi2200pcwjij7b8lwqfm/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi2200pcwjij7b8lwqfm/resistance-exercises"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=metodo"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=metodo"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=metodo"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=metodo"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/auth/me"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmviho5hz000k6mbz3gdqms4v"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/auth/me"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmviho5hz000k6mbz3gdqms4v/copy"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/auth/me"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/auth/me"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmviho5hz000k6mbz3gdqms4v/copy"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/auth/me"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmviho5hz000k6mbz3gdqms4v/release"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmviho5hz000k6mbz3gdqms4v/release"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/auth/me"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/auth/me"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=metodo"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=montagem"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=objetivo"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=carga_microciclo"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/plans/cmviho5hq000c6mbzfdcc7pea"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/auth/me"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=metodo"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=montagem"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=objetivo"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=carga_microciclo"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/plans/cmviho5hq000c6mbzfdcc7pea"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/alunos/cmviho5hj000a6mbz7kx3hld2"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/alunos/cmviho5hj000a6mbz7kx3hld2"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/alunos/cmviho5hj000a6mbz7kx3hld2/assessments"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/alunos/cmviho5hj000a6mbz7kx3hld2/assessments"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/matrix/cmviho5hq000c6mbzfdcc7pea"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/matrix/cmviho5hq000c6mbzfdcc7pea"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/resisted/cmviho5hs000e6mbzo6cuxz0e"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/resisted/cmviho5hs000e6mbzo6cuxz0e"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmvihov2x00qqwjijcn2bpsk2"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmvihofrg00m8wjijehaitwpa"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmvihofr800m6wjijnr7lz2p6"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmvihov2x00qqwjijcn2bpsk2"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmvihofr800m6wjijnr7lz2p6"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/templates/cmvihofrg00m8wjijehaitwpa"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3900r4wjijj85v3rmi"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohjx00mmwjij9xz3c1jk/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohjl00miwjijoimd2v2d/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3900r4wjijj85v3rmi"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohjx00mmwjij9xz3c1jk/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohjl00miwjijoimd2v2d/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov2z00qswjijalttbqli"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohn300mzwjij2svx82e1/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohmb00mvwjijmpwad0ld/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov2z00qswjijalttbqli"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohn300mzwjij2svx82e1/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohmb00mvwjijmpwad0ld/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3100quwjijskjlhkpl"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohq000nfwjijgafcq3sv/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohpd00nbwjijx1w5mude/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3100quwjijskjlhkpl"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohq000nfwjijgafcq3sv/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3200qwwjijvibyw5sq"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohpd00nbwjijx1w5mude/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohsp00nwwjij7oj7tvi8/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3200qwwjijvibyw5sq"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohs200nswjijj0p20kfy/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohsp00nwwjij7oj7tvi8/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3400qywjijvhwg6jnm"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohs200nswjijj0p20kfy/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3400qywjijvhwg6jnm"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohvl00obwjij1zmbjawz/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohum00o7wjijcuxrfdqb/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3600r0wjijpor0yrqk"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohvl00obwjij1zmbjawz/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohum00o7wjijcuxrfdqb/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3600r0wjijpor0yrqk"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohyb00orwjijem78oquh/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohxo00onwjij7kx9bixz/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3700r2wjijmhvbjsr2"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohyb00orwjijem78oquh/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3700r2wjijmhvbjsr2"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihohxo00onwjij7kx9bixz/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi0z00p7wjijyozwcc2q/resistance-exercises"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3900r4wjijj85v3rmi/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi0d00p3wjijv66xsbar/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi0z00p7wjijyozwcc2q/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3900r4wjijj85v3rmi/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihoi0d00p3wjijv66xsbar/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov2z00qswjijalttbqli/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov2z00qswjijalttbqli/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3100quwjijskjlhkpl/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3100quwjijskjlhkpl/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3200qwwjijvibyw5sq/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3200qwwjijvibyw5sq/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3400qywjijvhwg6jnm/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3400qywjijvhwg6jnm/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3600r0wjijpor0yrqk/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3600r0wjijpor0yrqk/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "POST",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/get-or-create"
+    },
+    {
+      "status": 204,
+      "method": "OPTIONS",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3700r2wjijmhvbjsr2/resistance-exercises"
+    },
+    {
+      "status": 200,
+      "method": "PUT",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/workout/days/cmvihov3700r2wjijmhvbjsr2/resistance-exercises"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=metodo"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=metodo"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=metodo"
+    },
+    {
+      "status": 304,
+      "method": "GET",
+      "url": "https://3000-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/api/v1/periodization/parameters?category=metodo"
+    }
+  ],
+  "screenshots": [
+    {
+      "name": "full-flow-1440-saved",
+      "width": 1440,
+      "height": 900,
+      "file": "/tmp/audit-399/full-flow-1440-saved.png",
+      "sha256": "15c61b4a05b7bcb850b1ab851aad189636e0508ee729b9453ff8cb278c543c79"
+    },
+    {
+      "name": "full-flow-1440-copied",
+      "width": 1440,
+      "height": 900,
+      "file": "/tmp/audit-399/full-flow-1440-copied.png",
+      "sha256": "a2b2085d6fea8c0da628475488e633235cf52f3d9a404e70c851b300470f12cf"
+    },
+    {
+      "name": "full-flow-768-released",
+      "width": 768,
+      "height": 1024,
+      "file": "/tmp/audit-399/full-flow-768-released.png",
+      "sha256": "959494402b6518eff2e01e9fa5e845ed57d2c3465bcb1a45f0b05cd20152b0e7"
+    },
+    {
+      "name": "full-flow-390-released",
+      "width": 390,
+      "height": 844,
+      "file": "/tmp/audit-399/full-flow-390-released.png",
+      "sha256": "07120c9cbfe4f68126b6a2fbf1ffcf5f438707e80d6a7a1d8e9a74e01ce805ce"
+    }
+  ],
+  "browserErrors": [],
+  "dbAfterStructured": [
+    {
+      "id": "cmviho5hz000k6mbz3gdqms4v",
+      "weekNumber": 1,
+      "weekStartDate": "2026-10-19T12:00:00.000Z",
+      "released": false,
+      "releasedAt": null,
+      "days": [
+        {
+          "id": "cmviho5i2000m6mbz18qzdhbr",
+          "dayOfWeek": 1,
+          "workoutDate": "2026-10-19T12:00:00.000Z",
+          "exercises": [
+            {
+              "id": "cmviho5i6000o6mbz2vlw9y3l",
+              "exerciseId": "cmviho5hx000i6mbzn8r40nvn",
+              "section": "sessao",
+              "sets": 3,
+              "reps": 10,
+              "load": 30.5,
+              "blocks": [
+                {
+                  "id": "cmvihomb600piwjijnmktn406",
+                  "position": 1,
+                  "kind": "principal",
+                  "plannedSets": [
+                    {
+                      "id": "cmvihomb600pjwjij4jrf1cet",
+                      "position": 1,
+                      "repsMin": 8,
+                      "repsMax": 12,
+                      "loadKg": 32.5,
+                      "loadPercent": null,
+                      "rir": 2,
+                      "rpe": null,
+                      "tempo": "3-1-1-0",
+                      "restSec": null,
+                      "notes": null
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cmvihohoc00n4wjijfnr99juu",
+          "dayOfWeek": 2,
+          "workoutDate": "2026-10-20T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihohr200nkwjijo6m1uquk",
+          "dayOfWeek": 3,
+          "workoutDate": "2026-10-21T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihohto00o0wjijuaw70luf",
+          "dayOfWeek": 4,
+          "workoutDate": "2026-10-22T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihohwo00ogwjijva6tww8t",
+          "dayOfWeek": 5,
+          "workoutDate": "2026-10-23T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihohzf00oxwjijrplglg9c",
+          "dayOfWeek": 6,
+          "workoutDate": "2026-10-24T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihoi2200pcwjij7b8lwqfm",
+          "dayOfWeek": 7,
+          "workoutDate": "2026-10-25T12:00:00.000Z",
+          "exercises": []
+        }
+      ]
+    },
+    {
+      "id": "cmvihofr400m4wjijykpvzzsb",
+      "weekNumber": 2,
+      "weekStartDate": "2026-10-26T12:00:00.000Z",
+      "released": false,
+      "releasedAt": null,
+      "days": [
+        {
+          "id": "cmvihohjc00mgwjijht436uod",
+          "dayOfWeek": 1,
+          "workoutDate": "2026-10-26T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihohm100mtwjijid1cupkh",
+          "dayOfWeek": 2,
+          "workoutDate": "2026-10-27T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihohp100n8wjij9v12fii6",
+          "dayOfWeek": 3,
+          "workoutDate": "2026-10-28T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihohrp00nowjijotc0oz2t",
+          "dayOfWeek": 4,
+          "workoutDate": "2026-10-29T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihohua00o4wjijbypgo23k",
+          "dayOfWeek": 5,
+          "workoutDate": "2026-10-30T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihohxb00okwjijd5eubu2m",
+          "dayOfWeek": 6,
+          "workoutDate": "2026-10-31T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihoi0000p0wjijfbavvih5",
+          "dayOfWeek": 7,
+          "workoutDate": "2026-11-01T12:00:00.000Z",
+          "exercises": []
+        }
+      ]
+    }
+  ],
+  "dbAfterCopy": [
+    {
+      "id": "cmviho5hz000k6mbz3gdqms4v",
+      "weekNumber": 1,
+      "weekStartDate": "2026-10-19T12:00:00.000Z",
+      "released": false,
+      "releasedAt": null,
+      "days": [
+        {
+          "id": "cmviho5i2000m6mbz18qzdhbr",
+          "dayOfWeek": 1,
+          "workoutDate": "2026-10-19T12:00:00.000Z",
+          "exercises": [
+            {
+              "id": "cmviho5i6000o6mbz2vlw9y3l",
+              "exerciseId": "cmviho5hx000i6mbzn8r40nvn",
+              "section": "sessao",
+              "sets": 3,
+              "reps": 10,
+              "load": 30.5,
+              "blocks": [
+                {
+                  "id": "cmvihomb600piwjijnmktn406",
+                  "position": 1,
+                  "kind": "principal",
+                  "plannedSets": [
+                    {
+                      "id": "cmvihomb600pjwjij4jrf1cet",
+                      "position": 1,
+                      "repsMin": 8,
+                      "repsMax": 12,
+                      "loadKg": 32.5,
+                      "loadPercent": null,
+                      "rir": 2,
+                      "rpe": null,
+                      "tempo": "3-1-1-0",
+                      "restSec": null,
+                      "notes": null
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cmvihohoc00n4wjijfnr99juu",
+          "dayOfWeek": 2,
+          "workoutDate": "2026-10-20T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihohr200nkwjijo6m1uquk",
+          "dayOfWeek": 3,
+          "workoutDate": "2026-10-21T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihohto00o0wjijuaw70luf",
+          "dayOfWeek": 4,
+          "workoutDate": "2026-10-22T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihohwo00ogwjijva6tww8t",
+          "dayOfWeek": 5,
+          "workoutDate": "2026-10-23T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihohzf00oxwjijrplglg9c",
+          "dayOfWeek": 6,
+          "workoutDate": "2026-10-24T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihoi2200pcwjij7b8lwqfm",
+          "dayOfWeek": 7,
+          "workoutDate": "2026-10-25T12:00:00.000Z",
+          "exercises": []
+        }
+      ]
+    },
+    {
+      "id": "cmvihov2x00qqwjijcn2bpsk2",
+      "weekNumber": 2,
+      "weekStartDate": "2026-10-26T12:00:00.000Z",
+      "released": false,
+      "releasedAt": null,
+      "days": [
+        {
+          "id": "cmvihov3900r4wjijj85v3rmi",
+          "dayOfWeek": 1,
+          "workoutDate": "2026-10-26T12:00:00.000Z",
+          "exercises": [
+            {
+              "id": "cmvihov3b00r6wjijnwtrjp2o",
+              "exerciseId": "cmviho5hx000i6mbzn8r40nvn",
+              "section": "sessao",
+              "sets": 3,
+              "reps": 10,
+              "load": 30.5,
+              "blocks": [
+                {
+                  "id": "cmvihov3b00r7wjij0s5377jz",
+                  "position": 1,
+                  "kind": "principal",
+                  "plannedSets": [
+                    {
+                      "id": "cmvihov3b00r8wjijrxg5s0lu",
+                      "position": 1,
+                      "repsMin": 8,
+                      "repsMax": 12,
+                      "loadKg": 32.5,
+                      "loadPercent": null,
+                      "rir": 2,
+                      "rpe": null,
+                      "tempo": "3-1-1-0",
+                      "restSec": null,
+                      "notes": null
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cmvihov2z00qswjijalttbqli",
+          "dayOfWeek": 2,
+          "workoutDate": "2026-10-27T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihov3100quwjijskjlhkpl",
+          "dayOfWeek": 3,
+          "workoutDate": "2026-10-28T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihov3200qwwjijvibyw5sq",
+          "dayOfWeek": 4,
+          "workoutDate": "2026-10-29T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihov3400qywjijvhwg6jnm",
+          "dayOfWeek": 5,
+          "workoutDate": "2026-10-30T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihov3600r0wjijpor0yrqk",
+          "dayOfWeek": 6,
+          "workoutDate": "2026-10-31T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihov3700r2wjijmhvbjsr2",
+          "dayOfWeek": 7,
+          "workoutDate": "2026-11-01T12:00:00.000Z",
+          "exercises": []
+        }
+      ]
+    }
+  ],
+  "dbAfterRelease": [
+    {
+      "id": "cmviho5hz000k6mbz3gdqms4v",
+      "weekNumber": 1,
+      "weekStartDate": "2026-10-19T12:00:00.000Z",
+      "released": true,
+      "releasedAt": "2026-10-21T19:12:52.880Z",
+      "days": [
+        {
+          "id": "cmviho5i2000m6mbz18qzdhbr",
+          "dayOfWeek": 1,
+          "workoutDate": "2026-10-19T12:00:00.000Z",
+          "exercises": [
+            {
+              "id": "cmviho5i6000o6mbz2vlw9y3l",
+              "exerciseId": "cmviho5hx000i6mbzn8r40nvn",
+              "section": "sessao",
+              "sets": 3,
+              "reps": 10,
+              "load": 30.5,
+              "blocks": [
+                {
+                  "id": "cmvihomb600piwjijnmktn406",
+                  "position": 1,
+                  "kind": "principal",
+                  "plannedSets": [
+                    {
+                      "id": "cmvihomb600pjwjij4jrf1cet",
+                      "position": 1,
+                      "repsMin": 8,
+                      "repsMax": 12,
+                      "loadKg": 32.5,
+                      "loadPercent": null,
+                      "rir": 2,
+                      "rpe": null,
+                      "tempo": "3-1-1-0",
+                      "restSec": null,
+                      "notes": null
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cmvihohoc00n4wjijfnr99juu",
+          "dayOfWeek": 2,
+          "workoutDate": "2026-10-20T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihohr200nkwjijo6m1uquk",
+          "dayOfWeek": 3,
+          "workoutDate": "2026-10-21T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihohto00o0wjijuaw70luf",
+          "dayOfWeek": 4,
+          "workoutDate": "2026-10-22T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihohwo00ogwjijva6tww8t",
+          "dayOfWeek": 5,
+          "workoutDate": "2026-10-23T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihohzf00oxwjijrplglg9c",
+          "dayOfWeek": 6,
+          "workoutDate": "2026-10-24T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihoi2200pcwjij7b8lwqfm",
+          "dayOfWeek": 7,
+          "workoutDate": "2026-10-25T12:00:00.000Z",
+          "exercises": []
+        }
+      ]
+    },
+    {
+      "id": "cmvihov2x00qqwjijcn2bpsk2",
+      "weekNumber": 2,
+      "weekStartDate": "2026-10-26T12:00:00.000Z",
+      "released": false,
+      "releasedAt": null,
+      "days": [
+        {
+          "id": "cmvihov3900r4wjijj85v3rmi",
+          "dayOfWeek": 1,
+          "workoutDate": "2026-10-26T12:00:00.000Z",
+          "exercises": [
+            {
+              "id": "cmvihov3b00r6wjijnwtrjp2o",
+              "exerciseId": "cmviho5hx000i6mbzn8r40nvn",
+              "section": "sessao",
+              "sets": 3,
+              "reps": 10,
+              "load": 30.5,
+              "blocks": [
+                {
+                  "id": "cmvihov3b00r7wjij0s5377jz",
+                  "position": 1,
+                  "kind": "principal",
+                  "plannedSets": [
+                    {
+                      "id": "cmvihov3b00r8wjijrxg5s0lu",
+                      "position": 1,
+                      "repsMin": 8,
+                      "repsMax": 12,
+                      "loadKg": 32.5,
+                      "loadPercent": null,
+                      "rir": 2,
+                      "rpe": null,
+                      "tempo": "3-1-1-0",
+                      "restSec": null,
+                      "notes": null
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cmvihov2z00qswjijalttbqli",
+          "dayOfWeek": 2,
+          "workoutDate": "2026-10-27T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihov3100quwjijskjlhkpl",
+          "dayOfWeek": 3,
+          "workoutDate": "2026-10-28T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihov3200qwwjijvibyw5sq",
+          "dayOfWeek": 4,
+          "workoutDate": "2026-10-29T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihov3400qywjijvhwg6jnm",
+          "dayOfWeek": 5,
+          "workoutDate": "2026-10-30T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihov3600r0wjijpor0yrqk",
+          "dayOfWeek": 6,
+          "workoutDate": "2026-10-31T12:00:00.000Z",
+          "exercises": []
+        },
+        {
+          "id": "cmvihov3700r2wjijmhvbjsr2",
+          "dayOfWeek": 7,
+          "workoutDate": "2026-11-01T12:00:00.000Z",
+          "exercises": []
+        }
+      ]
+    }
+  ],
+  "finalUrl": "https://5200-i5cqq3fj1hhhwmzxrrrq2-09b111cd.us5.manus.computer/plans/cmviho5hq000c6mbzfdcc7pea/workout-builder/1/1",
+  "passed": true,
+  "finishedAt": "2026-10-21T19:13:01.677Z"
+}
