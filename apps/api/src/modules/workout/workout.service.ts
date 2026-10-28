@@ -204,7 +204,7 @@ export const workoutService = {
         }
 
         const weekStartDate = data.weekStartDate;
-        await withWorkoutTemplatePlanningMutation(existing.id, async (tx) => {
+        await withWorkoutTemplatePlanningMutation(prisma, existing.id, async (tx) => {
           await tx.workoutTemplate.update({
             where: { id: existing.id },
             data: { weekStartDate },
@@ -560,7 +560,7 @@ export const workoutService = {
         workoutDate: workoutDateInTargetWeek(current.template.weekStartDate, current.dayOfWeek),
       };
     }
-    return withWorkoutDayPlanningMutation(id, (tx) =>
+    return withWorkoutDayPlanningMutation(prisma, id, (tx) =>
       tx.workoutDay.update({
         where: { id },
         data,
@@ -585,7 +585,7 @@ export const workoutService = {
       throw new LegacyWorkoutLifecycleDisabledError();
     }
 
-    await withWorkoutDayPlanningMutation(id, (tx) => tx.workoutDay.update({
+    await withWorkoutDayPlanningMutation(prisma, id, (tx) => tx.workoutDay.update({
       where: { id },
       data: {
         ...(data.psrResponse !== undefined ? { psrResponse: data.psrResponse } : {}),
@@ -660,7 +660,7 @@ export const workoutService = {
    * Deletar dia de treino
    */
   async deleteWorkoutDay(id: string) {
-    return withWorkoutDayPlanningMutation(id, (tx) =>
+    return withWorkoutDayPlanningMutation(prisma, id, (tx) =>
       tx.workoutDay.delete({
         where: { id },
       })
@@ -691,7 +691,7 @@ export const workoutService = {
     data = sanitizeWorkoutMutation(data, 'exercise', 'create');
     const { resistanceBlocks, workoutExerciseId: _existingRowId, ...exercise } = data;
     const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
-    return withWorkoutDayPlanningMutation(data.workoutDayId, async (tx) => {
+    return withWorkoutDayPlanningMutation(prisma, data.workoutDayId, async (tx) => {
       if (contractId) await assertDayContract(tx, data.workoutDayId, contractId, data.exerciseId);
       return tx.workoutExercise.create({
         data: {

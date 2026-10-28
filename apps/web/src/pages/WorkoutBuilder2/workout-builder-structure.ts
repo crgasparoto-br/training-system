@@ -102,7 +102,7 @@ export function clearWorkoutDraftCacheForWeek(draftActorKey: string | undefined,
   }
 }
 
-export const rehydrateDraftFromApi = = (templateFromApi: any, candidate: any) => {
+export const rehydrateDraftFromApi = (templateFromApi: any, candidate: any) => {
     if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return null;
     const allowedKeys = new Set([
       'id', 'planId', 'alunoId', 'mesocycleNumber', 'weekNumber', 'weekStartDate',
@@ -193,7 +193,7 @@ export function buildWorkoutWeekSavePayload(snapshot: any) {
     .map((day: any) => {
       const date = day.workoutDate
         ? parseDateOnly(day.workoutDate)
-        : weekStart ? resolveWeekDate(weekStart, Number(day.dayOfWeek)) : null;
+        : weekStart ? resolveWorkoutWeekDate(weekStart, Number(day.dayOfWeek)) : null;
       return {
         dayOfWeek: Number(day.dayOfWeek),
         workoutDate: date && Number.isFinite(date.getTime())
@@ -271,5 +271,4 @@ export function buildWorkoutWeekSavePayload(snapshot: any) {
     workoutDays,
     resistedExercises,
   };
-}
 }
