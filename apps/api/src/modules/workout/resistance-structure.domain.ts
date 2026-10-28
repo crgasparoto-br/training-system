@@ -1,3 +1,5 @@
+import { normalizeCyclicStages } from './cyclic-stages.domain.js';
+
 export const RESISTANCE_BLOCK_KINDS = [
   'aquecimento', 'principal', 'tecnica', 'complementar', 'finalizacao',
 ] as const;
@@ -237,7 +239,7 @@ export function assertAllowedKeys(value: unknown, fields: ReadonlySet<string>): 
   }
 }
 
-const SAVE_WEEK_FIELDS = new Set(['baseUpdatedAt', 'template', 'workoutDays', 'resistedExercises']);
+const SAVE_WEEK_FIELDS = new Set(['baseUpdatedAt', 'template', 'workoutDays', 'resistedExercises', 'cyclicStages']);
 const SAVE_WEEK_DAY_FIELDS = new Set(Object.keys(FIELDS.day).filter((key) => key !== 'templateId'));
 const SAVE_WEEK_EXERCISE_FIELDS = new Set(Object.keys(FIELDS.exercise));
 const RESISTED_SECTION_FIELDS = new Set(['mobilidade', 'sessao', 'resfriamento']);
@@ -248,6 +250,7 @@ export function validateWorkoutWeekEnvelope(value: unknown): asserts value is {
   template?: Record<string, unknown>;
   workoutDays?: Array<Record<string, unknown>>;
   resistedExercises?: Record<string, Record<string, Array<Record<string, unknown>>>>;
+  cyclicStages?: Record<string, unknown[]>;
 } {
   assertAllowedKeys(value, SAVE_WEEK_FIELDS);
   const envelope = value as Record<string, unknown>;
@@ -286,6 +289,19 @@ export function validateWorkoutWeekEnvelope(value: unknown): asserts value is {
           sanitizeWorkoutMutation(exercise, 'exercise');
         }
       }
+    }
+  }
+  if (envelope.cyclicStages !== undefined) {
+    if (!envelope.cyclicStages || typeof envelope.cyclicStages !== 'object'
+      || Array.isArray(envelope.cyclicStages)) {
+      throw new ResistanceStructureValidationError('Etapas cíclicas semanais inválidas.');
+    }
+    for (const [dayKey, stages] of Object.entries(envelope.cyclicStages as Record<string, unknown>)) {
+      const weekday = Number(dayKey);
+      if (!/^[1-7]$/.test(dayKey) || !Number.isInteger(weekday)) {
+        throw new ResistanceStructureValidationError('Dia cíclico inválido.');
+      }
+      normalizeCyclicStages(stages);
     }
   }
 }

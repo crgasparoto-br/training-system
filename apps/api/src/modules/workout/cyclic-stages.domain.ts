@@ -152,7 +152,7 @@ export async function replaceCyclicStagesInTransaction(
 ) {
   const stages = normalizeCyclicStages(input);
   const current = await tx.workoutCyclicStage.findMany({
-    where: { workoutDayId, parentStageId: null }, ...cyclicStageInclude,
+    ...cyclicStageInclude, where: { workoutDayId, parentStageId: null },
   });
   const present = current.map((stage) => ({
     ...stage, children: stage.children ?? [],
@@ -162,5 +162,25 @@ export async function replaceCyclicStagesInTransaction(
   for (const stage of nestedCyclicStages(stages, workoutDayId)) {
     await tx.workoutCyclicStage.create({ data: stage });
   }
-  return tx.workoutCyclicStage.findMany({ where: { workoutDayId, parentStageId: null }, ...cyclicStageInclude });
+  return tx.workoutCyclicStage.findMany({ ...cyclicStageInclude, where: { workoutDayId, parentStageId: null } });
+}
+
+/** Copy a historical prescription to a different editable day without reusing IDs. */
+export function snapshotCyclicStages(rows: ReadonlyArray<any>): CyclicStageInput[] {
+  const toInput = (stage: any): CyclicStageInput => ({
+    position: stage.position,
+    kind: stage.kind,
+    ...(stage.durationUnit != null ? { durationUnit: stage.durationUnit } : {}),
+    ...(stage.durationValue != null ? { durationValue: stage.durationValue } : {}),
+    ...(stage.targetKind != null ? { targetKind: stage.targetKind } : {}),
+    ...(stage.targetValue != null ? { targetValue: stage.targetValue } : {}),
+    ...(stage.targetMin != null ? { targetMin: stage.targetMin } : {}),
+    ...(stage.targetMax != null ? { targetMax: stage.targetMax } : {}),
+    ...(stage.repeatCount != null ? { repeatCount: stage.repeatCount } : {}),
+    ...(stage.inclinePercent != null ? { inclinePercent: stage.inclinePercent } : {}),
+    ...(stage.cadenceSpm != null ? { cadenceSpm: stage.cadenceSpm } : {}),
+    ...(stage.notes != null ? { notes: stage.notes } : {}),
+    ...(stage.kind === 'repeat' ? { children: (stage.children ?? []).map(toInput) } : {}),
+  });
+  return normalizeCyclicStages(rows.map(toInput));
 }
