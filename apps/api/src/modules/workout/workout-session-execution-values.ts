@@ -83,6 +83,12 @@ export async function persistWorkoutSessionValues(
     const persistedPlannedSetId = item.plannedSetId === undefined
       ? existingItem?.plannedSetId ?? null
       : item.plannedSetId;
+    if (persistedPlannedSetId && await tx.workoutSessionExecutionItem.findFirst({
+      where: { executionId, plannedSetId: persistedPlannedSetId, completedAt: { not: null } },
+      select: { id: true },
+    })) {
+      throw new WorkoutSessionExecutionInputError('Esta série planejada já foi concluída.');
+    }
     await tx.workoutSessionExecutionItem.upsert({
       where: { executionId_plannedUnitId_setNumber: { executionId, plannedUnitId: item.plannedUnitId, setNumber } },
       create: {

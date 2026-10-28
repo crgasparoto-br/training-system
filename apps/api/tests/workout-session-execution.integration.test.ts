@@ -8,6 +8,7 @@ import {
 import {
   createWorkoutSessionExecutionService,
   WorkoutSessionExecutionConflictError,
+  WorkoutSessionExecutionInputError,
   WorkoutSessionExecutionNotFoundError,
 } from '../src/modules/workout/workout-session-execution.service.js';
 import { workoutService } from '../src/modules/workout/workout.service.js';
@@ -849,6 +850,17 @@ describeDatabase('workout session execution persistence - issue 389', () => {
     const completed = await service.completeGuided({ ...scope, actorUserId: fixture.alunoUserId, payload });
     expect(completed).toMatchObject({ availability: 'available', version: 2, completed: 1, total: 3 });
     expect(completed.current).toMatchObject({ plannedUnitId: fixture.exerciseIds[0], setNumber: 2 });
+    await expect(service.saveValues({
+      ...scope, actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue487-different-ordinal-after-completion',
+        expectedVersion: 2,
+        items: [{
+          plannedUnitId: payload.plannedUnitId, plannedSetId: payload.plannedSetId,
+          setNumber: 99, repetitions: 10,
+        }],
+      },
+    })).rejects.toBeInstanceOf(WorkoutSessionExecutionInputError);
     const replay = await concurrentService.completeGuided({ ...scope, actorUserId: fixture.alunoUserId, payload });
     expect(replay).toMatchObject({ version: 2, completed: 1 });
     expect(replay.current?.plannedSetId).toBe(completed.current?.plannedSetId);
