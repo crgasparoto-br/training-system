@@ -375,6 +375,29 @@ jobs:
           printf '{"schemaVersion":1,"kind":"issue-399-ci-evidence","repository":"%s","runId":"%s","headSha":"%s","checkoutSha":"%s","baseSha":"%s"}\n' \
             "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$AUDIT_HEAD_SHA" "$(git rev-parse HEAD)" "$AUDIT_BASE_SHA" \
             > artifacts/issue-399/ci-head.json
+      - name: Retain exact Git bundle for independent audit
+        if: always() && github.event_name == 'pull_request'
+        env:
+          AUDIT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          AUDIT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          AUDIT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/audit-git-bundle
+          git update-ref refs/ci-verification/base "$AUDIT_BASE_SHA"
+          git update-ref refs/ci-verification/head "$AUDIT_HEAD_SHA"
+          git bundle create artifacts/audit-git-bundle/repository.bundle             refs/ci-verification/base refs/ci-verification/head
+          printf '{"schemaVersion":1,"repository":"%s","baseRef":"%s","baseSha":"%s","headSha":"%s","runId":"%s"}\n'             "$GITHUB_REPOSITORY" "$AUDIT_BASE_REF" "$AUDIT_BASE_SHA" "$AUDIT_HEAD_SHA" "$GITHUB_RUN_ID"             > artifacts/audit-git-bundle/manifest.json
+      - name: Upload exact Git bundle for independent audit
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-git-bundle-${{ github.event.pull_request.head.sha }}
+          path: |
+            artifacts/audit-git-bundle/manifest.json
+            artifacts/audit-git-bundle/repository.bundle
+          if-no-files-found: error
+          retention-days: 30
       - if: always()
         uses: actions/upload-artifact@v4
         with:
