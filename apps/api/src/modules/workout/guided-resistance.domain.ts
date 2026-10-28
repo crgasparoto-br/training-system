@@ -111,7 +111,7 @@ export function projectGuidedResistance(
   execution: TrainingSessionExecutionView,
   plan: ReturnType<typeof deriveGuidedResistancePlan>,
 ): GuidedResistanceView {
-  const identity = (item: { plannedUnitId: string; plannedSetId?: string | null; setNumber: number }) =>
+  const identity = (item: { plannedUnitId: string; plannedSetId?: string | null; setNumber?: number }) =>
     [item.plannedUnitId, item.plannedSetId, item.setNumber].join(':');
   const validKeys = new Set(plan.units.map(identity));
   const completedItems = execution.items.filter((item) => Boolean(item.completedAt));
