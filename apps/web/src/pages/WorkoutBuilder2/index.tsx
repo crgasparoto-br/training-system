@@ -24,7 +24,6 @@ import {
   normalizeWorkoutDays,
   parseWorkoutSaveKey,
   rehydrateDraftFromApi,
-  resolveWorkoutWeekDate,
   resolveWorkoutWeekStartDate,
 } from './workout-builder-structure';
 
@@ -455,8 +454,6 @@ export default function WorkoutBuilder2() {
   const parseSaveKey = parseWorkoutSaveKey;
   const resolveWeekStartDate = (mesocycle: number, week: number) =>
     resolveWorkoutWeekStartDate(planData?.startDate, weeksPerMesocycle, mesocycle, week);
-  const resolveWeekDayDate = resolveWorkoutWeekDate;
-  const resolveWeekDate = resolveWorkoutWeekDate;
   const buildWeekDayEditability = (weekStartDate: string | null) =>
     buildWorkoutWeekDayEditability(weekStartDate, planData?.startDate, planData?.endDate);
   const buildWeekSavePayload = buildWorkoutWeekSavePayload;
