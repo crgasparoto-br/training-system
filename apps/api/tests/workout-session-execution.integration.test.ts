@@ -986,12 +986,12 @@ describeDatabase('workout session execution persistence - issue 389', () => {
     });
     await expect(prisma.$executeRaw`
       INSERT INTO "WorkoutSessionExecutionItem" (
-        "id", "executionId", "plannedUnitId", "plannedSetId", "setNumber", "completedAt"
+        "id", "executionId", "plannedUnitId", "plannedSetId", "setNumber", "completedAt", "updatedAt"
       ) VALUES (
         ${randomUUID()}, ${execution.id}, ${current.plannedUnitId},
-        ${current.plannedSetId}, ${current.setNumber}, CURRENT_TIMESTAMP
+        ${current.plannedSetId}, ${current.setNumber}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
-    `).rejects.toThrow();
+    `).rejects.toThrow(/guided completion requires canonical execution operation/);
     expect((await service.getGuidedForSession(scope)).completed).toBe(0);
     expect(await prisma.workoutSessionExecutionItem.count({
       where: { executionId: execution.id },
