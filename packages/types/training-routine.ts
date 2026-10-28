@@ -91,6 +91,8 @@ export interface GuidedResistanceUnit {
   plannedSetId: string;
   setNumber: number;
   exerciseName: string;
+  /** Link HTTPS configurado no catálogo; mídia opcional, sem reprodução automática. */
+  videoUrl: string | null;
   section: string;
   blockKind: string;
   blockPosition: number;

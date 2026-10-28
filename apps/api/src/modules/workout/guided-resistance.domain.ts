@@ -10,7 +10,7 @@ export interface GuidedResistancePlannedExercise {
   exerciseOrder: number;
   system: string | null;
   groupBreakBefore?: boolean;
-  exercise: { name: string };
+  exercise: { name: string; videoUrl?: string | null };
   resistanceBlocks: ReadonlyArray<{
     position: number;
     kind: string;
@@ -29,6 +29,17 @@ export interface GuidedResistancePlannedExercise {
       notes: string | null;
     }>;
   }>;
+}
+
+export function approvedGuidedExerciseMediaUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || !url.hostname || url.username || url.password) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
 }
 
 const SECTION_ORDER: Record<string, number> = {
@@ -72,6 +83,7 @@ export function deriveGuidedResistancePlan(
           plannedSetId: set.id,
           setNumber,
           exerciseName: exercise.exercise.name,
+          videoUrl: approvedGuidedExerciseMediaUrl(exercise.exercise.videoUrl),
           section: exercise.section,
           blockKind: block.kind,
           blockPosition: block.position,

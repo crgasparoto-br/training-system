@@ -6,7 +6,7 @@ import { GuidedResistanceCard } from './GuidedResistanceCard';
 
 const first = {
   plannedUnitId: 'exercise-a', plannedSetId: 'set-1', setNumber: 1,
-  exerciseName: 'Agachamento', section: 'sessao', blockKind: 'principal',
+  exerciseName: 'Agachamento', videoUrl: null, section: 'sessao', blockKind: 'principal',
   blockPosition: 1, setPosition: 1, exerciseSetTotal: 2,
   repsMin: 8, repsMax: 12, loadKg: 47, loadPercent: null,
   rir: 2, rpe: 8, tempo: '3-1-1', restSec: 60, notes: 'Controle a descida',
@@ -61,6 +61,18 @@ describe('issue #487 - guia resistido', () => {
     }));
     await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
     expect(screen.getByText(/1 de 2 séries confirmadas/)).toBeInTheDocument();
+  });
+
+  it('offers an authorized catalog video without making it required to execute', async () => {
+    const load = vi.fn().mockResolvedValue(projection({
+      current: { ...first, videoUrl: 'https://example.org/demo' },
+    }));
+    const { complete } = panel({ load });
+    const video = await screen.findByRole('link', { name: 'Ver vídeo de orientação do exercício' });
+    expect(video).toHaveAttribute('href', 'https://example.org/demo');
+    expect(video).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(screen.getByRole('button', { name: 'Concluir série' })).toBeEnabled();
+    expect(complete).not.toHaveBeenCalled();
   });
 
   it('preserva os valores e a mesma chave idempotente após erro de rede', async () => {

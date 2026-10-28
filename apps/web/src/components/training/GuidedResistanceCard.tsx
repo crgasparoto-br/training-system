@@ -184,6 +184,12 @@ export function GuidedResistanceCard({
                 {current.restSec !== null && <div><dt className="text-muted-foreground">Descanso prescrito</dt><dd>{current.restSec} s</dd></div>}
               </dl>
               {current.notes && <p className="rounded-md bg-muted/50 p-3 text-sm">{current.notes}</p>}
+              {current.videoUrl && (
+                <a href={current.videoUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex min-h-11 items-center text-sm font-medium text-primary underline underline-offset-4">
+                  Ver vídeo de orientação do exercício
+                </a>
+              )}
               <form aria-label="Registrar série realizada" onSubmit={(event) => { event.preventDefault(); void confirmCurrent(); }} className="space-y-3">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1">

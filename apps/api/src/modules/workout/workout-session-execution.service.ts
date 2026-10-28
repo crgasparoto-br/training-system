@@ -27,7 +27,7 @@ async function loadGuidedResistancePlan(tx: Prisma.TransactionClient, sessionId:
     where: { workoutDayId: sessionId },
     select: {
       id: true, section: true, exerciseOrder: true, system: true, groupBreakBefore: true,
-      exercise: { select: { name: true } },
+      exercise: { select: { name: true, videoUrl: true } },
       resistanceBlocks: {
         orderBy: { position: 'asc' },
         select: {

@@ -26,3 +26,7 @@ Durante `in_progress`/`paused`, o aluno tem um cartão focal com exercício, se�
 Testes de domínio cobrem IDs, ordem, nulidade, retomada, registros de valores ainda não concluídos e histórico fora de ordem. Testes web cobrem entradas realizadas, falha de rede/retry, concorrência, pausa e agrupamento bloqueado. Executar `pnpm validate`, build e migration em CI antes de concluir.
 
 **Critério ainda bloqueado:** execução real por rodada/item para supersérie, bi-set, tri-set e circuito depende da entrega persistida de #400. Não aprovar a #487 integralmente até incorporar a #400 e repetir os cenários de agrupamento.
+
+A orientação em mídia é opcional: quando a biblioteca tem `videoUrl` HTTPS
+configurada, a etapa atual oferece um link externo acessível. URLs inseguras ou
+ausentes não são exibidas e jamais bloqueiam a confirmação da série.

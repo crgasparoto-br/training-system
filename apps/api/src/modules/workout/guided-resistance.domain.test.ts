@@ -1,6 +1,6 @@
 import type { TrainingSessionExecutionView } from '@corrida/types';
 import {
-  deriveGuidedResistancePlan, matchesCurrentGuidedUnit, projectGuidedResistance,
+  approvedGuidedExerciseMediaUrl, deriveGuidedResistancePlan, matchesCurrentGuidedUnit, projectGuidedResistance,
   type GuidedResistancePlannedExercise,
 } from './guided-resistance.domain.js';
 
@@ -85,6 +85,18 @@ describe('issue #487 - plano resistido canônico', () => {
     ]), plan);
     expect(projected.availability).toBe('legacy_read_only');
     expect(projected.current).toBeNull();
+  });
+
+  it('exposes only configured HTTPS exercise guidance media', () => {
+    expect(approvedGuidedExerciseMediaUrl('https://example.org/videos/exercise')).toBe('https://example.org/videos/exercise');
+    for (const unsafe of [null, '', 'javascript:alert(1)', 'data:text/html,invalid', 'http://example.org/video', 'https://user:password@example.org']) {
+      expect(approvedGuidedExerciseMediaUrl(unsafe)).toBeNull();
+    }
+    const original = exercise('a', 1);
+    const approved = deriveGuidedResistancePlan([
+      { ...original, exercise: { name: 'Agachamento', videoUrl: 'https://example.org/demo' } },
+    ]);
+    expect(approved.units[0].videoUrl).toBe('https://example.org/demo');
   });
 
   it('mantém ausentes como nulos e não considera mera gravação de valores como conclusão', () => {
