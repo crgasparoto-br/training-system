@@ -167,7 +167,7 @@ export async function replaceCyclicStagesInTransaction(
 }
 
 /** Copy a historical prescription to a different editable day without reusing IDs. */
-export function snapshotCyclicStages(rows: ReadonlyArray<any>): CyclicStageInput[] {
+export function snapshotCyclicStages(rows: ReadonlyArray<any> | null | undefined): CyclicStageInput[] {
   const toInput = (stage: any): CyclicStageInput => ({
     position: stage.position,
     kind: stage.kind,
@@ -183,5 +183,5 @@ export function snapshotCyclicStages(rows: ReadonlyArray<any>): CyclicStageInput
     ...(stage.notes != null ? { notes: stage.notes } : {}),
     ...(stage.kind === 'repeat' ? { children: (stage.children ?? []).map(toInput) } : {}),
   });
-  return normalizeCyclicStages(rows.map(toInput));
+  return normalizeCyclicStages((rows ?? []).map(toInput));
 }
