@@ -225,4 +225,3 @@ export const parseRequiredDate = (value: unknown): Date | null => {
   const parsed = new Date(candidate);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
-

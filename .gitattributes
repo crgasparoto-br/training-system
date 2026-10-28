@@ -1,0 +1,3 @@
+# Preserve unmodified PostgreSQL output captured as audit evidence.
+# Column padding and empty terminal lines are part of the original capture.
+docs/evidence/issue-399/trigger-results.txt -whitespace
