@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { GuidedResistanceView } from '@corrida/types';
+import type { GuidedResistanceCompletePayload, GuidedResistanceView } from '@corrida/types';
 import { GuidedResistanceCard } from './GuidedResistanceCard';
 
 const first = {
@@ -32,7 +32,9 @@ const panel = (options: {
   const onOverview = vi.fn();
   render(<GuidedResistanceCard
     sessionId="day-1" status={options.status ?? 'in_progress'}
-    load={load} complete={complete} onExecutionChanged={onChanged}
+    load={load as (sessionId: string) => Promise<GuidedResistanceView>}
+    complete={complete as (sessionId: string, payload: GuidedResistanceCompletePayload) => Promise<GuidedResistanceView>}
+    onExecutionChanged={onChanged}
     onOverview={onOverview}
   />);
   return { load, complete, onChanged, onOverview };
