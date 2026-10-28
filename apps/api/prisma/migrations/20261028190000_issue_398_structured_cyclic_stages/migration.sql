@@ -85,7 +85,7 @@ CREATE TABLE "WorkoutCyclicStage" (
       )
     )
   )
-
+  )
 );
 CREATE UNIQUE INDEX "WorkoutCyclicStage_parentStageId_position_key"
   ON "WorkoutCyclicStage"("parentStageId", "position");
