@@ -154,3 +154,18 @@ Implementação no branch `feat/399-resistance-blocks-sets`. A homologação ope
 - `F-03`: `apps/api/prisma/schema.prisma` e `apps/api/prisma/migrations` foram declarados fonte operacional única no `prisma.config.ts`; `pnpm prisma:source-check` e o CI impedem regressão para o snapshot histórico raiz.
 - Esta seção descreve alterações implementadas no working tree desta rodada. A evidência exact-SHA do candidato anterior `d375bf7e…` continua histórica; após publicar o novo SHA, ainda são obrigatórios replay, gates completos, execução `pull_request` e auditoria independente. Não houve merge nem fechamento da issue.
 - Validação local desta rodada, antes do commit: migration/replay de dados legados em PostgreSQL 16 **PASS**; integração `workout-session-execution.integration.test.ts` **50/50**; rotas HTTP **121/121**; replay Chromium sintético **1/1** com conflito remoto e labels nos dois tabs; replay API real + PostgreSQL + JWT **1/1** em 1440/768/390 px; `pnpm validate` **exit 0** (159 arquivos web, 669 testes web, testes API sem falhas), `pnpm build`, `pnpm lint`, `pnpm arch:check`, `pnpm access:check`, `pnpm docs:check`, `pnpm audit:source-proofs` e `pnpm prisma:source-check` passaram. Esses resultados ainda são do working tree local e não substituem CI exact-SHA nem auditoria independente.
+
+## Consolidação da entrega na `develop` — 28/10/2026
+
+- A [PR #516](https://github.com/crgasparoto-br/training-system/pull/516) foi integrada à `develop` no commit `a5f6d705e28f4a5bb6982cbbcbbc9e89c322d152`; o HEAD material da PR era `fc08dbda67732ab657c7e1911f0809269d9b08ac`.
+- O [CI exact-SHA #40676191084](https://github.com/crgasparoto-br/training-system/actions/runs/40676191084) concluiu com sucesso, incluindo `CRITICAL validation`, `Merge preview compatibility` e `Validate repository`. A aprovação do CI não constitui auditoria independente.
+- Na observação desta data, a issue #399 continua aberta; `main` ainda não inclui essa integração. O aceite/certificado independente permanece pendente e deve ocorrer em contexto de revisão separado, sobre a versão definitiva.
+- A remediação complementar de higiene corrige linhas vazias finais em dois arquivos TypeScript e na documentação canônica, sem alterar comportamento. O log SQL histórico `docs/evidence/issue-399/trigger-results.txt` mantém os bytes originais (SHA-256 `94071e63f3f7d41c8b759d33191854ba4b78d8d4872ae2f5efce5a2acf31bff1`); a regra estritamente localizada em `.gitattributes` ignora apenas os espaços inerentes à captura de saída da consulta.
+- A integração da remediação complementar e o encerramento formal não são declarados nesta etapa. Não há merge automático.
+
+## Remediação AUD-399-30 — motivo correto do modo somente leitura (28/10/2026)
+
+- Achado no SHA `4679980bbe09aa7526473d0520468f0a9b135eb4`: treino liberado dentro do período mostrava indevidamente o aviso de data fora do plano.
+- Correção da apresentação: diferenciar liberação, período real e bloqueio operacional, preservando as travas de edição e as proteções de backend.
+- Testes de componente discriminam liberado dentro do período, fora do período, indisponibilidade operacional e dia editável. O replay autenticado Chrome/API/PostgreSQL verifica a mensagem de treino liberado em 1440, 768 e 390 px.
+- Validações requeridas: `Validate repository` e os demais gates no SHA final desta PR, seguidos de auditoria independente em contexto separado. Sem merge ou release automático.

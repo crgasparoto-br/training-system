@@ -89,6 +89,8 @@ const renderResistance = (onChange = vi.fn()) => {
       resistedSummary={{ id: 'r', matrixId: 'm', mesocycleNumber: 5, weekNumber: 2, repZone: 12, method: 'SER' } as any}
       onChange={onChange}
       dayEditability={[true, true, true, true, true, false, false]}
+      planStartDate="2026-09-28"
+      planEndDate="2026-10-02"
     />
   );
   return onChange;
@@ -153,6 +155,51 @@ describe('WorkoutBuilderResistance', () => {
     expect(screen.getByRole('group', { name: 'Exercícios de Sábado' })).toBeDisabled();
     expect(screen.getByRole('spinbutton', { name: 'Séries de Cadeira extensora' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Excluir Cadeira extensora' })).toBeDisabled();
+  });
+
+  it('mostra liberação como motivo de bloqueio dentro do período do plano', () => {
+    render(
+      <WorkoutBuilderResistance
+        templateData={{ ...templateData, released: true }}
+        resistedSummary={null}
+        onChange={vi.fn()}
+        dayEditability={[true, true, true, true, true, false, false]}
+        planStartDate="2026-09-28"
+        planEndDate="2026-10-02"
+        weekEditable={false}
+      />
+    );
+
+    expect(screen.getByText('Treino liberado: somente leitura.')).toBeInTheDocument();
+    expect(screen.queryByText('Dia fora do período do plano: somente leitura.')).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Exercícios de Segunda-feira' })).toBeDisabled();
+    expect(screen.getByRole('spinbutton', { name: 'Séries de Agachamento livre' })).toBeDisabled();
+  });
+
+  it('não confunde bloqueio operacional com data ou liberação', () => {
+    render(
+      <WorkoutBuilderResistance
+        templateData={{ ...templateData, released: false }}
+        resistedSummary={null}
+        onChange={vi.fn()}
+        dayEditability={[true, true, true, true, true, false, false]}
+        planStartDate="2026-09-28"
+        planEndDate="2026-10-02"
+        weekEditable={false}
+      />
+    );
+
+    expect(screen.getByText('Edição temporariamente indisponível: somente leitura.')).toBeInTheDocument();
+    expect(screen.queryByText('Dia fora do período do plano: somente leitura.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Treino liberado: somente leitura.')).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Exercícios de Segunda-feira' })).toBeDisabled();
+  });
+
+  it('permite edição dentro do período quando não há outro bloqueio', () => {
+    renderResistance();
+
+    expect(screen.queryByText(/somente leitura\./)).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Exercícios de Segunda-feira' })).not.toBeDisabled();
   });
 
   it('exibe a zona de repetições como sugestão sem apresentá-la como valor salvo', () => {

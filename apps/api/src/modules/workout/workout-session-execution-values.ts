@@ -105,4 +105,3 @@ export async function persistWorkoutSessionValues(
   }
   return mergedSessionValues;
 }
-
