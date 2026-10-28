@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { workoutService } from '../modules/workout/workout.service.js';
 import {
+  classifyResistanceWriteError,
   sanitizeWorkoutMutation,
   ResistanceStructureValidationError,
   validateReorderEnvelope,
