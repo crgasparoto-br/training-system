@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient } from '@prisma/client';
 import { ResistanceStructureNotFoundError, ResistanceStructureValidationError } from './resistance-structure.domain.js';
 import { lockWorkoutTemplatePlanningMutable, nestedResistanceBlocks, resistanceBlockInclude, serializeWorkoutTemplate, withTemplateCopyRetry, workoutDateInTargetWeek } from './workout-planning.helpers.js';
 

@@ -1,6 +1,6 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 
-import { matchResistanceExerciseRows, normalizeResistanceBlocks, ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput, type ResistancePlannedSetInput } from './resistance-structure.domain.js';
+import { ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput, type ResistancePlannedSetInput } from './resistance-structure.domain.js';
 
 import type { CreateWorkoutTemplateDTO } from './workout.service.js';
 
