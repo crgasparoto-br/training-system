@@ -9,7 +9,7 @@ import { alunoService, type Aluno } from '../../services/aluno.service';
 import { assessmentService } from '../../services/assessment.service';
 import { periodizationService, ResistedStimulus } from '../../services/periodization.service';
 import { workoutService } from '../../services/workout.service';
-import { isDateWithinRange, parseDateOnly, resolveDateForDayOfWeek, toDateInputValue, toIsoDateAtNoonUTC } from '../../utils/date';
+import { parseDateOnly, toDateInputValue, toIsoDateAtNoonUTC } from '../../utils/date';
 import { resolveWorkoutBuilderWeekOptions } from '../../utils/workout-builder-week-options';
 import { workoutBuilderGuideCopy } from '../../i18n/ptBR';
 import { useAuthStore } from '../../stores/useAuthStore';

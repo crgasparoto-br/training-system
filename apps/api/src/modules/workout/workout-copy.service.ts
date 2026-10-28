@@ -8,12 +8,7 @@ export async function copyTemplateSections(
   targetWeekNumber: number,
   targetWeekStartDate: Date,
   mode: 'cyclic' | 'resistance',
-) {  async copyTemplateSections(
-  id: string,
-  targetWeekNumber: number,
-  targetWeekStartDate: Date,
-  mode: 'cyclic' | 'resistance',
-  ) {
+) {
   if (!Number.isInteger(targetWeekNumber) || targetWeekNumber <= 0
     || !(targetWeekStartDate instanceof Date) || !Number.isFinite(targetWeekStartDate.getTime())
     || (mode !== 'cyclic' && mode !== 'resistance')) {
