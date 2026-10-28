@@ -5,7 +5,7 @@ import { assertWorkoutParentIsImmutable, normalizeResistanceBlocks, sanitizeWork
 import { assertDayContract, isWorkoutTemplateUniqueConflict, lockWorkoutDayPlanningMutable, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
 import { copyTemplate as copyTemplateStructured, copyTemplateSections as copyTemplateSectionsStructured } from './workout-copy.service.js';
 import { replaceDayResistanceExercises as replaceDayResistanceExercisesStructured, saveTemplateWeek as saveTemplateWeekStructured } from './workout-week-structure.service.js';
-import { cyclicStageInclude, nestedCyclicStages, replaceCyclicStagesInTransaction, snapshotCyclicStages } from './cyclic-stages.domain.js';
+import { cyclicStageInclude, nestedCyclicStages, normalizeCyclicStages, replaceCyclicStagesInTransaction, snapshotCyclicStages } from './cyclic-stages.domain.js';
 export { WorkoutPlanningLockedError } from './workout-planning.helpers.js';
 
 const prisma = new PrismaClient();
@@ -538,7 +538,6 @@ export const workoutService = {
           },
         },
         cyclicStages: cyclicStageInclude,
-        cyclicStages: cyclicStageInclude,
         exercises: {
           include: {
             exercise: true,
@@ -590,9 +589,10 @@ export const workoutService = {
 
   /** Replace only structured cyclic stages, leaving legacy day fields unchanged. */
   async replaceDayCyclicStages(workoutDayId: string, stages: unknown, contractId: string) {
+    const normalized = normalizeCyclicStages(stages);
     return withWorkoutDayPlanningMutation(prisma, workoutDayId, async (tx) => {
       await assertDayContract(tx, workoutDayId, contractId);
-      return replaceCyclicStagesInTransaction(tx, workoutDayId, stages);
+      return replaceCyclicStagesInTransaction(tx, workoutDayId, normalized);
     });
   },
 
@@ -636,6 +636,7 @@ export const workoutService = {
         template: {
           include: { plan: true },
         },
+        cyclicStages: cyclicStageInclude,
         exercises: {
           include: {
             exercise: true,
