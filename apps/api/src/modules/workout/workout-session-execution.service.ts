@@ -9,6 +9,7 @@ import type {
   TrainingSessionExecutionView,
 } from '@corrida/types';
 import { persistWorkoutSessionValues, WorkoutSessionExecutionInputError } from './workout-session-execution-values.js';
+import { captureWorkoutComparisonPlan, workoutComparisonPlanSelect } from './workout-session-comparison.domain.js';
 export { WorkoutSessionExecutionInputError } from './workout-session-execution-values.js';
 import {
   assertWorkoutSessionTransition,
@@ -54,6 +55,35 @@ function normalizeText(value: string | null | undefined, max: number) {
   return normalized;
 }
 
+
+const COMPARABLE_OUTCOMES = new Set(['full', 'partial', 'substituted', 'not_performed']);
+
+function normalizeOutcome(value: string | undefined): 'full' | 'partial' | 'substituted' | 'not_performed' | undefined {
+  if (value === undefined) return undefined;
+  if (!COMPARABLE_OUTCOMES.has(value)) throw new WorkoutSessionExecutionInputError('Situação da unidade executada inválida.');
+  return value as 'full' | 'partial' | 'substituted' | 'not_performed';
+}
+
+function normalizeSubstitution(outcome: string | undefined, note: string | null | undefined) {
+  const normalized = normalizeText(note, 500);
+  if (outcome === 'substituted' && !normalized) {
+    throw new WorkoutSessionExecutionInputError('Informe qual substituição foi realizada.');
+  }
+  if (outcome !== 'substituted' && normalized) {
+    throw new WorkoutSessionExecutionInputError('Substituição só pode ser informada quando a unidade foi substituída.');
+  }
+  return normalized;
+}
+
+function checkNumber(value: number | null | undefined, label: string, options: { integer?: boolean; max?: number } = {}) {
+  if (value !== undefined && value !== null
+      && (!Number.isFinite(value) || value < 0 || (options.integer && !Number.isInteger(value))
+        || (options.max !== undefined && value > options.max))) {
+    throw new WorkoutSessionExecutionInputError(`${label} inválido.`);
+  }
+  return value;
+}
+
 function normalizeSessionValues(values: TrainingSessionExecutionSessionValues | undefined): TrainingSessionExecutionSessionValues | undefined {
   if (!values) return undefined;
   const normalized: TrainingSessionExecutionSessionValues = {};
@@ -71,6 +101,56 @@ function normalizeSessionValues(values: TrainingSessionExecutionSessionValues | 
     normalized.heartRateBpm = values.heartRateBpm;
   }
   if (values.heartRateZone !== undefined) normalized.heartRateZone = normalizeText(values.heartRateZone, 32);
+  if (values.cyclicStages !== undefined) {
+    if (!Array.isArray(values.cyclicStages) || values.cyclicStages.length > 500) {
+      throw new WorkoutSessionExecutionInputError('Quantidade de etapas executadas inválida.');
+    }
+    const keys = new Set<string>();
+    normalized.cyclicStages = values.cyclicStages.map((entry) => {
+      const plannedStageId = entry.plannedStageId?.trim();
+      const iteration = entry.iteration ?? 1;
+      if (!plannedStageId || !Number.isInteger(iteration) || iteration < 1 || iteration > 100) {
+        throw new WorkoutSessionExecutionInputError('Etapa planejada ou repetição inválida.');
+      }
+      const key = `${plannedStageId}:${iteration}`;
+      if (keys.has(key)) throw new WorkoutSessionExecutionInputError('Etapa/repetição executada duplicada.');
+      keys.add(key);
+      const outcome = normalizeOutcome(entry.outcome);
+      if (!outcome) throw new WorkoutSessionExecutionInputError('Situação da etapa obrigatória.');
+      const substitutionNote = normalizeSubstitution(outcome, entry.substitutionNote);
+      return {
+        plannedStageId, iteration, outcome, substitutionNote,
+        durationSec: checkNumber(entry.durationSec, 'Duração da etapa', { integer: true }),
+        distanceMeters: checkNumber(entry.distanceMeters, 'Distância da etapa'),
+        paceMinPerKm: checkNumber(entry.paceMinPerKm, 'Ritmo da etapa'),
+        speedKmh: checkNumber(entry.speedKmh, 'Velocidade da etapa'),
+        heartRateBpm: checkNumber(entry.heartRateBpm, 'Frequência cardíaca da etapa', { integer: true, max: 260 }),
+        heartRateZone: normalizeText(entry.heartRateZone, 32),
+        pse: checkNumber(entry.pse, 'PSE da etapa', { max: 10 }),
+      };
+    });
+  }
+  if (values.resistanceGroups !== undefined) {
+    if (!Array.isArray(values.resistanceGroups) || values.resistanceGroups.length > 100) {
+      throw new WorkoutSessionExecutionInputError('Quantidade de agrupamentos executados inválida.');
+    }
+    const ids = new Set<string>();
+    normalized.resistanceGroups = values.resistanceGroups.map((entry) => {
+      const plannedGroupId = entry.plannedGroupId?.trim();
+      if (!plannedGroupId || ids.has(plannedGroupId)) {
+        throw new WorkoutSessionExecutionInputError('Agrupamento planejado inválido ou duplicado.');
+      }
+      ids.add(plannedGroupId);
+      const outcome = normalizeOutcome(entry.outcome);
+      if (!outcome) throw new WorkoutSessionExecutionInputError('Situação do agrupamento obrigatória.');
+      return {
+        plannedGroupId, outcome, substitutionNote: normalizeSubstitution(outcome, entry.substitutionNote),
+        roundsCompleted: checkNumber(entry.roundsCompleted, 'Rodadas realizadas', { integer: true }),
+        restBetweenExercisesSec: checkNumber(entry.restBetweenExercisesSec, 'Descanso entre exercícios', { integer: true, max: 86400 }),
+        restBetweenRoundsSec: checkNumber(entry.restBetweenRoundsSec, 'Descanso entre rodadas', { integer: true, max: 86400 }),
+      };
+    });
+  }
   return normalized;
 }
 
@@ -94,6 +174,8 @@ function normalizeItems(items: TrainingSessionExecutionItemValue[] | undefined):
     const key = `${plannedUnitId}:${setNumber}`;
     if (seen.has(key)) throw new WorkoutSessionExecutionInputError('A mesma unidade planejada/série foi informada mais de uma vez.');
     seen.add(key);
+    const outcome = normalizeOutcome(item.outcome);
+    const substitutionNote = normalizeSubstitution(outcome, item.substitutionNote);
     const nonNegative = (value: number | null | undefined, label: string, integer = false) => {
       if (value !== undefined && value !== null && (!Number.isFinite(value) || value < 0 || (integer && !Number.isInteger(value)))) throw new WorkoutSessionExecutionInputError(`${label} inválido.`);
       return value;
@@ -102,6 +184,12 @@ function normalizeItems(items: TrainingSessionExecutionItemValue[] | undefined):
       plannedUnitId,
       ...(hasPlannedSetId ? { plannedSetId } : {}),
       setNumber,
+      ...(outcome !== undefined ? { outcome } : {}),
+      ...(item.substitutionNote !== undefined ? { substitutionNote } : {}),
+      rir: checkNumber(item.rir, 'RIR executado', { max: 30 }),
+      rpe: checkNumber(item.rpe, 'RPE executado', { max: 10 }),
+      tempo: normalizeText(item.tempo, 80),
+      restSec: checkNumber(item.restSec, 'Descanso executado', { integer: true, max: 86400 }),
       loadKg: nonNegative(item.loadKg, 'Carga executada'),
       repetitions: nonNegative(item.repetitions, 'Repetições executadas', true),
       durationSec: nonNegative(item.durationSec, 'Tempo executado', true),
@@ -222,6 +310,12 @@ type ExecutionProjectionRow = {
     pace: string | null;
     heartRateBpm: number | null;
     heartRateZone: string | null;
+    outcome?: string;
+    substitutionNote?: string | null;
+    rir?: number | null;
+    rpe?: number | null;
+    tempo?: string | null;
+    restSec?: number | null;
   }>;
 };
 
@@ -248,6 +342,12 @@ export function projectWorkoutSessionExecution(
       plannedUnitId: item.plannedUnitId,
       plannedSetId: item.plannedSetId,
       setNumber: item.setNumber,
+      outcome: (item.outcome ?? 'full') as TrainingSessionExecutionItemValue['outcome'],
+      substitutionNote: item.substitutionNote ?? null,
+      rir: item.rir ?? null,
+      rpe: item.rpe ?? null,
+      tempo: item.tempo ?? null,
+      restSec: item.restSec ?? null,
       loadKg: item.loadKg,
       repetitions: item.repetitions,
       durationSec: item.durationSec,
@@ -350,6 +450,11 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
 
       const now = new Date();
       if (!execution) {
+        const dayPlan = await tx.workoutDay.findUnique({
+          where: { id: input.sessionId },
+          select: workoutComparisonPlanSelect,
+        });
+        if (!dayPlan) throw new WorkoutSessionExecutionNotFoundError('Treino planejado não encontrado.');
         execution = await tx.workoutSessionExecution.create({
           data: {
             workoutDayId: input.sessionId,
@@ -358,6 +463,7 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
             originReleaseId: locked.releaseId,
             originWorkoutTemplateId: locked.workoutTemplateId,
             originTrainingPlanId: locked.trainingPlanId,
+            plannedSnapshot: captureWorkoutComparisonPlan(dayPlan) as unknown as Prisma.InputJsonValue,
             status: currentStatus,
             version: currentVersion,
           },
