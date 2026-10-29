@@ -95,3 +95,11 @@ O arquivo de teste é pulado nos testes web sem banco configurado e executado
 obrigatoriamente pela etapa `Issue #487 authenticated real API student browser
 evidence` da CI CRITICAL. Nenhum resultado verde é presumido: o novo HEAD
 material exige execução terminal da CI e auditoria independente posterior.
+
+Na etapa de encerramento real, a automação exige que o `TrainingRoutinePanel`
+tenha consumido uma projeção autenticada da mesma versão canônica em que todas
+as séries estão concluídas antes do clique em `Concluir treino`; assim, o
+teste não dispara artificialmente uma transição com versão obsoleta enquanto a
+própria revalidação da UI ainda está em curso. Se o encerramento não aparecer,
+a falha registra texto da tela e status/versão persistidos para diagnóstico,
+sem transformar conflito em sucesso automático.

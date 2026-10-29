@@ -370,8 +370,46 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
         await waitText(page, next);
       }
       await noHorizontalOverflow(page);
+      // The guided card can show "all sets" before the parent panel has
+      // finished its authoritative routine refresh. Finalization must use
+      // the latest canonical version, never a stale parent lifecycle command.
+      const beforeFinish = await apiRequest(apiOrigin, token, fixture.contractId, 'GET',
+        '/student/me/training-sessions/' + fixture.dayId + '/execution/guided');
+      expect(beforeFinish.status).toBe(200);
+      expect(beforeFinish.body.data).toMatchObject({
+        status: 'in_progress', completed: 4, total: 4,
+      });
+      const authoritativeVersion = beforeFinish.body.data.version;
+      const synchronizedRoutine = page.waitForResponse(async (response) => {
+        if (!response.url().includes('/student/me/training-routine')
+          || response.request().method() !== 'GET' || response.status() !== 200) return false;
+        try {
+          const envelope = await response.json();
+          return envelope.data?.today?.sessions?.some((entry) =>
+            entry.sessionId === fixture.dayId
+              && entry.execution?.version === authoritativeVersion);
+        } catch { return false; }
+      }, { timeout: 20000 });
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      await synchronizedRoutine;
+      await page.waitForFunction(() => [...document.querySelectorAll('section[aria-busy]')]
+        .every((section) => section.getAttribute('aria-busy') !== 'true'),
+      { timeout: 20000 });
+      await page.evaluate(() => new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve))));
       await clickButton(page, 'Concluir treino');
-      await waitText(page, 'Concluído');
+      try {
+        await waitText(page, 'Concluído');
+      } catch (error) {
+        const uiState = await page.evaluate(() => document.body?.innerText?.slice(0, 2000) || '');
+        const persistedState = await prisma.workoutSessionExecution.findUnique({
+          where: { workoutDayId: fixture.dayId }, select: { status: true, version: true },
+        });
+        console.error('ISSUE_487_FINALIZE_DIAGNOSTICS', JSON.stringify({
+          uiState, persistedState, authoritativeVersion,
+        }));
+        throw error;
+      }
       screenshots.push(await shot(page, 'mobile-completed-session'));
 
       const final = await prisma.workoutSessionExecution.findUniqueOrThrow({
