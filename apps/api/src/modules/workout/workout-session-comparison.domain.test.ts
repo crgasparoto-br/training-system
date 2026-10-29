@@ -2,6 +2,7 @@ import type { TrainingSessionExecutionView } from '@corrida/types';
 import {
   captureWorkoutComparisonPlan,
   compareWorkoutSession,
+  projectWorkoutComparisonForAudience,
   readCapturedWorkoutComparisonPlan,
   type TrainingComparisonSnapshot,
 } from './workout-session-comparison.domain.js';
@@ -144,5 +145,18 @@ describe('issue #401: granular planned/executed comparison', () => {
   it('rejects mismatching day identity instead of comparing another session', () => {
     expect(() => compareWorkoutSession(planned(), execution({ sessionId: 'day-2' }), 'captured'))
       .toThrow('não pertence');
+  });
+
+  it('redacts per-set technical evidence on the server for the student audience', () => {
+    const comparison = compareWorkoutSession(planned(), execution({
+      items: [{ plannedUnitId: 'ex-1', plannedSetId: 'set-2', setNumber: 2,
+        repetitions: 10, loadKg: 21, rir: 1 }],
+    }), 'captured');
+    const student = projectWorkoutComparisonForAudience(comparison, 'student');
+    const professor = projectWorkoutComparisonForAudience(comparison, 'professor');
+    expect(student.units.some((item) => item.kind === 'block' || item.kind === 'set')).toBe(false);
+    expect(student.units.flatMap((item) => item.metrics).every((metric) => metric.difference === null)).toBe(true);
+    expect(professor.units.some((item) => item.kind === 'block' || item.kind === 'set')).toBe(true);
+    expect(get(professor.units, 'set-2')[0].metrics.find((metric) => metric.key === 'load_kg')?.difference).toBe(-1);
   });
 });
