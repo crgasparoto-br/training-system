@@ -2,13 +2,13 @@ import { Router } from 'express';
 import { workoutService } from '../modules/workout/workout.service.js';
 import {
   classifyResistanceWriteError,
-  parseResistanceGroupBaseUpdatedAt,
   sanitizeWorkoutMutation,
   ResistanceStructureValidationError,
   validateReorderEnvelope,
   validateTemplateCopyEnvelope,
   validateWorkoutWeekEnvelope,
 } from '../modules/workout/resistance-structure.domain.js';
+import { parseResistanceGroupBaseUpdatedAt } from '../modules/workout/resistance-groups.domain.js';
 import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
 import { parseRequiredDate, sendSafeWorkoutError, workoutContractScopeMiddleware } from './workout-route-guards.js';
 
