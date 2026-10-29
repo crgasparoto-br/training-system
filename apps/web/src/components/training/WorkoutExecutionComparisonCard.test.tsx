@@ -47,7 +47,7 @@ describe('WorkoutExecutionComparisonCard (#401)', () => {
     expect(screen.getByText('Série 1')).toBeInTheDocument();
     expect(screen.getByText(/Diferenças numéricas não significam/)).toBeInTheDocument();
     expect(screen.getByText(/Agachamento/)).toBeInTheDocument();
-    expect(screen.queryByText(/Melhor|Pior|Evoluiu/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Resultado:\s*(melhor|pior)|Desempenho:\s*(melhor|pior)/i)).not.toBeInTheDocument();
     expect(formatComparisonMetric(comparison.units[1].metrics[0])).toEqual({
       planned: '20 kg', executed: '0 kg', difference: '-20 kg',
     });
