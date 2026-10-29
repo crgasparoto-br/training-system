@@ -202,6 +202,7 @@ suite('Issue #487 - evidência browser execução resistida guiada', () => {
       await setSession(page);
       for (const viewport of [
         { name: 'desktop-1440x900', width: 1440, height: 900 },
+        { name: 'tablet-768x1024', width: 768, height: 1024 },
         { name: 'mobile-390x844', width: 390, height: 844, isMobile: true, hasTouch: true },
       ]) {
         executionVersion = 1; completed = 0;
@@ -211,19 +212,29 @@ suite('Issue #487 - evidência browser execução resistida guiada', () => {
         await waitText(page, 'Bi-set · rodada 1 de 2 · item 1 de 2');
         await waitText(page, 'Agachamento');
         await assertNoOverflow(page);
-        const focusable = await page.evaluate(() => {
+        const repsFocused = await page.evaluate(() => {
           const label = [...document.querySelectorAll('label')]
             .find((item) => item.textContent?.includes('Repetições realizadas'));
           const input = label?.htmlFor ? document.getElementById(label.htmlFor) : null;
-          const button = [...document.querySelectorAll('button')].find((item) => item.textContent?.includes('Concluir série'));
-          if (!(input instanceof HTMLInputElement) || input.disabled
-            || !(button instanceof HTMLButtonElement) || button.disabled) return false;
+          if (!(input instanceof HTMLInputElement) || input.disabled) return false;
           input.focus();
-          const inputFocused = document.activeElement === input;
-          button.focus();
-          return inputFocused && document.activeElement === button;
+          return document.activeElement === input;
         });
-        expect(focusable).toBe(true);
+        expect(repsFocused).toBe(true);
+        await page.keyboard.press('Tab');
+        const loadFocused = await page.evaluate(() => {
+          const label = [...document.querySelectorAll('label')]
+            .find((item) => item.textContent?.includes('Carga realizada'));
+          return label?.htmlFor && document.activeElement?.id === label.htmlFor;
+        });
+        expect(loadFocused).toBe(true);
+        await page.keyboard.press('Tab');
+        const submitFocused = await page.evaluate(() => {
+          const button = [...document.querySelectorAll('button')]
+            .find((item) => item.textContent?.includes('Concluir série'));
+          return button instanceof HTMLButtonElement && !button.disabled && document.activeElement === button;
+        });
+        expect(submitFocused).toBe(true);
         await page.evaluate(() => {
           const button = [...document.querySelectorAll('button')].find((item) => item.textContent?.includes('Ver ficha completa'));
           if (!(button instanceof HTMLButtonElement)) throw new Error('Ver ficha completa não encontrado');
@@ -252,12 +263,12 @@ suite('Issue #487 - evidência browser execução resistida guiada', () => {
         scenarios.push({ viewport, before, after });
       }
       const guidedWrites = api.requests.filter((request) => request.path.endsWith('/execution/guided/complete'));
-      expect(guidedWrites).toHaveLength(2);
+      expect(guidedWrites).toHaveLength(3);
       expect(guidedWrites.every((request) => request.method === 'POST' && request.contractId === CONTRACT_ID)).toBe(true);
       const evidence = {
         kind: 'issue-487-browser-evidence', result: 'PASS', identity: identity(),
         browser: await browser.version(), scenarios,
-        verified: ['desktop-1440x900', 'mobile-390x844', 'keyboard-focus', 'no-horizontal-overflow',
+        verified: ['desktop-1440x900', 'tablet-768x1024', 'mobile-390x844', 'keyboard-tab-navigation', 'no-horizontal-overflow',
           'one-unit-at-a-time', 'group-round-context', 'overview-return-position', 'next-participant-before-final-rest', 'x-contract-id'],
       };
       console.log(`BROWSER_EVIDENCE_487 ${JSON.stringify(evidence)}`);
