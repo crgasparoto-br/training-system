@@ -135,13 +135,13 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 CREATE TRIGGER "issue400_grouped_exercise_day_guard"
 BEFORE UPDATE OF "workoutDayId", "exerciseId" ON "WorkoutExercise"
 FOR EACH ROW EXECUTE FUNCTION "issue400_guard_grouped_exercise_day"();
 
 -- A library recategorization must not invalidate a previously planned grouping.
-CREATE FUNCTION "issue400_guard_grouped_library_category"() RETURNS TRIGGER AS $
+CREATE FUNCTION "issue400_guard_grouped_library_category"() RETURNS TRIGGER AS $$
 BEGIN
   IF lower(btrim(coalesce(NEW."category", ''))) IN ('ciclico', 'cíclico')
     AND EXISTS (
@@ -153,7 +153,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 CREATE TRIGGER "issue400_grouped_library_category_guard"
 BEFORE UPDATE OF "category" ON "ExerciseLibrary"
 FOR EACH ROW EXECUTE FUNCTION "issue400_guard_grouped_library_category"();
