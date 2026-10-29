@@ -1,5 +1,6 @@
 import { cyclicStageInclude, nestedCyclicStages, snapshotCyclicStages } from './cyclic-stages.domain.js';
 import { Prisma, type PrismaClient } from '@prisma/client';
+import { copyResistanceGroups, resistanceGroupInclude } from './resistance-groups.domain.js';
 import { ResistanceStructureNotFoundError, ResistanceStructureValidationError } from './resistance-structure.domain.js';
 import { lockWorkoutTemplatePlanningMutable, nestedResistanceBlocks, resistanceBlockInclude, serializeWorkoutTemplate, withTemplateCopyRetry, workoutDateInTargetWeek } from './workout-planning.helpers.js';
 
@@ -21,7 +22,7 @@ export async function copyTemplateSections(
       where: { id },
       include: {
         workoutDays: {
-          include: { cyclicStages: cyclicStageInclude, exercises: { include: { resistanceBlocks: resistanceBlockInclude } } },
+          include: { cyclicStages: cyclicStageInclude, resistanceGroups: resistanceGroupInclude, exercises: { include: { resistanceBlocks: resistanceBlockInclude } } },
         },
       },
     });
@@ -133,9 +134,11 @@ export async function copyTemplateSections(
           resistanceTimeMin: sourceDay.resistanceTimeMin,
         },
       });
+      await tx.workoutResistanceGroup.deleteMany({ where: { workoutDayId: targetDay.id } });
       await tx.workoutExercise.deleteMany({ where: { workoutDayId: targetDay.id } });
+      const copiedExerciseIds = new Map<string, string>();
       for (const exercise of sourceDay.exercises) {
-        await tx.workoutExercise.create({
+        const copiedExercise = await tx.workoutExercise.create({
           data: {
             workoutDayId: targetDay.id,
             exerciseId: exercise.exerciseId,
@@ -169,7 +172,9 @@ export async function copyTemplateSections(
             }))),
           },
         });
+        copiedExerciseIds.set(exercise.id, copiedExercise.id);
       }
+      await copyResistanceGroups(tx, targetDay.id, sourceDay.resistanceGroups, copiedExerciseIds);
     }
 
     const targetDays = await tx.workoutDay.findMany({
@@ -192,6 +197,8 @@ export async function copyTemplateSections(
         plan: true,
         workoutDays: {
           include: {
+            cyclicStages: cyclicStageInclude,
+            resistanceGroups: resistanceGroupInclude,
             exercises: { include: { exercise: true, resistanceBlocks: resistanceBlockInclude } },
           },
           orderBy: { dayOfWeek: 'asc' },
@@ -218,6 +225,7 @@ export async function copyTemplate(
       workoutDays: {
         include: {
           cyclicStages: cyclicStageInclude,
+          resistanceGroups: resistanceGroupInclude,
           exercises: { include: { resistanceBlocks: resistanceBlockInclude } },
         },
       },
@@ -306,8 +314,9 @@ export async function copyTemplate(
     for (const stage of nestedCyclicStages(snapshotCyclicStages(day.cyclicStages), newDay.id)) {
       await tx.workoutCyclicStage.create({ data: stage });
     }
+    const copiedExerciseIds = new Map<string, string>();
     for (const exercise of day.exercises) {
-      await tx.workoutExercise.create({
+      const copiedExercise = await tx.workoutExercise.create({
         data: {
           workoutDayId: newDay.id,
           exerciseId: exercise.exerciseId,
@@ -330,7 +339,9 @@ export async function copyTemplate(
           }))),
         },
       });
+      copiedExerciseIds.set(exercise.id, copiedExercise.id);
     }
+    await copyResistanceGroups(tx, newDay.id, day.resistanceGroups, copiedExerciseIds);
   }
 
   const copiedTemplate = await tx.workoutTemplate.findUnique({
@@ -340,6 +351,7 @@ export async function copyTemplate(
       workoutDays: {
         include: {
           cyclicStages: cyclicStageInclude,
+          resistanceGroups: resistanceGroupInclude,
           exercises: {
             include: {
               exercise: true,
