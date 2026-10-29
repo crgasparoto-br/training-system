@@ -1922,6 +1922,7 @@ model WorkoutDay {
   template            WorkoutTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
   exercises           WorkoutExercise[]
   cyclicStages        WorkoutCyclicStage[]
+  resistanceGroups    WorkoutResistanceGroup[]
   preWorkoutCheckIn   PreWorkoutCheckIn?
   execution           WorkoutSessionExecution?
   postWorkoutFeedbackRevisions PostWorkoutFeedbackRevision[]
@@ -2018,12 +2019,43 @@ model WorkoutExercise {
   exercise      ExerciseLibrary    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
   workoutDay    WorkoutDay         @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
   resistanceBlocks WorkoutExerciseBlock[]
+  resistanceGroupMember WorkoutResistanceGroupMember?
   executionItems WorkoutSessionExecutionItem[]
 
   @@index([workoutDayId])
   @@index([workoutDayId, section, exerciseOrder])
 }
 
+
+/// #400: execution arrangement of existing exercises; planned sets remain on WorkoutExercise.
+model WorkoutResistanceGroup {
+  id                       String                         @id @default(cuid())
+  workoutDayId             String
+  position                 Int
+  kind                     String
+  rounds                   Int?
+  restBetweenExercisesSec  Int?
+  restBetweenRoundsSec     Int?
+  notes                    String?
+  createdAt                DateTime                       @default(now())
+  updatedAt                DateTime                       @updatedAt
+  workoutDay               WorkoutDay                     @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  members                  WorkoutResistanceGroupMember[]
+
+  @@unique([workoutDayId, position])
+}
+
+model WorkoutResistanceGroupMember {
+  id                 String                 @id @default(cuid())
+  groupId            String
+  workoutExerciseId  String                 @unique
+  position           Int
+  group              WorkoutResistanceGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  workoutExercise    WorkoutExercise        @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, position])
+  @@index([groupId])
+}
 
 model WorkoutExerciseBlock {
   id                String                      @id @default(cuid())
