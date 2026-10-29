@@ -243,8 +243,9 @@ export function GuidedResistanceCard({
       const httpStatus = (cause as { response?: { status?: number } })?.response?.status;
       if (httpStatus === 409) {
         operationRef.current = null;
-        keepDraft(repetitions, loadKg, null);
         conflictVersionRef.current = Math.max(conflictVersionRef.current ?? -1, view.version);
+        // Preserve the 409 lock with the draft before the card can unmount.
+        keepDraft(repetitions, loadKg, null);
         // Invalidate any read started before we learned about the conflict.
         refreshSequenceRef.current += 1;
         setLoading(false);
