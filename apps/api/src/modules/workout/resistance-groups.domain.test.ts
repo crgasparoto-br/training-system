@@ -47,13 +47,16 @@ describe('#400 - agrupamentos explícitos de exercícios existentes', () => {
     ] }])[0].members).toHaveLength(1);
   });
   it('valida o envelope semanal inteiro sem permitir relações Prisma arbitrárias', () => {
-    const valid = { resistanceGroups: { 1: [group()], 2: [] } };
+    const baseUpdatedAt = '2026-10-29T10:00:00.000Z';
+    const valid = { baseUpdatedAt, resistanceGroups: { 1: [group()], 2: [] } };
     expect(() => validateWorkoutWeekEnvelope(valid)).not.toThrow();
-    expect(() => validateWorkoutWeekEnvelope({ resistanceGroups: { 8: [] } }))
+    expect(() => validateWorkoutWeekEnvelope({ resistanceGroups: { 1: [group()] } }))
       .toThrow(ResistanceStructureValidationError);
-    expect(() => validateWorkoutWeekEnvelope({ resistanceGroups: { 1: [{ ...group(), kind: 'legacy' }] } }))
+    expect(() => validateWorkoutWeekEnvelope({ baseUpdatedAt, resistanceGroups: { 8: [] } }))
       .toThrow(ResistanceStructureValidationError);
-    expect(() => validateWorkoutWeekEnvelope({ resistanceGroups: { 1: [group()] }, exercises: { deleteMany: {} } }))
+    expect(() => validateWorkoutWeekEnvelope({ baseUpdatedAt, resistanceGroups: { 1: [{ ...group(), kind: 'legacy' }] } }))
+      .toThrow(ResistanceStructureValidationError);
+    expect(() => validateWorkoutWeekEnvelope({ baseUpdatedAt, resistanceGroups: { 1: [group()] }, exercises: { deleteMany: {} } }))
       .toThrow(ResistanceStructureValidationError);
     expect(() => validateWorkoutWeekEnvelope({ workoutDays: [], resistedExercises: {}, cyclicStages: {} }))
       .not.toThrow();
