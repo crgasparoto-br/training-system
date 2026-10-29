@@ -2,7 +2,7 @@
 
 import { Prisma } from '@prisma/client';
 import { assertWorkoutParentIsImmutable, normalizeResistanceBlocks, sanitizeWorkoutMutation, ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput } from './resistance-structure.domain.js';
-import { assertDayContract, isWorkoutTemplateUniqueConflict, lockWorkoutDayPlanningMutable, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
+import { assertDayContract, isWorkoutTemplateUniqueConflict, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
 import { copyTemplate as copyTemplateStructured, copyTemplateSections as copyTemplateSectionsStructured } from './workout-copy.service.js';
 import { replaceDayResistanceExercises as replaceDayResistanceExercisesStructured, saveTemplateWeek as saveTemplateWeekStructured } from './workout-week-structure.service.js';
 import { cyclicStageInclude, nestedCyclicStages, normalizeCyclicStages, replaceCyclicStagesInTransaction, snapshotCyclicStages } from './cyclic-stages.domain.js';
