@@ -11,6 +11,7 @@ import type {
   GuidedResistanceView,
 } from '@corrida/types';
 import { deriveGuidedResistancePlan, matchesCurrentGuidedUnit, projectGuidedResistance } from './guided-resistance.domain.js';
+import { projectReleasedExerciseCatalog } from './workout-release-catalog.js';
 import { persistWorkoutSessionValues, WorkoutSessionExecutionInputError } from './workout-session-execution-values.js';
 export { WorkoutSessionExecutionInputError } from './workout-session-execution-values.js';
 import {
@@ -29,6 +30,7 @@ async function loadGuidedResistancePlan(tx: Prisma.TransactionClient, sessionId:
       id: true, section: true, exerciseOrder: true, system: true, groupBreakBefore: true,
       exerciseNotes: true,
       exercise: { select: { name: true, videoUrl: true, notes: true } },
+      releasedCatalog: { select: { catalog: true } },
       resistanceBlocks: {
         orderBy: { position: 'asc' },
         select: {
@@ -57,7 +59,12 @@ async function loadGuidedResistancePlan(tx: Prisma.TransactionClient, sessionId:
       },
     },
   });
-  return deriveGuidedResistancePlan(exercises, groups);
+  // #400 freezes catalog presentation at release; guided execution must read
+  // that same snapshot instead of a mutable ExerciseLibrary row.
+  return deriveGuidedResistancePlan(exercises.map(({ releasedCatalog, ...item }) => ({
+    ...item,
+    exercise: projectReleasedExerciseCatalog(item.exercise, releasedCatalog),
+  })), groups);
 }
 
 type LockedReleasedSession = {

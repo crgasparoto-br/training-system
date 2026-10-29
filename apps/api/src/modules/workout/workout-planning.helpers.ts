@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
+import { projectWorkoutDayExerciseCatalog } from './workout-release-catalog.js';
 
 import { ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput, type ResistancePlannedSetInput } from './resistance-structure.domain.js';
 
@@ -22,8 +23,12 @@ export function serializeWorkoutTemplate<T extends { studentGoal?: string | null
     return template;
   }
 
+  const withCatalog = 'workoutDays' in template && Array.isArray(template.workoutDays)
+    ? { ...template, workoutDays: template.workoutDays.map((day) =>
+        projectWorkoutDayExerciseCatalog(day, 'released' in template && template.released === true)) }
+    : template;
   return {
-    ...template,
+    ...withCatalog,
     alunoGoal: template.studentGoal,
   };
 }

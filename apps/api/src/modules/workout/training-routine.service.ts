@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient, type PostWorkoutFeedbackRevision, type WorkoutSessionExecutionStatus } from '@prisma/client';
+import { projectReleasedExerciseCatalog } from './workout-release-catalog.js';
 import type {
   TrainingRoutineAudience,
   TrainingRoutineBlock,
@@ -136,6 +137,7 @@ const sessionSelect = {
       intervalSec: true,
       exerciseNotes: true,
       exercise: { select: { name: true } },
+      releasedCatalog: { select: { catalog: true } },
     },
   },
 } satisfies Prisma.WorkoutDaySelect;
@@ -253,7 +255,7 @@ function buildBlocks(row: SessionRow): TrainingRoutineBlock[] {
     list.push({
       id: item.id,
       order: item.exerciseOrder,
-      name: item.exercise.name,
+      name: projectReleasedExerciseCatalog(item.exercise, item.releasedCatalog).name,
       system: cleanText(item.system),
       sets: item.sets,
       reps: item.reps,

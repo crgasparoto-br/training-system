@@ -453,6 +453,19 @@ describe('training routine service (#387)', () => {
     expect(routine.today.sessions[0].modalities).toEqual(['resistance']);
   });
 
+  it('uses catalog name captured at release in the today routine', async () => {
+    releasedRows = [makeRow({ exercises: [
+      { ...exercise('a', 'sessao', 1), exercise: { name: 'Biblioteca alterada' },
+        releasedCatalog: { catalog: { name: 'Agachamento prescrito na liberação' } } },
+      { ...exercise('b', 'sessao', 2), releasedCatalog: null },
+    ] })];
+    const routine = await service.getRoutine({ alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now });
+    expect(routine.today.sessions[0].blocks[0].exercises.map((item) => item.name))
+      .toEqual(['Agachamento prescrito na liberação', 'Exercício b']);
+    const query = findMany.mock.calls.find(([args]) => args.where.template?.released === true);
+    expect(query?.[0]?.select?.exercises?.select?.releasedCatalog).toEqual({ select: { catalog: true } });
+  });
+
   it('identifica modalidades e preserva distância da projeção operacional consolidada', async () => {
     const cyclicRow = makeRow({ sessionDurationMin: null, cyclicTimeMin: 30, resistanceTimeMin: 20, targetHrMin: '140', targetHrMax: '150' });
     cyclicRow.template.totalVolumeKm = 5;

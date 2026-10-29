@@ -56,6 +56,24 @@ describe('student released workout service', () => {
     );
   });
 
+  it('projects the immutable release name while hiding snapshot fields from the student', async () => {
+    findFirst.mockResolvedValueOnce({
+      id: 'template-1',
+      workoutDays: [{
+        id: 'day-1',
+        exercises: [
+          { id: 'ex-a', exercise: { name: 'Novo nome do catálogo' },
+            releasedCatalog: { catalog: { name: 'Nome prescrito na liberação' } } },
+          { id: 'ex-b', exercise: { name: 'Registro antigo sem snapshot' }, releasedCatalog: null },
+        ],
+      }],
+    });
+    const released = await service.getReleasedForStudent('template-1', 'aluno-1', 'contract-1');
+    expect(released?.workoutDays[0].exercises.map((exercise) => exercise.exercise.name))
+      .toEqual(['Nome prescrito na liberação', 'Registro antigo sem snapshot']);
+    expect(JSON.stringify(released)).not.toContain('releasedCatalog');
+  });
+
   it('não usa releasedAt como autoridade de visibilidade', async () => {
     await service.listReleasedForStudent('aluno-1', 'contract-1');
 
@@ -77,6 +95,7 @@ describe('student released workout service', () => {
     expect(exerciseSelect.eParam).toBeUndefined();
     expect(exerciseSelect.exerciseId).toBeUndefined();
     expect(exerciseSelect.exercise).toEqual({ select: { name: true } });
+    expect(exerciseSelect.releasedCatalog).toEqual({ select: { catalog: true } });
 
     expect(daySelect.stimulusDurationMin).toBeUndefined();
     expect(daySelect.intensity1).toBeUndefined();

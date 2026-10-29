@@ -29,3 +29,27 @@ Antes da auditoria independente: `pnpm validate`, migrations PostgreSQL, testes,
 - **A-002 / dependência #400:** a execução guiada foi sincronizada por conteúdo com o HEAD imutável `e8fa4e29fcce26a1d8a41cf3353a7603911ffac6` da PR #521, preservando simultaneamente os testes e o contrato da #487. Mudanças posteriores na #521 exigem reconciliação e validação no SHA final.
 - **RISK-001:** regressão de treino misto estruturado/legado comprova fallback `legacy_read_only`, sem inventar unidades de execução.
 - **Gates obrigatórios:** PostgreSQL, testes, type-check, lint, build e `Validate repository` CRITICAL exact-SHA; não fazer merge sem revisão independente.
+
+## Fechamento da auditoria de evidência visual (A-487-05)
+
+O job CRITICAL executa a jornada Chrome da #487 e exige a publicação, no artifact
+`validate-pr-critical-<HEAD>`, das seis capturas reais de
+`artifacts/issue-487/` (antes/depois para desktop 1440×900, tablet 768×1024
+e mobile 390×844). O passo `Verify issue-487 exact-head browser captures`
+confere o `BROWSER_EVIDENCE_487` bruto de `artifacts/ci/full-tests.log`,
+o SHA exato do candidato, os três viewports, os controles declarados e o
+SHA-256 dos bytes de cada PNG. Imagem ausente, adulterada, de outro HEAD ou
+log sem evidência estruturada reprovam o job antes do upload. Casos positivos
+e negativos estão em `scripts/verify-issue-487-browser-evidence.test.mjs`.
+Os arquivos ficam no artefato CI e não são adicionados ao Git.
+
+A sincronização com a dependência #400 incorpora o catálogo imutável de
+liberação (`WorkoutReleasedExerciseSnapshot`), adicionado no HEAD
+`a43aafc85f55e26f3c755b47c2974a30f9ba3104` da PR #521. O modo guiado usa a mesma projeção de catálogo
+congelada das leituras de treino; mudanças posteriores em `ExerciseLibrary`
+não podem alterar nome, vídeo ou orientação de uma sessão já liberada.
+
+A PR #521 continua dependência de integração: primeiro sua aprovação
+independente e merge autorizado; depois reconciliação da #522 com a nova
+`develop`, nova CI exact-SHA e revisão independente da #487. Nenhuma
+sincronização por conteúdo corresponde a merge ou dispensa essa ordem.

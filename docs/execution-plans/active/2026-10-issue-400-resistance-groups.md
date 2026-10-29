@@ -40,6 +40,13 @@
 - **Controles:** integrar casos adversariais em PostgreSQL e interface, validando ausência de persistência parcial e preservação de grupos.
 - **Status:** remediação material preparada para gates completos, CI exact-SHA e nova auditoria independente em contexto separado.
 
+## Remediação independente adicional — 29/10/2026 (A-003/A-004)
+
+- **A-003 (categoria cíclica Unicode):** normalização SQL equivalente ao frontend/API aplicada aos três triggers existentes, sem editar migrations históricas. Testes PostgreSQL negativos para NFD, NBSP, espaço Unicode, recategorização, associação SQL direta e troca de biblioteca; regressão positiva resistida.
+- **A-004 (metadados históricos):** snapshot imutável por `WorkoutExercise` real capturado na liberação legada ou consolidada; backfill somente com metadados disponíveis no momento da migração. Leituras de aluno, professor e rotina projetam nomes liberados, com compatibilidade histórica e sem duplicação de exercício/séries.
+- **Provas necessárias:** criação de snapshot por ambos os caminhos, alteração subsequente do catálogo sem alteração da leitura histórica, SQL negativo de update/delete/insert tardio, replay da liberação e manutenção dos IDs do agrupamento. Execução de CI CRITICAL/PostgreSQL, type-check, lint, build, checks de arquitetura e documentação no SHA exato.
+- **Critério terminal:** nova auditoria independente após todos os checks no HEAD definitivo, sem merge ou release automático.
+
 ## Entrega
 
 Não efetuar merge. A implementação só será considerada concluída após checks do HEAD exato, validação de migração, testes relevantes e auditoria independente sem pendências.
