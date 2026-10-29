@@ -66,8 +66,11 @@ export function deriveResistanceGroupAssignments(
   const sorted = [...rows].sort((a, b) =>
     a.section.localeCompare(b.section) || a.exerciseOrder - b.exerciseOrder || a.id.localeCompare(b.id));
   const result = new Map<string, ResistanceGroupAssignment>();
-  const effectiveType = (row: GroupRow) =>
-    declarations.has(row.id) ? declarations.get(row.id) ?? null : row.groupType;
+  const effectiveType = (row: GroupRow) => {
+    if (!declarations.has(row.id)) return row.groupType;
+    const declared = declarations.get(row.id);
+    return declared === undefined ? row.groupType : declared;
+  };
   sorted.filter((row) => !effectiveType(row)).forEach((row) => result.set(row.id, {
     id: row.id, groupId: null, groupType: null, groupPosition: null, groupRounds: null,
   }));

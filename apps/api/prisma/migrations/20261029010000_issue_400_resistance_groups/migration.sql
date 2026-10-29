@@ -24,8 +24,7 @@ ALTER TABLE "WorkoutExercise"
 
 CREATE INDEX "WorkoutExercise_groupId_idx" ON "WorkoutExercise"("groupId");
 CREATE UNIQUE INDEX "WorkoutExercise_groupId_groupPosition_key"
-  ON "WorkoutExercise"("groupId", "groupPosition")
-  WHERE "groupId" IS NOT NULL;
+  ON "WorkoutExercise"("groupId", "groupPosition");
 
 CREATE OR REPLACE FUNCTION "issue400_validate_group_member"()
 RETURNS trigger AS $$
