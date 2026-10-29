@@ -14,6 +14,7 @@ TrainingPlan
   -> WorkoutTemplate
      -> WorkoutDay
         -> WorkoutExercise
+        -> WorkoutResistanceGroup (associação com os mesmos exercícios)
   -> liberação / execução
 ```
 
@@ -115,3 +116,17 @@ Cada etapa tem identidade persistente, posição 1..N e tipo `warmup | work | re
 O Workout Builder edita etapas por dia na aba Cíclico e grava o snapshot transacional pela rota `PUT /api/v1/workout/templates/:id/save-week`, aceitando `cyclicStages: { "1": [...] }`. A API isolada `PUT /api/v1/workout/days/:id/cyclic-stages` aceita `{ "stages": [...] }`. Ambas exigem professor autenticado, escopo de `contractId`, validação de esquema estrito e bloqueiam mudanças após liberação ou início/histórico de execução. Um trigger no banco impede desvios por escrita SQL direta e transferência de vínculo; conflito otimista semanal não sobrepõe rascunhos. Gravação idêntica preserva IDs da prescrição, enquanto cópias geram novas identidades no destino.
 
 Treinamentos legados permanecem válidos: se `cyclicStages` estiver ausente, a sessão continua consultável pelos campos `method`, `numSets`, `sessionTime`, `restTime`, `targetHrMin`, `targetSpeedMin` e `detailNotes`, sem migração sintética. `cyclicStages: []` remove apenas a estrutura de um dia **editável** sem alterar dados legados; enviar uma semana sem a chave `cyclicStages` mantém a estrutura existente. Leituras da rotina do aluno expõem `cyclicStages[]` ordenado e com as mesmas identidades para a execução guiada futura #489, sem modificar a prescrição. Nenhuma execução/feedback é alterada por #398.
+
+## Agrupamentos estruturados do treino resistido (#400)
+
+`WorkoutResistanceGroup` é filho opcional do mesmo `WorkoutDay` que possui `WorkoutExercise` e `WorkoutExerciseBlock`. A ordem dos agrupamentos é `position` (1..N). Cada `WorkoutResistanceGroupMember` possui `position` dentro do grupo e um vínculo `workoutExerciseId` **com uma linha real do mesmo dia**. A associação não cria nova linha de exercício, não duplica séries da #399 e não altera o esquema cíclico da #398.
+
+Tipos explícitos: `superserie` (2–4 participantes), `bi_set` (2), `tri_set` (3), `circuito` (2–20), `bloco_tecnico` (1–20), `mobilidade` (1–20) e `finalizacao` (1–20). O agrupamento pode informar `rounds` (1–100), `restBetweenExercisesSec`, `restBetweenRoundsSec` (0–86400 cada) e `notes` (até 500 caracteres). A omissão de rodadas ou descanso representa valor **não prescrito**, nunca zero presumido. Uma linha de `WorkoutExercise` participa de no máximo um grupo do seu dia. O código de `system` e o marcador legado `groupBreakBefore` continuam disponíveis para treinos antigos, mas **não definem** um grupo estruturado novo por inferência textual.
+
+A tela de montagem resistida permite selecionar participantes já existentes, alterar tipo, ordenar grupos e participantes, editar rodadas/intervalos e desfazer agrupamentos. Excluir um exercício retira sua associação; um grupo que perder a cardinalidade mínima é desfeito sem apagar os outros exercícios. A tela de dia/semana liberados é de somente leitura.
+
+O salvamento principal da montagem é `PUT /api/v1/workout/templates/:id/save-week`, incluindo `resistanceGroups: { "1": [{ position, kind, rounds?, restBetweenExercisesSec?, restBetweenRoundsSec?, notes?, members: [{ position, section, exerciseOrder }] }] }`. Os campos `section` e `exerciseOrder` identificam a linha canônica **após a conciliação do mesmo snapshot de exercícios**; o servidor nunca aceita IDs ou relações Prisma arbitrárias do cliente como substituição de autorização. Também existe `PUT /api/v1/workout/days/:id/resistance-groups` com `{ groups: [...] }`. O campo omitido preserva agrupamentos anteriores; a lista vazia explícita os remove somente enquanto o planejamento estiver editável.
+
+Cópia de dia, cópia de semana inteira e cópia apenas da parte resistida preservam composição, tipo, ordem, rodadas e intervalos e **reapontam** cada membro aos novos IDs de exercício no destino. Cópia apenas da parte cíclica preserva os grupos resistidos do destino. Um reenvio semanticamente idêntico de grupos mantém os IDs persistidos; mudanças efetivas antes da liberação podem substituir o conjunto. Nenhum agrupamento retroativo é inventado para treinos antigos sem grupos.
+
+Após `WorkoutTemplate.released`, liberação operacional consolidada, início de execução ou histórico legado, os agrupamentos e associações ficam imutáveis pelo serviço e por triggers PostgreSQL (inclusive SQL direto e tentativas de reatribuir membros entre dias). Execução por rodada/item da #401 poderá referenciar os IDs planejados do grupo e seus membros; **nenhum campo de execução realizada é incluído na prescrição desta issue**. A implementação é aditiva, sem backfill e sem criar um segundo grafo de treino.

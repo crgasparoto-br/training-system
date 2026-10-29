@@ -336,4 +336,15 @@ describe('WorkoutBuilderResistance', () => {
     expect(onSelectedDayChange).toHaveBeenCalledWith(7);
     expect(screen.getByRole('tab', { name: /Dom/ })).toHaveAttribute('aria-selected', 'true');
   });
+  it('cria grupo explicitamente sem alterar nem duplicar exercícios existentes', () => {
+    const onChange = renderResistance();
+    fireEvent.click(screen.getByRole('button', { name: 'Criar grupo' }));
+    const snapshot = onChange.mock.calls.at(-1)?.[0];
+    expect(snapshot.resistanceGroupsByDay[1][0]).toMatchObject({
+      kind: 'bi_set', position: 1,
+      members: [{ exerciseRowId: 's1' }, { exerciseRowId: 's2' }],
+    });
+    expect(snapshot.resistedExercises[1].sessao).toHaveLength(2);
+  });
+
 });
