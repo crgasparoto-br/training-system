@@ -94,12 +94,12 @@ describe('issue #487 - guia resistido', () => {
 
   it('não anuncia o descanso final antes do último participante da rodada', async () => {
     const groupedFirst = {
-      ...first, groupId: 'group-1', groupType: 'biset' as const,
+      ...first, restSec: null, groupId: 'group-1', groupType: 'bi_set' as const,
       groupPosition: 1, groupSize: 2, roundNumber: 1, roundTotal: 2,
     };
     const groupedSecond = {
       ...second, plannedUnitId: 'exercise-b',
-      groupId: 'group-1', groupType: 'biset' as const,
+      groupId: 'group-1', groupType: 'bi_set' as const,
       groupPosition: 2, groupSize: 2, roundNumber: 1, roundTotal: 2,
     };
     const load = vi.fn().mockResolvedValue(projection({ current: groupedFirst, next: groupedSecond }));
@@ -125,6 +125,27 @@ describe('issue #487 - guia resistido', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/outro dispositivo/);
     expect(screen.getByText(/1 de 2 séries confirmadas/)).toBeInTheDocument();
     expect(complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('bloqueia confirmação após 409 seguido de falha GET sem perder os dados locais', async () => {
+    const load = vi.fn()
+      .mockResolvedValueOnce(projection())
+      .mockRejectedValueOnce(new Error('network after conflict'))
+      .mockResolvedValueOnce(projection({ version: 2, completed: 1, current: second, next: null }));
+    const complete = vi.fn().mockRejectedValue({ response: { status: 409 } });
+    panel({ load, complete });
+    const submit = await screen.findByRole('button', { name: 'Concluir série' });
+    await userEvent.clear(screen.getByLabelText('Repetições realizadas'));
+    await userEvent.type(screen.getByLabelText('Repetições realizadas'), '6');
+    await userEvent.click(submit);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/recarga falhou/);
+    expect(submit).toBeDisabled();
+    expect(screen.getByLabelText('Repetições realizadas')).toHaveValue('6');
+    await userEvent.click(screen.getByRole('button', { name: 'Atualizar estado salvo' }));
+    await waitFor(() => expect(screen.getByText(/1 de 2 séries confirmadas/)).toBeInTheDocument());
+    expect(submit).toBeEnabled();
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(load).toHaveBeenCalledTimes(3);
   });
 
   it('impede escrita enquanto pausado', async () => {

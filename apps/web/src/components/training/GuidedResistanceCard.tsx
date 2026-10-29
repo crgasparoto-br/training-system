@@ -23,13 +23,13 @@ const sectionLabels: Record<string, string> = {
   finalizacao: 'Finalização',
 };
 const groupLabels: Record<string, string> = {
-  superset: 'Supersérie',
-  biset: 'Bi-set',
-  triset: 'Tri-set',
-  circuit: 'Circuito',
-  technical_block: 'Bloco técnico',
-  mobility: 'Mobilidade',
-  finisher: 'Finalização',
+  superserie: 'Supersérie',
+  bi_set: 'Bi-set',
+  tri_set: 'Tri-set',
+  circuito: 'Circuito',
+  bloco_tecnico: 'Bloco técnico',
+  mobilidade: 'Mobilidade',
+  finalizacao: 'Finalização',
 };
 const blockLabels: Record<string, string> = {
   aquecimento: 'Aquecimento',
@@ -69,6 +69,7 @@ export function GuidedResistanceCard({
   const [loadKg, setLoadKg] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [reconciliationRequired, setReconciliationRequired] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [lastRest, setLastRest] = useState<number | null>(null);
@@ -88,13 +89,18 @@ export function GuidedResistanceCard({
     setView(saved);
   }, []);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<boolean> => {
     setLoading(true);
     try {
-      acceptView(await load(sessionId));
+      const saved = await load(sessionId);
+      acceptView(saved);
+      setReconciliationRequired(false);
       setError(null);
+      return true;
     } catch {
-      setError('Não foi possível consultar a posição salva. Confira a conexão e atualize o treino.');
+      setReconciliationRequired(true);
+      setError('Não foi possível consultar a posição salva. Atualize o treino antes de confirmar outra série.');
+      return false;
     } finally {
       setLoading(false);
     }
@@ -107,7 +113,7 @@ export function GuidedResistanceCard({
   }, [refresh, status, version]);
 
   async function confirmCurrent() {
-    if (!view?.current || view.status !== 'in_progress' || status !== 'in_progress' || busy || loading) return;
+    if (!view?.current || view.status !== 'in_progress' || status !== 'in_progress' || busy || loading || reconciliationRequired) return;
     const current = view.current;
     let actualReps: number | null;
     let actualLoad: number | null;
@@ -140,11 +146,8 @@ export function GuidedResistanceCard({
     setConfirmation(null);
     try {
       const saved = await complete(sessionId, operationRef.current.payload);
-      const isBeforeLastGroupedParticipant = Boolean(
-        current.groupId && current.groupPosition && current.groupSize
-        && current.groupPosition < current.groupSize
-      );
-      setLastRest(isBeforeLastGroupedParticipant ? null : current.restSec);
+      // The canonical group determines whether the interval is intermediate.
+      setLastRest(current.restSec);
       acceptView(saved);
       operationRef.current = null;
       setConfirmation('Série registrada. O próximo passo foi atualizado com os dados salvos.');
@@ -157,12 +160,11 @@ export function GuidedResistanceCard({
       const httpStatus = (cause as { response?: { status?: number } })?.response?.status;
       if (httpStatus === 409) {
         operationRef.current = null;
-        try {
-          await refresh();
-          setError('O treino mudou em outro dispositivo. Revise a série atualizada antes de confirmar novamente.');
-        } catch {
-          setError('O treino mudou em outro dispositivo. Atualize a sessão antes de tentar novamente.');
-        }
+        setReconciliationRequired(true);
+        const reconciled = await refresh();
+        setError(reconciled
+          ? 'O treino mudou em outro dispositivo. Revise a série atualizada antes de confirmar novamente.'
+          : 'O treino mudou em outro dispositivo e a recarga falhou. Nova confirmação bloqueada até atualizar o estado salvo.');
       } else {
         setError('Não foi possível confirmar a gravação. Atualize o estado salvo ou tente novamente; sua informação foi preservada.');
       }
@@ -240,7 +242,8 @@ export function GuidedResistanceCard({
                   </div>
                 </div>
                 {view.status === 'paused' && <p role="status" className="text-sm text-amber-800">Treino pausado. Retome a sessão para registrar esta série.</p>}
-                <Button type="submit" className="w-full sm:w-auto" disabled={busy || loading || view.status !== 'in_progress' || status !== 'in_progress'}>
+              {reconciliationRequired && <p role="status" className="text-sm text-amber-800">Confirmação bloqueada até revalidar a posição no servidor.</p>}
+                <Button type="submit" className="w-full sm:w-auto" disabled={busy || loading || reconciliationRequired || view.status !== 'in_progress' || status !== 'in_progress'}>
                   {busy ? 'Salvando série...' : 'Concluir série'}
                 </Button>
               </form>
