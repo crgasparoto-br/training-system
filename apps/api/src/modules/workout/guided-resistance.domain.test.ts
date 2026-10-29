@@ -143,7 +143,7 @@ describe('issue #487 - plano resistido canônico', () => {
       expect(plan.units[0].restSec).toBe(15);
       expect(plan.units[size - 1].restSec).toBe(90);
       expect(plan.units[size].roundNumber).toBe(2);
-      expect(plan.units.at(-1)?.restSec).toBeNull();
+      expect(plan.units[plan.units.length - 1].restSec).toBeNull();
     }
   });
 
