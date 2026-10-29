@@ -27,7 +27,7 @@ async function loadGuidedResistancePlan(tx: Prisma.TransactionClient, sessionId:
     where: { workoutDayId: sessionId },
     select: {
       id: true, section: true, exerciseOrder: true, system: true, groupBreakBefore: true,
-      groupId: true, groupType: true, groupPosition: true, groupRounds: true, exerciseNotes: true,
+      exerciseNotes: true,
       exercise: { select: { name: true, videoUrl: true, notes: true } },
       resistanceBlocks: {
         orderBy: { position: 'asc' },
@@ -45,7 +45,19 @@ async function loadGuidedResistancePlan(tx: Prisma.TransactionClient, sessionId:
       },
     },
   });
-  return deriveGuidedResistancePlan(exercises);
+  const groups = await tx.workoutResistanceGroup.findMany({
+    where: { workoutDayId: sessionId },
+    orderBy: [{ position: 'asc' }, { id: 'asc' }],
+    select: {
+      id: true, position: true, kind: true, rounds: true,
+      restBetweenExercisesSec: true, restBetweenRoundsSec: true, notes: true,
+      members: {
+        orderBy: [{ position: 'asc' }, { id: 'asc' }],
+        select: { position: true, workoutExerciseId: true },
+      },
+    },
+  });
+  return deriveGuidedResistancePlan(exercises, groups);
 }
 
 type LockedReleasedSession = {
