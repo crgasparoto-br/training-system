@@ -2496,12 +2496,32 @@ describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
     });
     const [accepted] = await replaceGroups(fixture.dayId, groups, fixture.contractId);
     expect(accepted.members).toHaveLength(2);
+    const cyclicLibrary = await prisma.exerciseLibrary.create({
+      data: { contractId: fixture.contractId, name: 'Corrida cíclica', category: 'CICLICO' },
+    });
+    await expect(prisma.workoutExercise.update({
+      where: { id: fixture.exerciseIds[0] }, data: { exerciseId: cyclicLibrary.id },
+    })).rejects.toThrow();
     await expect(prisma.exerciseLibrary.update({
       where: { id: exercise.exerciseId }, data: { category: 'Cíclico' },
     })).rejects.toThrow();
     expect((await prisma.exerciseLibrary.findUniqueOrThrow({
       where: { id: exercise.exerciseId }, select: { category: true },
     })).category).toBe('Resistido');
+  });
+
+  it('A-001: edição individual de metadados invalida base antiga de agrupamentos', async () => {
+    const { fixture, templateId, groups } = await setup('issue400-legacy-revision');
+    const staleRevision = await currentRevision(templateId);
+    await workoutService.updateWorkoutExercise(fixture.exerciseIds[0], {
+      exerciseNotes: 'Edição concomitante',
+    }, fixture.contractId);
+    expect(await currentRevision(templateId)).not.toBe(staleRevision);
+    await expect(replaceGroups(fixture.dayId, groups, fixture.contractId, staleRevision))
+      .rejects.toMatchObject({ code: 'WORKOUT_PLANNING_VERSION_CONFLICT' });
+    expect(await prisma.workoutResistanceGroup.count({
+      where: { workoutDayId: fixture.dayId },
+    })).toBe(0);
   });
 
   it('RISK-001: edição individual não pode mover ordinal, mas reordenação atômica pode', async () => {
