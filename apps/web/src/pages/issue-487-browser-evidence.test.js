@@ -18,8 +18,6 @@ let completed = 0;
 let rejectNextCompletion = false;
 let delayNextCompletion = false;
 let deliverDelayedCompletion = null;
-let holdGuidedReads = false;
-const delayedGuidedReads = [];
 
 const execution = () => ({
   sessionId: 'day-487', status: 'in_progress', version: executionVersion,
@@ -122,12 +120,7 @@ async function startApi() {
       return respond(res, 200, { success: true, data: routine() });
     }
     if (url.pathname === '/api/v1/student/me/training-sessions/day-487/execution/guided' && req.method === 'GET') {
-      const snapshot = guided();
-      if (holdGuidedReads) {
-        delayedGuidedReads.push(() => respond(res, 200, { success: true, data: snapshot }));
-        return;
-      }
-      return respond(res, 200, { success: true, data: snapshot });
+      return respond(res, 200, { success: true, data: guided() });
     }
     if (url.pathname === '/api/v1/student/me/training-sessions/day-487/execution/guided/complete' && req.method === 'POST') {
       const body = await readJson(req);
@@ -345,9 +338,9 @@ suite('Issue #487 - evidência browser execução resistida guiada', () => {
       expect(afterLastSet).not.toContain('Descanso prescrito após a série anterior');
       await assertNoOverflow(page);
 
-      // Independent adversarial browser control: the backend confirms POST v2,
-      // but holds the response while a focused refresh makes the parent know v3.
-      // The old in-flight GET must not cancel the replacement reconciliation.
+      // Real Chrome control: a delayed v2 POST cannot roll back a parent that
+      // has already observed v3. Concurrent GET ordering is tested separately
+      // by deferred-promise React controls in GuidedResistanceCard.test.tsx.
       executionVersion = 1; completed = 0;
       await page.goto(`${WEB_ORIGIN}/student/training?contractId=${CONTRACT_ID}`, { waitUntil: 'domcontentloaded' });
       await waitText(page, 'Bi-set · rodada 1 de 2 · item 1 de 2');
@@ -355,29 +348,30 @@ suite('Issue #487 - evidência browser execução resistida guiada', () => {
       await clickButton('Concluir série');
       await vi.waitFor(() => expect(deliverDelayedCompletion).toBeTypeOf('function'), { timeout: 12000 });
       executionVersion = 3; completed = 2;
-      holdGuidedReads = true;
       await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-      await vi.waitFor(() => expect(delayedGuidedReads).toHaveLength(1), { timeout: 12000 });
+      await waitText(page, '2 de 4 séries confirmadas');
+      await waitText(page, 'Bi-set · rodada 2 de 2 · item 1 de 2');
+      const readsBeforeDelayedPost = api.requests.filter((request) =>
+        request.method === 'GET' && request.path.endsWith('/execution/guided')).length;
       deliverDelayedCompletion();
       deliverDelayedCompletion = null;
-      await vi.waitFor(() => expect(delayedGuidedReads).toHaveLength(2), { timeout: 12000 });
-      const duringConflict = await page.evaluate(() => ({
+      // Only after processing the delayed POST and re-reading canonical state
+      // may the user proceed. The stale POST must not display a false success.
+      await waitText(page, 'O treino mudou em outro dispositivo. Revise a série atualizada antes de confirmar novamente.');
+      const reconciled = await page.evaluate(() => ({
         text: document.body?.innerText || '',
-        disabled: [...document.querySelectorAll('button')].some((item) =>
-          item.textContent?.includes('Concluir série') && item.disabled),
+        canConfirm: [...document.querySelectorAll('button')].some((item) =>
+          item.textContent?.includes('Concluir série') && !item.disabled),
       }));
-      expect(duringConflict.text).toContain('0 de 4 séries confirmadas');
-      expect(duringConflict.text).not.toContain('Série registrada. O próximo passo');
-      expect(duringConflict.disabled).toBe(true);
-      delayedGuidedReads.shift()();
-      await page.waitForFunction(() => document.body?.innerText.includes('0 de 4 séries confirmadas'));
-      expect(await page.evaluate(() => document.body.innerText)).not.toContain('Série registrada. O próximo passo');
-      holdGuidedReads = false;
-      delayedGuidedReads.shift()();
-      await waitText(page, 'Bi-set · rodada 2 de 2 · item 1 de 2');
-      await waitText(page, '2 de 4 séries confirmadas');
-      const reconciliationWrites = api.requests.filter((request) => request.path.endsWith('/execution/guided/complete'));
-      expect(reconciliationWrites).toHaveLength(9);
+      expect(reconciled.text).toContain('2 de 4 séries confirmadas');
+      expect(reconciled.text).toContain('Bi-set · rodada 2 de 2 · item 1 de 2');
+      expect(reconciled.text).not.toContain('Série registrada. O próximo passo');
+      expect(reconciled.canConfirm).toBe(true);
+      expect(api.requests.filter((request) =>
+        request.method === 'GET' && request.path.endsWith('/execution/guided')).length)
+        .toBeGreaterThan(readsBeforeDelayedPost);
+      expect(api.requests.filter((request) => request.path.endsWith('/execution/guided/complete')))
+        .toHaveLength(9);
       await assertNoOverflow(page);
 
       const evidence = {
@@ -392,8 +386,6 @@ suite('Issue #487 - evidência browser execução resistida guiada', () => {
     } finally {
       delayNextCompletion = false;
       deliverDelayedCompletion = null;
-      holdGuidedReads = false;
-      while (delayedGuidedReads.length) delayedGuidedReads.shift()();
       await browser?.close().catch(() => {});
       await stopVite(vite).catch(() => {});
       await stopApi(api?.server).catch(() => {});
