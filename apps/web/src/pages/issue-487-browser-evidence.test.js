@@ -65,7 +65,7 @@ const unit = (which, round) => {
     groupSize: 2, roundNumber: round, roundTotal: 2,
     repsMin: isA ? 8 : 10, repsMax: isA ? 8 : 12,
     loadKg: isA ? 40 : null, loadPercent: null, rir: 2, rpe: 8,
-    tempo: '3-1-1', restSec: isA ? 60 : 75, notes: isA ? 'Controle a descida' : null,
+    tempo: '3-1-1', restSec: isA ? null : 75, notes: isA ? 'Controle a descida' : null,
   };
 };
 function guided() {
