@@ -351,6 +351,7 @@ jobs:
         env:
           AUDIT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
+          set -euo pipefail
           node --test scripts/verify-issue-487-browser-evidence.test.mjs
           node scripts/verify-issue-487-browser-evidence.mjs artifacts/ci/full-tests.log artifacts/issue-487 "$AUDIT_HEAD_SHA" | tee artifacts/issue-487/verified-captures.jsonl
       - name: Issue #399 full-page browser evidence
