@@ -22,12 +22,73 @@ export type TrainingRoutineExecutionProjectionStatus =
 
 export type TrainingSessionExecutionStatus = TrainingRoutineExecutionProjectionStatus;
 
+/** #401: neutral comparisons; differences do not imply improvement or decline. */
+export type TrainingSessionComparisonOutcome = 'full' | 'partial' | 'substituted' | 'not_performed' | 'not_recorded';
+
+export interface TrainingSessionComparisonMetric {
+  key: string;
+  label: string;
+  planned: number | string | null;
+  plannedMax: number | null;
+  executed: number | string | null;
+  plannedUnit: string | null;
+  executedUnit: string | null;
+  difference: number | null;
+}
+
+export interface TrainingSessionComparisonUnit {
+  /** Stable planned ID, not the display position or exercise name. */
+  plannedUnitId: string;
+  parentUnitId: string | null;
+  iteration: number | null;
+  kind: 'session' | 'cyclic_stage' | 'exercise' | 'block' | 'set' | 'group';
+  label: string;
+  outcome: TrainingSessionComparisonOutcome;
+  metrics: TrainingSessionComparisonMetric[];
+}
+
+export interface TrainingSessionComparison {
+  sessionId: string;
+  originReleaseId: string;
+  /** Older sessions without a captured plan use an explicitly marked legacy fallback. */
+  snapshotSource: 'captured' | 'released_plan';
+  executionVersion: number;
+  units: TrainingSessionComparisonUnit[];
+}
+
+export interface TrainingSessionCyclicStageExecutionValue {
+  plannedStageId: string;
+  /** Repeat iteration, 1-based. */
+  iteration?: number;
+  outcome: Exclude<TrainingSessionComparisonOutcome, 'not_recorded'>;
+  substitutionNote?: string | null;
+  durationSec?: number | null;
+  distanceMeters?: number | null;
+  paceMinPerKm?: number | null;
+  speedKmh?: number | null;
+  heartRateBpm?: number | null;
+  heartRateZone?: string | null;
+  pse?: number | null;
+}
+
+export interface TrainingSessionResistanceGroupExecutionValue {
+  plannedGroupId: string;
+  outcome: Exclude<TrainingSessionComparisonOutcome, 'not_recorded'>;
+  substitutionNote?: string | null;
+  roundsCompleted?: number | null;
+  restBetweenExercisesSec?: number | null;
+  restBetweenRoundsSec?: number | null;
+}
+
 export interface TrainingSessionExecutionSessionValues {
   durationSec?: number | null;
   distanceKm?: number | null;
   pace?: string | null;
   heartRateBpm?: number | null;
   heartRateZone?: string | null;
+  /** Complete replacement arrays; the API verifies that every ID belongs to the released day. */
+  cyclicStages?: TrainingSessionCyclicStageExecutionValue[];
+  resistanceGroups?: TrainingSessionResistanceGroupExecutionValue[];
 }
 
 export interface TrainingSessionExecutionItemValue {
@@ -35,6 +96,12 @@ export interface TrainingSessionExecutionItemValue {
   /** Série planejada correspondente; nulo somente para unidades sem séries estruturadas. */
   plannedSetId?: string | null;
   setNumber?: number;
+  outcome?: Exclude<TrainingSessionComparisonOutcome, 'not_recorded'>;
+  substitutionNote?: string | null;
+  rir?: number | null;
+  rpe?: number | null;
+  tempo?: string | null;
+  restSec?: number | null;
   loadKg?: number | null;
   repetitions?: number | null;
   durationSec?: number | null;
@@ -181,6 +248,7 @@ export interface TrainingRoutineSessionDetail extends TrainingRoutineSessionSumm
   cyclic: TrainingRoutineCyclicTargets | null;
   cyclicStages: TrainingRoutineCyclicStage[];
   blocks: TrainingRoutineBlock[];
+  comparison?: TrainingSessionComparison;
   preWorkoutCheckIn?: PreWorkoutCheckInView | null;
   postWorkoutFeedback?: CanonicalPostWorkoutFeedbackRevisionView[];
   /** Presente somente na visão do professor. */
