@@ -763,14 +763,11 @@ export const workoutService = {
       throw new ResistanceStructureValidationError('Não é permitido mover um exercício entre dias.');
     }
 
-    const workoutDayIds = [current.workoutDayId];
-
     const { resistanceBlocks, workoutExerciseId: _existingRowId, ...exercise } = data;
     const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
-    return prisma.$transaction(async (tx) => {
-      for (const workoutDayId of workoutDayIds) {
-        await lockWorkoutDayPlanningMutable(tx, workoutDayId);
-        if (contractId) await assertDayContract(tx, workoutDayId, contractId, data.exerciseId ?? current.exerciseId);
+    return withWorkoutDayPlanningMutation(prisma, current.workoutDayId, async (tx) => {
+      if (contractId) {
+        await assertDayContract(tx, current.workoutDayId, contractId, data.exerciseId ?? current.exerciseId);
       }
       return tx.workoutExercise.update({
         where: { id },
@@ -782,7 +779,7 @@ export const workoutService = {
         },
         include: { exercise: true, resistanceBlocks: resistanceBlockInclude },
       });
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    });
   },
 
   /**
