@@ -2176,6 +2176,7 @@ describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
     })).plannedSets[0].id).toBe(beforeBlock.plannedSets[0].id);
 
     const copy = await workoutService.copyTemplate(templateId, 2, new Date('2026-10-12T12:00:00.000Z'));
+    if (!copy) throw new Error('A cópia da semana não retornou um treino.');
     const copiedDay = copy.workoutDays.find((day) => day.dayOfWeek === 2)!;
     expect(copiedDay.resistanceGroups).toHaveLength(1);
     const copiedGroup = copiedDay.resistanceGroups[0];
@@ -2192,11 +2193,13 @@ describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
     const afterCyclicOnly = await workoutService.copyTemplateSections(
       templateId, 2, new Date('2026-10-12T12:00:00.000Z'), 'cyclic',
     );
+    if (!afterCyclicOnly) throw new Error('A cópia cíclica não retornou um treino.');
     const cyclicDay = afterCyclicOnly.workoutDays.find((day) => day.dayOfWeek === 2)!;
     expect(cyclicDay.resistanceGroups[0].id).toBe(copiedGroup.id);
     const afterResistance = await workoutService.copyTemplateSections(
       templateId, 2, new Date('2026-10-12T12:00:00.000Z'), 'resistance',
     );
+    if (!afterResistance) throw new Error('A cópia resistida não retornou um treino.');
     expect(afterResistance.workoutDays.find((day) => day.dayOfWeek === 2)?.resistanceGroups[0].members).toHaveLength(2);
   });
 
@@ -2214,6 +2217,7 @@ describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
     const persisted = await workoutService.saveTemplateWeek(templateId, {
       resistanceGroups: { 2: groups }, template: { observation1: 'valid' },
     }, fixture.contractId);
+    if (!persisted) throw new Error('O salvamento semanal não retornou o treino.');
     expect(persisted.workoutDays.find((day) => day.dayOfWeek === 2)?.resistanceGroups[0]).toMatchObject({
       kind: 'bi_set', rounds: 3, restBetweenRoundsSec: 90,
     });
