@@ -418,6 +418,7 @@ jobs:
             artifacts/issue-388/**
             artifacts/issue-391/**
             artifacts/issue-399/**
+            artifacts/issue-400/**
           if-no-files-found: error
           retention-days: 30
 
