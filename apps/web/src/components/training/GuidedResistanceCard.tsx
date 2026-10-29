@@ -151,8 +151,14 @@ export function GuidedResistanceCard({
       const highestKnownVersion = Math.max(version,
         previouslyAccepted?.sessionId === sessionId ? previouslyAccepted.version : -1);
       if (saved.sessionId !== sessionId || saved.version < highestKnownVersion ||
-          (conflictVersionRef.current !== null && saved.version <= conflictVersionRef.current) ||
           !acceptView(saved, sessionId)) {
+        setReconciliationRequired(true);
+        setError('O servidor retornou uma posição desatualizada. Atualize novamente antes de confirmar outra série.');
+        return false;
+      }
+      if (conflictVersionRef.current !== null && saved.version <= conflictVersionRef.current) {
+        // Show the same-series draft after remount, but do not trust an unchanged
+        // version to clear the 409 lock or to permit another confirmation.
         setReconciliationRequired(true);
         setError('O servidor retornou uma posição desatualizada. Atualize novamente antes de confirmar outra série.');
         return false;
