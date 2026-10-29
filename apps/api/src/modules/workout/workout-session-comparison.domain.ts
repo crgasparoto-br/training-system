@@ -17,6 +17,13 @@ export const workoutComparisonPlanSelect = {
   sessionDurationMin: true,
   cyclicTimeMin: true,
   stimulusDurationMin: true,
+  targetHrMin: true,
+  targetHrMax: true,
+  targetSpeedMin: true,
+  targetSpeedMax: true,
+  paceMin: true,
+  paceMax: true,
+  template: { select: { totalVolumeKm: true } },
   cyclicStages: {
     orderBy: [{ parentStageId: 'asc' as const }, { position: 'asc' as const }, { id: 'asc' as const }],
     select: {
@@ -136,9 +143,10 @@ export function compareWorkoutSession(
       : execution.status === 'completed' ? 'full' : 'not_recorded', [
     metric('duration', 'Duração', planned.sessionDurationMin ?? planned.cyclicTimeMin ?? planned.stimulusDurationMin,
       state.durationSec, 'min', 's'),
-    metric('distance', 'Distância', null, state.distanceKm, 'km'),
-    metric('pace', 'Ritmo', null, state.pace, 'min/km'),
-    metric('heart_rate', 'Frequência cardíaca', null, state.heartRateBpm, 'bpm'),
+    metric('distance', 'Distância', planned.template.totalVolumeKm, state.distanceKm, 'km'),
+    metric('pace', 'Ritmo', planned.paceMin, state.pace, 'min/km'),
+    metric('speed', 'Velocidade', planned.targetSpeedMin, null, 'km/h'),
+    metric('heart_rate', 'Frequência cardíaca', planned.targetHrMin, state.heartRateBpm, 'bpm'),
     metric('heart_rate_zone', 'Zona de FC', null, state.heartRateZone, null),
   ]));
 
@@ -168,8 +176,7 @@ export function compareWorkoutSession(
             stage.durationValue, durationExecuted, stage.durationUnit === 'seconds' ? 's' : stage.durationUnit === 'meters' ? 'm' : null),
           metric('target', 'Alvo', stage.targetValue ?? stage.targetMin,
             value, targetUnit, targetUnit, stage.targetMax),
-          metric('inclination', 'Inclinação', null, null, '%'),
-        ], stage.parentStageId, parent ? iteration : null));
+         ], stage.parentStageId, parent ? iteration : null));
     }
   }
 
