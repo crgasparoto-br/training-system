@@ -2,7 +2,7 @@
 
 ## Arquitetura canônica e dependências
 
-Implementação empilhada sobre a PR #521 da issue #400, com destino final `develop` e sem merge automático. O único modelo persistido de agrupamentos é `WorkoutResistanceGroup` + `WorkoutResistanceGroupMember` (#400). A execução usa `WorkoutExerciseBlock`/`WorkoutExercisePlannedSet` (#399), sem escrever valores realizados no planejamento. Lifecycle, versão e pausa vêm da `WorkoutSessionExecution` (#389). A #488 implementará o cronômetro; a #487 apenas comunica os intervalos prescritos.
+A candidata vigente [PR #524](https://github.com/crgasparoto-br/training-system/pull/524) parte da `develop` após o merge da PR #521 da issue #400; a antiga PR #522 foi substituída sem merge, sem excluir sua branch ou histórico. Nenhum merge automático é permitido. O único modelo persistido de agrupamentos é `WorkoutResistanceGroup` + `WorkoutResistanceGroupMember` (#400). A execução usa `WorkoutExerciseBlock`/`WorkoutExercisePlannedSet` (#399), sem escrever valores realizados no planejamento. Lifecycle, versão e pausa vêm da `WorkoutSessionExecution` (#389). A #488 implementará o cronômetro; a #487 apenas comunica os intervalos prescritos.
 
 O próximo passo é reconstruído pelo backend usando exercícios, blocos, séries e membros com IDs estáveis. Para cada grupo, a ordem é rodada → posição do participante, usando `kind`, `position`, `rounds`, `restBetweenExercisesSec` e `restBetweenRoundsSec` persistidos. Quando `rounds` não está preenchido, somente uma quantidade idêntica de séries planejadas para todos os participantes permite derivá-lo; contagens incompatíveis permanecem somente leitura. `system` legado não autoriza a criação de grupo ou rodada sintética.
 
@@ -50,8 +50,7 @@ congelada das leituras de treino; mudanças posteriores em `ExerciseLibrary`
 não podem alterar nome, vídeo ou orientação de uma sessão já liberada.
 
 A PR #521 foi integrada à `develop` em 29/10/2026 por merge `c76276637e8136bc247c0aef53103764caa75827`.
-A PR #522 permanece uma entrega distinta: a nova CI e sua auditoria independente
-devem usar o HEAD final e a nova base, sem reutilizar o merge preview antigo.
+A antiga PR #522 foi encerrada como substituída, sem merge. A PR #524 preserva o código corrigido e tem a nova `develop` como pai direto; a CI e a auditoria independente devem usar o HEAD final da #524, sem reutilizar o merge preview antigo.
 
 ## Remediação de concorrência após auditoria independente — 29/10/2026
 
@@ -59,7 +58,7 @@ devem usar o HEAD final e a nova base, sem reutilizar o merge preview antigo.
 - **Projeção monotônica:** não aceitar GET com `version` menor que a versão já exibida ou a versão canônica informada pela tela; após 409, GET com a mesma versão da operação rejeitada também não libera a confirmação. Identidade `sessionId` divergente não é exibida.
 - **Recuperação:** se a revalidação falhar, o formulário mantém os dados digitados e a confirmação permanece desabilitada; somente uma nova consulta válida desfaz o bloqueio. O cartão é remontado ao trocar `sessionId`, evitando que estado de outro treino seja reutilizado.
 - **Controles negativos:** testes React com promessas controladas simulam GET anterior ao 409 resolvendo após GET falho, dois GETs retornando em ordem invertida, POST confirmado antes de GET antigo, resposta de mesma versão após 409 e identidade de sessão divergente. O teste de 409 + GET falho existente continua obrigatório.
-- **A-002 (dependência #400):** alterações posteriores da PR #521 precisam ser sincronizadas por conteúdo sem apagar as adaptações da #487; a aprovação independente e eventual integração da #521 são obrigações de governança externas a esta branch. Não realizar merge ou encerrar a issue até CI exact-SHA, nova auditoria independente e integração autorizada.
+- **A-002 (dependência #400):** a PR #521 já foi integrada à `develop`. Sua árvore canônica está preservada na PR #524 por comparação de conteúdo, sem modelagem paralela de grupos. Novos deltas na `develop` exigem reconciliação sem apagar adaptações da #487. Não integrar nem encerrar a issue até CI exact-SHA e nova auditoria independente.
 
 ## Remediação A-487-06 e R-487-01 — 29/10/2026
 
@@ -67,4 +66,4 @@ devem usar o HEAD final e a nova base, sem reutilizar o merge preview antigo.
 - **R-487-01 (rascunho recuperável):** `TodaySession` guarda a referência do rascunho por sessão e `plannedSetId`; o cartão grava repetições/carga a cada edição e retém a operação (chave + payload) após timeout. Ao abrir a ficha e voltar, a mesma série restaura esses valores e a mesma chave quando a versão ainda corresponde; outra série/sessão recebe somente os próprios valores planejados.
 - **Concorrência:** o bloqueio de 409 acompanha o rascunho ao voltar da ficha. GET com mesma versão permanece recusado; GET com versão nova libera a confirmação após reconciliação e preserva o texto digitado para a unidade que não mudou. Não há persistência do rascunho em storage compartilhado do navegador.
 - **Provas adicionadas:** regressões React de timeout + ficha + mesma chave, isolamento entre sessões, bloqueio de conflito ao voltar e ausência de descanso após a série final. Browser Chrome de #487 executa timeout simulado, retorno ao mesmo item, retry sem operação duplicada e finalização sem descanso fictício; o validador exige as tags das novas verificações, com controle negativo correspondente.
-- **Integração:** código de #400 já está presente por conteúdo e a PR #521 foi integrada. Manter #522 aberta e sem merge até obter novos checks `Validate repository` exact-HEAD contra `develop` atual e uma nova auditoria independente.
+- **Integração:** código de #400 está presente na `develop` por merge da PR #521. A PR **#524 é a única candidata aberta** para #487; manter sem merge até os checks `Validate repository` exact-HEAD e a auditoria independente sobre o SHA definitivo. A PR #522 foi encerrada como substituída e sua branch permanece preservada.
