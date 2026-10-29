@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { TrainingSessionComparison } from '@corrida/types';
 import { formatComparisonMetric, WorkoutExecutionComparisonCard } from './WorkoutExecutionComparisonCard';
