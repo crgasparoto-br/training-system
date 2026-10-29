@@ -115,8 +115,10 @@ function unit(
   metrics: TrainingSessionComparisonMetric[],
   parentUnitId: string | null = null,
   iteration: number | null = null,
+  substitutionNote: string | null = null,
+  executedSetNumber: number | null = null,
 ): TrainingSessionComparisonUnit {
-  return { plannedUnitId, kind, label, outcome, parentUnitId, iteration, metrics };
+  return { plannedUnitId, kind, label, outcome, parentUnitId, iteration, substitutionNote, executedSetNumber, metrics };
 }
 
 function summaryOutcome(
@@ -139,6 +141,8 @@ export function compareWorkoutSession(
   if (planned.id !== execution.sessionId) throw new Error('A execução não pertence ao planejamento capturado.');
   const result: TrainingSessionComparisonUnit[] = [];
   const state = execution.sessionValues;
+  const missingOutcome: TrainingSessionComparisonOutcome = execution.status === 'not_performed'
+    ? 'not_performed' : 'not_recorded';
   result.push(unit(planned.id, 'session', 'Sessão', execution.status === 'not_performed'
     ? 'not_performed' : execution.status === 'partial' ? 'partial'
       : execution.status === 'completed' ? 'full' : 'not_recorded', [
@@ -170,14 +174,21 @@ export function compareWorkoutSession(
         : target === 'zone' ? null : target === 'pse' ? 'PSE' : null;
       const durationExecuted = stage.durationUnit === 'seconds'
         ? actual?.durationSec : stage.durationUnit === 'meters' ? actual?.distanceMeters : null;
+      const childIds = stage.kind === 'repeat'
+        ? planned.cyclicStages.filter((child) => child.parentStageId === stage.id).map((child) => child.id)
+        : [];
+      const childRecords = stageRecords.filter((entry) => childIds.includes(entry.plannedStageId));
+      const derivedOutcome = childRecords.length
+        ? summaryOutcome(childRecords.map((entry) => entry.outcome), childIds.length * (stage.repeatCount ?? 1))
+        : missingOutcome;
       result.push(unit(stage.id, 'cyclic_stage',
         'Etapa ' + stage.position + ' · ' + stage.kind,
-        actual?.outcome ?? 'not_recorded', [
+        actual?.outcome ?? derivedOutcome, [
           metric('duration', stage.durationUnit === 'meters' ? 'Distância' : 'Duração',
             stage.durationValue, durationExecuted, stage.durationUnit === 'seconds' ? 's' : stage.durationUnit === 'meters' ? 'm' : null),
           metric('target', 'Alvo', stage.targetValue ?? stage.targetMin,
             value, targetUnit, targetUnit, stage.targetMax),
-         ], stage.parentStageId, parent ? iteration : null));
+         ], stage.parentStageId, parent ? iteration : null, actual?.substitutionNote ?? null));
     }
   }
 
@@ -192,42 +203,48 @@ export function compareWorkoutSession(
       const name = catalog && typeof catalog === 'object' && !Array.isArray(catalog)
         && 'name' in catalog && typeof catalog.name === 'string' ? catalog.name : exercise.exercise.name;
       return name;
-    })(), summaryOutcome(items.map((item) => item.outcome ?? 'full'), expected), [
+    })(), items.length
+      ? summaryOutcome(items.map((item) => item.outcome ?? 'full'), expected) : missingOutcome, [
       metric('sets', 'Séries', exercise.sets ?? (setCount || null), items.length || null, 'séries'),
       metric('repetitions', 'Repetições', exercise.reps, actual?.repetitions, 'rep'),
       metric('load', 'Carga', exercise.load, actual?.loadKg, 'kg'),
       metric('rest', 'Intervalo', exercise.intervalSec, actual?.restSec, 's'),
-    ]));
+    ], null, null, items.find((item) => item.outcome === 'substituted')?.substitutionNote ?? null));
 
     for (const block of exercise.resistanceBlocks) {
       const results = block.plannedSets.flatMap((set) =>
         items.filter((item) => item.plannedSetId === set.id));
       result.push(unit(block.id, 'block', 'Bloco ' + block.position + ' · ' + block.kind,
-        summaryOutcome(results.map((item) => item.outcome ?? 'full'), block.plannedSets.length), [], exercise.id));
+        results.length
+          ? summaryOutcome(results.map((item) => item.outcome ?? 'full'), block.plannedSets.length)
+          : missingOutcome, [], exercise.id));
       for (const set of block.plannedSets) {
-        const logged = items.find((item) => item.plannedSetId === set.id);
-        result.push(unit(set.id, 'set', 'Série ' + set.position, logged?.outcome ?? 'not_recorded', [
-          metric('repetitions', 'Repetições', set.repsMin, logged?.repetitions, 'rep', 'rep', set.repsMax),
-          metric('load_kg', 'Carga (kg)', set.loadKg, logged?.loadKg, 'kg'),
-          metric('load_pct', 'Carga (%)', set.loadPercent, null, '%'),
-          metric('rir', 'RIR', set.rir, logged?.rir, null),
-          metric('rpe', 'RPE', set.rpe, logged?.rpe, null),
-          metric('tempo', 'Cadência', set.tempo, logged?.tempo, null),
-          metric('rest', 'Intervalo', set.restSec, logged?.restSec, 's'),
-        ], block.id));
+        const recorded = items.filter((item) => item.plannedSetId === set.id)
+          .sort((a, b) => (a.setNumber ?? 0) - (b.setNumber ?? 0));
+        for (const logged of recorded.length ? recorded : [null]) {
+          result.push(unit(set.id, 'set', 'Série ' + set.position, logged?.outcome ?? missingOutcome, [
+            metric('repetitions', 'Repetições', set.repsMin, logged?.repetitions, 'rep', 'rep', set.repsMax),
+            metric('load_kg', 'Carga (kg)', set.loadKg, logged?.loadKg, 'kg'),
+            metric('load_pct', 'Carga (%)', set.loadPercent, null, '%'),
+            metric('rir', 'RIR', set.rir, logged?.rir, null),
+            metric('rpe', 'RPE', set.rpe, logged?.rpe, null),
+            metric('tempo', 'Cadência', set.tempo, logged?.tempo, null),
+            metric('rest', 'Intervalo', set.restSec, logged?.restSec, 's'),
+          ], block.id, null, logged?.substitutionNote ?? null, logged?.setNumber ?? null));
+        }
       }
     }
   }
   for (const group of planned.resistanceGroups) {
     const actual = state.resistanceGroups?.find((item) => item.plannedGroupId === group.id);
     result.push(unit(group.id, 'group', 'Agrupamento ' + group.position + ' · ' + group.kind,
-      actual?.outcome ?? 'not_recorded', [
+      actual?.outcome ?? missingOutcome, [
         metric('rounds', 'Rodadas', group.rounds, actual?.roundsCompleted, 'rodadas'),
         metric('exercise_rest', 'Intervalo entre exercícios',
           group.restBetweenExercisesSec, actual?.restBetweenExercisesSec, 's'),
         metric('round_rest', 'Intervalo entre rodadas',
           group.restBetweenRoundsSec, actual?.restBetweenRoundsSec, 's'),
-      ]));
+      ], null, null, actual?.substitutionNote ?? null));
   }
 
   return {
