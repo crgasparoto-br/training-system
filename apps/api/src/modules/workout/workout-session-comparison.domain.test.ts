@@ -147,6 +147,35 @@ describe('issue #401: granular planned/executed comparison', () => {
       .toThrow('não pertence');
   });
 
+  it('does not discard two recorded occurrences of the same planned set', () => {
+    const comparison = compareWorkoutSession(planned(), execution({
+      items: [
+        { plannedUnitId: 'ex-1', plannedSetId: 'set-1', setNumber: 1,
+          outcome: 'full', repetitions: 8, loadKg: 20 },
+        { plannedUnitId: 'ex-1', plannedSetId: 'set-1', setNumber: 3,
+          outcome: 'substituted', substitutionNote: 'Adaptação', repetitions: 6, loadKg: 0 },
+      ],
+    }), 'captured');
+    const sets = get(comparison.units, 'set-1');
+    expect(sets).toHaveLength(2);
+    expect(sets.map((item) => item.executedSetNumber)).toEqual([1, 3]);
+    expect(sets[1]).toMatchObject({
+      outcome: 'substituted', substitutionNote: 'Adaptação',
+    });
+    expect(sets[1].metrics.find((item) => item.key === 'load_kg')?.executed).toBe(0);
+  });
+
+  it('propagates an explicitly not-performed session without treating it as missing data', () => {
+    const comparison = compareWorkoutSession(planned(), execution({
+      status: 'not_performed', startedAt: null,
+    }), 'captured');
+    expect(get(comparison.units, 'day-1')[0].outcome).toBe('not_performed');
+    expect(get(comparison.units, 'warmup')[0].outcome).toBe('not_performed');
+    expect(get(comparison.units, 'set-1')[0].outcome).toBe('not_performed');
+    expect(get(comparison.units, 'group-1')[0].outcome).toBe('not_performed');
+    expect(get(comparison.units, 'warmup')[0].metrics[0].executed).toBeNull();
+  });
+
   it('redacts per-set technical evidence on the server for the student audience', () => {
     const comparison = compareWorkoutSession(planned(), execution({
       items: [{ plannedUnitId: 'ex-1', plannedSetId: 'set-2', setNumber: 2,
