@@ -192,7 +192,9 @@ suite('Issue #487 - evidência browser execução resistida guiada', () => {
         await waitText(page, 'Agachamento');
         await assertNoOverflow(page);
         const focusable = await page.evaluate(() => {
-          const input = document.querySelector('input[aria-label="Repetições realizadas"]');
+          const label = [...document.querySelectorAll('label')]
+            .find((item) => item.textContent?.includes('Repetições realizadas'));
+          const input = label?.querySelector('input');
           const button = [...document.querySelectorAll('button')].find((item) => item.textContent?.includes('Concluir série'));
           if (!(input instanceof HTMLInputElement) || !(button instanceof HTMLButtonElement)) return false;
           input.focus();
@@ -201,6 +203,18 @@ suite('Issue #487 - evidência browser execução resistida guiada', () => {
           return inputFocused && document.activeElement === button;
         });
         expect(focusable).toBe(true);
+        await page.evaluate(() => {
+          const button = [...document.querySelectorAll('button')].find((item) => item.textContent?.includes('Ver ficha completa'));
+          if (!(button instanceof HTMLButtonElement)) throw new Error('Ver ficha completa não encontrado');
+          button.click();
+        });
+        await waitText(page, 'Continuar execução guiada');
+        await page.evaluate(() => {
+          const button = [...document.querySelectorAll('button')].find((item) => item.textContent?.includes('Continuar execução guiada'));
+          if (!(button instanceof HTMLButtonElement)) throw new Error('Continuar execução guiada não encontrado');
+          button.click();
+        });
+        await waitText(page, 'Bi-set · rodada 1 de 2 · item 1 de 2');
         const before = await shot(page, `${viewport.name}-group-round1-item1`);
         await page.evaluate(() => {
           const button = [...document.querySelectorAll('button')].find((item) => item.textContent?.includes('Concluir série'));
@@ -223,7 +237,7 @@ suite('Issue #487 - evidência browser execução resistida guiada', () => {
         kind: 'issue-487-browser-evidence', result: 'PASS', identity: identity(),
         browser: await browser.version(), scenarios,
         verified: ['desktop-1440x900', 'mobile-390x844', 'keyboard-focus', 'no-horizontal-overflow',
-          'one-unit-at-a-time', 'group-round-context', 'next-participant-before-final-rest', 'x-contract-id'],
+          'one-unit-at-a-time', 'group-round-context', 'overview-return-position', 'next-participant-before-final-rest', 'x-contract-id'],
       };
       console.log(`BROWSER_EVIDENCE_487 ${JSON.stringify(evidence)}`);
       console.log(`BROWSER_EVIDENCE_487 PASS head=${evidence.identity.headSha}`);
