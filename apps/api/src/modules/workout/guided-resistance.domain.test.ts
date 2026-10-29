@@ -122,6 +122,29 @@ describe('issue #487 - plano resistido canônico', () => {
     });
   });
 
+  it('mantém ordem estável de rodada em supersérie, tri-set e circuito', () => {
+    for (const [groupType, size] of [
+      ['superset', 2],
+      ['triset', 3],
+      ['circuit', 3],
+    ] as const) {
+      const members = Array.from({ length: size }, (_, index) => ({
+        ...exercise(`${groupType}-${index + 1}`, index + 1),
+        groupId: `group-${groupType}`,
+        groupType,
+        groupPosition: index + 1,
+        groupRounds: 2,
+      }));
+      const plan = deriveGuidedResistancePlan([...members].reverse());
+      expect(plan.availability).toBe('available');
+      expect(plan.units).toHaveLength(size * 2);
+      expect(plan.units.slice(0, size).map((unit) => unit.plannedUnitId))
+        .toEqual(members.map((member) => member.id));
+      expect(plan.units.slice(0, size).every((unit) => unit.roundNumber === 1)).toBe(true);
+      expect(plan.units.slice(size).every((unit) => unit.roundNumber === 2)).toBe(true);
+    }
+  });
+
   it('mantém ausentes como nulos e não considera mera gravação de valores como conclusão', () => {
     const plan = deriveGuidedResistancePlan([exercise('a', 1)]);
     const projected = projectGuidedResistance('session', execution([
