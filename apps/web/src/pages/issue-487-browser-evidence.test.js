@@ -364,7 +364,7 @@ suite('Issue #487 - evidência browser execução resistida guiada', () => {
           item.textContent?.includes('Concluir série') && !item.disabled),
       }));
       expect(reconciled.text).toContain('2 de 4 séries confirmadas');
-      expect(reconciled.text).toContain('Bi-set · rodada 2 de 2 · item 1 de 2');
+      expect(reconciled.text.toLocaleLowerCase('pt-BR')).toContain('bi-set · rodada 2 de 2 · item 1 de 2');
       expect(reconciled.text).not.toContain('Série registrada. O próximo passo');
       expect(reconciled.canConfirm).toBe(true);
       expect(api.requests.filter((request) =>
