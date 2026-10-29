@@ -44,8 +44,8 @@ ALTER TABLE "WorkoutSessionExecution"
   ADD CONSTRAINT "Issue401_snapshot_session_check"
   CHECK ("plannedSnapshot" IS NULL OR (
     jsonb_typeof("plannedSnapshot") = 'object'
-    AND "plannedSnapshot"->>'id' = "workoutDayId"
-    AND jsonb_typeof("plannedSnapshot"->'cyclicStages') = 'array'
-    AND jsonb_typeof("plannedSnapshot"->'exercises') = 'array'
-    AND jsonb_typeof("plannedSnapshot"->'resistanceGroups') = 'array'
+    AND COALESCE("plannedSnapshot"->>'id' = "workoutDayId", FALSE)
+    AND COALESCE(jsonb_typeof("plannedSnapshot"->'cyclicStages') = 'array', FALSE)
+    AND COALESCE(jsonb_typeof("plannedSnapshot"->'exercises') = 'array', FALSE)
+    AND COALESCE(jsonb_typeof("plannedSnapshot"->'resistanceGroups') = 'array', FALSE)
   ));
