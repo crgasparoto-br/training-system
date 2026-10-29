@@ -2130,3 +2130,133 @@ describeDatabase('resistance blocks - historical identity and transactional pers
   });
 
 });
+
+describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
+  async function setup(label: string) {
+    const fixture = await seedReleasedWorkout(label, { publish: false, seedResistance: true });
+    const existing = await prisma.workoutExercise.findMany({
+      where: { workoutDayId: fixture.dayId }, orderBy: { exerciseOrder: 'asc' },
+    });
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, existing.map((exercise) => ({
+      workoutDayId: fixture.dayId, workoutExerciseId: exercise.id,
+      exerciseId: exercise.exerciseId, section: 'sessao',
+      exerciseOrder: exercise.exerciseOrder, sets: exercise.sets ?? undefined,
+      reps: exercise.reps ?? undefined,
+    })));
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, select: { templateId: true },
+    });
+    const groups = [{
+      position: 1, kind: 'bi_set' as const, rounds: 3,
+      restBetweenExercisesSec: 12, restBetweenRoundsSec: 90, notes: 'Alternância',
+      members: [
+        { position: 1, section: 'sessao', exerciseOrder: 2 },
+        { position: 2, section: 'sessao', exerciseOrder: 1 },
+      ],
+    }];
+    return { fixture, templateId: day.templateId, groups };
+  }
+
+  it('cria e relê membros sem duplicar séries; replay preserva IDs, cópia reatribui corretamente', async () => {
+    const { fixture, templateId, groups } = await setup('issue400-copy-and-replay');
+    const beforeBlock = await prisma.workoutExerciseBlock.findFirstOrThrow({
+      where: { workoutExerciseId: fixture.exerciseIds[0] }, include: { plannedSets: true },
+    });
+    const first = await workoutService.replaceDayResistanceGroups(fixture.dayId, groups, fixture.contractId);
+    expect(first).toHaveLength(1);
+    expect(first[0].members.map((item) => item.workoutExerciseId)).toEqual([
+      fixture.exerciseIds[1], fixture.exerciseIds[0],
+    ]);
+    const replay = await workoutService.replaceDayResistanceGroups(fixture.dayId, groups, fixture.contractId);
+    expect(replay[0].id).toBe(first[0].id);
+    expect(replay[0].members.map((item) => item.id)).toEqual(first[0].members.map((item) => item.id));
+    expect(await prisma.workoutExercise.count({ where: { workoutDayId: fixture.dayId } })).toBe(2);
+    expect((await prisma.workoutExerciseBlock.findUniqueOrThrow({
+      where: { id: beforeBlock.id }, include: { plannedSets: true },
+    })).plannedSets[0].id).toBe(beforeBlock.plannedSets[0].id);
+
+    const copy = await workoutService.copyTemplate(templateId, 2, new Date('2026-10-12T12:00:00.000Z'));
+    const copiedDay = copy.workoutDays.find((day) => day.dayOfWeek === 2)!;
+    expect(copiedDay.resistanceGroups).toHaveLength(1);
+    const copiedGroup = copiedDay.resistanceGroups[0];
+    expect(copiedGroup.id).not.toBe(first[0].id);
+    expect(copiedGroup.kind).toBe('bi_set');
+    expect(copiedGroup.rounds).toBe(3);
+    expect(copiedGroup.members.map((member) => member.workoutExerciseId)).toEqual([
+      copiedDay.exercises.find((row) => row.exerciseOrder === 2)?.id,
+      copiedDay.exercises.find((row) => row.exerciseOrder === 1)?.id,
+    ]);
+    expect(copiedDay.exercises.map((row) => row.id)).not.toEqual(fixture.exerciseIds);
+    expect(copiedDay.exercises[0].resistanceBlocks[0].plannedSets[0].repsMin).toBe(8);
+
+    const afterCyclicOnly = await workoutService.copyTemplateSections(
+      templateId, 2, new Date('2026-10-12T12:00:00.000Z'), 'cyclic',
+    );
+    const cyclicDay = afterCyclicOnly.workoutDays.find((day) => day.dayOfWeek === 2)!;
+    expect(cyclicDay.resistanceGroups[0].id).toBe(copiedGroup.id);
+    const afterResistance = await workoutService.copyTemplateSections(
+      templateId, 2, new Date('2026-10-12T12:00:00.000Z'), 'resistance',
+    );
+    expect(afterResistance.workoutDays.find((day) => day.dayOfWeek === 2)?.resistanceGroups[0].members).toHaveLength(2);
+  });
+
+  it('valida contrato, rollback e membros do dia, suporta edição/exclusão no rascunho e bloqueia após liberação', async () => {
+    const { fixture, templateId, groups } = await setup('issue400-locks');
+    await expect(workoutService.replaceDayResistanceGroups(fixture.dayId, groups, 'foreign-contract'))
+      .rejects.toMatchObject({ code: 'RESISTANCE_DAY_NOT_FOUND' });
+    await expect(workoutService.replaceDayResistanceGroups(fixture.dayId, [
+      { ...groups[0], members: [
+        groups[0].members[0], { position: 2, section: 'sessao', exerciseOrder: 99 },
+      ] },
+    ], fixture.contractId)).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    expect(await prisma.workoutResistanceGroup.count({ where: { workoutDayId: fixture.dayId } })).toBe(0);
+
+    const persisted = await workoutService.saveTemplateWeek(templateId, {
+      resistanceGroups: { 2: groups }, template: { observation1: 'valid' },
+    }, fixture.contractId);
+    expect(persisted.workoutDays.find((day) => day.dayOfWeek === 2)?.resistanceGroups[0]).toMatchObject({
+      kind: 'bi_set', rounds: 3, restBetweenRoundsSec: 90,
+    });
+    await expect(workoutService.saveTemplateWeek(templateId, {
+      resistanceGroups: { 2: [{ ...groups[0], members: [
+        groups[0].members[0], { position: 2, section: 'sessao', exerciseOrder: 99 },
+      ] }] }, template: { observation1: 'rollback-marker' },
+    }, fixture.contractId)).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    expect((await prisma.workoutTemplate.findUniqueOrThrow({ where: { id: templateId } })).observation1)
+      .toBe('valid');
+
+    await workoutService.replaceDayResistanceGroups(fixture.dayId, [
+      { ...groups[0], kind: 'circuito', rounds: 4 },
+    ], fixture.contractId);
+    expect((await prisma.workoutResistanceGroup.findFirstOrThrow({ where: { workoutDayId: fixture.dayId } })).kind).toBe('circuito');
+    await workoutService.replaceDayResistanceGroups(fixture.dayId, [], fixture.contractId);
+    expect(await prisma.workoutResistanceGroup.count({ where: { workoutDayId: fixture.dayId } })).toBe(0);
+    const [frozen] = await workoutService.replaceDayResistanceGroups(fixture.dayId, groups, fixture.contractId);
+    await workoutService.releaseTemplate(templateId);
+    await expect(workoutService.replaceDayResistanceGroups(fixture.dayId, [], fixture.contractId))
+      .rejects.toMatchObject({ code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START' });
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutResistanceGroup" SET "rounds" = 7 WHERE "id" = ${frozen.id}
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      DELETE FROM "WorkoutResistanceGroupMember" WHERE "groupId" = ${frozen.id}
+    `).rejects.toThrow();
+    expect((await prisma.workoutResistanceGroup.findUniqueOrThrow({
+      where: { id: frozen.id }, include: { members: true },
+    })).members).toHaveLength(2);
+  });
+
+  it('rejeita associação de outro dia no próprio PostgreSQL, incluindo escrita fora da API', async () => {
+    const { fixture } = await setup('issue400-crossday');
+    const second = await seedReleasedWorkout('issue400-foreign-day', { publish: false });
+    await expect(prisma.$transaction(async (tx) => {
+      const group = await tx.workoutResistanceGroup.create({
+        data: { workoutDayId: fixture.dayId, kind: 'bloco_tecnico', position: 1 },
+      });
+      await tx.workoutResistanceGroupMember.create({
+        data: { groupId: group.id, workoutExerciseId: second.exerciseIds[0], position: 1 },
+      });
+    })).rejects.toThrow();
+    expect(await prisma.workoutResistanceGroup.count({ where: { workoutDayId: fixture.dayId } })).toBe(0);
+  });
+});
