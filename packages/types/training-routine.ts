@@ -41,6 +41,10 @@ export interface TrainingSessionComparisonUnit {
   plannedUnitId: string;
   parentUnitId: string | null;
   iteration: number | null;
+  /** Set execution number, when the same planned set was logged more than once. */
+  executedSetNumber?: number | null;
+  /** Explicit user-provided replacement, never inferred from exercise names. */
+  substitutionNote?: string | null;
   kind: 'session' | 'cyclic_stage' | 'exercise' | 'block' | 'set' | 'group';
   label: string;
   outcome: TrainingSessionComparisonOutcome;
