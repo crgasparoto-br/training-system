@@ -16,6 +16,7 @@ import type {
 import { Button } from '../ui/Button';
 import { PreWorkoutCheckInCard } from './PreWorkoutCheckInCard';
 import { PostWorkoutFeedbackCard } from './PostWorkoutFeedbackCard';
+import { WorkoutExecutionComparisonCard } from './WorkoutExecutionComparisonCard';
 import type { UpsertPreWorkoutCheckInPayload, PreWorkoutCheckInView, CreateCanonicalPostWorkoutFeedbackPayload, CanonicalPostWorkoutFeedbackRevisionView } from '@corrida/types';
 import {
   getTrainingRoutineErrorKind,
@@ -340,6 +341,10 @@ function TodaySession({
           </ol>
         </section>
       ))}
+
+      {session.comparison && (
+        <WorkoutExecutionComparisonCard comparison={session.comparison} audience={audience} />
+      )}
 
       {session.guidelines.length > 0 && (
         <section aria-label="Orientações da sessão" className="rounded-lg bg-muted/40 p-3">
