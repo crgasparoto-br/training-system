@@ -61,7 +61,7 @@ const unit = (which, round) => {
     exerciseName: isA ? 'Agachamento' : 'Remada',
     videoUrl: null, section: 'principal', blockKind: 'principal',
     blockPosition: 1, setPosition: round, exerciseSetTotal: 2,
-    groupId: 'group-487', groupType: 'biset', groupPosition: isA ? 1 : 2,
+    groupId: 'group-487', groupType: 'bi_set', groupPosition: isA ? 1 : 2,
     groupSize: 2, roundNumber: round, roundTotal: 2,
     repsMin: isA ? 8 : 10, repsMax: isA ? 8 : 12,
     loadKg: isA ? 40 : null, loadPercent: null, rir: 2, rpe: 8,

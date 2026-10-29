@@ -108,41 +108,71 @@ describe('issue #487 - plano resistido canônico', () => {
     expect(approved.units[0].videoUrl).toBe('https://example.org/demo');
   });
 
-  it('executa agrupamentos explícitos por rodada e participante', () => {
-    const first = { ...exercise('a', 1), groupId: 'group-1', groupType: 'biset' as const, groupPosition: 1, groupRounds: 2 };
-    const second = { ...exercise('b', 2), groupId: 'group-1', groupType: 'biset' as const, groupPosition: 2, groupRounds: 2 };
-    const plan = deriveGuidedResistancePlan([second, first]);
+  it('executa bi-set persistido por rodada e participante e aplica só intervalos explícitos', () => {
+    const group = {
+      id: 'group-1', position: 1, kind: 'bi_set', rounds: 2,
+      restBetweenExercisesSec: null, restBetweenRoundsSec: 90, notes: null,
+      members: [
+        { position: 1, workoutExerciseId: 'a' },
+        { position: 2, workoutExerciseId: 'b' },
+      ],
+    };
+    const plan = deriveGuidedResistancePlan([exercise('b', 2), exercise('a', 1)], [group]);
     expect(plan.availability).toBe('available');
     expect(plan.units.map((unit) => [unit.plannedUnitId, unit.setNumber])).toEqual([
       ['a', 1], ['b', 1], ['a', 2], ['b', 2],
     ]);
     expect(plan.units[0]).toMatchObject({
-      groupId: 'group-1', groupType: 'biset', groupPosition: 1, groupSize: 2,
-      roundNumber: 1, roundTotal: 2,
+      groupId: 'group-1', groupType: 'bi_set', groupPosition: 1, groupSize: 2,
+      roundNumber: 1, roundTotal: 2, restSec: null,
     });
+    expect(plan.units[1].restSec).toBe(90);
   });
 
-  it('mantém ordem estável de rodada em supersérie, tri-set e circuito', () => {
-    for (const [groupType, size] of [
-      ['superset', 2],
-      ['triset', 3],
-      ['circuit', 3],
+  it('respeita agrupamentos explícitos em supersérie, tri-set e circuito', () => {
+    for (const [kind, size] of [
+      ['superserie', 2],
+      ['tri_set', 3],
+      ['circuito', 3],
     ] as const) {
-      const members = Array.from({ length: size }, (_, index) => ({
-        ...exercise(`${groupType}-${index + 1}`, index + 1),
-        groupId: `group-${groupType}`,
-        groupType,
-        groupPosition: index + 1,
-        groupRounds: 2,
-      }));
-      const plan = deriveGuidedResistancePlan([...members].reverse());
+      const members = Array.from({ length: size }, (_, index) => exercise(kind + '-' + (index + 1), index + 1));
+      const group = {
+        id: 'group-' + kind, position: 1, kind, rounds: 2,
+        restBetweenExercisesSec: 15, restBetweenRoundsSec: 60, notes: null,
+        members: members.map((member, index) => ({ position: index + 1, workoutExerciseId: member.id })),
+      };
+      const plan = deriveGuidedResistancePlan([...members].reverse(), [group]);
       expect(plan.availability).toBe('available');
       expect(plan.units).toHaveLength(size * 2);
       expect(plan.units.slice(0, size).map((unit) => unit.plannedUnitId))
         .toEqual(members.map((member) => member.id));
       expect(plan.units.slice(0, size).every((unit) => unit.roundNumber === 1)).toBe(true);
       expect(plan.units.slice(size).every((unit) => unit.roundNumber === 2)).toBe(true);
+      expect(plan.units[0].restSec).toBe(15);
+      expect(plan.units[size - 1].restSec).toBe(60);
     }
+  });
+
+  it('não avança agrupamentos com participantes ou séries inconsistentes', () => {
+    const first = exercise('a', 1);
+    const second = exercise('b', 2);
+    const group = {
+      id: 'group-1', position: 1, kind: 'bi_set', rounds: 2,
+      restBetweenExercisesSec: null, restBetweenRoundsSec: null, notes: null,
+      members: [
+        { position: 1, workoutExerciseId: 'a' },
+        { position: 2, workoutExerciseId: 'b' },
+      ],
+    };
+    expect(deriveGuidedResistancePlan([first, second], [group]).availability).toBe('available');
+    expect(deriveGuidedResistancePlan([first, second], [{ ...group, rounds: 3 }]).availability).toBe('legacy_read_only');
+    expect(deriveGuidedResistancePlan([first, second], [{ ...group, members: [group.members[0]] }]).availability).toBe('legacy_read_only');
+    expect(deriveGuidedResistancePlan([first, second], [{
+      ...group, members: [{ position: 1, workoutExerciseId: 'a' }, { position: 2, workoutExerciseId: 'a' }],
+    }]).availability).toBe('legacy_read_only');
+    expect(deriveGuidedResistancePlan([first, second], [{
+      ...group, members: [{ position: 1, workoutExerciseId: 'a' }, { position: 2, workoutExerciseId: 'foreign' }],
+    }]).availability).toBe('legacy_read_only');
   });
 
   it('mantém ausentes como nulos e não considera mera gravação de valores como conclusão', () => {
