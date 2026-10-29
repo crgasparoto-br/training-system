@@ -15,6 +15,7 @@ const TODAY = '2026-10-28';
 const user = { id: 'student-487', type: 'aluno', name: 'Aluno Evidência 487', email: 'aluno.487@example.com' };
 let executionVersion = 1;
 let completed = 0;
+let rejectNextCompletion = false;
 
 const execution = () => ({
   sessionId: 'day-487', status: 'in_progress', version: executionVersion,
@@ -106,7 +107,9 @@ async function startApi() {
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || '/', API_ORIGIN);
     if (req.method === 'OPTIONS') return respond(res, 204);
-    requests.push({ method: req.method, path: url.pathname, contractId: req.headers['x-contract-id'] || null });
+    const trackedRequest = { method: req.method, path: url.pathname,
+      contractId: req.headers['x-contract-id'] || null };
+    requests.push(trackedRequest);
     if (url.pathname === '/api/v1/auth/me') return respond(res, 200, { data: user });
     if (url.pathname === '/api/v1/student/me/summary') {
       return respond(res, 200, { success: true, data: { name: user.name, hasPendingProfileReview: false, nextProfileReviewAt: null, recentNotifications: [] } });
@@ -119,6 +122,14 @@ async function startApi() {
     }
     if (url.pathname === '/api/v1/student/me/training-sessions/day-487/execution/guided/complete' && req.method === 'POST') {
       const body = await readJson(req);
+      trackedRequest.operationKey = body.operationKey;
+      trackedRequest.plannedSetId = body.plannedSetId;
+      trackedRequest.repetitions = body.repetitions;
+      trackedRequest.loadKg = body.loadKg;
+      if (rejectNextCompletion) {
+        rejectNextCompletion = false;
+        return respond(res, 503, { error: 'network unavailable' });
+      }
       const current = guided().current;
       if (!current || body.expectedVersion !== executionVersion
         || body.plannedSetId !== current.plannedSetId || body.plannedUnitId !== current.plannedUnitId) {
@@ -265,11 +276,58 @@ suite('Issue #487 - evidência browser execução resistida guiada', () => {
       const guidedWrites = api.requests.filter((request) => request.path.endsWith('/execution/guided/complete'));
       expect(guidedWrites).toHaveLength(3);
       expect(guidedWrites.every((request) => request.method === 'POST' && request.contractId === CONTRACT_ID)).toBe(true);
+
+      // A failed write must not lose the draft or its idempotency key when the
+      // student opens the overview and returns to the exact same planned set.
+      executionVersion = 1; completed = 0; rejectNextCompletion = true;
+      await page.goto(`${WEB_ORIGIN}/student/training?contractId=${CONTRACT_ID}`, { waitUntil: 'domcontentloaded' });
+      await waitText(page, 'Bi-set · rodada 1 de 2 · item 1 de 2');
+      await page.click('input[placeholder="Informe as repetições"]');
+      await page.keyboard.press('Control+A');
+      await page.keyboard.type('6');
+      await page.click('input[placeholder="Informe a carga"]');
+      await page.keyboard.press('Control+A');
+      await page.keyboard.type('45,5');
+      const clickButton = async (label) => page.evaluate((text) => {
+        const button = [...document.querySelectorAll('button')].find((item) => item.textContent?.includes(text));
+        if (!(button instanceof HTMLButtonElement) || button.disabled) throw new Error('Button not actionable: ' + text);
+        button.click();
+      }, label);
+      await clickButton('Concluir série');
+      await waitText(page, 'Não foi possível confirmar a gravação');
+      await clickButton('Ver ficha completa');
+      await waitText(page, 'Continuar execução guiada');
+      await clickButton('Continuar execução guiada');
+      await page.waitForFunction(() => {
+        const reps = document.querySelector('input[placeholder="Informe as repetições"]');
+        const load = document.querySelector('input[placeholder="Informe a carga"]');
+        const submit = [...document.querySelectorAll('button')].find((item) => item.textContent?.includes('Concluir série'));
+        return reps?.value === '6' && load?.value === '45,5' && submit && !submit.disabled;
+      });
+      await clickButton('Concluir série');
+      await waitText(page, 'Bi-set · rodada 1 de 2 · item 2 de 2');
+      const retryWrites = api.requests.filter((request) => request.path.endsWith('/execution/guided/complete'));
+      const original = retryWrites.at(-2), retried = retryWrites.at(-1);
+      expect(retried).toMatchObject({ operationKey: original.operationKey,
+        plannedSetId: original.plannedSetId, repetitions: 6, loadKg: 45.5,
+        contractId: CONTRACT_ID });
+
+      await clickButton('Concluir série');
+      await waitText(page, 'Bi-set · rodada 2 de 2 · item 1 de 2');
+      await clickButton('Concluir série');
+      await waitText(page, 'Bi-set · rodada 2 de 2 · item 2 de 2');
+      await clickButton('Concluir série');
+      await waitText(page, 'Todas as séries foram registradas');
+      const afterLastSet = await page.evaluate(() => document.body?.innerText || '');
+      expect(afterLastSet).not.toContain('Descanso prescrito após a série anterior');
+      await assertNoOverflow(page);
+
       const evidence = {
         kind: 'issue-487-browser-evidence', result: 'PASS', identity: identity(),
         browser: await browser.version(), scenarios,
         verified: ['desktop-1440x900', 'tablet-768x1024', 'mobile-390x844', 'keyboard-tab-navigation', 'no-horizontal-overflow',
-          'one-unit-at-a-time', 'group-round-context', 'overview-return-position', 'next-participant-before-final-rest', 'x-contract-id'],
+          'one-unit-at-a-time', 'group-round-context', 'overview-return-position', 'next-participant-before-final-rest',
+          'timeout-overview-retry-idempotent', 'no-rest-after-final-set', 'x-contract-id'],
       };
       console.log(`BROWSER_EVIDENCE_487 ${JSON.stringify(evidence)}`);
       console.log(`BROWSER_EVIDENCE_487 PASS head=${evidence.identity.headSha}`);

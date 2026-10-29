@@ -4,6 +4,18 @@ import type {
 } from '@corrida/types';
 import { Button } from '../ui/Button';
 
+type GuidedResistanceOperation = { signature: string; payload: GuidedResistanceCompletePayload };
+
+export type GuidedResistanceDraft = {
+  sessionId: string;
+  plannedSetId: string;
+  repetitions: string;
+  loadKg: string;
+  operation: GuidedResistanceOperation | null;
+  /** A 409 must remain a write lock even after switching to the overview. */
+  conflictVersion: number | null;
+};
+
 type Props = {
   sessionId: string;
   status: TrainingSessionExecutionStatus;
@@ -12,6 +24,8 @@ type Props = {
   complete: (sessionId: string, payload: GuidedResistanceCompletePayload) => Promise<GuidedResistanceView>;
   onExecutionChanged?: () => Promise<void>;
   onOverview: () => void;
+  /** Owned by the session panel, not by the unmounted guide or browser storage. */
+  draftStore?: { current: GuidedResistanceDraft | null };
 };
 
 const sectionLabels: Record<string, string> = {
@@ -59,7 +73,7 @@ function parseActualNumber(text: string, integer: boolean): number | null {
 }
 
 export function GuidedResistanceCard({
-  sessionId, status, version, load, complete, onExecutionChanged, onOverview,
+  sessionId, status, version, load, complete, onExecutionChanged, onOverview, draftStore,
 }: Props) {
   const headingId = useId();
   const repsId = useId();
@@ -78,8 +92,16 @@ export function GuidedResistanceCard({
   // reads started before the POST returned.
   const refreshSequenceRef = useRef(0);
   const acceptedVersionRef = useRef<{ sessionId: string; version: number } | null>(null);
-  const conflictVersionRef = useRef<number | null>(null);
-  const operationRef = useRef<{ signature: string; payload: GuidedResistanceCompletePayload } | null>(null);
+  const conflictVersionRef = useRef<number | null>(draftStore?.current?.sessionId === sessionId
+    ? draftStore.current.conflictVersion : null);
+  const operationRef = useRef<GuidedResistanceOperation | null>(null);
+
+  const keepDraft = (nextRepetitions: string, nextLoadKg: string, operation = operationRef.current) => {
+    const plannedSetId = currentSetRef.current;
+    if (!draftStore || !plannedSetId) return;
+    draftStore.current = { sessionId, plannedSetId, repetitions: nextRepetitions,
+      loadKg: nextLoadKg, operation, conflictVersion: conflictVersionRef.current };
+  };
 
   const acceptView = useCallback((saved: GuidedResistanceView, sourceSessionId: string): boolean => {
     const accepted = acceptedVersionRef.current;
@@ -88,15 +110,35 @@ export function GuidedResistanceCard({
     const currentId = saved.current?.plannedSetId ?? null;
     if (currentSetRef.current !== currentId) {
       currentSetRef.current = currentId;
-      setRepetitions(saved.current?.repsMin === null || saved.current?.repsMin === undefined
-        ? '' : String(saved.current.repsMin));
-      setLoadKg(saved.current?.loadKg === null || saved.current?.loadKg === undefined
-        ? '' : String(saved.current.loadKg));
+      const retained = draftStore?.current;
+      const sameUnit = Boolean(currentId && retained?.sessionId === sourceSessionId
+        && retained.plannedSetId === currentId);
+      const nextRepetitions = sameUnit ? retained!.repetitions
+        : saved.current?.repsMin == null ? '' : String(saved.current.repsMin);
+      const nextLoadKg = sameUnit ? retained!.loadKg
+        : saved.current?.loadKg == null ? '' : String(saved.current.loadKg);
+      const retainedOperation = sameUnit && retained!.operation?.payload.expectedVersion === saved.version
+        ? retained!.operation : null;
+      setRepetitions(nextRepetitions);
+      setLoadKg(nextLoadKg);
+      operationRef.current = retainedOperation;
+      if (draftStore) draftStore.current = currentId ? {
+        sessionId: sourceSessionId, plannedSetId: currentId,
+        repetitions: nextRepetitions, loadKg: nextLoadKg, operation: retainedOperation,
+        conflictVersion: conflictVersionRef.current,
+      } : null;
+    } else if (operationRef.current && operationRef.current.payload.expectedVersion !== saved.version) {
+      // The same planned set may survive a pause/resume or a competing edit.
+      // Keep the entered values, but never reuse an operation for an old version.
       operationRef.current = null;
+      if (draftStore?.current?.sessionId === sourceSessionId
+        && draftStore.current.plannedSetId === currentId) {
+        draftStore.current = { ...draftStore.current, operation: null };
+      }
     }
     setView(saved);
     return true;
-  }, []);
+  }, [draftStore]);
 
   const refresh = useCallback(async (reason: 'normal' | 'conflict' = 'normal'): Promise<boolean> => {
     const requestId = ++refreshSequenceRef.current;
@@ -116,6 +158,9 @@ export function GuidedResistanceCard({
         return false;
       }
       conflictVersionRef.current = null;
+      if (draftStore?.current?.sessionId === sessionId) {
+        draftStore.current = { ...draftStore.current, conflictVersion: null };
+      }
       setReconciliationRequired(false);
       setError(reason === 'conflict'
         ? 'O treino mudou em outro dispositivo. Revise a série atualizada antes de confirmar novamente.'
@@ -131,7 +176,7 @@ export function GuidedResistanceCard({
     } finally {
       if (requestId === refreshSequenceRef.current) setLoading(false);
     }
-  }, [acceptView, load, sessionId, version]);
+  }, [acceptView, draftStore, load, sessionId, version]);
 
   useEffect(() => {
     // Pausa, retomada e mudança de versão exigem uma leitura canônica nova.
@@ -169,6 +214,7 @@ export function GuidedResistanceCard({
         },
       };
     }
+    keepDraft(repetitions, loadKg);
     setBusy(true);
     setError(null);
     setConfirmation(null);
@@ -185,7 +231,8 @@ export function GuidedResistanceCard({
         return;
       }
       // The canonical group determines whether the interval is intermediate.
-      setLastRest(current.restSec);
+      // A rest hint is meaningful only while another step remains.
+      setLastRest(saved.current ? current.restSec : null);
       setConfirmation('Série registrada. O próximo passo foi atualizado com os dados salvos.');
       try {
         await onExecutionChanged?.();
@@ -196,6 +243,7 @@ export function GuidedResistanceCard({
       const httpStatus = (cause as { response?: { status?: number } })?.response?.status;
       if (httpStatus === 409) {
         operationRef.current = null;
+        keepDraft(repetitions, loadKg, null);
         conflictVersionRef.current = Math.max(conflictVersionRef.current ?? -1, view.version);
         // Invalidate any read started before we learned about the conflict.
         refreshSequenceRef.current += 1;
@@ -224,7 +272,7 @@ export function GuidedResistanceCard({
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Execução resistida</p>
           <h4 id={headingId} className="text-lg font-semibold text-foreground">Passo a passo</h4>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={onOverview}>Ver ficha completa</Button>
+        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onOverview}>Ver ficha completa</Button>
       </div>
       {loading && !view && <p role="status" className="text-sm text-muted-foreground">Consultando a série atual...</p>}
       {view && view.availability !== 'available' && (
@@ -267,13 +315,19 @@ export function GuidedResistanceCard({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <label htmlFor={repsId} className="text-sm font-medium">Repetições realizadas</label>
-                    <input id={repsId} value={repetitions} onChange={(event) => setRepetitions(event.target.value)}
+                    <input id={repsId} value={repetitions} onChange={(event) => {
+                      setRepetitions(event.target.value);
+                      keepDraft(event.target.value, loadKg);
+                    }}
                       inputMode="numeric" autoComplete="off" disabled={busy || view.status !== 'in_progress' || status !== 'in_progress'}
                       placeholder="Informe as repetições" className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-base" />
                   </div>
                   <div className="space-y-1">
                     <label htmlFor={loadId} className="text-sm font-medium">Carga realizada (kg)</label>
-                    <input id={loadId} value={loadKg} onChange={(event) => setLoadKg(event.target.value)}
+                    <input id={loadId} value={loadKg} onChange={(event) => {
+                      setLoadKg(event.target.value);
+                      keepDraft(repetitions, event.target.value);
+                    }}
                       inputMode="decimal" autoComplete="off" disabled={busy || view.status !== 'in_progress'}
                       placeholder="Informe a carga" className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-base" />
                   </div>

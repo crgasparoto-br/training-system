@@ -49,10 +49,9 @@ liberação (`WorkoutReleasedExerciseSnapshot`), adicionado no HEAD
 congelada das leituras de treino; mudanças posteriores em `ExerciseLibrary`
 não podem alterar nome, vídeo ou orientação de uma sessão já liberada.
 
-A PR #521 continua dependência de integração: primeiro sua aprovação
-independente e merge autorizado; depois reconciliação da #522 com a nova
-`develop`, nova CI exact-SHA e revisão independente da #487. Nenhuma
-sincronização por conteúdo corresponde a merge ou dispensa essa ordem.
+A PR #521 foi integrada à `develop` em 29/10/2026 por merge `c76276637e8136bc247c0aef53103764caa75827`.
+A PR #522 permanece uma entrega distinta: a nova CI e sua auditoria independente
+devem usar o HEAD final e a nova base, sem reutilizar o merge preview antigo.
 
 ## Remediação de concorrência após auditoria independente — 29/10/2026
 
@@ -61,3 +60,11 @@ sincronização por conteúdo corresponde a merge ou dispensa essa ordem.
 - **Recuperação:** se a revalidação falhar, o formulário mantém os dados digitados e a confirmação permanece desabilitada; somente uma nova consulta válida desfaz o bloqueio. O cartão é remontado ao trocar `sessionId`, evitando que estado de outro treino seja reutilizado.
 - **Controles negativos:** testes React com promessas controladas simulam GET anterior ao 409 resolvendo após GET falho, dois GETs retornando em ordem invertida, POST confirmado antes de GET antigo, resposta de mesma versão após 409 e identidade de sessão divergente. O teste de 409 + GET falho existente continua obrigatório.
 - **A-002 (dependência #400):** alterações posteriores da PR #521 precisam ser sincronizadas por conteúdo sem apagar as adaptações da #487; a aprovação independente e eventual integração da #521 são obrigações de governança externas a esta branch. Não realizar merge ou encerrar a issue até CI exact-SHA, nova auditoria independente e integração autorizada.
+
+## Remediação A-487-06 e R-487-01 — 29/10/2026
+
+- **A-487-06 (descanso terminal):** `restBetweenRoundsSec` é exibido somente após o último participante de uma rodada que ainda tenha sucessora. A última rodada pode apresentar descanso individual explicitamente prescrito, mas o cartão não anuncia descanso depois da última série efetivamente confirmada da sessão. Testes de domínio distinguem bi-set, tri-set e circuito, descanso intermediário, última rodada e prescrição individual opcional.
+- **R-487-01 (rascunho recuperável):** `TodaySession` guarda a referência do rascunho por sessão e `plannedSetId`; o cartão grava repetições/carga a cada edição e retém a operação (chave + payload) após timeout. Ao abrir a ficha e voltar, a mesma série restaura esses valores e a mesma chave quando a versão ainda corresponde; outra série/sessão recebe somente os próprios valores planejados.
+- **Concorrência:** o bloqueio de 409 acompanha o rascunho ao voltar da ficha. GET com mesma versão permanece recusado; GET com versão nova libera a confirmação após reconciliação e preserva o texto digitado para a unidade que não mudou. Não há persistência do rascunho em storage compartilhado do navegador.
+- **Provas adicionadas:** regressões React de timeout + ficha + mesma chave, isolamento entre sessões, bloqueio de conflito ao voltar e ausência de descanso após a série final. Browser Chrome de #487 executa timeout simulado, retorno ao mesmo item, retry sem operação duplicada e finalização sem descanso fictício; o validador exige as tags das novas verificações, com controle negativo correspondente.
+- **Integração:** código de #400 já está presente por conteúdo e a PR #521 foi integrada. Manter #522 aberta e sem merge até obter novos checks `Validate repository` exact-HEAD contra `develop` atual e uma nova auditoria independente.

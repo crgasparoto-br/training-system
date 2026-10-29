@@ -1,8 +1,9 @@
+import { useRef, useState } from 'react';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { GuidedResistanceCompletePayload, GuidedResistanceView } from '@corrida/types';
-import { GuidedResistanceCard } from './GuidedResistanceCard';
+import { GuidedResistanceCard, type GuidedResistanceDraft } from './GuidedResistanceCard';
 
 const first = {
   plannedUnitId: 'exercise-a', plannedSetId: 'set-1', setNumber: 1,
@@ -100,6 +101,72 @@ describe('issue #487 - guia resistido', () => {
     expect(complete.mock.calls[1][1].operationKey).toBe(complete.mock.calls[0][1].operationKey);
   });
 
+  it('preserva valores digitados e a chave idempotente ao sair para a ficha após timeout e retornar', async () => {
+    const load = vi.fn().mockResolvedValue(projection());
+    const complete = vi.fn().mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValueOnce(projection({ version: 2, completed: 1, current: second, next: null }));
+    function SessionPanel() {
+      const [guided, setGuided] = useState(true);
+      const draftStore = useRef<GuidedResistanceDraft | null>(null);
+      return guided ? (
+        <GuidedResistanceCard sessionId="day-1" status="in_progress" version={1}
+          load={load} complete={complete} draftStore={draftStore}
+          onOverview={() => setGuided(false)} />
+      ) : <button type="button" onClick={() => setGuided(true)}>Continuar execução guiada</button>;
+    }
+
+    render(<SessionPanel />);
+    await screen.findByRole('button', { name: 'Concluir série' });
+    await userEvent.clear(screen.getByLabelText('Repetições realizadas'));
+    await userEvent.type(screen.getByLabelText('Repetições realizadas'), '6');
+    await userEvent.clear(screen.getByLabelText('Carga realizada (kg)'));
+    await userEvent.type(screen.getByLabelText('Carga realizada (kg)'), '45,5');
+    await userEvent.click(screen.getByRole('button', { name: 'Concluir série' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Não foi possível confirmar/);
+    const originalKey = complete.mock.calls[0][1].operationKey;
+
+    await userEvent.click(screen.getByRole('button', { name: 'Ver ficha completa' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Continuar execução guiada' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Concluir série' })).toBeEnabled());
+    expect(screen.getByLabelText('Repetições realizadas')).toHaveValue('6');
+    expect(screen.getByLabelText('Carga realizada (kg)')).toHaveValue('45,5');
+    await userEvent.click(screen.getByRole('button', { name: 'Concluir série' }));
+    await waitFor(() => expect(complete).toHaveBeenCalledTimes(2));
+    expect(complete.mock.calls[1][1]).toMatchObject({
+      operationKey: originalKey, expectedVersion: 1, plannedSetId: 'set-1', repetitions: 6, loadKg: 45.5,
+    });
+    await waitFor(() => expect(screen.getByText('Sessão · Principal · Série 2 de 2')).toBeInTheDocument());
+    expect(screen.getByLabelText('Repetições realizadas')).toHaveValue('8');
+    expect(screen.getByLabelText('Carga realizada (kg)')).toHaveValue('47');
+  });
+
+  it('não reaproveita um rascunho de outra sessão mesmo com ID de série igual', async () => {
+    const draftStore = { current: {
+      sessionId: 'day-1', plannedSetId: 'set-1', repetitions: '3', loadKg: '15',
+      operation: null, conflictVersion: null,
+    } as GuidedResistanceDraft };
+    const load = vi.fn().mockResolvedValue(projection({ sessionId: 'day-2' }));
+    render(<GuidedResistanceCard sessionId="day-2" status="in_progress" version={1}
+      load={load} complete={vi.fn()} draftStore={draftStore} onOverview={vi.fn()} />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Concluir série' })).toBeEnabled());
+    expect(screen.getByLabelText('Repetições realizadas')).toHaveValue('8');
+    expect(screen.getByLabelText('Carga realizada (kg)')).toHaveValue('47');
+    expect(draftStore.current?.sessionId).toBe('day-2');
+  });
+
+  it('não apresenta descanso depois da última série confirmada', async () => {
+    const last = { ...second, restSec: 90, groupId: 'group-1', groupType: 'bi_set' as const,
+      groupPosition: 2, groupSize: 2, roundNumber: 2, roundTotal: 2 };
+    const load = vi.fn().mockResolvedValue(projection({ completed: 1, current: last, next: null }));
+    const complete = vi.fn().mockResolvedValue(projection({
+      version: 2, completed: 2, current: null, next: null,
+    }));
+    panel({ load, complete });
+    await userEvent.click(await screen.findByRole('button', { name: 'Concluir série' }));
+    await waitFor(() => expect(screen.getByText(/Todas as séries foram registradas/)).toBeInTheDocument());
+    expect(screen.queryByText(/Descanso prescrito após a série anterior/)).not.toBeInTheDocument();
+  });
+
   it('não anuncia o descanso final antes do último participante da rodada', async () => {
     const groupedFirst = {
       ...first, restSec: null, groupId: 'group-1', groupType: 'bi_set' as const,
@@ -154,6 +221,40 @@ describe('issue #487 - guia resistido', () => {
     expect(submit).toBeEnabled();
     expect(complete).toHaveBeenCalledTimes(1);
     expect(load).toHaveBeenCalledTimes(3);
+  });
+
+  it('não perde o bloqueio de conflito 409 quando abre a ficha e volta na mesma versão', async () => {
+    const load = vi.fn().mockResolvedValueOnce(projection())
+      .mockRejectedValueOnce(new Error('revalidation unavailable'))
+      .mockResolvedValueOnce(projection())
+      .mockResolvedValueOnce(projection({ version: 2 }));
+    const complete = vi.fn().mockRejectedValue({ response: { status: 409 } });
+    function SessionPanel() {
+      const [guided, setGuided] = useState(true);
+      const draftStore = useRef<GuidedResistanceDraft | null>(null);
+      return guided ? (
+        <GuidedResistanceCard sessionId="day-1" status="in_progress" version={1}
+          load={load} complete={complete} draftStore={draftStore}
+          onOverview={() => setGuided(false)} />
+      ) : <button type="button" onClick={() => setGuided(true)}>Continuar execução guiada</button>;
+    }
+
+    render(<SessionPanel />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Concluir série' })).toBeEnabled());
+    await userEvent.clear(screen.getByLabelText('Repetições realizadas'));
+    await userEvent.type(screen.getByLabelText('Repetições realizadas'), '6');
+    await userEvent.click(screen.getByRole('button', { name: 'Concluir série' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/recarga falhou/);
+    await userEvent.click(screen.getByRole('button', { name: 'Ver ficha completa' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Continuar execução guiada' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/posição desatualizada/);
+    expect(screen.getByRole('button', { name: 'Concluir série' })).toBeDisabled();
+    expect(screen.getByLabelText('Repetições realizadas')).toHaveValue('6');
+    await userEvent.click(screen.getByRole('button', { name: 'Atualizar estado salvo' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Concluir série' })).toBeEnabled());
+    expect(screen.getByLabelText('Repetições realizadas')).toHaveValue('6');
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(load).toHaveBeenCalledTimes(4);
   });
 
   it('impede escrita enquanto pausado', async () => {

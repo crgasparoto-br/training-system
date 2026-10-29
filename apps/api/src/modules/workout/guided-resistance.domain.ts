@@ -156,7 +156,9 @@ export function deriveGuidedResistancePlan(
     restSec: grouping
       ? grouping.position < grouping.size
         ? grouping.group.restBetweenExercisesSec
-        : grouping.group.restBetweenRoundsSec ?? entry.set.restSec
+        : grouping.round < grouping.rounds
+          ? grouping.group.restBetweenRoundsSec ?? entry.set.restSec
+          : entry.set.restSec
       : entry.set.restSec,
     notes: entry.set.notes?.trim() || entry.block.notes?.trim()
       || exercise.exerciseNotes?.trim() || exercise.exercise.notes?.trim()

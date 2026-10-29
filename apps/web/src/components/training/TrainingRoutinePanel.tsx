@@ -18,7 +18,7 @@ import type {
 import { Button } from '../ui/Button';
 import { PreWorkoutCheckInCard } from './PreWorkoutCheckInCard';
 import { PostWorkoutFeedbackCard } from './PostWorkoutFeedbackCard';
-import { GuidedResistanceCard } from './GuidedResistanceCard';
+import { GuidedResistanceCard, type GuidedResistanceDraft } from './GuidedResistanceCard';
 import type { UpsertPreWorkoutCheckInPayload, PreWorkoutCheckInView, CreateCanonicalPostWorkoutFeedbackPayload, CanonicalPostWorkoutFeedbackRevisionView } from '@corrida/types';
 import {
   getTrainingRoutineErrorKind,
@@ -158,6 +158,8 @@ function TodaySession({
   const [executionError, setExecutionError] = useState<string | null>(null);
   const [executionBusy, setExecutionBusy] = useState(false);
   const [showGuided, setShowGuided] = useState(true);
+  // Survives guide <-> overview toggles without leaking drafts across sessions.
+  const guidedDraftStore = useRef<GuidedResistanceDraft | null>(null);
   const operationRef = useRef<{ signature: string; key: string } | null>(null);
   const duration = formatDuration(session.durationMin);
 
@@ -338,6 +340,7 @@ function TodaySession({
           complete={completeGuided}
           onExecutionChanged={onExecutionChanged}
           onOverview={() => setShowGuided(false)}
+          draftStore={guidedDraftStore}
         />
       )}
       {hasGuided && !showGuided && (

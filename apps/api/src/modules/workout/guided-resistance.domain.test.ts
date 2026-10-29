@@ -127,6 +127,45 @@ describe('issue #487 - plano resistido canônico', () => {
       roundNumber: 1, roundTotal: 2, restSec: null,
     });
     expect(plan.units[1].restSec).toBe(90);
+    expect(plan.units[3].restSec).toBeNull();
+  });
+
+  it('não prescreve intervalo entre rodadas após a última rodada em bi-set, tri-set ou circuito', () => {
+    for (const [kind, size] of [['bi_set', 2], ['tri_set', 3], ['circuito', 3]] as const) {
+      const members = Array.from({ length: size }, (_, index) => exercise(`${kind}-${index}`, index + 1));
+      const plan = deriveGuidedResistancePlan(members, [{
+        id: `${kind}-1`, position: 1, kind, rounds: 2,
+        restBetweenExercisesSec: 15, restBetweenRoundsSec: 90, notes: null,
+        members: members.map((member, index) => ({ position: index + 1, workoutExerciseId: member.id })),
+      }]);
+      expect(plan.availability).toBe('available');
+      expect(plan.units).toHaveLength(size * 2);
+      expect(plan.units[0].restSec).toBe(15);
+      expect(plan.units[size - 1].restSec).toBe(90);
+      expect(plan.units[size].roundNumber).toBe(2);
+      expect(plan.units.at(-1)?.restSec).toBeNull();
+    }
+  });
+
+  it('preserva intervalo explicitamente planejado na última série do grupo sem inventar descanso entre rodadas', () => {
+    const a = exercise('a', 1);
+    const b = exercise('b', 2);
+    const bWithRest = {
+      ...b,
+      resistanceBlocks: b.resistanceBlocks.map((block) => ({
+        ...block,
+        plannedSets: block.plannedSets.map((set) => (
+          set.position === 2 ? { ...set, restSec: 45 } : set
+        )),
+      })),
+    };
+    const plan = deriveGuidedResistancePlan([a, bWithRest], [{
+      id: 'group-1', position: 1, kind: 'bi_set', rounds: 2,
+      restBetweenExercisesSec: null, restBetweenRoundsSec: 90, notes: null,
+      members: [{ position: 1, workoutExerciseId: 'a' }, { position: 2, workoutExerciseId: 'b' }],
+    }]);
+    expect(plan.units[1].restSec).toBe(90);
+    expect(plan.units[3].restSec).toBe(45);
   });
 
   it('respeita agrupamentos explícitos em supersérie, tri-set e circuito', () => {

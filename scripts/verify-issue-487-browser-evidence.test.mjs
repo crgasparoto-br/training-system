@@ -21,7 +21,8 @@ function fixture(testCase) {
     kind: 'issue-487-browser-evidence', result: 'PASS', identity: { headSha: sha },
     browser: 'Chrome/156.0.0.0',
     verified: ['keyboard-tab-navigation', 'no-horizontal-overflow', 'one-unit-at-a-time',
-      'group-round-context', 'overview-return-position', 'next-participant-before-final-rest', 'x-contract-id'],
+      'group-round-context', 'overview-return-position', 'next-participant-before-final-rest',
+      'timeout-overview-retry-idempotent', 'no-rest-after-final-set', 'x-contract-id'],
     scenarios: sizes.map((viewport, index) => {
       const stage = {};
       for (const [phase, name] of [['before', 'group-round1-item1'], ['after', 'group-round1-item2']]) {
@@ -59,6 +60,11 @@ test('rejects absent image and rejects a passing label without a structured evid
 test('rejects stale head and missing keyboard control', () => fixture(({ logFile, imageDirectory, evidence, save }) => {
   assert.throws(() => verifyIssue487BrowserEvidence({ logFile, imageDirectory, headSha: 'b'.repeat(40) }), /must match PR HEAD/);
   evidence.verified = evidence.verified.filter((tag) => tag !== 'keyboard-tab-navigation');
+  save();
+  assert.throws(() => verifyIssue487BrowserEvidence({ logFile, imageDirectory, headSha: sha }), /control missing/);
+}));
+test('rejects browser evidence without a verified timeout/draft recovery control', () => fixture(({ logFile, imageDirectory, evidence, save }) => {
+  evidence.verified = evidence.verified.filter((tag) => tag !== 'timeout-overview-retry-idempotent');
   save();
   assert.throws(() => verifyIssue487BrowserEvidence({ logFile, imageDirectory, headSha: sha }), /control missing/);
 }));
