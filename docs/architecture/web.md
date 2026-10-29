@@ -60,3 +60,9 @@ O erro canônico usa `error` e `details.code`. HTTP 409 com `PRE_WORKOUT_CHECK_I
 `BodyDiscomfortMap` compoe a ilustracao, as areas clicaveis e os marcadores visiveis no mesmo SVG com `viewBox="0 0 400 600"`. Todos escalam juntos; nao posicionar marcadores por pixels de tela ou em uma camada HTML independente. As coordenadas de `bodyRegions.ts` foram calibradas para `body-front.png` e `body-back-clinical.png`; ao trocar uma ilustracao, revisar ambas as vistas em desktop e mobile.
 
 Os IDs das regioes identificam registros existentes e devem permanecer estaveis. Na vista frontal, o lado direito anatomico aparece a esquerda da imagem; na posterior, aparece a direita. A ilustracao posterior usa contornos clinicos sem vestuario para permitir a indicacao de desconforto nas nadegas.
+
+## Execução guiada no Treino de hoje (#487)
+
+`GuidedResistanceCard` exibe uma unidade resistida por vez, com prescrição histórica, repetições/carga realizadas separadas, bloco, série, agrupamento e rodada quando existirem. O backend entrega a ordem a partir do grafo persistido #399/#400 e do progresso #389; a UI não usa posição visual como identidade. A ficha completa permanece acessível, e ausência de granularidade libera apenas leitura sem séries fictícias.
+
+Durante falha de rede após POST, valores e chave idempotente são preservados para retry. Após HTTP 409, o guia exige GET de reconciliação: se a leitura falhar, o botão de conclusão permanece bloqueado, sem alegar avanço; somente um GET bem-sucedido libera nova confirmação. Descanso é orientação prescrita até o cronômetro próprio da #488, incluindo intervalo intermediário somente quando explícito no agrupamento da #400. Operação em pausa é bloqueada pela máquina de estados da #389.

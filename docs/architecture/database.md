@@ -210,3 +210,9 @@ O mesmo guard relê release, execução iniciada, histórico legado e itens exec
 antes de permitir mutações. A integração adversarial mantém uma transação de início
 com lock do dia aberta e confirma que a inserção estrutural concorrente aguarda o
 commit e então é rejeitada.
+
+## Execução guiada e vínculo de conclusão (#487)
+
+A migration `20261028220000_issue_487_guided_resistance_completion` acrescenta `WorkoutSessionExecutionItem.completedAt` e `completedByOperationId`, com FK para `WorkoutSessionExecutionOperation.id` e unicidade por operação. Um item concluído é imutável, a operação deve pertencer à mesma execução e ter ação `complete_resistance_set`, e o trigger diferido exige vínculo com a versão resultante e o evento de lifecycle da #389. Assim, uma operação de uma série não pode confirmar outra, mesmo por SQL direto. Valores realizados permanecem distintos das séries planejadas da #399.
+
+Agrupamentos usam exclusivamente as tabelas `WorkoutResistanceGroup` e `WorkoutResistanceGroupMember` entregues pela #400 (PR #521), com identidade e ordem persistidas. A #487 não acrescenta campos de agrupamento em `WorkoutExercise`; a UI percorre o grafo canônico por rodada e participante, e treinos legados sem estrutura suficiente continuam em leitura segura. A migration #400 valida origem e destino das associações e cardinalidade final dos grupos em constraints diferidas.
