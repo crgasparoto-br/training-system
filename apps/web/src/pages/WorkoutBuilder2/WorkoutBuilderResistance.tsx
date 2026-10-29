@@ -1278,6 +1278,7 @@ export default function WorkoutBuilderResistance({
           {SECTIONS.map((section) => renderSection(activeDayInfo.dayOfWeek, section))}
           <ResistanceGroupsEditor
             groups={templateData?.resistanceGroupsByDay?.[activeDayInfo.dayOfWeek] ?? []}
+            readOnly={!isDayEditable(activeDayInfo.dayOfWeek)}
             exercises={SECTIONS.flatMap((section): GroupExerciseOption[] =>
               (exercisesByDay[activeDayInfo.dayOfWeek]?.[section.key] ?? []).map((exercise) => ({
                 id: exercise.id, name: exercise.name, section: section.key, category: exercise.category,

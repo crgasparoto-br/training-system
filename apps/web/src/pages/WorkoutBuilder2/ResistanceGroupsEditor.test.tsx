@@ -68,7 +68,7 @@ describe('#400 - editor explícito de grupos', () => {
 
   it('não habilita alterações em treino liberado ou dia somente leitura', () => {
     const onChange = vi.fn();
-    render(<fieldset disabled><ResistanceGroupsEditor groups={[]} exercises={exercises} onChange={onChange} /></fieldset>);
+    render(<fieldset disabled><ResistanceGroupsEditor groups={[]} exercises={exercises} onChange={onChange} readOnly /></fieldset>);
     expect(screen.getByRole('button', { name: 'Criar grupo' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Criar grupo' }));
     expect(onChange).not.toHaveBeenCalled();

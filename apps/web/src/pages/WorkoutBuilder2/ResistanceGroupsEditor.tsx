@@ -10,6 +10,7 @@ interface Props {
   groups: ResistanceGroupDraft[];
   exercises: GroupExerciseOption[];
   onChange: (groups: ResistanceGroupDraft[]) => void;
+  readOnly?: boolean;
 }
 const GROUP_TYPES: Array<{ kind: ResistanceGroupKind; title: string; min: number; max: number }> = [
   { kind: 'superserie', title: 'Supersérie', min: 2, max: 4 },
@@ -26,7 +27,7 @@ const sectionLabel: Record<ResistedSectionKey, string> = {
 const buttonStyle = 'inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40';
 const inputStyle = 'min-h-10 w-full rounded-md border border-input bg-card px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
-export default function ResistanceGroupsEditor({ groups, exercises, onChange }: Props) {
+export default function ResistanceGroupsEditor({ groups, exercises, onChange, readOnly = false }: Props) {
   const headingId = useId();
   const [newKind, setNewKind] = useState<ResistanceGroupKind>('bi_set');
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -36,6 +37,7 @@ export default function ResistanceGroupsEditor({ groups, exercises, onChange }: 
     && exercise.category?.toLowerCase() !== 'cíclico' && exercise.category?.toLowerCase() !== 'ciclico');
 
   const emit = (next: ResistanceGroupDraft[]) => {
+    if (readOnly) return;
     setFeedback(null);
     onChange(next.map((group, index) => ({ ...group, position: index + 1 })));
   };
@@ -43,6 +45,7 @@ export default function ResistanceGroupsEditor({ groups, exercises, onChange }: 
     emit(groups.map((item, cursor) => cursor === index ? group : item));
 
   const addGroup = () => {
+    if (readOnly) return;
     const kind = GROUP_TYPES.find((type) => type.kind === newKind)!;
     if (available.length < kind.min) {
       setFeedback(`Adicione ${kind.min} exercícios livres antes de criar ${kind.title.toLowerCase()}.`);
@@ -60,6 +63,7 @@ export default function ResistanceGroupsEditor({ groups, exercises, onChange }: 
   };
 
   const changeKind = (index: number, kind: ResistanceGroupKind) => {
+    if (readOnly) return;
     const limit = GROUP_TYPES.find((type) => type.kind === kind)!;
     const group = groups[index];
     if (group.members.length > limit.max) {
@@ -108,13 +112,13 @@ export default function ResistanceGroupsEditor({ groups, exercises, onChange }: 
         <div className="flex flex-wrap items-end gap-2">
           <label className="text-xs text-muted-foreground">
             <span className="mb-1 block">Tipo de novo grupo</span>
-            <select className={inputStyle} value={newKind}
+            <select className={inputStyle} value={newKind} disabled={readOnly}
               onChange={(event) => setNewKind(event.target.value as ResistanceGroupKind)}>
               {GROUP_TYPES.map((type) => <option key={type.kind} value={type.kind}>{type.title}</option>)}
             </select>
           </label>
           <button type="button" className={buttonStyle} onClick={addGroup}
-            disabled={available.length < GROUP_TYPES.find((type) => type.kind === newKind)!.min}>
+            disabled={readOnly || available.length < GROUP_TYPES.find((type) => type.kind === newKind)!.min}>
             <Plus size={15} aria-hidden="true" /> Criar grupo
           </button>
         </div>
