@@ -214,9 +214,10 @@ suite('Issue #487 - evidência browser execução resistida guiada', () => {
         const focusable = await page.evaluate(() => {
           const label = [...document.querySelectorAll('label')]
             .find((item) => item.textContent?.includes('Repetições realizadas'));
-          const input = label?.querySelector('input');
+          const input = label?.htmlFor ? document.getElementById(label.htmlFor) : null;
           const button = [...document.querySelectorAll('button')].find((item) => item.textContent?.includes('Concluir série'));
-          if (!(input instanceof HTMLInputElement) || !(button instanceof HTMLButtonElement)) return false;
+          if (!(input instanceof HTMLInputElement) || input.disabled
+            || !(button instanceof HTMLButtonElement) || button.disabled) return false;
           input.focus();
           const inputFocused = document.activeElement === input;
           button.focus();
