@@ -73,6 +73,9 @@ BEGIN
       JOIN "WorkoutTemplate" t ON t."id" = d."templateId"
       WHERE d."id" = checked_day_id FOR SHARE OF d, t;
     IF NOT FOUND THEN
+      -- Cascading a draft WorkoutDay/Template may delete the parent first.
+      -- Parent-level released-history guards protect that deletion.
+      IF TG_OP = 'DELETE' THEN CONTINUE; END IF;
       RAISE EXCEPTION 'group day not found' USING ERRCODE = '23514';
     END IF;
     IF EXISTS (

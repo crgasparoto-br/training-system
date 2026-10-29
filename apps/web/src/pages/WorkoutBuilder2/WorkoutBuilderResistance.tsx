@@ -988,7 +988,7 @@ export default function WorkoutBuilderResistance({
                       </p>
                       {explicitGroup && (
                         <span className="mt-1 inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-800">
-                          {`Grupo ${explicitGroupIndex + 1} · ${explicitGroup.kind.replaceAll('_', '-')} · ${explicitGroup.members.findIndex((member) => member.exerciseRowId === exercise.id) + 1}/${explicitGroup.members.length}`}
+                          {`Grupo ${explicitGroupIndex + 1} · ${explicitGroup.kind.replace(/_/g, '-')} · ${explicitGroup.members.findIndex((member) => member.exerciseRowId === exercise.id) + 1}/${explicitGroup.members.length}`}
                         </span>
                       )}
                       {groupMeta && (

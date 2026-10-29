@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import type { ResistanceGroupKind } from '../../services/workout.service';
 import type { ResistanceGroupDraft, ResistedSectionKey } from './workout-builder-structure';
@@ -27,6 +27,7 @@ const buttonStyle = 'inline-flex min-h-9 items-center justify-center gap-1 round
 const inputStyle = 'min-h-10 w-full rounded-md border border-input bg-card px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 export default function ResistanceGroupsEditor({ groups, exercises, onChange }: Props) {
+  const headingId = useId();
   const [newKind, setNewKind] = useState<ResistanceGroupKind>('bi_set');
   const [feedback, setFeedback] = useState<string | null>(null);
   const used = new Set(groups.flatMap((group) => group.members.map((member) => member.exerciseRowId)));
@@ -96,10 +97,10 @@ export default function ResistanceGroupsEditor({ groups, exercises, onChange }: 
   };
 
   return (
-    <section className="space-y-4 rounded-lg border border-border bg-muted/30 p-4" aria-labelledby="resistance-groups-title">
+    <section className="space-y-4 rounded-lg border border-border bg-muted/30 p-4" aria-labelledby={headingId}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h5 id="resistance-groups-title" className="text-sm font-semibold text-foreground">Agrupamentos de exercícios</h5>
+          <h5 id={headingId} className="text-sm font-semibold text-foreground">Agrupamentos de exercícios</h5>
           <p className="mt-1 text-xs text-muted-foreground">
             Combine exercícios existentes em superséries, bi-sets, tri-sets e circuitos sem duplicar a prescrição.
           </p>

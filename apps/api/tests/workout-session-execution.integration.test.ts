@@ -2246,6 +2246,14 @@ describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
     })).members).toHaveLength(2);
   });
 
+  it('permite excluir dias editáveis em cascata sem criar grupos órfãos', async () => {
+    const { fixture, groups } = await setup('issue400-draft-delete');
+    await workoutService.replaceDayResistanceGroups(fixture.dayId, groups, fixture.contractId);
+    expect(await prisma.workoutResistanceGroup.count({ where: { workoutDayId: fixture.dayId } })).toBe(1);
+    await prisma.workoutDay.delete({ where: { id: fixture.dayId } });
+    expect(await prisma.workoutResistanceGroup.count({ where: { workoutDayId: fixture.dayId } })).toBe(0);
+  });
+
   it('rejeita associação de outro dia no próprio PostgreSQL, incluindo escrita fora da API', async () => {
     const { fixture } = await setup('issue400-crossday');
     const second = await seedReleasedWorkout('issue400-foreign-day', { publish: false });
