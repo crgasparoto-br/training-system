@@ -222,7 +222,7 @@ export function compareWorkoutSession(
         const recorded = items.filter((item) => item.plannedSetId === set.id)
           .sort((a, b) => (a.setNumber ?? 0) - (b.setNumber ?? 0));
         for (const logged of recorded.length ? recorded : [null]) {
-          result.push(unit(set.id, 'set', 'Série ' + set.position, logged?.outcome ?? missingOutcome, [
+          result.push(unit(set.id, 'set', 'Série ' + set.position, logged ? logged.outcome ?? 'full' : missingOutcome, [
             metric('repetitions', 'Repetições', set.repsMin, logged?.repetitions, 'rep', 'rep', set.repsMax),
             metric('load_kg', 'Carga (kg)', set.loadKg, logged?.loadKg, 'kg'),
             metric('load_pct', 'Carga (%)', set.loadPercent, null, '%'),
