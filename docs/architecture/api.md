@@ -119,3 +119,7 @@ O contrato detalhado e as fontes canônicas estão registrados em `docs/architec
 - `pnpm test`
 - `pnpm arch:check`
 - `pnpm access:check`
+
+## Execução resistida guiada (#487)
+
+As rotas autenticadas `GET /api/v1/student/me/training-sessions/:sessionId/execution/guided` e `POST /api/v1/student/me/training-sessions/:sessionId/execution/guided/complete` exigem aluno do `contractId` contextual, release consolidado e lifecycle/versão da sessão #389. A série seguinte deriva exclusivamente dos IDs planejados #399 e do grafo `WorkoutResistanceGroup` + `WorkoutResistanceGroupMember` da #400 (PR #521). Nenhum texto de `system` estabelece agrupamentos. Um comando confirmado liga o item à sua operação canônica única, ao evento e à versão; conflito retorna 409 e exige revalidação no servidor.

@@ -2172,6 +2172,7 @@ model WorkoutSessionExecutionOperation {
   lifecycleEventId   String?
   createdAt          DateTime                       @default(now())
   execution          WorkoutSessionExecution        @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  completedGuidedSet WorkoutSessionExecutionItem?    @relation("GuidedSetCompletionOperation")
 
   @@unique([executionId, operationKey])
   @@index([createdAt])
@@ -2194,6 +2195,8 @@ model WorkoutSessionExecutionItem {
   plannedUnitId  String
   plannedSetId   String?
   setNumber      Int                     @default(0)
+  completedAt    DateTime?
+  completedByOperationId String?           @unique
   loadKg         Float?
   repetitions    Int?
   durationSec    Int?
@@ -2206,6 +2209,7 @@ model WorkoutSessionExecutionItem {
   execution      WorkoutSessionExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
   plannedUnit    WorkoutExercise          @relation(fields: [plannedUnitId], references: [id], onDelete: Restrict)
   plannedSet     WorkoutExercisePlannedSet? @relation(fields: [plannedSetId], references: [id], onDelete: Restrict)
+  completionOperation WorkoutSessionExecutionOperation? @relation("GuidedSetCompletionOperation", fields: [completedByOperationId], references: [id], onDelete: Restrict)
 
   @@unique([executionId, plannedUnitId, setNumber])
   @@index([plannedUnitId])

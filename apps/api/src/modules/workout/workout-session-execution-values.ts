@@ -56,8 +56,13 @@ export async function persistWorkoutSessionValues(
   executionId: string,
   sessionId: string,
   sessionValues: TrainingSessionExecutionSessionValues | undefined,
-  items: TrainingSessionExecutionItemValue[]
+  items: TrainingSessionExecutionItemValue[],
+  completedAt?: Date,
+  completionOperationId?: string
 ): Promise<Prisma.InputJsonValue | undefined> {
+  if (completedAt && !completionOperationId) {
+    throw new WorkoutSessionExecutionInputError('A conclusão guiada exige uma operação canônica vinculada.');
+  }
   await validatePlannedUnits(tx, executionId, sessionId, items);
   let mergedSessionValues: Prisma.InputJsonValue | undefined;
   if (sessionValues) {
@@ -71,11 +76,23 @@ export async function persistWorkoutSessionValues(
     const setNumber = item.setNumber ?? 0;
     const existingItem = await tx.workoutSessionExecutionItem.findUnique({
       where: { executionId_plannedUnitId_setNumber: { executionId, plannedUnitId: item.plannedUnitId, setNumber } },
-      select: { plannedSetId: true },
+      select: { plannedSetId: true, completedAt: true },
     });
+    if (existingItem?.completedAt) {
+      throw new WorkoutSessionExecutionInputError('Esta série já foi concluída e não pode ser reescrita.');
+    }
+    if (existingItem?.plannedSetId && item.plannedSetId && existingItem.plannedSetId !== item.plannedSetId) {
+      throw new WorkoutSessionExecutionInputError('A série planejada não corresponde ao registro existente.');
+    }
     const persistedPlannedSetId = item.plannedSetId === undefined
       ? existingItem?.plannedSetId ?? null
       : item.plannedSetId;
+    if (persistedPlannedSetId && await tx.workoutSessionExecutionItem.findFirst({
+      where: { executionId, plannedSetId: persistedPlannedSetId, completedAt: { not: null } },
+      select: { id: true },
+    })) {
+      throw new WorkoutSessionExecutionInputError('Esta série planejada já foi concluída.');
+    }
     await tx.workoutSessionExecutionItem.upsert({
       where: { executionId_plannedUnitId_setNumber: { executionId, plannedUnitId: item.plannedUnitId, setNumber } },
       create: {
@@ -83,6 +100,7 @@ export async function persistWorkoutSessionValues(
         plannedUnitId: item.plannedUnitId,
         plannedSetId: persistedPlannedSetId,
         setNumber,
+        ...(completedAt ? { completedAt, completedByOperationId: completionOperationId } : {}),
         loadKg: item.loadKg,
         repetitions: item.repetitions,
         durationSec: item.durationSec,
@@ -93,6 +111,7 @@ export async function persistWorkoutSessionValues(
       },
       update: {
         plannedSetId: persistedPlannedSetId,
+        ...(completedAt ? { completedAt, completedByOperationId: completionOperationId } : {}),
         loadKg: item.loadKg,
         repetitions: item.repetitions,
         durationSec: item.durationSec,
