@@ -65,10 +65,16 @@ export function WorkoutExecutionComparisonCard({
             >
               <summary className="cursor-pointer text-sm font-medium text-foreground">
                 {item.label}{item.iteration ? ` · volta ${item.iteration}` : ''}
+                {item.kind === 'set' && item.executedSetNumber != null ? ` · registro ${item.executedSetNumber}` : ''}
                 <span className="ml-2 text-xs font-normal text-muted-foreground">
                   {outcomeLabel[item.outcome]}
                 </span>
               </summary>
+              {item.substitutionNote && (
+                <p className="mt-2 text-xs text-foreground">
+                  Substituição registrada: {item.substitutionNote}
+                </p>
+              )}
               {metrics.length ? (
                 <dl className="mt-3 space-y-2 text-xs sm:text-sm">
                   {metrics.map((entry) => {
