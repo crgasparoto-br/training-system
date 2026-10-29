@@ -8,6 +8,7 @@ import {
   validateTemplateCopyEnvelope,
   validateWorkoutWeekEnvelope,
 } from '../modules/workout/resistance-structure.domain.js';
+import { parseResistanceGroupBaseUpdatedAt } from '../modules/workout/resistance-groups.domain.js';
 import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
 import { parseRequiredDate, sendSafeWorkoutError, workoutContractScopeMiddleware } from './workout-route-guards.js';
 
@@ -247,10 +248,15 @@ router.put('/days/:id/resistance-groups', async (req, res) => {
   try {
     if (!req.user?.contractId) return res.status(403).json({ code: 'FORBIDDEN', error: 'Acesso negado.' });
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)
-      || Object.keys(req.body).length !== 1 || !Object.prototype.hasOwnProperty.call(req.body, 'groups')) {
+      || Object.keys(req.body).length !== 2
+      || !Object.prototype.hasOwnProperty.call(req.body, 'groups')
+      || !Object.prototype.hasOwnProperty.call(req.body, 'baseUpdatedAt')) {
       throw new ResistanceStructureValidationError('Informe apenas a lista de agrupamentos.');
     }
-    const groups = await workoutService.replaceDayResistanceGroups(req.params.id, req.body.groups, req.user.contractId);
+    parseResistanceGroupBaseUpdatedAt(req.body.baseUpdatedAt);
+    const groups = await workoutService.replaceDayResistanceGroups(
+      req.params.id, req.body.groups, req.user.contractId, req.body.baseUpdatedAt,
+    );
     res.json(groups);
   } catch (error: unknown) {
     console.error('Error replacing resistance groups:', error);

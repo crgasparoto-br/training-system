@@ -22,3 +22,10 @@ O cartão apresenta uma série por vez, prescrito/realizado separados, série/ro
 Testes de domínio: séries e grupos persistidos #400, ordenação rodada/participante, intervalos, legado somente leitura, histórico fora de ordem, identidade estável e mídia opcional. PostgreSQL: persistência, cross-tenant, pausa, concorrência, retry, rollback, SQL direto sem ledger e tentativa de reutilizar uma operação válida para concluir outra série. Web: prescrito/realizado, retry de rede, conflito 409 com GET bem-sucedido/falho, bloqueio de escrita, retorno à ficha e acesso por teclado. A jornada Chrome de `apps/web/src/pages/issue-487-browser-evidence.test.js` verifica desktop 1440×900, tablet 768×1024 e mobile 390×844, incluindo navegação real com Tab; a homologação autenticada permanece separada da simulação.
 
 Antes da auditoria independente: `pnpm validate`, migrations PostgreSQL, testes, lint, type-check, build, checks de arquitetura/acesso, navegador e revisão visual em múltiplos viewports devem estar terminais e associados ao SHA material final. Sem merge/release antes da aprovação independente.
+
+## Remediação da auditoria de 29/10/2026
+
+- **A-001 / CI:** o teste de integração PostgreSQL consulta o catálogo real para comprovar a ausência do agrupamento paralelo em `WorkoutExercise`, sem usar o inexistente campo `groupType` do tipo Prisma.
+- **A-002 / dependência #400:** a execução guiada foi sincronizada por conteúdo com o HEAD imutável `e8fa4e29fcce26a1d8a41cf3353a7603911ffac6` da PR #521, preservando simultaneamente os testes e o contrato da #487. Mudanças posteriores na #521 exigem reconciliação e validação no SHA final.
+- **RISK-001:** regressão de treino misto estruturado/legado comprova fallback `legacy_read_only`, sem inventar unidades de execução.
+- **Gates obrigatórios:** PostgreSQL, testes, type-check, lint, build e `Validate repository` CRITICAL exact-SHA; não fazer merge sem revisão independente.

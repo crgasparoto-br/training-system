@@ -2,7 +2,7 @@
 
 import { Prisma } from '@prisma/client';
 import { assertWorkoutParentIsImmutable, normalizeResistanceBlocks, sanitizeWorkoutMutation, ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput } from './resistance-structure.domain.js';
-import { assertDayContract, isWorkoutTemplateUniqueConflict, lockWorkoutDayPlanningMutable, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
+import { assertDayContract, isWorkoutTemplateUniqueConflict, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
 import { copyTemplate as copyTemplateStructured, copyTemplateSections as copyTemplateSectionsStructured } from './workout-copy.service.js';
 import { replaceDayResistanceExercises as replaceDayResistanceExercisesStructured, saveTemplateWeek as saveTemplateWeekStructured } from './workout-week-structure.service.js';
 import { cyclicStageInclude, nestedCyclicStages, normalizeCyclicStages, replaceCyclicStagesInTransaction, snapshotCyclicStages } from './cyclic-stages.domain.js';
@@ -746,27 +746,28 @@ export const workoutService = {
     return replaceDayResistanceExercisesStructured(prisma, workoutDayId, exercises, contractId);
   },
 
-  async replaceDayResistanceGroups(workoutDayId: string, groups: unknown, contractId: string) {
-    return replaceDayResistanceGroupsStructured(prisma, workoutDayId, groups, contractId);
+  async replaceDayResistanceGroups(workoutDayId: string, groups: unknown, contractId: string, baseUpdatedAt: string) {
+    return replaceDayResistanceGroupsStructured(prisma, workoutDayId, groups, contractId, baseUpdatedAt);
   },
 
   async updateWorkoutExercise(id: string, data: Partial<CreateWorkoutExerciseDTO>, contractId?: string) {
     data = sanitizeWorkoutMutation(data, 'exercise');
-    const current = await prisma.workoutExercise.findUnique({ where: { id }, select: { workoutDayId: true, exerciseId: true } });
+    const current = await prisma.workoutExercise.findUnique({ where: { id }, select: { workoutDayId: true, exerciseId: true, exerciseOrder: true } });
     if (!current) throw new Error('Workout exercise not found');
 
+    // The legacy single-row edit must not create ambiguous ordinals for group members.
+    if (data.exerciseOrder !== undefined && data.exerciseOrder !== current.exerciseOrder) {
+      throw new ResistanceStructureValidationError('Use a reordenação da seção para alterar a ordem dos exercícios.');
+    }
     if (data.workoutDayId !== undefined && data.workoutDayId !== current.workoutDayId) {
       throw new ResistanceStructureValidationError('Não é permitido mover um exercício entre dias.');
     }
 
-    const workoutDayIds = [current.workoutDayId];
-
     const { resistanceBlocks, workoutExerciseId: _existingRowId, ...exercise } = data;
     const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
-    return prisma.$transaction(async (tx) => {
-      for (const workoutDayId of workoutDayIds) {
-        await lockWorkoutDayPlanningMutable(tx, workoutDayId);
-        if (contractId) await assertDayContract(tx, workoutDayId, contractId, data.exerciseId ?? current.exerciseId);
+    return withWorkoutDayPlanningMutation(prisma, current.workoutDayId, async (tx) => {
+      if (contractId) {
+        await assertDayContract(tx, current.workoutDayId, contractId, data.exerciseId ?? current.exerciseId);
       }
       return tx.workoutExercise.update({
         where: { id },
@@ -778,7 +779,7 @@ export const workoutService = {
         },
         include: { exercise: true, resistanceBlocks: resistanceBlockInclude },
       });
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    });
   },
 
   /**

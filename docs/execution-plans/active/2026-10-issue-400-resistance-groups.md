@@ -31,6 +31,15 @@
 - **Controles PostgreSQL adicionais:** exclusão individual de bi-set e de bloco que permanece válido; substituição semanal e de dia; reordenação parcial; posições legadas ambíguas; replay idêntico com leitura da revisão.
 - **Validação e auditoria:** executar CI CRITICAL e testes de integração no HEAD corrigido; nova auditoria independente obrigatória. Sem merge automático.
 
+## Remediação da auditoria independente — segunda rodada (29/10/2026)
+
+- **A-001 (concorrência):** exigir `baseUpdatedAt` ISO UTC tanto no endpoint de grupos por dia quanto em snapshots semanais com `resistanceGroups`. Conferir a revisão dentro da transação serializável, com incremento monotônico no reorder, e rejeitar replay obsoleto com 409 sem mudar vínculos.
+- **A-002 (estado assíncrono):** envio parcial do delta de `resistedExercises` pelo callback de carga máxima. Controles React verificam que criar um grupo durante consulta pendente não é sobrescrito pela resposta.
+- **A-003 (elegibilidade):** categoria canônica resistida validada pelo serviço, com trigger de banco protegendo inclusão direta, alterações de vínculo e recategorização para cíclico.
+- **RISK-001 (ordenação legada):** impedir mudança isolada de `exerciseOrder` na atualização individual; manter reorder transacional da seção.
+- **Controles:** integrar casos adversariais em PostgreSQL e interface, validando ausência de persistência parcial e preservação de grupos.
+- **Status:** remediação material preparada para gates completos, CI exact-SHA e nova auditoria independente em contexto separado.
+
 ## Entrega
 
 Não efetuar merge. A implementação só será considerada concluída após checks do HEAD exato, validação de migração, testes relevantes e auditoria independente sem pendências.

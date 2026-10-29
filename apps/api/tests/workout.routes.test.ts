@@ -640,6 +640,7 @@ describe('Issue #398 - rota de etapas cíclicas com isolamento de contrato', () 
 });
 
 describe('Issue #400 - rota de agrupamentos resistidos', () => {
+  const baseUpdatedAt = '2026-10-29T10:00:00.000Z';
   const app = express();
   app.use(express.json());
   app.use('/workout', workoutRouter);
@@ -654,15 +655,27 @@ describe('Issue #400 - rota de agrupamentos resistidos', () => {
       { position: 2, section: 'sessao', exerciseOrder: 2 },
     ] }];
     (workoutService.replaceDayResistanceGroups as jest.Mock).mockResolvedValue(groups);
-    const res = await request(app).put('/workout/days/day-1/resistance-groups').send({ groups });
+    const res = await request(app).put('/workout/days/day-1/resistance-groups').send({ groups, baseUpdatedAt });
     expect(res.status).toBe(200);
     expect(res.body).toEqual(groups);
-    expect(workoutService.replaceDayResistanceGroups).toHaveBeenCalledWith('day-1', groups, 'contract-test');
+    expect(workoutService.replaceDayResistanceGroups).toHaveBeenCalledWith('day-1', groups, 'contract-test', baseUpdatedAt);
+  });
+
+  it('rejeita versão ausente ou malformada antes de chamar o serviço', async () => {
+    for (const body of [
+      { groups: [] },
+      { groups: [], baseUpdatedAt: 'invalid' },
+      { groups: [], baseUpdatedAt: '2026-02-30T00:00:00.000Z' },
+    ]) {
+      const response = await request(app).put('/workout/days/day-1/resistance-groups').send(body);
+      expect(response.status).toBe(400);
+    }
+    expect(workoutService.replaceDayResistanceGroups).not.toHaveBeenCalled();
   });
 
   it('rejeita comandos de relação inesperados sem chegar ao serviço', async () => {
     const res = await request(app).put('/workout/days/day-1/resistance-groups').send({
-      groups: [], workoutDay: { connect: { id: 'other-day' } },
+      groups: [], baseUpdatedAt, workoutDay: { connect: { id: 'other-day' } },
     });
     expect(res.status).toBe(400);
     expect(workoutService.replaceDayResistanceGroups).not.toHaveBeenCalled();
@@ -681,7 +694,8 @@ describe('Issue #400 - rota de agrupamentos resistidos', () => {
 
   it('não vaza mensagens internas de persistência', async () => {
     (workoutService.replaceDayResistanceGroups as jest.Mock).mockRejectedValue(new Error('SQL password=secret'));
-    const res = await request(app).put('/workout/days/day-1/resistance-groups').send({ groups: [] });
+    const res = await request(app).put('/workout/days/day-1/resistance-groups')
+      .send({ groups: [], baseUpdatedAt });
     expect(res.status).toBe(500);
     expect(JSON.stringify(res.body)).not.toMatch(/SQL|password|secret/);
   });

@@ -135,6 +135,11 @@ export default function WorkoutBuilderResistance({
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [selectedSection, setSelectedSection] = useState<SectionKey | null>(null);
   const [exercisesByDay, setExercisesByDay] = useState<Record<number, Record<SectionKey, SelectedExercise[]>>>(() => ({}));
+  // Async progress reads must use the current exercise collection, not a closed-over render.
+  const currentExercisesRef = useRef(exercisesByDay);
+  useEffect(() => {
+    currentExercisesRef.current = exercisesByDay;
+  }, [exercisesByDay]);
   const [methodParameters, setMethodParameters] = useState<TrainingParameter[]>([]);
   const [maxLoads, setMaxLoads] = useState<Record<string, number | null>>({});
   const [quickFillOpen, setQuickFillOpen] = useState(false);
@@ -396,24 +401,30 @@ export default function WorkoutBuilderResistance({
       setMaxLoads((prev) => ({ ...prev, [exerciseId]: maxLoad }));
 
       if (maxLoad) {
-        setExercisesByDay((prev) => {
-          const updated: typeof prev = { ...prev };
-          Object.entries(prev).forEach(([dayKey, sections]) => {
-            const updatedSections = { ...sections };
-            (Object.keys(updatedSections) as SectionKey[]).forEach((sectionKey) => {
-              updatedSections[sectionKey] = updatedSections[sectionKey].map((exercise) => {
-                const referenceId = exercise.exerciseId ?? exercise.id;
-                if (referenceId !== exerciseId) return exercise;
-                const computedLoad = calculateLoad(maxLoad, exercise.reps ?? null);
-                return { ...exercise, load: computedLoad };
-              });
+        const current = currentExercisesRef.current;
+        const updated: typeof current = { ...current };
+        let changed = false;
+        Object.entries(current).forEach(([dayKey, sections]) => {
+          const updatedSections = { ...sections };
+          (Object.keys(updatedSections) as SectionKey[]).forEach((sectionKey) => {
+            updatedSections[sectionKey] = updatedSections[sectionKey].map((exercise) => {
+              const referenceId = exercise.exerciseId ?? exercise.id;
+              if (referenceId !== exerciseId) return exercise;
+              const computedLoad = calculateLoad(maxLoad, exercise.reps ?? null);
+              if (exercise.load === computedLoad) return exercise;
+              changed = true;
+              return { ...exercise, load: computedLoad };
             });
-            updated[Number(dayKey)] = updatedSections;
           });
-
-          onChange({ ...templateData, resistedExercises: updated });
-          return updated;
+          updated[Number(dayKey)] = updatedSections;
         });
+
+        if (changed) {
+          // Notify the parent outside a React state updater and preserve newer group edits.
+          currentExercisesRef.current = updated;
+          setExercisesByDay(updated);
+          onChange({ resistedExercises: updated });
+        }
       }
     } catch (error) {
       setMaxLoads((prev) => ({ ...prev, [exerciseId]: null }));
@@ -674,52 +685,52 @@ export default function WorkoutBuilderResistance({
     const rowId = `${exercise.id}-${Date.now()}-${Math.random()}`;
     const isCyclic = isCyclicCategory(exercise.category);
 
-    setExercisesByDay((prev) => {
-      const currentDay = prev[selectedDay] || {
-        mobilidade: [],
-        sessao: [],
-        resfriamento: []
-      };
+    const prev = currentExercisesRef.current;
+    const currentDay = prev[selectedDay] || {
+      mobilidade: [],
+      sessao: [],
+      resfriamento: []
+    };
 
-      const updatedDay = {
-        ...currentDay,
-        [selectedSection]: [
-          ...currentDay[selectedSection],
-          {
-            id: rowId,
-            exerciseId: exercise.id,
-            name: exercise.name,
-            category: exercise.category,
-            system:
-              selectedSection === 'mobilidade'
-                ? 'SER'
-                : selectedSection === 'sessao'
-                  ? (isCyclic ? '-' : (resistedSummary?.method ?? ''))
-                  : '',
-            groupBreakBefore: false,
-            sets: null,
-            reps: null,
-            interval: null,
-            cParam: null,
-            eParam: null,
-            load: null,
-            adjustment: ''
-          }
-        ]
-      };
+    const updatedDay = {
+      ...currentDay,
+      [selectedSection]: [
+        ...currentDay[selectedSection],
+        {
+          id: rowId,
+          exerciseId: exercise.id,
+          name: exercise.name,
+          category: exercise.category,
+          system:
+            selectedSection === 'mobilidade'
+              ? 'SER'
+              : selectedSection === 'sessao'
+                ? (isCyclic ? '-' : (resistedSummary?.method ?? ''))
+                : '',
+          groupBreakBefore: false,
+          sets: null,
+          reps: null,
+          interval: null,
+          cParam: null,
+          eParam: null,
+          load: null,
+          adjustment: ''
+        }
+      ]
+    };
 
-      const finalSection =
-        selectedSection === 'sessao'
-          ? applyQuickFillDefaults(updatedDay[selectedSection])
-          : updatedDay[selectedSection];
-      const updated = {
-        ...prev,
-        [selectedDay]: { ...updatedDay, [selectedSection]: finalSection }
-      };
+    const finalSection =
+      selectedSection === 'sessao'
+        ? applyQuickFillDefaults(updatedDay[selectedSection])
+        : updatedDay[selectedSection];
+    const updated = {
+      ...prev,
+      [selectedDay]: { ...updatedDay, [selectedSection]: finalSection }
+    };
 
-      onChange({ ...templateData, resistedExercises: updated });
-      return updated;
-    });
+    currentExercisesRef.current = updated;
+    setExercisesByDay(updated);
+    onChange({ ...templateData, resistedExercises: updated });
     void fetchMaxLoad(exercise.id);
   };
 
@@ -751,30 +762,30 @@ export default function WorkoutBuilderResistance({
     });
     });
 
-    setExercisesByDay((prev) => {
-      const currentDay = prev[selectedDay] || {
-        mobilidade: [],
-        sessao: [],
-        resfriamento: []
-      };
+    const prev = currentExercisesRef.current;
+    const currentDay = prev[selectedDay] || {
+      mobilidade: [],
+      sessao: [],
+      resfriamento: []
+    };
 
-      const updatedDay = {
-        ...currentDay,
-        [selectedSection]: [...currentDay[selectedSection], ...newEntries]
-      };
+    const updatedDay = {
+      ...currentDay,
+      [selectedSection]: [...currentDay[selectedSection], ...newEntries]
+    };
 
-      const finalSection =
-        selectedSection === 'sessao'
-          ? applyQuickFillDefaults(updatedDay[selectedSection])
-          : updatedDay[selectedSection];
-      const updated = {
-        ...prev,
-        [selectedDay]: { ...updatedDay, [selectedSection]: finalSection }
-      };
+    const finalSection =
+      selectedSection === 'sessao'
+        ? applyQuickFillDefaults(updatedDay[selectedSection])
+        : updatedDay[selectedSection];
+    const updated = {
+      ...prev,
+      [selectedDay]: { ...updatedDay, [selectedSection]: finalSection }
+    };
 
-      onChange({ ...templateData, resistedExercises: updated });
-      return updated;
-    });
+    currentExercisesRef.current = updated;
+    setExercisesByDay(updated);
+    onChange({ ...templateData, resistedExercises: updated });
 
     exercises.forEach((exercise) => {
       void fetchMaxLoad(exercise.id);

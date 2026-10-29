@@ -261,8 +261,12 @@ class WorkoutService {
     return response.data;
   }
 
-  async replaceDayResistanceGroups(dayId: string, groups: Array<Record<string, unknown>>): Promise<ResistanceGroup[]> {
-    const response = await api.put<ResistanceGroup[]>(`/workout/days/${dayId}/resistance-groups`, { groups });
+  async replaceDayResistanceGroups(
+    dayId: string, groups: Array<Record<string, unknown>>, baseUpdatedAt: string,
+  ): Promise<ResistanceGroup[]> {
+    const response = await api.put<ResistanceGroup[]>(
+      `/workout/days/${dayId}/resistance-groups`, { groups, baseUpdatedAt },
+    );
     return response.data;
   }
 

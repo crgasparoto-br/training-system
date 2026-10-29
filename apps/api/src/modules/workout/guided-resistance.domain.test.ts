@@ -211,4 +211,13 @@ describe('issue #487 - plano resistido canônico', () => {
     expect(projected.current?.plannedSetId).toBe('a-set-1');
     expect(projected.completed).toBe(0);
   });
+  it('mantém fallback somente leitura para treino misto estruturado e legado', () => {
+    const structured = exercise('structured', 1);
+    const legacy = { ...exercise('legacy', 2), resistanceBlocks: [] };
+    expect(deriveGuidedResistancePlan([structured, legacy])).toEqual({
+      availability: 'legacy_read_only', units: [],
+    });
+    expect(deriveGuidedResistancePlan([structured]).availability).toBe('available');
+  });
+
 });

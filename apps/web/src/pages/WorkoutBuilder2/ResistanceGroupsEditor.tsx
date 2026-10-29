@@ -33,8 +33,10 @@ export default function ResistanceGroupsEditor({ groups, exercises, onChange, re
   const [feedback, setFeedback] = useState<string | null>(null);
   const used = new Set(groups.flatMap((group) => group.members.map((member) => member.exerciseRowId)));
   // Never synthesize an arrangement from free-text system names or cyclic exercises.
+  const isCyclic = (category?: string) =>
+    category?.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() === 'ciclico';
   const available = exercises.filter((exercise) => !used.has(exercise.id)
-    && exercise.category?.toLowerCase() !== 'cíclico' && exercise.category?.toLowerCase() !== 'ciclico');
+    && !isCyclic(exercise.category));
 
   const emit = (next: ResistanceGroupDraft[]) => {
     if (readOnly) return;

@@ -1,5 +1,5 @@
 import { normalizeCyclicStages } from './cyclic-stages.domain.js';
-import { normalizeResistanceGroups } from './resistance-groups.domain.js';
+import { normalizeResistanceGroups, parseResistanceGroupBaseUpdatedAt } from './resistance-groups.domain.js';
 
 export const RESISTANCE_BLOCK_KINDS = [
   'aquecimento', 'principal', 'tecnica', 'complementar', 'finalizacao',
@@ -294,6 +294,7 @@ export function validateWorkoutWeekEnvelope(value: unknown): asserts value is {
     }
   }
   if (envelope.resistanceGroups !== undefined) {
+    parseResistanceGroupBaseUpdatedAt(envelope.baseUpdatedAt);
     if (!envelope.resistanceGroups || typeof envelope.resistanceGroups !== 'object'
       || Array.isArray(envelope.resistanceGroups)) {
       throw new ResistanceStructureValidationError('Agrupamentos resistidos semanais inválidos.');
