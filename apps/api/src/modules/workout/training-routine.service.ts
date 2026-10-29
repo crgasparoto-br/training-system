@@ -22,6 +22,7 @@ import { projectPreWorkoutCheckIn } from './pre-workout-check-in.service.js';
 import { projectWorkoutSessionExecution } from './workout-session-execution.service.js';
 import {
   compareWorkoutSession,
+  projectWorkoutComparisonForAudience,
   readCapturedWorkoutComparisonPlan,
   workoutComparisonPlanSelect,
 } from './workout-session-comparison.domain.js';
@@ -583,8 +584,9 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
         const current = planByDay.get(row.id);
         const plan = frozen ?? current;
         if (plan && plan.id === row.id) {
-          comparisonByDay.set(row.id, compareWorkoutSession(
-            plan, execution, frozen ? 'captured' : 'released_plan'
+          comparisonByDay.set(row.id, projectWorkoutComparisonForAudience(
+            compareWorkoutSession(plan, execution, frozen ? 'captured' : 'released_plan'),
+            query.audience
           ));
         }
       }
