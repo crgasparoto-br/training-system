@@ -11,6 +11,7 @@ import {
   WorkoutSessionExecutionNotFoundError,
 } from '../src/modules/workout/workout-session-execution.service.js';
 import { workoutService } from '../src/modules/workout/workout.service.js';
+import { createStudentWorkoutService } from '../src/modules/workout/student-workout.service.js';
 import {
   createPostWorkoutFeedbackPersistenceService,
   PostWorkoutFeedbackConflictError,
@@ -2522,6 +2523,124 @@ describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
     expect(await prisma.workoutResistanceGroup.count({
       where: { workoutDayId: fixture.dayId },
     })).toBe(0);
+  });
+
+  it('A-003: Unicode variants of cyclic are rejected in API and direct SQL', async () => {
+    const variants: Array<[string, boolean]> = [
+      ['Cíclico', true], ['CICLICO', true], ['Ci\u0301clico', true],
+      [' CÍCLICO\u00a0', true], ['Cíclico\u2003', true],
+      ['Resistido', false], ['cíclico aeróbico', false],
+    ];
+    for (const [category, expected] of variants) {
+      const [{ cyclic }] = await prisma.$queryRawUnsafe<Array<{ cyclic: boolean }>>(
+        'SELECT "issue400_is_cyclic_category"($1) AS cyclic', category,
+      );
+      expect(cyclic).toBe(expected);
+    }
+
+    const { fixture, groups } = await setup('issue400-unicode-cyclic');
+    const source = await prisma.workoutExercise.findUniqueOrThrow({ where: { id: fixture.exerciseIds[0] } });
+    await prisma.exerciseLibrary.update({ where: { id: source.exerciseId }, data: { category: 'Ci\u0301clico' } });
+    await expect(replaceGroups(fixture.dayId, groups, fixture.contractId))
+      .rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    await expect(prisma.$transaction(async (tx) => {
+      const group = await tx.workoutResistanceGroup.create({
+        data: { workoutDayId: fixture.dayId, position: 1, kind: 'bloco_tecnico' },
+      });
+      await tx.workoutResistanceGroupMember.create({
+        data: { groupId: group.id, workoutExerciseId: fixture.exerciseIds[0], position: 1 },
+      });
+    })).rejects.toThrow();
+    expect(await prisma.workoutResistanceGroup.count({ where: { workoutDayId: fixture.dayId } })).toBe(0);
+
+    await prisma.exerciseLibrary.update({ where: { id: source.exerciseId }, data: { category: 'Resistido' } });
+    const [group] = await replaceGroups(fixture.dayId, groups, fixture.contractId);
+    await expect(prisma.exerciseLibrary.update({
+      where: { id: source.exerciseId }, data: { category: 'CÍCLICO\u00a0' },
+    })).rejects.toThrow();
+    const cyclicLibrary = await prisma.exerciseLibrary.create({
+      data: { contractId: fixture.contractId, name: 'Ciclismo com NBSP', category: 'Cíclico\u2003' },
+    });
+    await expect(prisma.workoutExercise.update({
+      where: { id: source.id }, data: { exerciseId: cyclicLibrary.id },
+    })).rejects.toThrow();
+    expect((await prisma.workoutResistanceGroup.findUniqueOrThrow({
+      where: { id: group.id }, include: { members: true },
+    })).members).toHaveLength(2);
+    expect((await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: source.exerciseId } })).category)
+      .toBe('Resistido');
+  });
+
+  it('A-004: legacy release snapshots the catalog without duplicating grouped exercises', async () => {
+    const { fixture, templateId, groups } = await setup('issue400-release-snapshot-legacy');
+    const [group] = await replaceGroups(fixture.dayId, groups, fixture.contractId);
+    const exercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] }, include: { exercise: true },
+    });
+    expect(await prisma.workoutReleasedExerciseSnapshot.count({
+      where: { workoutExerciseId: exercise.id },
+    })).toBe(0);
+    const originalName = exercise.exercise.name;
+    await workoutService.releaseTemplate(templateId);
+    const snapshot = await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
+      where: { workoutExerciseId: exercise.id },
+    });
+    expect(snapshot.catalog).toMatchObject({ name: originalName });
+    expect(await prisma.workoutReleasedExerciseSnapshot.count({
+      where: { workoutExerciseId: { in: fixture.exerciseIds } },
+    })).toBe(2);
+
+    await prisma.exerciseLibrary.update({
+      where: { id: exercise.exerciseId },
+      data: { name: 'Novo nome do catálogo', notes: 'Mudança posterior à liberação' },
+    });
+    const student = await createStudentWorkoutService(prisma).getReleasedForStudent(
+      templateId, fixture.alunoId, fixture.contractId,
+    );
+    const studentExercise = student?.workoutDays.flatMap((day) => day.exercises)
+      .find((row) => row.id === exercise.id);
+    expect(studentExercise?.exercise.name).toBe(originalName);
+    const professor = await workoutService.getTemplateById(templateId);
+    const professorExercise = professor?.workoutDays.flatMap((day) => day.exercises)
+      .find((row) => row.id === exercise.id);
+    expect(professorExercise?.exercise.name).toBe(originalName);
+    expect(professorExercise?.releasedCatalog).toBeUndefined();
+    expect((await prisma.workoutResistanceGroup.findUniqueOrThrow({
+      where: { id: group.id }, include: { members: { orderBy: { position: 'asc' } } },
+    })).members.map((member) => member.workoutExerciseId))
+      .toEqual([fixture.exerciseIds[1], fixture.exerciseIds[0]]);
+    await expect(prisma.workoutReleasedExerciseSnapshot.update({
+      where: { workoutExerciseId: exercise.id },
+      data: { catalog: { name: 'Histórico adulterado' } },
+    })).rejects.toThrow();
+    await expect(prisma.workoutReleasedExerciseSnapshot.delete({
+      where: { workoutExerciseId: exercise.id },
+    })).rejects.toThrow();
+    await workoutService.releaseTemplate(templateId);
+    expect((await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
+      where: { workoutExerciseId: exercise.id },
+    })).catalog).toMatchObject({ name: originalName });
+  });
+
+  it('A-004: consolidated release also captures the immutable catalog', async () => {
+    const fixture = await seedReleasedWorkout('issue400-release-snapshot-consolidated');
+    const exercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] }, include: { exercise: true, workoutDay: true },
+    });
+    const preserved = await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
+      where: { workoutExerciseId: exercise.id },
+    });
+    expect(preserved.catalog).toMatchObject({ name: exercise.exercise.name });
+    await prisma.exerciseLibrary.update({ where: { id: exercise.exerciseId }, data: { name: 'Mutado após ledger' } });
+    const student = await createStudentWorkoutService(prisma).getReleasedForStudent(
+      exercise.workoutDay.templateId, fixture.alunoId, fixture.contractId,
+    );
+    expect(student?.workoutDays.flatMap((day) => day.exercises)
+      .find((row) => row.id === exercise.id)?.exercise.name).toBe(exercise.exercise.name);
+    await expect(prisma.$executeRawUnsafe(
+      'INSERT INTO "WorkoutReleasedExerciseSnapshot" ("workoutExerciseId", "catalog") VALUES ($1, $2::jsonb) ON CONFLICT ("workoutExerciseId") DO NOTHING',
+      fixture.exerciseIds[1], JSON.stringify({ name: 'Inserção tardia' }),
+    )).rejects.toThrow();
   });
 
   it('RISK-001: edição individual não pode mover ordinal, mas reordenação atômica pode', async () => {
