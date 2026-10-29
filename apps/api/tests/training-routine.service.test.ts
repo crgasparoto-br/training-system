@@ -475,7 +475,7 @@ describe('training routine service (#387)', () => {
     expect(query?.[0]?.select?.exercises?.select?.releasedCatalog).toEqual({ select: { catalog: true } });
   });
 
-  it('identifica modalidades e preserva distância da projeção operacional consolidada', async () => {
+  it('A-401-05: preserva modalidade cíclica sem projetar volume semanal como distância do dia', async () => {
     const cyclicRow = makeRow({ sessionDurationMin: null, cyclicTimeMin: 30, resistanceTimeMin: 20, targetHrMin: '140', targetHrMax: '150' });
     cyclicRow.template.totalVolumeKm = 5;
     releasedRows = [cyclicRow];
@@ -488,11 +488,27 @@ describe('training routine service (#387)', () => {
     expect(session.durationMin).toBe(50);
     expect(session.cyclic).toEqual({
       durationMin: 30,
-      distanceKm: 5,
+      distanceKm: null,
       heartRate: { min: '140', max: '150' },
       speed: null,
       pace: null,
     });
+  });
+
+
+  it('A-401-05: volume semanal isolado não cria falsa meta ou modalidade diária', async () => {
+    const row = makeRow({ sessionDurationMin: null, cyclicTimeMin: null, exercises: [], cyclicStages: [] });
+    row.template.totalVolumeKm = 30;
+    releasedRows = [row];
+
+    const routine = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    const session = routine.today.sessions[0];
+    expect(session.modalities).toEqual([]);
+    expect(session.cyclic).toBeNull();
+    const projectedSelect = findMany.mock.calls.find(([args]) => args.where.template?.released === true)?.[0].select;
+    expect(projectedSelect.template.select.totalVolumeKm).toBeUndefined();
   });
 
   it('projeta o status legado no vocabulário canônico da #389 sem criar segunda autoridade', async () => {

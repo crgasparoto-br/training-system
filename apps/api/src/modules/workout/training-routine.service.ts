@@ -134,7 +134,6 @@ const sessionSelect = {
       trainingMethod: true,
       trainingDivision: true,
       repReserve: true,
-      totalVolumeKm: true,
       plan: { select: { id: true, name: true } },
     },
   },
@@ -231,14 +230,14 @@ const toRange = (
 function buildCyclicTargets(row: SessionRow): TrainingRoutineCyclicTargets | null {
   const targets: TrainingRoutineCyclicTargets = {
     durationMin: row.cyclicTimeMin ?? row.stimulusDurationMin ?? null,
-    distanceKm: row.template.totalVolumeKm ?? null,
+    // WorkoutTemplate.totalVolumeKm is weekly; never present it as this day's target.
+    distanceKm: null,
     heartRate: toRange(row.targetHrMin, row.targetHrMax),
     speed: toRange(row.targetSpeedMin, row.targetSpeedMax),
     pace: toRange(row.paceMin, row.paceMax),
   };
   const hasTargets =
     targets.durationMin !== null ||
-    targets.distanceKm !== null ||
     targets.heartRate ||
     targets.speed ||
     targets.pace ||
