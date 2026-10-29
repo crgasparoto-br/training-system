@@ -142,6 +142,14 @@ A experiencia guiada deve usar o lifecycle canonico da sessao e nao criar estado
 - Retry de `pause` ou `resume` deve ser idempotente.
 - A pausa e seu tempo restante devem ser reconstruiveis em outro cliente/dispositivo autorizado; memoria do navegador nao pode ser a fonte de verdade.
 
+#### Comparacao por unidade entre prescrito e realizado (#401)
+
+O `Treino de hoje` e a Central do Aluno/Professor apresentam `comparison` apenas para sessões publicadas pelo release consolidado do mesmo aluno e `contractId`. A projeção lê o grafo operacional liberado e a execução canônica, sem gravar nova interpretação. Ao criar a sessão, `WorkoutSessionExecution.plannedSnapshot` captura o plano de etapas, exercícios, blocos, séries e agrupamentos; a base de dados bloqueia alterações posteriores na captura. Em sessões legadas sem captura própria, a resposta indica explicitamente `snapshotSource=released_plan` e a leitura pode não representar todas as versões históricas antigas.
+
+As etapas repetidas usam `plannedStageId` mais o número da iteração; séries usam `plannedUnitId`, `plannedSetId` e `setNumber`; agrupamentos usam `plannedGroupId`. A API valida que cada ID pertence ao mesmo `WorkoutDay` do aluno/contrato. As medidas comparáveis são tempo, distância, pace, velocidade, FC/zona, PSE e, no resistido, séries, repetições, carga, RIR, RPE, cadência e descansos. Ausência de valor é `null`, não zero; unidades ou faixas diferentes não geram delta numérico enganoso. `full`, `partial`, `substituted` (com descrição) e `not_performed` são estados explícitos; sem registro é `not_recorded`. Nenhum deles altera treino futuro ou prescrição.
+
+O aluno lê o resultado em linguagem simples; o professor, pela mesma rotina autorizada, pode expandir blocos e séries e ver diferenças numéricas neutras. Não existe julgamento automático de melhora/piora nem indicador de adesão derivado dessa leitura.
+
 #### Persistencia canonica da execucao (#389)
 
 - Identidade publica da sessao: `WorkoutDay.id`; a persistencia mutavel fica em `WorkoutSessionExecution`, com `version` para concorrencia otimista.
