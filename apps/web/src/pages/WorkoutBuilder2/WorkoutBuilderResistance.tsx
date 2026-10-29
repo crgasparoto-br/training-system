@@ -685,8 +685,8 @@ export default function WorkoutBuilderResistance({
     const rowId = `${exercise.id}-${Date.now()}-${Math.random()}`;
     const isCyclic = isCyclicCategory(exercise.category);
 
-    setExercisesByDay((prev) => {
-      const currentDay = prev[selectedDay] || {
+    const prev = currentExercisesRef.current;
+    const currentDay = prev[selectedDay] || {
         mobilidade: [],
         sessao: [],
         resfriamento: []
@@ -728,9 +728,9 @@ export default function WorkoutBuilderResistance({
         [selectedDay]: { ...updatedDay, [selectedSection]: finalSection }
       };
 
-      onChange({ ...templateData, resistedExercises: updated });
-      return updated;
-    });
+    currentExercisesRef.current = updated;
+    setExercisesByDay(updated);
+    onChange({ ...templateData, resistedExercises: updated });
     void fetchMaxLoad(exercise.id);
   };
 
@@ -762,8 +762,8 @@ export default function WorkoutBuilderResistance({
     });
     });
 
-    setExercisesByDay((prev) => {
-      const currentDay = prev[selectedDay] || {
+    const prev = currentExercisesRef.current;
+    const currentDay = prev[selectedDay] || {
         mobilidade: [],
         sessao: [],
         resfriamento: []
@@ -783,9 +783,9 @@ export default function WorkoutBuilderResistance({
         [selectedDay]: { ...updatedDay, [selectedSection]: finalSection }
       };
 
-      onChange({ ...templateData, resistedExercises: updated });
-      return updated;
-    });
+    currentExercisesRef.current = updated;
+    setExercisesByDay(updated);
+    onChange({ ...templateData, resistedExercises: updated });
 
     exercises.forEach((exercise) => {
       void fetchMaxLoad(exercise.id);
