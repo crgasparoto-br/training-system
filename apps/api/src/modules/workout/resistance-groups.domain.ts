@@ -1,5 +1,5 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
-import { ResistanceStructureNotFoundError, ResistanceStructureValidationError } from './resistance-structure.domain.js';
+import { ResistanceStructureNotFoundError, ResistanceStructureValidationError, WorkoutPlanningVersionConflictError } from './resistance-structure.domain.js';
 import { assertDayContract, withWorkoutDayPlanningMutation } from './workout-planning.helpers.js';
 
 /** Explicit execution arrangements, never inferred from free-text exercise.system. */
@@ -55,6 +55,21 @@ function position(value: unknown, expected: number, context: string) {
     throw new ResistanceStructureValidationError(`${context}: ordem deve ser contínua a partir de 1.`);
   }
 }
+
+/** The group command is tied to the exact template revision used to read positional members. */
+export function parseResistanceGroupBaseUpdatedAt(value: unknown): Date {
+  if (typeof value !== 'string') {
+    throw new ResistanceStructureValidationError('Informe a versão do treino para salvar agrupamentos.');
+  }
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== value) {
+    throw new ResistanceStructureValidationError('Versão do treino inválida.');
+  }
+  return parsed;
+}
+
+const isCyclicCategory = (category: string | null | undefined) =>
+  category?.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() === 'ciclico';
 
 /** Normalize and validate the complete snapshot before any database mutation. */
 export function normalizeResistanceGroups(value: unknown): ResistanceGroupInput[] {
@@ -151,9 +166,9 @@ export async function replaceResistanceGroupsInTransaction(
   const groups = normalizeResistanceGroups(input);
   const exercises = await tx.workoutExercise.findMany({
     where: { workoutDayId },
-    select: { id: true, section: true, exerciseOrder: true },
+    select: { id: true, section: true, exerciseOrder: true, exercise: { select: { category: true } } },
   });
-  const slots = new Map<string, string>();
+  const slots = new Map<string, { id: string; category: string | null }>();
   for (const exercise of exercises) {
     const key = `${exercise.section}:${exercise.exerciseOrder}`;
     // Legacy positions may be duplicated. A member must never bind to an
@@ -161,12 +176,16 @@ export async function replaceResistanceGroupsInTransaction(
     if (groups.length > 0 && slots.has(key)) {
       throw new ResistanceStructureValidationError('Corrija a ordem duplicada dos exercícios antes de agrupar.');
     }
-    slots.set(key, exercise.id);
+    slots.set(key, { id: exercise.id, category: exercise.exercise.category });
   }
   for (const group of groups) {
     for (const member of group.members) {
-      if (!slots.has(`${member.section}:${member.exerciseOrder}`)) {
+      const slot = slots.get(`${member.section}:${member.exerciseOrder}`);
+      if (!slot) {
         throw new ResistanceStructureValidationError('Um participante não pertence a este dia ou foi reordenado.');
+      }
+      if (isCyclicCategory(slot.category)) {
+        throw new ResistanceStructureValidationError('Exercícios cíclicos não podem participar de agrupamentos resistidos.');
       }
     }
   }
@@ -193,7 +212,7 @@ export async function replaceResistanceGroupsInTransaction(
         members: {
           create: group.members.map((member) => ({
             position: member.position,
-            workoutExercise: { connect: { id: slots.get(`${member.section}:${member.exerciseOrder}`)! } },
+            workoutExercise: { connect: { id: slots.get(`${member.section}:${member.exerciseOrder}`)!.id } },
           })),
         },
       },
@@ -261,8 +280,10 @@ export async function replaceDayResistanceGroups(
   workoutDayId: string,
   groups: unknown,
   contractId: string,
+  baseUpdatedAt: string,
 ) {
   if (!contractId?.trim()) throw new ResistanceStructureNotFoundError();
+  const expectedRevision = parseResistanceGroupBaseUpdatedAt(baseUpdatedAt);
   normalizeResistanceGroups(groups);
   const owned = await prisma.workoutDay.findFirst({
     where: { id: workoutDayId, template: { plan: { aluno: { contractId } } } },
@@ -271,6 +292,14 @@ export async function replaceDayResistanceGroups(
   if (!owned) throw new ResistanceStructureNotFoundError();
   const result = await withWorkoutDayPlanningMutation(prisma, workoutDayId, async (tx) => {
     await assertDayContract(tx, workoutDayId, contractId);
+    const day = await tx.workoutDay.findUnique({
+      where: { id: workoutDayId },
+      select: { template: { select: { updatedAt: true } } },
+    });
+    if (!day) throw new ResistanceStructureNotFoundError();
+    if (day.template.updatedAt.getTime() !== expectedRevision.getTime()) {
+      throw new WorkoutPlanningVersionConflictError();
+    }
     return replaceResistanceGroupsInTransaction(tx, workoutDayId, groups);
   }, { touchRevision: (value) => value.changed });
   return result.groups;

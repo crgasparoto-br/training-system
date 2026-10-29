@@ -62,6 +62,14 @@ BEGIN
       IF new_day_id IS NULL OR exercise_day_id IS DISTINCT FROM new_day_id THEN
         RAISE EXCEPTION 'group member must reference an exercise of the same day' USING ERRCODE = '23514';
       END IF;
+      IF EXISTS (
+        SELECT 1 FROM "WorkoutExercise" e
+        JOIN "ExerciseLibrary" library ON library."id" = e."exerciseId"
+        WHERE e."id" = NEW."workoutExerciseId"
+          AND lower(btrim(coalesce(library."category", ''))) IN ('ciclico', 'cíclico')
+      ) THEN
+        RAISE EXCEPTION 'cyclic exercise cannot join a resistance group' USING ERRCODE = '23514';
+      END IF;
     END IF;
   END IF;
 
@@ -119,12 +127,36 @@ BEGIN
     AND EXISTS (SELECT 1 FROM "WorkoutResistanceGroupMember" WHERE "workoutExerciseId" = OLD."id") THEN
     RAISE EXCEPTION 'grouped exercise cannot change day' USING ERRCODE = '23514';
   END IF;
+  IF NEW."exerciseId" IS DISTINCT FROM OLD."exerciseId"
+    AND EXISTS (SELECT 1 FROM "WorkoutResistanceGroupMember" WHERE "workoutExerciseId" = OLD."id")
+    AND EXISTS (SELECT 1 FROM "ExerciseLibrary" library WHERE library."id" = NEW."exerciseId"
+      AND lower(btrim(coalesce(library."category", ''))) IN ('ciclico', 'cíclico')) THEN
+    RAISE EXCEPTION 'grouped exercise cannot become cyclic' USING ERRCODE = '23514';
+  END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$ LANGUAGE plpgsql;
 CREATE TRIGGER "issue400_grouped_exercise_day_guard"
-BEFORE UPDATE OF "workoutDayId" ON "WorkoutExercise"
+BEFORE UPDATE OF "workoutDayId", "exerciseId" ON "WorkoutExercise"
 FOR EACH ROW EXECUTE FUNCTION "issue400_guard_grouped_exercise_day"();
+
+-- A library recategorization must not invalidate a previously planned grouping.
+CREATE FUNCTION "issue400_guard_grouped_library_category"() RETURNS TRIGGER AS $
+BEGIN
+  IF lower(btrim(coalesce(NEW."category", ''))) IN ('ciclico', 'cíclico')
+    AND EXISTS (
+      SELECT 1 FROM "WorkoutExercise" e
+      JOIN "WorkoutResistanceGroupMember" member ON member."workoutExerciseId" = e."id"
+      WHERE e."exerciseId" = OLD."id"
+    ) THEN
+    RAISE EXCEPTION 'grouped library exercise cannot become cyclic' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END;
+$ LANGUAGE plpgsql;
+CREATE TRIGGER "issue400_grouped_library_category_guard"
+BEFORE UPDATE OF "category" ON "ExerciseLibrary"
+FOR EACH ROW EXECUTE FUNCTION "issue400_guard_grouped_library_category"();
 
 -- Check the final transaction state (nested Prisma writes create group before members).
 CREATE FUNCTION "issue400_validate_group_graph"() RETURNS TRIGGER AS $$

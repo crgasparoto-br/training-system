@@ -215,10 +215,11 @@ export async function touchWorkoutTemplateRevision(
   tx: Prisma.TransactionClient,
   templateId: string,
 ) {
-  await tx.workoutTemplate.update({
-    where: { id: templateId },
-    data: { updatedAt: new Date() },
-  });
+  await tx.$executeRaw(Prisma.sql`
+    UPDATE "WorkoutTemplate"
+    SET "updatedAt" = GREATEST("updatedAt" + INTERVAL '1 millisecond', clock_timestamp() AT TIME ZONE 'UTC')
+    WHERE "id" = ${templateId}
+  `);
 }
 
 export async function withWorkoutDayPlanningMutation<T>(

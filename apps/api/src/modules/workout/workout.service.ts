@@ -746,15 +746,19 @@ export const workoutService = {
     return replaceDayResistanceExercisesStructured(prisma, workoutDayId, exercises, contractId);
   },
 
-  async replaceDayResistanceGroups(workoutDayId: string, groups: unknown, contractId: string) {
-    return replaceDayResistanceGroupsStructured(prisma, workoutDayId, groups, contractId);
+  async replaceDayResistanceGroups(workoutDayId: string, groups: unknown, contractId: string, baseUpdatedAt: string) {
+    return replaceDayResistanceGroupsStructured(prisma, workoutDayId, groups, contractId, baseUpdatedAt);
   },
 
   async updateWorkoutExercise(id: string, data: Partial<CreateWorkoutExerciseDTO>, contractId?: string) {
     data = sanitizeWorkoutMutation(data, 'exercise');
-    const current = await prisma.workoutExercise.findUnique({ where: { id }, select: { workoutDayId: true, exerciseId: true } });
+    const current = await prisma.workoutExercise.findUnique({ where: { id }, select: { workoutDayId: true, exerciseId: true, exerciseOrder: true } });
     if (!current) throw new Error('Workout exercise not found');
 
+    // The legacy single-row edit must not create ambiguous ordinals for group members.
+    if (data.exerciseOrder !== undefined && data.exerciseOrder !== current.exerciseOrder) {
+      throw new ResistanceStructureValidationError('Use a reordenação da seção para alterar a ordem dos exercícios.');
+    }
     if (data.workoutDayId !== undefined && data.workoutDayId !== current.workoutDayId) {
       throw new ResistanceStructureValidationError('Não é permitido mover um exercício entre dias.');
     }

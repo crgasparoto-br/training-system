@@ -411,7 +411,8 @@ export default function WorkoutBuilderResistance({
             updated[Number(dayKey)] = updatedSections;
           });
 
-          onChange({ ...templateData, resistedExercises: updated });
+          // An async response cannot overwrite group edits made after the lookup started.
+          onChange({ resistedExercises: updated });
           return updated;
         });
       }
