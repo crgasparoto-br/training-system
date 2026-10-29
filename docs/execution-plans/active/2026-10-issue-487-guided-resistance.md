@@ -74,3 +74,24 @@ A antiga PR #522 foi encerrada como substituída, sem merge. A PR #524 preserva 
 - **Controles A-487-07:** testes React simulam POST v2 tardio, prop v3, GET v3 em voo, reconciliação positiva e falha com recuperação manual; o Chrome reproduz a mesma condição por atualização do painel por foco real e respostas HTTP adiadas. O verificador de evidência exige a marca `stale-post-parent-version-reconciled` com um controle negativo.
 - **RISK-487-02:** migration PostgreSQL aditiva impede alteração de `WorkoutSessionExecutionOperation` referenciada por série concluída, mesmo antes do encerramento da sessão. Mantém somente a ligação inicial de evento canônico no commit; teste de SQL direto rejeita fingerprint, versão, evento e DELETE após a conclusão, e exige que replay canônico continue intacto.
 - **Validação obrigatória:** publicar material em PR #524 sem reescrever histórico, obter `Validate repository` + CRITICAL + PostgreSQL + browser no **novo SHA** e preparar auditoria independente; não reutilizar o run de `7fabcff` após esta correção.
+
+
+## Homologação automatizada com API real (R-487-01)
+
+O teste `apps/web/src/pages/issue-487-real-api-browser-evidence.test.js`
+complementa o harness Chrome mockado sem substituí-lo. A CI CRITICAL o executa
+explicitamente após as migrations PostgreSQL e os builds de tipos/utilitários,
+com token JWT sintético de aluno ativo e a API HTTP real. O aluno inicia o treino
+no desktop, confirma uma série com carga/repetições diferentes das prescritas,
+faz replay idempotente e testa isolamento de contrato; em seguida alterna para
+a ficha, recarrega, pausa, tenta uma gravação bloqueada e retoma no celular até
+concluir a sessão. As asserções leem novamente `WorkoutSessionExecution`,
+`WorkoutSessionExecutionItem`, `WorkoutSessionExecutionOperation` e a série
+prescrita no PostgreSQL. O teste exige ausência de overflow e erros JS nos
+dois tamanhos de tela e publica `artifacts/issue-487/real-api-browser.json`
+com três PNGs e hashes SHA-256 ligados ao `VERIFICATION_HEAD_SHA`.
+
+O arquivo de teste é pulado nos testes web sem banco configurado e executado
+obrigatoriamente pela etapa `Issue #487 authenticated real API student browser
+evidence` da CI CRITICAL. Nenhum resultado verde é presumido: o novo HEAD
+material exige execução terminal da CI e auditoria independente posterior.

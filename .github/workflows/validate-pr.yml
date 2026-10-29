@@ -369,6 +369,13 @@ jobs:
           pnpm --filter @corrida/types build
           pnpm --filter @corrida/utils build
           pnpm --filter @corrida/web exec vitest run --no-file-parallelism src/pages/WorkoutBuilder2/issue-399-real-api-browser-evidence.test.js
+      - name: Issue #487 authenticated real API student browser evidence
+        env:
+          ISSUE_487_REAL_API_BROWSER_EVIDENCE: '1'
+          ISSUE_487_REAL_API_PORT: '19194'
+          ISSUE_487_REAL_JWT_SECRET: 'issue487-ci-secret'
+          VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: pnpm --filter @corrida/web exec vitest run --no-file-parallelism src/pages/issue-487-real-api-browser-evidence.test.js
       - name: Build
         run: pnpm build
       - name: Validate settings parameters in real browser
