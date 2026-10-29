@@ -351,6 +351,7 @@ describe('WorkoutBuilderResistance', () => {
   });
 
   it('A-002: resposta assíncrona de carga não apaga agrupamento editado no intervalo', async () => {
+    const reactErrors = vi.spyOn(console, 'error');
     let finishLoad: (value: { maxLoad: number }) => void = () => {};
     vi.mocked(libraryService.getAlunoProgress).mockImplementationOnce(
       () => new Promise((resolve) => {
@@ -381,6 +382,8 @@ describe('WorkoutBuilderResistance', () => {
     await act(async () => finishLoad({ maxLoad: 90 }));
     expect(screen.getByTestId('current-groups')).toHaveTextContent('"kind":"bi_set"');
     expect(screen.getByTestId('current-groups')).toHaveTextContent('"exerciseRowId":"s1"');
+    expect(reactErrors.mock.calls.flat().join(' ')).not.toContain('Cannot update a component');
+    reactErrors.mockRestore();
   });
 
 });
