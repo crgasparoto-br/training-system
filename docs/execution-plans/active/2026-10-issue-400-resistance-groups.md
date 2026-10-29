@@ -50,3 +50,11 @@
 ## Entrega
 
 Não efetuar merge. A implementação só será considerada concluída após checks do HEAD exato, validação de migração, testes relevantes e auditoria independente sem pendências.
+
+## Evidência visual específica da #400 — 29/10/2026
+
+- A suíte `apps/web/src/pages/WorkoutBuilder2/issue-400-browser-evidence.test.js` exercita o componente e CSS reais em Chromium no CI (`GITHUB_ACTIONS=true`), em 1440, 768 e 390 px.
+- Cenário positivo: bi-set com exercícios canônicos, troca para tri-set, inclusão do terceiro participante, edição de rodadas e descansos, screenshots com SHA-256, reflow e controles rotulados.
+- Controles negativos: exercício cíclico Unicode NFD não oferecido, desfazer agrupamento preserva exercícios, e somente leitura desabilita ações.
+- As evidências ficam em `artifacts/issue-400/` do run do SHA exato. A suíte é isolada com UI/CSS reais, **não** representa login real ou backend autenticado; os controles API/PostgreSQL permanecem em testes separados.
+- Auditoria independente permanece necessária. Nenhum merge autorizado.
