@@ -147,5 +147,5 @@ suite('Issue #400 - editor de agrupamentos em Chromium real', () => {
       await browser?.close();
       await vite?.close();
     }
-  });
+  }, 120000);
 });
