@@ -8,6 +8,8 @@ import { libraryService, type Exercise } from '../../services/library.service';
 import { isDateWithinRange, parseDateOnly } from '../../utils/date';
 import type { ResistanceBlock } from '../../services/workout.service';
 import ResistanceBlocksEditor from './ResistanceBlocksEditor';
+import ResistanceGroupsEditor, { type GroupExerciseOption } from './ResistanceGroupsEditor';
+import { removeExerciseFromGroupDrafts, type ResistanceGroupDraft } from './workout-builder-structure';
 
 interface WorkoutBuilderResistanceProps {
   templateData: any;
@@ -654,7 +656,15 @@ export default function WorkoutBuilderResistance({
       const finalList = section === 'sessao' ? applyIntervalRulesIfConfigured(list) : list;
       const updatedDay = { ...currentDay, [section]: finalList };
       const updated = { ...prev, [dayOfWeek]: updatedDay };
-      onChange({ ...templateData, resistedExercises: updated });
+      const groupDrafts = templateData?.resistanceGroupsByDay ?? {};
+      const dayGroups: ResistanceGroupDraft[] = groupDrafts[dayOfWeek] ?? [];
+      const updatedGroups = removeExerciseFromGroupDrafts(dayGroups, removed.id);
+      onChange({
+        ...templateData, resistedExercises: updated,
+        ...(dayGroups.length > 0 ? {
+          resistanceGroupsByDay: { ...groupDrafts, [dayOfWeek]: updatedGroups },
+        } : {}),
+      });
       return updated;
     });
   };
@@ -829,6 +839,10 @@ export default function WorkoutBuilderResistance({
       section.key === 'sessao'
         ? buildSystemGroups(sectionExercises, resistedSummary?.method ?? '')
         : { meta: [], warnings: [] };
+    const explicitGroups: ResistanceGroupDraft[] = templateData?.resistanceGroupsByDay?.[dayOfWeek] ?? [];
+    const explicitlyAssigned = new Set(explicitGroups.flatMap((group) => group.members.map((member) => member.exerciseRowId)));
+    const systemWarnings = groupData.warnings.filter((warning) => !sectionExercises.slice(warning.startIndex, warning.endIndex + 1)
+      .some((exercise) => explicitlyAssigned.has(exercise.id)));
     const headingId = `${idPrefix}-${dayOfWeek}-${section.key}`;
 
     const renderNumericField = (
@@ -886,11 +900,11 @@ export default function WorkoutBuilderResistance({
           </div>
         </div>
 
-        {groupData.warnings.length > 0 && (
+        {systemWarnings.length > 0 && (
           <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <div>
-              {groupData.warnings.map((warning, idx) => (
+              {systemWarnings.map((warning, idx) => (
                 <p key={`${warning.systemKey}-${idx}`}>
                   {`${warning.label} incompleto: ${
                     warning.missing === 1 ? 'falta 1 exercício' : `faltam ${warning.missing} exercícios`
@@ -924,7 +938,9 @@ export default function WorkoutBuilderResistance({
             </div>
             <ol className="divide-y divide-border">
               {sectionExercises.map((exercise, index) => {
-                const groupMeta = groupData.meta[index];
+                const explicitGroupIndex = explicitGroups.findIndex((group) => group.members.some((member) => member.exerciseRowId === exercise.id));
+                const explicitGroup = explicitGroupIndex >= 0 ? explicitGroups[explicitGroupIndex] : null;
+                const groupMeta = explicitGroup ? null : groupData.meta[index];
                 const isCyclicExercise = isCyclicCategory(exercise.category);
                 const rowClassName = isCyclicExercise
                   ? 'bg-sky-50'
@@ -970,6 +986,11 @@ export default function WorkoutBuilderResistance({
                         <span className="mr-1 tabular-nums text-muted-foreground">{index + 1}.</span>
                         {exercise.name}
                       </p>
+                      {explicitGroup && (
+                        <span className="mt-1 inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-800">
+                          {`Grupo ${explicitGroupIndex + 1} · ${explicitGroup.kind.replaceAll('_', '-')} · ${explicitGroup.members.findIndex((member) => member.exerciseRowId === exercise.id) + 1}/${explicitGroup.members.length}`}
+                        </span>
+                      )}
                       {groupMeta && (
                         <span
                           className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
@@ -1255,6 +1276,21 @@ export default function WorkoutBuilderResistance({
           className={`m-0 min-w-0 space-y-6 border-0 p-0 ${activeDayEditable ? '' : 'opacity-70'}`}
         >
           {SECTIONS.map((section) => renderSection(activeDayInfo.dayOfWeek, section))}
+          <ResistanceGroupsEditor
+            groups={templateData?.resistanceGroupsByDay?.[activeDayInfo.dayOfWeek] ?? []}
+            exercises={SECTIONS.flatMap((section): GroupExerciseOption[] =>
+              (exercisesByDay[activeDayInfo.dayOfWeek]?.[section.key] ?? []).map((exercise) => ({
+                id: exercise.id, name: exercise.name, section: section.key, category: exercise.category,
+              })))}
+            onChange={(groups) => onChange({
+              ...templateData,
+              resistedExercises: exercisesByDay,
+              resistanceGroupsByDay: {
+                ...(templateData?.resistanceGroupsByDay ?? {}),
+                [activeDayInfo.dayOfWeek]: groups,
+              },
+            })}
+          />
         </fieldset>
       </div>
 
