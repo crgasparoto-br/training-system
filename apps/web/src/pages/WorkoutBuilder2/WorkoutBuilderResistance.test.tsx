@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 
 vi.mock('../../services/periodization.service', () => ({
@@ -49,6 +50,7 @@ vi.mock('../../components/ExerciseSelectorModal', () => ({
 }));
 
 import WorkoutBuilderResistance from './WorkoutBuilderResistance';
+import { libraryService } from '../../services/library.service';
 
 const exercise = (id: string, name: string, extra: Record<string, unknown> = {}) => ({
   id,
@@ -104,6 +106,7 @@ describe('WorkoutBuilderResistance', () => {
 
   beforeEach(() => {
     confirmSpy = vi.spyOn(window, 'confirm');
+    vi.mocked(libraryService.getAlunoProgress).mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -336,4 +339,51 @@ describe('WorkoutBuilderResistance', () => {
     expect(onSelectedDayChange).toHaveBeenCalledWith(7);
     expect(screen.getByRole('tab', { name: /Dom/ })).toHaveAttribute('aria-selected', 'true');
   });
+  it('cria grupo explicitamente sem alterar nem duplicar exercícios existentes', () => {
+    const onChange = renderResistance();
+    fireEvent.click(screen.getByRole('button', { name: 'Criar grupo' }));
+    const snapshot = onChange.mock.calls.at(-1)?.[0];
+    expect(snapshot.resistanceGroupsByDay[1][0]).toMatchObject({
+      kind: 'bi_set', position: 1,
+      members: [{ exerciseRowId: 's1' }, { exerciseRowId: 's2' }],
+    });
+    expect(snapshot.resistedExercises[1].sessao).toHaveLength(2);
+  });
+
+  it('A-002: resposta assíncrona de carga não apaga agrupamento editado no intervalo', async () => {
+    const reactErrors = vi.spyOn(console, 'error');
+    let finishLoad: (value: { maxLoad: number }) => void = () => {};
+    vi.mocked(libraryService.getAlunoProgress).mockImplementationOnce(
+      () => new Promise((resolve) => {
+        finishLoad = (value) => resolve(value as never);
+      }),
+    );
+
+    function Harness() {
+      const [snapshot, setSnapshot] = useState<any>({ ...templateData, alunoId: 'aluno-1' });
+      return (
+        <>
+          <WorkoutBuilderResistance
+            templateData={snapshot}
+            resistedSummary={{ id: 'r', matrixId: 'm', mesocycleNumber: 5, weekNumber: 2, method: 'SER' } as any}
+            onChange={(patch) => setSnapshot((previous: any) => ({ ...previous, ...patch }))}
+          />
+          <output data-testid="current-groups">{JSON.stringify(snapshot.resistanceGroupsByDay ?? {})}</output>
+        </>
+      );
+    }
+
+    render(<Harness />);
+    const session = screen.getByRole('region', { name: /Sessão/ });
+    fireEvent.click(within(session).getByRole('button', { name: 'Adicionar exercício' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Selecionar exercício individual' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Criar grupo' }));
+    expect(screen.getByTestId('current-groups')).toHaveTextContent('"kind":"bi_set"');
+    await act(async () => finishLoad({ maxLoad: 90 }));
+    expect(screen.getByTestId('current-groups')).toHaveTextContent('"kind":"bi_set"');
+    expect(screen.getByTestId('current-groups')).toHaveTextContent('"exerciseRowId":"s1"');
+    expect(reactErrors.mock.calls.flat().join(' ')).not.toContain('Cannot update a component');
+    reactErrors.mockRestore();
+  });
+
 });

@@ -11,6 +11,7 @@ import {
   WorkoutSessionExecutionNotFoundError,
 } from '../src/modules/workout/workout-session-execution.service.js';
 import { workoutService } from '../src/modules/workout/workout.service.js';
+import { createStudentWorkoutService } from '../src/modules/workout/student-workout.service.js';
 import {
   createPostWorkoutFeedbackPersistenceService,
   PostWorkoutFeedbackConflictError,
@@ -2127,6 +2128,533 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     });
     expect(persisted.released).toBe(true);
     expect(persisted.workoutDays[0].exercises).toHaveLength(2);
+  });
+
+});
+
+describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
+  const currentRevision = async (templateId: string) =>
+    (await prisma.workoutTemplate.findUniqueOrThrow({
+      where: { id: templateId }, select: { updatedAt: true },
+    })).updatedAt.toISOString();
+
+  const replaceGroups = async (
+    workoutDayId: string, groups: unknown, contractId: string, baseUpdatedAt?: string,
+  ) => {
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: workoutDayId }, select: { templateId: true },
+    });
+    return workoutService.replaceDayResistanceGroups(
+      workoutDayId, groups, contractId, baseUpdatedAt ?? await currentRevision(day.templateId),
+    );
+  };
+
+  async function setup(label: string) {
+    const fixture = await seedReleasedWorkout(label, { publish: false, seedResistance: true });
+    const existing = await prisma.workoutExercise.findMany({
+      where: { workoutDayId: fixture.dayId }, orderBy: { exerciseOrder: 'asc' },
+    });
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, existing.map((exercise) => ({
+      workoutDayId: fixture.dayId, workoutExerciseId: exercise.id,
+      exerciseId: exercise.exerciseId, section: 'sessao',
+      exerciseOrder: exercise.exerciseOrder, sets: exercise.sets ?? undefined,
+      reps: exercise.reps ?? undefined,
+    })));
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, select: { templateId: true },
+    });
+    const groups = [{
+      position: 1, kind: 'bi_set' as const, rounds: 3,
+      restBetweenExercisesSec: 12, restBetweenRoundsSec: 90, notes: 'Alternância',
+      members: [
+        { position: 1, section: 'sessao', exerciseOrder: 2 },
+        { position: 2, section: 'sessao', exerciseOrder: 1 },
+      ],
+    }];
+    return { fixture, templateId: day.templateId, groups };
+  }
+
+  it('cria e relê membros sem duplicar séries; replay preserva IDs, cópia reatribui corretamente', async () => {
+    const { fixture, templateId, groups } = await setup('issue400-copy-and-replay');
+    const beforeBlock = await prisma.workoutExerciseBlock.findFirstOrThrow({
+      where: { workoutExerciseId: fixture.exerciseIds[0] }, include: { plannedSets: true },
+    });
+    const first = await replaceGroups(fixture.dayId, groups, fixture.contractId);
+    expect(first).toHaveLength(1);
+    expect(first[0].members.map((item) => item.workoutExerciseId)).toEqual([
+      fixture.exerciseIds[1], fixture.exerciseIds[0],
+    ]);
+    const replay = await replaceGroups(fixture.dayId, groups, fixture.contractId);
+    expect(replay[0].id).toBe(first[0].id);
+    expect(replay[0].members.map((item) => item.id)).toEqual(first[0].members.map((item) => item.id));
+    expect(await prisma.workoutExercise.count({ where: { workoutDayId: fixture.dayId } })).toBe(2);
+    expect((await prisma.workoutExerciseBlock.findUniqueOrThrow({
+      where: { id: beforeBlock.id }, include: { plannedSets: true },
+    })).plannedSets[0].id).toBe(beforeBlock.plannedSets[0].id);
+
+    const copy = await workoutService.copyTemplate(templateId, 2, new Date('2026-10-12T12:00:00.000Z'));
+    if (!copy) throw new Error('A cópia da semana não retornou um treino.');
+    const copiedDay = copy.workoutDays.find((day) => day.dayOfWeek === 2)!;
+    expect(copiedDay.resistanceGroups).toHaveLength(1);
+    const copiedGroup = copiedDay.resistanceGroups[0];
+    expect(copiedGroup.id).not.toBe(first[0].id);
+    expect(copiedGroup.kind).toBe('bi_set');
+    expect(copiedGroup.rounds).toBe(3);
+    expect(copiedGroup.members.map((member) => member.workoutExerciseId)).toEqual([
+      copiedDay.exercises.find((row) => row.exerciseOrder === 2)?.id,
+      copiedDay.exercises.find((row) => row.exerciseOrder === 1)?.id,
+    ]);
+    expect(copiedDay.exercises.map((row) => row.id)).not.toEqual(fixture.exerciseIds);
+    expect(copiedDay.exercises[0].resistanceBlocks[0].plannedSets[0].repsMin).toBe(8);
+
+    const afterCyclicOnly = await workoutService.copyTemplateSections(
+      templateId, 2, new Date('2026-10-12T12:00:00.000Z'), 'cyclic',
+    );
+    if (!afterCyclicOnly) throw new Error('A cópia cíclica não retornou um treino.');
+    const cyclicDay = afterCyclicOnly.workoutDays.find((day) => day.dayOfWeek === 2)!;
+    expect(cyclicDay.resistanceGroups[0].id).toBe(copiedGroup.id);
+    const afterResistance = await workoutService.copyTemplateSections(
+      templateId, 2, new Date('2026-10-12T12:00:00.000Z'), 'resistance',
+    );
+    if (!afterResistance) throw new Error('A cópia resistida não retornou um treino.');
+    expect(afterResistance.workoutDays.find((day) => day.dayOfWeek === 2)?.resistanceGroups[0].members).toHaveLength(2);
+  });
+
+  it('valida contrato, rollback e membros do dia, suporta edição/exclusão no rascunho e bloqueia após liberação', async () => {
+    const { fixture, templateId, groups } = await setup('issue400-locks');
+    await expect(replaceGroups(fixture.dayId, groups, 'foreign-contract'))
+      .rejects.toMatchObject({ code: 'RESISTANCE_DAY_NOT_FOUND' });
+    await expect(replaceGroups(fixture.dayId, [
+      { ...groups[0], members: [
+        groups[0].members[0], { position: 2, section: 'sessao', exerciseOrder: 99 },
+      ] },
+    ], fixture.contractId)).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    expect(await prisma.workoutResistanceGroup.count({ where: { workoutDayId: fixture.dayId } })).toBe(0);
+
+    const persisted = await workoutService.saveTemplateWeek(templateId, {
+      resistanceGroups: { 2: groups }, baseUpdatedAt: await currentRevision(templateId), template: { observation1: 'valid' },
+    }, fixture.contractId);
+    if (!persisted) throw new Error('O salvamento semanal não retornou o treino.');
+    expect(persisted.workoutDays.find((day) => day.dayOfWeek === 2)?.resistanceGroups[0]).toMatchObject({
+      kind: 'bi_set', rounds: 3, restBetweenRoundsSec: 90,
+    });
+    await expect(workoutService.saveTemplateWeek(templateId, {
+      resistanceGroups: { 2: [{ ...groups[0], members: [
+        groups[0].members[0], { position: 2, section: 'sessao', exerciseOrder: 99 },
+      ] }] }, baseUpdatedAt: await currentRevision(templateId), template: { observation1: 'rollback-marker' },
+    }, fixture.contractId)).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    expect((await prisma.workoutTemplate.findUniqueOrThrow({ where: { id: templateId } })).observation1)
+      .toBe('valid');
+
+    await replaceGroups(fixture.dayId, [
+      { ...groups[0], kind: 'circuito', rounds: 4 },
+    ], fixture.contractId);
+    expect((await prisma.workoutResistanceGroup.findFirstOrThrow({ where: { workoutDayId: fixture.dayId } })).kind).toBe('circuito');
+    await replaceGroups(fixture.dayId, [], fixture.contractId);
+    expect(await prisma.workoutResistanceGroup.count({ where: { workoutDayId: fixture.dayId } })).toBe(0);
+    const [frozen] = await replaceGroups(fixture.dayId, groups, fixture.contractId);
+    await workoutService.releaseTemplate(templateId);
+    await expect(replaceGroups(fixture.dayId, [], fixture.contractId))
+      .rejects.toMatchObject({ code: 'WORKOUT_PLANNING_LOCKED_AFTER_EXECUTION_START' });
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutResistanceGroup" SET "rounds" = 7 WHERE "id" = ${frozen.id}
+    `).rejects.toThrow();
+    await expect(prisma.$executeRaw`
+      DELETE FROM "WorkoutResistanceGroupMember" WHERE "groupId" = ${frozen.id}
+    `).rejects.toThrow();
+    expect((await prisma.workoutResistanceGroup.findUniqueOrThrow({
+      where: { id: frozen.id }, include: { members: true },
+    })).members).toHaveLength(2);
+  });
+
+  it('permite excluir dias editáveis em cascata sem criar grupos órfãos', async () => {
+    const { fixture, groups } = await setup('issue400-draft-delete');
+    await replaceGroups(fixture.dayId, groups, fixture.contractId);
+    expect(await prisma.workoutResistanceGroup.count({ where: { workoutDayId: fixture.dayId } })).toBe(1);
+    await prisma.workoutDay.delete({ where: { id: fixture.dayId } });
+    expect(await prisma.workoutResistanceGroup.count({ where: { workoutDayId: fixture.dayId } })).toBe(0);
+  });
+
+  it('rejeita associação de outro dia no próprio PostgreSQL, incluindo escrita fora da API', async () => {
+    const { fixture } = await setup('issue400-crossday');
+    const second = await seedReleasedWorkout('issue400-foreign-day', { publish: false });
+    await expect(prisma.$transaction(async (tx) => {
+      const group = await tx.workoutResistanceGroup.create({
+        data: { workoutDayId: fixture.dayId, kind: 'bloco_tecnico', position: 1 },
+      });
+      await tx.workoutResistanceGroupMember.create({
+        data: { groupId: group.id, workoutExerciseId: second.exerciseIds[0], position: 1 },
+      });
+    })).rejects.toThrow();
+    expect(await prisma.workoutResistanceGroup.count({ where: { workoutDayId: fixture.dayId } })).toBe(0);
+  });
+
+  it('A-400-01: exclusão individual desfaz bi-set insuficiente e compacta grupos restantes', async () => {
+    const { fixture, groups } = await setup('issue400-delete-from-biset');
+    const canonical = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] },
+    });
+    const third = await prisma.workoutExercise.create({
+      data: {
+        workoutDayId: fixture.dayId, exerciseId: canonical.exerciseId,
+        section: 'sessao', exerciseOrder: 3,
+      },
+    });
+    const created = await replaceGroups(fixture.dayId, [
+      groups[0],
+      {
+        position: 2, kind: 'bloco_tecnico', members: [
+          { position: 1, section: 'sessao', exerciseOrder: 3 },
+        ],
+      },
+    ], fixture.contractId);
+    const survivingGroupId = created[1].id;
+
+    await workoutService.deleteExercise(fixture.exerciseIds[0], fixture.contractId);
+
+    const after = await prisma.workoutResistanceGroup.findMany({
+      where: { workoutDayId: fixture.dayId },
+      orderBy: { position: 'asc' },
+      include: { members: true },
+    });
+    expect(after).toHaveLength(1);
+    expect(after[0]).toMatchObject({ id: survivingGroupId, position: 1, kind: 'bloco_tecnico' });
+    expect(after[0].members).toMatchObject([{ position: 1, workoutExerciseId: third.id }]);
+    expect(await prisma.workoutExercise.count({ where: { workoutDayId: fixture.dayId } })).toBe(2);
+    expect(await prisma.workoutExercise.findUnique({ where: { id: fixture.exerciseIds[1] } })).not.toBeNull();
+  });
+
+  it('A-400-01: exclusão mantém grupo ainda válido e compacta posições dos membros', async () => {
+    const { fixture, groups } = await setup('issue400-delete-member-compaction');
+    const [created] = await replaceGroups(fixture.dayId, [
+      { ...groups[0], kind: 'bloco_tecnico' },
+    ], fixture.contractId);
+    await workoutService.deleteExercise(fixture.exerciseIds[1], fixture.contractId);
+    const persisted = await prisma.workoutResistanceGroup.findUniqueOrThrow({
+      where: { id: created.id }, include: { members: true },
+    });
+    expect(persisted.members).toMatchObject([
+      { position: 1, workoutExerciseId: fixture.exerciseIds[0] },
+    ]);
+  });
+
+  it('A-400-01: snapshot semanal e substituição de exercícios conciliam grupos omitidos', async () => {
+    const week = await setup('issue400-week-removes-exercise');
+    await replaceGroups(week.fixture.dayId, week.groups, week.fixture.contractId);
+    const second = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: week.fixture.exerciseIds[1] },
+    });
+    await workoutService.saveTemplateWeek(week.templateId, {
+      resistedExercises: {
+        2: {
+          sessao: [{
+            workoutExerciseId: second.id, exerciseId: second.exerciseId,
+            exerciseOrder: 1, sets: second.sets, reps: second.reps,
+          }],
+        },
+      },
+    }, week.fixture.contractId);
+    expect(await prisma.workoutResistanceGroup.count({
+      where: { workoutDayId: week.fixture.dayId },
+    })).toBe(0);
+    expect(await prisma.workoutExercise.count({ where: { workoutDayId: week.fixture.dayId } })).toBe(1);
+
+    const direct = await setup('issue400-day-removes-exercise');
+    await replaceGroups(direct.fixture.dayId, direct.groups, direct.fixture.contractId);
+    const remaining = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: direct.fixture.exerciseIds[1] },
+    });
+    await workoutService.replaceDayResistanceExercises(direct.fixture.dayId, [{
+      workoutDayId: direct.fixture.dayId,
+      workoutExerciseId: remaining.id,
+      exerciseId: remaining.exerciseId, section: 'sessao', exerciseOrder: 1,
+      sets: remaining.sets ?? undefined, reps: remaining.reps ?? undefined,
+    }], direct.fixture.contractId);
+    expect(await prisma.workoutResistanceGroup.count({
+      where: { workoutDayId: direct.fixture.dayId },
+    })).toBe(0);
+    expect(await prisma.workoutExercise.count({ where: { workoutDayId: direct.fixture.dayId } })).toBe(1);
+  });
+
+  it('A-400-02: reordenação parcial normaliza posições e mapeia participantes reais', async () => {
+    const { fixture, groups } = await setup('issue400-partial-reorder');
+    await workoutService.reorderExercises(fixture.dayId, 'sessao', [
+      fixture.exerciseIds[1],
+    ], fixture.contractId);
+    const afterReorder = await prisma.workoutExercise.findMany({
+      where: { workoutDayId: fixture.dayId, section: 'sessao' },
+      orderBy: { exerciseOrder: 'asc' },
+      select: { id: true, exerciseOrder: true },
+    });
+    expect(afterReorder.map((row) => row.id)).toEqual([
+      fixture.exerciseIds[1], fixture.exerciseIds[0],
+    ]);
+    expect(afterReorder.map((row) => row.exerciseOrder)).toEqual([1, 2]);
+    const [created] = await replaceGroups(
+      fixture.dayId, groups, fixture.contractId,
+    );
+    expect(created.members.map((row) => row.workoutExerciseId)).toEqual([
+      fixture.exerciseIds[0], fixture.exerciseIds[1],
+    ]);
+  });
+
+  it('A-400-02: posições legadas duplicadas são rejeitadas sem associação arbitrária', async () => {
+    const { fixture, groups } = await setup('issue400-ambiguous-slots');
+    await prisma.workoutExercise.update({
+      where: { id: fixture.exerciseIds[1] }, data: { exerciseOrder: 1 },
+    });
+    await expect(replaceGroups(
+      fixture.dayId, groups, fixture.contractId,
+    )).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    expect(await prisma.workoutResistanceGroup.count({
+      where: { workoutDayId: fixture.dayId },
+    })).toBe(0);
+  });
+
+  it('REC-400: reenvio igual preserva revisão e IDs em rotas de dia e semana', async () => {
+    const { fixture, templateId, groups } = await setup('issue400-identical-noop');
+    const [first] = await replaceGroups(
+      fixture.dayId, groups, fixture.contractId,
+    );
+    const before = await prisma.workoutTemplate.findUniqueOrThrow({
+      where: { id: templateId }, select: { updatedAt: true },
+    });
+    const [replayed] = await replaceGroups(
+      fixture.dayId, groups, fixture.contractId,
+    );
+    expect(replayed.id).toBe(first.id);
+    expect(replayed.members.map((row) => row.id)).toEqual(first.members.map((row) => row.id));
+    const afterDay = await prisma.workoutTemplate.findUniqueOrThrow({
+      where: { id: templateId }, select: { updatedAt: true },
+    });
+    expect(afterDay.updatedAt.getTime()).toBe(before.updatedAt.getTime());
+
+    const week = await workoutService.saveTemplateWeek(templateId, {
+      resistanceGroups: { 2: groups }, baseUpdatedAt: before.updatedAt.toISOString(),
+    }, fixture.contractId);
+    if (!week) throw new Error('A semana regravada não foi encontrada.');
+    expect(week.updatedAt.getTime()).toBe(before.updatedAt.getTime());
+    const persisted = await prisma.workoutResistanceGroup.findFirstOrThrow({
+      where: { workoutDayId: fixture.dayId },
+      include: { members: { orderBy: { position: 'asc' } } },
+    });
+    expect(persisted.id).toBe(first.id);
+    expect(persisted.members.map((row) => row.id)).toEqual(first.members.map((row) => row.id));
+  });
+
+  it('A-001: versão é obrigatória nas operações de agrupamento', async () => {
+    const { fixture, templateId, groups } = await setup('issue400-version-required');
+    await expect(workoutService.replaceDayResistanceGroups(
+      fixture.dayId, groups, fixture.contractId, undefined as never,
+    )).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    await expect(workoutService.saveTemplateWeek(templateId, {
+      resistanceGroups: { 2: groups },
+    }, fixture.contractId)).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    expect(await prisma.workoutResistanceGroup.count({ where: { workoutDayId: fixture.dayId } })).toBe(0);
+  });
+
+  it('A-001: snapshot anterior a reordenação é rejeitado sem efeitos em dia ou semana', async () => {
+    const { fixture, templateId, groups } = await setup('issue400-stale-reorder');
+    const before = await currentRevision(templateId);
+    await workoutService.reorderExercises(fixture.dayId, 'sessao', [fixture.exerciseIds[1]], fixture.contractId);
+    expect(await currentRevision(templateId)).not.toBe(before);
+    await expect(replaceGroups(fixture.dayId, groups, fixture.contractId, before))
+      .rejects.toMatchObject({ code: 'WORKOUT_PLANNING_VERSION_CONFLICT' });
+    await expect(workoutService.saveTemplateWeek(templateId, {
+      baseUpdatedAt: before, resistanceGroups: { 2: groups },
+    }, fixture.contractId)).rejects.toMatchObject({ code: 'WORKOUT_PLANNING_VERSION_CONFLICT' });
+    expect(await prisma.workoutResistanceGroup.count({ where: { workoutDayId: fixture.dayId } })).toBe(0);
+    const [fresh] = await replaceGroups(fixture.dayId, groups, fixture.contractId);
+    expect(fresh.members.map((member) => member.workoutExerciseId)).toEqual([
+      fixture.exerciseIds[0], fixture.exerciseIds[1],
+    ]);
+  });
+
+  it('A-003: exercícios cíclicos são rejeitados no serviço, snapshot e SQL direto', async () => {
+    const { fixture, templateId, groups } = await setup('issue400-cyclic-eligibility');
+    const exercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] }, select: { exerciseId: true },
+    });
+    await prisma.exerciseLibrary.update({
+      where: { id: exercise.exerciseId }, data: { category: 'CÍCLICO ' },
+    });
+    await expect(replaceGroups(fixture.dayId, groups, fixture.contractId))
+      .rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    await expect(workoutService.saveTemplateWeek(templateId, {
+      baseUpdatedAt: await currentRevision(templateId), resistanceGroups: { 2: groups },
+    }, fixture.contractId)).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    await expect(prisma.$transaction(async (tx) => {
+      const group = await tx.workoutResistanceGroup.create({
+        data: { workoutDayId: fixture.dayId, position: 1, kind: 'bloco_tecnico' },
+      });
+      await tx.workoutResistanceGroupMember.create({
+        data: { groupId: group.id, position: 1, workoutExerciseId: fixture.exerciseIds[0] },
+      });
+    })).rejects.toThrow();
+    expect(await prisma.workoutResistanceGroup.count({ where: { workoutDayId: fixture.dayId } })).toBe(0);
+    await prisma.exerciseLibrary.update({
+      where: { id: exercise.exerciseId }, data: { category: 'Resistido' },
+    });
+    const [accepted] = await replaceGroups(fixture.dayId, groups, fixture.contractId);
+    expect(accepted.members).toHaveLength(2);
+    const cyclicLibrary = await prisma.exerciseLibrary.create({
+      data: { contractId: fixture.contractId, name: 'Corrida cíclica', category: 'CICLICO' },
+    });
+    await expect(prisma.workoutExercise.update({
+      where: { id: fixture.exerciseIds[0] }, data: { exerciseId: cyclicLibrary.id },
+    })).rejects.toThrow();
+    await expect(prisma.exerciseLibrary.update({
+      where: { id: exercise.exerciseId }, data: { category: 'Cíclico' },
+    })).rejects.toThrow();
+    expect((await prisma.exerciseLibrary.findUniqueOrThrow({
+      where: { id: exercise.exerciseId }, select: { category: true },
+    })).category).toBe('Resistido');
+  });
+
+  it('A-001: edição individual de metadados invalida base antiga de agrupamentos', async () => {
+    const { fixture, templateId, groups } = await setup('issue400-legacy-revision');
+    const staleRevision = await currentRevision(templateId);
+    await workoutService.updateWorkoutExercise(fixture.exerciseIds[0], {
+      exerciseNotes: 'Edição concomitante',
+    }, fixture.contractId);
+    expect(await currentRevision(templateId)).not.toBe(staleRevision);
+    await expect(replaceGroups(fixture.dayId, groups, fixture.contractId, staleRevision))
+      .rejects.toMatchObject({ code: 'WORKOUT_PLANNING_VERSION_CONFLICT' });
+    expect(await prisma.workoutResistanceGroup.count({
+      where: { workoutDayId: fixture.dayId },
+    })).toBe(0);
+  });
+
+  it('A-003: Unicode variants of cyclic are rejected in API and direct SQL', async () => {
+    const variants: Array<[string, boolean]> = [
+      ['Cíclico', true], ['CICLICO', true], ['Ci\u0301clico', true],
+      [' CÍCLICO\u00a0', true], ['Cíclico\u2003', true],
+      ['Resistido', false], ['cíclico aeróbico', false],
+    ];
+    for (const [category, expected] of variants) {
+      const [{ cyclic }] = await prisma.$queryRawUnsafe<Array<{ cyclic: boolean }>>(
+        'SELECT "issue400_is_cyclic_category"($1) AS cyclic', category,
+      );
+      expect(cyclic).toBe(expected);
+    }
+
+    const { fixture, groups } = await setup('issue400-unicode-cyclic');
+    const source = await prisma.workoutExercise.findUniqueOrThrow({ where: { id: fixture.exerciseIds[0] } });
+    await prisma.exerciseLibrary.update({ where: { id: source.exerciseId }, data: { category: 'Ci\u0301clico' } });
+    await expect(replaceGroups(fixture.dayId, groups, fixture.contractId))
+      .rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    await expect(prisma.$transaction(async (tx) => {
+      const group = await tx.workoutResistanceGroup.create({
+        data: { workoutDayId: fixture.dayId, position: 1, kind: 'bloco_tecnico' },
+      });
+      await tx.workoutResistanceGroupMember.create({
+        data: { groupId: group.id, workoutExerciseId: fixture.exerciseIds[0], position: 1 },
+      });
+    })).rejects.toThrow();
+    expect(await prisma.workoutResistanceGroup.count({ where: { workoutDayId: fixture.dayId } })).toBe(0);
+
+    await prisma.exerciseLibrary.update({ where: { id: source.exerciseId }, data: { category: 'Resistido' } });
+    const [group] = await replaceGroups(fixture.dayId, groups, fixture.contractId);
+    await expect(prisma.exerciseLibrary.update({
+      where: { id: source.exerciseId }, data: { category: 'CÍCLICO\u00a0' },
+    })).rejects.toThrow();
+    const cyclicLibrary = await prisma.exerciseLibrary.create({
+      data: { contractId: fixture.contractId, name: 'Ciclismo com NBSP', category: 'Cíclico\u2003' },
+    });
+    await expect(prisma.workoutExercise.update({
+      where: { id: source.id }, data: { exerciseId: cyclicLibrary.id },
+    })).rejects.toThrow();
+    expect((await prisma.workoutResistanceGroup.findUniqueOrThrow({
+      where: { id: group.id }, include: { members: true },
+    })).members).toHaveLength(2);
+    expect((await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: source.exerciseId } })).category)
+      .toBe('Resistido');
+  });
+
+  it('A-004: legacy release snapshots the catalog without duplicating grouped exercises', async () => {
+    const { fixture, templateId, groups } = await setup('issue400-release-snapshot-legacy');
+    const [group] = await replaceGroups(fixture.dayId, groups, fixture.contractId);
+    const exercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] }, include: { exercise: true },
+    });
+    expect(await prisma.workoutReleasedExerciseSnapshot.count({
+      where: { workoutExerciseId: exercise.id },
+    })).toBe(0);
+    const originalName = exercise.exercise.name;
+    await workoutService.releaseTemplate(templateId);
+    const snapshot = await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
+      where: { workoutExerciseId: exercise.id },
+    });
+    expect(snapshot.catalog).toMatchObject({ name: originalName });
+    expect(await prisma.workoutReleasedExerciseSnapshot.count({
+      where: { workoutExerciseId: { in: fixture.exerciseIds } },
+    })).toBe(2);
+
+    await prisma.exerciseLibrary.update({
+      where: { id: exercise.exerciseId },
+      data: { name: 'Novo nome do catálogo', notes: 'Mudança posterior à liberação' },
+    });
+    const student = await createStudentWorkoutService(prisma).getReleasedForStudent(
+      templateId, fixture.alunoId, fixture.contractId,
+    );
+    const studentExercise = student?.workoutDays.flatMap((day) => day.exercises)
+      .find((row) => row.id === exercise.id);
+    expect(studentExercise?.exercise.name).toBe(originalName);
+    const professor = await workoutService.getTemplateById(templateId);
+    const professorExercise = professor?.workoutDays.flatMap((day) => day.exercises)
+      .find((row) => row.id === exercise.id);
+    expect(professorExercise?.exercise.name).toBe(originalName);
+    expect(professorExercise?.releasedCatalog).toBeUndefined();
+    expect((await prisma.workoutResistanceGroup.findUniqueOrThrow({
+      where: { id: group.id }, include: { members: { orderBy: { position: 'asc' } } },
+    })).members.map((member) => member.workoutExerciseId))
+      .toEqual([fixture.exerciseIds[1], fixture.exerciseIds[0]]);
+    await expect(prisma.workoutReleasedExerciseSnapshot.update({
+      where: { workoutExerciseId: exercise.id },
+      data: { catalog: { name: 'Histórico adulterado' } },
+    })).rejects.toThrow();
+    await expect(prisma.workoutReleasedExerciseSnapshot.delete({
+      where: { workoutExerciseId: exercise.id },
+    })).rejects.toThrow();
+    await workoutService.releaseTemplate(templateId);
+    expect((await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
+      where: { workoutExerciseId: exercise.id },
+    })).catalog).toMatchObject({ name: originalName });
+  });
+
+  it('A-004: consolidated release also captures the immutable catalog', async () => {
+    const fixture = await seedReleasedWorkout('issue400-release-snapshot-consolidated');
+    const exercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] }, include: { exercise: true, workoutDay: true },
+    });
+    const preserved = await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
+      where: { workoutExerciseId: exercise.id },
+    });
+    expect(preserved.catalog).toMatchObject({ name: exercise.exercise.name });
+    await prisma.exerciseLibrary.update({ where: { id: exercise.exerciseId }, data: { name: 'Mutado após ledger' } });
+    const student = await createStudentWorkoutService(prisma).getReleasedForStudent(
+      exercise.workoutDay.templateId, fixture.alunoId, fixture.contractId,
+    );
+    expect(student?.workoutDays.flatMap((day) => day.exercises)
+      .find((row) => row.id === exercise.id)?.exercise.name).toBe(exercise.exercise.name);
+    await expect(prisma.$executeRawUnsafe(
+      'INSERT INTO "WorkoutReleasedExerciseSnapshot" ("workoutExerciseId", "catalog") VALUES ($1, $2::jsonb) ON CONFLICT ("workoutExerciseId") DO NOTHING',
+      fixture.exerciseIds[1], JSON.stringify({ name: 'Inserção tardia' }),
+    )).rejects.toThrow();
+  });
+
+  it('RISK-001: edição individual não pode mover ordinal, mas reordenação atômica pode', async () => {
+    const { fixture } = await setup('issue400-legacy-ordinal');
+    await expect(workoutService.updateWorkoutExercise(fixture.exerciseIds[0], {
+      exerciseOrder: 2,
+    }, fixture.contractId)).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    await workoutService.reorderExercises(fixture.dayId, 'sessao', [fixture.exerciseIds[1]], fixture.contractId);
+    const rows = await prisma.workoutExercise.findMany({
+      where: { workoutDayId: fixture.dayId, section: 'sessao' },
+      orderBy: { exerciseOrder: 'asc' },
+    });
+    expect(rows.map((row) => row.id)).toEqual([fixture.exerciseIds[1], fixture.exerciseIds[0]]);
+    expect(rows.map((row) => row.exerciseOrder)).toEqual([1, 2]);
   });
 
 });

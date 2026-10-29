@@ -52,6 +52,7 @@ export interface WorkoutDay {
   psrResponse?: number;
   exercises?: WorkoutExercise[];
   cyclicStages?: CyclicStage[];
+  resistanceGroups?: ResistanceGroup[];
   createdAt: string;
   updatedAt: string;
 }
@@ -73,6 +74,18 @@ export interface CyclicStage {
   cadenceSpm?: number | null;
   notes?: string | null;
   children?: CyclicStage[];
+}
+
+export type ResistanceGroupKind = 'superserie' | 'bi_set' | 'tri_set' | 'circuito' | 'bloco_tecnico' | 'mobilidade' | 'finalizacao';
+export interface ResistanceGroup {
+  id?: string;
+  position: number;
+  kind: ResistanceGroupKind;
+  rounds?: number | null;
+  restBetweenExercisesSec?: number | null;
+  restBetweenRoundsSec?: number | null;
+  notes?: string | null;
+  members: Array<{ id?: string; position: number; workoutExerciseId: string }>;
 }
 
 export type ResistanceBlockKind = 'aquecimento' | 'principal' | 'tecnica' | 'complementar' | 'finalizacao';
@@ -153,6 +166,7 @@ export interface SaveWorkoutWeekDTO {
   workoutDays?: Array<Record<string, unknown>>;
   resistedExercises?: Record<string, Record<string, Array<Record<string, unknown>>>>;
   cyclicStages?: Record<string, Array<Record<string, unknown>>>;
+  resistanceGroups?: Record<string, Array<Record<string, unknown>>>;
 }
 
 export interface CreateWorkoutDayDTO {
@@ -244,6 +258,15 @@ class WorkoutService {
 
   async updateTemplate(id: string, data: UpdateWorkoutTemplateDTO): Promise<WorkoutTemplate> {
     const response = await api.put<WorkoutTemplate>(`/workout/templates/${id}`, data);
+    return response.data;
+  }
+
+  async replaceDayResistanceGroups(
+    dayId: string, groups: Array<Record<string, unknown>>, baseUpdatedAt: string,
+  ): Promise<ResistanceGroup[]> {
+    const response = await api.put<ResistanceGroup[]>(
+      `/workout/days/${dayId}/resistance-groups`, { groups, baseUpdatedAt },
+    );
     return response.data;
   }
 

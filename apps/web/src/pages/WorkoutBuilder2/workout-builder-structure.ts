@@ -1,6 +1,48 @@
 import { isDateWithinRange, parseDateOnly, resolveDateForDayOfWeek, toDateInputValue, toIsoDateAtNoonUTC } from '../../utils/date';
+import type { ResistanceGroupKind } from '../../services/workout.service';
 
 export type ResistedSectionKey = 'mobilidade' | 'sessao' | 'resfriamento';
+export interface ResistanceGroupDraft {
+  position: number;
+  kind: ResistanceGroupKind;
+  rounds?: number | null;
+  restBetweenExercisesSec?: number | null;
+  restBetweenRoundsSec?: number | null;
+  notes?: string | null;
+  members: Array<{ exerciseRowId: string }>;
+}
+export function buildResistanceGroupsFromTemplate(template: any): Record<number, ResistanceGroupDraft[]> {
+  const result: Record<number, ResistanceGroupDraft[]> = {};
+  const days = Array.isArray(template?.workoutDays)
+    ? template.workoutDays : Object.values(template?.workoutDays ?? {});
+  for (const day of days as any[]) {
+    const weekday = Number(day?.dayOfWeek);
+    if (!Number.isInteger(weekday) || weekday < 1 || weekday > 7) continue;
+    result[weekday] = (Array.isArray(day?.resistanceGroups) ? day.resistanceGroups : [])
+      .map((group: any, index: number) => ({
+        position: index + 1,
+        kind: group.kind,
+        rounds: group.rounds ?? null,
+        restBetweenExercisesSec: group.restBetweenExercisesSec ?? null,
+        restBetweenRoundsSec: group.restBetweenRoundsSec ?? null,
+        notes: group.notes ?? null,
+        members: (group.members ?? []).map((member: any) => ({ exerciseRowId: member.workoutExerciseId })),
+      }));
+  }
+  return result;
+}
+
+export function removeExerciseFromGroupDrafts(groups: ResistanceGroupDraft[], exerciseRowId: string): ResistanceGroupDraft[] {
+  const required: Record<ResistanceGroupKind, number> = {
+    superserie: 2, bi_set: 2, tri_set: 3, circuito: 2, bloco_tecnico: 1, mobilidade: 1, finalizacao: 1,
+  };
+  return groups.map((group) => ({
+    ...group,
+    members: group.members.filter((member) => member.exerciseRowId !== exerciseRowId),
+  })).filter((group) => group.members.length >= required[group.kind])
+    .map((group, index) => ({ ...group, position: index + 1 }));
+}
+
 
 export const normalizeWorkoutDays = (workoutDays: any) => {
   if (Array.isArray(workoutDays)) {
@@ -110,7 +152,7 @@ export const rehydrateDraftFromApi = (templateFromApi: any, candidate: any) => {
       'cyclicFrequency', 'resistanceFrequency', 'totalVolumeMin', 'totalVolumeKm',
       'loadPercentage', 'repZone', 'repReserve', 'trainingMethod', 'trainingDivision',
       'alunoGoal', 'coachGoal', 'observation1', 'observation2',
-      'workoutDays', 'resistedExercises',
+      'workoutDays', 'resistedExercises', 'resistanceGroupsByDay',
       'distributionZ1', 'distributionZ2', 'distributionZ3', 'distributionZ4', 'distributionZ5',
     ]);
     if (Object.keys(candidate).some((key) => !allowedKeys.has(key))) return null;
@@ -130,7 +172,7 @@ export const rehydrateDraftFromApi = (templateFromApi: any, candidate: any) => {
       'cyclicFrequency', 'resistanceFrequency', 'totalVolumeMin', 'totalVolumeKm',
       'loadPercentage', 'repZone', 'repReserve', 'trainingMethod', 'trainingDivision',
       'alunoGoal', 'coachGoal', 'observation1', 'observation2',
-      'workoutDays', 'resistedExercises',
+      'workoutDays', 'resistedExercises', 'resistanceGroupsByDay',
     ];
     const editable = Object.fromEntries(
       editableKeys.filter((key) => Object.prototype.hasOwnProperty.call(candidate, key))
@@ -283,6 +325,29 @@ export function buildWorkoutWeekSavePayload(snapshot: any) {
     }
   }
 
+  const resistanceGroups: Record<string, Array<Record<string, unknown>>> = {};
+  for (const [dayKey, rawGroups] of Object.entries(snapshot?.resistanceGroupsByDay ?? {})) {
+    if (!/^[1-7]$/.test(dayKey) || !Array.isArray(rawGroups)) continue;
+    const slots = new Map<string, { section: ResistedSectionKey; exerciseOrder: number }>();
+    for (const section of ['mobilidade', 'sessao', 'resfriamento'] as const) {
+      (snapshot?.resistedExercises?.[dayKey]?.[section] ?? []).forEach((exercise: any, index: number) => {
+        slots.set(exercise.id, { section, exerciseOrder: index + 1 });
+      });
+    }
+    resistanceGroups[dayKey] = (rawGroups as ResistanceGroupDraft[]).map((group, index) => ({
+      position: index + 1,
+      kind: group.kind,
+      rounds: group.rounds ?? null,
+      restBetweenExercisesSec: group.restBetweenExercisesSec ?? null,
+      restBetweenRoundsSec: group.restBetweenRoundsSec ?? null,
+      notes: group.notes ?? null,
+      members: group.members.map((member, memberIndex) => {
+        const slot = slots.get(member.exerciseRowId);
+        if (!slot) throw new Error('Agrupamento com exercício ausente. Atualize os participantes antes de salvar.');
+        return { position: memberIndex + 1, ...slot };
+      }),
+    }));
+  }
   return {
     baseUpdatedAt: snapshot?.baseTemplateUpdatedAt ?? snapshot?.updatedAt,
     template: {
@@ -303,5 +368,6 @@ export function buildWorkoutWeekSavePayload(snapshot: any) {
     workoutDays,
     resistedExercises,
     ...(Object.keys(cyclicStages).length > 0 ? { cyclicStages } : {}),
+    ...(Object.keys(resistanceGroups).length > 0 ? { resistanceGroups } : {}),
   };
 }

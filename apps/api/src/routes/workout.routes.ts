@@ -8,6 +8,7 @@ import {
   validateTemplateCopyEnvelope,
   validateWorkoutWeekEnvelope,
 } from '../modules/workout/resistance-structure.domain.js';
+import { parseResistanceGroupBaseUpdatedAt } from '../modules/workout/resistance-groups.domain.js';
 import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
 import { parseRequiredDate, sendSafeWorkoutError, workoutContractScopeMiddleware } from './workout-route-guards.js';
 
@@ -239,6 +240,31 @@ router.put('/days/:id/resistance-exercises', async (req, res) => {
     console.error('Error replacing resistance exercises:', error);
     const response = classifyResistanceWriteError(error);
     res.status(response.status).json(response.body);
+  }
+});
+
+// Group arrangements reference existing workout exercises; they do not create new ones.
+router.put('/days/:id/resistance-groups', async (req, res) => {
+  try {
+    if (!req.user?.contractId) return res.status(403).json({ code: 'FORBIDDEN', error: 'Acesso negado.' });
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)
+      || Object.keys(req.body).length !== 2
+      || !Object.prototype.hasOwnProperty.call(req.body, 'groups')
+      || !Object.prototype.hasOwnProperty.call(req.body, 'baseUpdatedAt')) {
+      throw new ResistanceStructureValidationError('Informe apenas a lista de agrupamentos.');
+    }
+    parseResistanceGroupBaseUpdatedAt(req.body.baseUpdatedAt);
+    const groups = await workoutService.replaceDayResistanceGroups(
+      req.params.id, req.body.groups, req.user.contractId, req.body.baseUpdatedAt,
+    );
+    res.json(groups);
+  } catch (error: unknown) {
+    console.error('Error replacing resistance groups:', error);
+    const mapped = classifyResistanceWriteError(error);
+    if (mapped.status === 400) {
+      return res.status(400).json({ code: mapped.body.code, error: 'Revise o tipo, a ordem e os participantes do agrupamento.' });
+    }
+    return sendSafeWorkoutError(res, error);
   }
 });
 

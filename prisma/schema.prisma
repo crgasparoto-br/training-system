@@ -1444,6 +1444,7 @@ model WorkoutDay {
   template            WorkoutTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
   exercises           WorkoutExercise[]
   cyclicStages        WorkoutCyclicStage[]
+  resistanceGroups    WorkoutResistanceGroup[]
   preWorkoutCheckIn   PreWorkoutCheckIn?
 
   @@unique([templateId, dayOfWeek])
@@ -1538,11 +1539,51 @@ model WorkoutExercise {
   exercise      ExerciseLibrary    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
   workoutDay    WorkoutDay         @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
   resistanceBlocks WorkoutExerciseBlock[]
+  resistanceGroupMember WorkoutResistanceGroupMember?
+  releasedCatalog WorkoutReleasedExerciseSnapshot?
 
   @@index([workoutDayId])
   @@index([workoutDayId, section, exerciseOrder])
 }
 
+
+/// #400: execution arrangement of existing exercises; planned sets remain on WorkoutExercise.
+model WorkoutResistanceGroup {
+  id                       String                         @id @default(cuid())
+  workoutDayId             String
+  position                 Int
+  kind                     String
+  rounds                   Int?
+  restBetweenExercisesSec  Int?
+  restBetweenRoundsSec     Int?
+  notes                    String?
+  createdAt                DateTime                       @default(now())
+  updatedAt                DateTime                       @updatedAt
+  workoutDay               WorkoutDay                     @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  members                  WorkoutResistanceGroupMember[]
+
+  @@unique([workoutDayId, position], map: "WorkoutResistanceGroup_day_position_key")
+}
+
+model WorkoutResistanceGroupMember {
+  id                 String                 @id @default(cuid())
+  groupId            String
+  workoutExerciseId  String                 @unique(map: "WorkoutResistanceGroupMember_exercise_key")
+  position           Int
+  group              WorkoutResistanceGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  workoutExercise    WorkoutExercise        @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, position], map: "WorkoutResistanceGroupMember_group_position_key")
+  @@index([groupId], map: "WorkoutResistanceGroupMember_group_idx")
+}
+
+/// Release-time snapshot of the catalog fields of a canonical exercise.
+model WorkoutReleasedExerciseSnapshot {
+  workoutExerciseId String @id
+  catalog Json
+  capturedAt DateTime @default(now())
+  workoutExercise WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+}
 
 model WorkoutExerciseBlock {
   id                String                      @id @default(cuid())

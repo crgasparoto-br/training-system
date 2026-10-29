@@ -1,11 +1,13 @@
 ﻿import { PrismaClient } from '@prisma/client';
 
 import { Prisma } from '@prisma/client';
+import { projectWorkoutDayExerciseCatalog } from './workout-release-catalog.js';
 import { assertWorkoutParentIsImmutable, normalizeResistanceBlocks, sanitizeWorkoutMutation, ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput } from './resistance-structure.domain.js';
-import { assertDayContract, isWorkoutTemplateUniqueConflict, lockWorkoutDayPlanningMutable, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
+import { assertDayContract, isWorkoutTemplateUniqueConflict, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
 import { copyTemplate as copyTemplateStructured, copyTemplateSections as copyTemplateSectionsStructured } from './workout-copy.service.js';
 import { replaceDayResistanceExercises as replaceDayResistanceExercisesStructured, saveTemplateWeek as saveTemplateWeekStructured } from './workout-week-structure.service.js';
 import { cyclicStageInclude, nestedCyclicStages, normalizeCyclicStages, replaceCyclicStagesInTransaction, snapshotCyclicStages } from './cyclic-stages.domain.js';
+import { copyResistanceGroups, replaceDayResistanceGroups as replaceDayResistanceGroupsStructured, resistanceGroupInclude, unlinkResistanceGroupMemberForExercise } from './resistance-groups.domain.js';
 export { WorkoutPlanningLockedError } from './workout-planning.helpers.js';
 
 const prisma = new PrismaClient();
@@ -99,6 +101,7 @@ export interface SaveWorkoutWeekDTO {
   workoutDays?: Array<Record<string, unknown>>;
   resistedExercises?: Record<string, Record<string, Array<Record<string, unknown>>>>;
   cyclicStages?: Record<string, unknown[]>;
+  resistanceGroups?: Record<string, unknown[]>;
 }
 
 export interface RecordExecutionDTO {
@@ -181,9 +184,11 @@ export const workoutService = {
         workoutDays: {
           include: {
             cyclicStages: cyclicStageInclude,
+            resistanceGroups: resistanceGroupInclude,
             exercises: {
               include: {
                 exercise: true,
+                releasedCatalog: true,
                 resistanceBlocks: resistanceBlockInclude,
               },
               orderBy: [
@@ -239,9 +244,11 @@ export const workoutService = {
             workoutDays: {
               include: {
                 cyclicStages: cyclicStageInclude,
+                resistanceGroups: resistanceGroupInclude,
                 exercises: {
                   include: {
                     exercise: true,
+                    releasedCatalog: true,
                     resistanceBlocks: resistanceBlockInclude,
                   },
                   orderBy: [
@@ -293,9 +300,11 @@ export const workoutService = {
         workoutDays: {
           include: {
             cyclicStages: cyclicStageInclude,
+            resistanceGroups: resistanceGroupInclude,
             exercises: {
               include: {
                 exercise: true,
+                releasedCatalog: true,
                 resistanceBlocks: resistanceBlockInclude,
               },
               orderBy: [{ section: 'asc' }, { exerciseOrder: 'asc' }],
@@ -326,9 +335,11 @@ export const workoutService = {
         workoutDays: {
           include: {
             cyclicStages: cyclicStageInclude,
+            resistanceGroups: resistanceGroupInclude,
             exercises: {
               include: {
                 exercise: true,
+                releasedCatalog: true,
                 resistanceBlocks: resistanceBlockInclude,
               },
               orderBy: [
@@ -355,9 +366,11 @@ export const workoutService = {
         workoutDays: {
           include: {
             cyclicStages: cyclicStageInclude,
+            resistanceGroups: resistanceGroupInclude,
             exercises: {
               include: {
                 exercise: true,
+                releasedCatalog: true,
                 resistanceBlocks: resistanceBlockInclude,
               },
             },
@@ -411,9 +424,11 @@ export const workoutService = {
         workoutDays: {
           include: {
             cyclicStages: cyclicStageInclude,
+            resistanceGroups: resistanceGroupInclude,
             exercises: {
               include: {
                 exercise: true,
+                releasedCatalog: true,
                 resistanceBlocks: resistanceBlockInclude,
               },
               orderBy: [
@@ -475,6 +490,7 @@ export const workoutService = {
         exercises: {
           include: {
             exercise: true,
+            releasedCatalog: true,
             resistanceBlocks: resistanceBlockInclude,
           },
           orderBy: [
@@ -486,7 +502,7 @@ export const workoutService = {
     });
 
     if (existing) {
-      return existing;
+      return projectWorkoutDayExerciseCatalog(existing, existing.template.released);
     }
 
     return await this.createWorkoutDay(data);
@@ -512,9 +528,11 @@ export const workoutService = {
         include: {
           template: true,
           cyclicStages: cyclicStageInclude,
+          resistanceGroups: resistanceGroupInclude,
           exercises: {
             include: {
               exercise: true,
+              releasedCatalog: true,
               resistanceBlocks: resistanceBlockInclude,
             },
           },
@@ -529,7 +547,7 @@ export const workoutService = {
    * Obter dia de treino por ID
    */
   async getWorkoutDay(id: string) {
-    return await prisma.workoutDay.findUnique({
+    const day = await prisma.workoutDay.findUnique({
       where: { id },
       include: {
         template: {
@@ -538,10 +556,12 @@ export const workoutService = {
           },
         },
         cyclicStages: cyclicStageInclude,
+        resistanceGroups: resistanceGroupInclude,
         exercises: {
           include: {
             exercise: true,
             executions: true,
+            releasedCatalog: true,
             resistanceBlocks: resistanceBlockInclude,
           },
           orderBy: [
@@ -551,6 +571,7 @@ export const workoutService = {
         },
       },
     });
+    return day ? projectWorkoutDayExerciseCatalog(day, day.template.released) : null;
   },
 
   /**
@@ -619,7 +640,7 @@ export const workoutService = {
     const start = resolveUtcDate(dateInput, false);
     const end = resolveUtcDate(dateInput, true);
 
-    return await prisma.workoutDay.findFirst({
+    const day = await prisma.workoutDay.findFirst({
       where: {
         workoutDate: {
           gte: start,
@@ -637,10 +658,12 @@ export const workoutService = {
           include: { plan: true },
         },
         cyclicStages: cyclicStageInclude,
+        resistanceGroups: resistanceGroupInclude,
         exercises: {
           include: {
             exercise: true,
             executions: true,
+            releasedCatalog: true,
             resistanceBlocks: resistanceBlockInclude,
           },
           orderBy: [
@@ -650,6 +673,7 @@ export const workoutService = {
         },
       },
     });
+    return day ? projectWorkoutDayExerciseCatalog(day, day.template.released) : null;
   },
 
   async getDay(id: string) {
@@ -691,10 +715,12 @@ export const workoutService = {
    * Listar exercÃ­cios de um dia
    */
   async getExercises(workoutDayId: string) {
-    return await prisma.workoutExercise.findMany({
+    const rows = await prisma.workoutExercise.findMany({
       where: { workoutDayId },
       include: {
         exercise: true,
+        releasedCatalog: true,
+        workoutDay: { select: { template: { select: { released: true } } } },
         resistanceBlocks: resistanceBlockInclude,
       },
       orderBy: [
@@ -702,6 +728,10 @@ export const workoutService = {
         { exerciseOrder: 'asc' },
       ],
     });
+    const projected = projectWorkoutDayExerciseCatalog(
+      { exercises: rows }, rows[0]?.workoutDay.template.released ?? false,
+    );
+    return projected.exercises.map(({ workoutDay: _day, ...exercise }) => exercise);
   },
 
   /**
@@ -735,23 +765,28 @@ export const workoutService = {
     return replaceDayResistanceExercisesStructured(prisma, workoutDayId, exercises, contractId);
   },
 
+  async replaceDayResistanceGroups(workoutDayId: string, groups: unknown, contractId: string, baseUpdatedAt: string) {
+    return replaceDayResistanceGroupsStructured(prisma, workoutDayId, groups, contractId, baseUpdatedAt);
+  },
+
   async updateWorkoutExercise(id: string, data: Partial<CreateWorkoutExerciseDTO>, contractId?: string) {
     data = sanitizeWorkoutMutation(data, 'exercise');
-    const current = await prisma.workoutExercise.findUnique({ where: { id }, select: { workoutDayId: true, exerciseId: true } });
+    const current = await prisma.workoutExercise.findUnique({ where: { id }, select: { workoutDayId: true, exerciseId: true, exerciseOrder: true } });
     if (!current) throw new Error('Workout exercise not found');
 
+    // The legacy single-row edit must not create ambiguous ordinals for group members.
+    if (data.exerciseOrder !== undefined && data.exerciseOrder !== current.exerciseOrder) {
+      throw new ResistanceStructureValidationError('Use a reordenação da seção para alterar a ordem dos exercícios.');
+    }
     if (data.workoutDayId !== undefined && data.workoutDayId !== current.workoutDayId) {
       throw new ResistanceStructureValidationError('Não é permitido mover um exercício entre dias.');
     }
 
-    const workoutDayIds = [current.workoutDayId];
-
     const { resistanceBlocks, workoutExerciseId: _existingRowId, ...exercise } = data;
     const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
-    return prisma.$transaction(async (tx) => {
-      for (const workoutDayId of workoutDayIds) {
-        await lockWorkoutDayPlanningMutable(tx, workoutDayId);
-        if (contractId) await assertDayContract(tx, workoutDayId, contractId, data.exerciseId ?? current.exerciseId);
+    return withWorkoutDayPlanningMutation(prisma, current.workoutDayId, async (tx) => {
+      if (contractId) {
+        await assertDayContract(tx, current.workoutDayId, contractId, data.exerciseId ?? current.exerciseId);
       }
       return tx.workoutExercise.update({
         where: { id },
@@ -763,7 +798,7 @@ export const workoutService = {
         },
         include: { exercise: true, resistanceBlocks: resistanceBlockInclude },
       });
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    });
   },
 
   /**
@@ -804,10 +839,12 @@ export const workoutService = {
         template: {
           include: { plan: true },
         },
+        resistanceGroups: resistanceGroupInclude,
         exercises: {
           include: {
             exercise: true,
             executions: true,
+            releasedCatalog: true,
             resistanceBlocks: resistanceBlockInclude,
           },
           orderBy: [
@@ -875,8 +912,9 @@ export const workoutService = {
         await tx.workoutCyclicStage.create({ data: stage });
       }
 
+      const copiedExerciseIds = new Map<string, string>();
       for (const exercise of source.exercises) {
-        await tx.workoutExercise.create({
+        const createdExercise = await tx.workoutExercise.create({
           data: {
             workoutDayId: created.id,
             exerciseId: exercise.exerciseId,
@@ -899,7 +937,9 @@ export const workoutService = {
             }))),
           },
         });
+        copiedExerciseIds.set(exercise.id, createdExercise.id);
       }
+      await copyResistanceGroups(tx, created.id, source.resistanceGroups, copiedExerciseIds);
 
       await touchWorkoutTemplateRevision(tx, source.templateId);
       return created;
@@ -916,6 +956,7 @@ export const workoutService = {
     if (!current) throw new Error('Workout exercise not found');
     return withWorkoutDayPlanningMutation(prisma, current.workoutDayId, async (tx) => {
       if (contractId) await assertDayContract(tx, current.workoutDayId, contractId);
+      await unlinkResistanceGroupMemberForExercise(tx, id);
       return tx.workoutExercise.delete({ where: { id } });
     });
   },
@@ -946,22 +987,34 @@ export const workoutService = {
 
     return withWorkoutDayPlanningMutation(prisma, workoutDayId, async (tx) => {
       if (contractId) await assertDayContract(tx, workoutDayId, contractId);
-      const owned = await tx.workoutExercise.findMany({
-        where: { id: { in: uniqueIds }, workoutDayId, section },
-        select: { id: true },
+      const allRows = await tx.workoutExercise.findMany({
+        where: { workoutDayId, section },
+        select: { id: true, exerciseOrder: true },
+        orderBy: [{ exerciseOrder: 'asc' }, { id: 'asc' }],
       });
-      if (owned.length !== uniqueIds.length) {
+      const existingIds = new Set(allRows.map((row) => row.id));
+      if (uniqueIds.some((id) => !existingIds.has(id))) {
         throw new ResistanceStructureValidationError('One or more exercises do not belong to the requested day/section.');
       }
 
-      return Promise.all(
-        exerciseIds.map((id, index) =>
-          tx.workoutExercise.update({
-            where: { id },
-            data: { exerciseOrder: index + 1 },
-          })
-        )
-      );
+      // Partial reorder: move the requested subset first, then keep untouched
+      // exercises in their relative order. Normalize the whole section.
+      const requestedIds = new Set(exerciseIds);
+      const orderedIds = [
+        ...exerciseIds,
+        ...allRows.filter((row) => !requestedIds.has(row.id)).map((row) => row.id),
+      ];
+      const priorPositions = new Map(allRows.map((row) => [row.id, row.exerciseOrder]));
+      const updated = [];
+      for (let index = 0; index < orderedIds.length; index += 1) {
+        const exerciseId = orderedIds[index];
+        if (priorPositions.get(exerciseId) === index + 1) continue;
+        updated.push(await tx.workoutExercise.update({
+          where: { id: exerciseId },
+          data: { exerciseOrder: index + 1 },
+        }));
+      }
+      return updated;
     });
   },
 

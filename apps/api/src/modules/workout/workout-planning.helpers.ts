@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
+import { projectWorkoutDayExerciseCatalog } from './workout-release-catalog.js';
 
 import { ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput, type ResistancePlannedSetInput } from './resistance-structure.domain.js';
 
@@ -22,8 +23,12 @@ export function serializeWorkoutTemplate<T extends { studentGoal?: string | null
     return template;
   }
 
+  const withCatalog = 'workoutDays' in template && Array.isArray(template.workoutDays)
+    ? { ...template, workoutDays: template.workoutDays.map((day) =>
+        projectWorkoutDayExerciseCatalog(day, 'released' in template && template.released === true)) }
+    : template;
   return {
-    ...template,
+    ...withCatalog,
     alunoGoal: template.studentGoal,
   };
 }
@@ -215,16 +220,18 @@ export async function touchWorkoutTemplateRevision(
   tx: Prisma.TransactionClient,
   templateId: string,
 ) {
-  await tx.workoutTemplate.update({
-    where: { id: templateId },
-    data: { updatedAt: new Date() },
-  });
+  await tx.$executeRaw(Prisma.sql`
+    UPDATE "WorkoutTemplate"
+    SET "updatedAt" = GREATEST("updatedAt" + INTERVAL '1 millisecond', clock_timestamp() AT TIME ZONE 'UTC')
+    WHERE "id" = ${templateId}
+  `);
 }
 
 export async function withWorkoutDayPlanningMutation<T>(
   client: PrismaClient,
   workoutDayId: string,
-  mutation: (tx: Prisma.TransactionClient) => Promise<T>
+  mutation: (tx: Prisma.TransactionClient) => Promise<T>,
+  options: { touchRevision?: (result: T) => boolean } = {},
 ) {
   let retries = 0;
   while (true) {
@@ -237,7 +244,9 @@ export async function withWorkoutDayPlanningMutation<T>(
         });
         if (!parent) throw new ResistanceStructureNotFoundError();
         const result = await mutation(tx);
-        await touchWorkoutTemplateRevision(tx, parent.templateId);
+        if (options.touchRevision?.(result) ?? true) {
+          await touchWorkoutTemplateRevision(tx, parent.templateId);
+        }
         return result;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {

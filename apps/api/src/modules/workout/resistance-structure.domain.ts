@@ -1,4 +1,5 @@
 import { normalizeCyclicStages } from './cyclic-stages.domain.js';
+import { normalizeResistanceGroups, parseResistanceGroupBaseUpdatedAt } from './resistance-groups.domain.js';
 
 export const RESISTANCE_BLOCK_KINDS = [
   'aquecimento', 'principal', 'tecnica', 'complementar', 'finalizacao',
@@ -239,7 +240,7 @@ export function assertAllowedKeys(value: unknown, fields: ReadonlySet<string>): 
   }
 }
 
-const SAVE_WEEK_FIELDS = new Set(['baseUpdatedAt', 'template', 'workoutDays', 'resistedExercises', 'cyclicStages']);
+const SAVE_WEEK_FIELDS = new Set(['baseUpdatedAt', 'template', 'workoutDays', 'resistedExercises', 'cyclicStages', 'resistanceGroups']);
 const SAVE_WEEK_DAY_FIELDS = new Set(Object.keys(FIELDS.day).filter((key) => key !== 'templateId'));
 const SAVE_WEEK_EXERCISE_FIELDS = new Set(Object.keys(FIELDS.exercise));
 const RESISTED_SECTION_FIELDS = new Set(['mobilidade', 'sessao', 'resfriamento']);
@@ -251,6 +252,7 @@ export function validateWorkoutWeekEnvelope(value: unknown): asserts value is {
   workoutDays?: Array<Record<string, unknown>>;
   resistedExercises?: Record<string, Record<string, Array<Record<string, unknown>>>>;
   cyclicStages?: Record<string, unknown[]>;
+  resistanceGroups?: Record<string, unknown[]>;
 } {
   assertAllowedKeys(value, SAVE_WEEK_FIELDS);
   const envelope = value as Record<string, unknown>;
@@ -289,6 +291,17 @@ export function validateWorkoutWeekEnvelope(value: unknown): asserts value is {
           sanitizeWorkoutMutation(exercise, 'exercise');
         }
       }
+    }
+  }
+  if (envelope.resistanceGroups !== undefined) {
+    parseResistanceGroupBaseUpdatedAt(envelope.baseUpdatedAt);
+    if (!envelope.resistanceGroups || typeof envelope.resistanceGroups !== 'object'
+      || Array.isArray(envelope.resistanceGroups)) {
+      throw new ResistanceStructureValidationError('Agrupamentos resistidos semanais inválidos.');
+    }
+    for (const [dayKey, groups] of Object.entries(envelope.resistanceGroups as Record<string, unknown>)) {
+      if (!/^[1-7]$/.test(dayKey)) throw new ResistanceStructureValidationError('Dia de agrupamento inválido.');
+      normalizeResistanceGroups(groups);
     }
   }
   if (envelope.cyclicStages !== undefined) {
