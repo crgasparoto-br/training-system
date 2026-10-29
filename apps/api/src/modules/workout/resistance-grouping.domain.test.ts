@@ -56,6 +56,27 @@ describe('issue #400 - agrupamento resistido canônico', () => {
     )).toThrow(/mesma quantidade/);
   });
 
+  it('preserva declaração omitida e remove o grupo somente com null explícito', () => {
+    const existing = [
+      row('a', 1, { groupId: 'stable', groupType: 'biset', groupPosition: 1, groupRounds: 3 }),
+      row('b', 2, { groupId: 'stable', groupType: 'biset', groupPosition: 2, groupRounds: 3 }),
+    ];
+    const omitted = deriveResistanceGroupAssignments(
+      existing as never,
+      new Map<string, ResistanceGroupDeclaration>([['a', undefined], ['b', undefined]]),
+    );
+    expect(omitted.map((item) => item.groupId)).toEqual(['stable', 'stable']);
+
+    const removed = deriveResistanceGroupAssignments(
+      existing as never,
+      new Map<string, ResistanceGroupDeclaration>([['a', null], ['b', null]]),
+    );
+    expect(removed).toEqual([
+      expect.objectContaining({ groupId: null, groupType: null, groupPosition: null, groupRounds: null }),
+      expect.objectContaining({ groupId: null, groupType: null, groupPosition: null, groupRounds: null }),
+    ]);
+  });
+
   it('preserva o groupId quando membros, ordem e rodadas não mudam', () => {
     const existing = [
       row('a', 1, { groupId: 'stable', groupType: 'biset', groupPosition: 1, groupRounds: 3 }),

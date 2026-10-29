@@ -41,7 +41,7 @@ type Fixture = {
 
 async function seedReleasedWorkout(
   label: string,
-  options: { publish?: boolean; seedResistance?: boolean; seedGuidedResistance?: boolean } = {},
+  options: { publish?: boolean; seedResistance?: boolean; seedGuidedResistance?: boolean; seedGuidedGroup?: boolean } = {},
 ): Promise<Fixture> {
   const suffix = `${label}-${randomUUID()}`;
   const contractId = `issue-389-${suffix}`;
@@ -210,7 +210,7 @@ async function seedReleasedWorkout(
     });
   }
 
-  if (options.seedGuidedResistance) {
+  if (options.seedGuidedResistance || options.seedGuidedGroup) {
     await prisma.workoutExerciseBlock.create({
       data: {
         workoutExerciseId: exerciseA.id, position: 1, kind: 'principal',
@@ -223,8 +223,25 @@ async function seedReleasedWorkout(
     await prisma.workoutExerciseBlock.create({
       data: {
         workoutExerciseId: exerciseB.id, position: 1, kind: 'principal',
-        plannedSets: { create: [{ position: 1, repsMin: 10, repsMax: 12, loadKg: null, restSec: 45 }] },
+        plannedSets: { create: options.seedGuidedGroup ? [
+          { position: 1, repsMin: 10, repsMax: 12, loadKg: null, restSec: 45 },
+          { position: 2, repsMin: 8, repsMax: 10, loadKg: null, restSec: 75 },
+        ] : [{ position: 1, repsMin: 10, repsMax: 12, loadKg: null, restSec: 45 }] },
       },
+    });
+  }
+
+  if (options.seedGuidedGroup) {
+    const groupId = `issue400-biset-${suffix}`;
+    await prisma.$transaction(async (tx) => {
+      await tx.workoutExercise.update({
+        where: { id: exerciseA.id },
+        data: { groupId, groupType: 'biset', groupPosition: 1, groupRounds: 2 },
+      });
+      await tx.workoutExercise.update({
+        where: { id: exerciseB.id },
+        data: { groupId, groupType: 'biset', groupPosition: 2, groupRounds: 2 },
+      });
     });
   }
 
@@ -880,6 +897,64 @@ describeDatabase('workout session execution persistence - issue 389', () => {
       where: { id: payload.plannedSetId }, select: { loadKg: true, repsMin: true },
     });
     expect(unchanged).toEqual({ loadKg: 32.5, repsMin: 8 });
+  });
+
+  it('issues #400/#487: persists grouped rounds and advances participant before the next round', async () => {
+    const fixture = await seedReleasedWorkout('487-guided-biset', { seedGuidedGroup: true });
+    const scope = { sessionId: fixture.dayId, alunoId: fixture.alunoId, contractId: fixture.contractId };
+    const before = await service.getGuidedForSession(scope);
+    expect(before).toMatchObject({ availability: 'available', total: 4, completed: 0 });
+    expect(before.current).toMatchObject({
+      plannedUnitId: fixture.exerciseIds[0],
+      groupType: 'biset', groupPosition: 1, groupSize: 2, roundNumber: 1, roundTotal: 2,
+    });
+
+    await transition(fixture, 'issue487-biset-start', 0, 'in_progress');
+    const first = (await service.getGuidedForSession(scope)).current!;
+    const afterFirst = await service.completeGuided({
+      ...scope, actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue487-biset-round1-a', expectedVersion: 1,
+        plannedUnitId: first.plannedUnitId, plannedSetId: first.plannedSetId,
+        setNumber: first.setNumber, repetitions: 8, loadKg: 30,
+      },
+    });
+    expect(afterFirst.current).toMatchObject({
+      plannedUnitId: fixture.exerciseIds[1],
+      groupPosition: 2, roundNumber: 1, roundTotal: 2,
+    });
+
+    const second = afterFirst.current!;
+    const afterRound = await service.completeGuided({
+      ...scope, actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue487-biset-round1-b', expectedVersion: 2,
+        plannedUnitId: second.plannedUnitId, plannedSetId: second.plannedSetId,
+        setNumber: second.setNumber, repetitions: 10, loadKg: null,
+      },
+    });
+    expect(afterRound).toMatchObject({ completed: 2, version: 3 });
+    expect(afterRound.current).toMatchObject({
+      plannedUnitId: fixture.exerciseIds[0],
+      groupPosition: 1, roundNumber: 2, roundTotal: 2,
+    });
+
+    const reconstructed = await concurrentService.getGuidedForSession(scope);
+    expect(reconstructed.current?.plannedSetId).toBe(afterRound.current?.plannedSetId);
+    await expect(prisma.workoutExercise.update({
+      where: { id: fixture.exerciseIds[0] },
+      data: { groupType: 'circuit' },
+    })).rejects.toThrow();
+    const persisted = await prisma.workoutExercise.findMany({
+      where: { id: { in: fixture.exerciseIds } },
+      orderBy: { groupPosition: 'asc' },
+      select: { groupId: true, groupType: true, groupPosition: true, groupRounds: true },
+    });
+    expect(persisted).toEqual([
+      expect.objectContaining({ groupType: 'biset', groupPosition: 1, groupRounds: 2 }),
+      expect.objectContaining({ groupType: 'biset', groupPosition: 2, groupRounds: 2 }),
+    ]);
+    expect(persisted[1].groupId).toBe(persisted[0].groupId);
   });
 
   it('issue #487: rejects skipped series, foreign tenants and completion during pause without writes', async () => {
