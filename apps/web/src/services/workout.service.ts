@@ -75,6 +75,9 @@ export interface ResistanceBlock {
   plannedSets: ResistancePlannedSet[];
 }
 
+export type ResistanceExerciseGroupType =
+  | 'superset' | 'biset' | 'triset' | 'circuit' | 'technical_block' | 'mobility' | 'finisher';
+
 export interface WorkoutExercise {
   id: string;
   workoutDayId: string;
@@ -83,6 +86,10 @@ export interface WorkoutExercise {
   exerciseOrder: number;
   system?: string;
   groupBreakBefore?: boolean;
+  groupId?: string | null;
+  groupType?: ResistanceExerciseGroupType | null;
+  groupPosition?: number | null;
+  groupRounds?: number | null;
   sets?: number;
   reps?: number;
   intervalSec?: number;
@@ -177,6 +184,7 @@ export interface AddExerciseDTO {
   exerciseOrder: number;
   system?: string;
   groupBreakBefore?: boolean;
+  groupType?: ResistanceExerciseGroupType | null;
   sets?: number;
   reps?: number;
   intervalSec?: number;
@@ -192,6 +200,7 @@ export interface UpdateExerciseDTO {
   exerciseOrder?: number;
   system?: string;
   groupBreakBefore?: boolean;
+  groupType?: ResistanceExerciseGroupType | null;
   sets?: number;
   reps?: number;
   intervalSec?: number;

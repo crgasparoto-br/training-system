@@ -1,3 +1,8 @@
+export const RESISTANCE_GROUP_TYPES = [
+  'superset', 'biset', 'triset', 'circuit', 'technical_block', 'mobility', 'finisher',
+] as const;
+export type ResistanceExerciseGroupType = (typeof RESISTANCE_GROUP_TYPES)[number];
+
 export const RESISTANCE_BLOCK_KINDS = [
   'aquecimento', 'principal', 'tecnica', 'complementar', 'finalizacao',
 ] as const;
@@ -184,7 +189,7 @@ export function classifyResistanceWriteError(error: unknown): {
 
 /** AUD-399-14: never forward untrusted Prisma relation writes from legacy DTOs. */
 type WorkoutInputKind = 'template' | 'day' | 'exercise';
-type FieldType = 'text' | 'number' | 'boolean' | 'date' | 'blocks';
+type FieldType = 'text' | 'number' | 'boolean' | 'date' | 'blocks' | 'groupType';
 const FIELDS: Record<WorkoutInputKind, Record<string, FieldType>> = {
   template: {
     planId:'text', mesocycleNumber:'number', weekNumber:'number', weekStartDate:'date',
@@ -204,7 +209,7 @@ const FIELDS: Record<WorkoutInputKind, Record<string, FieldType>> = {
   },
   exercise: {
     workoutExerciseId:'text', workoutDayId:'text', exerciseId:'text', section:'text',
-    exerciseOrder:'number', system:'text', groupBreakBefore:'boolean', sets:'number',
+    exerciseOrder:'number', system:'text', groupBreakBefore:'boolean', groupType:'groupType', sets:'number',
     reps:'number', intervalSec:'number', cParam:'number', eParam:'number', load:'number',
     exerciseNotes:'text', resistanceBlocks:'blocks',
   },
@@ -366,6 +371,10 @@ export function sanitizeWorkoutMutation<T>(value: T, kind: WorkoutInputKind, mod
       }
     } else if (type === 'boolean') {
       if (typeof fieldValue !== 'boolean') throw new ResistanceStructureValidationError('Booleano inválido.');
+    } else if (type === 'groupType') {
+      if (typeof fieldValue !== 'string' || !RESISTANCE_GROUP_TYPES.includes(fieldValue as ResistanceExerciseGroupType)) {
+        throw new ResistanceStructureValidationError('Tipo de agrupamento resistido inválido.');
+      }
     } else if (type === 'date') {
       if (!isValidWorkoutDate(fieldValue)) {
         throw new ResistanceStructureValidationError('Data de treino inválida.');

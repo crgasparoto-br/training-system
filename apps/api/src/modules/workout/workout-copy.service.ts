@@ -1,6 +1,7 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { ResistanceStructureNotFoundError, ResistanceStructureValidationError } from './resistance-structure.domain.js';
 import { lockWorkoutTemplatePlanningMutable, nestedResistanceBlocks, resistanceBlockInclude, serializeWorkoutTemplate, withTemplateCopyRetry, workoutDateInTargetWeek } from './workout-planning.helpers.js';
+import { reconcileResistanceGroups, type ResistanceGroupDeclaration } from './resistance-grouping.domain.js';
 
 export async function copyTemplateSections(
   prisma: PrismaClient,
@@ -129,8 +130,9 @@ export async function copyTemplateSections(
         },
       });
       await tx.workoutExercise.deleteMany({ where: { workoutDayId: targetDay.id } });
+      const groupDeclarations = new Map<string, ResistanceGroupDeclaration>();
       for (const exercise of sourceDay.exercises) {
-        await tx.workoutExercise.create({
+        const createdExercise = await tx.workoutExercise.create({
           data: {
             workoutDayId: targetDay.id,
             exerciseId: exercise.exerciseId,
@@ -163,8 +165,11 @@ export async function copyTemplateSections(
               })),
             }))),
           },
+          select: { id: true },
         });
+        groupDeclarations.set(createdExercise.id, exercise.groupType as ResistanceGroupDeclaration);
       }
+      await reconcileResistanceGroups(tx, targetDay.id, groupDeclarations);
     }
 
     const targetDays = await tx.workoutDay.findMany({
@@ -297,8 +302,9 @@ export async function copyTemplate(
       },
     });
 
+    const groupDeclarations = new Map<string, ResistanceGroupDeclaration>();
     for (const exercise of day.exercises) {
-      await tx.workoutExercise.create({
+      const createdExercise = await tx.workoutExercise.create({
         data: {
           workoutDayId: newDay.id,
           exerciseId: exercise.exerciseId,
@@ -320,8 +326,11 @@ export async function copyTemplate(
               rir: set.rir, rpe: set.rpe, tempo: set.tempo, restSec: set.restSec, notes: set.notes })),
           }))),
         },
+        select: { id: true },
       });
+      groupDeclarations.set(createdExercise.id, exercise.groupType as ResistanceGroupDeclaration);
     }
+    await reconcileResistanceGroups(tx, newDay.id, groupDeclarations);
   }
 
   const copiedTemplate = await tx.workoutTemplate.findUnique({

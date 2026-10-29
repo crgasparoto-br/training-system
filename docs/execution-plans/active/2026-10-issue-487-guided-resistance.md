@@ -4,7 +4,7 @@
 
 A branch parte de develop. O lifecycle e o versionamento da sessão permanecem exclusivamente com a #389 (`WorkoutSessionExecution`). A sequência simples deriva do planejamento liberado em `WorkoutExerciseBlock`/`WorkoutExercisePlannedSet` (#399), com IDs persistidos por exercício/série. Não se usa índice visual ou texto como identidade.
 
-A #400 ainda não fornece um modelo canônico de agrupamentos de exercícios no HEAD develop inspecionado. A execução de bi-sets, tri-sets, superséries e circuitos exige rodadas e participantes persistidos por #400; enquanto não houver contrato, o guia fica em `grouping_pending` (sem confirmações) quando o rótulo legado sinaliza agrupamento, sem inferir rodadas. Treinos sem séries estruturadas ficam em leitura `legacy_read_only`. A #488 implementará o cronômetro de descanso.
+A #400 é incorporada nesta mesma entrega por agrupamento explícito persistido (`groupId`, `groupType`, `groupPosition` e `groupRounds`). O backend deriva a estrutura somente da declaração explícita do editor e das séries estruturadas da #399; `system`/texto legado nunca vira autoridade de execução. Bi-set, tri-set, supersérie e circuito são percorridos por rodada e participante; bloco técnico, mobilidade e finalização usam o mesmo contrato. Treinos sem séries estruturadas ficam em leitura `legacy_read_only`. A #488 implementará o cronômetro de descanso.
 
 ## APIs
 
@@ -25,7 +25,7 @@ Durante `in_progress`/`paused`, o aluno tem um cartão focal com exercício, se�
 
 Testes de domínio cobrem IDs, ordem, nulidade, retomada, registros de valores ainda não concluídos e histórico fora de ordem. Testes web cobrem entradas realizadas, falha de rede/retry, concorrência, pausa e agrupamento bloqueado. Executar `pnpm validate`, build e migration em CI antes de concluir.
 
-**Critério ainda bloqueado:** execução real por rodada/item para supersérie, bi-set, tri-set e circuito depende da entrega persistida de #400. Não aprovar a #487 integralmente até incorporar a #400 e repetir os cenários de agrupamento.
+**Dependência #400 incorporada:** o editor declara agrupamento explicitamente; o save semanal persiste identidade, ordem e rodadas; cópias recebem nova identidade preservando a estrutura; alterações permanecem bloqueadas após release/início; e o guia percorre todos os participantes da rodada antes da rodada seguinte. Rótulos legados continuam em fallback seguro até conversão explícita.
 
 A orientação em mídia é opcional: quando a biblioteca tem `videoUrl` HTTPS
 configurada, a etapa atual oferece um link externo acessível. URLs inseguras ou

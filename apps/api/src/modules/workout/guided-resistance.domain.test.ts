@@ -96,7 +96,7 @@ describe('issue #487 - plano resistido canônico', () => {
     expect(deriveGuidedResistancePlan([withExercise]).units[0].notes).toBe('Controle a amplitude');
   });
 
-  it('exposes only configured HTTPS exercise guidance media',
+  it('exposes only configured HTTPS exercise guidance media', () => {
     expect(approvedGuidedExerciseMediaUrl('https://example.org/videos/exercise')).toBe('https://example.org/videos/exercise');
     for (const unsafe of [null, '', 'javascript:alert(1)', 'data:text/html,invalid', 'http://example.org/video', 'https://user:password@example.org']) {
       expect(approvedGuidedExerciseMediaUrl(unsafe)).toBeNull();
@@ -106,6 +106,20 @@ describe('issue #487 - plano resistido canônico', () => {
       { ...original, exercise: { name: 'Agachamento', videoUrl: 'https://example.org/demo' } },
     ]);
     expect(approved.units[0].videoUrl).toBe('https://example.org/demo');
+  });
+
+  it('executa agrupamentos explícitos por rodada e participante', () => {
+    const first = { ...exercise('a', 1), groupId: 'group-1', groupType: 'biset' as const, groupPosition: 1, groupRounds: 2 };
+    const second = { ...exercise('b', 2), groupId: 'group-1', groupType: 'biset' as const, groupPosition: 2, groupRounds: 2 };
+    const plan = deriveGuidedResistancePlan([second, first]);
+    expect(plan.availability).toBe('available');
+    expect(plan.units.map((unit) => [unit.plannedUnitId, unit.setNumber])).toEqual([
+      ['a', 1], ['b', 1], ['a', 2], ['b', 2],
+    ]);
+    expect(plan.units[0]).toMatchObject({
+      groupId: 'group-1', groupType: 'biset', groupPosition: 1, groupSize: 2,
+      roundNumber: 1, roundTotal: 2,
+    });
   });
 
   it('mantém ausentes como nulos e não considera mera gravação de valores como conclusão', () => {

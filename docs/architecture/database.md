@@ -225,3 +225,10 @@ serializável da #389.
 A constraint trigger diferida de #487 também exige operação canônica de
 `complete_resistance_set`, versão resultante e evento lifecycle vinculado
 na mesma transação; uma escrita SQL isolada não pode forjar `completedAt`.
+
+
+## Agrupamento resistido canônico (#400/#487)
+
+`WorkoutExercise` mantém o exercício como entidade canônica e registra `groupId`, `groupType`, `groupPosition` e `groupRounds`. O tipo, a ordem e as rodadas são explícitos e nunca inferidos de `system` ou texto livre. `groupRounds` deve coincidir com a quantidade de séries estruturadas da #399 em todos os participantes.
+
+Bi-set e supersérie exigem dois participantes, tri-set exige três e circuito exige ao menos dois. Triggers validam forma, cardinalidade, posições contíguas e bloqueiam mutação depois de release, início de execução ou histórico material. Cópias preservam a estrutura, mas recebem nova identidade de grupo.

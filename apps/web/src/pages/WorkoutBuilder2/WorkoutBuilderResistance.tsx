@@ -47,6 +47,10 @@ interface SelectedExercise {
   category?: string;
   system?: string;
   groupBreakBefore?: boolean;
+  groupId?: string | null;
+  groupType?: 'superset' | 'biset' | 'triset' | 'circuit' | 'technical_block' | 'mobility' | 'finisher' | null;
+  groupPosition?: number | null;
+  groupRounds?: number | null;
   sets?: number | null;
   reps?: number | null;
   interval?: number | null;
@@ -202,155 +206,67 @@ export default function WorkoutBuilderResistance({
     return normalizeSystemText(category) === 'ciclico';
   };
 
-  const getSystemKey = (systemCode?: string) => {
-    const resolved = resolveSystemLabel(systemCode);
-    return normalizeSystemText(`${systemCode ?? ''} ${resolved ?? ''}`);
-  };
+  const GROUP_CONFIG = {
+    superset: { label: 'Supersérie', size: 2 },
+    biset: { label: 'Bi-set', size: 2 },
+    triset: { label: 'Tri-set', size: 3 },
+    circuit: { label: 'Circuito', size: null },
+    technical_block: { label: 'Bloco técnico', size: null },
+    mobility: { label: 'Mobilidade', size: null },
+    finisher: { label: 'Finalização', size: null },
+  } as const;
 
-  const isCircuitSystem = (systemCode?: string) => {
-    const code = normalizeSystemText(systemCode ?? '');
-    const text = getSystemKey(systemCode);
-    return code === 'cir' || code === 'circuito' || /\bcircuit(?:o)?\b/.test(text);
-  };
-
-  const getSystemGroupSize = (systemCode?: string) => {
-    const code = normalizeSystemText(systemCode ?? '');
-    const text = getSystemKey(systemCode);
-    if (code === 'bs' || /\bbi\s*set\b/.test(text) || /\bbiset\b/.test(text)) return 2;
-    if (code === 'ts' || /\btri\s*set\b/.test(text) || /\btriset\b/.test(text)) return 3;
-    if (code === 'qs' || /\bquad(?:ri)?\s*set\b/.test(text) || /\bquadset\b/.test(text)) return 4;
-    return 1;
-  };
-
-  const getGroupLabel = (size: number) => {
-    if (size === 2) return 'Par';
-    if (size === 3) return 'Trio';
-    if (size === 4) return 'Quarteto';
-    return 'Grupo';
-  };
-
-  const buildSystemGroups = (list: SelectedExercise[], fallbackSystem?: string) => {
-    const resolveSystemValue = (system?: string) => {
-      const trimmed = (system ?? '').trim();
-      if (trimmed) return trimmed;
-      return (fallbackSystem ?? '').trim();
-    };
-
-    const meta: Array<
-      | ({
-          size: number;
-          indexInGroup: number;
-          groupNumber: number;
-          isComplete: boolean;
-          label: string;
-          groupKey: string;
-        })
-      | null
-    > = Array(list.length).fill(null);
-
+  const buildSystemGroups = (list: SelectedExercise[]) => {
+    const meta: Array<{
+      size: number; indexInGroup: number; groupNumber: number;
+      isComplete: boolean; label: string; groupKey: string;
+    } | null> = Array(list.length).fill(null);
     const warnings: Array<{
-      startIndex: number;
-      endIndex: number;
-      missing: number;
-      size: number;
-      label: string;
-      systemKey: string;
+      startIndex: number; endIndex: number; missing: number;
+      size: number; label: string; systemKey: string;
     }> = [];
-
-    let i = 0;
-    while (i < list.length) {
-      const currentSystem = resolveSystemValue(list[i]?.system);
-      const size = getSystemGroupSize(currentSystem);
-
-      if (isCircuitSystem(currentSystem)) {
-        const systemKey = getSystemKey(currentSystem);
-        let j = i + 1;
-        while (j < list.length) {
-          const nextSystem = resolveSystemValue(list[j]?.system);
-          if (!isCircuitSystem(nextSystem) || getSystemKey(nextSystem) !== systemKey) break;
-          j += 1;
-        }
-
-        let blockStart = i;
-        let groupNumber = 1;
-        const assignCircuitBlock = (start: number, end: number, blockNumber: number) => {
-          const blockSize = end - start;
-          for (let cursor = start; cursor < end; cursor += 1) {
-            meta[cursor] = {
-              size: blockSize,
-              indexInGroup: cursor - start,
-              groupNumber: blockNumber,
-              isComplete: true,
-              label: 'Circuito',
-              groupKey: `${systemKey}-${blockNumber - 1}`
+    let groupNumber = 0;
+    let index = 0;
+    while (index < list.length) {
+      const type = list[index]?.groupType;
+      if (!type) { index += 1; continue; }
+      let endIndex = index + 1;
+      while (endIndex < list.length && list[endIndex]?.groupType === type && !list[endIndex]?.groupBreakBefore) endIndex += 1;
+      const config = GROUP_CONFIG[type];
+      const segmentLength = endIndex - index;
+      if (config.size) {
+        const size = config.size;
+        for (let offset = 0; offset < segmentLength; offset += size) {
+          groupNumber += 1;
+          const chunkSize = Math.min(size, segmentLength - offset);
+          for (let cursor = 0; cursor < chunkSize; cursor += 1) {
+            meta[index + offset + cursor] = {
+              size, indexInGroup: cursor, groupNumber,
+              isComplete: chunkSize === size, label: config.label,
+              groupKey: `${type}-${groupNumber}`,
             };
           }
-        };
-
-        for (let cursor = i + 1; cursor < j; cursor += 1) {
-          if (list[cursor]?.groupBreakBefore) {
-            assignCircuitBlock(blockStart, cursor, groupNumber);
-            blockStart = cursor;
-            groupNumber += 1;
-          }
+          if (chunkSize !== size) warnings.push({
+            startIndex: index + offset, endIndex: endIndex - 1,
+            missing: size - chunkSize, size, label: config.label, systemKey: type,
+          });
         }
-        assignCircuitBlock(blockStart, j, groupNumber);
-
-        i = j;
-        continue;
-      }
-
-      if (size <= 1) {
-        i += 1;
-        continue;
-      }
-
-      const resolved = resolveSystemLabel(currentSystem);
-      const systemKey = normalizeSystemText(`${currentSystem} ${resolved}`);
-
-      let j = i;
-      while (j < list.length) {
-        const nextSystem = resolveSystemValue(list[j]?.system);
-        const nextSize = getSystemGroupSize(nextSystem);
-        const nextResolved = resolveSystemLabel(nextSystem);
-        const nextKey = normalizeSystemText(`${nextSystem} ${nextResolved}`);
-        if (nextSize !== size || nextKey !== systemKey) break;
-        j += 1;
-      }
-
-      const segmentLength = j - i;
-      const label = getGroupLabel(size);
-      for (let offset = 0; offset < segmentLength; offset += 1) {
-        const groupIndex = Math.floor(offset / size);
-        const indexInGroup = offset % size;
-        const groupStart = i + groupIndex * size;
-        const groupEnd = Math.min(groupStart + size - 1, j - 1);
-        const isComplete = groupEnd - groupStart + 1 === size;
-        meta[i + offset] = {
-          size,
-          indexInGroup,
-          groupNumber: groupIndex + 1,
-          isComplete,
-          label,
-          groupKey: `${systemKey}-${groupIndex}`
-        };
-      }
-
-      if (segmentLength % size !== 0) {
-        const remainder = segmentLength % size;
-        warnings.push({
-          startIndex: j - remainder,
-          endIndex: j - 1,
-          missing: size - remainder,
-          size,
-          label,
-          systemKey
+      } else {
+        groupNumber += 1;
+        for (let cursor = index; cursor < endIndex; cursor += 1) {
+          meta[cursor] = {
+            size: segmentLength, indexInGroup: cursor - index, groupNumber,
+            isComplete: type !== 'circuit' || segmentLength >= 2, label: config.label,
+            groupKey: `${type}-${groupNumber}`,
+          };
+        }
+        if (type === 'circuit' && segmentLength < 2) warnings.push({
+          startIndex: index, endIndex: endIndex - 1, missing: 1,
+          size: 2, label: config.label, systemKey: type,
         });
       }
-
-      i = j;
+      index = endIndex;
     }
-
     return { meta, warnings };
   };
 
@@ -462,7 +378,7 @@ export default function WorkoutBuilderResistance({
       const currentSectionExercises = currentDay[quickFillSection];
       const groupMeta =
         quickFillSection === 'sessao'
-          ? buildSystemGroups(currentSectionExercises, resistedSummary?.method ?? '').meta
+          ? buildSystemGroups(currentSectionExercises).meta
           : [];
 
       const updatedSection = currentSectionExercises.map((exercise, index) => {
@@ -506,7 +422,7 @@ export default function WorkoutBuilderResistance({
       return sectionExercises;
     }
 
-    const groupMeta = buildSystemGroups(sectionExercises, resistedSummary?.method ?? '').meta;
+    const groupMeta = buildSystemGroups(sectionExercises).meta;
     return sectionExercises.map((exercise, index) => {
       if (isCyclicCategory(exercise.category)) return exercise;
       const meta = groupMeta[index];
@@ -556,7 +472,7 @@ export default function WorkoutBuilderResistance({
       const updatedSection = currentDay[section].map((exercise) => {
         if (exercise.id !== exerciseId) return exercise;
         const updatedExercise = { ...exercise, [field]: value } as SelectedExercise;
-        if (field === 'system' && typeof value === 'string' && !isCircuitSystem(value)) {
+        if (field === 'groupType' && !value) {
           updatedExercise.groupBreakBefore = false;
         }
         return updatedExercise;
@@ -572,7 +488,7 @@ export default function WorkoutBuilderResistance({
           : null;
 
         if (intervalBetweenExercises !== null || intervalBetweenSeries !== null) {
-          const groupMeta = buildSystemGroups(updatedSection, resistedSummary?.method ?? '').meta;
+          const groupMeta = buildSystemGroups(updatedSection).meta;
           finalSection = updatedSection.map((exercise, index) => {
             if (isCyclicCategory(exercise.category)) return exercise;
             const meta = groupMeta[index];
@@ -827,7 +743,7 @@ export default function WorkoutBuilderResistance({
     const sectionExercises = exercisesByDay[dayOfWeek]?.[section.key] || [];
     const groupData =
       section.key === 'sessao'
-        ? buildSystemGroups(sectionExercises, resistedSummary?.method ?? '')
+        ? buildSystemGroups(sectionExercises)
         : { meta: [], warnings: [] };
     const headingId = `${idPrefix}-${dayOfWeek}-${section.key}`;
 
@@ -945,15 +861,11 @@ export default function WorkoutBuilderResistance({
                   resistedSummary?.repZone !== undefined
                     ? String(resistedSummary.repZone)
                     : undefined;
-                const effectiveSystem = (exercise.system || resistedSummary?.method || '').trim();
                 const previousExercise = sectionExercises[index - 1];
-                const previousSystem = (previousExercise?.system || resistedSummary?.method || '').trim();
                 const canToggleCircuitBreak =
-                  section.key === 'sessao' &&
                   index > 0 &&
-                  isCircuitSystem(effectiveSystem) &&
-                  isCircuitSystem(previousSystem) &&
-                  getSystemKey(effectiveSystem) === getSystemKey(previousSystem);
+                  Boolean(exercise.groupType) &&
+                  exercise.groupType === previousExercise?.groupType;
                 const iconButtonClassName = buttonClassName({
                   variant: 'ghost',
                   size: 'icon',
@@ -970,6 +882,29 @@ export default function WorkoutBuilderResistance({
                         <span className="mr-1 tabular-nums text-muted-foreground">{index + 1}.</span>
                         {exercise.name}
                       </p>
+                      {!isCyclicExercise && (
+                        <label className="mt-1 block text-xs text-muted-foreground">
+                          Agrupamento
+                          <select
+                            aria-label={`Agrupamento de ${exercise.name}`}
+                            value={exercise.groupType ?? ''}
+                            onChange={(event) => updateExerciseField(
+                              dayOfWeek, section.key, exercise.id, 'groupType',
+                              event.target.value || null,
+                            )}
+                            className="ml-2 rounded border border-input bg-card px-1.5 py-1 text-xs text-foreground"
+                          >
+                            <option value="">Nenhum</option>
+                            <option value="superset">Supersérie</option>
+                            <option value="biset">Bi-set</option>
+                            <option value="triset">Tri-set</option>
+                            <option value="circuit">Circuito</option>
+                            <option value="technical_block">Bloco técnico</option>
+                            <option value="mobility">Mobilidade</option>
+                            <option value="finisher">Finalização</option>
+                          </select>
+                        </label>
+                      )}
                       {groupMeta && (
                         <span
                           className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
@@ -1112,13 +1047,13 @@ export default function WorkoutBuilderResistance({
                           className={iconButtonClassName}
                           aria-label={
                             exercise.groupBreakBefore
-                              ? `Unir ${exercise.name} ao bloco anterior`
-                              : `Iniciar novo bloco antes de ${exercise.name}`
+                              ? `Unir ${exercise.name} ao agrupamento anterior`
+                              : `Iniciar novo agrupamento antes de ${exercise.name}`
                           }
                           title={
                             exercise.groupBreakBefore
-                              ? 'Unir ao bloco anterior'
-                              : 'Iniciar novo bloco'
+                              ? 'Unir ao agrupamento anterior'
+                              : 'Iniciar novo agrupamento'
                           }
                         >
                           {exercise.groupBreakBefore ? (

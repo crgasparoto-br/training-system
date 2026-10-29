@@ -120,3 +120,6 @@ Registros concluidos preservados:
 7. Conteudo historico deve ser mantido apenas quando explica decisao, migracao, risco ou operacao ainda relevante.
 8. Atualizar este indice e as referencias antes de excluir ou mover documentos.
 9. Executar `pnpm docs:check` depois de reorganizar documentacao.
+
+
+- [Issue #400 — agrupamentos resistidos estruturados](execution-plans/active/2026-10-issue-400-resistance-groups.md)

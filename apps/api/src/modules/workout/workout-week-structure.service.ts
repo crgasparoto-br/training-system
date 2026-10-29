@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import { matchResistanceExerciseRows, normalizeResistanceBlocks, sanitizeWorkoutMutation, validateWorkoutWeekEnvelope, ResistanceStructureNotFoundError, ResistanceStructureValidationError, WorkoutPlanningVersionConflictError } from './resistance-structure.domain.js';
 import { assertDayContract, comparableResistanceBlocks, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
 import type { CreateWorkoutExerciseDTO, SaveWorkoutWeekDTO } from './workout.service.js';
+import { reconcileResistanceGroups, type ResistanceGroupDeclaration } from './resistance-grouping.domain.js';
 
 export async function saveTemplateWeek(prisma: PrismaClient, id: string, data: SaveWorkoutWeekDTO, contractId?: string) {
   if (!data || typeof data !== 'object') {
@@ -157,9 +158,10 @@ export async function saveTemplateWeek(prisma: PrismaClient, id: string, data: S
           const expected = (perSection.get(input.section) ?? 0) + 1;
           if (input.exerciseOrder !== expected) throw new ResistanceStructureValidationError('Ordem de exercício inválida.');
           perSection.set(input.section, expected);
-          const { resistanceBlocks, workoutExerciseId, workoutDayId: _dayId, ...exercise } = input;
+          const { resistanceBlocks, workoutExerciseId, workoutDayId: _dayId, groupType, ...exercise } = input;
           return {
             workoutExerciseId,
+            groupType: groupType as ResistanceGroupDeclaration,
             exercise,
             blocks: resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks),
           };
@@ -192,18 +194,22 @@ export async function saveTemplateWeek(prisma: PrismaClient, id: string, data: S
           }
         }
 
+        const resolvedRowIds: string[] = [];
         for (let index = 0; index < prepared.length; index += 1) {
           const input = prepared[index];
           const rowId = identity[index];
           if (!rowId) {
-            await tx.workoutExercise.create({
+            const created = await tx.workoutExercise.create({
               data: {
                 ...(input.exercise as any),
                 ...(input.blocks ? { resistanceBlocks: nestedResistanceBlocks(input.blocks) } : {}),
               },
+              select: { id: true },
             });
+            resolvedRowIds[index] = created.id;
             continue;
           }
+          resolvedRowIds[index] = rowId;
           const prior = current.find((row) => row.id === rowId)!;
           const changedColumns = Object.entries(input.exercise).some(([key, value]) =>
             value !== undefined && value !== prior[key as keyof typeof prior]);
@@ -227,6 +233,9 @@ export async function saveTemplateWeek(prisma: PrismaClient, id: string, data: S
         for (const prior of current) {
           if (!preserved.has(prior.id)) await tx.workoutExercise.delete({ where: { id: prior.id } });
         }
+        await reconcileResistanceGroups(tx, resolvedTargetDay.id, new Map(
+          prepared.map((item, index) => [resolvedRowIds[index], item.groupType] as [string, ResistanceGroupDeclaration]),
+        ));
       }
     }
 
@@ -265,9 +274,9 @@ export async function replaceDayResistanceExercises(prisma: PrismaClient, workou
     const expected = (perSection.get(input.section) ?? 0) + 1;
     if (input.exerciseOrder !== expected) throw new ResistanceStructureValidationError('Ordem de exercício inválida.');
     perSection.set(input.section, expected);
-    const { resistanceBlocks, workoutExerciseId, ...exercise } = input;
+    const { resistanceBlocks, workoutExerciseId, groupType, ...exercise } = input;
     const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
-    return { workoutExerciseId, exercise, blocks };
+    return { workoutExerciseId, groupType: groupType as ResistanceGroupDeclaration, exercise, blocks };
   });
 
   // The public route requires an active professor and supplies their contract.
@@ -318,18 +327,22 @@ export async function replaceDayResistanceExercises(prisma: PrismaClient, workou
         throw new WorkoutPlanningLockedError();
       }
     }
+    const resolvedRowIds: string[] = [];
     for (let index = 0; index < prepared.length; index += 1) {
       const input = prepared[index];
       const rowId = identity[index];
       if (!rowId) {
-        await tx.workoutExercise.create({
+        const created = await tx.workoutExercise.create({
           data: {
             ...input.exercise,
             ...(input.blocks ? { resistanceBlocks: nestedResistanceBlocks(input.blocks) } : {}),
           },
+          select: { id: true },
         });
+        resolvedRowIds[index] = created.id;
         continue;
       }
+      resolvedRowIds[index] = rowId;
       const prior = current.find((row) => row.id === rowId)!;
       const changedColumns = Object.entries(input.exercise).some(([key, value]) =>
         value !== undefined && value !== prior[key as keyof typeof prior]);
@@ -355,6 +368,9 @@ export async function replaceDayResistanceExercises(prisma: PrismaClient, workou
         await tx.workoutExercise.delete({ where: { id: prior.id } });
       }
     }
+    await reconcileResistanceGroups(tx, workoutDayId, new Map(
+      prepared.map((item, index) => [resolvedRowIds[index], item.groupType] as [string, ResistanceGroupDeclaration]),
+    ));
     return tx.workoutExercise.findMany({
       where: { workoutDayId },
       include: { exercise: true, resistanceBlocks: resistanceBlockInclude },

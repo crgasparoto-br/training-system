@@ -22,6 +22,15 @@ const sectionLabels: Record<string, string> = {
   resfriamento: 'Desaceleração',
   finalizacao: 'Finalização',
 };
+const groupLabels: Record<string, string> = {
+  superset: 'Supersérie',
+  biset: 'Bi-set',
+  triset: 'Tri-set',
+  circuit: 'Circuito',
+  technical_block: 'Bloco técnico',
+  mobility: 'Mobilidade',
+  finisher: 'Finalização',
+};
 const blockLabels: Record<string, string> = {
   aquecimento: 'Aquecimento',
   principal: 'Principal',
@@ -30,7 +39,7 @@ const blockLabels: Record<string, string> = {
   finalizacao: 'Finalização',
 };
 function readableContext(key: string, labels: Record<string, string>) {
-  return labels[key] ?? key.replaceAll('_', ' ');
+  return labels[key] ?? key.split('_').join(' ');
 }
 
 function describeRepetitions(min: number | null, max: number | null) {
@@ -189,7 +198,9 @@ export function GuidedResistanceCard({
             <div className="space-y-4 rounded-lg border border-border bg-background p-4">
               <div className="space-y-1">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {readableContext(current.section, sectionLabels)} · {readableContext(current.blockKind, blockLabels)} · Série {current.setNumber} de {current.exerciseSetTotal}
+                  {current.groupId
+                    ? `${groupLabels[current.groupType ?? ''] ?? 'Agrupamento'} · rodada ${current.roundNumber} de ${current.roundTotal} · item ${current.groupPosition} de ${current.groupSize}`
+                    : `${readableContext(current.section, sectionLabels)} · ${readableContext(current.blockKind, blockLabels)} · Série ${current.setNumber} de ${current.exerciseSetTotal}`}
                 </p>
                 <h5 className="text-xl font-semibold text-foreground">{current.exerciseName}</h5>
               </div>
@@ -229,7 +240,13 @@ export function GuidedResistanceCard({
                   {busy ? 'Salvando série...' : 'Concluir série'}
                 </Button>
               </form>
-              <p className="text-sm text-muted-foreground">Próximo: {view.next ? view.next.exerciseName + ', série ' + view.next.setNumber : 'revisar e finalizar o treino'}.</p>
+              <p className="text-sm text-muted-foreground">
+                {view.next
+                  ? current.groupId && view.next.groupId === current.groupId && view.next.roundNumber === current.roundNumber
+                    ? `Próximo nesta rodada: ${view.next.exerciseName}.`
+                    : `Próximo: ${view.next.exerciseName}, ${view.next.groupId ? `rodada ${view.next.roundNumber}` : `série ${view.next.setNumber}`}.`
+                  : 'Próximo: revisar e finalizar o treino.'}
+              </p>
             </div>
           ) : (
             <p role="status" className="rounded-lg border border-border bg-background p-4 text-sm font-semibold">

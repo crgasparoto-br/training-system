@@ -70,3 +70,10 @@ O avanço é determinado pelo servidor; refresh, erro de rede e conflito 409
 não produzem avanço local fictício. A sessão pausada não aceita confirmação.
 A ficha completa permanece acessível. A indisponibilidade de agrupamento
 estruturado é apresentada com orientação em vez de inventar uma rodada.
+
+
+## Editor de agrupamento resistido (#400)
+
+A Montagem Consolidada apresenta **Agrupamento** separado de **Sistema**. O professor pode escolher Supersérie, Bi-set, Tri-set, Circuito, Bloco técnico, Mobilidade ou Finalização. Exercícios adjacentes do mesmo tipo compõem um grupo; a ação de iniciar novo agrupamento cria fronteira explícita.
+
+No Treino de hoje, o cartão guiado mostra rodada e posição do participante quando houver grupo persistido. Refresh, conflito e troca de dispositivo reconstruem a posição pelo backend.

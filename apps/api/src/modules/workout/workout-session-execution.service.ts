@@ -26,7 +26,8 @@ async function loadGuidedResistancePlan(tx: Prisma.TransactionClient, sessionId:
   const exercises = await tx.workoutExercise.findMany({
     where: { workoutDayId: sessionId },
     select: {
-      id: true, section: true, exerciseOrder: true, system: true, groupBreakBefore: true, exerciseNotes: true,
+      id: true, section: true, exerciseOrder: true, system: true, groupBreakBefore: true,
+      groupId: true, groupType: true, groupPosition: true, groupRounds: true, exerciseNotes: true,
       exercise: { select: { name: true, videoUrl: true, notes: true } },
       resistanceBlocks: {
         orderBy: { position: 'asc' },

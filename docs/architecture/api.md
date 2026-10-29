@@ -129,3 +129,10 @@ a autoridade de sessão/tenant/release/versionamento de #389. O backend valida
 a próxima série estruturada da #399 antes da confirmação atômica. Agrupamentos
 sem contrato canônico de #400 permanecem indisponíveis no guia. O contrato
 e os limites estão em `docs/execution-plans/active/2026-10-issue-487-guided-resistance.md`.
+
+
+## Agrupamentos e execução guiada (#400/#487)
+
+O snapshot semanal aceita `groupType` explícito em cada exercício resistido. A persistência reconcilia membros contíguos e `groupBreakBefore`, gera ou preserva `groupId` e calcula `groupPosition`/`groupRounds` pelas séries estruturadas. Os campos derivados não são autoridade do cliente.
+
+A execução guiada retorna contexto de grupo, participante e rodada. Em grupos, a próxima unidade é calculada pelo backend na ordem rodada → participante. Dados legados apenas com código/texto de sistema permanecem em `grouping_pending` até declaração explícita.

@@ -1,7 +1,8 @@
 ﻿import { PrismaClient } from '@prisma/client';
 
 import { Prisma } from '@prisma/client';
-import { assertWorkoutParentIsImmutable, normalizeResistanceBlocks, sanitizeWorkoutMutation, ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput } from './resistance-structure.domain.js';
+import { assertWorkoutParentIsImmutable, normalizeResistanceBlocks, sanitizeWorkoutMutation, ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput, type ResistanceExerciseGroupType } from './resistance-structure.domain.js';
+import { reconcileResistanceGroups } from './resistance-grouping.domain.js';
 import { assertDayContract, isWorkoutTemplateUniqueConflict, lockWorkoutDayPlanningMutable, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
 import { copyTemplate as copyTemplateStructured, copyTemplateSections as copyTemplateSectionsStructured } from './workout-copy.service.js';
 import { replaceDayResistanceExercises as replaceDayResistanceExercisesStructured, saveTemplateWeek as saveTemplateWeekStructured } from './workout-week-structure.service.js';
@@ -82,6 +83,7 @@ export interface CreateWorkoutExerciseDTO {
   exerciseOrder: number;
   system?: string;
   groupBreakBefore?: boolean;
+  groupType?: ResistanceExerciseGroupType | null;
   sets?: number;
   reps?: number;
   intervalSec?: number;
@@ -689,20 +691,18 @@ export const workoutService = {
    */
   async addExerciseToDay(data: CreateWorkoutExerciseDTO, contractId?: string) {
     data = sanitizeWorkoutMutation(data, 'exercise', 'create');
-    const { resistanceBlocks, workoutExerciseId: _existingRowId, ...exercise } = data;
+    const { resistanceBlocks, workoutExerciseId: _existingRowId, groupType, ...exercise } = data;
     const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
     return withWorkoutDayPlanningMutation(prisma, data.workoutDayId, async (tx) => {
       if (contractId) await assertDayContract(tx, data.workoutDayId, contractId, data.exerciseId);
-      return tx.workoutExercise.create({
-        data: {
-          ...exercise,
-          ...(blocks ? { resistanceBlocks: nestedResistanceBlocks(blocks) } : {}),
-        },
-        include: {
-          exercise: true,
-          workoutDay: true,
-          resistanceBlocks: resistanceBlockInclude,
-        },
+      const created = await tx.workoutExercise.create({
+        data: { ...exercise, ...(blocks ? { resistanceBlocks: nestedResistanceBlocks(blocks) } : {}) },
+        select: { id: true },
+      });
+      await reconcileResistanceGroups(tx, data.workoutDayId, new Map([[created.id, groupType]]));
+      return tx.workoutExercise.findUniqueOrThrow({
+        where: { id: created.id },
+        include: { exercise: true, workoutDay: true, resistanceBlocks: resistanceBlockInclude },
       });
     });
   },
@@ -726,14 +726,14 @@ export const workoutService = {
 
     const workoutDayIds = [current.workoutDayId];
 
-    const { resistanceBlocks, workoutExerciseId: _existingRowId, ...exercise } = data;
+    const { resistanceBlocks, workoutExerciseId: _existingRowId, groupType, ...exercise } = data;
     const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
     return prisma.$transaction(async (tx) => {
       for (const workoutDayId of workoutDayIds) {
         await lockWorkoutDayPlanningMutable(tx, workoutDayId);
         if (contractId) await assertDayContract(tx, workoutDayId, contractId, data.exerciseId ?? current.exerciseId);
       }
-      return tx.workoutExercise.update({
+      await tx.workoutExercise.update({
         where: { id },
         data: {
           ...exercise,
@@ -741,6 +741,10 @@ export const workoutService = {
             resistanceBlocks: { deleteMany: {}, ...nestedResistanceBlocks(blocks) },
           } : {}),
         },
+      });
+      await reconcileResistanceGroups(tx, current.workoutDayId, new Map([[id, groupType]]));
+      return tx.workoutExercise.findUniqueOrThrow({
+        where: { id },
         include: { exercise: true, resistanceBlocks: resistanceBlockInclude },
       });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
@@ -930,7 +934,7 @@ export const workoutService = {
         throw new ResistanceStructureValidationError('One or more exercises do not belong to the requested day/section.');
       }
 
-      return Promise.all(
+      const updated = await Promise.all(
         exerciseIds.map((id, index) =>
           tx.workoutExercise.update({
             where: { id },
@@ -938,6 +942,8 @@ export const workoutService = {
           })
         )
       );
+      await reconcileResistanceGroups(tx, workoutDayId);
+      return updated;
     });
   },
 

@@ -10,6 +10,10 @@ export interface GuidedResistancePlannedExercise {
   exerciseOrder: number;
   system: string | null;
   groupBreakBefore?: boolean;
+  groupId?: string | null;
+  groupType?: import('@corrida/types').ResistanceExerciseGroupType | null;
+  groupPosition?: number | null;
+  groupRounds?: number | null;
   exerciseNotes?: string | null;
   exercise: { name: string; videoUrl?: string | null; notes?: string | null };
   resistanceBlocks: ReadonlyArray<{
@@ -56,8 +60,16 @@ export function deriveGuidedResistancePlan(
   exercises: ReadonlyArray<GuidedResistancePlannedExercise>,
 ): { availability: GuidedResistanceAvailability; units: GuidedResistanceUnit[] } {
   if (!exercises.length) return { availability: 'no_structured_resistance', units: [] };
-  if (exercises.some((item) => item.groupBreakBefore || /super\s*-?\s*s[eé]rie|bi[\s-]*set|tri[\s-]*set|circuito/i.test(item.system ?? ''))) {
+  const legacyGroupingCodes = new Set(['BS', 'BI-SET', 'TS', 'TRI-SET', 'SS', 'SUPER-SET', 'CIR', 'CIRCUITO']);
+  if (exercises.some((item) =>
+    !item.groupId && !item.groupType
+    && (item.groupBreakBefore || legacyGroupingCodes.has((item.system ?? '').trim().toUpperCase())))) {
     return { availability: 'grouping_pending', units: [] };
+  }
+  if (exercises.some((item) => Boolean(item.groupId) !== Boolean(item.groupType)
+    || Boolean(item.groupId) !== Boolean(item.groupPosition)
+    || Boolean(item.groupId) !== Boolean(item.groupRounds))) {
+    return { availability: 'legacy_read_only', units: [] };
   }
   if (exercises.some((item) => !item.resistanceBlocks.length
     || item.resistanceBlocks.some((block) => !block.plannedSets.length))) {
@@ -70,41 +82,71 @@ export function deriveGuidedResistancePlan(
     return a - b || left.section.localeCompare(right.section)
       || left.exerciseOrder - right.exerciseOrder || left.id.localeCompare(right.id);
   });
+  const setsFor = (exercise: GuidedResistancePlannedExercise) =>
+    [...exercise.resistanceBlocks].sort((a, b) => a.position - b.position)
+      .flatMap((block) => [...block.plannedSets].sort((a, b) => a.position - b.position)
+        .map((set) => ({ block, set })));
+  const makeUnit = (
+    exercise: GuidedResistancePlannedExercise,
+    entry: ReturnType<typeof setsFor>[number],
+    setNumber: number,
+    group: { id: string; type: NonNullable<GuidedResistancePlannedExercise['groupType']>; position: number; size: number; round: number; rounds: number } | null,
+  ): GuidedResistanceUnit => ({
+    plannedUnitId: exercise.id,
+    plannedSetId: entry.set.id,
+    setNumber,
+    exerciseName: exercise.exercise.name,
+    videoUrl: approvedGuidedExerciseMediaUrl(exercise.exercise.videoUrl),
+    section: exercise.section,
+    blockKind: entry.block.kind,
+    blockPosition: entry.block.position,
+    setPosition: entry.set.position,
+    exerciseSetTotal: setsFor(exercise).length,
+    groupId: group?.id ?? null,
+    groupType: group?.type ?? null,
+    groupPosition: group?.position ?? null,
+    groupSize: group?.size ?? null,
+    roundNumber: group?.round ?? null,
+    roundTotal: group?.rounds ?? null,
+    repsMin: entry.set.repsMin,
+    repsMax: entry.set.repsMax,
+    loadKg: entry.set.loadKg,
+    loadPercent: entry.set.loadPercent,
+    rir: entry.set.rir,
+    rpe: entry.set.rpe,
+    tempo: entry.set.tempo,
+    restSec: entry.set.restSec,
+    notes: entry.set.notes?.trim() || entry.block.notes?.trim()
+      || exercise.exerciseNotes?.trim() || exercise.exercise.notes?.trim() || null,
+  });
+
   const units: GuidedResistanceUnit[] = [];
+  const handledGroups = new Set<string>();
   for (const exercise of sorted) {
-    let setNumber = 0;
-    const blocks = [...exercise.resistanceBlocks].sort((a, b) => a.position - b.position);
-    const exerciseSetTotal = blocks.reduce((sum, block) => sum + block.plannedSets.length, 0);
-    for (const block of blocks) {
-      const sets = [...block.plannedSets].sort((a, b) => a.position - b.position);
-      for (const set of sets) {
-        setNumber += 1;
-        units.push({
-          plannedUnitId: exercise.id,
-          plannedSetId: set.id,
-          setNumber,
-          exerciseName: exercise.exercise.name,
-          videoUrl: approvedGuidedExerciseMediaUrl(exercise.exercise.videoUrl),
-          section: exercise.section,
-          blockKind: block.kind,
-          blockPosition: block.position,
-          setPosition: set.position,
-          exerciseSetTotal,
-          repsMin: set.repsMin,
-          repsMax: set.repsMax,
-          loadKg: set.loadKg,
-          loadPercent: set.loadPercent,
-          rir: set.rir,
-          rpe: set.rpe,
-          tempo: set.tempo,
-          restSec: set.restSec,
-          notes: set.notes?.trim() || block.notes?.trim()
-            || exercise.exerciseNotes?.trim() || exercise.exercise.notes?.trim() || null,
-        });
-      }
+    if (!exercise.groupId) {
+      setsFor(exercise).forEach((entry, setIndex) => units.push(makeUnit(exercise, entry, setIndex + 1, null)));
+      continue;
+    }
+    if (handledGroups.has(exercise.groupId)) continue;
+    const members = sorted.filter((item) => item.groupId === exercise.groupId)
+      .sort((a, b) => (a.groupPosition ?? 0) - (b.groupPosition ?? 0));
+    const memberIndexes = members.map((member) => sorted.findIndex((item) => item.id === member.id));
+    const rounds = exercise.groupRounds ?? 0;
+    if (!exercise.groupType || rounds < 1
+      || members.some((member, memberIndex) =>
+        member.groupType !== exercise.groupType || member.groupRounds !== rounds
+        || member.groupPosition !== memberIndex + 1 || setsFor(member).length !== rounds)
+      || Math.max(...memberIndexes) - Math.min(...memberIndexes) + 1 !== members.length) {
+      return { availability: 'legacy_read_only', units: [] };
+    }
+    handledGroups.add(exercise.groupId);
+    for (let round = 1; round <= rounds; round += 1) {
+      members.forEach((member, memberIndex) => units.push(makeUnit(
+        member, setsFor(member)[round - 1], round,
+        { id: exercise.groupId!, type: exercise.groupType!, position: memberIndex + 1, size: members.length, round, rounds },
+      )));
     }
   }
-  // Never present an ambiguous or duplicated planned identity as an executable step.
   if (new Set(units.map((unit) => unit.plannedSetId)).size !== units.length) {
     return { availability: 'legacy_read_only', units: [] };
   }

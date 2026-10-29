@@ -8,6 +8,7 @@ const first = {
   plannedUnitId: 'exercise-a', plannedSetId: 'set-1', setNumber: 1,
   exerciseName: 'Agachamento', videoUrl: null, section: 'sessao', blockKind: 'principal',
   blockPosition: 1, setPosition: 1, exerciseSetTotal: 2,
+  groupId: null, groupType: null, groupPosition: null, groupSize: null, roundNumber: null, roundTotal: null,
   repsMin: 8, repsMax: 12, loadKg: 47, loadPercent: null,
   rir: 2, rpe: 8, tempo: '3-1-1', restSec: 60, notes: 'Controle a descida',
 };

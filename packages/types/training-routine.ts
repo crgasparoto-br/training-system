@@ -86,6 +86,9 @@ export interface TrainingSessionExecutionValuesPayload {
 export type GuidedResistanceAvailability =
   | 'available' | 'legacy_read_only' | 'grouping_pending' | 'no_structured_resistance';
 
+export type ResistanceExerciseGroupType =
+  | 'superset' | 'biset' | 'triset' | 'circuit' | 'technical_block' | 'mobility' | 'finisher';
+
 export interface GuidedResistanceUnit {
   plannedUnitId: string;
   plannedSetId: string;
@@ -98,6 +101,12 @@ export interface GuidedResistanceUnit {
   blockPosition: number;
   setPosition: number;
   exerciseSetTotal: number;
+  groupId: string | null;
+  groupType: ResistanceExerciseGroupType | null;
+  groupPosition: number | null;
+  groupSize: number | null;
+  roundNumber: number | null;
+  roundTotal: number | null;
   repsMin: number | null;
   repsMax: number | null;
   loadKg: number | null;

@@ -286,10 +286,10 @@ describe('WorkoutBuilderResistance', () => {
         1: {
           mobilidade: [],
           sessao: [
-            exercise('c1', 'Afundo com salto', { system: 'CIR' }),
-            exercise('c2', 'Leg Press', { system: 'CIR' }),
-            exercise('c3', 'Remada baixa', { system: 'CIR' }),
-            exercise('c4', 'Supino', { system: 'CIR' }),
+            exercise('c1', 'Afundo com salto', { system: 'CIR', groupType: 'circuit' }),
+            exercise('c2', 'Leg Press', { system: 'CIR', groupType: 'circuit' }),
+            exercise('c3', 'Remada baixa', { system: 'CIR', groupType: 'circuit' }),
+            exercise('c4', 'Supino', { system: 'CIR', groupType: 'circuit' }),
           ],
           resfriamento: [],
         },
@@ -306,18 +306,26 @@ describe('WorkoutBuilderResistance', () => {
 
     expect(screen.getByText('Circuito 1 · 1/4')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Iniciar novo bloco antes de Remada baixa' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar novo agrupamento antes de Remada baixa' }));
 
     const split = onChange.mock.calls.at(-1)?.[0].resistedExercises[1].sessao;
     expect(split[2]).toEqual(expect.objectContaining({ name: 'Remada baixa', groupBreakBefore: true }));
     expect(screen.getByText('Circuito 1 · 1/2')).toBeInTheDocument();
     expect(screen.getByText('Circuito 2 · 1/2')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Unir Remada baixa ao bloco anterior' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Unir Remada baixa ao agrupamento anterior' }));
 
     const joined = onChange.mock.calls.at(-1)?.[0].resistedExercises[1].sessao;
     expect(joined[2]).toEqual(expect.objectContaining({ name: 'Remada baixa', groupBreakBefore: false }));
     expect(screen.getByText('Circuito 1 · 1/4')).toBeInTheDocument();
+  });
+
+  it('permite declarar um agrupamento explícito independente do sistema textual', () => {
+    const onChange = vi.fn();
+    render(<WorkoutBuilderResistance templateData={templateData} resistedSummary={null} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText('Agrupamento de Agachamento'), { target: { value: 'biset' } });
+    const updated = onChange.mock.calls.at(-1)?.[0].resistedExercises[1].sessao;
+    expect(updated[0]).toEqual(expect.objectContaining({ groupType: 'biset' }));
   });
 
   it('navega entre os dias pelo teclado', () => {

@@ -1490,6 +1490,16 @@ model PreWorkoutCheckInOperation {
   @@index([createdAt])
 }
 
+enum WorkoutExerciseGroupType {
+  superset
+  biset
+  triset
+  circuit
+  technical_block
+  mobility
+  finisher
+}
+
 model WorkoutExercise {
   id            String             @id @default(cuid())
   workoutDayId  String
@@ -1498,6 +1508,10 @@ model WorkoutExercise {
   exerciseOrder Int
   system           String?
   groupBreakBefore Boolean            @default(false)
+  groupId          String?
+  groupType        WorkoutExerciseGroupType?
+  groupPosition    Int?
+  groupRounds      Int?
   sets             Int?
   reps          Int?
   intervalSec   Int?
@@ -1514,6 +1528,8 @@ model WorkoutExercise {
 
   @@index([workoutDayId])
   @@index([workoutDayId, section, exerciseOrder])
+  @@index([groupId])
+  @@unique([groupId, groupPosition])
 }
 
 
