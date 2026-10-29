@@ -45,7 +45,7 @@ A matriz de regressao do fluxo esta em `docs/profile-review-e2e-validation.md`. 
 
 `components/training/TrainingRoutinePanel.tsx` renderiza a rotina semanal e o Treino de hoje para o aluno (`/student/training`) e para o professor na aba Aluno 360 da Central. O painel recebe a função de carregamento e trata localmente carregamento, vazio, sessão não liberada, permissão negada e erro com nova tentativa, sem derrubar os demais blocos da Central. Na Central ele só consulta a API quando o perfil possui `students.details.trainingPlans`.
 
-O painel e `services/training-routine.service.ts` são somente leitura. Controles de execução ficam desabilitados enquanto a API declarar `execution.available = false`; não há estado de sessão local nem chamada a endpoints de execução. O card legado baseado em `Microcycle` foi removido da Central.
+O painel e `services/training-routine.service.ts` são somente leitura. A rotina semanal permite expandir comparações históricas de sessões já executadas, com dados autorizados na API e chave distinta para cada ocorrência de série. Controles de execução ficam desabilitados enquanto a API declarar `execution.available = false`; não há estado de sessão local nem chamada a endpoints de execução. O card legado baseado em `Microcycle` foi removido da Central.
 
 ## Check-in pré-treino
 

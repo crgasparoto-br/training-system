@@ -117,7 +117,7 @@ export async function persistWorkoutSessionValues(
     const persistedPlannedSetId = item.plannedSetId === undefined
       ? existingItem?.plannedSetId ?? null
       : item.plannedSetId;
-    const outcome = item.outcome ?? existingItem?.outcome ?? 'full';
+    const outcome = item.outcome ?? existingItem?.outcome ?? null;
     const substitutionNote = outcome === 'substituted'
       ? item.substitutionNote === undefined
         ? existingItem?.substitutionNote ?? null

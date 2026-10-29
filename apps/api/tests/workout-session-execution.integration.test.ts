@@ -2790,4 +2790,42 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
       sessionId: other.dayId, alunoId: own.alunoId, contractId: own.contractId,
     })).rejects.toBeInstanceOf(WorkoutSessionExecutionNotFoundError);
   });
+  it('preserves absent item outcomes as unknown instead of backfilling full', async () => {
+    const fixture = await seedReleasedWorkout('issue401-unknown-outcome');
+    await transition(fixture, 'issue401-unknown-start', 0, 'in_progress');
+    const unclassified = await service.saveValues({
+      sessionId: fixture.dayId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId, actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue401-unknown-record', expectedVersion: 1,
+        items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1, repetitions: 4 }],
+      },
+    });
+    expect(unclassified.items[0].outcome).toBeUndefined();
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId },
+    });
+    const item = await prisma.workoutSessionExecutionItem.findUniqueOrThrow({
+      where: { executionId_plannedUnitId_setNumber: {
+        executionId: execution.id, plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
+      } },
+    });
+    expect(item.outcome).toBeNull();
+    const explicitlyFull = await service.saveValues({
+      sessionId: fixture.dayId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId, actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue401-explicit-full', expectedVersion: 2,
+        items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
+          outcome: 'full', repetitions: 4 }],
+      },
+    });
+    expect(explicitlyFull.items[0].outcome).toBe('full');
+    expect((await prisma.workoutSessionExecutionItem.findUniqueOrThrow({
+      where: { executionId_plannedUnitId_setNumber: {
+        executionId: execution.id, plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
+      } },
+    })).outcome).toBe('full');
+  });
+
 });

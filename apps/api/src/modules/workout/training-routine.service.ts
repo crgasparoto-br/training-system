@@ -318,7 +318,8 @@ function toSummary(
   row: SessionRow,
   audience: TrainingRoutineAudience,
   capacities: string[],
-  release: ReleaseRow
+  release: ReleaseRow,
+  comparison?: TrainingSessionComparison
 ): TrainingRoutineSessionSummary {
   const consolidatedRelease: TrainingRoutineConsolidatedRelease = {
     releaseId: release.id,
@@ -341,6 +342,7 @@ function toSummary(
     location: cleanText(row.location),
     method: cleanText(row.method),
     status: buildExecution(row, release).status,
+    ...(comparison ? { comparison } : {}),
     origin: {
       kind: 'consolidated',
       releasedAt: row.template.releasedAt?.toISOString() ?? null,
@@ -385,7 +387,7 @@ function toDetail(
 ): TrainingRoutineSessionDetail {
   const execution = buildExecution(row, release);
   const detail: TrainingRoutineSessionDetail = {
-    ...toSummary(row, audience, capacities, release),
+    ...toSummary(row, audience, capacities, release, comparison),
     execution,
     objective: cleanText(row.template.studentGoal),
     guidelines: [row.generalGuidelines, row.detailNotes, row.complementNotes]
@@ -560,29 +562,19 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
       const context = (row: SessionRow) =>
         [query.audience, capacitiesByDay.get(row.id) ?? [], releaseByTemplate.get(row.template.id)!] as const;
 
-      const days: TrainingRoutineDay[] = week.days.map((date) => {
-        const key = toDateOnly(date);
-        return {
-          date: key,
-          isToday: key === today,
-          sessions: rowsOn(key).map((row) => toSummary(row, ...context(row))),
-          pendingReleaseCount: pendingByDate.get(key) ?? 0,
-        };
-      });
-      const todayRows = rowsOn(today);
-      // Historical comparisons use the first-execution frozen plan. Pre-#401
-      // records are explicitly marked as a released-plan fallback.
-      const todayPlans = todayRows.length ? await client.workoutDay.findMany({
-        where: { id: { in: todayRows.map((row) => row.id) }, template: { released: true, plan: studentScope } },
+      // Compare every authorized executed session in the selected week, not only today's.
+      // The snapshot belongs to the execution; never substitute a mutable template for it.
+      const executedRows = visibleRows.filter((row) => Boolean(row.execution));
+      const comparisonPlans = executedRows.length ? await client.workoutDay.findMany({
+        where: { id: { in: executedRows.map((row) => row.id) }, template: { released: true, plan: studentScope } },
         select: workoutComparisonPlanSelect,
       }) : [];
-      const planByDay = new Map(todayPlans.map((day) => [day.id, day]));
+      const planByDay = new Map(comparisonPlans.map((day) => [day.id, day]));
       const comparisonByDay = new Map<string, TrainingSessionComparison>();
-      for (const row of todayRows) {
+      for (const row of executedRows) {
         const execution = buildExecution(row, releaseByTemplate.get(row.template.id)!);
         const frozen = readCapturedWorkoutComparisonPlan(row.execution?.plannedSnapshot);
-        const current = planByDay.get(row.id);
-        const plan = frozen ?? current;
+        const plan = frozen ?? planByDay.get(row.id);
         if (plan && plan.id === row.id) {
           comparisonByDay.set(row.id, projectWorkoutComparisonForAudience(
             compareWorkoutSession(plan, execution, frozen ? 'captured' : 'released_plan'),
@@ -590,6 +582,16 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
           ));
         }
       }
+      const days: TrainingRoutineDay[] = week.days.map((date) => {
+        const key = toDateOnly(date);
+        return {
+          date: key,
+          isToday: key === today,
+          sessions: rowsOn(key).map((row) => toSummary(row, ...context(row), comparisonByDay.get(row.id))),
+          pendingReleaseCount: pendingByDate.get(key) ?? 0,
+        };
+      });
+      const todayRows = rowsOn(today);
       const todayPending = pendingByDate.get(today) ?? 0;
       const weekRows = visibleRows.filter((row) =>
         toDateOnly(row.workoutDate) <= today && toDateOnly(row.workoutDate) >= toDateOnly(week.start)

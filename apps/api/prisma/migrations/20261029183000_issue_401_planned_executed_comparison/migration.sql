@@ -1,10 +1,10 @@
 -- #401: planned and executed values remain separate, with a one-time historical plan.
--- New fields are additive: legacy executions keep their previous values, never zero backfills.
+-- New fields are additive: legacy executions keep their values and have no inferred outcome.
 ALTER TABLE "WorkoutSessionExecution"
   ADD COLUMN "plannedSnapshot" JSONB;
 
 ALTER TABLE "WorkoutSessionExecutionItem"
-  ADD COLUMN "outcome" TEXT NOT NULL DEFAULT 'full',
+  ADD COLUMN "outcome" TEXT,
   ADD COLUMN "substitutionNote" TEXT,
   ADD COLUMN "rir" DOUBLE PRECISION,
   ADD COLUMN "rpe" DOUBLE PRECISION,

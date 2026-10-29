@@ -64,7 +64,7 @@ describe('issue #401: granular planned/executed comparison', () => {
   it('preserves equal metrics with zero difference, never a judgement', () => {
     const comparison = compareWorkoutSession(planned(), execution({
       items: [{ plannedUnitId: 'ex-1', plannedSetId: 'set-2', setNumber: 2,
-        repetitions: 10, loadKg: 22, rir: 1, rpe: 8, restSec: 90 }],
+        outcome: 'full', repetitions: 10, loadKg: 22, rir: 1, rpe: 8, restSec: 90 }],
     }), 'captured');
     const set = get(comparison.units, 'set-2')[0];
     expect(set.outcome).toBe('full');
@@ -188,4 +188,70 @@ describe('issue #401: granular planned/executed comparison', () => {
     expect(professor.units.some((item) => item.kind === 'block' || item.kind === 'set')).toBe(true);
     expect(get(professor.units, 'set-2')[0].metrics.find((metric) => metric.key === 'load_kg')?.difference).toBe(-1);
   });
+  it('does not label an unclassified legacy item as fully performed', () => {
+    const comparison = compareWorkoutSession(planned(), execution({
+      items: [{ plannedUnitId: 'ex-1', plannedSetId: 'set-1', setNumber: 1, repetitions: 4 }],
+    }), 'captured');
+    expect(get(comparison.units, 'set-1')[0].outcome).toBe('unclassified');
+    expect(get(comparison.units, 'set-1')[0].metrics[0].executed).toBe(4);
+    expect(get(comparison.units, 'set-2')[0].outcome).toBe('not_recorded');
+    expect(get(comparison.units, 'ex-1')[0].outcome).toBe('incomplete_record');
+  });
+
+  it('retains substitution even when other planned sets are missing or partial', () => {
+    const oneOfTwo = compareWorkoutSession(planned(), execution({
+      items: [{
+        plannedUnitId: 'ex-1', plannedSetId: 'set-1', setNumber: 1,
+        outcome: 'substituted', substitutionNote: 'Leg press', repetitions: 7,
+      }],
+    }), 'captured');
+    for (const id of ['block-1', 'ex-1']) {
+      expect(get(oneOfTwo.units, id)[0]).toMatchObject({
+        outcome: 'incomplete_record', containsSubstitution: true,
+      });
+    }
+
+    const both = compareWorkoutSession(planned(), execution({
+      items: [
+        { plannedUnitId: 'ex-1', plannedSetId: 'set-1', setNumber: 1,
+          outcome: 'substituted', substitutionNote: 'Leg press' },
+        { plannedUnitId: 'ex-1', plannedSetId: 'set-2', setNumber: 2,
+          outcome: 'partial', repetitions: 5 },
+      ],
+    }), 'captured');
+    expect(get(both.units, 'ex-1')[0]).toMatchObject({
+      outcome: 'partial', containsSubstitution: true,
+    });
+    expect(get(both.units, 'block-1')[0]).toMatchObject({
+      outcome: 'partial', containsSubstitution: true,
+    });
+  });
+
+  it('counts distinct planned sets rather than repeated logs of one set', () => {
+    const comparison = compareWorkoutSession(planned(), execution({
+      items: [
+        { plannedUnitId: 'ex-1', plannedSetId: 'set-1', setNumber: 1,
+          outcome: 'full', repetitions: 8 },
+        { plannedUnitId: 'ex-1', plannedSetId: 'set-1', setNumber: 3,
+          outcome: 'full', repetitions: 9 },
+      ],
+    }), 'captured');
+    expect(get(comparison.units, 'set-1')).toHaveLength(2);
+    expect(get(comparison.units, 'block-1')[0].outcome).toBe('incomplete_record');
+    expect(get(comparison.units, 'ex-1')[0].outcome).toBe('incomplete_record');
+    expect(get(comparison.units, 'ex-1')[0].metrics[0].executed).toBe(1);
+  });
+
+  it('keeps a repeated stage incomplete while exposing its substitution', () => {
+    const comparison = compareWorkoutSession(planned(), execution({
+      sessionValues: { cyclicStages: [{
+        plannedStageId: 'work', iteration: 1, outcome: 'substituted',
+        substitutionNote: 'Bike', distanceMeters: 300,
+      }] },
+    }), 'captured');
+    expect(get(comparison.units, 'repeat')[0]).toMatchObject({
+      outcome: 'incomplete_record', containsSubstitution: true,
+    });
+  });
+
 });

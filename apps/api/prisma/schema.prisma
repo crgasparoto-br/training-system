@@ -2195,7 +2195,7 @@ model WorkoutSessionExecutionItem {
   plannedUnitId  String
   plannedSetId   String?
   setNumber      Int                     @default(0)
-  outcome        String                  @default("full")
+  outcome        String?
   substitutionNote String?
   rir            Float?
   rpe            Float?

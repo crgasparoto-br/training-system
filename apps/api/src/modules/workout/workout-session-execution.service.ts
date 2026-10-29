@@ -342,7 +342,7 @@ export function projectWorkoutSessionExecution(
       plannedUnitId: item.plannedUnitId,
       plannedSetId: item.plannedSetId,
       setNumber: item.setNumber,
-      outcome: (item.outcome ?? 'full') as TrainingSessionExecutionItemValue['outcome'],
+      outcome: (item.outcome ?? undefined) as TrainingSessionExecutionItemValue['outcome'],
       substitutionNote: item.substitutionNote ?? null,
       rir: item.rir ?? null,
       rpe: item.rpe ?? null,

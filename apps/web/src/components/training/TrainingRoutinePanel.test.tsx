@@ -4,7 +4,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import type { TrainingRoutineSessionDetail, TrainingRoutineView } from '@corrida/types';
+import type { TrainingRoutineSessionDetail, TrainingRoutineView, TrainingSessionComparison } from '@corrida/types';
 import { TrainingRoutinePanel } from './TrainingRoutinePanel';
 
 const session = (overrides: Partial<TrainingRoutineSessionDetail> = {}): TrainingRoutineSessionDetail => ({
@@ -593,6 +593,52 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(screen.getByDisplayValue('Dor leve ao final')).toBeInTheDocument();
     expect(screen.getByRole('spinbutton', { name: 'Esforço percebido (PSE)' })).toHaveValue(6);
     expect(screen.getByRole('combobox', { name: 'Fadiga' })).toHaveValue('high');
+  });
+
+  it('opens a historical comparison from the week for the student and professor', async () => {
+    const historicalComparison: TrainingSessionComparison = {
+      sessionId: 'day-old', originReleaseId: 'release-1',
+      snapshotSource: 'captured', executionVersion: 2,
+      units: [
+        { kind: 'session', plannedUnitId: 'day-old', parentUnitId: null,
+          iteration: null, label: 'Sessão', outcome: 'partial',
+          metrics: [{ key: 'duration', label: 'Duração', planned: 30,
+            plannedMax: null, executed: 600, plannedUnit: 'min',
+            executedUnit: 's', difference: null }] },
+        { kind: 'set', plannedUnitId: 'set-old', parentUnitId: 'block-old',
+          iteration: null, label: 'Série técnica', outcome: 'full',
+          metrics: [{ key: 'load_kg', label: 'Carga', planned: 20,
+            plannedMax: null, executed: 22, plannedUnit: 'kg',
+            executedUnit: 'kg', difference: 2 }] },
+      ],
+    };
+    const previous = session({
+      sessionId: 'day-old', date: '2026-09-30', status: 'completed',
+      comparison: historicalComparison,
+      execution: { ...session().execution, sessionId: 'day-old', status: 'completed' },
+    });
+    const days = [
+      { date: '2026-09-30', isToday: false,
+        sessions: [previous], pendingReleaseCount: 0 },
+      { date: '2026-10-01', isToday: true,
+        sessions: [], pendingReleaseCount: 0 },
+    ];
+    const result = routine({
+      days, today: { date: '2026-10-01', state: 'none', sessions: [] },
+    });
+    const student = render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(result)} />);
+    await userEvent.click(await screen.findByText('Ver planejado × executado'));
+    const studentCard = screen.getByRole('region', { name: 'Planejado e executado' });
+    expect(within(studentCard).getByText('Duração')).toBeInTheDocument();
+    expect(within(studentCard).queryByText('Série técnica')).not.toBeInTheDocument();
+    student.unmount();
+
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue({
+      ...result, audience: 'professor',
+    })} />);
+    await userEvent.click(await screen.findByText('Ver planejado × executado'));
+    const professorCard = screen.getByRole('region', { name: 'Planejado e executado' });
+    expect(within(professorCard).getByText('Série técnica')).toBeInTheDocument();
   });
 
 });

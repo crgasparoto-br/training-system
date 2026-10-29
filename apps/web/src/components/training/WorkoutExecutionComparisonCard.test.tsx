@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { TrainingSessionComparison } from '@corrida/types';
 import { formatComparisonMetric, WorkoutExecutionComparisonCard } from './WorkoutExecutionComparisonCard';
 
@@ -61,4 +61,49 @@ describe('WorkoutExecutionComparisonCard (#401)', () => {
     render(<WorkoutExecutionComparisonCard comparison={{ ...comparison, snapshotSource: 'released_plan' }} audience="student" />);
     expect(screen.getByText(/execução antiga não possui uma captura congelada/)).toBeInTheDocument();
   });
+  it('renders repeated recordings for one planned set with distinct React keys', () => {
+    const duplicatedPlanId: TrainingSessionComparison = {
+      ...comparison,
+      units: [{
+        ...comparison.units[2], executedSetNumber: 1,
+      }, {
+        ...comparison.units[2], executedSetNumber: 3,
+      }],
+    };
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      render(<WorkoutExecutionComparisonCard comparison={duplicatedPlanId} audience="professor" />);
+      expect(screen.getByText(/Série 1 · registro 1/)).toBeInTheDocument();
+      expect(screen.getByText(/Série 1 · registro 3/)).toBeInTheDocument();
+      expect(errorSpy.mock.calls.flat().join(' ')).not.toMatch(/same key|unique key/i);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it('shows incomplete recording and substitution simultaneously', () => {
+    const mixed: TrainingSessionComparison = {
+      ...comparison,
+      units: [{
+        ...comparison.units[1], outcome: 'incomplete_record',
+        containsSubstitution: true,
+      }],
+    };
+    render(<WorkoutExecutionComparisonCard comparison={mixed} audience="student" />);
+    expect(screen.getByText(/Registro incompleto · com substituição/)).toBeInTheDocument();
+  });
+
+  it('does not claim completion for a recording without an explicit outcome', () => {
+    const unknown: TrainingSessionComparison = {
+      ...comparison,
+      units: [{
+        ...comparison.units[1], outcome: 'unclassified',
+        containsSubstitution: false, substitutionNote: null,
+      }],
+    };
+    render(<WorkoutExecutionComparisonCard comparison={unknown} audience="student" />);
+    expect(screen.getByText('Situação não informada')).toBeInTheDocument();
+    expect(screen.queryByText('Realizado')).not.toBeInTheDocument();
+  });
+
 });

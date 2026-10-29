@@ -561,7 +561,7 @@ function TodayEmptyState({ state, audience }: { state: 'not_released' | 'none'; 
   );
 }
 
-function WeekDayItem({ day }: { day: TrainingRoutineDay }) {
+function WeekDayItem({ day, audience }: { day: TrainingRoutineDay; audience: TrainingRoutineAudience }) {
   return (
     <li
       className={`flex gap-3 p-3 ${day.isToday ? 'bg-primary/5' : ''}`}
@@ -578,14 +578,26 @@ function WeekDayItem({ day }: { day: TrainingRoutineDay }) {
       </div>
       <div className="min-w-0 flex-1 space-y-2">
         {day.sessions.map((session) => (
-          <div key={session.sessionId} className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-foreground">{sessionTitle(session.modalities)}</p>
-              <p className="text-xs text-muted-foreground">
-                {[formatDuration(session.durationMin), session.location].filter(Boolean).join(' · ') || session.planName}
-              </p>
+          <div key={session.sessionId} className="min-w-0 space-y-2">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">{sessionTitle(session.modalities)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {[formatDuration(session.durationMin), session.location].filter(Boolean).join(' · ') || session.planName}
+                </p>
+              </div>
+              <StatusBadge status={session.status} />
             </div>
-            <StatusBadge status={session.status} />
+            {!day.isToday && session.comparison && (
+              <details className="min-w-0 rounded-md border border-border p-2">
+                <summary className="cursor-pointer text-xs font-medium text-foreground">
+                  Ver planejado × executado
+                </summary>
+                <div className="mt-2 min-w-0">
+                  <WorkoutExecutionComparisonCard comparison={session.comparison} audience={audience} />
+                </div>
+              </details>
+            )}
           </div>
         ))}
         {day.sessions.length === 0 && day.pendingReleaseCount > 0 && (
@@ -813,7 +825,7 @@ export function TrainingRoutinePanel({
           </div>
           <ol className="divide-y divide-border rounded-lg border border-border bg-background">
             {routine.days.map((day) => (
-              <WeekDayItem key={day.date} day={day} />
+              <WeekDayItem key={day.date} day={day} audience={audience} />
             ))}
           </ol>
         </section>

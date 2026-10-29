@@ -117,19 +117,22 @@ function unit(
   iteration: number | null = null,
   substitutionNote: string | null = null,
   executedSetNumber: number | null = null,
+  containsSubstitution = outcome === 'substituted',
 ): TrainingSessionComparisonUnit {
-  return { plannedUnitId, kind, label, outcome, parentUnitId, iteration, substitutionNote, executedSetNumber, metrics };
+  return { plannedUnitId, kind, label, outcome, parentUnitId, iteration, substitutionNote, executedSetNumber, containsSubstitution, metrics };
 }
 
 function summaryOutcome(
   recorded: TrainingSessionComparisonOutcome[],
   expectedCount: number,
 ): TrainingSessionComparisonOutcome {
-  if (!recorded.length) return 'not_recorded';
-  if (recorded.includes('substituted')) return 'substituted';
-  if (recorded.includes('partial') || recorded.length < expectedCount) return 'partial';
+  if (!recorded.length || recorded.every((outcome) => outcome === 'not_recorded')) return 'not_recorded';
+  // Missing records never prove actual partial performance.
+  if (recorded.length < expectedCount || recorded.includes('not_recorded')) return 'incomplete_record';
+  if (recorded.includes('unclassified')) return 'unclassified';
   if (recorded.every((outcome) => outcome === 'not_performed')) return 'not_performed';
-  if (recorded.includes('not_performed') || recorded.includes('not_recorded')) return 'partial';
+  if (recorded.includes('partial') || recorded.includes('not_performed')) return 'partial';
+  if (recorded.includes('substituted')) return 'substituted';
   return 'full';
 }
 
@@ -188,7 +191,8 @@ export function compareWorkoutSession(
             stage.durationValue, durationExecuted, stage.durationUnit === 'seconds' ? 's' : stage.durationUnit === 'meters' ? 'm' : null),
           metric('target', 'Alvo', stage.targetValue ?? stage.targetMin,
             value, targetUnit, targetUnit, stage.targetMax),
-         ], stage.parentStageId, parent ? iteration : null, actual?.substitutionNote ?? null));
+         ], stage.parentStageId, parent ? iteration : null, actual?.substitutionNote ?? null,
+         null, actual?.outcome === 'substituted' || childRecords.some((item) => item.outcome === 'substituted')));
     }
   }
 
@@ -198,39 +202,56 @@ export function compareWorkoutSession(
     const setCount = exercise.resistanceBlocks.reduce((count, block) => count + block.plannedSets.length, 0);
     const expected = setCount || (exercise.sets ?? 1);
     const actual = items.length === 1 ? items[0] : null;
+    // Repeated logs for one planned set do not cover a different planned set.
+    const setStatuses = exercise.resistanceBlocks.flatMap((block) => block.plannedSets.map((set) => {
+      const records = items.filter((item) => item.plannedSetId === set.id);
+      return records.length
+        ? summaryOutcome(records.map((item) => item.outcome ?? 'unclassified'), 1)
+        : 'not_recorded' as const;
+    }));
+    const statuses = setCount ? setStatuses : items.map((item) => item.outcome ?? 'unclassified');
+    const recordedCount = setCount
+      ? setStatuses.filter((outcome) => outcome !== 'not_recorded').length : items.length;
     result.push(unit(exercise.id, 'exercise', (() => {
       const catalog = exercise.releasedCatalog?.catalog;
       const name = catalog && typeof catalog === 'object' && !Array.isArray(catalog)
         && 'name' in catalog && typeof catalog.name === 'string' ? catalog.name : exercise.exercise.name;
       return name;
-    })(), items.length
-      ? summaryOutcome(items.map((item) => item.outcome ?? 'full'), expected) : missingOutcome, [
-      metric('sets', 'Séries', exercise.sets ?? (setCount || null), items.length || null, 'séries'),
+    })(), recordedCount ? summaryOutcome(statuses, expected) : missingOutcome, [
+      metric('sets', setCount ? 'Séries com registro' : 'Séries',
+        exercise.sets ?? (setCount || null), recordedCount || null, 'séries'),
       metric('repetitions', 'Repetições', exercise.reps, actual?.repetitions, 'rep'),
       metric('load', 'Carga', exercise.load, actual?.loadKg, 'kg'),
       metric('rest', 'Intervalo', exercise.intervalSec, actual?.restSec, 's'),
-    ], null, null, items.find((item) => item.outcome === 'substituted')?.substitutionNote ?? null));
+    ], null, null, items.find((item) => item.outcome === 'substituted')?.substitutionNote ?? null,
+    null, items.some((item) => item.outcome === 'substituted')));
 
     for (const block of exercise.resistanceBlocks) {
       const results = block.plannedSets.flatMap((set) =>
         items.filter((item) => item.plannedSetId === set.id));
+      const blockStatuses = block.plannedSets.map((set) => {
+        const records = items.filter((item) => item.plannedSetId === set.id);
+        return records.length
+          ? summaryOutcome(records.map((item) => item.outcome ?? 'unclassified'), 1)
+          : 'not_recorded' as const;
+      });
       result.push(unit(block.id, 'block', 'Bloco ' + block.position + ' · ' + block.kind,
-        results.length
-          ? summaryOutcome(results.map((item) => item.outcome ?? 'full'), block.plannedSets.length)
-          : missingOutcome, [], exercise.id));
+        results.length ? summaryOutcome(blockStatuses, block.plannedSets.length) : missingOutcome,
+        [], exercise.id, null, null, null, results.some((item) => item.outcome === 'substituted')));
       for (const set of block.plannedSets) {
         const recorded = items.filter((item) => item.plannedSetId === set.id)
           .sort((a, b) => (a.setNumber ?? 0) - (b.setNumber ?? 0));
         for (const logged of recorded.length ? recorded : [null]) {
-          result.push(unit(set.id, 'set', 'Série ' + set.position, logged ? logged.outcome ?? 'full' : missingOutcome, [
-            metric('repetitions', 'Repetições', set.repsMin, logged?.repetitions, 'rep', 'rep', set.repsMax),
-            metric('load_kg', 'Carga (kg)', set.loadKg, logged?.loadKg, 'kg'),
-            metric('load_pct', 'Carga (%)', set.loadPercent, null, '%'),
-            metric('rir', 'RIR', set.rir, logged?.rir, null),
-            metric('rpe', 'RPE', set.rpe, logged?.rpe, null),
-            metric('tempo', 'Cadência', set.tempo, logged?.tempo, null),
-            metric('rest', 'Intervalo', set.restSec, logged?.restSec, 's'),
-          ], block.id, null, logged?.substitutionNote ?? null, logged?.setNumber ?? null));
+          result.push(unit(set.id, 'set', 'Série ' + set.position,
+            logged ? logged.outcome ?? 'unclassified' : missingOutcome, [
+              metric('repetitions', 'Repetições', set.repsMin, logged?.repetitions, 'rep', 'rep', set.repsMax),
+              metric('load_kg', 'Carga (kg)', set.loadKg, logged?.loadKg, 'kg'),
+              metric('load_pct', 'Carga (%)', set.loadPercent, null, '%'),
+              metric('rir', 'RIR', set.rir, logged?.rir, null),
+              metric('rpe', 'RPE', set.rpe, logged?.rpe, null),
+              metric('tempo', 'Cadência', set.tempo, logged?.tempo, null),
+              metric('rest', 'Intervalo', set.restSec, logged?.restSec, 's'),
+            ], block.id, null, logged?.substitutionNote ?? null, logged?.setNumber ?? null));
         }
       }
     }

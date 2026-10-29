@@ -23,7 +23,8 @@ export type TrainingRoutineExecutionProjectionStatus =
 export type TrainingSessionExecutionStatus = TrainingRoutineExecutionProjectionStatus;
 
 /** #401: neutral comparisons; differences do not imply improvement or decline. */
-export type TrainingSessionComparisonOutcome = 'full' | 'partial' | 'substituted' | 'not_performed' | 'not_recorded';
+export type TrainingSessionExecutionOutcome = 'full' | 'partial' | 'substituted' | 'not_performed';
+export type TrainingSessionComparisonOutcome = TrainingSessionExecutionOutcome | 'not_recorded' | 'unclassified' | 'incomplete_record';
 
 export interface TrainingSessionComparisonMetric {
   key: string;
@@ -48,6 +49,8 @@ export interface TrainingSessionComparisonUnit {
   kind: 'session' | 'cyclic_stage' | 'exercise' | 'block' | 'set' | 'group';
   label: string;
   outcome: TrainingSessionComparisonOutcome;
+  /** Substitutions remain visible even in incomplete or partial aggregates. */
+  containsSubstitution?: boolean;
   metrics: TrainingSessionComparisonMetric[];
 }
 
@@ -64,7 +67,7 @@ export interface TrainingSessionCyclicStageExecutionValue {
   plannedStageId: string;
   /** Repeat iteration, 1-based. */
   iteration?: number;
-  outcome: Exclude<TrainingSessionComparisonOutcome, 'not_recorded'>;
+  outcome: TrainingSessionExecutionOutcome;
   substitutionNote?: string | null;
   durationSec?: number | null;
   distanceMeters?: number | null;
@@ -77,7 +80,7 @@ export interface TrainingSessionCyclicStageExecutionValue {
 
 export interface TrainingSessionResistanceGroupExecutionValue {
   plannedGroupId: string;
-  outcome: Exclude<TrainingSessionComparisonOutcome, 'not_recorded'>;
+  outcome: TrainingSessionExecutionOutcome;
   substitutionNote?: string | null;
   roundsCompleted?: number | null;
   restBetweenExercisesSec?: number | null;
@@ -192,6 +195,8 @@ export interface TrainingRoutineSessionSummary {
   method: string | null;
   status: TrainingRoutineExecutionProjectionStatus;
   origin: TrainingRoutineOrigin;
+  /** Only executed, authorized sessions have historical comparisons. */
+  comparison?: TrainingSessionComparison;
 }
 
 export interface TrainingRoutineExercise {

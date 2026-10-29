@@ -11,6 +11,8 @@ const outcomeLabel: Record<TrainingSessionComparisonOutcome, string> = {
   substituted: 'Substituído',
   not_performed: 'Não realizado',
   not_recorded: 'Sem registro',
+  unclassified: 'Situação não informada',
+  incomplete_record: 'Registro incompleto',
 };
 
 function formatValue(value: number | string | null, unit: string | null) {
@@ -59,7 +61,7 @@ export function WorkoutExecutionComparisonCard({
           const metrics = item.metrics.filter((entry) => entry.planned !== null || entry.executed !== null);
           return (
             <details
-              key={`${item.kind}:${item.plannedUnitId}:${item.iteration ?? 0}`}
+              key={`${item.kind}:${item.plannedUnitId}:${item.iteration ?? 0}:${item.executedSetNumber ?? 'none'}`}
               className="rounded-md border border-border bg-background p-3"
               open={item.kind === 'session' ? true : undefined}
             >
@@ -68,6 +70,7 @@ export function WorkoutExecutionComparisonCard({
                 {item.kind === 'set' && item.executedSetNumber != null ? ` · registro ${item.executedSetNumber}` : ''}
                 <span className="ml-2 text-xs font-normal text-muted-foreground">
                   {outcomeLabel[item.outcome]}
+                  {item.containsSubstitution && item.outcome !== 'substituted' ? ' · com substituição' : ''}
                 </span>
               </summary>
               {item.substitutionNote && (
