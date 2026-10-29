@@ -15,10 +15,16 @@ import type {
   TrainingRoutineSessionSummary,
   TrainingRoutineView,
   TrainingSessionExecutionView,
+  TrainingSessionComparison,
 } from '@corrida/types';
 import { DEFAULT_CONTRACT_TIME_ZONE } from '../contracts/contract-date-input.js';
 import { projectPreWorkoutCheckIn } from './pre-workout-check-in.service.js';
 import { projectWorkoutSessionExecution } from './workout-session-execution.service.js';
+import {
+  compareWorkoutSession,
+  readCapturedWorkoutComparisonPlan,
+  workoutComparisonPlanSelect,
+} from './workout-session-comparison.domain.js';
 import { projectPostWorkoutFeedback } from '../post-workout-feedback/post-workout-feedback-persistence.service.js';
 
 /**
@@ -76,6 +82,7 @@ const sessionSelect = {
       originWorkoutTemplateId: true,
       originTrainingPlanId: true,
       sessionValues: true,
+      plannedSnapshot: true,
       items: {
         orderBy: [{ plannedUnitId: 'asc' as const }, { setNumber: 'asc' as const }, { id: 'asc' as const }],
         select: {
@@ -89,6 +96,12 @@ const sessionSelect = {
           pace: true,
           heartRateBpm: true,
           heartRateZone: true,
+          outcome: true,
+          substitutionNote: true,
+          rir: true,
+          rpe: true,
+          tempo: true,
+          restSec: true,
         },
       },
     },
@@ -366,7 +379,8 @@ function toDetail(
   checkIn: Awaited<ReturnType<PrismaClient['preWorkoutCheckIn']['findFirst']>>,
   includePreWorkoutCheckIn: boolean,
   feedback: Array<PostWorkoutFeedbackRevision & { execution: { status: WorkoutSessionExecutionStatus } }>,
-  includePostWorkoutFeedback: boolean
+  includePostWorkoutFeedback: boolean,
+  comparison?: TrainingSessionComparison
 ): TrainingRoutineSessionDetail {
   const execution = buildExecution(row, release);
   const detail: TrainingRoutineSessionDetail = {
@@ -379,6 +393,7 @@ function toDetail(
     cyclic: buildCyclicTargets(row),
     cyclicStages: projectCyclicStages(row),
     blocks: buildBlocks(row),
+    ...(comparison ? { comparison } : {}),
     ...(includePreWorkoutCheckIn ? { preWorkoutCheckIn: checkIn ? projectPreWorkoutCheckIn(checkIn, audience, execution.status) : null } : {}),
     ...(includePostWorkoutFeedback ? { postWorkoutFeedback: feedback.map((row) => projectPostWorkoutFeedback(row, row.execution.status, audience, true)) } : {}),
   };
@@ -554,6 +569,25 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
         };
       });
       const todayRows = rowsOn(today);
+      // Historical comparisons use the first-execution frozen plan. Pre-#401
+      // records are explicitly marked as a released-plan fallback.
+      const todayPlans = todayRows.length ? await client.workoutDay.findMany({
+        where: { id: { in: todayRows.map((row) => row.id) }, template: { released: true, plan: studentScope } },
+        select: workoutComparisonPlanSelect,
+      }) : [];
+      const planByDay = new Map(todayPlans.map((day) => [day.id, day]));
+      const comparisonByDay = new Map<string, TrainingSessionComparison>();
+      for (const row of todayRows) {
+        const execution = buildExecution(row, releaseByTemplate.get(row.template.id)!);
+        const frozen = readCapturedWorkoutComparisonPlan(row.execution?.plannedSnapshot);
+        const current = planByDay.get(row.id);
+        const plan = frozen ?? current;
+        if (plan && plan.id === row.id) {
+          comparisonByDay.set(row.id, compareWorkoutSession(
+            plan, execution, frozen ? 'captured' : 'released_plan'
+          ));
+        }
+      }
       const todayPending = pendingByDate.get(today) ?? 0;
       const weekRows = visibleRows.filter((row) =>
         toDateOnly(row.workoutDate) <= today && toDateOnly(row.workoutDate) >= toDateOnly(week.start)
@@ -582,7 +616,8 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
               checkInBySession.get(row.id) ?? null,
               canProjectPreWorkoutCheckIn,
               latestFeedbackBySession.get(row.id) ?? [],
-              canProjectPostWorkoutFeedback
+              canProjectPostWorkoutFeedback,
+              comparisonByDay.get(row.id)
             )
           ),
         },
