@@ -242,6 +242,22 @@ router.put('/days/:id/resistance-exercises', async (req, res) => {
   }
 });
 
+// Group arrangements reference existing workout exercises; they do not create new ones.
+router.put('/days/:id/resistance-groups', async (req, res) => {
+  try {
+    if (!req.user?.contractId) return res.status(403).json({ code: 'FORBIDDEN', error: 'Acesso negado.' });
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)
+      || Object.keys(req.body).length !== 1 || !Object.prototype.hasOwnProperty.call(req.body, 'groups')) {
+      throw new ResistanceStructureValidationError('Informe apenas a lista de agrupamentos.');
+    }
+    const groups = await workoutService.replaceDayResistanceGroups(req.params.id, req.body.groups, req.user.contractId);
+    res.json(groups);
+  } catch (error: unknown) {
+    console.error('Error replacing resistance groups:', error);
+    return sendSafeWorkoutError(res, error);
+  }
+});
+
 // ============================================================================
 // CYCLIC STAGES: canonical WorkoutDay child, never a parallel training tree
 // ============================================================================

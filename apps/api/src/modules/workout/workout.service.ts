@@ -6,6 +6,7 @@ import { assertDayContract, isWorkoutTemplateUniqueConflict, lockWorkoutDayPlann
 import { copyTemplate as copyTemplateStructured, copyTemplateSections as copyTemplateSectionsStructured } from './workout-copy.service.js';
 import { replaceDayResistanceExercises as replaceDayResistanceExercisesStructured, saveTemplateWeek as saveTemplateWeekStructured } from './workout-week-structure.service.js';
 import { cyclicStageInclude, nestedCyclicStages, normalizeCyclicStages, replaceCyclicStagesInTransaction, snapshotCyclicStages } from './cyclic-stages.domain.js';
+import { copyResistanceGroups, replaceDayResistanceGroups as replaceDayResistanceGroupsStructured, resistanceGroupInclude } from './resistance-groups.domain.js';
 export { WorkoutPlanningLockedError } from './workout-planning.helpers.js';
 
 const prisma = new PrismaClient();
@@ -99,6 +100,7 @@ export interface SaveWorkoutWeekDTO {
   workoutDays?: Array<Record<string, unknown>>;
   resistedExercises?: Record<string, Record<string, Array<Record<string, unknown>>>>;
   cyclicStages?: Record<string, unknown[]>;
+  resistanceGroups?: Record<string, unknown[]>;
 }
 
 export interface RecordExecutionDTO {
@@ -181,6 +183,7 @@ export const workoutService = {
         workoutDays: {
           include: {
             cyclicStages: cyclicStageInclude,
+            resistanceGroups: resistanceGroupInclude,
             exercises: {
               include: {
                 exercise: true,
@@ -239,6 +242,7 @@ export const workoutService = {
             workoutDays: {
               include: {
                 cyclicStages: cyclicStageInclude,
+                resistanceGroups: resistanceGroupInclude,
                 exercises: {
                   include: {
                     exercise: true,
@@ -293,6 +297,7 @@ export const workoutService = {
         workoutDays: {
           include: {
             cyclicStages: cyclicStageInclude,
+            resistanceGroups: resistanceGroupInclude,
             exercises: {
               include: {
                 exercise: true,
@@ -326,6 +331,7 @@ export const workoutService = {
         workoutDays: {
           include: {
             cyclicStages: cyclicStageInclude,
+            resistanceGroups: resistanceGroupInclude,
             exercises: {
               include: {
                 exercise: true,
@@ -355,6 +361,7 @@ export const workoutService = {
         workoutDays: {
           include: {
             cyclicStages: cyclicStageInclude,
+            resistanceGroups: resistanceGroupInclude,
             exercises: {
               include: {
                 exercise: true,
@@ -411,6 +418,7 @@ export const workoutService = {
         workoutDays: {
           include: {
             cyclicStages: cyclicStageInclude,
+            resistanceGroups: resistanceGroupInclude,
             exercises: {
               include: {
                 exercise: true,
@@ -512,6 +520,7 @@ export const workoutService = {
         include: {
           template: true,
           cyclicStages: cyclicStageInclude,
+          resistanceGroups: resistanceGroupInclude,
           exercises: {
             include: {
               exercise: true,
@@ -538,6 +547,7 @@ export const workoutService = {
           },
         },
         cyclicStages: cyclicStageInclude,
+        resistanceGroups: resistanceGroupInclude,
         exercises: {
           include: {
             exercise: true,
@@ -637,6 +647,7 @@ export const workoutService = {
           include: { plan: true },
         },
         cyclicStages: cyclicStageInclude,
+        resistanceGroups: resistanceGroupInclude,
         exercises: {
           include: {
             exercise: true,
@@ -735,6 +746,10 @@ export const workoutService = {
     return replaceDayResistanceExercisesStructured(prisma, workoutDayId, exercises, contractId);
   },
 
+  async replaceDayResistanceGroups(workoutDayId: string, groups: unknown, contractId: string) {
+    return replaceDayResistanceGroupsStructured(prisma, workoutDayId, groups, contractId);
+  },
+
   async updateWorkoutExercise(id: string, data: Partial<CreateWorkoutExerciseDTO>, contractId?: string) {
     data = sanitizeWorkoutMutation(data, 'exercise');
     const current = await prisma.workoutExercise.findUnique({ where: { id }, select: { workoutDayId: true, exerciseId: true } });
@@ -804,6 +819,7 @@ export const workoutService = {
         template: {
           include: { plan: true },
         },
+        resistanceGroups: resistanceGroupInclude,
         exercises: {
           include: {
             exercise: true,
@@ -875,8 +891,9 @@ export const workoutService = {
         await tx.workoutCyclicStage.create({ data: stage });
       }
 
+      const copiedExerciseIds = new Map<string, string>();
       for (const exercise of source.exercises) {
-        await tx.workoutExercise.create({
+        const createdExercise = await tx.workoutExercise.create({
           data: {
             workoutDayId: created.id,
             exerciseId: exercise.exerciseId,
@@ -899,7 +916,9 @@ export const workoutService = {
             }))),
           },
         });
+        copiedExerciseIds.set(exercise.id, createdExercise.id);
       }
+      await copyResistanceGroups(tx, created.id, source.resistanceGroups, copiedExerciseIds);
 
       await touchWorkoutTemplateRevision(tx, source.templateId);
       return created;

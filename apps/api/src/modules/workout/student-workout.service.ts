@@ -79,6 +79,14 @@ const detailSelect = {
       complementNotes: true,
       generalGuidelines: true,
       status: true,
+      resistanceGroups: {
+        orderBy: { position: 'asc' },
+        select: {
+          id: true, position: true, kind: true, rounds: true,
+          restBetweenExercisesSec: true, restBetweenRoundsSec: true, notes: true,
+          members: { orderBy: { position: 'asc' }, select: { id: true, position: true, workoutExerciseId: true } },
+        },
+      },
       exercises: {
         orderBy: [{ section: 'asc' as const }, { exerciseOrder: 'asc' as const }],
         select: {
