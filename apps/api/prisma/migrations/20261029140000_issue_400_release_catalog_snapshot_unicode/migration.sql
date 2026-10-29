@@ -86,7 +86,7 @@ BEGIN
   IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql
+$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION "issue400_guard_grouped_exercise_day"() RETURNS TRIGGER AS $$
 BEGIN
@@ -102,7 +102,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql
+$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION "issue400_guard_grouped_library_category"() RETURNS TRIGGER AS $$
 BEGIN
@@ -116,7 +116,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql
+$ LANGUAGE plpgsql;
 
 -- The snapshot is per canonical WorkoutExercise: a group remains just an arrangement.
 -- JSON captures only catalog fields that can affect the displayed prescription.
