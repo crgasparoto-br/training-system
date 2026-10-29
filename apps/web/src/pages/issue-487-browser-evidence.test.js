@@ -283,10 +283,10 @@ suite('Issue #487 - evidência browser execução resistida guiada', () => {
       await page.goto(`${WEB_ORIGIN}/student/training?contractId=${CONTRACT_ID}`, { waitUntil: 'domcontentloaded' });
       await waitText(page, 'Bi-set · rodada 1 de 2 · item 1 de 2');
       await page.click('input[placeholder="Informe as repetições"]');
-      await page.keyboard.press('Control+A');
+      await page.$eval('input[placeholder="Informe as repetições"]', (input) => input.select());
       await page.keyboard.type('6');
       await page.click('input[placeholder="Informe a carga"]');
-      await page.keyboard.press('Control+A');
+      await page.$eval('input[placeholder="Informe a carga"]', (input) => input.select());
       await page.keyboard.type('45,5');
       const clickButton = async (label) => page.evaluate((text) => {
         const button = [...document.querySelectorAll('button')].find((item) => item.textContent?.includes(text));
