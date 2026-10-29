@@ -358,6 +358,8 @@ suite('Issue #487 - evidência browser execução resistida guiada', () => {
       // Only after processing the delayed POST and re-reading canonical state
       // may the user proceed. The stale POST must not display a false success.
       await waitText(page, 'O treino mudou em outro dispositivo. Revise a série atualizada antes de confirmar novamente.');
+      await page.waitForFunction(() => [...document.querySelectorAll('button')].some((item) =>
+        item.textContent?.includes('Concluir s\u00e9rie') && !item.disabled), { timeout: 12000 });
       const reconciled = await page.evaluate(() => ({
         text: document.body?.innerText || '',
         canConfirm: [...document.querySelectorAll('button')].some((item) =>
