@@ -183,10 +183,6 @@ export default function WorkoutBuilderResistance({
     loadMethodParameters();
   }, []);
 
-  const methodParamMap = useMemo(() => {
-    return new Map(methodParameters.map((param) => [param.code, param]));
-  }, [methodParameters]);
-
   const normalizeSystemText = (value: string) => {
     return value
       .toLowerCase()
@@ -194,11 +190,6 @@ export default function WorkoutBuilderResistance({
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, ' ')
       .trim();
-  };
-
-  const resolveSystemLabel = (systemCode?: string) => {
-    if (!systemCode) return '';
-    return methodParamMap.get(systemCode)?.description ?? systemCode;
   };
 
   const isCyclicCategory = (category?: string) => {
