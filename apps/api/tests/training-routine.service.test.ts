@@ -102,9 +102,18 @@ describe('training routine service (#387)', () => {
     preWorkoutCheckInFindMany.mockResolvedValue([]);
     postWorkoutFeedbackFindMany.mockResolvedValue([]);
     latestExecutionRows = [];
-    findMany.mockImplementation((args: any) =>
-      Promise.resolve(args.where.template.released ? releasedRows : pendingRows)
-    );
+    findMany.mockImplementation((args: any) => {
+      if (args.select?.resistanceGroups) {
+        // New #401 comparison plan is an additional, independently scoped read.
+        return Promise.resolve(releasedRows.filter((row) => args.where.id.in.includes(row.id))
+          .map((row) => ({
+            ...row,
+            resistanceGroups: [],
+            exercises: row.exercises.map((item: Row) => ({ ...item, resistanceBlocks: [] })),
+          })));
+      }
+      return Promise.resolve(args.where.template.released ? releasedRows : pendingRows);
+    });
     queryRaw.mockImplementation((strings: TemplateStringsArray) => {
       const sql = strings.join('?');
       if (sql.includes('FROM "WorkoutDay" day')) return Promise.resolve(upcomingRows);
