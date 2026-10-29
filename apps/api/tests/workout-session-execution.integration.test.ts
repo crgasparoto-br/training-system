@@ -1131,6 +1131,59 @@ describeDatabase('workout session execution persistence - issue 389', () => {
     })).toBe(1);
   });
 
+  it('issue #487: SQL cannot mutate a completed operation while the session is still active', async () => {
+    const fixture = await seedReleasedWorkout('487-operation-immutable-in-progress', { seedGuidedResistance: true });
+    const scope = { sessionId: fixture.dayId, alunoId: fixture.alunoId, contractId: fixture.contractId };
+    await transition(fixture, 'issue487-operation-guard-start', 0, 'in_progress');
+    const first = (await service.getGuidedForSession(scope)).current!;
+    const payload = { operationKey: 'issue487-operation-guard-confirm', expectedVersion: 1,
+      plannedUnitId: first.plannedUnitId, plannedSetId: first.plannedSetId,
+      setNumber: first.setNumber, repetitions: 8, loadKg: 32.5 };
+    const after = await service.completeGuided({ ...scope, actorUserId: fixture.alunoUserId, payload });
+    expect(after.version).toBe(2);
+    expect(after.completed).toBe(1);
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, include: { items: true, operations: true },
+    });
+    expect(execution.status).toBe('in_progress');
+    const operation = execution.operations.find((row) => row.action === 'complete_resistance_set')!;
+    expect(operation.lifecycleEventId).toBeTruthy();
+    expect(execution.items[0].completedByOperationId).toBe(operation.id);
+
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutSessionExecutionOperation"
+      SET "payloadFingerprint" = 'forged'
+      WHERE "id" = ${operation.id}
+    `).rejects.toThrow(/completed guided operation is immutable/);
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutSessionExecutionOperation"
+      SET "resultingVersion" = ${operation.resultingVersion + 1}
+      WHERE "id" = ${operation.id}
+    `).rejects.toThrow(/completed guided operation is immutable/);
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutSessionExecutionOperation"
+      SET "lifecycleEventId" = ${randomUUID()}
+      WHERE "id" = ${operation.id}
+    `).rejects.toThrow(/completed guided operation is immutable/);
+    await expect(prisma.$executeRaw`
+      DELETE FROM "WorkoutSessionExecutionOperation" WHERE "id" = ${operation.id}
+    `).rejects.toThrow(/completed guided operation is immutable/);
+
+    // The guard does not block the canonical completion or its idempotent replay.
+    const replay = await service.completeGuided({ ...scope, actorUserId: fixture.alunoUserId, payload });
+    expect(replay.version).toBe(2);
+    expect(replay.completed).toBe(1);
+    const persisted = await prisma.workoutSessionExecutionOperation.findUniqueOrThrow({
+      where: { id: operation.id },
+    });
+    expect(persisted.payloadFingerprint).toBe(operation.payloadFingerprint);
+    expect(persisted.resultingVersion).toBe(operation.resultingVersion);
+    expect(persisted.lifecycleEventId).toBe(operation.lifecycleEventId);
+    expect(await prisma.workoutSessionExecutionItem.count({
+      where: { executionId: execution.id, completedAt: { not: null } },
+    })).toBe(1);
+  });
+
   it('issue #487: direct SQL cannot forge a completion without its canonical operation', async () => {
     const fixture = await seedReleasedWorkout('487-direct-completion', { seedGuidedResistance: true });
     const scope = { sessionId: fixture.dayId, alunoId: fixture.alunoId, contractId: fixture.contractId };

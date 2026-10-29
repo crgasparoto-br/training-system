@@ -22,7 +22,8 @@ function fixture(testCase) {
     browser: 'Chrome/156.0.0.0',
     verified: ['keyboard-tab-navigation', 'no-horizontal-overflow', 'one-unit-at-a-time',
       'group-round-context', 'overview-return-position', 'next-participant-before-final-rest',
-      'timeout-overview-retry-idempotent', 'no-rest-after-final-set', 'x-contract-id'],
+      'timeout-overview-retry-idempotent', 'no-rest-after-final-set',
+      'stale-post-parent-version-reconciled', 'x-contract-id'],
     scenarios: sizes.map((viewport, index) => {
       const stage = {};
       for (const [phase, name] of [['before', 'group-round1-item1'], ['after', 'group-round1-item2']]) {
@@ -65,6 +66,12 @@ test('rejects stale head and missing keyboard control', () => fixture(({ logFile
 }));
 test('rejects browser evidence without a verified timeout/draft recovery control', () => fixture(({ logFile, imageDirectory, evidence, save }) => {
   evidence.verified = evidence.verified.filter((tag) => tag !== 'timeout-overview-retry-idempotent');
+  save();
+  assert.throws(() => verifyIssue487BrowserEvidence({ logFile, imageDirectory, headSha: sha }), /control missing/);
+}));
+
+test('rejects Chrome evidence without a stale POST versus parent version race control', () => fixture(({ logFile, imageDirectory, evidence, save }) => {
+  evidence.verified = evidence.verified.filter((tag) => tag !== 'stale-post-parent-version-reconciled');
   save();
   assert.throws(() => verifyIssue487BrowserEvidence({ logFile, imageDirectory, headSha: sha }), /control missing/);
 }));

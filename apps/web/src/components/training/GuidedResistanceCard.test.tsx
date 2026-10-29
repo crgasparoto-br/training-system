@@ -351,6 +351,82 @@ describe('issue #487 - guia resistido', () => {
     expect(screen.getByText(/Série 2 de 2/)).toBeInTheDocument();
   });
 
+  it('does not accept a late POST v2 while the parent already knows v3 and a GET is in flight', async () => {
+    const pendingPost = deferred<GuidedResistanceView>();
+    const olderGet = deferred<GuidedResistanceView>();
+    const authoritativeGet = deferred<GuidedResistanceView>();
+    const load = vi.fn().mockResolvedValueOnce(projection())
+      .mockReturnValueOnce(olderGet.promise).mockReturnValueOnce(authoritativeGet.promise);
+    const complete = vi.fn().mockReturnValue(pendingPost.promise);
+    const { changeVersion, onChanged } = panel({ load, complete });
+    const submit = await screen.findByRole('button', { name: 'Concluir série' });
+    await waitFor(() => expect(submit).toBeEnabled());
+    await userEvent.click(submit);
+    await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+    changeVersion(3);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+
+    await act(async () => pendingPost.resolve(projection({
+      version: 2, completed: 1, current: second, next: null,
+    })));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(3));
+    expect(screen.getByText(/0 de 2 séries confirmadas/)).toBeInTheDocument();
+    expect(screen.queryByText(/Série registrada/)).not.toBeInTheDocument();
+    expect(submit).toBeDisabled();
+
+    // The pre-existing GET is not allowed to overwrite the replacement read.
+    await act(async () => olderGet.resolve(projection({
+      version: 3, completed: 1, current: second, next: null,
+    })));
+    expect(screen.getByText(/0 de 2 séries confirmadas/)).toBeInTheDocument();
+    expect(submit).toBeDisabled();
+
+    await act(async () => authoritativeGet.resolve(projection({
+      version: 3, completed: 1, current: second, next: null,
+    })));
+    await waitFor(() => expect(screen.getByText(/1 de 2 séries confirmadas/)).toBeInTheDocument());
+    expect(screen.getByText('Sessão · Principal · Série 2 de 2')).toBeInTheDocument();
+    expect(submit).toBeEnabled();
+    expect(onChanged).toHaveBeenCalledTimes(1);
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks a stale POST when its replacement GET fails and preserves the student draft', async () => {
+    const pendingPost = deferred<GuidedResistanceView>();
+    const olderGet = deferred<GuidedResistanceView>();
+    const load = vi.fn().mockResolvedValueOnce(projection())
+      .mockReturnValueOnce(olderGet.promise)
+      .mockRejectedValueOnce(new Error('GET unavailable'))
+      .mockResolvedValueOnce(projection({ version: 3, completed: 1, current: second, next: null }));
+    const complete = vi.fn().mockReturnValue(pendingPost.promise);
+    const { changeVersion } = panel({ load, complete });
+    const submit = await screen.findByRole('button', { name: 'Concluir série' });
+    await waitFor(() => expect(submit).toBeEnabled());
+    await userEvent.clear(screen.getByLabelText('Repetições realizadas'));
+    await userEvent.type(screen.getByLabelText('Repetições realizadas'), '6');
+    await userEvent.click(submit);
+    await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+    changeVersion(3);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    await act(async () => pendingPost.resolve(projection({
+      version: 2, completed: 1, current: second, next: null,
+    })));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/recarga falhou/);
+    expect(submit).toBeDisabled();
+    expect(screen.getByLabelText('Repetições realizadas')).toHaveValue('6');
+    expect(screen.queryByText(/Série registrada/)).not.toBeInTheDocument();
+    await act(async () => olderGet.resolve(projection({
+      version: 3, completed: 1, current: second, next: null,
+    })));
+    expect(submit).toBeDisabled();
+    expect(screen.getByText(/0 de 2 séries confirmadas/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Atualizar estado salvo' }));
+    await waitFor(() => expect(screen.getByText(/1 de 2 séries confirmadas/)).toBeInTheDocument());
+    expect(submit).toBeEnabled();
+    expect(load).toHaveBeenCalledTimes(4);
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
   it('não exibe snapshot de outra sessão nem permite confirmar dados cruzados', async () => {
     const load = vi.fn()
       .mockResolvedValueOnce(projection({ sessionId: 'day-from-other-contract' }))

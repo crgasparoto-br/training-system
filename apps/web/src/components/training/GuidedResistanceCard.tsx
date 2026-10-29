@@ -92,6 +92,14 @@ export function GuidedResistanceCard({
   // reads started before the POST returned.
   const refreshSequenceRef = useRef(0);
   const acceptedVersionRef = useRef<{ sessionId: string; version: number } | null>(null);
+  // The parent can advance while an older POST is awaiting its response.
+  // A callback captured before that render must still see the latest version.
+  const parentVersionRef = useRef({ sessionId, version });
+  if (parentVersionRef.current.sessionId !== sessionId) {
+    parentVersionRef.current = { sessionId, version };
+  } else {
+    parentVersionRef.current.version = Math.max(parentVersionRef.current.version, version);
+  }
   const conflictVersionRef = useRef<number | null>(draftStore?.current?.sessionId === sessionId
     ? draftStore.current.conflictVersion : null);
   const operationRef = useRef<GuidedResistanceOperation | null>(null);
@@ -105,7 +113,11 @@ export function GuidedResistanceCard({
 
   const acceptView = useCallback((saved: GuidedResistanceView, sourceSessionId: string): boolean => {
     const accepted = acceptedVersionRef.current;
-    if (accepted?.sessionId === sourceSessionId && saved.version < accepted.version) return false;
+    const versionFloor = Math.max(
+      parentVersionRef.current.sessionId === sourceSessionId ? parentVersionRef.current.version : -1,
+      accepted?.sessionId === sourceSessionId ? accepted.version : -1,
+    );
+    if (saved.version < versionFloor) return false;
     acceptedVersionRef.current = { sessionId: sourceSessionId, version: saved.version };
     const currentId = saved.current?.plannedSetId ?? null;
     if (currentSetRef.current !== currentId) {
@@ -148,8 +160,10 @@ export function GuidedResistanceCard({
       // An older GET must never override a newer GET, a POST, or a 409 lock.
       if (requestId !== refreshSequenceRef.current) return false;
       const previouslyAccepted = acceptedVersionRef.current;
-      const highestKnownVersion = Math.max(version,
-        previouslyAccepted?.sessionId === sessionId ? previouslyAccepted.version : -1);
+      const highestKnownVersion = Math.max(
+        parentVersionRef.current.sessionId === sessionId ? parentVersionRef.current.version : version,
+        previouslyAccepted?.sessionId === sessionId ? previouslyAccepted.version : -1,
+      );
       if (saved.sessionId !== sessionId || saved.version < highestKnownVersion ||
           !acceptView(saved, sessionId)) {
         setReconciliationRequired(true);
@@ -226,14 +240,22 @@ export function GuidedResistanceCard({
     setConfirmation(null);
     try {
       const saved = await complete(sessionId, operationRef.current.payload);
-      // Never accept a GET begun before this confirmed POST. Even a newer
-      // concurrent snapshot must not be downgraded by a late POST response.
+      // A late POST may have committed while the parent already knew a newer
+      // version. Invalidate older reads and revalidate before another write.
       refreshSequenceRef.current += 1;
       setLoading(false);
       operationRef.current = null;
       if (saved.sessionId !== sessionId || !acceptView(saved, sessionId)) {
         setReconciliationRequired(true);
-        setError('A série foi salva, mas a posição exibida pode estar desatualizada. Atualize o estado salvo.');
+        // Do not show the stale POST result or a false success. Replace any
+        // invalidated in-flight GET with a fresh authoritative read.
+        if (await refresh('conflict')) {
+          try {
+            await onExecutionChanged?.();
+          } catch {
+            setError('A série foi salva, mas não foi possível atualizar o resumo. Revise a posição exibida.');
+          }
+        }
         return;
       }
       // The canonical group determines whether the interval is intermediate.

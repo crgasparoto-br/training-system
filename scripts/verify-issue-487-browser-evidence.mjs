@@ -51,7 +51,8 @@ export function verifyIssue487BrowserEvidence({ logFile, imageDirectory, headSha
   assert.ok(log.includes('BROWSER_EVIDENCE_487 PASS head=' + headSha), 'Browser PASS marker is missing');
   for (const tag of ['keyboard-tab-navigation', 'no-horizontal-overflow', 'one-unit-at-a-time',
     'group-round-context', 'overview-return-position', 'next-participant-before-final-rest',
-    'timeout-overview-retry-idempotent', 'no-rest-after-final-set', 'x-contract-id']) {
+    'timeout-overview-retry-idempotent', 'no-rest-after-final-set',
+    'stale-post-parent-version-reconciled', 'x-contract-id']) {
     assert.ok(evidence.verified?.includes(tag), 'Browser control missing: ' + tag);
   }
   return { schemaVersion: 1, kind: 'issue-487-verified-browser-captures', headSha,
