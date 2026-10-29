@@ -23,10 +23,11 @@ function formatValue(value: number | string | null, unit: string | null) {
 
 export function formatComparisonMetric(metric: TrainingSessionComparisonMetric) {
   const lower = formatValue(metric.planned, metric.plannedUnit);
-  const upper = metric.plannedMax === null || metric.planned === metric.plannedMax
-    ? null : formatValue(metric.plannedMax, metric.plannedUnit);
+  const upper = metric.plannedMax === null ? null : formatValue(metric.plannedMax, metric.plannedUnit);
   return {
-    planned: upper ? `${lower} a ${upper}` : lower,
+    planned: metric.planned === null && upper !== null
+      ? `Até ${upper}` : upper !== null && metric.planned !== metric.plannedMax
+        ? `${lower} a ${upper}` : lower,
     executed: formatValue(metric.executed, metric.executedUnit),
     difference: metric.difference === null
       ? null : formatValue(metric.difference, metric.executedUnit),
@@ -53,12 +54,14 @@ export function WorkoutExecutionComparisonCard({
       </p>
       {comparison.snapshotSource === 'released_plan' && (
         <p className="mt-2 text-xs text-muted-foreground">
-          Planejamento liberado disponível; esta execução antiga não possui uma captura congelada própria.
+          Esta execução antiga não possui uma captura congelada própria. As metas históricas e
+          diferenças ficam indisponíveis para evitar usar a prescrição atual como se fosse a original.
         </p>
       )}
       <div className="mt-3 space-y-2">
         {visible.map((item) => {
-          const metrics = item.metrics.filter((entry) => entry.planned !== null || entry.executed !== null);
+          const metrics = item.metrics.filter((entry) => entry.planned !== null
+            || entry.plannedMax !== null || entry.executed !== null);
           return (
             <details
               key={`${item.kind}:${item.plannedUnitId}:${item.iteration ?? 0}:${item.executedSetNumber ?? 'none'}`}

@@ -57,9 +57,33 @@ describe('WorkoutExecutionComparisonCard (#401)', () => {
     })).toEqual({ planned: '8 rep a 12 rep', executed: '10 rep', difference: null });
   });
 
+
+  it('A-401-06: renders string HR/speed ranges, numeric pace ranges and upper-only targets', () => {
+    const rangeComparison: TrainingSessionComparison = {
+      ...comparison,
+      units: [{ ...comparison.units[0], metrics: [
+        { key: 'heart_rate', label: 'Frequência cardíaca', planned: '120', plannedMax: '160',
+          executed: 140, plannedUnit: 'bpm', executedUnit: 'bpm', difference: null },
+        { key: 'speed', label: 'Velocidade', planned: '8', plannedMax: '10',
+          executed: null, plannedUnit: 'km/h', executedUnit: 'km/h', difference: null },
+        { key: 'pace', label: 'Ritmo', planned: 5, plannedMax: 6,
+          executed: '5:30', plannedUnit: 'min/km', executedUnit: 'min/km', difference: null },
+        { key: 'hr_upper', label: 'Limite isolado', planned: null, plannedMax: '160',
+          executed: null, plannedUnit: 'bpm', executedUnit: 'bpm', difference: null },
+      ] }],
+    };
+    render(<WorkoutExecutionComparisonCard comparison={rangeComparison} audience="student" />);
+    expect(screen.getByText('120 bpm a 160 bpm')).toBeInTheDocument();
+    expect(screen.getByText('8 km/h a 10 km/h')).toBeInTheDocument();
+    expect(screen.getByText('5 min/km a 6 min/km')).toBeInTheDocument();
+    expect(screen.getByText('Até 160 bpm')).toBeInTheDocument();
+    expect(screen.queryByText(/diferença:/i)).not.toBeInTheDocument();
+  });
+
   it('expõe legado sem snapshot como alternativa explícita, sem fingir captura', () => {
     render(<WorkoutExecutionComparisonCard comparison={{ ...comparison, snapshotSource: 'released_plan' }} audience="student" />);
     expect(screen.getByText(/execução antiga não possui uma captura congelada/)).toBeInTheDocument();
+    expect(screen.getByText(/metas históricas e diferenças ficam indisponíveis/)).toBeInTheDocument();
   });
   it('renders repeated recordings for one planned set with distinct React keys', () => {
     const duplicatedPlanId: TrainingSessionComparison = {

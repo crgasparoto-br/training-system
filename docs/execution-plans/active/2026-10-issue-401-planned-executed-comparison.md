@@ -3,7 +3,7 @@
 - Base: `develop`; branch de implementação: `feat/401-planned-executed-comparison`.
 - Autoridades: WorkoutDay/WorkoutCyclicStage/WorkoutExerciseBlock/WorkoutExercisePlannedSet/WorkoutResistanceGroup (prescrição); WorkoutSessionExecution/Item (#389) (realizado).
 - Dependências: #398, #399, #400 e #389 presentes na develop. Nenhuma nova árvore de montagem.
-- Status: remediação dos achados A-401-01..04 implementada; checks exact-SHA e nova auditoria independente requeridos.
+- Status: remediações A-401-01..04 anteriores preservadas; A-401-05..08 implementadas nesta rodada e aguardando CI exact-SHA e nova auditoria independente.
 
 ## Objetivo
 
@@ -15,7 +15,7 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - Unidades executadas continuam em `WorkoutSessionExecutionItem` com `plannedUnitId`, `plannedSetId`, `setNumber` e os atributos RIR/RPE/cadência/descanso e outcome opcional. Etapas cíclicas e agrupamentos são guardados em arrays versionados da `sessionValues` com IDs planejados validados contra o mesmo dia, sem tabelas de planejamento paralelas.
 - Outcomes de escrita explícitos: `full`, `partial`, `substituted`, `not_performed`. A coluna de outcome não tem default: registros antigos ou sem classificação são `unclassified` na comparação, nunca `full` inferido. Unidade sem valor executado é `not_recorded`. Agregados com algumas séries sem registro são `incomplete_record`, preservando `containsSubstitution` quando também há substituição; um conjunto incompleto não é tratado como execução integral nem como parcial comprovada. Substituição exige observação. Nenhum campo ausente vira zero.
 - A API autentica e restringe consultas de comparação por `alunoId` e `contractId` já existentes nas rotas aluno/professor da rotina. A consulta semanal permite expandir comparações de sessões concluídas anteriormente, usando o snapshot da execução em vez do template atual. Visões do professor mostram séries/valores técnicos; visão do aluno mostra resumo, estágios, exercícios e grupos.
-- Diferença numérica é mostrada apenas na unidade física equivalente e sem alvo em faixa; dados com unidades incompatíveis ou ausentes não produzem diferença. Diferença nunca é classificação de desempenho.
+- Diferença numérica é mostrada apenas na unidade física equivalente e sem alvo em faixa; dados com unidades incompatíveis ou ausentes não produzem diferença. Diferença nunca é classificação de desempenho. Metas de volume semanal não são usadas como distância diária; os limites de faixas de FC, velocidade e pace permanecem disponíveis. O resultado `full` da sessão só decorre de confirmação explícita de todas as unidades comparáveis, não apenas do status terminal. Em legado sem snapshot, as metas e deltas históricos permanecem indisponíveis para evitar falsas comparações.
 - O cálculo é projeção read-only, sem média, adesão, progressão, sugestão de prescrição ou integração externa.
 
 ## Cenários de validação
@@ -27,6 +27,8 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - [x] Testes PostgreSQL: snapshot congelado, gravação estruturada, referência estrangeira/duplicada e rollback.
 - [x] Testes web: visibilidade aluno/professor, valor zero, ausência de conclusão automática.
 - [x] Regressões A-401-01..04: ausência de classificação não vira `full`; substituições mistas e séries sem registro; recuperação histórica pela semana; identidade de múltiplas gravações de uma série no React.
+- [x] Regressões A-401-05..08: volume semanal distinto da execução diária; faixas com limites diferentes e upper-only; sessão `completed` com série parcial/ausente/substituída, sessão sem registro e execução em andamento; tipo público restrito a outcomes graváveis e rejeição de resultados derivados em PostgreSQL.
+- [x] Controle do risco legado: `released_plan` não exibe metas/diferenças históricas inventadas; conserva valores executados e indicação da ausência de captura.
 - [ ] `pnpm validate`, build e testes PostgreSQL no HEAD remoto definitivo.
 - [ ] Auditoria independente da PR com evidências de CI e revisão de segurança.
 
@@ -40,6 +42,6 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 
 ## Decisões e riscos
 
-- A trilha antiga sem `plannedSnapshot` não pode ser retroativamente reconstruída com certeza. O fallback é leitura do planejamento liberado sob os mesmos guards; jamais apresentar como captura realizada na origem.
+- A trilha antiga sem `plannedSnapshot` não pode ser retroativamente reconstruída com certeza. O fallback usa o planejamento liberado apenas como referência de identidade/estrutura para os registros existentes, com metas planejadas e diferenças intencionalmente nulas; jamais apresentar como captura histórica realizada na origem.
 - A página não gera dados executados automaticamente. O modo guiado e os coletores específicos das issues #487–#489 poderão alimentar a mesma API sem criarem outra fonte.
 - CI e auditoria são bloqueios de conclusão, não justificativa para merge automático.

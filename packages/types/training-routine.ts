@@ -30,7 +30,7 @@ export interface TrainingSessionComparisonMetric {
   key: string;
   label: string;
   planned: number | string | null;
-  plannedMax: number | null;
+  plannedMax: number | string | null;
   executed: number | string | null;
   plannedUnit: string | null;
   executedUnit: string | null;
@@ -103,7 +103,8 @@ export interface TrainingSessionExecutionItemValue {
   /** Série planejada correspondente; nulo somente para unidades sem séries estruturadas. */
   plannedSetId?: string | null;
   setNumber?: number;
-  outcome?: Exclude<TrainingSessionComparisonOutcome, 'not_recorded'>;
+  /** Only explicit write outcomes; aggregate/unknown labels are derived on read. */
+  outcome?: TrainingSessionExecutionOutcome;
   substitutionNote?: string | null;
   rir?: number | null;
   rpe?: number | null;

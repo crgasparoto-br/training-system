@@ -41,7 +41,7 @@ type Fixture = {
 
 async function seedReleasedWorkout(
   label: string,
-  options: { publish?: boolean; seedResistance?: boolean; seedComparison?: boolean } = {},
+  options: { publish?: boolean; seedResistance?: boolean; seedComparison?: boolean; weeklyVolumeKm?: number } = {},
 ): Promise<Fixture> {
   const suffix = `${label}-${randomUUID()}`;
   const contractId = `issue-389-${suffix}`;
@@ -157,6 +157,7 @@ async function seedReleasedWorkout(
       mesocycleNumber: 1,
       weekNumber: 1,
       weekStartDate: new Date('2026-10-05T00:00:00.000Z'),
+      totalVolumeKm: options.weeklyVolumeKm ?? null,
       trainingMethod: 'combined',
       released: false,
     },
@@ -2686,6 +2687,7 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
     const fixture = await seedReleasedWorkout('issue401-frozen', {
       seedResistance: true,
       seedComparison: true,
+      weeklyVolumeKm: 30,
     });
     const [stage, group, plannedSet] = await Promise.all([
       prisma.workoutCyclicStage.findFirstOrThrow({ where: { workoutDayId: fixture.dayId } }),
@@ -2701,6 +2703,7 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
     });
     expect(frozen.plannedSnapshot).toMatchObject({ id: fixture.dayId });
     const initialPlan = frozen.plannedSnapshot as Record<string, any>;
+    expect(initialPlan).not.toHaveProperty('template'); // A-401-05: weekly volume is not a day target
     expect(initialPlan.cyclicStages.map((item: { id: string }) => item.id)).toContain(stage.id);
     expect(initialPlan.resistanceGroups.map((item: { id: string }) => item.id)).toContain(group.id);
     expect(initialPlan.exercises[0].resistanceBlocks[0].plannedSets[0].id).toBe(plannedSet.id);
@@ -2826,6 +2829,40 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
         executionId: execution.id, plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
       } },
     })).outcome).toBe('full');
+  });
+
+
+  it('A-401-08: rejects comparison-only outcomes at the write boundary without partial persistence', async () => {
+    const fixture = await seedReleasedWorkout('issue401-write-outcome-contract');
+    await transition(fixture, 'issue401-outcome-start', 0, 'in_progress');
+    const base = {
+      sessionId: fixture.dayId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId, actorUserId: fixture.alunoUserId,
+    };
+    for (const [index, invalid] of ['unclassified', 'incomplete_record'].entries()) {
+      await expect(service.saveValues({
+        ...base,
+        payload: {
+          operationKey: `issue401-reject-derived-${index}`, expectedVersion: 1,
+          items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
+            outcome: invalid as any, repetitions: 5 }],
+        },
+      })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    }
+    expect((await service.getForSession({
+      sessionId: fixture.dayId, alunoId: fixture.alunoId, contractId: fixture.contractId,
+    })).version).toBe(1);
+
+    const accepted = await service.saveValues({
+      ...base,
+      payload: {
+        operationKey: 'issue401-accept-write-outcome', expectedVersion: 1,
+        items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
+          outcome: 'partial', repetitions: 5 }],
+      },
+    });
+    expect(accepted.items[0]).toMatchObject({ outcome: 'partial', repetitions: 5 });
+    expect(accepted.version).toBe(2);
   });
 
 });

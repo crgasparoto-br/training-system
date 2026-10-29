@@ -1,9 +1,15 @@
-import type { TrainingSessionExecutionView } from '@corrida/types';
+import type {
+  TrainingSessionComparisonOutcome,
+  TrainingSessionExecutionItemValue,
+  TrainingSessionExecutionOutcome,
+  TrainingSessionExecutionView,
+} from '@corrida/types';
 import {
   captureWorkoutComparisonPlan,
   compareWorkoutSession,
   projectWorkoutComparisonForAudience,
   readCapturedWorkoutComparisonPlan,
+  workoutComparisonPlanSelect,
   type TrainingComparisonSnapshot,
 } from './workout-session-comparison.domain.js';
 
@@ -12,7 +18,7 @@ function planned(): TrainingComparisonSnapshot {
     id: 'day-1',
     sessionDurationMin: 30, cyclicTimeMin: null, stimulusDurationMin: null,
     targetHrMin: null, targetHrMax: null, targetSpeedMin: null, targetSpeedMax: null,
-    paceMin: null, paceMax: null, template: { totalVolumeKm: 5 },
+    paceMin: null, paceMax: null,
     cyclicStages: [
       { id: 'warmup', parentStageId: null, position: 1, kind: 'warmup',
         durationUnit: 'seconds', durationValue: 300, targetKind: null,
@@ -123,10 +129,147 @@ describe('issue #401: granular planned/executed comparison', () => {
     expect(get(comparison.units, 'day-1')[0].metrics[0]).toMatchObject({
       planned: 30, plannedUnit: 'min', executed: 1800, executedUnit: 's', difference: null,
     });
-    expect(get(comparison.units, 'day-1')[0].metrics[1].difference).toBe(0);
+    expect(get(comparison.units, 'day-1')[0].metrics[1]).toMatchObject({
+      planned: null, executed: 5, difference: null, plannedUnit: 'km',
+    });
     expect(get(comparison.units, 'set-1')[0].metrics[0]).toMatchObject({
       planned: 8, plannedMax: 12, executed: 10, difference: null,
     });
+  });
+
+
+  it('A-401-05: never promotes the weekly template distance into a session target', () => {
+    const day = Object.assign(planned(), { template: { totalVolumeKm: 30 } });
+    const comparison = compareWorkoutSession(day, execution({
+      sessionValues: { distanceKm: 10, cyclicStages: [
+        { plannedStageId: 'work', iteration: 1, outcome: 'full', distanceMeters: 400 },
+      ] },
+    }), 'captured');
+    const distance = get(comparison.units, 'day-1')[0].metrics.find((entry) => entry.key === 'distance');
+    expect(distance).toMatchObject({ planned: null, executed: 10, difference: null,
+      plannedUnit: 'km', executedUnit: 'km' });
+    expect(get(comparison.units, 'work')[0].metrics[0]).toMatchObject({
+      planned: 400, executed: 400, difference: 0, plannedUnit: 'm',
+    });
+    // Future snapshots must not capture week-level targets as a day prescription.
+    expect('template' in workoutComparisonPlanSelect).toBe(false);
+  });
+
+  it('A-401-06: preserves both limits and original string/numeric types of cyclic targets', () => {
+    const day = planned();
+    day.targetHrMin = '120';
+    day.targetHrMax = '160';
+    day.targetSpeedMin = '8';
+    day.targetSpeedMax = '10';
+    day.paceMin = 5;
+    day.paceMax = 6;
+    const metrics = get(compareWorkoutSession(day, execution({
+      sessionValues: { heartRateBpm: 140, pace: '5:30' },
+    }), 'captured').units, 'day-1')[0].metrics;
+    expect(metrics.find((entry) => entry.key === 'heart_rate')).toMatchObject({
+      planned: '120', plannedMax: '160', executed: 140, difference: null, plannedUnit: 'bpm',
+    });
+    expect(metrics.find((entry) => entry.key === 'speed')).toMatchObject({
+      planned: '8', plannedMax: '10', executed: null, difference: null, plannedUnit: 'km/h',
+    });
+    expect(metrics.find((entry) => entry.key === 'pace')).toMatchObject({
+      planned: 5, plannedMax: 6, executed: '5:30', difference: null, plannedUnit: 'min/km',
+    });
+    day.targetHrMin = null;
+    expect(get(compareWorkoutSession(day, execution(), 'captured').units, 'day-1')[0]
+      .metrics.find((entry) => entry.key === 'heart_rate')).toMatchObject({
+        planned: null, plannedMax: '160', difference: null,
+      });
+  });
+
+  it('A-401-07: completed lifecycle is full only when all independent planned units are explicitly full', () => {
+    const completelyRecorded = execution({
+      sessionValues: {
+        cyclicStages: [
+          { plannedStageId: 'warmup', outcome: 'full' },
+          { plannedStageId: 'work', iteration: 1, outcome: 'full' },
+          { plannedStageId: 'work', iteration: 2, outcome: 'full' },
+        ],
+        resistanceGroups: [{ plannedGroupId: 'group-1', outcome: 'full' }],
+      },
+      items: [
+        { plannedUnitId: 'ex-1', plannedSetId: 'set-1', setNumber: 1, outcome: 'full' },
+        { plannedUnitId: 'ex-1', plannedSetId: 'set-2', setNumber: 2, outcome: 'full' },
+      ],
+    });
+    const allFull = compareWorkoutSession(planned(), completelyRecorded, 'captured');
+    expect(get(allFull.units, 'day-1')[0]).toMatchObject({ outcome: 'full', containsSubstitution: false });
+    const partial = compareWorkoutSession(planned(), {
+      ...completelyRecorded,
+      items: completelyRecorded.items.map((item, index) => index === 0
+        ? { ...item, outcome: 'partial' as const } : item),
+    }, 'captured');
+    expect(get(partial.units, 'day-1')[0].outcome).toBe('partial');
+    const missingSet = compareWorkoutSession(planned(), {
+      ...completelyRecorded, items: completelyRecorded.items.slice(0, 1),
+    }, 'captured');
+    expect(get(missingSet.units, 'day-1')[0].outcome).toBe('incomplete_record');
+    const incompleteSubstitution = compareWorkoutSession(planned(), {
+      ...completelyRecorded,
+      items: [{ ...completelyRecorded.items[0], outcome: 'substituted', substitutionNote: 'Bike' }],
+    }, 'captured');
+    expect(get(incompleteSubstitution.units, 'day-1')[0]).toMatchObject({
+      outcome: 'incomplete_record', containsSubstitution: true,
+    });
+    expect(get(compareWorkoutSession(planned(), execution(), 'captured').units, 'day-1')[0].outcome)
+      .toBe('not_recorded');
+    expect(get(compareWorkoutSession(planned(), { ...completelyRecorded, status: 'in_progress' },
+      'captured').units, 'day-1')[0].outcome).toBe('incomplete_record');
+  });
+
+  it('A-401-07: a session measurement does not prove the missing units were performed', () => {
+    const comparison = compareWorkoutSession(planned(), execution({
+      sessionValues: { durationSec: 1800, distanceKm: 10 },
+    }), 'captured');
+    expect(get(comparison.units, 'day-1')[0].outcome).toBe('incomplete_record');
+    const sessionOnly = planned();
+    sessionOnly.cyclicStages = [];
+    sessionOnly.exercises = [];
+    sessionOnly.resistanceGroups = [];
+    expect(get(compareWorkoutSession(sessionOnly, execution({
+      sessionValues: { durationSec: 0 },
+    }), 'captured').units, 'day-1')[0].outcome).toBe('unclassified');
+    expect(get(compareWorkoutSession(sessionOnly, execution(), 'captured').units,
+      'day-1')[0].outcome).toBe('not_recorded');
+  });
+
+  it('RISK-001: an older session without a frozen plan cannot claim current targets as historical', () => {
+    const oldDay = planned();
+    oldDay.paceMin = 6;
+    oldDay.paceMax = 7;
+    const legacy = compareWorkoutSession(oldDay, execution({
+      sessionValues: { pace: '5:30' },
+      items: [{ plannedUnitId: 'ex-1', plannedSetId: 'set-1', setNumber: 1,
+        outcome: 'full', loadKg: 25 }],
+    }), 'released_plan');
+    expect(legacy.snapshotSource).toBe('released_plan');
+    expect(legacy.units.flatMap((item) => item.metrics).every((entry) =>
+      entry.planned === null && entry.plannedMax === null && entry.difference === null)).toBe(true);
+    expect(get(legacy.units, 'day-1')[0].metrics.find((item) => item.key === 'pace')?.executed)
+      .toBe('5:30');
+    expect(get(legacy.units, 'set-1')[0].metrics.find((item) => item.key === 'load_kg')?.executed)
+      .toBe(25);
+    const captured = compareWorkoutSession(oldDay, execution(), 'captured');
+    expect(get(captured.units, 'day-1')[0].metrics.find((item) => item.key === 'pace'))
+      .toMatchObject({ planned: 6, plannedMax: 7 });
+  });
+
+  it('A-401-08: public write outcomes exactly match the four API-accepted values', () => {
+    type WriteOutcome = NonNullable<TrainingSessionExecutionItemValue['outcome']>;
+    type ApiOutcome = TrainingSessionExecutionOutcome;
+    type ContractIsExact = [WriteOutcome] extends [ApiOutcome]
+      ? [ApiOutcome] extends [WriteOutcome] ? true : false : false;
+    const contractAligned: ContractIsExact = true;
+    const comparisonOnly: Exclude<TrainingSessionComparisonOutcome, ApiOutcome>[] = [
+      'not_recorded', 'unclassified', 'incomplete_record',
+    ];
+    expect(contractAligned).toBe(true);
+    expect(comparisonOnly).toHaveLength(3);
   });
 
   it('historical capture stays unchanged after template/catalog objects evolve', () => {

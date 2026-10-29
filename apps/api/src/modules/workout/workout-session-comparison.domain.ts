@@ -24,7 +24,6 @@ export const workoutComparisonPlanSelect = {
   targetSpeedMax: true,
   paceMin: true,
   paceMax: true,
-  template: { select: { totalVolumeKm: true } },
   cyclicStages: {
     orderBy: [{ parentStageId: 'asc' as const }, { position: 'asc' as const }, { id: 'asc' as const }],
     select: {
@@ -94,7 +93,7 @@ function metric(
   executed: number | string | null | undefined,
   plannedUnit: string | null,
   executedUnit = plannedUnit,
-  plannedMax?: number | null,
+  plannedMax?: number | string | null,
 ): TrainingSessionComparisonMetric {
   const p = present(planned);
   const e = present(executed);
@@ -128,7 +127,8 @@ function summaryOutcome(
 ): TrainingSessionComparisonOutcome {
   if (!recorded.length || recorded.every((outcome) => outcome === 'not_recorded')) return 'not_recorded';
   // Missing records never prove actual partial performance.
-  if (recorded.length < expectedCount || recorded.includes('not_recorded')) return 'incomplete_record';
+  if (recorded.length < expectedCount || recorded.includes('not_recorded')
+    || recorded.includes('incomplete_record')) return 'incomplete_record';
   if (recorded.includes('unclassified')) return 'unclassified';
   if (recorded.every((outcome) => outcome === 'not_performed')) return 'not_performed';
   if (recorded.includes('partial') || recorded.includes('not_performed')) return 'partial';
@@ -146,15 +146,18 @@ export function compareWorkoutSession(
   const state = execution.sessionValues;
   const missingOutcome: TrainingSessionComparisonOutcome = execution.status === 'not_performed'
     ? 'not_performed' : 'not_recorded';
-  result.push(unit(planned.id, 'session', 'Sessão', execution.status === 'not_performed'
-    ? 'not_performed' : execution.status === 'partial' ? 'partial'
-      : execution.status === 'completed' ? 'full' : 'not_recorded', [
+  // Lifecycle completion is not proof that every prescribed unit was performed.
+  // The session outcome is finalized from child evidence after building the units.
+  result.push(unit(planned.id, 'session', 'Sessão', missingOutcome, [
     metric('duration', 'Duração', planned.sessionDurationMin ?? planned.cyclicTimeMin ?? planned.stimulusDurationMin,
       state.durationSec, 'min', 's'),
-    metric('distance', 'Distância', planned.template.totalVolumeKm, state.distanceKm, 'km'),
-    metric('pace', 'Ritmo', planned.paceMin, state.pace, 'min/km'),
-    metric('speed', 'Velocidade', planned.targetSpeedMin, null, 'km/h'),
-    metric('heart_rate', 'Frequência cardíaca', planned.targetHrMin, state.heartRateBpm, 'bpm'),
+    // WorkoutTemplate.totalVolumeKm is a WEEKLY target, not a WorkoutDay target.
+    // Distance is compared only at stages that prescribe it explicitly.
+    metric('distance', 'Distância', null, state.distanceKm, 'km'),
+    metric('pace', 'Ritmo', planned.paceMin, state.pace, 'min/km', 'min/km', planned.paceMax),
+    metric('speed', 'Velocidade', planned.targetSpeedMin, null, 'km/h', 'km/h', planned.targetSpeedMax),
+    metric('heart_rate', 'Frequência cardíaca', planned.targetHrMin, state.heartRateBpm,
+      'bpm', 'bpm', planned.targetHrMax),
     metric('heart_rate_zone', 'Zona de FC', null, state.heartRateZone, null),
   ]));
 
@@ -268,12 +271,40 @@ export function compareWorkoutSession(
       ], null, null, actual?.substitutionNote ?? null));
   }
 
+  // Roll up only independent planned units: repeated cyclic stage children,
+  // exercises (which already consolidate their sets), and resistance groups.
+  // Missing and unclassified child records must never become a full session.
+  const cyclicLeafIds = new Set(planned.cyclicStages
+    .filter((stage) => stage.kind !== 'repeat').map((stage) => stage.id));
+  const children = result.slice(1).filter((item) => item.kind === 'exercise'
+    || item.kind === 'group'
+    || (item.kind === 'cyclic_stage' && cyclicLeafIds.has(item.plannedUnitId)));
+  const hasSessionMeasurement = [state.durationSec, state.distanceKm, state.pace,
+    state.heartRateBpm, state.heartRateZone].some((value) => value !== undefined && value !== null);
+  const combined = summaryOutcome(children.map((item) => item.outcome), children.length);
+  const recordedOutcome = combined === 'not_recorded' && hasSessionMeasurement
+    ? children.length ? 'incomplete_record' : 'unclassified'
+    : combined;
+  result[0].outcome = execution.status === 'not_performed' ? 'not_performed'
+    : execution.status === 'partial' ? 'partial'
+      : execution.status === 'completed' ? recordedOutcome
+        : recordedOutcome === 'full' ? 'incomplete_record' : recordedOutcome;
+  result[0].containsSubstitution = result.slice(1).some((item) => item.containsSubstitution);
+
+  // An older execution without its own frozen plan cannot prove historical
+  // prescription values. Keep recorded values and explicit source provenance,
+  // but never show contemporary released-plan targets as historical facts.
+  const units = snapshotSource === 'released_plan'
+    ? result.map((item) => ({ ...item, metrics: item.metrics.map((entry) => ({
+      ...entry, planned: null, plannedMax: null, difference: null,
+    })) }))
+    : result;
   return {
     sessionId: planned.id,
     originReleaseId: execution.origin.releaseId,
     snapshotSource,
     executionVersion: execution.version,
-    units: result,
+    units,
   };
 }
 
