@@ -30,3 +30,8 @@ Testes de domínio cobrem IDs, ordem, nulidade, retomada, registros de valores a
 A orientação em mídia é opcional: quando a biblioteca tem `videoUrl` HTTPS
 configurada, a etapa atual oferece um link externo acessível. URLs inseguras ou
 ausentes não são exibidas e jamais bloqueiam a confirmação da série.
+
+
+## Evidência visual
+
+A jornada guiada possui evidência de navegador em `apps/web/src/pages/issue-487-browser-evidence.test.js`. Em CI/GitHub Actions ela executa Chrome real em 1440×900 e 390×844, verifica ausência de overflow horizontal, foco por teclado, uma unidade por vez, contexto de bi-set/rodada e avanço para o próximo participante sem anunciar o descanso final da rodada antecipadamente.

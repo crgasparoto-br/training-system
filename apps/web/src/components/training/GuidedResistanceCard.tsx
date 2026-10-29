@@ -140,7 +140,11 @@ export function GuidedResistanceCard({
     setConfirmation(null);
     try {
       const saved = await complete(sessionId, operationRef.current.payload);
-      setLastRest(current.restSec);
+      const isBeforeLastGroupedParticipant = Boolean(
+        current.groupId && current.groupPosition && current.groupSize
+        && current.groupPosition < current.groupSize
+      );
+      setLastRest(isBeforeLastGroupedParticipant ? null : current.restSec);
       acceptView(saved);
       operationRef.current = null;
       setConfirmation('Série registrada. O próximo passo foi atualizado com os dados salvos.');

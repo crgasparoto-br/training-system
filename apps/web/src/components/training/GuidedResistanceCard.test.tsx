@@ -92,6 +92,29 @@ describe('issue #487 - guia resistido', () => {
     expect(complete.mock.calls[1][1].operationKey).toBe(complete.mock.calls[0][1].operationKey);
   });
 
+  it('não anuncia o descanso final antes do último participante da rodada', async () => {
+    const groupedFirst = {
+      ...first, groupId: 'group-1', groupType: 'biset' as const,
+      groupPosition: 1, groupSize: 2, roundNumber: 1, roundTotal: 2,
+    };
+    const groupedSecond = {
+      ...second, plannedUnitId: 'exercise-b',
+      groupId: 'group-1', groupType: 'biset' as const,
+      groupPosition: 2, groupSize: 2, roundNumber: 1, roundTotal: 2,
+    };
+    const load = vi.fn().mockResolvedValue(projection({ current: groupedFirst, next: groupedSecond }));
+    const complete = vi.fn().mockResolvedValue(projection({
+      version: 2, completed: 1, current: groupedSecond,
+      next: { ...groupedFirst, plannedSetId: 'set-a-2', setNumber: 2, roundNumber: 2 },
+    }));
+    panel({ load, complete });
+    expect(await screen.findByText(/Bi-set · rodada 1 de 2 · item 1 de 2/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Concluir série' }));
+    await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(/Descanso prescrito após a série anterior/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Próximo:/)).toHaveTextContent(/rodada 2/);
+  });
+
   it('revalida após 409 sem repetir uma operação obsoleta', async () => {
     const load = vi.fn().mockResolvedValueOnce(projection()).mockResolvedValue(projection({
       version: 2, completed: 1, current: second, next: null,
