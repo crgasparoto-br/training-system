@@ -323,7 +323,7 @@ describe('WorkoutBuilderResistance', () => {
   it('permite declarar um agrupamento explícito independente do sistema textual', () => {
     const onChange = vi.fn();
     render(<WorkoutBuilderResistance templateData={templateData} resistedSummary={null} onChange={onChange} />);
-    fireEvent.change(screen.getByLabelText('Agrupamento de Agachamento'), { target: { value: 'biset' } });
+    fireEvent.change(screen.getByLabelText('Agrupamento de Agachamento livre'), { target: { value: 'biset' } });
     const updated = onChange.mock.calls.at(-1)?.[0].resistedExercises[1].sessao;
     expect(updated[0]).toEqual(expect.objectContaining({ groupType: 'biset' }));
   });

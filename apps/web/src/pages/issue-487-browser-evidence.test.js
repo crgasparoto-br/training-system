@@ -134,15 +134,26 @@ async function startApi() {
   return { server, requests };
 }
 async function startVite() {
-  const previous = process.env.VITE_API_URL;
+  const previous = {
+    api: process.env.VITE_API_URL,
+    rollout: process.env.VITE_PRE_REGISTRATION_ENABLED,
+  };
   process.env.VITE_API_URL = API_ORIGIN;
+  process.env.VITE_PRE_REGISTRATION_ENABLED = 'false';
   const { createServer } = await import('vite');
   const server = await createServer({ root: process.cwd(), logLevel: 'error', server: { host: HOST, port: WEB_PORT, strictPort: true } });
   await server.listen();
   return { server, previous };
 }
 async function stopApi(server) { if (!server) return; server.closeAllConnections?.(); await new Promise((resolve) => server.close(resolve)); }
-async function stopVite(value) { if (!value) return; await value.server.close(); if (value.previous === undefined) delete process.env.VITE_API_URL; else process.env.VITE_API_URL = value.previous; }
+async function stopVite(value) {
+  if (!value) return;
+  await value.server.close();
+  if (value.previous.api === undefined) delete process.env.VITE_API_URL;
+  else process.env.VITE_API_URL = value.previous.api;
+  if (value.previous.rollout === undefined) delete process.env.VITE_PRE_REGISTRATION_ENABLED;
+  else process.env.VITE_PRE_REGISTRATION_ENABLED = value.previous.rollout;
+}
 async function setSession(page) {
   await page.goto(`${WEB_ORIGIN}/login`, { waitUntil: 'domcontentloaded' });
   await page.evaluate((u, contractId) => {
@@ -152,7 +163,16 @@ async function setSession(page) {
   }, user, CONTRACT_ID);
 }
 async function waitText(page, text) {
-  await page.waitForFunction((value) => document.body?.innerText.includes(value), { timeout: 12000 }, text);
+  try {
+    await page.waitForFunction(
+      (value) => document.body?.innerText.toLocaleLowerCase('pt-BR').includes(value.toLocaleLowerCase('pt-BR')),
+      { timeout: 12000 },
+      text,
+    );
+  } catch (error) {
+    console.log('WAIT_DEBUG_487', text, await page.evaluate(() => location.href + '\n' + document.body?.innerText));
+    throw error;
+  }
 }
 async function assertNoOverflow(page) {
   const layout = await page.evaluate(() => ({
