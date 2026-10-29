@@ -243,6 +243,24 @@ router.put('/days/:id/resistance-exercises', async (req, res) => {
 });
 
 // ============================================================================
+// CYCLIC STAGES: canonical WorkoutDay child, never a parallel training tree
+// ============================================================================
+router.put('/days/:id/cyclic-stages', async (req, res) => {
+  try {
+    if (!req.user?.contractId) return res.status(403).json({ code: 'FORBIDDEN', error: 'Acesso negado.' });
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)
+      || Object.keys(req.body).length !== 1 || !Object.prototype.hasOwnProperty.call(req.body, 'stages')) {
+      throw new ResistanceStructureValidationError('Informe apenas a lista de etapas cíclicas.');
+    }
+    const result = await workoutService.replaceDayCyclicStages(req.params.id, req.body.stages, req.user.contractId);
+    res.json(result);
+  } catch (error: unknown) {
+    console.error('Error replacing cyclic stages:', error);
+    return sendSafeWorkoutError(res, error);
+  }
+});
+
+// ============================================================================
 // WORKOUT EXERCISE ROUTES
 // ============================================================================
 

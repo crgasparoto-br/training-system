@@ -1,3 +1,4 @@
+import { cyclicStageInclude, nestedCyclicStages, snapshotCyclicStages } from './cyclic-stages.domain.js';
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { ResistanceStructureNotFoundError, ResistanceStructureValidationError } from './resistance-structure.domain.js';
 import { lockWorkoutTemplatePlanningMutable, nestedResistanceBlocks, resistanceBlockInclude, serializeWorkoutTemplate, withTemplateCopyRetry, workoutDateInTargetWeek } from './workout-planning.helpers.js';
@@ -20,7 +21,7 @@ export async function copyTemplateSections(
       where: { id },
       include: {
         workoutDays: {
-          include: { exercises: { include: { resistanceBlocks: resistanceBlockInclude } } },
+          include: { cyclicStages: cyclicStageInclude, exercises: { include: { resistanceBlocks: resistanceBlockInclude } } },
         },
       },
     });
@@ -118,6 +119,10 @@ export async function copyTemplateSections(
             generalGuidelines: sourceDay.generalGuidelines,
           },
         });
+        await tx.workoutCyclicStage.deleteMany({ where: { workoutDayId: targetDay.id } });
+        for (const stage of nestedCyclicStages(snapshotCyclicStages(sourceDay.cyclicStages), targetDay.id)) {
+          await tx.workoutCyclicStage.create({ data: stage });
+        }
         continue;
       }
 
@@ -212,6 +217,7 @@ export async function copyTemplate(
     include: {
       workoutDays: {
         include: {
+          cyclicStages: cyclicStageInclude,
           exercises: { include: { resistanceBlocks: resistanceBlockInclude } },
         },
       },
@@ -297,6 +303,9 @@ export async function copyTemplate(
       },
     });
 
+    for (const stage of nestedCyclicStages(snapshotCyclicStages(day.cyclicStages), newDay.id)) {
+      await tx.workoutCyclicStage.create({ data: stage });
+    }
     for (const exercise of day.exercises) {
       await tx.workoutExercise.create({
         data: {
@@ -330,6 +339,7 @@ export async function copyTemplate(
       plan: true,
       workoutDays: {
         include: {
+          cyclicStages: cyclicStageInclude,
           exercises: {
             include: {
               exercise: true,

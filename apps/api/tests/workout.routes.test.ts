@@ -45,6 +45,7 @@ jest.mock('../src/modules/workout/workout.service', () => ({
     addExercise: jest.fn(),
     updateExercise: jest.fn(),
     replaceDayResistanceExercises: jest.fn(),
+    replaceDayCyclicStages: jest.fn(),
     deleteExercise: jest.fn(),
   },
 }));
@@ -593,5 +594,46 @@ describe('AUD-399-23/24: public copy commands are strict and atomic', () => {
     expect(workoutService.copyTemplateSections).toHaveBeenCalledWith(
       'template-1', 2, new Date('2026-10-12T12:00:00.000Z'), 'resistance',
     );
+  });
+});
+
+describe('Issue #398 - rota de etapas cíclicas com isolamento de contrato', () => {
+  const app = express();
+  app.use(express.json());
+  app.use('/workout', workoutRouter);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (prismaRuntimeClient.workoutDay.findFirst as jest.Mock).mockResolvedValue({ id: 'day-1' });
+  });
+
+  it('substitui as etapas apenas do dia autorizado do professor', async () => {
+    const stages = [{ position: 1, kind: 'work', durationUnit: 'seconds', durationValue: 90 }];
+    (workoutService.replaceDayCyclicStages as jest.Mock).mockResolvedValue(stages);
+    const response = await request(app).put('/workout/days/day-1/cyclic-stages').send({ stages });
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(stages);
+    expect(workoutService.replaceDayCyclicStages).toHaveBeenCalledWith('day-1', stages, 'contract-test');
+  });
+
+  it('rejeita aluno, anônimo e tentativa de cruzar contratos sem escrita', async () => {
+    expect((await request(app).put('/workout/days/day-1/cyclic-stages')
+      .set('x-test-anonymous', '1').send({ stages: [] })).status).toBe(401);
+    expect((await request(app).put('/workout/days/day-1/cyclic-stages')
+      .set('x-test-student', '1').send({ stages: [] })).status).toBe(403);
+    (prismaRuntimeClient.workoutDay.findFirst as jest.Mock).mockResolvedValue(null);
+    expect((await request(app).put('/workout/days/day-1/cyclic-stages').send({ stages: [] })).status).toBe(404);
+    expect(workoutService.replaceDayCyclicStages).not.toHaveBeenCalled();
+  });
+
+  it('não aceita operações de relação Prisma nem vaza mensagem do banco', async () => {
+    const invalid = await request(app).put('/workout/days/day-1/cyclic-stages')
+      .send({ stages: [], workoutDay: { connect: { id: 'foreign' } } });
+    expect(invalid.status).toBe(400);
+    expect(workoutService.replaceDayCyclicStages).not.toHaveBeenCalled();
+    (workoutService.replaceDayCyclicStages as jest.Mock).mockRejectedValue(new Error('SQL password=secret'));
+    const failed = await request(app).put('/workout/days/day-1/cyclic-stages').send({ stages: [] });
+    expect(failed.status).toBe(500);
+    expect(JSON.stringify(failed.body)).not.toMatch(/SQL|password|secret/);
   });
 });

@@ -5,6 +5,7 @@ import { assertWorkoutParentIsImmutable, normalizeResistanceBlocks, sanitizeWork
 import { assertDayContract, isWorkoutTemplateUniqueConflict, lockWorkoutDayPlanningMutable, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
 import { copyTemplate as copyTemplateStructured, copyTemplateSections as copyTemplateSectionsStructured } from './workout-copy.service.js';
 import { replaceDayResistanceExercises as replaceDayResistanceExercisesStructured, saveTemplateWeek as saveTemplateWeekStructured } from './workout-week-structure.service.js';
+import { cyclicStageInclude, nestedCyclicStages, normalizeCyclicStages, replaceCyclicStagesInTransaction, snapshotCyclicStages } from './cyclic-stages.domain.js';
 export { WorkoutPlanningLockedError } from './workout-planning.helpers.js';
 
 const prisma = new PrismaClient();
@@ -97,6 +98,7 @@ export interface SaveWorkoutWeekDTO {
   template?: Record<string, unknown>;
   workoutDays?: Array<Record<string, unknown>>;
   resistedExercises?: Record<string, Record<string, Array<Record<string, unknown>>>>;
+  cyclicStages?: Record<string, unknown[]>;
 }
 
 export interface RecordExecutionDTO {
@@ -178,6 +180,7 @@ export const workoutService = {
         plan: true,
         workoutDays: {
           include: {
+            cyclicStages: cyclicStageInclude,
             exercises: {
               include: {
                 exercise: true,
@@ -235,6 +238,7 @@ export const workoutService = {
             plan: true,
             workoutDays: {
               include: {
+                cyclicStages: cyclicStageInclude,
                 exercises: {
                   include: {
                     exercise: true,
@@ -288,6 +292,7 @@ export const workoutService = {
         plan: true,
         workoutDays: {
           include: {
+            cyclicStages: cyclicStageInclude,
             exercises: {
               include: {
                 exercise: true,
@@ -320,6 +325,7 @@ export const workoutService = {
         plan: true,
         workoutDays: {
           include: {
+            cyclicStages: cyclicStageInclude,
             exercises: {
               include: {
                 exercise: true,
@@ -348,6 +354,7 @@ export const workoutService = {
       include: {
         workoutDays: {
           include: {
+            cyclicStages: cyclicStageInclude,
             exercises: {
               include: {
                 exercise: true,
@@ -403,6 +410,7 @@ export const workoutService = {
         plan: true,
         workoutDays: {
           include: {
+            cyclicStages: cyclicStageInclude,
             exercises: {
               include: {
                 exercise: true,
@@ -503,6 +511,7 @@ export const workoutService = {
         data,
         include: {
           template: true,
+          cyclicStages: cyclicStageInclude,
           exercises: {
             include: {
               exercise: true,
@@ -528,6 +537,7 @@ export const workoutService = {
             plan: true,
           },
         },
+        cyclicStages: cyclicStageInclude,
         exercises: {
           include: {
             exercise: true,
@@ -577,6 +587,15 @@ export const workoutService = {
     return saveTemplateWeekStructured(prisma, id, data, contractId);
   },
 
+  /** Replace only structured cyclic stages, leaving legacy day fields unchanged. */
+  async replaceDayCyclicStages(workoutDayId: string, stages: unknown, contractId: string) {
+    const normalized = normalizeCyclicStages(stages);
+    return withWorkoutDayPlanningMutation(prisma, workoutDayId, async (tx) => {
+      await assertDayContract(tx, workoutDayId, contractId);
+      return replaceCyclicStagesInTransaction(tx, workoutDayId, normalized);
+    });
+  },
+
   async updateWorkoutDayStatus(
     id: string,
     data: { status?: 'planned' | 'in_progress' | 'completed'; psrResponse?: number | null; pseResponse?: number | null }
@@ -617,6 +636,7 @@ export const workoutService = {
         template: {
           include: { plan: true },
         },
+        cyclicStages: cyclicStageInclude,
         exercises: {
           include: {
             exercise: true,
@@ -850,6 +870,10 @@ export const workoutService = {
           generalGuidelines: source.generalGuidelines,
         },
       });
+
+      for (const stage of nestedCyclicStages(snapshotCyclicStages(source.cyclicStages), created.id)) {
+        await tx.workoutCyclicStage.create({ data: stage });
+      }
 
       for (const exercise of source.exercises) {
         await tx.workoutExercise.create({

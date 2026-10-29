@@ -45,6 +45,7 @@ const makeRow = (overrides: Row = {}): Row => ({
     plan: { id: 'plan-1', name: 'Plano 2026' },
   },
   exercises: [],
+  cyclicStages: [],
   ...overrides,
 });
 

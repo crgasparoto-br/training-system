@@ -25,6 +25,7 @@ const session = (overrides: Partial<TrainingRoutineSessionDetail> = {}): Trainin
   objective: 'Ganhar força',
   guidelines: ['Beba água durante o treino.'],
   cyclic: null,
+  cyclicStages: [],
   blocks: [
     {
       key: 'warmup',

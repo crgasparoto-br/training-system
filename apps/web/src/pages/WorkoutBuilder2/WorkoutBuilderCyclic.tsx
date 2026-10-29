@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import CyclicStagesEditor from './CyclicStagesEditor';
+import type { CyclicStage } from '../../services/workout.service';
 import { isDateWithinRange, parseDateOnly, toDateInputValue, toIsoDateAtNoonUTC } from '../../utils/date';
 
 interface WorkoutBuilderCyclicProps {
@@ -178,6 +180,7 @@ export default function WorkoutBuilderCyclic({
   };
 
   const [dayData, setDayData] = useState<any>({});
+  const [activeCyclicDay, setActiveCyclicDay] = useState(1);
   const summaryStorageKey = useMemo(() => {
     const planKey = planId ?? templateData?.planId ?? 'unknown-plan';
     const mesoKey = mesocycleNumber ?? templateData?.mesocycleNumber ?? 'unknown-meso';
@@ -693,6 +696,21 @@ export default function WorkoutBuilderCyclic({
     };
     setDayData(newDayData);
     onChange({ ...templateData, workoutDays: newDayData });
+  };
+
+  const applyCyclicStages = (dayOfWeek: number, stages: CyclicStage[]) => {
+    if (!isDayEditable(dayOfWeek)) return;
+    const updatedDays = {
+      ...dayData,
+      [dayOfWeek]: {
+        ...(dayData[dayOfWeek] ?? {}),
+        dayOfWeek,
+        workoutDate: getWorkoutDate(dayOfWeek),
+        cyclicStages: stages,
+      },
+    };
+    setDayData(updatedDays);
+    onChange({ ...templateData, workoutDays: updatedDays });
   };
 
   const renderCell = (
@@ -1239,6 +1257,28 @@ export default function WorkoutBuilderCyclic({
           </table>
         </div>
       </div>
+
+      <section aria-label="Etapas cíclicas por dia" className="space-y-3">
+        <h3 className="text-base font-semibold text-slate-900">Etapas da sessão cíclica</h3>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Selecionar dia para editar etapas">
+          {days.map((day) => (
+            <button type="button" key={day.dayOfWeek}
+              aria-pressed={activeCyclicDay === day.dayOfWeek}
+              onClick={() => setActiveCyclicDay(day.dayOfWeek)}
+              className={`rounded-md border px-3 py-2 text-sm ${activeCyclicDay === day.dayOfWeek
+                ? 'border-green-700 bg-green-700 text-white'
+                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>
+              {day.label} ({day.date})
+              {Array.isArray(dayData[day.dayOfWeek]?.cyclicStages)
+                && dayData[day.dayOfWeek].cyclicStages.length > 0 ? ' •' : ''}
+            </button>
+          ))}
+        </div>
+        <CyclicStagesEditor key={activeCyclicDay} dayOfWeek={activeCyclicDay}
+          stages={dayData[activeCyclicDay]?.cyclicStages}
+          editable={isDayEditable(activeCyclicDay)}
+          onApply={(stages) => applyCyclicStages(activeCyclicDay, stages)} />
+      </section>
     </div>
   );
 }

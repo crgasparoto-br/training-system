@@ -313,6 +313,14 @@ jobs:
             -c 'CREATE DATABASE training_system_issue399_existing_data'
           DATABASE_URL='postgresql://postgres:postgres@localhost:5432/training_system_issue399_existing_data?schema=public&connection_limit=1&pool_timeout=30' \
             bash scripts/verify-issue-399-existing-data.sh
+          # Issue #398: run adversarial direct-SQL history and shape checks
+          # after the full existing-data migration replay, before CI tests.
+          docker run --rm --network host \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -e PGPASSWORD=postgres \
+            postgres:16-alpine \
+            psql -h localhost -U postgres -d training_system_issue399_existing_data -v ON_ERROR_STOP=1 \
+            -f /workspace/scripts/verify-issue-398-cyclic-stages.sql
           docker run --rm --network host \
             -v "$GITHUB_WORKSPACE:/workspace" \
             -e PGPASSWORD=postgres \

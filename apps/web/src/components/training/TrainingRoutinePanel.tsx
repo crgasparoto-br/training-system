@@ -212,6 +212,28 @@ function TodaySession({
       setExecutionBusy(false);
     }
   };
+  const stageKindLabel: Record<string, string> = {
+    warmup: 'Aquecimento', work: 'Trabalho', recovery: 'Recuperação',
+    cooldown: 'Desaquecimento', repeat: 'Repetições',
+  };
+  const stageTargetUnit: Record<string, string> = {
+    pace_min_per_km: 'min/km', speed_kmh: 'km/h', heart_rate_bpm: 'bpm',
+    zone: 'zona', pse: 'PSE',
+  };
+  const renderStageDetail = (stage: (typeof session.cyclicStages)[number]) => {
+    if (stage.kind === 'repeat') return `${stage.repeatCount} voltas`;
+    const duration = stage.durationValue !== null
+      ? `${stage.durationValue} ${stage.durationUnit === 'seconds' ? 's' : 'm'}` : '';
+    const targetUnit = stage.targetKind ? stageTargetUnit[stage.targetKind] : '';
+    const values = stage.targetValue !== null ? String(stage.targetValue)
+      : stage.targetMin !== null && stage.targetMax !== null
+        ? `${stage.targetMin}–${stage.targetMax}`
+        : String(stage.targetMin ?? stage.targetMax ?? '');
+    return [duration, values ? `${values} ${targetUnit}` : '',
+      stage.inclinePercent !== null ? `Inclinação ${stage.inclinePercent}%` : '',
+      stage.cadenceSpm !== null ? `Cadência ${stage.cadenceSpm} ppm` : ''
+    ].filter(Boolean).join(' · ');
+  };
   const cyclicItems = session.cyclic
     ? [
         { label: 'Tempo do aeróbio', value: formatDuration(session.cyclic.durationMin) },
@@ -264,6 +286,34 @@ function TodaySession({
               </div>
             ))}
           </dl>
+        </section>
+      )}
+
+      {session.cyclicStages?.length > 0 && (
+        <section aria-label="Etapas do treino aeróbio">
+          <h4 className="text-sm font-semibold text-foreground">Etapas do aeróbio</h4>
+          <ol className="mt-2 space-y-2">
+            {session.cyclicStages.map((stage) => (
+              <li key={stage.id} className="rounded-lg border border-border p-3">
+                <p className="font-medium text-foreground">
+                  {stage.position}. {stageKindLabel[stage.kind]}
+                  <span className="ml-2 font-normal text-muted-foreground">{renderStageDetail(stage)}</span>
+                </p>
+                {stage.notes && <p className="mt-1 text-sm text-muted-foreground">{stage.notes}</p>}
+                {stage.kind === 'repeat' && (
+                  <ol className="mt-2 space-y-1 border-l-2 border-border pl-4">
+                    {stage.children.map((child) => (
+                      <li key={child.id} className="text-sm">
+                        <span className="font-medium">{child.position}. {stageKindLabel[child.kind]}</span>
+                        <span className="ml-2 text-muted-foreground">{renderStageDetail(child)}</span>
+                        {child.notes && <p className="text-muted-foreground">{child.notes}</p>}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </li>
+            ))}
+          </ol>
         </section>
       )}
 

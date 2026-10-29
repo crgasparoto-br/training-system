@@ -1443,11 +1443,38 @@ model WorkoutDay {
   status              WorkoutDayStatus  @default(planned)
   template            WorkoutTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
   exercises           WorkoutExercise[]
+  cyclicStages        WorkoutCyclicStage[]
   preWorkoutCheckIn   PreWorkoutCheckIn?
 
   @@unique([templateId, dayOfWeek])
   @@index([templateId])
   @@index([workoutDate])
+}
+
+model WorkoutCyclicStage {
+  id             String              @id @default(cuid())
+  workoutDayId   String
+  parentStageId  String?
+  position       Int
+  kind           String
+  durationUnit   String?
+  durationValue  Float?
+  targetKind     String?
+  targetValue    Float?
+  targetMin      Float?
+  targetMax      Float?
+  repeatCount    Int?
+  inclinePercent Float?
+  cadenceSpm     Int?
+  notes          String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  workoutDay     WorkoutDay          @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  parent         WorkoutCyclicStage? @relation("CyclicStageChildren", fields: [parentStageId], references: [id], onDelete: Cascade)
+  children       WorkoutCyclicStage[] @relation("CyclicStageChildren")
+
+  @@unique([parentStageId, position])
+  @@index([workoutDayId, parentStageId, position])
 }
 
 model PreWorkoutCheckIn {
