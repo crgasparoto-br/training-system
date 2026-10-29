@@ -41,7 +41,7 @@ type Fixture = {
 
 async function seedReleasedWorkout(
   label: string,
-  options: { publish?: boolean; seedResistance?: boolean } = {},
+  options: { publish?: boolean; seedResistance?: boolean; seedComparison?: boolean } = {},
 ): Promise<Fixture> {
   const suffix = `${label}-${randomUUID()}`;
   const contractId = `issue-389-${suffix}`;
@@ -205,6 +205,27 @@ async function seedReleasedWorkout(
         kind: 'principal',
         plannedSets: {
           create: { position: 1, repsMin: 8, repsMax: 12, loadKg: 32.5 },
+        },
+      },
+    });
+  }
+
+  if (options.seedComparison) {
+    await prisma.workoutCyclicStage.create({
+      data: {
+        workoutDayId: day.id, position: 1, kind: 'work',
+        durationUnit: 'meters', durationValue: 400,
+        targetKind: 'speed_kmh', targetValue: 12,
+      },
+    });
+    await prisma.workoutResistanceGroup.create({
+      data: {
+        workoutDayId: day.id, position: 1, kind: 'bi_set', rounds: 2,
+        members: {
+          create: [
+            { workoutExerciseId: exerciseA.id, position: 1 },
+            { workoutExerciseId: exerciseB.id, position: 2 },
+          ],
         },
       },
     });
