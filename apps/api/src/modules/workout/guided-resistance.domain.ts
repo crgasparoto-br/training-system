@@ -164,14 +164,28 @@ export function deriveGuidedResistancePlan(
   });
   const units: GuidedResistanceUnit[] = [];
   const emittedGroups = new Set<string>();
+  const executionSlots: Array<{
+    exercise: GuidedResistancePlannedExercise;
+    group: GuidedResistancePlannedGroup | null;
+  }> = [];
   for (const exercise of sorted) {
-    const group = memberGroups.get(exercise.id);
+    const group = memberGroups.get(exercise.id) ?? null;
+    if (group && emittedGroups.has(group.id)) continue;
+    if (group) emittedGroups.add(group.id);
+    executionSlots.push({ exercise, group });
+  }
+
+  // A group position belongs to #400's persisted arrangement, not the first
+  // member's visual/exercise order. Preserve the standalone exercise slots.
+  const orderedGroupSlots = executionSlots.filter((slot) => slot.group)
+    .sort((left, right) => left.group!.position - right.group!.position);
+  let groupSlotIndex = 0;
+  for (const slot of executionSlots) {
+    const { exercise, group } = slot.group ? orderedGroupSlots[groupSlotIndex++] : slot;
     if (!group) {
       setsFor(exercise).forEach((entry, index) => units.push(makeUnit(exercise, entry, index + 1, null)));
       continue;
     }
-    if (emittedGroups.has(group.id)) continue;
-    emittedGroups.add(group.id);
     const members = groupMembers.get(group.id)!;
     const rounds = groupRounds.get(group.id)!;
     for (let round = 1; round <= rounds; round += 1) {

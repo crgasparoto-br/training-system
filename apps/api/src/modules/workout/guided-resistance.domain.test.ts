@@ -153,6 +153,34 @@ describe('issue #487 - plano resistido canônico', () => {
     }
   });
 
+  it('respeita a posição canônica do grupo mesmo quando a ordem dos exercícios diverge', () => {
+    const source = [
+      exercise('a', 1), exercise('b', 2), exercise('solo', 3),
+      exercise('c', 4), exercise('d', 5),
+    ];
+    const groups = [
+      { id: 'group-2', position: 2, kind: 'bi_set', rounds: 2,
+        restBetweenExercisesSec: null, restBetweenRoundsSec: null, notes: null,
+        members: [
+          { position: 1, workoutExerciseId: 'a' },
+          { position: 2, workoutExerciseId: 'b' },
+        ] },
+      { id: 'group-1', position: 1, kind: 'bi_set', rounds: 2,
+        restBetweenExercisesSec: null, restBetweenRoundsSec: null, notes: null,
+        members: [
+          { position: 1, workoutExerciseId: 'c' },
+          { position: 2, workoutExerciseId: 'd' },
+        ] },
+    ];
+    const plan = deriveGuidedResistancePlan(source, groups);
+    expect(plan.availability).toBe('available');
+    expect(plan.units.map((unit) => unit.plannedUnitId)).toEqual([
+      'c', 'd', 'c', 'd', 'solo', 'solo', 'a', 'b', 'a', 'b',
+    ]);
+    expect(plan.units.filter((unit) => unit.groupId === 'group-1').map((unit) => unit.roundNumber))
+      .toEqual([1, 1, 2, 2]);
+  });
+
   it('não avança agrupamentos com participantes ou séries inconsistentes', () => {
     const first = exercise('a', 1);
     const second = exercise('b', 2);
