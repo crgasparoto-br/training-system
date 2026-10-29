@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import type {
+  TrainingRoutineAudience,
   TrainingSessionComparison,
   TrainingSessionComparisonMetric,
   TrainingSessionComparisonOutcome,
@@ -235,5 +236,22 @@ export function compareWorkoutSession(
     snapshotSource,
     executionVersion: execution.version,
     units: result,
+  };
+}
+
+/** Filter technical series and deltas at the API boundary, not only with CSS. */
+export function projectWorkoutComparisonForAudience(
+  comparison: TrainingSessionComparison,
+  audience: TrainingRoutineAudience,
+): TrainingSessionComparison {
+  if (audience === 'professor') return comparison;
+  return {
+    ...comparison,
+    units: comparison.units
+      .filter((item) => item.kind !== 'block' && item.kind !== 'set')
+      .map((item) => ({
+        ...item,
+        metrics: item.metrics.map((metric) => ({ ...metric, difference: null })),
+      })),
   };
 }
