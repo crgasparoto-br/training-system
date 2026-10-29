@@ -254,6 +254,10 @@ router.put('/days/:id/resistance-groups', async (req, res) => {
     res.json(groups);
   } catch (error: unknown) {
     console.error('Error replacing resistance groups:', error);
+    const mapped = classifyResistanceWriteError(error);
+    if (mapped.status === 400) {
+      return res.status(400).json({ code: mapped.body.code, error: 'Revise o tipo, a ordem e os participantes do agrupamento.' });
+    }
     return sendSafeWorkoutError(res, error);
   }
 });

@@ -120,6 +120,10 @@ export default function ResistanceGroupsEditor({ groups, exercises, onChange }: 
         </div>
       </div>
       {feedback && <p role="alert" className="text-sm text-destructive">{feedback}</p>}
+      {available.length < GROUP_TYPES.find((type) => type.kind === newKind)!.min && (
+        <p className="text-xs text-muted-foreground">Para criar {GROUP_TYPES.find((type) => type.kind === newKind)!.title.toLowerCase()},
+          adicione pelo menos {GROUP_TYPES.find((type) => type.kind === newKind)!.min} exercícios livres ao dia.</p>
+      )}
       {groups.length === 0 && (
         <p className="rounded-md border border-dashed border-border bg-card p-3 text-sm text-muted-foreground">
           Nenhum agrupamento estruturado neste dia. Os exercícios individuais permanecem inalterados.
@@ -162,10 +166,21 @@ export default function ResistanceGroupsEditor({ groups, exercises, onChange }: 
                     const exercise = exercises.find((row) => row.id === member.exerciseRowId);
                     return (
                       <li key={member.exerciseRowId} className="flex flex-wrap items-center gap-2 rounded-md bg-muted/60 px-2 py-1.5">
-                        <span className="min-w-0 flex-1 text-sm text-foreground">
-                          <span className="mr-1 tabular-nums text-muted-foreground">{memberIndex + 1}.</span>
-                          {exercise ? `${exercise.name} · ${sectionLabel[exercise.section]}` : 'Exercício indisponível'}
-                        </span>
+                        <label className="min-w-[12rem] flex-1 text-xs text-muted-foreground">
+                          <span className="mb-1 block">Participante {memberIndex + 1} do grupo {index + 1}</span>
+                          <select className={inputStyle} value={member.exerciseRowId} onChange={(event) => {
+                            if (!event.target.value || event.target.value === member.exerciseRowId) return;
+                            change(index, { ...group, members: group.members.map((entry, position) =>
+                              position === memberIndex ? { exerciseRowId: event.target.value } : entry,
+                            ) });
+                          }}>
+                            {!exercise && <option value={member.exerciseRowId} disabled>Exercício indisponível</option>}
+                            {[...(exercise ? [exercise] : []), ...available].map((option) =>
+                              <option key={option.id} value={option.id}>
+                                {option.name} · {sectionLabel[option.section]}
+                              </option>)}
+                          </select>
+                        </label>
                         <button type="button" className={buttonStyle} disabled={memberIndex === 0}
                           aria-label={`Subir participante ${memberIndex + 1} do grupo ${index + 1}`}
                           onClick={() => moveMember(index, memberIndex, -1)}><ArrowUp size={14} aria-hidden="true" /></button>
