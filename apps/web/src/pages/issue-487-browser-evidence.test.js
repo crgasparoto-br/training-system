@@ -288,11 +288,19 @@ suite('Issue #487 - evidência browser execução resistida guiada', () => {
       await page.click('input[placeholder="Informe a carga"]');
       await page.$eval('input[placeholder="Informe a carga"]', (input) => input.select());
       await page.keyboard.type('45,5');
-      const clickButton = async (label) => page.evaluate((text) => {
-        const button = [...document.querySelectorAll('button')].find((item) => item.textContent?.includes(text));
-        if (!(button instanceof HTMLButtonElement) || button.disabled) throw new Error('Button not actionable: ' + text);
-        button.click();
-      }, label);
+      const clickButton = async (label) => {
+        // The next step may render before the prior POST/parent refresh releases
+        // the busy lock. Wait for the actual enabled control, not just its text.
+        await page.waitForFunction((text) => {
+          const button = [...document.querySelectorAll('button')].find((item) => item.textContent?.includes(text));
+          return button instanceof HTMLButtonElement && !button.disabled;
+        }, { timeout: 12000 }, label);
+        await page.evaluate((text) => {
+          const button = [...document.querySelectorAll('button')].find((item) => item.textContent?.includes(text));
+          if (!(button instanceof HTMLButtonElement) || button.disabled) throw new Error('Button not actionable: ' + text);
+          button.click();
+        }, label);
+      };
       await clickButton('Concluir série');
       await waitText(page, 'Não foi possível confirmar a gravação');
       await clickButton('Ver ficha completa');
