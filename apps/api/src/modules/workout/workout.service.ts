@@ -1,6 +1,7 @@
 ﻿import { PrismaClient } from '@prisma/client';
 
 import { Prisma } from '@prisma/client';
+import { projectWorkoutDayExerciseCatalog } from './workout-release-catalog.js';
 import { assertWorkoutParentIsImmutable, normalizeResistanceBlocks, sanitizeWorkoutMutation, ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput } from './resistance-structure.domain.js';
 import { assertDayContract, isWorkoutTemplateUniqueConflict, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
 import { copyTemplate as copyTemplateStructured, copyTemplateSections as copyTemplateSectionsStructured } from './workout-copy.service.js';
@@ -187,6 +188,7 @@ export const workoutService = {
             exercises: {
               include: {
                 exercise: true,
+                releasedCatalog: true,
                 resistanceBlocks: resistanceBlockInclude,
               },
               orderBy: [
@@ -246,6 +248,7 @@ export const workoutService = {
                 exercises: {
                   include: {
                     exercise: true,
+                    releasedCatalog: true,
                     resistanceBlocks: resistanceBlockInclude,
                   },
                   orderBy: [
@@ -301,6 +304,7 @@ export const workoutService = {
             exercises: {
               include: {
                 exercise: true,
+                releasedCatalog: true,
                 resistanceBlocks: resistanceBlockInclude,
               },
               orderBy: [{ section: 'asc' }, { exerciseOrder: 'asc' }],
@@ -335,6 +339,7 @@ export const workoutService = {
             exercises: {
               include: {
                 exercise: true,
+                releasedCatalog: true,
                 resistanceBlocks: resistanceBlockInclude,
               },
               orderBy: [
@@ -365,6 +370,7 @@ export const workoutService = {
             exercises: {
               include: {
                 exercise: true,
+                releasedCatalog: true,
                 resistanceBlocks: resistanceBlockInclude,
               },
             },
@@ -422,6 +428,7 @@ export const workoutService = {
             exercises: {
               include: {
                 exercise: true,
+                releasedCatalog: true,
                 resistanceBlocks: resistanceBlockInclude,
               },
               orderBy: [
@@ -483,6 +490,7 @@ export const workoutService = {
         exercises: {
           include: {
             exercise: true,
+            releasedCatalog: true,
             resistanceBlocks: resistanceBlockInclude,
           },
           orderBy: [
@@ -494,7 +502,7 @@ export const workoutService = {
     });
 
     if (existing) {
-      return existing;
+      return projectWorkoutDayExerciseCatalog(existing, existing.template.released);
     }
 
     return await this.createWorkoutDay(data);
@@ -524,6 +532,7 @@ export const workoutService = {
           exercises: {
             include: {
               exercise: true,
+              releasedCatalog: true,
               resistanceBlocks: resistanceBlockInclude,
             },
           },
@@ -538,7 +547,7 @@ export const workoutService = {
    * Obter dia de treino por ID
    */
   async getWorkoutDay(id: string) {
-    return await prisma.workoutDay.findUnique({
+    const day = await prisma.workoutDay.findUnique({
       where: { id },
       include: {
         template: {
@@ -552,6 +561,7 @@ export const workoutService = {
           include: {
             exercise: true,
             executions: true,
+            releasedCatalog: true,
             resistanceBlocks: resistanceBlockInclude,
           },
           orderBy: [
@@ -561,6 +571,7 @@ export const workoutService = {
         },
       },
     });
+    return day ? projectWorkoutDayExerciseCatalog(day, day.template.released) : null;
   },
 
   /**
@@ -629,7 +640,7 @@ export const workoutService = {
     const start = resolveUtcDate(dateInput, false);
     const end = resolveUtcDate(dateInput, true);
 
-    return await prisma.workoutDay.findFirst({
+    const day = await prisma.workoutDay.findFirst({
       where: {
         workoutDate: {
           gte: start,
@@ -652,6 +663,7 @@ export const workoutService = {
           include: {
             exercise: true,
             executions: true,
+            releasedCatalog: true,
             resistanceBlocks: resistanceBlockInclude,
           },
           orderBy: [
@@ -661,6 +673,7 @@ export const workoutService = {
         },
       },
     });
+    return day ? projectWorkoutDayExerciseCatalog(day, day.template.released) : null;
   },
 
   async getDay(id: string) {
@@ -702,10 +715,12 @@ export const workoutService = {
    * Listar exercÃ­cios de um dia
    */
   async getExercises(workoutDayId: string) {
-    return await prisma.workoutExercise.findMany({
+    const rows = await prisma.workoutExercise.findMany({
       where: { workoutDayId },
       include: {
         exercise: true,
+        releasedCatalog: true,
+        workoutDay: { select: { template: { select: { released: true } } } },
         resistanceBlocks: resistanceBlockInclude,
       },
       orderBy: [
@@ -713,6 +728,10 @@ export const workoutService = {
         { exerciseOrder: 'asc' },
       ],
     });
+    const projected = projectWorkoutDayExerciseCatalog(
+      { exercises: rows }, rows[0]?.workoutDay.template.released ?? false,
+    );
+    return projected.exercises.map(({ workoutDay: _day, ...exercise }) => exercise);
   },
 
   /**
@@ -825,6 +844,7 @@ export const workoutService = {
           include: {
             exercise: true,
             executions: true,
+            releasedCatalog: true,
             resistanceBlocks: resistanceBlockInclude,
           },
           orderBy: [

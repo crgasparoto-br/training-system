@@ -1,4 +1,5 @@
 import { PrismaClient, type Prisma } from '@prisma/client';
+import { projectWorkoutDayExerciseCatalog } from './workout-release-catalog.js';
 
 const prisma = new PrismaClient();
 
@@ -103,6 +104,7 @@ const detailSelect = {
               name: true,
             },
           },
+          releasedCatalog: { select: { catalog: true } },
         },
       },
     },
@@ -124,13 +126,16 @@ export function createStudentWorkoutService(client: PrismaClient = prisma) {
       alunoId: string,
       contractId: string
     ) {
-      return client.workoutTemplate.findFirst({
+      const released = await client.workoutTemplate.findFirst({
         where: {
           id: workoutTemplateId,
           ...releasedStudentWorkoutWhere(alunoId, contractId),
         },
         select: detailSelect,
       });
+      if (!released) return null;
+      return { ...released, workoutDays: released.workoutDays.map((day) =>
+        projectWorkoutDayExerciseCatalog(day, true)) };
     },
   };
 }

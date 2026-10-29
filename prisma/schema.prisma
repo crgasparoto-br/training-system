@@ -1540,6 +1540,7 @@ model WorkoutExercise {
   workoutDay    WorkoutDay         @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
   resistanceBlocks WorkoutExerciseBlock[]
   resistanceGroupMember WorkoutResistanceGroupMember?
+  releasedCatalog WorkoutReleasedExerciseSnapshot?
 
   @@index([workoutDayId])
   @@index([workoutDayId, section, exerciseOrder])
@@ -1574,6 +1575,14 @@ model WorkoutResistanceGroupMember {
 
   @@unique([groupId, position], map: "WorkoutResistanceGroupMember_group_position_key")
   @@index([groupId], map: "WorkoutResistanceGroupMember_group_idx")
+}
+
+/// Release-time snapshot of the catalog fields of a canonical exercise.
+model WorkoutReleasedExerciseSnapshot {
+  workoutExerciseId String @id
+  catalog Json
+  capturedAt DateTime @default(now())
+  workoutExercise WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
 }
 
 model WorkoutExerciseBlock {
