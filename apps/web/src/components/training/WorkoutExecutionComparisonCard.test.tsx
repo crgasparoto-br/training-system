@@ -72,9 +72,18 @@ describe('WorkoutExecutionComparisonCard (#401)', () => {
     };
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
-      render(<WorkoutExecutionComparisonCard comparison={duplicatedPlanId} audience="professor" />);
+      const view = render(<WorkoutExecutionComparisonCard comparison={duplicatedPlanId} audience="professor" />);
       expect(screen.getByText(/Série 1 · registro 1/)).toBeInTheDocument();
       expect(screen.getByText(/Série 1 · registro 3/)).toBeInTheDocument();
+      view.rerender(<WorkoutExecutionComparisonCard comparison={{
+        ...duplicatedPlanId,
+        units: [duplicatedPlanId.units[0], {
+          ...duplicatedPlanId.units[1], executedSetNumber: 4,
+        }],
+      }} audience="professor" />);
+      expect(screen.getByText(/Série 1 · registro 1/)).toBeInTheDocument();
+      expect(screen.getByText(/Série 1 · registro 4/)).toBeInTheDocument();
+      expect(screen.queryByText(/Série 1 · registro 3/)).not.toBeInTheDocument();
       expect(errorSpy.mock.calls.flat().join(' ')).not.toMatch(/same key|unique key/i);
     } finally {
       errorSpy.mockRestore();

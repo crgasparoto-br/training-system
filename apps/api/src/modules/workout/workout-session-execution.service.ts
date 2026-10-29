@@ -310,7 +310,7 @@ type ExecutionProjectionRow = {
     pace: string | null;
     heartRateBpm: number | null;
     heartRateZone: string | null;
-    outcome?: string;
+    outcome?: string | null;
     substitutionNote?: string | null;
     rir?: number | null;
     rpe?: number | null;
