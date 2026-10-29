@@ -2418,7 +2418,8 @@ describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
     if (!week) throw new Error('A semana regravada não foi encontrada.');
     expect(week.updatedAt.getTime()).toBe(before.updatedAt.getTime());
     const persisted = await prisma.workoutResistanceGroup.findFirstOrThrow({
-      where: { workoutDayId: fixture.dayId }, include: { members: true },
+      where: { workoutDayId: fixture.dayId },
+      include: { members: { orderBy: { position: 'asc' } } },
     });
     expect(persisted.id).toBe(first.id);
     expect(persisted.members.map((row) => row.id)).toEqual(first.members.map((row) => row.id));
