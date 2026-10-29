@@ -687,46 +687,46 @@ export default function WorkoutBuilderResistance({
 
     const prev = currentExercisesRef.current;
     const currentDay = prev[selectedDay] || {
-        mobilidade: [],
-        sessao: [],
-        resfriamento: []
-      };
+      mobilidade: [],
+      sessao: [],
+      resfriamento: []
+    };
 
-      const updatedDay = {
-        ...currentDay,
-        [selectedSection]: [
-          ...currentDay[selectedSection],
-          {
-            id: rowId,
-            exerciseId: exercise.id,
-            name: exercise.name,
-            category: exercise.category,
-            system:
-              selectedSection === 'mobilidade'
-                ? 'SER'
-                : selectedSection === 'sessao'
-                  ? (isCyclic ? '-' : (resistedSummary?.method ?? ''))
-                  : '',
-            groupBreakBefore: false,
-            sets: null,
-            reps: null,
-            interval: null,
-            cParam: null,
-            eParam: null,
-            load: null,
-            adjustment: ''
-          }
-        ]
-      };
+    const updatedDay = {
+      ...currentDay,
+      [selectedSection]: [
+        ...currentDay[selectedSection],
+        {
+          id: rowId,
+          exerciseId: exercise.id,
+          name: exercise.name,
+          category: exercise.category,
+          system:
+            selectedSection === 'mobilidade'
+              ? 'SER'
+              : selectedSection === 'sessao'
+                ? (isCyclic ? '-' : (resistedSummary?.method ?? ''))
+                : '',
+          groupBreakBefore: false,
+          sets: null,
+          reps: null,
+          interval: null,
+          cParam: null,
+          eParam: null,
+          load: null,
+          adjustment: ''
+        }
+      ]
+    };
 
-      const finalSection =
-        selectedSection === 'sessao'
-          ? applyQuickFillDefaults(updatedDay[selectedSection])
-          : updatedDay[selectedSection];
-      const updated = {
-        ...prev,
-        [selectedDay]: { ...updatedDay, [selectedSection]: finalSection }
-      };
+    const finalSection =
+      selectedSection === 'sessao'
+        ? applyQuickFillDefaults(updatedDay[selectedSection])
+        : updatedDay[selectedSection];
+    const updated = {
+      ...prev,
+      [selectedDay]: { ...updatedDay, [selectedSection]: finalSection }
+    };
 
     currentExercisesRef.current = updated;
     setExercisesByDay(updated);
@@ -764,24 +764,24 @@ export default function WorkoutBuilderResistance({
 
     const prev = currentExercisesRef.current;
     const currentDay = prev[selectedDay] || {
-        mobilidade: [],
-        sessao: [],
-        resfriamento: []
-      };
+      mobilidade: [],
+      sessao: [],
+      resfriamento: []
+    };
 
-      const updatedDay = {
-        ...currentDay,
-        [selectedSection]: [...currentDay[selectedSection], ...newEntries]
-      };
+    const updatedDay = {
+      ...currentDay,
+      [selectedSection]: [...currentDay[selectedSection], ...newEntries]
+    };
 
-      const finalSection =
-        selectedSection === 'sessao'
-          ? applyQuickFillDefaults(updatedDay[selectedSection])
-          : updatedDay[selectedSection];
-      const updated = {
-        ...prev,
-        [selectedDay]: { ...updatedDay, [selectedSection]: finalSection }
-      };
+    const finalSection =
+      selectedSection === 'sessao'
+        ? applyQuickFillDefaults(updatedDay[selectedSection])
+        : updatedDay[selectedSection];
+    const updated = {
+      ...prev,
+      [selectedDay]: { ...updatedDay, [selectedSection]: finalSection }
+    };
 
     currentExercisesRef.current = updated;
     setExercisesByDay(updated);
