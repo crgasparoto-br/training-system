@@ -2679,3 +2679,115 @@ describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
   });
 
 });
+
+
+describeDatabase('issue #401: frozen planned versus executed comparison', () => {
+  it('captures the released graph on first execution, then compares stable stage, set and group IDs', async () => {
+    const fixture = await seedReleasedWorkout('issue401-frozen', {
+      seedResistance: true,
+      seedComparison: true,
+    });
+    const [stage, group, plannedSet] = await Promise.all([
+      prisma.workoutCyclicStage.findFirstOrThrow({ where: { workoutDayId: fixture.dayId } }),
+      prisma.workoutResistanceGroup.findFirstOrThrow({ where: { workoutDayId: fixture.dayId } }),
+      prisma.workoutExercisePlannedSet.findFirstOrThrow({
+        where: { block: { workoutExerciseId: fixture.exerciseIds[0] } },
+      }),
+    ]);
+
+    await transition(fixture, 'issue401-start-comparison', 0, 'in_progress');
+    const frozen = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId },
+    });
+    expect(frozen.plannedSnapshot).toMatchObject({ id: fixture.dayId });
+    const initialPlan = frozen.plannedSnapshot as Record<string, any>;
+    expect(initialPlan.cyclicStages.map((item: { id: string }) => item.id)).toContain(stage.id);
+    expect(initialPlan.resistanceGroups.map((item: { id: string }) => item.id)).toContain(group.id);
+    expect(initialPlan.exercises[0].resistanceBlocks[0].plannedSets[0].id).toBe(plannedSet.id);
+
+    const saved = await service.saveValues({
+      sessionId: fixture.dayId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId, actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue401-record-comparison',
+        expectedVersion: 1,
+        sessionValues: {
+          cyclicStages: [{ plannedStageId: stage.id, outcome: 'partial',
+            durationSec: 90, distanceMeters: 320, speedKmh: 10 }],
+          resistanceGroups: [{ plannedGroupId: group.id, outcome: 'partial',
+            roundsCompleted: 1, restBetweenRoundsSec: 60 }],
+        },
+        items: [{
+          plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSet.id,
+          setNumber: 1, outcome: 'substituted', substitutionNote: 'Versão sem carga',
+          repetitions: 9, loadKg: 0, rir: 2, rpe: 7, tempo: '2-0-2', restSec: 45,
+        }],
+      },
+    });
+    expect(saved.version).toBe(2);
+    expect(saved.items[0]).toMatchObject({
+      plannedSetId: plannedSet.id, outcome: 'substituted',
+      substitutionNote: 'Versão sem carga', loadKg: 0, rir: 2, rpe: 7,
+    });
+    expect(saved.sessionValues).toMatchObject({
+      cyclicStages: [expect.objectContaining({ plannedStageId: stage.id, distanceMeters: 320 })],
+      resistanceGroups: [expect.objectContaining({ plannedGroupId: group.id, roundsCompleted: 1 })],
+    });
+
+    const after = await prisma.workoutSessionExecution.findUniqueOrThrow({ where: { workoutDayId: fixture.dayId } });
+    expect(after.plannedSnapshot).toEqual(frozen.plannedSnapshot);
+    await expect(prisma.$executeRaw`
+      UPDATE "WorkoutSessionExecution"
+      SET "plannedSnapshot" = '{"id":"forged"}'::jsonb
+      WHERE "id" = ${frozen.id}
+    `).rejects.toThrow();
+    expect((await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { id: frozen.id },
+    })).plannedSnapshot).toEqual(frozen.plannedSnapshot);
+  });
+
+  it('rejects forged stage/group IDs and foreign-contract units without partial writes', async () => {
+    const own = await seedReleasedWorkout('issue401-allowed', { seedComparison: true });
+    const other = await seedReleasedWorkout('issue401-foreign', { seedComparison: true });
+    const foreignStage = await prisma.workoutCyclicStage.findFirstOrThrow({
+      where: { workoutDayId: other.dayId },
+    });
+    const foreignGroup = await prisma.workoutResistanceGroup.findFirstOrThrow({
+      where: { workoutDayId: other.dayId },
+    });
+    await transition(own, 'issue401-start-boundary', 0, 'in_progress');
+    const base = { sessionId: own.dayId, alunoId: own.alunoId, contractId: own.contractId, actorUserId: own.alunoUserId };
+
+    await expect(service.saveValues({
+      ...base,
+      payload: { operationKey: 'issue401-foreign-stage', expectedVersion: 1,
+        sessionValues: { cyclicStages: [{ plannedStageId: foreignStage.id, outcome: 'full' }] } },
+    })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    await expect(service.saveValues({
+      ...base,
+      payload: { operationKey: 'issue401-foreign-group', expectedVersion: 1,
+        sessionValues: { resistanceGroups: [{ plannedGroupId: foreignGroup.id, outcome: 'full' }] } },
+    })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    await expect(service.saveValues({
+      ...base,
+      payload: { operationKey: 'issue401-foreign-unit', expectedVersion: 1,
+        items: [{ plannedUnitId: other.exerciseIds[0], setNumber: 1, repetitions: 5 }] },
+    })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+
+    const ownStage = await prisma.workoutCyclicStage.findFirstOrThrow({ where: { workoutDayId: own.dayId } });
+    await expect(service.saveValues({
+      ...base,
+      payload: { operationKey: 'issue401-stage-duplicate', expectedVersion: 1,
+        sessionValues: { cyclicStages: [
+          { plannedStageId: ownStage.id, outcome: 'full', iteration: 1 },
+          { plannedStageId: ownStage.id, outcome: 'partial', iteration: 1 },
+        ] } },
+    })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    expect((await service.getForSession({
+      sessionId: own.dayId, alunoId: own.alunoId, contractId: own.contractId,
+    })).version).toBe(1);
+    await expect(service.getForSession({
+      sessionId: other.dayId, alunoId: own.alunoId, contractId: own.contractId,
+    })).rejects.toBeInstanceOf(WorkoutSessionExecutionNotFoundError);
+  });
+});
