@@ -853,6 +853,16 @@ const executionItemSchema = z.object({
   heartRateZone: z.string().trim().max(32).nullable().optional(),
 }).strict();
 
+const guidedCompletionSchema = z.object({
+  operationKey: z.string().trim().min(8).max(128),
+  expectedVersion: z.number().int().nonnegative(),
+  plannedUnitId: z.string().trim().min(1),
+  plannedSetId: z.string().trim().min(1),
+  setNumber: z.number().int().positive(),
+  repetitions: z.number().int().nonnegative().nullable(),
+  loadKg: z.number().finite().nonnegative().nullable(),
+}).strict();
+
 const executionTransitionSchema = z.object({
   operationKey: z.string().trim().min(8).max(128),
   expectedVersion: z.number().int().nonnegative(),
@@ -901,6 +911,39 @@ router.get('/me/training-sessions/:sessionId/execution', async (req: Request, re
     if (handled) return handled;
     console.error('Erro ao buscar execução da sessão:', error);
     return sendError(res, 'Erro ao buscar execução do treino', 500);
+  }
+});
+
+// Canonical #389 execution remains the only state/version authority for #487.
+router.get('/me/training-sessions/:sessionId/execution/guided', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId as string;
+    const aluno = await requireAlunoByUserId(req, userId);
+    return sendSuccess(res, await workoutSessionExecutionService.getGuidedForSession({
+      sessionId: req.params.sessionId, alunoId: aluno.id, contractId: aluno.contractId,
+    }));
+  } catch (error: any) {
+    const handled = sendExecutionError(res, error);
+    if (handled) return handled;
+    console.error('Erro ao consultar treino guiado:', error);
+    return sendError(res, 'Não foi possível carregar o treino guiado', 500);
+  }
+});
+
+router.post('/me/training-sessions/:sessionId/execution/guided/complete', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId as string;
+    const aluno = await requireAlunoByUserId(req, userId);
+    const payload = guidedCompletionSchema.parse(req.body);
+    return sendSuccess(res, await workoutSessionExecutionService.completeGuided({
+      sessionId: req.params.sessionId, alunoId: aluno.id,
+      contractId: aluno.contractId, actorUserId: userId, payload,
+    }), 'Série concluída');
+  } catch (error: any) {
+    const handled = sendExecutionError(res, error);
+    if (handled) return handled;
+    console.error('Erro ao concluir série guiada:', error);
+    return sendError(res, 'Não foi possível concluir a série', 500);
   }
 });
 

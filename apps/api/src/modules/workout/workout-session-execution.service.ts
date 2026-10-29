@@ -7,7 +7,10 @@ import type {
   TrainingSessionExecutionTransitionPayload,
   TrainingSessionExecutionValuesPayload,
   TrainingSessionExecutionView,
+  GuidedResistanceCompletePayload,
+  GuidedResistanceView,
 } from '@corrida/types';
+import { deriveGuidedResistancePlan, matchesCurrentGuidedUnit, projectGuidedResistance } from './guided-resistance.domain.js';
 import { persistWorkoutSessionValues, WorkoutSessionExecutionInputError } from './workout-session-execution-values.js';
 export { WorkoutSessionExecutionInputError } from './workout-session-execution-values.js';
 import {
@@ -17,6 +20,33 @@ import {
 } from './workout-session-execution.domain.js';
 
 const prisma = new PrismaClient();
+
+/** The read/write boundary always takes its exercise and set identities from this query. */
+async function loadGuidedResistancePlan(tx: Prisma.TransactionClient, sessionId: string) {
+  const exercises = await tx.workoutExercise.findMany({
+    where: { workoutDayId: sessionId },
+    select: {
+      id: true, section: true, exerciseOrder: true, system: true, groupBreakBefore: true,
+      groupId: true, groupType: true, groupPosition: true, groupRounds: true, exerciseNotes: true,
+      exercise: { select: { name: true, videoUrl: true, notes: true } },
+      resistanceBlocks: {
+        orderBy: { position: 'asc' },
+        select: {
+          position: true, kind: true, notes: true,
+          plannedSets: {
+            orderBy: { position: 'asc' },
+            select: {
+              id: true, position: true, repsMin: true, repsMax: true,
+              loadKg: true, loadPercent: true, rir: true, rpe: true,
+              tempo: true, restSec: true, notes: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  return deriveGuidedResistancePlan(exercises);
+}
 
 type LockedReleasedSession = {
   id: string;
@@ -215,6 +245,7 @@ type ExecutionProjectionRow = {
     plannedUnitId: string;
     plannedSetId: string | null;
     setNumber: number;
+    completedAt?: Date | null;
     loadKg: number | null;
     repetitions: number | null;
     durationSec: number | null;
@@ -248,6 +279,7 @@ export function projectWorkoutSessionExecution(
       plannedUnitId: item.plannedUnitId,
       plannedSetId: item.plannedSetId,
       setNumber: item.setNumber,
+      completedAt: item.completedAt?.toISOString() ?? null,
       loadKg: item.loadKg,
       repetitions: item.repetitions,
       durationSec: item.durationSec,
@@ -277,13 +309,17 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
     reason?: string | null;
     sessionValues?: TrainingSessionExecutionSessionValues;
     items?: TrainingSessionExecutionItemValue[];
+    guidedCompletion?: boolean;
   }): Promise<TrainingSessionExecutionView> {
     const operationKey = ensureOperationKey(input.operationKey);
     if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 0) throw new WorkoutSessionExecutionInputError('Versão esperada inválida.');
     const reason = normalizeText(input.reason, 500);
     const sessionValues = normalizeSessionValues(input.sessionValues);
     const items = normalizeItems(input.items);
-    const action = input.targetStatus ? 'transition' : 'record_values';
+    const action = input.guidedCompletion ? 'complete_resistance_set' : input.targetStatus ? 'transition' : 'record_values';
+    if (input.guidedCompletion && (input.targetStatus || sessionValues || items.length !== 1 || !items[0].plannedSetId)) {
+      throw new WorkoutSessionExecutionInputError('Informe exatamente uma série planejada para concluir.');
+    }
     if (!input.targetStatus && !sessionValues && items.length === 0) throw new WorkoutSessionExecutionInputError('Informe pelo menos um valor executado.');
 
     const normalizedOperation = {
@@ -348,6 +384,28 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
         throw new WorkoutSessionExecutionConflictError('Valores executados só podem ser registrados enquanto o treino está em andamento.', 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION');
       }
 
+      // Guide confirmation is checked against the authoritative plan and current
+      // durable progress INSIDE the same serializable transaction as the write.
+      // It cannot jump a set, reuse another exercise, or progress while paused.
+      if (input.guidedCompletion) {
+        if (currentStatus !== 'in_progress' || !execution) {
+          throw new WorkoutSessionExecutionConflictError(
+            'A sessão não está em andamento. Atualize o treino para continuar.',
+            'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION'
+          );
+        }
+        const plan = await loadGuidedResistancePlan(tx, input.sessionId);
+        const persisted = await readExecution(tx, input.sessionId);
+        if (!persisted) throw new WorkoutSessionExecutionNotFoundError('Execução de treino não encontrada.');
+        const guided = projectGuidedResistance(input.sessionId, projectWorkoutSessionExecution(persisted), plan);
+        if (!matchesCurrentGuidedUnit(guided, items[0])) {
+          throw new WorkoutSessionExecutionConflictError(
+            'Esta série não é a próxima do planejamento. Atualize o treino antes de continuar.',
+            'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT'
+          );
+        }
+      }
+
       const now = new Date();
       if (!execution) {
         execution = await tx.workoutSessionExecution.create({
@@ -364,7 +422,20 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
         });
       }
 
-      const mergedSessionValues = await persistWorkoutSessionValues(tx, execution.id, input.sessionId, sessionValues, items);
+      // Guided completion belongs to one operation; create its intent first.
+      // The database verifies this identity after the event and version commit.
+      const resultingVersion = currentVersion + 1;
+      const guidedOperation = input.guidedCompletion
+        ? await tx.workoutSessionExecutionOperation.create({
+            data: { executionId: execution.id, operationKey, payloadFingerprint,
+              action, targetStatus: input.targetStatus, expectedVersion: currentVersion,
+              resultingVersion },
+          })
+        : null;
+      const mergedSessionValues = await persistWorkoutSessionValues(
+        tx, execution.id, input.sessionId, sessionValues, items,
+        input.guidedCompletion ? now : undefined, guidedOperation?.id,
+      );
 
       let nextStatus = currentStatus;
       let startedAt = execution.startedAt;
@@ -393,11 +464,11 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
         if (nextStatus === 'partial' || nextStatus === 'not_performed') interruptionReason = reason ?? null;
       }
 
-      const nextVersion = currentVersion + 1;
+      const nextVersion = resultingVersion;
       // Insert the intent ledger while the execution is still non-terminal.
       // The operation, state transition and lifecycle link remain atomic, but
       // the database can now reject every direct INSERT into terminal history.
-      const operation = await tx.workoutSessionExecutionOperation.create({
+      const operation = guidedOperation ?? await tx.workoutSessionExecutionOperation.create({
         data: {
           executionId: execution.id,
           operationKey,
@@ -474,7 +545,19 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
     }
   }
 
+  async function getGuidedForSession(input: { sessionId: string; alunoId: string; contractId: string }): Promise<GuidedResistanceView> {
+    return client.$transaction(async (tx) => {
+      const locked = await lockReleasedSession(tx, input.sessionId, input.alunoId, input.contractId);
+      if (!locked) throw new WorkoutSessionExecutionNotFoundError('Sessão de treino não encontrada.');
+      const execution = await readExecution(tx, input.sessionId);
+      const view = execution ? projectWorkoutSessionExecution(execution) : defaultView(locked);
+      const plan = await loadGuidedResistancePlan(tx, input.sessionId);
+      return projectGuidedResistance(input.sessionId, view, plan);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
   return {
+    getGuidedForSession,
     async getForSession(input: { sessionId: string; alunoId: string; contractId: string }): Promise<TrainingSessionExecutionView> {
       const released = await client.$transaction((tx) => lockReleasedSession(tx, input.sessionId, input.alunoId, input.contractId));
       if (!released) throw new WorkoutSessionExecutionNotFoundError('Sessão de treino não encontrada.');
@@ -500,6 +583,26 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
       payload: TrainingSessionExecutionValuesPayload;
     }) {
       return runOperation({ ...input, ...input.payload });
+    },
+    async completeGuided(input: {
+      sessionId: string;
+      alunoId: string;
+      contractId: string;
+      actorUserId: string;
+      payload: GuidedResistanceCompletePayload;
+    }): Promise<GuidedResistanceView> {
+      const { operationKey, expectedVersion, plannedUnitId, plannedSetId, setNumber, repetitions, loadKg } = input.payload;
+      await runOperation({
+        sessionId: input.sessionId,
+        alunoId: input.alunoId,
+        contractId: input.contractId,
+        actorUserId: input.actorUserId,
+        operationKey,
+        expectedVersion,
+        items: [{ plannedUnitId, plannedSetId, setNumber, repetitions, loadKg }],
+        guidedCompletion: true,
+      });
+      return getGuidedForSession(input);
     },
   };
 }
