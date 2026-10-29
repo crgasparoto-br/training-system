@@ -376,10 +376,7 @@ export default function WorkoutBuilderResistance({
       };
 
       const currentSectionExercises = currentDay[quickFillSection];
-      const groupMeta =
-        quickFillSection === 'sessao'
-          ? buildSystemGroups(currentSectionExercises).meta
-          : [];
+      const groupMeta = buildSystemGroups(currentSectionExercises).meta;
 
       const updatedSection = currentSectionExercises.map((exercise, index) => {
         if (quickFillSection === 'sessao' && isCyclicCategory(exercise.category)) {
@@ -560,9 +557,8 @@ export default function WorkoutBuilderResistance({
       const preserveCircuitBoundary =
         Boolean(removed?.groupBreakBefore) &&
         Boolean(nextExercise) &&
-        isCircuitSystem(removed?.system || resistedSummary?.method || '') &&
-        getSystemKey(removed?.system || resistedSummary?.method || '') ===
-          getSystemKey(nextExercise?.system || resistedSummary?.method || '');
+        Boolean(removed?.groupType) &&
+        removed?.groupType === nextExercise?.groupType;
       const list = currentList.filter((_, idx) => idx !== index);
       if (preserveCircuitBoundary && list[index]) {
         list[index] = { ...list[index], groupBreakBefore: true };
@@ -741,10 +737,7 @@ export default function WorkoutBuilderResistance({
 
   const renderSection = (dayOfWeek: number, section: (typeof SECTIONS)[number]) => {
     const sectionExercises = exercisesByDay[dayOfWeek]?.[section.key] || [];
-    const groupData =
-      section.key === 'sessao'
-        ? buildSystemGroups(sectionExercises)
-        : { meta: [], warnings: [] };
+    const groupData = buildSystemGroups(sectionExercises);
     const headingId = `${idPrefix}-${dayOfWeek}-${section.key}`;
 
     const renderNumericField = (
