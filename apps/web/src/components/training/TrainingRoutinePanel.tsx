@@ -12,10 +12,13 @@ import type {
   TrainingSessionExecutionStatus,
   TrainingSessionExecutionTransitionPayload,
   TrainingSessionExecutionView,
+  GuidedResistanceCompletePayload,
+  GuidedResistanceView,
 } from '@corrida/types';
 import { Button } from '../ui/Button';
 import { PreWorkoutCheckInCard } from './PreWorkoutCheckInCard';
 import { PostWorkoutFeedbackCard } from './PostWorkoutFeedbackCard';
+import { GuidedResistanceCard } from './GuidedResistanceCard';
 import type { UpsertPreWorkoutCheckInPayload, PreWorkoutCheckInView, CreateCanonicalPostWorkoutFeedbackPayload, CanonicalPostWorkoutFeedbackRevisionView } from '@corrida/types';
 import {
   getTrainingRoutineErrorKind,
@@ -135,6 +138,8 @@ function TodaySession({
   saveCheckIn,
   saveFeedback,
   transitionExecution,
+  loadGuided,
+  completeGuided,
   onExecutionChanged,
 }: {
   session: TrainingRoutineSessionDetail;
@@ -143,6 +148,8 @@ function TodaySession({
   saveCheckIn?: (sessionId: string, payload: UpsertPreWorkoutCheckInPayload) => Promise<PreWorkoutCheckInView>;
   saveFeedback?: (sessionId: string, payload: CreateCanonicalPostWorkoutFeedbackPayload) => Promise<CanonicalPostWorkoutFeedbackRevisionView>;
   transitionExecution?: (sessionId: string, payload: TrainingSessionExecutionTransitionPayload) => Promise<TrainingSessionExecutionView>;
+  loadGuided?: (sessionId: string) => Promise<GuidedResistanceView>;
+  completeGuided?: (sessionId: string, payload: GuidedResistanceCompletePayload) => Promise<GuidedResistanceView>;
   onExecutionChanged?: () => Promise<void>;
 }) {
   const headingId = useId();
@@ -150,6 +157,7 @@ function TodaySession({
   const [executionReason, setExecutionReason] = useState('');
   const [executionError, setExecutionError] = useState<string | null>(null);
   const [executionBusy, setExecutionBusy] = useState(false);
+  const [showGuided, setShowGuided] = useState(true);
   const operationRef = useRef<{ signature: string; key: string } | null>(null);
   const duration = formatDuration(session.durationMin);
 
@@ -234,6 +242,9 @@ function TodaySession({
       stage.cadenceSpm !== null ? `Cadência ${stage.cadenceSpm} ppm` : ''
     ].filter(Boolean).join(' · ');
   };
+  const hasGuided = audience === 'student' && session.modalities.includes('resistance')
+    && (session.status === 'in_progress' || session.status === 'paused')
+    && Boolean(loadGuided && completeGuided);
   const cyclicItems = session.cyclic
     ? [
         { label: 'Tempo do aeróbio', value: formatDuration(session.cyclic.durationMin) },
@@ -317,7 +328,23 @@ function TodaySession({
         </section>
       )}
 
-      {session.blocks.map((block) => (
+      {hasGuided && showGuided && loadGuided && completeGuided && (
+        <GuidedResistanceCard
+          sessionId={session.sessionId}
+          status={session.execution.status}
+          version={session.execution.version}
+          load={loadGuided}
+          complete={completeGuided}
+          onExecutionChanged={onExecutionChanged}
+          onOverview={() => setShowGuided(false)}
+        />
+      )}
+      {hasGuided && !showGuided && (
+        <Button type="button" onClick={() => setShowGuided(true)} className="w-full sm:w-auto">
+          Continuar execução guiada
+        </Button>
+      )}
+      {(!hasGuided || !showGuided) && session.blocks.map((block) => (
         <section key={block.key} aria-label={blockLabels[block.key]}>
           <h4 className="text-sm font-semibold text-foreground">{blockLabels[block.key]}</h4>
           <ol className="mt-2 divide-y divide-border rounded-lg border border-border">
@@ -622,6 +649,8 @@ export type TrainingRoutinePanelProps = {
   saveCheckIn?: (sessionId: string, payload: UpsertPreWorkoutCheckInPayload) => Promise<PreWorkoutCheckInView>;
   saveFeedback?: (sessionId: string, payload: CreateCanonicalPostWorkoutFeedbackPayload) => Promise<CanonicalPostWorkoutFeedbackRevisionView>;
   transitionExecution?: (sessionId: string, payload: TrainingSessionExecutionTransitionPayload) => Promise<TrainingSessionExecutionView>;
+  loadGuided?: (sessionId: string) => Promise<GuidedResistanceView>;
+  completeGuided?: (sessionId: string, payload: GuidedResistanceCompletePayload) => Promise<GuidedResistanceView>;
 };
 
 export function TrainingRoutinePanel({
@@ -633,6 +662,8 @@ export function TrainingRoutinePanel({
   saveCheckIn,
   saveFeedback,
   transitionExecution,
+  loadGuided,
+  completeGuided,
 }: TrainingRoutinePanelProps) {
   const [routine, setRoutine] = useState<TrainingRoutineView | null>(null);
   const [referenceDate, setReferenceDate] = useState<string | undefined>(undefined);
@@ -760,6 +791,8 @@ export function TrainingRoutinePanel({
                   return saved;
                 } : undefined}
                 transitionExecution={transitionExecution}
+                loadGuided={loadGuided}
+                completeGuided={completeGuided}
                 onExecutionChanged={async () => {
                   if (!await fetchRoutine(referenceDate)) throw new Error('Falha ao revalidar treino');
                 }}
