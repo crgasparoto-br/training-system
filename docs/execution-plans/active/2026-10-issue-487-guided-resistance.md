@@ -53,3 +53,11 @@ A PR #521 continua dependência de integração: primeiro sua aprovação
 independente e merge autorizado; depois reconciliação da #522 com a nova
 `develop`, nova CI exact-SHA e revisão independente da #487. Nenhuma
 sincronização por conteúdo corresponde a merge ou dispensa essa ordem.
+
+## Remediação de concorrência após auditoria independente — 29/10/2026
+
+- **A-001 (GET fora de ordem/409):** cada leitura do guia recebe geração de requisição; respostas de gerações anteriores não podem alterar a projeção, os valores digitados, a mensagem de erro nem o bloqueio de reconciliação. POST confirmado e conflito 409 invalidam explicitamente leituras já iniciadas.
+- **Projeção monotônica:** não aceitar GET com `version` menor que a versão já exibida ou a versão canônica informada pela tela; após 409, GET com a mesma versão da operação rejeitada também não libera a confirmação. Identidade `sessionId` divergente não é exibida.
+- **Recuperação:** se a revalidação falhar, o formulário mantém os dados digitados e a confirmação permanece desabilitada; somente uma nova consulta válida desfaz o bloqueio. O cartão é remontado ao trocar `sessionId`, evitando que estado de outro treino seja reutilizado.
+- **Controles negativos:** testes React com promessas controladas simulam GET anterior ao 409 resolvendo após GET falho, dois GETs retornando em ordem invertida, POST confirmado antes de GET antigo, resposta de mesma versão após 409 e identidade de sessão divergente. O teste de 409 + GET falho existente continua obrigatório.
+- **A-002 (dependência #400):** alterações posteriores da PR #521 precisam ser sincronizadas por conteúdo sem apagar as adaptações da #487; a aprovação independente e eventual integração da #521 são obrigações de governança externas a esta branch. Não realizar merge ou encerrar a issue até CI exact-SHA, nova auditoria independente e integração autorizada.

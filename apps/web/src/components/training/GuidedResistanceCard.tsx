@@ -74,9 +74,17 @@ export function GuidedResistanceCard({
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [lastRest, setLastRest] = useState<number | null>(null);
   const currentSetRef = useRef<string | null>(null);
+  // Only the latest read may change the UI. A confirmed mutation also invalidates
+  // reads started before the POST returned.
+  const refreshSequenceRef = useRef(0);
+  const acceptedVersionRef = useRef<{ sessionId: string; version: number } | null>(null);
+  const conflictVersionRef = useRef<number | null>(null);
   const operationRef = useRef<{ signature: string; payload: GuidedResistanceCompletePayload } | null>(null);
 
-  const acceptView = useCallback((saved: GuidedResistanceView) => {
+  const acceptView = useCallback((saved: GuidedResistanceView, sourceSessionId: string): boolean => {
+    const accepted = acceptedVersionRef.current;
+    if (accepted?.sessionId === sourceSessionId && saved.version < accepted.version) return false;
+    acceptedVersionRef.current = { sessionId: sourceSessionId, version: saved.version };
     const currentId = saved.current?.plannedSetId ?? null;
     if (currentSetRef.current !== currentId) {
       currentSetRef.current = currentId;
@@ -87,29 +95,49 @@ export function GuidedResistanceCard({
       operationRef.current = null;
     }
     setView(saved);
+    return true;
   }, []);
 
-  const refresh = useCallback(async (): Promise<boolean> => {
+  const refresh = useCallback(async (reason: 'normal' | 'conflict' = 'normal'): Promise<boolean> => {
+    const requestId = ++refreshSequenceRef.current;
     setLoading(true);
     try {
       const saved = await load(sessionId);
-      acceptView(saved);
+      // An older GET must never override a newer GET, a POST, or a 409 lock.
+      if (requestId !== refreshSequenceRef.current) return false;
+      const previouslyAccepted = acceptedVersionRef.current;
+      const highestKnownVersion = Math.max(version,
+        previouslyAccepted?.sessionId === sessionId ? previouslyAccepted.version : -1);
+      if (saved.sessionId !== sessionId || saved.version < highestKnownVersion ||
+          (conflictVersionRef.current !== null && saved.version <= conflictVersionRef.current) ||
+          !acceptView(saved, sessionId)) {
+        setReconciliationRequired(true);
+        setError('O servidor retornou uma posição desatualizada. Atualize novamente antes de confirmar outra série.');
+        return false;
+      }
+      conflictVersionRef.current = null;
       setReconciliationRequired(false);
-      setError(null);
+      setError(reason === 'conflict'
+        ? 'O treino mudou em outro dispositivo. Revise a série atualizada antes de confirmar novamente.'
+        : null);
       return true;
     } catch {
+      if (requestId !== refreshSequenceRef.current) return false;
       setReconciliationRequired(true);
-      setError('Não foi possível consultar a posição salva. Atualize o treino antes de confirmar outra série.');
+      setError(reason === 'conflict'
+        ? 'O treino mudou em outro dispositivo e a recarga falhou. Nova confirmação bloqueada até atualizar o estado salvo.'
+        : 'Não foi possível consultar a posição salva. Atualize o treino antes de confirmar outra série.');
       return false;
     } finally {
-      setLoading(false);
+      if (requestId === refreshSequenceRef.current) setLoading(false);
     }
-  }, [acceptView, load, sessionId]);
+  }, [acceptView, load, sessionId, version]);
 
   useEffect(() => {
-    // A mudança de estado canônico (pausa, retomada, outra sessão) invalida
-    // a leitura anterior; nunca depender de memória local para a posição.
+    // Pausa, retomada e mudança de versão exigem uma leitura canônica nova.
+    // Cleanup também invalida GETs da sessão anterior ou de um unmount.
     void refresh();
+    return () => { refreshSequenceRef.current += 1; };
   }, [refresh, status, version]);
 
   async function confirmCurrent() {
@@ -146,10 +174,18 @@ export function GuidedResistanceCard({
     setConfirmation(null);
     try {
       const saved = await complete(sessionId, operationRef.current.payload);
+      // Never accept a GET begun before this confirmed POST. Even a newer
+      // concurrent snapshot must not be downgraded by a late POST response.
+      refreshSequenceRef.current += 1;
+      setLoading(false);
+      operationRef.current = null;
+      if (saved.sessionId !== sessionId || !acceptView(saved, sessionId)) {
+        setReconciliationRequired(true);
+        setError('A série foi salva, mas a posição exibida pode estar desatualizada. Atualize o estado salvo.');
+        return;
+      }
       // The canonical group determines whether the interval is intermediate.
       setLastRest(current.restSec);
-      acceptView(saved);
-      operationRef.current = null;
       setConfirmation('Série registrada. O próximo passo foi atualizado com os dados salvos.');
       try {
         await onExecutionChanged?.();
@@ -160,11 +196,12 @@ export function GuidedResistanceCard({
       const httpStatus = (cause as { response?: { status?: number } })?.response?.status;
       if (httpStatus === 409) {
         operationRef.current = null;
+        conflictVersionRef.current = Math.max(conflictVersionRef.current ?? -1, view.version);
+        // Invalidate any read started before we learned about the conflict.
+        refreshSequenceRef.current += 1;
+        setLoading(false);
         setReconciliationRequired(true);
-        const reconciled = await refresh();
-        setError(reconciled
-          ? 'O treino mudou em outro dispositivo. Revise a série atualizada antes de confirmar novamente.'
-          : 'O treino mudou em outro dispositivo e a recarga falhou. Nova confirmação bloqueada até atualizar o estado salvo.');
+        await refresh('conflict');
       } else {
         setError('Não foi possível confirmar a gravação. Atualize o estado salvo ou tente novamente; sua informação foi preservada.');
       }

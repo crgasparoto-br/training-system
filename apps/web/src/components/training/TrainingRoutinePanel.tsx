@@ -330,6 +330,7 @@ function TodaySession({
 
       {hasGuided && showGuided && loadGuided && completeGuided && (
         <GuidedResistanceCard
+          key={session.sessionId}
           sessionId={session.sessionId}
           status={session.execution.status}
           version={session.execution.version}

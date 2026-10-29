@@ -381,6 +381,8 @@ jobs:
         run: pnpm access:check
       - name: Documentation checks
         run: pnpm docs:check
+      - name: Audit source proof checks (pnpm validate parity)
+        run: pnpm audit:source-proofs
       - name: Retain issue-399 exact-head evidence
         if: always()
         env:
@@ -426,6 +428,7 @@ jobs:
             artifacts/issue-388/**
             artifacts/issue-391/**
             artifacts/issue-399/**
+            artifacts/issue-400/**
             artifacts/issue-487/**
           if-no-files-found: error
           retention-days: 30

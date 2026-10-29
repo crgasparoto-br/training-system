@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { GuidedResistanceCompletePayload, GuidedResistanceView } from '@corrida/types';
@@ -20,6 +20,13 @@ function projection(overrides: Partial<GuidedResistanceView> = {}): GuidedResist
     ...overrides,
   };
 }
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+
 const panel = (options: {
   load?: ReturnType<typeof vi.fn>;
   complete?: ReturnType<typeof vi.fn>;
@@ -31,14 +38,15 @@ const panel = (options: {
   }));
   const onChanged = vi.fn().mockResolvedValue(undefined);
   const onOverview = vi.fn();
-  render(<GuidedResistanceCard
-    sessionId="day-1" status={options.status ?? 'in_progress'} version={1}
+  const card = (version: number) => <GuidedResistanceCard
+    sessionId="day-1" status={options.status ?? 'in_progress'} version={version}
     load={load as (sessionId: string) => Promise<GuidedResistanceView>}
     complete={complete as (sessionId: string, payload: GuidedResistanceCompletePayload) => Promise<GuidedResistanceView>}
     onExecutionChanged={onChanged}
     onOverview={onOverview}
-  />);
-  return { load, complete, onChanged, onOverview };
+  />;
+  const { rerender } = render(card(1));
+  return { load, complete, onChanged, onOverview, changeVersion: (value: number) => rerender(card(value)) };
 };
 
 describe('issue #487 - guia resistido', () => {
@@ -166,5 +174,109 @@ describe('issue #487 - guia resistido', () => {
     expect(await screen.findByText(/exercícios agrupados/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Concluir série' })).not.toBeInTheDocument();
     expect(complete).not.toHaveBeenCalled();
+  });
+
+  it('não libera confirmação por GET antigo após 409 e falha da revalidação atual', async () => {
+    const staleGet = deferred<GuidedResistanceView>();
+    const pendingPost = deferred<GuidedResistanceView>();
+    const load = vi.fn()
+      .mockResolvedValueOnce(projection())
+      .mockReturnValueOnce(staleGet.promise)
+      .mockRejectedValueOnce(new Error('GET after 409 failed'))
+      .mockResolvedValueOnce(projection({ version: 2, completed: 1, current: second, next: null }));
+    const complete = vi.fn().mockReturnValue(pendingPost.promise);
+    const { changeVersion } = panel({ load, complete });
+    const submit = await screen.findByRole('button', { name: 'Concluir série' });
+    await userEvent.clear(screen.getByLabelText('Repetições realizadas'));
+    await userEvent.type(screen.getByLabelText('Repetições realizadas'), '6');
+    await userEvent.click(submit);
+    await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+
+    // A leitura #2 foi iniciada antes de recebermos o conflito 409.
+    changeVersion(2);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    await act(async () => pendingPost.reject({ response: { status: 409 } }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(3));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/recarga falhou/);
+    expect(submit).toBeDisabled();
+
+    // A resposta atrasada não pode limpar o bloqueio nem substituir o rascunho.
+    await act(async () => staleGet.resolve(projection({ version: 2, completed: 1, current: second, next: null })));
+    expect(submit).toBeDisabled();
+    expect(screen.getByLabelText('Repetições realizadas')).toHaveValue('6');
+    expect(screen.getByText(/0 de 2 séries confirmadas/)).toBeInTheDocument();
+    expect(complete).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Atualizar estado salvo' }));
+    await waitFor(() => expect(screen.getByText(/1 de 2 séries confirmadas/)).toBeInTheDocument());
+    expect(submit).toBeEnabled();
+    expect(load).toHaveBeenCalledTimes(4);
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('mantém a projeção mais recente quando GETs concorrentes resolvem em ordem invertida', async () => {
+    const older = deferred<GuidedResistanceView>();
+    const newer = deferred<GuidedResistanceView>();
+    const load = vi.fn().mockResolvedValueOnce(projection())
+      .mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise);
+    const { changeVersion } = panel({ load });
+    await screen.findByRole('button', { name: 'Concluir série' });
+    changeVersion(2);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    changeVersion(3);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(3));
+    await act(async () => newer.resolve(projection({ version: 3, completed: 1, current: second, next: null })));
+    expect(screen.getByText(/1 de 2 séries confirmadas/)).toBeInTheDocument();
+    await act(async () => older.resolve(projection({ version: 2, completed: 0 })));
+    expect(screen.getByText(/1 de 2 séries confirmadas/)).toBeInTheDocument();
+    expect(screen.queryByText(/0 de 2 séries confirmadas/)).not.toBeInTheDocument();
+    expect(screen.getByText('Sessão · Principal · Série 2 de 2')).toBeInTheDocument();
+  });
+
+  it('não retrocede após POST confirmado enquanto GET anterior continua pendente', async () => {
+    const pendingPost = deferred<GuidedResistanceView>();
+    const staleGet = deferred<GuidedResistanceView>();
+    const load = vi.fn().mockResolvedValueOnce(projection()).mockReturnValueOnce(staleGet.promise);
+    const complete = vi.fn().mockReturnValue(pendingPost.promise);
+    const { changeVersion } = panel({ load, complete });
+    await userEvent.click(await screen.findByRole('button', { name: 'Concluir série' }));
+    await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+    changeVersion(2);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    await act(async () => pendingPost.resolve(projection({ version: 3, completed: 1, current: second, next: null })));
+    await waitFor(() => expect(screen.getByText(/1 de 2 séries confirmadas/)).toBeInTheDocument());
+    await act(async () => staleGet.resolve(projection({ version: 2, completed: 0 })));
+    expect(screen.getByText(/1 de 2 séries confirmadas/)).toBeInTheDocument();
+    expect(screen.getByText(/Série 2 de 2/)).toBeInTheDocument();
+  });
+
+  it('não exibe snapshot de outra sessão nem permite confirmar dados cruzados', async () => {
+    const load = vi.fn()
+      .mockResolvedValueOnce(projection({ sessionId: 'day-from-other-contract' }))
+      .mockResolvedValueOnce(projection());
+    const complete = vi.fn();
+    panel({ load, complete });
+    expect(await screen.findByRole('alert')).toHaveTextContent(/posição desatualizada/);
+    expect(screen.queryByRole('button', { name: 'Concluir série' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Atualizar estado salvo' }));
+    expect(await screen.findByRole('button', { name: 'Concluir série' })).toBeEnabled();
+    expect(complete).not.toHaveBeenCalled();
+  });
+
+  it('rejeita GET sem incremento de versão após conflito 409', async () => {
+    const load = vi.fn().mockResolvedValueOnce(projection())
+      .mockResolvedValueOnce(projection())
+      .mockResolvedValueOnce(projection({ version: 2, completed: 1, current: second, next: null }));
+    const complete = vi.fn().mockRejectedValue({ response: { status: 409 } });
+    panel({ load, complete });
+    const submit = await screen.findByRole('button', { name: 'Concluir série' });
+    await userEvent.click(submit);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/posição desatualizada/);
+    expect(submit).toBeDisabled();
+    expect(screen.getByText(/0 de 2 séries confirmadas/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Atualizar estado salvo' }));
+    await waitFor(() => expect(screen.getByText(/1 de 2 séries confirmadas/)).toBeInTheDocument());
+    expect(submit).toBeEnabled();
+    expect(complete).toHaveBeenCalledTimes(1);
   });
 });
