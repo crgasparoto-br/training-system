@@ -153,7 +153,16 @@ export async function replaceResistanceGroupsInTransaction(
     where: { workoutDayId },
     select: { id: true, section: true, exerciseOrder: true },
   });
-  const slots = new Map(exercises.map((exercise) => [`${exercise.section}:${exercise.exerciseOrder}`, exercise.id]));
+  const slots = new Map<string, string>();
+  for (const exercise of exercises) {
+    const key = `${exercise.section}:${exercise.exerciseOrder}`;
+    // Legacy positions may be duplicated. A member must never bind to an
+    // arbitrary exercise because a Map silently overwrote an earlier row.
+    if (groups.length > 0 && slots.has(key)) {
+      throw new ResistanceStructureValidationError('Corrija a ordem duplicada dos exercícios antes de agrupar.');
+    }
+    slots.set(key, exercise.id);
+  }
   for (const group of groups) {
     for (const member of group.members) {
       if (!slots.has(`${member.section}:${member.exerciseOrder}`)) {
@@ -166,7 +175,9 @@ export async function replaceResistanceGroupsInTransaction(
     where: { workoutDayId }, ...resistanceGroupInclude,
   });
   // Identical replay never changes group IDs (used by future round/item execution).
-  if (JSON.stringify(persistedShape(prior)) === JSON.stringify(groups)) return prior;
+  if (JSON.stringify(persistedShape(prior)) === JSON.stringify(groups)) {
+    return { groups: prior, changed: false };
+  }
 
   await tx.workoutResistanceGroup.deleteMany({ where: { workoutDayId } });
   for (const group of groups) {
@@ -188,7 +199,61 @@ export async function replaceResistanceGroupsInTransaction(
       },
     });
   }
-  return tx.workoutResistanceGroup.findMany({ where: { workoutDayId }, ...resistanceGroupInclude });
+  return {
+    groups: await tx.workoutResistanceGroup.findMany({ where: { workoutDayId }, ...resistanceGroupInclude }),
+    changed: true,
+  };
+}
+
+/**
+ * Unlink an exercise before deleting its canonical row. Otherwise ON DELETE
+ * CASCADE leaves an undersized draft grouping until the deferred SQL check.
+ */
+export async function unlinkResistanceGroupMemberForExercise(
+  tx: Prisma.TransactionClient,
+  workoutExerciseId: string,
+) {
+  const member = await tx.workoutResistanceGroupMember.findUnique({
+    where: { workoutExerciseId },
+    select: {
+      id: true, position: true,
+      group: {
+        select: {
+          id: true, workoutDayId: true, position: true, kind: true,
+          members: { select: { id: true, position: true }, orderBy: { position: 'asc' } },
+        },
+      },
+    },
+  });
+  if (!member) return;
+
+  const group = member.group;
+  const minimum = memberLimits[group.kind as ResistanceGroupKind]?.[0];
+  if (minimum === undefined) {
+    throw new ResistanceStructureValidationError('Tipo de agrupamento persistido inválido.');
+  }
+  if (group.members.length - 1 < minimum) {
+    // A group cannot survive below its minimum; other exercises and groups do.
+    await tx.workoutResistanceGroup.delete({ where: { id: group.id } });
+    const laterGroups = await tx.workoutResistanceGroup.findMany({
+      where: { workoutDayId: group.workoutDayId, position: { gt: group.position } },
+      orderBy: { position: 'asc' },
+      select: { id: true, position: true },
+    });
+    for (const later of laterGroups) {
+      await tx.workoutResistanceGroup.update({
+        where: { id: later.id }, data: { position: later.position - 1 },
+      });
+    }
+    return;
+  }
+
+  await tx.workoutResistanceGroupMember.delete({ where: { id: member.id } });
+  for (const later of group.members.filter((item) => item.position > member.position)) {
+    await tx.workoutResistanceGroupMember.update({
+      where: { id: later.id }, data: { position: later.position - 1 },
+    });
+  }
 }
 
 export async function replaceDayResistanceGroups(
@@ -204,10 +269,11 @@ export async function replaceDayResistanceGroups(
     select: { id: true },
   });
   if (!owned) throw new ResistanceStructureNotFoundError();
-  return withWorkoutDayPlanningMutation(prisma, workoutDayId, async (tx) => {
+  const result = await withWorkoutDayPlanningMutation(prisma, workoutDayId, async (tx) => {
     await assertDayContract(tx, workoutDayId, contractId);
     return replaceResistanceGroupsInTransaction(tx, workoutDayId, groups);
-  });
+  }, { touchRevision: (value) => value.changed });
+  return result.groups;
 }
 
 export async function copyResistanceGroups(

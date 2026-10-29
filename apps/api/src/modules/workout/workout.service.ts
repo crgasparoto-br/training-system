@@ -6,7 +6,7 @@ import { assertDayContract, isWorkoutTemplateUniqueConflict, lockWorkoutDayPlann
 import { copyTemplate as copyTemplateStructured, copyTemplateSections as copyTemplateSectionsStructured } from './workout-copy.service.js';
 import { replaceDayResistanceExercises as replaceDayResistanceExercisesStructured, saveTemplateWeek as saveTemplateWeekStructured } from './workout-week-structure.service.js';
 import { cyclicStageInclude, nestedCyclicStages, normalizeCyclicStages, replaceCyclicStagesInTransaction, snapshotCyclicStages } from './cyclic-stages.domain.js';
-import { copyResistanceGroups, replaceDayResistanceGroups as replaceDayResistanceGroupsStructured, resistanceGroupInclude } from './resistance-groups.domain.js';
+import { copyResistanceGroups, replaceDayResistanceGroups as replaceDayResistanceGroupsStructured, resistanceGroupInclude, unlinkResistanceGroupMemberForExercise } from './resistance-groups.domain.js';
 export { WorkoutPlanningLockedError } from './workout-planning.helpers.js';
 
 const prisma = new PrismaClient();
@@ -935,6 +935,7 @@ export const workoutService = {
     if (!current) throw new Error('Workout exercise not found');
     return withWorkoutDayPlanningMutation(prisma, current.workoutDayId, async (tx) => {
       if (contractId) await assertDayContract(tx, current.workoutDayId, contractId);
+      await unlinkResistanceGroupMemberForExercise(tx, id);
       return tx.workoutExercise.delete({ where: { id } });
     });
   },
@@ -965,22 +966,34 @@ export const workoutService = {
 
     return withWorkoutDayPlanningMutation(prisma, workoutDayId, async (tx) => {
       if (contractId) await assertDayContract(tx, workoutDayId, contractId);
-      const owned = await tx.workoutExercise.findMany({
-        where: { id: { in: uniqueIds }, workoutDayId, section },
-        select: { id: true },
+      const allRows = await tx.workoutExercise.findMany({
+        where: { workoutDayId, section },
+        select: { id: true, exerciseOrder: true },
+        orderBy: [{ exerciseOrder: 'asc' }, { id: 'asc' }],
       });
-      if (owned.length !== uniqueIds.length) {
+      const existingIds = new Set(allRows.map((row) => row.id));
+      if (uniqueIds.some((id) => !existingIds.has(id))) {
         throw new ResistanceStructureValidationError('One or more exercises do not belong to the requested day/section.');
       }
 
-      return Promise.all(
-        exerciseIds.map((id, index) =>
-          tx.workoutExercise.update({
-            where: { id },
-            data: { exerciseOrder: index + 1 },
-          })
-        )
-      );
+      // Partial reorder: move the requested subset first, then keep untouched
+      // exercises in their relative order. Normalize the whole section.
+      const requestedIds = new Set(exerciseIds);
+      const orderedIds = [
+        ...exerciseIds,
+        ...allRows.filter((row) => !requestedIds.has(row.id)).map((row) => row.id),
+      ];
+      const priorPositions = new Map(allRows.map((row) => [row.id, row.exerciseOrder]));
+      const updated = [];
+      for (let index = 0; index < orderedIds.length; index += 1) {
+        const exerciseId = orderedIds[index];
+        if (priorPositions.get(exerciseId) === index + 1) continue;
+        updated.push(await tx.workoutExercise.update({
+          where: { id: exerciseId },
+          data: { exerciseOrder: index + 1 },
+        }));
+      }
+      return updated;
     });
   },
 

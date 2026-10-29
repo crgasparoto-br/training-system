@@ -224,7 +224,8 @@ export async function touchWorkoutTemplateRevision(
 export async function withWorkoutDayPlanningMutation<T>(
   client: PrismaClient,
   workoutDayId: string,
-  mutation: (tx: Prisma.TransactionClient) => Promise<T>
+  mutation: (tx: Prisma.TransactionClient) => Promise<T>,
+  options: { touchRevision?: (result: T) => boolean } = {},
 ) {
   let retries = 0;
   while (true) {
@@ -237,7 +238,9 @@ export async function withWorkoutDayPlanningMutation<T>(
         });
         if (!parent) throw new ResistanceStructureNotFoundError();
         const result = await mutation(tx);
-        await touchWorkoutTemplateRevision(tx, parent.templateId);
+        if (options.touchRevision?.(result) ?? true) {
+          await touchWorkoutTemplateRevision(tx, parent.templateId);
+        }
         return result;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {

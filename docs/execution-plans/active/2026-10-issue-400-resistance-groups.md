@@ -23,6 +23,14 @@
 - Regressão: treinos sem grupos, blocos #399, cópia apenas cíclica #398, novos IDs da cópia resistida, histórico e simultaneidade de gravação.
 - Validação canônica exigida: `pnpm validate` (Prisma, type-check, lint, testes, arquitetura, acessos, docs e provas). Integração PostgreSQL adicional com `RUN_DATABASE_INTEGRATION_TESTS=true`.
 
+## Remediação da auditoria independente (29/10/2026)
+
+- **A-400-01:** reconciliar associações antes de excluir um exercício pela rota legada, substituição do dia ou gravação semanal que omite `resistanceGroups`. Remover um grupo abaixo da cardinalidade mínima, compactar membros/grupos sobreviventes e preservar exercícios/séries restantes na mesma transação.
+- **A-400-02:** reordenar a seção inteira de forma contínua mesmo em chamadas parciais; rejeitar no resolvedor qualquer seção/posição duplicada existente antes de criar ou alterar um grupo.
+- **REC-400:** reenvio exclusivamente de agrupamentos sem mudança de conteúdo não altera `WorkoutTemplate.updatedAt` nem os IDs persistidos (dia e semana).
+- **Controles PostgreSQL adicionais:** exclusão individual de bi-set e de bloco que permanece válido; substituição semanal e de dia; reordenação parcial; posições legadas ambíguas; replay idêntico com leitura da revisão.
+- **Validação e auditoria:** executar CI CRITICAL e testes de integração no HEAD corrigido; nova auditoria independente obrigatória. Sem merge automático.
+
 ## Entrega
 
 Não efetuar merge. A implementação só será considerada concluída após checks do HEAD exato, validação de migração, testes relevantes e auditoria independente sem pendências.

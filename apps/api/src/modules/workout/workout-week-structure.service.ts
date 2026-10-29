@@ -2,7 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import { matchResistanceExerciseRows, normalizeResistanceBlocks, sanitizeWorkoutMutation, validateWorkoutWeekEnvelope, ResistanceStructureNotFoundError, ResistanceStructureValidationError, WorkoutPlanningVersionConflictError } from './resistance-structure.domain.js';
 import { assertDayContract, comparableResistanceBlocks, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
 import { cyclicStageInclude, replaceCyclicStagesInTransaction } from './cyclic-stages.domain.js';
-import { normalizeResistanceGroups, replaceResistanceGroupsInTransaction, resistanceGroupInclude } from './resistance-groups.domain.js';
+import { normalizeResistanceGroups, replaceResistanceGroupsInTransaction, resistanceGroupInclude, unlinkResistanceGroupMemberForExercise } from './resistance-groups.domain.js';
 import type { CreateWorkoutExerciseDTO, SaveWorkoutWeekDTO } from './workout.service.js';
 
 export async function saveTemplateWeek(prisma: PrismaClient, id: string, data: SaveWorkoutWeekDTO, contractId?: string) {
@@ -248,7 +248,10 @@ export async function saveTemplateWeek(prisma: PrismaClient, id: string, data: S
           });
         }
         for (const prior of current) {
-          if (!preserved.has(prior.id)) await tx.workoutExercise.delete({ where: { id: prior.id } });
+          if (!preserved.has(prior.id)) {
+            await unlinkResistanceGroupMemberForExercise(tx, prior.id);
+            await tx.workoutExercise.delete({ where: { id: prior.id } });
+          }
         }
       }
     }
@@ -256,7 +259,6 @@ export async function saveTemplateWeek(prisma: PrismaClient, id: string, data: S
     // Reconcile groups only after the canonical exercise rows have been saved.
     // Omission preserves existing structures. An explicit empty list removes them.
     if (data.resistanceGroups !== undefined) {
-      childGraphChanged = true;
       for (const [dayKey, rawGroups] of Object.entries(data.resistanceGroups)) {
         const dayOfWeek = Number(dayKey);
         const groups = normalizeResistanceGroups(rawGroups);
@@ -266,7 +268,8 @@ export async function saveTemplateWeek(prisma: PrismaClient, id: string, data: S
           throw new ResistanceStructureValidationError('Inclua os exercícios do dia antes de criar o agrupamento.');
         }
         if (contractId) await assertDayContract(tx, targetDay.id, contractId);
-        await replaceResistanceGroupsInTransaction(tx, targetDay.id, groups);
+        const replaced = await replaceResistanceGroupsInTransaction(tx, targetDay.id, groups);
+        childGraphChanged ||= replaced.changed;
       }
     }
     if (childGraphChanged && Object.keys(templateInput).length === 0) {
@@ -391,6 +394,7 @@ export async function replaceDayResistanceExercises(prisma: PrismaClient, workou
     }
     for (const prior of current) {
       if (!preserved.has(prior.id)) {
+        await unlinkResistanceGroupMemberForExercise(tx, prior.id);
         await tx.workoutExercise.delete({ where: { id: prior.id } });
       }
     }
