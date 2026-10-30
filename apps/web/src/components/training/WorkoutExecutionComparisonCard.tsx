@@ -35,12 +35,18 @@ function formatDifference(value: number, unit: string | null) {
 export function formatComparisonMetric(metric: TrainingSessionComparisonMetric) {
   const lower = formatValue(metric.planned, metric.plannedUnit);
   const upper = metric.plannedMax === null ? null : formatValue(metric.plannedMax, metric.plannedUnit);
+  // Older API payloads had no constraint kind. Preserve their display behavior
+  // while new payloads identify unilateral bounds without silent exactness.
+  const constraint = metric.plannedConstraint === undefined
+    ? metric.planned === null && upper !== null ? 'maximum'
+      : upper !== null && metric.planned !== metric.plannedMax ? 'range' : 'exact'
+    : metric.plannedConstraint;
   return {
-    planned: metric.planned === null && upper !== null
-      ? `Até ${upper}` : upper !== null && metric.planned !== metric.plannedMax
-        ? `${lower} a ${upper}` : lower,
+    planned: constraint === 'minimum' ? `A partir de ${lower}`
+      : constraint === 'maximum' && upper !== null ? `Até ${upper}`
+        : constraint === 'range' && upper !== null ? `${lower} a ${upper}` : lower,
     executed: formatValue(metric.executed, metric.executedUnit),
-    difference: metric.difference === null
+    difference: metric.difference === null || (constraint !== null && constraint !== 'exact')
       ? null : formatDifference(metric.difference, metric.executedUnit),
   };
 }

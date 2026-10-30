@@ -94,14 +94,21 @@ function metric(
   plannedUnit: string | null,
   executedUnit = plannedUnit,
   plannedMax?: number | string | null,
+  bounded = false,
 ): TrainingSessionComparisonMetric {
   const p = present(planned);
+  const max = present(plannedMax);
   const e = present(executed);
-  const hasRange = plannedMax !== undefined && plannedMax !== null && plannedMax !== p;
+  // Distinguish a true point target from a single lower/upper bound. A missing
+  // bound does not turn the remaining bound into an exact prescription.
+  const plannedConstraint: TrainingSessionComparisonMetric['plannedConstraint'] = bounded
+    ? p === null ? max === null ? null : 'maximum'
+      : max === null ? 'minimum' : p === max ? 'exact' : 'range'
+    : p === null ? null : 'exact';
   return {
-    key, label, planned: p, plannedMax: plannedMax ?? null,
+    key, label, planned: p, plannedMax: max, plannedConstraint,
     executed: e, plannedUnit, executedUnit,
-    difference: !hasRange && plannedUnit === executedUnit
+    difference: plannedConstraint === 'exact' && plannedUnit === executedUnit
       && typeof p === 'number' && typeof e === 'number' ? e - p : null,
   };
 }
@@ -154,10 +161,10 @@ export function compareWorkoutSession(
     // WorkoutTemplate.totalVolumeKm is a WEEKLY target, not a WorkoutDay target.
     // Distance is compared only at stages that prescribe it explicitly.
     metric('distance', 'Distância', null, state.distanceKm, 'km'),
-    metric('pace', 'Ritmo', planned.paceMin, state.pace, 'min/km', 'min/km', planned.paceMax),
-    metric('speed', 'Velocidade', planned.targetSpeedMin, state.speedKmh, 'km/h', 'km/h', planned.targetSpeedMax),
+    metric('pace', 'Ritmo', planned.paceMin, state.pace, 'min/km', 'min/km', planned.paceMax, true),
+    metric('speed', 'Velocidade', planned.targetSpeedMin, state.speedKmh, 'km/h', 'km/h', planned.targetSpeedMax, true),
     metric('heart_rate', 'Frequência cardíaca', planned.targetHrMin, state.heartRateBpm,
-      'bpm', 'bpm', planned.targetHrMax),
+      'bpm', 'bpm', planned.targetHrMax, true),
     metric('heart_rate_zone', 'Zona de FC', null, state.heartRateZone, null),
   ]));
 
@@ -193,7 +200,7 @@ export function compareWorkoutSession(
           metric('duration', stage.durationUnit === 'meters' ? 'Distância' : 'Duração',
             stage.durationValue, durationExecuted, stage.durationUnit === 'seconds' ? 's' : stage.durationUnit === 'meters' ? 'm' : null),
           metric('target', 'Alvo', stage.targetValue ?? stage.targetMin,
-            value, targetUnit, targetUnit, stage.targetMax),
+            value, targetUnit, targetUnit, stage.targetMax, stage.targetValue == null),
          ], stage.parentStageId, parent ? iteration : null, actual?.substitutionNote ?? null,
          null, actual?.outcome === 'substituted' || childRecords.some((item) => item.outcome === 'substituted')));
     }
@@ -204,7 +211,9 @@ export function compareWorkoutSession(
     const items = itemRecords.filter((item) => item.plannedUnitId === exercise.id);
     const setCount = exercise.resistanceBlocks.reduce((count, block) => count + block.plannedSets.length, 0);
     const expected = setCount || (exercise.sets ?? 1);
-    const actual = items.length === 1 ? items[0] : null;
+    // A structured set's measurement belongs to its plannedSetId, not to the
+    // exercise-level legacy prescription (which may have different targets).
+    const actual = setCount === 0 && items.length === 1 ? items[0] : null;
     // Repeated logs for one planned set do not cover a different planned set.
     const setStatuses = exercise.resistanceBlocks.flatMap((block) => block.plannedSets.map((set) => {
       const records = items.filter((item) => item.plannedSetId === set.id);
@@ -215,18 +224,23 @@ export function compareWorkoutSession(
     const statuses = setCount ? setStatuses : items.map((item) => item.outcome ?? 'unclassified');
     const recordedCount = setCount
       ? setStatuses.filter((outcome) => outcome !== 'not_recorded').length : items.length;
+    const exerciseMetrics = setCount > 0
+      // In structured workouts the exercise reports coverage only. Every actual
+      // repetition, load or rest is compared at its own planned set instead.
+      ? [metric('sets', 'Séries com registro', setCount, recordedCount || null, 'séries')]
+      : [
+        metric('sets', 'Séries', exercise.sets, recordedCount || null, 'séries'),
+        metric('repetitions', 'Repetições', exercise.reps, actual?.repetitions, 'rep'),
+        metric('load', 'Carga', exercise.load, actual?.loadKg, 'kg'),
+        metric('rest', 'Intervalo', exercise.intervalSec, actual?.restSec, 's'),
+      ];
     result.push(unit(exercise.id, 'exercise', (() => {
       const catalog = exercise.releasedCatalog?.catalog;
       const name = catalog && typeof catalog === 'object' && !Array.isArray(catalog)
         && 'name' in catalog && typeof catalog.name === 'string' ? catalog.name : exercise.exercise.name;
       return name;
-    })(), recordedCount ? summaryOutcome(statuses, expected) : missingOutcome, [
-      metric('sets', setCount ? 'Séries com registro' : 'Séries',
-        exercise.sets ?? (setCount || null), recordedCount || null, 'séries'),
-      metric('repetitions', 'Repetições', exercise.reps, actual?.repetitions, 'rep'),
-      metric('load', 'Carga', exercise.load, actual?.loadKg, 'kg'),
-      metric('rest', 'Intervalo', exercise.intervalSec, actual?.restSec, 's'),
-    ], null, null, items.find((item) => item.outcome === 'substituted')?.substitutionNote ?? null,
+    })(), recordedCount ? summaryOutcome(statuses, expected) : missingOutcome, exerciseMetrics,
+    null, null, items.find((item) => item.outcome === 'substituted')?.substitutionNote ?? null,
     null, items.some((item) => item.outcome === 'substituted')));
 
     for (const block of exercise.resistanceBlocks) {
@@ -247,7 +261,7 @@ export function compareWorkoutSession(
         for (const logged of recorded.length ? recorded : [null]) {
           result.push(unit(set.id, 'set', 'Série ' + set.position,
             logged ? logged.outcome ?? 'unclassified' : missingOutcome, [
-              metric('repetitions', 'Repetições', set.repsMin, logged?.repetitions, 'rep', 'rep', set.repsMax),
+              metric('repetitions', 'Repetições', set.repsMin, logged?.repetitions, 'rep', 'rep', set.repsMax, true),
               metric('load_kg', 'Carga (kg)', set.loadKg, logged?.loadKg, 'kg'),
               metric('load_pct', 'Carga (%)', set.loadPercent, null, '%'),
               metric('rir', 'RIR', set.rir, logged?.rir, null),
@@ -297,7 +311,7 @@ export function compareWorkoutSession(
   // but never show contemporary released-plan targets as historical facts.
   const units = snapshotSource === 'released_plan'
     ? result.map((item) => ({ ...item, metrics: item.metrics.map((entry) => ({
-      ...entry, planned: null, plannedMax: null, difference: null,
+      ...entry, planned: null, plannedMax: null, plannedConstraint: null, difference: null,
     })) }))
     : result;
   return {

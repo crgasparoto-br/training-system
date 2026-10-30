@@ -31,6 +31,9 @@ export interface TrainingSessionComparisonMetric {
   label: string;
   planned: number | string | null;
   plannedMax: number | string | null;
+  /** Exact prescription, lower bound, upper bound, interval or unavailable.
+   * Optional for backwards compatibility with previously serialized comparisons. */
+  plannedConstraint?: 'exact' | 'minimum' | 'maximum' | 'range' | null;
   executed: number | string | null;
   plannedUnit: string | null;
   executedUnit: string | null;

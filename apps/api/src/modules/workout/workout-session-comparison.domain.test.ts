@@ -138,6 +138,140 @@ describe('issue #401: granular planned/executed comparison', () => {
   });
 
 
+  it('A-401-11: unilateral cyclic limits are not point targets; exact targets remain comparable', () => {
+    const day = planned();
+    const stage = day.cyclicStages.find((item) => item.id === 'work')!;
+    const actual = execution({ sessionValues: { cyclicStages: [
+      { plannedStageId: 'work', iteration: 1, outcome: 'full', speedKmh: 9 },
+    ] } });
+    const compareTarget = () => get(compareWorkoutSession(day, actual, 'captured').units, 'work')[0]
+      .metrics.find((entry) => entry.key === 'target');
+
+    stage.targetValue = null;
+    stage.targetMin = 8;
+    stage.targetMax = null;
+    expect(compareTarget()).toMatchObject({
+      planned: 8, plannedMax: null, plannedConstraint: 'minimum', executed: 9, difference: null,
+    });
+    stage.targetMin = null;
+    stage.targetMax = 10;
+    expect(compareTarget()).toMatchObject({
+      planned: null, plannedMax: 10, plannedConstraint: 'maximum', executed: 9, difference: null,
+    });
+    stage.targetMin = 8;
+    expect(compareTarget()).toMatchObject({
+      planned: 8, plannedMax: 10, plannedConstraint: 'range', executed: 9, difference: null,
+    });
+    stage.targetMin = null;
+    stage.targetMax = null;
+    stage.targetValue = 8;
+    expect(compareTarget()).toMatchObject({
+      planned: 8, plannedMax: null, plannedConstraint: 'exact', executed: 9, difference: 1,
+    });
+    // The legacy session's numeric minimum is also a bound, not a point target.
+    day.targetSpeedMin = '8';
+    day.targetSpeedMax = null;
+    const sessionSpeed = get(compareWorkoutSession(day, execution({
+      sessionValues: { speedKmh: 9 },
+    }), 'captured').units, 'day-1')[0].metrics.find((entry) => entry.key === 'speed');
+    expect(sessionSpeed).toMatchObject({ plannedConstraint: 'minimum', difference: null });
+  });
+
+  it('A-401-11: resistance repetition bounds do not produce fictitious deltas', () => {
+    const day = planned();
+    const set = day.exercises[0].resistanceBlocks[0].plannedSets[0];
+    const actual = execution({ items: [
+      { plannedUnitId: 'ex-1', plannedSetId: 'set-1', setNumber: 1, repetitions: 10 },
+    ] });
+    const compareReps = () => get(compareWorkoutSession(day, actual, 'captured').units, 'set-1')[0]
+      .metrics.find((entry) => entry.key === 'repetitions');
+    set.repsMin = 8;
+    set.repsMax = null;
+    expect(compareReps()).toMatchObject({
+      planned: 8, plannedMax: null, plannedConstraint: 'minimum', executed: 10, difference: null,
+    });
+    set.repsMin = null;
+    set.repsMax = 12;
+    expect(compareReps()).toMatchObject({
+      planned: null, plannedMax: 12, plannedConstraint: 'maximum', difference: null,
+    });
+    set.repsMin = 8;
+    expect(compareReps()).toMatchObject({
+      planned: 8, plannedMax: 12, plannedConstraint: 'range', difference: null,
+    });
+    set.repsMin = 10;
+    set.repsMax = 10;
+    expect(compareReps()).toMatchObject({
+      planned: 10, plannedMax: 10, plannedConstraint: 'exact', executed: 10, difference: 0,
+    });
+    // Legitimate zero must not be mistaken for an absent execution.
+    set.repsMin = 0;
+    set.repsMax = 0;
+    const zero = compareWorkoutSession(day, execution({ items: [
+      { plannedUnitId: 'ex-1', plannedSetId: 'set-1', setNumber: 1, repetitions: 0 },
+    ] }), 'captured');
+    expect(get(zero.units, 'set-1')[0].metrics.find((entry) => entry.key === 'repetitions'))
+      .toMatchObject({ planned: 0, executed: 0, plannedConstraint: 'exact', difference: 0 });
+    const absent = compareWorkoutSession(day, execution(), 'captured');
+    expect(get(absent.units, 'set-1')[0].metrics.find((entry) => entry.key === 'repetitions'))
+      .toMatchObject({ planned: 0, executed: null, difference: null });
+    const legacy = compareWorkoutSession(day, actual, 'released_plan');
+    expect(get(legacy.units, 'set-1')[0].metrics.find((entry) => entry.key === 'repetitions'))
+      .toMatchObject({ planned: null, plannedMax: null, plannedConstraint: null, difference: null });
+  });
+
+  it('A-401-12: structured exercise summarizes distinct sets without mixing legacy target metrics', () => {
+    const day = planned();
+    day.exercises[0].sets = 99; // Obsolete legacy count must not override structured sets.
+    const oneSet = execution({ items: [{
+      plannedUnitId: 'ex-1', plannedSetId: 'set-2', setNumber: 2,
+      outcome: 'full', repetitions: 10, loadKg: 22, restSec: 90,
+    }] });
+    const comparison = compareWorkoutSession(day, oneSet, 'captured');
+    const exercise = get(comparison.units, 'ex-1')[0];
+    expect(exercise.outcome).toBe('incomplete_record');
+    expect(exercise.metrics).toEqual([expect.objectContaining({
+      key: 'sets', label: 'Séries com registro', planned: 2, executed: 1, difference: -1,
+    })]);
+    const plannedSet = get(comparison.units, 'set-2')[0];
+    expect(plannedSet.metrics.find((entry) => entry.key === 'load_kg'))
+      .toMatchObject({ planned: 22, executed: 22, difference: 0 });
+    const student = projectWorkoutComparisonForAudience(comparison, 'student');
+    expect(get(student.units, 'ex-1')[0].metrics.map((entry) => entry.key)).toEqual(['sets']);
+    expect(student.units.some((entry) => entry.kind === 'set' || entry.kind === 'block')).toBe(false);
+    expect(get(student.units, 'ex-1')[0].metrics[0].difference).toBeNull();
+
+    // Even after all sets are recorded, different set loads never become an
+    // arbitrary exercise-level load. Set IDs still resolve each planned target.
+    const complete = compareWorkoutSession(day, execution({ items: [
+      { plannedUnitId: 'ex-1', plannedSetId: 'set-1', setNumber: 1,
+        outcome: 'full', repetitions: 8, loadKg: 20 },
+      { plannedUnitId: 'ex-1', plannedSetId: 'set-2', setNumber: 2,
+        outcome: 'full', repetitions: 10, loadKg: 22 },
+    ] }), 'captured');
+    expect(get(complete.units, 'ex-1')[0].metrics).toEqual([
+      expect.objectContaining({ key: 'sets', planned: 2, executed: 2, difference: 0 }),
+    ]);
+    expect(get(complete.units, 'set-1')[0].metrics.find((entry) => entry.key === 'load_kg'))
+      .toMatchObject({ planned: 20, executed: 20, difference: 0 });
+    expect(get(complete.units, 'set-2')[0].metrics.find((entry) => entry.key === 'load_kg'))
+      .toMatchObject({ planned: 22, executed: 22, difference: 0 });
+  });
+
+  it('A-401-12: an exercise without structured sets keeps its legacy comparisons', () => {
+    const day = planned();
+    day.exercises[0].resistanceBlocks = [];
+    const comparison = compareWorkoutSession(day, execution({ items: [{
+      plannedUnitId: 'ex-1', setNumber: 1, outcome: 'full', repetitions: 11, loadKg: 22, restSec: 70,
+    }] }), 'captured');
+    expect(get(comparison.units, 'ex-1')[0].metrics.find((entry) => entry.key === 'load'))
+      .toMatchObject({ planned: 20, executed: 22, difference: 2 });
+    expect(get(comparison.units, 'ex-1')[0].metrics.find((entry) => entry.key === 'repetitions'))
+      .toMatchObject({ planned: 10, executed: 11, difference: 1 });
+    expect(get(comparison.units, 'ex-1')[0].metrics.find((entry) => entry.key === 'rest'))
+      .toMatchObject({ planned: 60, executed: 70, difference: 10 });
+  });
+
   it('A-401-05: never promotes the weekly template distance into a session target', () => {
     const day = Object.assign(planned(), { template: { totalVolumeKm: 30 } });
     const comparison = compareWorkoutSession(day, execution({

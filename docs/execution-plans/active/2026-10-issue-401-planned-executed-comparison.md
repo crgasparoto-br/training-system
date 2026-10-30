@@ -33,6 +33,8 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - [x] Controle do risco legado: `released_plan` não exibe metas/diferenças históricas inventadas; conserva valores executados e indicação da ausência de captura.
 - [x] Remediação A-401-09: contrato, API e persistência da velocidade no nível de sessão, testes para legado sem etapas, faixa, zero/ausência, idempotência, leitura histórica e rejeição de valores inválidos.
 - [x] Remediação A-401-10: regressão web para diferenças de ±0,0004 kg, valores numéricos precisos, delta efetivamente zero, ausência e pequenas diferenças, inclusive projeção visual do professor.
+- [x] Remediação A-401-11: distinguir alvo exato, limite inferior isolado, limite superior e faixa (cíclico/sessão/série), sem delta para limites e sem conversão; `A partir de` na interface para mínimo unilateral. Cobertura com controle positivo para alvo exato e valores ausentes/zero.
+- [x] Remediação A-401-12: exercício com séries estruturadas apresenta apenas cobertura por IDs distintos de séries; carga/repetições/intervalo pertencem à comparação da série específica. Exercícios sem blocos preservam comparação legada. Regressões para séries divergentes, única série registrada, conjunto completo e visões aluno/professor.
 - [ ] `pnpm validate`, build e testes PostgreSQL no HEAD remoto definitivo.
 - [ ] Auditoria independente da PR com evidências de CI e revisão de segurança.
 
@@ -45,6 +47,8 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 5. Confirmar cenário com uma série substituída e outra não registrada: resumo identifica registro incompleto com substituição. Repetir série planejada com diferentes `setNumber` sem chave React duplicada.
 6. Em sessão cíclica legada sem etapas, registrar 9 km/h contra faixa planejada de 8–10 km/h; confirmar comparação sem delta, ausência diferente de 0, histórico, versão/idempotência e leitura em ambos os perfis.
 7. No professor, comparar 20 kg prescritos com 20,0004 kg e 19,9996 kg executados: conferir valores originais distintos e diferenças positivas/negativas não zeradas; comparar também 20 kg versus 20 kg (zero legítimo), ausência de registro e uma diferença inferior a 0,001 kg.
+8. Na etapa cíclica e na série resistida, comparar limite inferior isolado (8 contra 9/10), superior isolado, faixa e alvo exato; confirmar `A partir de`/`Até` e que somente alvos exatos recebem diferença numérica.
+9. Em exercício estruturado com séries de 20 kg e 22 kg, registrar apenas a segunda série com 22 kg: o resumo do exercício deve mostrar 1 de 2 séries registradas, sem comparar a carga legada do exercício com a série. Conferir ambas as séries registradas e o fallback de exercício sem blocos.
 
 ## Decisões e riscos
 
