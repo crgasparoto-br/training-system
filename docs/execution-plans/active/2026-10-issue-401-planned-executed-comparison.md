@@ -3,7 +3,7 @@
 - Base: `develop`; branch de implementação: `feat/401-planned-executed-comparison`.
 - Autoridades: WorkoutDay/WorkoutCyclicStage/WorkoutExerciseBlock/WorkoutExercisePlannedSet/WorkoutResistanceGroup (prescrição); WorkoutSessionExecution/Item (#389) (realizado).
 - Dependências: #398, #399, #400 e #389 presentes na develop. Nenhuma nova árvore de montagem.
-- Status: remediações A-401-01..16 preservadas. A-401017 corrige a atualização incremental de etapas e agrupamentos, com regressões PostgreSQL, fronteira HTTP e visão semanal. CI exact-SHA e nova auditoria independente ainda obrigatórias.
+- Status: remediações A-401-01..16 e A-401017 preservadas. O CI exact-SHA da correção A-401017 passou em `9ec2d6256faa249383ffc29dd06c2a6e7732a7c4` (push e PR); a evidência visual acrescentada depois exige seus próprios checks no novo HEAD e uma nova auditoria independente.
 
 ## Objetivo
 
@@ -40,8 +40,9 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - [x] A-401-15: a etapa cíclica apresenta duração e distância executadas simultaneamente e todas as medições adicionais pace, velocidade, FC, zona e PSE; apenas a grandeza com prescrição explícita recebe meta/diferença. Regressões cobrem tempo prescrito, distância prescrita, alvo de velocidade, zero, ausência e fallback histórico.
 - [x] A-401-16: integração sem perda das rotas, validações, esquema e execução guiada da #487 com o comparador da #401; o gate definitivo depende da confirmação remota de ausência de conflitos e da CI do commit combinado. A leitura reconhece `completedAt` por série como confirmação explícita guiada, sem classificar registros sem `outcome` e sem `completedAt` como integrais; a rotina semanal transporta esse campo.
 - [x] A-401017: testes PostgreSQL de duas gravações sequenciais, atualização parcial, remoção explícita, rollback por ID alheio, idempotência, versão, snapshots e projeção histórica; testes HTTP de schema de remoção.
-- [ ] `pnpm validate`, build e testes PostgreSQL no HEAD remoto definitivo.
-- [ ] Auditoria independente da PR com evidências de CI e revisão de segurança.
+- [x] `pnpm validate`, build e testes PostgreSQL da correção A-401017 no HEAD `9ec2d6256faa249383ffc29dd06c2a6e7732a7c4`: [PR CI #41134648703](https://github.com/crgasparoto-br/training-system/actions/runs/41134648703) e [push CI #41134640232](https://github.com/crgasparoto-br/training-system/actions/runs/41134640232), ambos `completed/success`; `CRITICAL validation`, `Merge preview compatibility` e `Validate repository` da PR passaram. Este check registra somente esse SHA, não antecipa resultado de commits posteriores.
+- [x] Evidência visual dedicada da comparação aluno/professor adicionada em `apps/web/src/components/training/issue-401-browser-evidence.test.js`: Chromium real, 1440×900 / 768×1024 / 390×844, teclado, árvore de acessibilidade, ausência de overflow, substituição, valores ausentes/zero, séries técnicas exclusivamente ao professor e fallback histórico. O CI gera PNGs + `browser.json` com SHA-256 no artefato `validate-pr-critical-<HEAD>`; o teste usa cenário sintético da API e não substitui os testes reais de autorização/persistência.
+- [ ] Nova auditoria independente da PR após a alteração material, com verificações e artefatos do novo HEAD exato. Não reutilizar a aprovação do SHA anterior.
 
 ## Validação manual
 
