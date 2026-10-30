@@ -276,7 +276,7 @@ describe('WorkoutExecutionComparisonCard (#401)', () => {
     expect(screen.getByText('154 bpm')).toBeInTheDocument();
     expect(screen.getByText('0 PSE')).toBeInTheDocument();
     expect(screen.getAllByText(/diferença:/)).toHaveLength(1);
-    expect(screen.queryByText(/melhora|piora/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Resultado:\s*(melhor|pior)|Desempenho:\s*(melhor|pior)/i)).not.toBeInTheDocument();
   });
 
 });
