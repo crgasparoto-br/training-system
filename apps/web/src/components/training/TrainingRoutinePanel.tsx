@@ -161,11 +161,15 @@ function TodaySession({
   const [showGuided, setShowGuided] = useState(true);
   const reasonInputRef = useRef<HTMLTextAreaElement>(null);
   const completionReadRef = useRef(0);
+  // The read-only #387 projection can omit the #389 execution object entirely.
+  // Never dereference it at render time just to initialize the #487 guard.
+  const executionVersion = session.execution?.version ?? null;
+  const executionStatus = session.execution?.status ?? null;
   const liveExecutionRef = useRef({
-    sessionId: session.sessionId, version: session.execution.version, status: session.execution.status,
+    sessionId: session.sessionId, version: executionVersion, status: executionStatus,
   });
   liveExecutionRef.current = {
-    sessionId: session.sessionId, version: session.execution.version, status: session.execution.status,
+    sessionId: session.sessionId, version: executionVersion, status: executionStatus,
   };
   // Survives guide <-> overview toggles without leaking drafts across sessions.
   const guidedDraftStore = useRef<GuidedResistanceDraft | null>(null);
@@ -176,10 +180,10 @@ function TodaySession({
     // A new canonical version invalidates a previous incomplete-set warning.
     completionReadRef.current += 1;
     setPendingGuidedSets(null);
-  }, [session.sessionId, session.execution.version, session.execution.status]);
+  }, [session.sessionId, executionVersion, executionStatus]);
 
   const transition = async (targetStatus: TrainingSessionExecutionStatus) => {
-    if (!transitionExecution || executionBusy) return;
+    if (!transitionExecution || executionBusy || !session.execution) return;
     const requiresReason = targetStatus === 'partial' || targetStatus === 'not_performed';
     const reason = executionReason.trim();
     if (requiresReason && !reason) {
@@ -311,7 +315,7 @@ function TodaySession({
   };
   const hasGuided = audience === 'student' && session.modalities.includes('resistance')
     && (session.status === 'in_progress' || session.status === 'paused')
-    && Boolean(loadGuided && completeGuided);
+    && Boolean(session.execution && loadGuided && completeGuided);
   const cyclicItems = session.cyclic
     ? [
         { label: 'Tempo do aeróbio', value: formatDuration(session.cyclic.durationMin) },

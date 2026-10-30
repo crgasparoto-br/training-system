@@ -104,6 +104,24 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(screen.getByText(/Treino liberado pelo seu professor/)).toBeInTheDocument();
   });
 
+  it('preserva a ficha legada da issue #387 sem objeto execution na visão do aluno', async () => {
+    const legacy = { ...session(), execution: undefined } as unknown as TrainingRoutineSessionDetail;
+    render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(routine({
+      execution: { available: false, reason: 'execution_contract_pending' },
+      today: { date: '2026-10-01', state: 'released', sessions: [legacy] },
+    }))} />);
+    expect(await screen.findByText('Agachamento')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Iniciar treino' })).toBeDisabled();
+  });
+
+  it('preserva a ficha legada da issue #387 sem objeto execution na visão do professor', async () => {
+    const legacy = { ...session(), execution: undefined } as unknown as TrainingRoutineSessionDetail;
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue(routine({
+      today: { date: '2026-10-01', state: 'released', sessions: [legacy] },
+    }))} />);
+    expect(await screen.findByText('Agachamento')).toBeInTheDocument();
+  });
+
   it('apresenta distância prescrita quando a projeção operacional consolidada a fornece', async () => {
     const cyclicSession = session({
       modalities: ['cyclic'],
