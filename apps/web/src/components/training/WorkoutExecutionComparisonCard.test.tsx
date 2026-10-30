@@ -58,6 +58,38 @@ describe('WorkoutExecutionComparisonCard (#401)', () => {
   });
 
 
+
+  it('A-401-10: preserves high-precision inputs and shows small differences instead of false zero', () => {
+    const metric = (executed: number | null) => ({
+      key: 'load', label: 'Carga', planned: 20, plannedMax: null,
+      executed, plannedUnit: 'kg', executedUnit: 'kg',
+      difference: executed === null ? null : executed - 20,
+    });
+    const positive = metric(20.0004);
+    expect(formatComparisonMetric(positive)).toEqual({
+      planned: '20 kg', executed: '20,0004 kg', difference: '≈ 0,0004 kg',
+    });
+    expect(formatComparisonMetric(metric(19.9996))).toEqual({
+      planned: '20 kg', executed: '19,9996 kg', difference: '≈ -0,0004 kg',
+    });
+    expect(formatComparisonMetric(metric(20)).difference).toBe('0 kg');
+    expect(formatComparisonMetric(metric(null))).toEqual({
+      planned: '20 kg', executed: 'Indisponível', difference: null,
+    });
+    expect(formatComparisonMetric(metric(20.000000000000004)).executed)
+      .toBe('20,000000000000004 kg');
+    const tiny = { ...metric(10.00000001), planned: 10, difference: 10.00000001 - 10 };
+    expect(formatComparisonMetric(tiny).difference).not.toBe('0 kg');
+
+    render(<WorkoutExecutionComparisonCard comparison={{
+      ...comparison,
+      units: [{ ...comparison.units[1], metrics: [positive] }],
+    }} audience="professor" />);
+    expect(screen.getByText((_text, element) => element?.tagName === 'DD'
+      && element.textContent?.includes('Executado: 20,0004 kg') === true)).toBeInTheDocument();
+    expect(screen.getByText(/diferença: ≈ 0,0004 kg/)).toBeInTheDocument();
+  });
+
   it('A-401-06: renders string HR/speed ranges, numeric pace ranges and upper-only targets', () => {
     const rangeComparison: TrainingSessionComparison = {
       ...comparison,

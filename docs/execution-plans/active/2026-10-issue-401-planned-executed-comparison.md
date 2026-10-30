@@ -3,7 +3,7 @@
 - Base: `develop`; branch de implementação: `feat/401-planned-executed-comparison`.
 - Autoridades: WorkoutDay/WorkoutCyclicStage/WorkoutExerciseBlock/WorkoutExercisePlannedSet/WorkoutResistanceGroup (prescrição); WorkoutSessionExecution/Item (#389) (realizado).
 - Dependências: #398, #399, #400 e #389 presentes na develop. Nenhuma nova árvore de montagem.
-- Status: remediações A-401-01..08 anteriores preservadas; A-401-09 em remediação, aguardando CI exact-SHA e nova auditoria independente.
+- Status: remediações A-401-01..09 preservadas; A-401-10 corrigida no componente e testes, aguardando CI exact-SHA e nova auditoria independente.
 
 ## Objetivo
 
@@ -17,6 +17,7 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - A API autentica e restringe consultas de comparação por `alunoId` e `contractId` já existentes nas rotas aluno/professor da rotina. A consulta semanal permite expandir comparações de sessões concluídas anteriormente, usando o snapshot da execução em vez do template atual. Visões do professor mostram séries/valores técnicos; visão do aluno mostra resumo, estágios, exercícios e grupos.
 - A velocidade da sessão executada (`sessionValues.speedKmh`) é opcional, explícita e não negativa, inclusive para treinos cíclicos legados sem `cyclicStages`. A API rejeita tipo não numérico/valor inválido; `0` não é ausência e `null` limpa o registro sem gerar valor fictício. Não se converte distância/pace em velocidade.
 - Diferença numérica é mostrada apenas na unidade física equivalente e sem alvo em faixa; dados com unidades incompatíveis ou ausentes não produzem diferença. Diferença nunca é classificação de desempenho. Metas de volume semanal não são usadas como distância diária; os limites de faixas de FC, velocidade e pace permanecem disponíveis. O resultado `full` da sessão só decorre de confirmação explícita de todas as unidades comparáveis, não apenas do status terminal. Em legado sem snapshot, as metas e deltas históricos permanecem indisponíveis para evitar falsas comparações.
+- A apresentação numérica preserva os valores de entrada distintos com até 17 algarismos significativos, em `pt-BR`; diferenças calculadas usam até 8 algarismos significativos e recebem o sinal `≈` quando aproximadas, sem exibir um delta real não nulo como zero (A-401-10). String, unidade, ausência e zero real mantêm seus significados.
 - O cálculo é projeção read-only, sem média, adesão, progressão, sugestão de prescrição ou integração externa.
 
 ## Cenários de validação
@@ -31,6 +32,7 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - [x] Regressões A-401-05..08: volume semanal distinto da execução diária; faixas com limites diferentes e upper-only; sessão `completed` com série parcial/ausente/substituída, sessão sem registro e execução em andamento; tipo público restrito a outcomes graváveis e rejeição de resultados derivados em PostgreSQL.
 - [x] Controle do risco legado: `released_plan` não exibe metas/diferenças históricas inventadas; conserva valores executados e indicação da ausência de captura.
 - [x] Remediação A-401-09: contrato, API e persistência da velocidade no nível de sessão, testes para legado sem etapas, faixa, zero/ausência, idempotência, leitura histórica e rejeição de valores inválidos.
+- [x] Remediação A-401-10: regressão web para diferenças de ±0,0004 kg, valores numéricos precisos, delta efetivamente zero, ausência e pequenas diferenças, inclusive projeção visual do professor.
 - [ ] `pnpm validate`, build e testes PostgreSQL no HEAD remoto definitivo.
 - [ ] Auditoria independente da PR com evidências de CI e revisão de segurança.
 
@@ -42,6 +44,7 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 4. Navegar à semana anterior, expandir a comparação de uma sessão passada e verificar os perfis aluno/professor. Consultar execução legada e verificar indicação de fallback; conferir que a liberação não sofreu mutação.
 5. Confirmar cenário com uma série substituída e outra não registrada: resumo identifica registro incompleto com substituição. Repetir série planejada com diferentes `setNumber` sem chave React duplicada.
 6. Em sessão cíclica legada sem etapas, registrar 9 km/h contra faixa planejada de 8–10 km/h; confirmar comparação sem delta, ausência diferente de 0, histórico, versão/idempotência e leitura em ambos os perfis.
+7. No professor, comparar 20 kg prescritos com 20,0004 kg e 19,9996 kg executados: conferir valores originais distintos e diferenças positivas/negativas não zeradas; comparar também 20 kg versus 20 kg (zero legítimo), ausência de registro e uma diferença inferior a 0,001 kg.
 
 ## Decisões e riscos
 

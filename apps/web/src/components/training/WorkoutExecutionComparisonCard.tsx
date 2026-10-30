@@ -15,10 +15,21 @@ const outcomeLabel: Record<TrainingSessionComparisonOutcome, string> = {
   incomplete_record: 'Registro incompleto',
 };
 
+// All distinguishable numeric inputs must stay distinguishable in the UI.
+const numericFormatter = new Intl.NumberFormat('pt-BR', { maximumSignificantDigits: 17 });
+const differenceFormatter = new Intl.NumberFormat('pt-BR', { maximumSignificantDigits: 8 });
+
 function formatValue(value: number | string | null, unit: string | null) {
   if (value === null) return 'Indisponível';
-  const text = typeof value === 'number' ? value.toLocaleString('pt-BR', { maximumFractionDigits: 3 }) : value;
+  const text = typeof value === 'number' ? numericFormatter.format(value) : value;
   return unit ? `${text} ${unit}` : String(text);
+}
+
+function formatDifference(value: number, unit: string | null) {
+  // Avoid exposing binary subtraction noise, without ever rounding a nonzero delta to zero.
+  const rounded = Number(value.toPrecision(8));
+  const text = `${rounded !== value ? '≈ ' : ''}${differenceFormatter.format(rounded)}`;
+  return unit ? `${text} ${unit}` : text;
 }
 
 export function formatComparisonMetric(metric: TrainingSessionComparisonMetric) {
@@ -30,7 +41,7 @@ export function formatComparisonMetric(metric: TrainingSessionComparisonMetric) 
         ? `${lower} a ${upper}` : lower,
     executed: formatValue(metric.executed, metric.executedUnit),
     difference: metric.difference === null
-      ? null : formatValue(metric.difference, metric.executedUnit),
+      ? null : formatDifference(metric.difference, metric.executedUnit),
   };
 }
 
