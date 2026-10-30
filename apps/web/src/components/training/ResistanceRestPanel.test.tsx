@@ -17,29 +17,44 @@ const observed = (roundTripMs = 0): ResistanceRestObservation => ({
   receivedAtMs: performance.now(),
 });
 
-afterEach(() => { vi.useRealTimers(); });
+let monotonicNowMs = 100_000;
+function installMonotonicFakeTimers() {
+  vi.useFakeTimers();
+  monotonicNowMs = 100_000;
+  vi.spyOn(performance, 'now').mockImplementation(() => monotonicNowMs);
+}
+function advanceMonotonicTime(milliseconds: number) {
+  monotonicNowMs += milliseconds;
+  act(() => vi.advanceTimersByTime(milliseconds));
+}
+async function advanceMonotonicTimeAsync(milliseconds: number) {
+  monotonicNowMs += milliseconds;
+  await act(async () => { await vi.advanceTimersByTimeAsync(milliseconds); });
+}
+
+afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
 describe('issue #488: relógio de descanso', () => {
   it('reconstrói a contagem por timestamps após o navegador ficar em background', () => {
-    vi.useFakeTimers();
+    installMonotonicFakeTimers();
     vi.setSystemTime(new Date(rest.serverNow));
     const onAction = vi.fn();
     render(<ResistanceRestPanel rest={rest} observation={observed()} status="in_progress" busy={false} onAction={onAction} />);
     expect(screen.getByRole('timer')).toHaveTextContent('01:00');
     expect(screen.getByText('Intervalo prescrito').nextSibling).toHaveTextContent('60 s');
-    act(() => vi.advanceTimersByTime(40_000));
+    advanceMonotonicTime(40_000);
     expect(screen.getByRole('timer')).toHaveTextContent('00:20');
     expect(onAction).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(20_000));
+    advanceMonotonicTime(20_000);
     expect(screen.getByRole('timer')).toHaveTextContent('00:00');
     expect(onAction).toHaveBeenCalledTimes(1);
     expect(onAction).toHaveBeenCalledWith('finish');
-    act(() => vi.advanceTimersByTime(30_000));
+    advanceMonotonicTime(30_000);
     expect(onAction).toHaveBeenCalledTimes(1);
   });
 
   it('compensa 40 s de resposta atrasada, inclusive após nova leitura do servidor', () => {
-    vi.useFakeTimers();
+    installMonotonicFakeTimers();
     vi.setSystemTime(new Date('2026-10-30T10:00:40.000Z'));
     const onAction = vi.fn();
     const { rerender } = render(
@@ -51,7 +66,7 @@ describe('issue #488: relógio de descanso', () => {
     expect(screen.getByText('Descanso transcorrido').nextSibling).toHaveTextContent('00:40');
     expect(onAction).not.toHaveBeenCalled();
 
-    act(() => vi.advanceTimersByTime(5_000));
+    advanceMonotonicTime(5_000);
     expect(screen.getByRole('timer')).toHaveTextContent('00:15');
 
     // A delayed reconciliation must not return elapsed time to the athlete.
@@ -63,7 +78,7 @@ describe('issue #488: relógio de descanso', () => {
     expect(screen.getByRole('timer')).toHaveTextContent('00:15');
     expect(screen.getByText('Descanso transcorrido').nextSibling).toHaveTextContent('00:45');
 
-    act(() => vi.advanceTimersByTime(15_000));
+    advanceMonotonicTime(15_000);
     expect(screen.getByRole('timer')).toHaveTextContent('00:00');
     expect(onAction).toHaveBeenCalledTimes(1);
     expect(onAction).toHaveBeenCalledWith('finish');
@@ -74,12 +89,12 @@ describe('issue #488: relógio de descanso', () => {
         elapsedMs: 58_000, remainingMs: 2_000 }}
       observation={observed(3_000)} status="in_progress" busy={false} onAction={onAction}
     />);
-    act(() => vi.advanceTimersByTime(10_000));
+    advanceMonotonicTime(10_000);
     expect(onAction).toHaveBeenCalledTimes(1);
   });
 
   it('não reinicia descanso já vencido quando a resposta chega depois do prazo', () => {
-    vi.useFakeTimers();
+    installMonotonicFakeTimers();
     vi.setSystemTime(new Date('2026-10-30T10:01:25.000Z'));
     const onAction = vi.fn();
     render(<ResistanceRestPanel rest={rest} observation={observed(85_000)} status="in_progress" busy={false} onAction={onAction} />);
@@ -90,24 +105,24 @@ describe('issue #488: relógio de descanso', () => {
   });
 
   it('mantém cronômetro correto com relógio civil ±5min e após mudança manual da hora', () => {
-    vi.useFakeTimers();
+    installMonotonicFakeTimers();
     vi.setSystemTime(new Date('2026-10-30T10:05:00.000Z'));
     const onAction = vi.fn();
     render(<ResistanceRestPanel rest={rest} observation={observed()} status="in_progress" busy={false} onAction={onAction} />);
     expect(screen.getByRole('timer')).toHaveTextContent('01:00');
-    act(() => vi.advanceTimersByTime(40_000));
+    advanceMonotonicTime(40_000);
     expect(screen.getByRole('timer')).toHaveTextContent('00:20');
     // Changing the wall clock while the panel is mounted must not change its age.
     act(() => vi.setSystemTime(new Date('2026-10-30T09:55:40.000Z')));
     expect(screen.getByRole('timer')).toHaveTextContent('00:20');
     expect(onAction).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(20_000));
+    advanceMonotonicTime(20_000);
     expect(screen.getByRole('timer')).toHaveTextContent('00:00');
     expect(onAction).toHaveBeenCalledTimes(1);
   });
 
   it('desconta latência da requisição mesmo com relógio civil desajustado', () => {
-    vi.useFakeTimers();
+    installMonotonicFakeTimers();
     vi.setSystemTime(new Date('2026-10-30T09:55:40.000Z'));
     const onAction = vi.fn();
     render(<ResistanceRestPanel rest={rest} observation={observed(40_000)} status="in_progress" busy={false} onAction={onAction} />);
@@ -125,33 +140,33 @@ describe('issue #488: relógio de descanso', () => {
   });
 
   it('rearma auto-finish depois de rejeição/timeout sem duplicar requisições pendentes', async () => {
-    vi.useFakeTimers();
+    installMonotonicFakeTimers();
     vi.setSystemTime(new Date('2026-10-30T10:01:10.000Z'));
     let resolveFirst!: (outcome: 'retry') => void;
     const pending = new Promise<'retry'>((resolve) => { resolveFirst = resolve; });
     const onAction = vi.fn().mockReturnValueOnce(pending).mockResolvedValueOnce('accepted');
     render(<ResistanceRestPanel rest={rest} observation={observed(70_000)} status="in_progress" busy={false} onAction={onAction} />);
     expect(onAction).toHaveBeenCalledTimes(1);
-    await act(async () => { await vi.advanceTimersByTimeAsync(3_000); });
+    await advanceMonotonicTimeAsync(3_000);
     expect(onAction).toHaveBeenCalledTimes(1); // pending request cannot duplicate
     await act(async () => { resolveFirst('retry'); await Promise.resolve(); });
-    await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+    await advanceMonotonicTimeAsync(800);
     expect(onAction).toHaveBeenCalledTimes(1); // backoff before retry
-    await act(async () => { await vi.advanceTimersByTimeAsync(450); });
+    await advanceMonotonicTimeAsync(450);
     expect(onAction).toHaveBeenCalledTimes(2);
     expect(onAction).toHaveBeenNthCalledWith(2, 'finish');
-    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    await advanceMonotonicTimeAsync(20_000);
     expect(onAction).toHaveBeenCalledTimes(2); // success disarms same rest
   });
 
   it('não progride nem oferece ações enquanto pausa canônica está ativa', () => {
-    vi.useFakeTimers();
+    installMonotonicFakeTimers();
     vi.setSystemTime(new Date('2026-10-30T10:00:40.000Z'));
     const onAction = vi.fn();
     render(<ResistanceRestPanel rest={{ ...rest, elapsedMs: 25000, remainingMs: 35000 }}
       observation={observed()} status="paused" busy={false} onAction={onAction} />);
     expect(screen.getByRole('timer')).toHaveTextContent('00:35');
-    act(() => vi.advanceTimersByTime(130_000));
+    advanceMonotonicTime(130_000);
     expect(screen.getByRole('timer')).toHaveTextContent('00:35');
     expect(screen.getByText(/relógio congelado/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '+15 s' })).toBeDisabled();
@@ -160,7 +175,7 @@ describe('issue #488: relógio de descanso', () => {
   });
 
   it('oferece extensão e interrupção como comandos, não escreve tempo planejado', () => {
-    vi.useFakeTimers();
+    installMonotonicFakeTimers();
     vi.setSystemTime(new Date(rest.serverNow));
     const onAction = vi.fn();
     render(<ResistanceRestPanel rest={{ ...rest, extensionSeconds: 15 }}
