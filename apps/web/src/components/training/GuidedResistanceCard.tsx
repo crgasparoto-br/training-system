@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type {
-  GuidedResistanceCompletePayload, GuidedResistanceView, TrainingSessionExecutionStatus,
+  GuidedResistanceCompletePayload, GuidedResistanceRestActionPayload,
+  GuidedResistanceView, TrainingSessionExecutionStatus,
 } from '@corrida/types';
 import { Button } from '../ui/Button';
+import { ResistanceRestPanel } from './ResistanceRestPanel';
 
 type GuidedResistanceOperation = { signature: string; payload: GuidedResistanceCompletePayload };
+type GuidedRestOperation = { signature: string; payload: GuidedResistanceRestActionPayload };
 
 export type GuidedResistanceDraft = {
   sessionId: string;
@@ -22,6 +25,7 @@ type Props = {
   version: number;
   load: (sessionId: string) => Promise<GuidedResistanceView>;
   complete: (sessionId: string, payload: GuidedResistanceCompletePayload) => Promise<GuidedResistanceView>;
+  restAction?: (sessionId: string, payload: GuidedResistanceRestActionPayload) => Promise<GuidedResistanceView>;
   onExecutionChanged?: () => Promise<void>;
   onOverview: () => void;
   /** Owned by the session panel, not by the unmounted guide or browser storage. */
@@ -73,7 +77,7 @@ function parseActualNumber(text: string, integer: boolean): number | null {
 }
 
 export function GuidedResistanceCard({
-  sessionId, status, version, load, complete, onExecutionChanged, onOverview, draftStore,
+  sessionId, status, version, load, complete, restAction, onExecutionChanged, onOverview, draftStore,
 }: Props) {
   const headingId = useId();
   const repsId = useId();
@@ -86,7 +90,6 @@ export function GuidedResistanceCard({
   const [reconciliationRequired, setReconciliationRequired] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);
-  const [lastRest, setLastRest] = useState<number | null>(null);
   const currentSetRef = useRef<string | null>(null);
   // Only the latest read may change the UI. A confirmed mutation also invalidates
   // reads started before the POST returned.
@@ -103,6 +106,7 @@ export function GuidedResistanceCard({
   const conflictVersionRef = useRef<number | null>(draftStore?.current?.sessionId === sessionId
     ? draftStore.current.conflictVersion : null);
   const operationRef = useRef<GuidedResistanceOperation | null>(null);
+  const restOperationRef = useRef<GuidedRestOperation | null>(null);
 
   const keepDraft = (nextRepetitions: string, nextLoadKg: string, operation = operationRef.current) => {
     const plannedSetId = currentSetRef.current;
@@ -147,6 +151,10 @@ export function GuidedResistanceCard({
         && draftStore.current.plannedSetId === currentId) {
         draftStore.current = { ...draftStore.current, operation: null };
       }
+    }
+    if (restOperationRef.current && (saved.version !== restOperationRef.current.payload.expectedVersion
+      || saved.rest?.id !== restOperationRef.current.payload.restId)) {
+      restOperationRef.current = null;
     }
     setView(saved);
     return true;
@@ -206,7 +214,7 @@ export function GuidedResistanceCard({
   }, [refresh, status, version]);
 
   async function confirmCurrent() {
-    if (!view?.current || view.status !== 'in_progress' || status !== 'in_progress' || busy || loading || reconciliationRequired) return;
+    if (!view?.current || view.rest || view.status !== 'in_progress' || status !== 'in_progress' || busy || loading || reconciliationRequired) return;
     const current = view.current;
     let actualReps: number | null;
     let actualLoad: number | null;
@@ -258,10 +266,9 @@ export function GuidedResistanceCard({
         }
         return;
       }
-      // The canonical group determines whether the interval is intermediate.
-      // A rest hint is meaningful only while another step remains.
-      setLastRest(saved.current ? current.restSec : null);
-      setConfirmation('Série registrada. O próximo passo foi atualizado com os dados salvos.');
+      setConfirmation(saved.rest
+        ? 'Série registrada. O descanso foi iniciado com o intervalo prescrito.'
+        : 'Série registrada. O próximo passo foi atualizado com os dados salvos.');
       try {
         await onExecutionChanged?.();
       } catch {
@@ -286,6 +293,80 @@ export function GuidedResistanceCard({
       setBusy(false);
     }
   }
+
+  async function actOnRest(action: GuidedResistanceRestActionPayload['action']) {
+    const rest = view?.rest;
+    if (!rest || !restAction || status !== 'in_progress' || view?.status !== 'in_progress'
+      || busy || loading || reconciliationRequired) return;
+    const signature = [sessionId, view.version, rest.id, action].join(':');
+    if (restOperationRef.current?.signature !== signature) {
+      restOperationRef.current = {
+        signature,
+        payload: {
+          operationKey: 'rest-' + Date.now() + '-' + Math.random().toString(36).slice(2, 12),
+          expectedVersion: view.version, restId: rest.id, action,
+        },
+      };
+    }
+    setBusy(true);
+    setError(null);
+    setConfirmation(null);
+    try {
+      const saved = await restAction(sessionId, restOperationRef.current.payload);
+      refreshSequenceRef.current += 1;
+      setLoading(false);
+      restOperationRef.current = null;
+      if (saved.sessionId !== sessionId || !acceptView(saved, sessionId)) {
+        setReconciliationRequired(true);
+        if (await refresh('conflict')) {
+          try { await onExecutionChanged?.(); } catch {
+            setError('O descanso foi salvo, mas o resumo não pôde ser atualizado. Revise o estado exibido.');
+          }
+        }
+        return;
+      }
+      setConfirmation(action === 'extend_15' ? 'Foram adicionados 15 segundos ao descanso.'
+        : action === 'skip' ? 'Descanso pulado. Continue para a próxima série.'
+          : 'Descanso concluído. Continue para a próxima série.');
+      try { await onExecutionChanged?.(); } catch {
+        setError('O descanso foi salvo, mas o resumo não pôde ser atualizado. Revise o estado exibido.');
+      }
+    } catch (cause) {
+      const httpStatus = (cause as { response?: { status?: number } })?.response?.status;
+      const code = (cause as { response?: { data?: { details?: { code?: string } } } })?.response?.data?.details?.code;
+      if (httpStatus === 409) {
+        restOperationRef.current = null;
+        refreshSequenceRef.current += 1;
+        setLoading(false);
+        if (action === 'finish' && code === 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION') {
+          await refresh();
+          setError('O servidor ainda está contando o descanso. Aguarde ou pule o intervalo.');
+        } else {
+          conflictVersionRef.current = Math.max(conflictVersionRef.current ?? -1, view.version);
+          keepDraft(repetitions, loadKg);
+          setReconciliationRequired(true);
+          await refresh('conflict');
+        }
+      } else {
+        // Keep the same operation key on a timeout; retry is idempotent.
+        setError('Não foi possível confirmar o descanso. O estado anterior foi preservado; tente novamente.');
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    const onReturn = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    window.addEventListener('focus', onReturn);
+    document.addEventListener('visibilitychange', onReturn);
+    return () => {
+      window.removeEventListener('focus', onReturn);
+      document.removeEventListener('visibilitychange', onReturn);
+    };
+  }, [refresh]);
 
   const current = view?.current;
   const unavailableCopy = {
@@ -314,7 +395,16 @@ export function GuidedResistanceCard({
           <p role="status" className="text-sm text-muted-foreground">
             {view.completed} de {view.total} séries confirmadas
           </p>
-          {current ? (
+          {view.rest && (
+            <ResistanceRestPanel
+              rest={view.rest}
+              status={status === 'in_progress' ? view.status : status}
+              busy={busy || loading}
+              disabled={reconciliationRequired || !restAction}
+              onAction={(action) => { void actOnRest(action); }}
+            />
+          )}
+          {current && !view.rest ? (
             <div className="space-y-4 rounded-lg border border-border bg-background p-4">
               <div className="space-y-1">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -375,17 +465,16 @@ export function GuidedResistanceCard({
                   : 'Próximo: revisar e finalizar o treino.'}
               </p>
             </div>
-          ) : (
+          ) : !view.rest ? (
             <p role="status" className="rounded-lg border border-border bg-background p-4 text-sm font-semibold">
               Todas as séries foram registradas. Confira a ficha e conclua a sessão pelos controles do treino.
             </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Próxima série: {current?.exerciseName ?? 'confira a ficha após o descanso'}.
+            </p>
           )}
         </>
-      )}
-      {lastRest !== null && confirmation && lastRest > 0 && (
-        <p className="text-sm text-muted-foreground">
-          Descanso prescrito após a série anterior: {lastRest} s. O cronômetro automático será disponibilizado em uma etapa própria.
-        </p>
       )}
       {confirmation && <p role="status" className="text-sm text-emerald-700">{confirmation}</p>}
       {error && (
