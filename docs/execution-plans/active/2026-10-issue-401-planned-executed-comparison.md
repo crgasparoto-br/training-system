@@ -3,7 +3,7 @@
 - Base: `develop`; branch de implementação: `feat/401-planned-executed-comparison`.
 - Autoridades: WorkoutDay/WorkoutCyclicStage/WorkoutExerciseBlock/WorkoutExercisePlannedSet/WorkoutResistanceGroup (prescrição); WorkoutSessionExecution/Item (#389) (realizado).
 - Dependências: #398, #399, #400 e #389 presentes na develop. Nenhuma nova árvore de montagem.
-- Status: remediações A-401-01..14 preservadas; A-401-15 implementada no comparador com regressões para múltiplas medições da etapa, zero e fallback histórico; A-401-16 reconcilia com a execução guiada #487 sem descartar seus controles. CI exact-SHA e auditoria independente ainda obrigatórias.
+- Status: remediações A-401-01..16 preservadas. A-401017 corrige a atualização incremental de etapas e agrupamentos, com regressões PostgreSQL, fronteira HTTP e visão semanal. CI exact-SHA e nova auditoria independente ainda obrigatórias.
 
 ## Objetivo
 
@@ -12,7 +12,7 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 ## Contrato
 
 - A primeira operação canônica da sessão captura `WorkoutSessionExecution.plannedSnapshot` para o `WorkoutDay.id` vinculado à liberação consolidada. Migração aditiva e trigger impedem sobrescrever o snapshot; registros anteriores usam fallback explicitamente rotulado `released_plan`.
-- Unidades executadas continuam em `WorkoutSessionExecutionItem` com `plannedUnitId`, `plannedSetId`, `setNumber` e os atributos RIR/RPE/cadência/descanso e outcome opcional. Etapas cíclicas e agrupamentos são guardados em arrays versionados da `sessionValues` com IDs planejados validados contra o mesmo dia, sem tabelas de planejamento paralelas.
+- Unidades executadas continuam em `WorkoutSessionExecutionItem` com `plannedUnitId`, `plannedSetId`, `setNumber` e os atributos RIR/RPE/cadência/descanso e outcome opcional. Etapas cíclicas e agrupamentos são guardados em arrays versionados da `sessionValues` com IDs planejados validados contra o mesmo dia, sem tabelas de planejamento paralelas. A-401017: novos itens fazem upsert por `plannedStageId+iteration` ou `plannedGroupId`. Omissão de item ou campo conserva o registro, `null` limpa apenas a medição informada, `0` é valor real, `[]` não remove. `removeCyclicStages` (ID e iteração) e `removeResistanceGroups` (IDs) excluem registros explicitamente, após validação de vínculo; os comandos de remoção pertencem ao fingerprint da operação e não aparecem na leitura.
 - Outcomes de escrita explícitos: `full`, `partial`, `substituted`, `not_performed`. A coluna de outcome não tem default: registros antigos ou sem classificação são `unclassified` na comparação, nunca `full` inferido. Unidade sem valor executado é `not_recorded`. Agregados com algumas séries sem registro são `incomplete_record`, preservando `containsSubstitution` quando também há substituição; um conjunto incompleto não é tratado como execução integral nem como parcial comprovada. Substituição exige observação. Nenhum campo ausente vira zero.
 - A API autentica e restringe consultas de comparação por `alunoId` e `contractId` já existentes nas rotas aluno/professor da rotina. A consulta semanal permite expandir comparações de sessões concluídas anteriormente, usando o snapshot da execução em vez do template atual. Visões do professor mostram séries/valores técnicos; visão do aluno mostra resumo, estágios, exercícios e grupos.
 - A velocidade da sessão executada (`sessionValues.speedKmh`) é opcional, explícita e não negativa, inclusive para treinos cíclicos legados sem `cyclicStages`. A API rejeita tipo não numérico/valor inválido; `0` não é ausência e `null` limpa o registro sem gerar valor fictício. Não se converte distância/pace em velocidade.
@@ -39,6 +39,7 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - [x] Testes adversariais A-401-14: métricas cíclicas registradas por exercício legado ou série estruturada, valores ausentes/zero e alvos indisponíveis sem fabricação.
 - [x] A-401-15: a etapa cíclica apresenta duração e distância executadas simultaneamente e todas as medições adicionais pace, velocidade, FC, zona e PSE; apenas a grandeza com prescrição explícita recebe meta/diferença. Regressões cobrem tempo prescrito, distância prescrita, alvo de velocidade, zero, ausência e fallback histórico.
 - [x] A-401-16: integração sem perda das rotas, validações, esquema e execução guiada da #487 com o comparador da #401; o gate definitivo depende da confirmação remota de ausência de conflitos e da CI do commit combinado. A leitura reconhece `completedAt` por série como confirmação explícita guiada, sem classificar registros sem `outcome` e sem `completedAt` como integrais; a rotina semanal transporta esse campo.
+- [x] A-401017: testes PostgreSQL de duas gravações sequenciais, atualização parcial, remoção explícita, rollback por ID alheio, idempotência, versão, snapshots e projeção histórica; testes HTTP de schema de remoção.
 - [ ] `pnpm validate`, build e testes PostgreSQL no HEAD remoto definitivo.
 - [ ] Auditoria independente da PR com evidências de CI e revisão de segurança.
 
@@ -56,6 +57,7 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 10. Em exercício legado sem plannedSetId, registrar duas séries com setNumber distintos (inclusive fora de ordem), cargas/repetições e substituição diferentes: o professor deve ver cada registro, o aluno apenas o resumo; não atribuir a uma série planejada inexistente.
 11. Registrar tempo, distância, ritmo e FC/zona diretamente num exercício legado ou série estruturada: confirmar valor individual, zero real e meta indisponível quando não houver prescrição própria por exercício, sem reutilizar valores de sessão/etapa.
 12. Em etapa planejada por segundos, registrar também metros, pace, velocidade, FC, zona e PSE, verificar cada medição sem meta/delta artificial; repetir numa etapa por metros com segundos extras, zero real e fallback histórico. Confirmar que a tela de execução guiada #487 permanece utilizável.
+13. A-401017: gravar etapa A e grupo A; gravar apenas etapa B e grupo B sem reenviar os primeiros; alterar só velocidade de B. Recarregar e conferir A/B e duração original de B em aluno/professor. Informar `null` para limpar uma medição, `0` para registrar zero e `[]` para enviar lote vazio sem apagar histórico. Remover B apenas via `removeCyclicStages`/`removeResistanceGroups`, conferindo que A e o plano congelado permanecem intactos. Checar versionamento, replay, tentativa de ID de outro contrato e rejeição de entrada duplicada.
 
 ## Decisões e riscos
 

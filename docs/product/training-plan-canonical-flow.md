@@ -158,3 +158,5 @@ exibem o catálogo editável corrente. A resposta pública não inclui
 releasedCatalog; identidades dos exercícios, agrupamentos, membros e
 séries planejadas permanecem inalteradas. O escopo do aluno/contrato e
 a seleção releasedOnly das rotas são preservados.
+
+**A-401017 — Escrita incremental de execução:** `sessionValues.cyclicStages` e `resistanceGroups` são upserts por ID de etapa/iteração e agrupamento; medições omitidas permanecem intactas. Somente `removeCyclicStages`/`removeResistanceGroups` removem registros executados. O planejamento liberado e as suas identidades não são alterados por esses comandos.

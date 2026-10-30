@@ -3,6 +3,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import type {
   TrainingSessionExecutionItemValue,
   TrainingSessionExecutionSessionValues,
+  TrainingSessionExecutionSessionValuesPatch,
   TrainingSessionExecutionStatus,
   TrainingSessionExecutionTransitionPayload,
   TrainingSessionExecutionValuesPayload,
@@ -133,9 +134,9 @@ function checkNumber(value: number | null | undefined, label: string, options: {
   return value;
 }
 
-function normalizeSessionValues(values: TrainingSessionExecutionSessionValues | undefined): TrainingSessionExecutionSessionValues | undefined {
+function normalizeSessionValues(values: TrainingSessionExecutionSessionValuesPatch | undefined): TrainingSessionExecutionSessionValuesPatch | undefined {
   if (!values) return undefined;
-  const normalized: TrainingSessionExecutionSessionValues = {};
+  const normalized: TrainingSessionExecutionSessionValuesPatch = {};
   if (values.durationSec !== undefined) {
     if (values.durationSec !== null && (!Number.isInteger(values.durationSec) || values.durationSec < 0)) throw new WorkoutSessionExecutionInputError('Tempo executado deve ser informado em segundos inteiros não negativos.');
     normalized.durationSec = values.durationSec;
@@ -169,7 +170,12 @@ function normalizeSessionValues(values: TrainingSessionExecutionSessionValues | 
       keys.add(key);
       const outcome = normalizeOutcome(entry.outcome);
       if (!outcome) throw new WorkoutSessionExecutionInputError('Situação da etapa obrigatória.');
-      const substitutionNote = normalizeSubstitution(outcome, entry.substitutionNote);
+      // A patch can omit the original substitution text; the merged record is
+      // validated after reading durable state in the same transaction.
+      const substitutionNote = normalizeText(entry.substitutionNote, 500);
+      if (outcome !== 'substituted' && substitutionNote) {
+        throw new WorkoutSessionExecutionInputError('Substituição só pode ser informada quando a unidade foi substituída.');
+      }
       return {
         plannedStageId, iteration, outcome, substitutionNote,
         durationSec: checkNumber(entry.durationSec, 'Duração da etapa', { integer: true }),
@@ -180,6 +186,25 @@ function normalizeSessionValues(values: TrainingSessionExecutionSessionValues | 
         heartRateZone: normalizeText(entry.heartRateZone, 32),
         pse: checkNumber(entry.pse, 'PSE da etapa', { max: 10 }),
       };
+    });
+  }
+  if (values.removeCyclicStages !== undefined) {
+    if (!Array.isArray(values.removeCyclicStages) || values.removeCyclicStages.length > 500) {
+      throw new WorkoutSessionExecutionInputError('Quantidade de etapas removidas inválida.');
+    }
+    const keys = new Set<string>();
+    normalized.removeCyclicStages = values.removeCyclicStages.map((entry) => {
+      const plannedStageId = typeof entry?.plannedStageId === 'string' ? entry.plannedStageId.trim() : '';
+      const iteration = entry?.iteration ?? 1;
+      if (!plannedStageId || !Number.isInteger(iteration) || iteration < 1 || iteration > 100) {
+        throw new WorkoutSessionExecutionInputError('Etapa ou repetição para remoção inválida.');
+      }
+      const key = `${plannedStageId}:${iteration}`;
+      if (keys.has(key) || normalized.cyclicStages?.some((item) => `${item.plannedStageId}:${item.iteration ?? 1}` === key)) {
+        throw new WorkoutSessionExecutionInputError('Etapa/repetição duplicada ou enviada simultaneamente para registro e remoção.');
+      }
+      keys.add(key);
+      return { plannedStageId, iteration };
     });
   }
   if (values.resistanceGroups !== undefined) {
@@ -195,12 +220,30 @@ function normalizeSessionValues(values: TrainingSessionExecutionSessionValues | 
       ids.add(plannedGroupId);
       const outcome = normalizeOutcome(entry.outcome);
       if (!outcome) throw new WorkoutSessionExecutionInputError('Situação do agrupamento obrigatória.');
+      const substitutionNote = normalizeText(entry.substitutionNote, 500);
+      if (outcome !== 'substituted' && substitutionNote) {
+        throw new WorkoutSessionExecutionInputError('Substituição só pode ser informada quando a unidade foi substituída.');
+      }
       return {
-        plannedGroupId, outcome, substitutionNote: normalizeSubstitution(outcome, entry.substitutionNote),
+        plannedGroupId, outcome, substitutionNote,
         roundsCompleted: checkNumber(entry.roundsCompleted, 'Rodadas realizadas', { integer: true }),
         restBetweenExercisesSec: checkNumber(entry.restBetweenExercisesSec, 'Descanso entre exercícios', { integer: true, max: 86400 }),
         restBetweenRoundsSec: checkNumber(entry.restBetweenRoundsSec, 'Descanso entre rodadas', { integer: true, max: 86400 }),
       };
+    });
+  }
+  if (values.removeResistanceGroups !== undefined) {
+    if (!Array.isArray(values.removeResistanceGroups) || values.removeResistanceGroups.length > 100) {
+      throw new WorkoutSessionExecutionInputError('Quantidade de agrupamentos removidos inválida.');
+    }
+    const ids = new Set<string>();
+    normalized.removeResistanceGroups = values.removeResistanceGroups.map((rawId) => {
+      const id = typeof rawId === 'string' ? rawId.trim() : '';
+      if (!id || ids.has(id) || normalized.resistanceGroups?.some((item) => item.plannedGroupId === id)) {
+        throw new WorkoutSessionExecutionInputError('Agrupamento duplicado ou enviado simultaneamente para registro e remoção.');
+      }
+      ids.add(id);
+      return id;
     });
   }
   return normalized;
@@ -429,7 +472,7 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
     expectedVersion: number;
     targetStatus?: TrainingSessionExecutionStatus;
     reason?: string | null;
-    sessionValues?: TrainingSessionExecutionSessionValues;
+    sessionValues?: TrainingSessionExecutionSessionValuesPatch;
     items?: TrainingSessionExecutionItemValue[];
     guidedCompletion?: boolean;
   }): Promise<TrainingSessionExecutionView> {

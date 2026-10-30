@@ -864,6 +864,11 @@ const executionSessionValuesSchema = z.object({
   heartRateZone: z.string().trim().max(32).nullable().optional(),
   cyclicStages: z.array(executionCyclicStageSchema).max(500).optional(),
   resistanceGroups: z.array(executionResistanceGroupSchema).max(100).optional(),
+  removeCyclicStages: z.array(z.object({
+    plannedStageId: z.string().trim().min(1),
+    iteration: z.number().int().min(1).max(100).optional(),
+  }).strict()).max(500).optional(),
+  removeResistanceGroups: z.array(z.string().trim().min(1)).max(100).optional(),
 }).strict();
 
 const executionItemSchema = z.object({

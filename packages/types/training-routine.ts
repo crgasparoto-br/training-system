@@ -98,9 +98,15 @@ export interface TrainingSessionExecutionSessionValues {
   speedKmh?: number | null;
   heartRateBpm?: number | null;
   heartRateZone?: string | null;
-  /** Complete replacement arrays; the API verifies that every ID belongs to the released day. */
+  /** Keyed incremental upserts. Omitted units/fields remain untouched; null clears a metric. */
   cyclicStages?: TrainingSessionCyclicStageExecutionValue[];
   resistanceGroups?: TrainingSessionResistanceGroupExecutionValue[];
+}
+
+/** Write-only deletion intents. The execution view never exposes or persists these controls. */
+export interface TrainingSessionExecutionSessionValuesPatch extends TrainingSessionExecutionSessionValues {
+  removeCyclicStages?: Array<{ plannedStageId: string; iteration?: number }>;
+  removeResistanceGroups?: string[];
 }
 
 export interface TrainingSessionExecutionItemValue {
@@ -150,14 +156,14 @@ export interface TrainingSessionExecutionTransitionPayload {
   expectedVersion: number;
   targetStatus: TrainingSessionExecutionStatus;
   reason?: string | null;
-  sessionValues?: TrainingSessionExecutionSessionValues;
+  sessionValues?: TrainingSessionExecutionSessionValuesPatch;
   items?: TrainingSessionExecutionItemValue[];
 }
 
 export interface TrainingSessionExecutionValuesPayload {
   operationKey: string;
   expectedVersion: number;
-  sessionValues?: TrainingSessionExecutionSessionValues;
+  sessionValues?: TrainingSessionExecutionSessionValuesPatch;
   items?: TrainingSessionExecutionItemValue[];
 }
 

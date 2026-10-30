@@ -57,6 +57,25 @@ Os contratos permanentes estão em `docs/product/consolidated-prescription-opera
 
 As regras de produto estão em `docs/product/student-centered-training-experience.md`.
 
+## Escrita incremental do planejado versus executado (#401, A-401017)
+
+`PUT /api/v1/student/me/training-sessions/:sessionId/execution/values` (e `POST /execution/transition` enquanto aplicável) conserva o controle de sessão/contrato, `operationKey` idempotente e `expectedVersion` da execução canônica. `sessionValues.cyclicStages` é uma lista de **upserts por (`plannedStageId`, `iteration` 1-based, padrão 1)**; `sessionValues.resistanceGroups` faz upsert por `plannedGroupId`. Os arrays **não** substituem o histórico: outra unidade omitida permanece, assim como qualquer medição omitida em uma unidade enviada. `null` limpa explicitamente uma métrica (não a unidade), `0` é medição real e array vazio é lote vazio (não limpa registros).
+
+A exclusão de um registro executado exige a intenção **específica e autenticada** dentro de `sessionValues`:
+
+```json
+{
+  "operationKey": "execucao-401-remocao-001",
+  "expectedVersion": 4,
+  "sessionValues": {
+    "removeCyclicStages": [{ "plannedStageId": "id-etapa", "iteration": 1 }],
+    "removeResistanceGroups": ["id-agrupamento"]
+  }
+}
+```
+
+Identificadores de remoção, IDs de upsert e repetições são validados contra o `WorkoutDay` liberado do mesmo aluno/contrato dentro da transação; chaves duplicadas, operações contraditórias (remover + alterar a mesma unidade) e exclusão de registro inexistente são recusadas com HTTP 400 sem gravar efeitos. Valores e remoções somente ocorrem durante sessão `in_progress`, com versão correta e serialização transacional. A intenção de exclusão fica rastreável no fingerprint e na operação canônica, mas `removeCyclicStages`/`removeResistanceGroups` **não** são gravados como métricas nem aparecem no contrato público de leitura. A comparação histórica segue `plannedSnapshot` imutável.
+
 ## Check-in pré-treino (#388)
 
 O check-in usa `PreWorkoutCheckIn` como fonte canônica única por `WorkoutDay`. A escrita do aluno ocorre em `PUT /api/v1/student/me/training-sessions/:sessionId/check-in`; aluno, contrato e ator são derivados da sessão autenticada e nunca do body.

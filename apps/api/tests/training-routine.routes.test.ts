@@ -305,6 +305,36 @@ describe('training routine HTTP boundaries (#387)', () => {
       }
     });
 
+    it('passes explicit patch removals without accepting forged fields on the HTTP boundary', async () => {
+      const payload = { operationKey: 'issue401-patch-remove-http', expectedVersion: 2,
+        sessionValues: { cyclicStages: [{ plannedStageId: 'stage-2', outcome: 'partial', speedKmh: 0 }],
+          removeCyclicStages: [{ plannedStageId: 'stage-1', iteration: 1 }],
+          removeResistanceGroups: ['group-1'] },
+      };
+      const response = await request(app).put('/student/me/training-sessions/day-1/execution/values')
+        .set('x-contract-id', 'contract-1').send(payload);
+      expect(response.status).toBe(200);
+      expect(mockSaveExecutionValues).toHaveBeenCalledWith({
+        sessionId: 'day-1', alunoId: 'aluno-1', contractId: 'contract-1',
+        actorUserId: 'user-1', payload,
+      });
+    });
+
+    it.each([
+      { removeCyclicStages: [{ plannedStageId: 'stage-1', iteration: 0 }] },
+      { removeCyclicStages: [{ plannedStageId: 'stage-1', wrong: true }] },
+      { removeResistanceGroups: [null] },
+      { removeResistanceGroups: [123] },
+      { removeCyclicStages: 'stage-1' },
+    ])('rejects malformed patch deletion intent before persistence: %p', async (sessionValues) => {
+      mockSaveExecutionValues.mockClear();
+      const response = await request(app).put('/student/me/training-sessions/day-1/execution/values')
+        .set('x-contract-id', 'contract-1')
+        .send({ operationKey: 'issue401-delete-bad', expectedVersion: 2, sessionValues });
+      expect(response.status).toBe(400);
+      expect(mockSaveExecutionValues).not.toHaveBeenCalled();
+    });
+
     it.each([-0.5, '9', { kmh: 9 }])('rejects invalid speed %p with no service write', async (speedKmh) => {
       const response = await request(app)
         .put('/student/me/training-sessions/day-1/execution/values')
