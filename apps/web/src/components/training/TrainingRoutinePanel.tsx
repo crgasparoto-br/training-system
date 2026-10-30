@@ -157,11 +157,26 @@ function TodaySession({
   const [executionReason, setExecutionReason] = useState('');
   const [executionError, setExecutionError] = useState<string | null>(null);
   const [executionBusy, setExecutionBusy] = useState(false);
+  const [pendingGuidedSets, setPendingGuidedSets] = useState<{ remaining: number; total: number } | null>(null);
   const [showGuided, setShowGuided] = useState(true);
+  const reasonInputRef = useRef<HTMLTextAreaElement>(null);
+  const completionReadRef = useRef(0);
+  const liveExecutionRef = useRef({
+    sessionId: session.sessionId, version: session.execution.version, status: session.execution.status,
+  });
+  liveExecutionRef.current = {
+    sessionId: session.sessionId, version: session.execution.version, status: session.execution.status,
+  };
   // Survives guide <-> overview toggles without leaking drafts across sessions.
   const guidedDraftStore = useRef<GuidedResistanceDraft | null>(null);
   const operationRef = useRef<{ signature: string; key: string } | null>(null);
   const duration = formatDuration(session.durationMin);
+
+  useEffect(() => {
+    // A new canonical version invalidates a previous incomplete-set warning.
+    completionReadRef.current += 1;
+    setPendingGuidedSets(null);
+  }, [session.sessionId, session.execution.version, session.execution.status]);
 
   const transition = async (targetStatus: TrainingSessionExecutionStatus) => {
     if (!transitionExecution || executionBusy) return;
@@ -169,20 +184,69 @@ function TodaySession({
     const reason = executionReason.trim();
     if (requiresReason && !reason) {
       setExecutionError('Informe o motivo antes de encerrar o treino dessa forma.');
+      reasonInputRef.current?.focus();
       return;
-    }
-
-    const signature = `${session.execution.version}:${targetStatus}:${reason}`;
-    if (!operationRef.current || operationRef.current.signature !== signature) {
-      operationRef.current = {
-        signature,
-        key: `workout-${session.sessionId}-${targetStatus}-${Date.now()}`,
-      };
     }
 
     setExecutionBusy(true);
     setExecutionError(null);
+    const readId = ++completionReadRef.current;
     try {
+      if (targetStatus === 'completed' && session.modalities.includes('resistance') && loadGuided) {
+        // Read the canonical #487 projection immediately before the #389 lifecycle transition.
+        // Never infer completion from the component's current position or its local draft.
+        let guided: GuidedResistanceView;
+        try {
+          guided = await loadGuided(session.sessionId);
+        } catch {
+          if (readId === completionReadRef.current) {
+            setExecutionError('Não foi possível verificar as séries confirmadas. O treino não foi encerrado. Tente novamente.');
+          }
+          return;
+        }
+        if (readId !== completionReadRef.current) return;
+        if (guided.sessionId !== session.sessionId) {
+          setExecutionError('A verificação retornou uma sessão diferente. O treino não foi encerrado. Atualize a página antes de tentar novamente.');
+          return;
+        }
+        if (guided.version !== session.execution.version || guided.status !== session.execution.status) {
+          try {
+            if (!onExecutionChanged) throw new Error('Missing canonical refresh');
+            await onExecutionChanged();
+            setExecutionError('O progresso mudou em outro dispositivo. Confira o treino atualizado antes de encerrar.');
+          } catch {
+            setExecutionError('O progresso mudou, mas não foi possível atualizar o treino. Nenhum encerramento foi enviado.');
+          }
+          return;
+        }
+        if (guided.availability === 'available') {
+          if (!Number.isInteger(guided.total) || !Number.isInteger(guided.completed) ||
+              guided.total <= 0 || guided.completed < 0 || guided.completed > guided.total) {
+            setExecutionError('O progresso das séries está inconsistente. Atualize o treino antes de tentar encerrar.');
+            return;
+          }
+          if (guided.completed < guided.total) {
+            setPendingGuidedSets({ remaining: guided.total - guided.completed, total: guided.total });
+            return;
+          }
+        }
+        // Legacy / unstructured training has no canonical series count. Keep the
+        // existing #389 transition available rather than inventing pending series.
+      }
+
+      const live = liveExecutionRef.current;
+      if (live.sessionId !== session.sessionId || live.version !== session.execution.version ||
+          live.status !== session.execution.status) {
+        setExecutionError('O estado do treino mudou. Confira a sessão atualizada antes de encerrar.');
+        return;
+      }
+      const signature = `${session.execution.version}:${targetStatus}:${reason}`;
+      if (!operationRef.current || operationRef.current.signature !== signature) {
+        operationRef.current = {
+          signature,
+          key: `workout-${session.sessionId}-${targetStatus}-${Date.now()}`,
+        };
+      }
       await transitionExecution(session.sessionId, {
         operationKey: operationRef.current.key,
         expectedVersion: session.execution.version,
@@ -190,6 +254,7 @@ function TodaySession({
         ...(requiresReason ? { reason } : {}),
       });
       operationRef.current = null;
+      setPendingGuidedSets(null);
       // Persistencia confirmada: falha da revalidacao nao invalida a gravacao.
       try {
         if (onExecutionChanged) await onExecutionChanged();
@@ -437,9 +502,19 @@ function TodaySession({
         <OriginNote session={session} audience={audience} />
         {audience === 'student' && !['completed', 'partial', 'not_performed'].includes(session.status) && (
           <div className="space-y-3">
+            {pendingGuidedSets && (
+              <div role="alert" className="space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-3 text-sm text-amber-900">
+                <p className="font-semibold">Ainda faltam {pendingGuidedSets.remaining} de {pendingGuidedSets.total} séries para confirmar.</p>
+                <p>O treino não foi concluído. Continue registrando as séries ou informe o motivo abaixo e escolha “Encerrar como parcial”.</p>
+                <Button type="button" variant="outline" size="sm" disabled={executionBusy} onClick={() => setShowGuided(true)}>
+                  Voltar às séries
+                </Button>
+              </div>
+            )}
             <label className="block text-sm text-foreground">
               <span className="font-medium">Motivo (necessário para treino parcial ou não realizado)</span>
               <textarea
+                ref={reasonInputRef}
                 value={executionReason}
                 onChange={(event) => setExecutionReason(event.target.value)}
                 rows={2}

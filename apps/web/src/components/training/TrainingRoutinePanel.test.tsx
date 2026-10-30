@@ -75,6 +75,19 @@ const routine = (overrides: Partial<TrainingRoutineView> = {}): TrainingRoutineV
   ...overrides,
 });
 
+const runningSession = (): TrainingRoutineSessionDetail => session({
+  status: 'in_progress',
+  execution: { ...session().execution, status: 'in_progress', version: 4,
+    startedAt: '2026-10-01T11:00:00.000Z' },
+});
+const runningRoutine = (current = runningSession()) => routine({
+  today: { date: '2026-10-01', state: 'released', sessions: [current] },
+});
+const guidedProgress = (completed: number, total: number) => ({
+  sessionId: 'day-1', status: 'in_progress' as const, version: 4,
+  availability: 'available' as const, completed, total, current: null, next: null,
+});
+
 describe('TrainingRoutinePanel (#387)', () => {
   it('apresenta objetivo, duração, ordem, blocos e parâmetros do Treino de hoje', async () => {
     render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(routine())} />);
@@ -144,6 +157,110 @@ describe('TrainingRoutinePanel (#387)', () => {
     );
     expect(transitionExecution.mock.calls[0][1].operationKey).toMatch(/^workout-day-1-in_progress-/);
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+  });
+
+  it('impede conclusão total com séries pendentes e oferece continuidade ou encerramento parcial', async () => {
+    const loadGuided = vi.fn().mockResolvedValue(guidedProgress(1, 3));
+    const transitionExecution = vi.fn().mockResolvedValue({
+      ...runningSession().execution, status: 'partial', version: 5,
+    });
+    render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(runningRoutine())}
+      transitionExecution={transitionExecution} loadGuided={loadGuided} completeGuided={vi.fn()} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Concluir treino' }));
+    expect(await screen.findByText('Ainda faltam 2 de 3 séries para confirmar.')).toBeInTheDocument();
+    expect(transitionExecution).not.toHaveBeenCalled();
+    expect(screen.getByText(/O treino não foi concluído/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Encerrar como parcial' }));
+    const reason = screen.getByPlaceholderText(/indisposição, falta de tempo/i);
+    expect(reason).toHaveFocus();
+    expect(transitionExecution).not.toHaveBeenCalled();
+    await userEvent.type(reason, 'Não consegui completar as séries');
+    await userEvent.click(screen.getByRole('button', { name: 'Encerrar como parcial' }));
+    await waitFor(() => expect(transitionExecution).toHaveBeenCalledWith('day-1', expect.objectContaining({
+      targetStatus: 'partial', expectedVersion: 4, reason: 'Não consegui completar as séries',
+    })));
+  });
+
+  it('oferece voltar às séries sem perder a execução guiada', async () => {
+    const transitionExecution = vi.fn();
+    render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(runningRoutine())}
+      transitionExecution={transitionExecution} loadGuided={vi.fn().mockResolvedValue(guidedProgress(0, 3))}
+      completeGuided={vi.fn()} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Ver ficha completa' }));
+    expect(screen.getByRole('button', { name: 'Continuar execução guiada' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Concluir treino' }));
+    await screen.findByText('Ainda faltam 3 de 3 séries para confirmar.');
+    await userEvent.click(screen.getByRole('button', { name: 'Voltar às séries' }));
+    expect(await screen.findByRole('button', { name: 'Ver ficha completa' })).toBeInTheDocument();
+    expect(transitionExecution).not.toHaveBeenCalled();
+  });
+
+  it('permite conclusão canônica somente após todas as séries estruturadas serem confirmadas', async () => {
+    const transitionExecution = vi.fn().mockResolvedValue({
+      ...runningSession().execution, status: 'completed', version: 5,
+    });
+    render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(runningRoutine())}
+      transitionExecution={transitionExecution} loadGuided={vi.fn().mockResolvedValue(guidedProgress(3, 3))}
+      completeGuided={vi.fn()} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Concluir treino' }));
+    await waitFor(() => expect(transitionExecution).toHaveBeenCalledWith('day-1', expect.objectContaining({
+      targetStatus: 'completed', expectedVersion: 4,
+    })));
+    expect(screen.queryByText(/Ainda faltam .* séries/)).not.toBeInTheDocument();
+  });
+
+  it('falha fechado quando o GET das séries não está disponível', async () => {
+    const transitionExecution = vi.fn();
+    render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(runningRoutine())}
+      transitionExecution={transitionExecution} loadGuided={vi.fn().mockRejectedValue(new Error('offline'))}
+      completeGuided={vi.fn()} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Concluir treino' }));
+    expect(await screen.findByText(/Não foi possível verificar as séries confirmadas/)).toBeInTheDocument();
+    expect(transitionExecution).not.toHaveBeenCalled();
+  });
+
+  it('não conclui sobre projeção de versão vencida e revalida o estado canônico', async () => {
+    const updated = session({
+      ...runningSession(), execution: { ...runningSession().execution, version: 5 },
+    });
+    const load = vi.fn().mockResolvedValueOnce(runningRoutine())
+      .mockResolvedValue(runningRoutine(updated));
+    const transitionExecution = vi.fn();
+    const loadGuided = vi.fn().mockResolvedValue({ ...guidedProgress(3, 3), version: 5 });
+    render(<TrainingRoutinePanel audience="student" load={load} transitionExecution={transitionExecution}
+      loadGuided={loadGuided} completeGuided={vi.fn()} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Concluir treino' }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText(/O progresso mudou em outro dispositivo/)).toBeInTheDocument();
+    expect(transitionExecution).not.toHaveBeenCalled();
+  });
+
+  it('não considera projeção contraditória ou de outra sessão como conclusão confirmada', async () => {
+    const transitionExecution = vi.fn();
+    const loadGuided = vi.fn().mockResolvedValue({ ...guidedProgress(3, 3), sessionId: 'outro-aluno' });
+    render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(runningRoutine())}
+      transitionExecution={transitionExecution} loadGuided={loadGuided} completeGuided={vi.fn()} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Concluir treino' }));
+    expect(await screen.findByText(/A verificação retornou uma sessão diferente/)).toBeInTheDocument();
+    expect(transitionExecution).not.toHaveBeenCalled();
+  });
+
+  it('mantém o encerramento da sessão legada sem inventar séries pendentes', async () => {
+    const transitionExecution = vi.fn().mockResolvedValue({
+      ...runningSession().execution, status: 'completed', version: 5,
+    });
+    const loadGuided = vi.fn().mockResolvedValue({
+      ...guidedProgress(0, 0), availability: 'legacy_read_only',
+    });
+    render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(runningRoutine())}
+      transitionExecution={transitionExecution} loadGuided={loadGuided} completeGuided={vi.fn()} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Concluir treino' }));
+    await waitFor(() => expect(transitionExecution).toHaveBeenCalledWith('day-1', expect.objectContaining({
+      targetStatus: 'completed', expectedVersion: 4,
+    })));
   });
 
   it('preserva o motivo após falha recuperável e orienta reconciliação em conflito 409', async () => {

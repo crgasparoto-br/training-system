@@ -328,6 +328,21 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
       await waitText(page, '1 de 4 séries confirmadas');
       await waitText(page, 'Remada real #487');
 
+      // Real browser -> HTTP API -> PostgreSQL: unfinished series must not
+      // silently produce the canonical `completed` lifecycle transition.
+      const beforeEarlyFinish = await prisma.workoutSessionExecution.findUniqueOrThrow({
+        where: { workoutDayId: fixture.dayId }, select: { status: true, version: true },
+      });
+      await clickButton(page, 'Concluir treino');
+      await waitText(page, 'Ainda faltam 3 de 4 séries para confirmar.');
+      await noHorizontalOverflow(page);
+      screenshots.push(await shot(page, 'desktop-pending-sets-guard'));
+      expect(await prisma.workoutSessionExecution.findUniqueOrThrow({
+        where: { workoutDayId: fixture.dayId }, select: { status: true, version: true },
+      })).toEqual(beforeEarlyFinish);
+      await clickButton(page, 'Voltar às séries');
+      await waitText(page, 'Remada real #487');
+
       await clickButton(page, 'Pausar treino');
       await waitText(page, 'Treino pausado');
       expect((await prisma.workoutSessionExecution.findUniqueOrThrow({
@@ -360,6 +375,11 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
       await waitText(page, 'Bi-set · rodada 1 de 2 · item 2 de 2');
       await noHorizontalOverflow(page);
       screenshots.push(await shot(page, 'mobile-resumed-second-series'));
+      await clickButton(page, 'Concluir treino');
+      await waitText(page, 'Ainda faltam 3 de 4 séries para confirmar.');
+      await noHorizontalOverflow(page);
+      screenshots.push(await shot(page, 'mobile-pending-sets-guard'));
+      await clickButton(page, 'Voltar às séries');
 
       for (const next of [
         'Bi-set · rodada 2 de 2 · item 1 de 2',
@@ -435,7 +455,7 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
         scope: 'real student Chrome, signed JWT, actual HTTP routes and PostgreSQL, synthetic fixture',
         scenarios: ['desktop-start-and-complete', 'durable-refresh-and-overview',
           'replay-idempotent', 'cross-tenant-rejected', 'paused-write-rejected',
-          'mobile-resume-and-complete', 'planned-remains-immutable'],
+          'mobile-resume-and-complete', 'planned-remains-immutable', 'pending-sets-finalization-guard'],
         sessionId: fixture.dayId, completed: 4, status: final.status,
         screenshotEvidence: screenshots,
       }, null, 2));
