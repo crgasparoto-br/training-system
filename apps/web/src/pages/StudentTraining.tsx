@@ -35,6 +35,11 @@ export function StudentTraining() {
     (sessionId: string) => trainingRoutineService.getGuidedForStudent(sessionId, { contractId }),
     [contractId]
   );
+  const actRest = useCallback(
+    (sessionId: string, payload: Parameters<typeof trainingRoutineService.actGuidedRestForStudent>[1]) =>
+      trainingRoutineService.actGuidedRestForStudent(sessionId, payload, { contractId }),
+    [contractId],
+  );
   const completeGuided = useCallback(
     (sessionId: string, payload: Parameters<typeof trainingRoutineService.completeGuidedForStudent>[1]) =>
       trainingRoutineService.completeGuidedForStudent(sessionId, payload, { contractId }),
@@ -64,6 +69,7 @@ export function StudentTraining() {
         transitionExecution={transitionExecution}
         loadGuided={loadGuided}
         completeGuided={completeGuided}
+        actRest={actRest}
       />
     </div>
   );

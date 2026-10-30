@@ -457,3 +457,163 @@ describe('issue #487 - guia resistido', () => {
     expect(complete).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('issue #488 - integração com guia e reconciliação', () => {
+  const rest = {
+    id: 'rest-1', afterPlannedSetId: 'set-1', plannedSeconds: 60,
+    extensionSeconds: 0, startedAt: new Date().toISOString(),
+    targetEndsAt: new Date(Date.now() + 60000).toISOString(),
+    serverNow: new Date().toISOString(), elapsedMs: 0, remainingMs: 60000,
+  };
+
+  it('prioriza descanso canônico e não habilita a próxima série até confirmar o skip', async () => {
+    const current = projection({ version: 2, completed: 1, current: second, next: null, rest });
+    const load = vi.fn().mockResolvedValue(current);
+    const complete = vi.fn();
+    const restAction = vi.fn().mockResolvedValue(projection({
+      version: 3, completed: 1, current: second, next: null, rest: null,
+    }));
+    render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
+      load={load} complete={complete} restAction={restAction}
+      onOverview={vi.fn()} onExecutionChanged={vi.fn().mockResolvedValue(undefined)} />);
+    expect(await screen.findByRole('region', { name: 'Descanso entre séries' })).toBeInTheDocument();
+    expect(screen.getByRole('timer')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Concluir série' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Pular descanso' }));
+    await waitFor(() => expect(restAction).toHaveBeenCalledWith('day-1', expect.objectContaining({
+      operationKey: expect.stringContaining('rest-'), expectedVersion: 2, restId: 'rest-1', action: 'skip',
+    })));
+    expect(await screen.findByRole('button', { name: 'Concluir série' })).toBeEnabled();
+    expect(complete).not.toHaveBeenCalled();
+  });
+
+  it('reutiliza chave após timeout e não inventa sucesso antes de resposta válida', async () => {
+    const current = projection({ version: 2, completed: 1, current: second, next: null, rest });
+    const load = vi.fn().mockResolvedValue(current);
+    const restAction = vi.fn().mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce(projection({
+      version: 3, completed: 1, current: second, next: null, rest: null,
+    }));
+    render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
+      load={load} complete={vi.fn()} restAction={restAction} onOverview={vi.fn()} />);
+    await screen.findByRole('button', { name: 'Pular descanso' });
+    await userEvent.click(screen.getByRole('button', { name: 'Pular descanso' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/não foi possível confirmar o descanso/i);
+    expect(screen.getByRole('timer')).toBeInTheDocument();
+    expect(screen.queryByText(/Descanso pulado/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Pular descanso' }));
+    await waitFor(() => expect(restAction).toHaveBeenCalledTimes(2));
+    expect(restAction.mock.calls[0][1].operationKey).toBe(restAction.mock.calls[1][1].operationKey);
+    expect(await screen.findByText(/Descanso pulado/)).toBeInTheDocument();
+  });
+
+  it('reconcilia 409 prematuro e tenta finish novamente sem recarregar a página', async () => {
+    const expired = { ...rest, remainingMs: 0, elapsedMs: 60_000 };
+    const load = vi.fn().mockResolvedValue(projection({ version: 2, rest: expired, completed: 1, current: second, next: null }));
+    const restAction = vi.fn()
+      .mockRejectedValueOnce({ response: { status: 409, data: { details: {
+        code: 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION',
+      } } } })
+      .mockResolvedValueOnce(projection({ version: 3, rest: null, completed: 1, current: second, next: null }));
+    render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
+      load={load} complete={vi.fn()} restAction={restAction} onOverview={vi.fn()} />);
+    await waitFor(() => expect(restAction).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2)); // canonical GET after 409
+    await waitFor(() => expect(restAction).toHaveBeenCalledTimes(2), { timeout: 4000 });
+    expect(restAction.mock.calls[1][1].operationKey).not.toBe(restAction.mock.calls[0][1].operationKey);
+    expect(await screen.findByRole('button', { name: 'Concluir série' })).toBeEnabled();
+  });
+
+  it('mede no guia 40 s em trânsito pelo relógio monotônico, independentemente de Date.now()', async () => {
+    let monotonicMs = 100;
+    const spy = vi.spyOn(performance, 'now').mockImplementation(() => monotonicMs);
+    try {
+      const slowGet = deferred<GuidedResistanceView>();
+      const load = vi.fn().mockReturnValue(slowGet.promise);
+      const restAction = vi.fn();
+      render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
+        load={load} complete={vi.fn()} restAction={restAction} onOverview={vi.fn()} />);
+      expect(load).toHaveBeenCalledTimes(1);
+      monotonicMs = 40_100;
+      await act(async () => slowGet.resolve(projection({ version: 2, completed: 1,
+        current: second, next: null, rest: { ...rest, remainingMs: 60_000, elapsedMs: 0 },
+      })));
+      expect(screen.getByRole('timer')).toHaveTextContent('00:20');
+      expect(screen.getByText('Descanso transcorrido').nextSibling).toHaveTextContent('00:40');
+      expect(restAction).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('recupera finish após timeout mantendo a chave idempotente', async () => {
+    const expired = { ...rest, remainingMs: 0, elapsedMs: 60_000 };
+    const load = vi.fn().mockResolvedValue(projection({ version: 2, rest: expired, completed: 1, current: second, next: null }));
+    const restAction = vi.fn().mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValueOnce(projection({ version: 3, rest: null, completed: 1, current: second, next: null }));
+    render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
+      load={load} complete={vi.fn()} restAction={restAction} onOverview={vi.fn()} />);
+    await waitFor(() => expect(restAction).toHaveBeenCalledTimes(2), { timeout: 4000 });
+    expect(restAction.mock.calls[1][1].operationKey).toBe(restAction.mock.calls[0][1].operationKey);
+    expect(await screen.findByRole('button', { name: 'Concluir série' })).toBeEnabled();
+  });
+
+  it('reativa a conclusão automática depois de 409, GET offline e atualização manual', async () => {
+    const expired = { ...rest, remainingMs: 0, elapsedMs: 60_000 };
+    const current = projection({ version: 2, completed: 1, current: second, next: null, rest: expired });
+    const refreshed = projection({ version: 3, completed: 1, current: second, next: null, rest: expired });
+    const load = vi.fn().mockResolvedValueOnce(current)
+      .mockRejectedValueOnce(new Error('GET offline after conflict'))
+      .mockResolvedValueOnce(refreshed);
+    const restAction = vi.fn()
+      .mockRejectedValueOnce({ response: { status: 409, data: { details: {
+        code: 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT',
+      } } } })
+      .mockResolvedValueOnce(projection({ version: 4, completed: 1, current: second, next: null, rest: null }));
+    render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
+      load={load} complete={vi.fn()} restAction={restAction} onOverview={vi.fn()} />);
+    await waitFor(() => expect(restAction).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/recarga falhou/);
+    expect(screen.getByRole('button', { name: 'Pular descanso' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Atualizar estado salvo' }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(restAction).toHaveBeenCalledTimes(2), { timeout: 4000 });
+    expect(restAction.mock.calls[1][1].expectedVersion).toBe(3);
+    expect(await screen.findByRole('button', { name: 'Concluir série' })).toBeEnabled();
+  });
+
+  it('não repete finish com acesso revogado até atualizar o estado canônico', async () => {
+    const expired = { ...rest, remainingMs: 0, elapsedMs: 60_000 };
+    const current = projection({ version: 2, completed: 1, current: second, next: null, rest: expired });
+    const load = vi.fn().mockResolvedValue(current);
+    const restAction = vi.fn().mockRejectedValueOnce({ response: { status: 403 } })
+      .mockResolvedValueOnce(projection({ version: 3, completed: 1, current: second, next: null, rest: null }));
+    render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
+      load={load} complete={vi.fn()} restAction={restAction} onOverview={vi.fn()} />);
+    await waitFor(() => expect(restAction).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/validar o acesso/);
+    expect(screen.getByRole('button', { name: 'Pular descanso' })).toBeDisabled();
+    await new Promise((resolve) => setTimeout(resolve, 1400));
+    expect(restAction).toHaveBeenCalledTimes(1); // No automatic 403 retry while stale.
+    await userEvent.click(screen.getByRole('button', { name: 'Atualizar estado salvo' }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(restAction).toHaveBeenCalledTimes(2), { timeout: 4000 });
+    expect(await screen.findByRole('button', { name: 'Concluir série' })).toBeEnabled();
+  });
+
+  it('mantém bloqueio de 409 se GET de reconciliação falhar e restaura após nova versão', async () => {
+    const stale = projection({ version: 2, completed: 1, current: second, next: null, rest });
+    const fresh = projection({ version: 3, completed: 1, current: second, next: null, rest: null });
+    const load = vi.fn().mockResolvedValueOnce(stale).mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(fresh);
+    const restAction = vi.fn().mockRejectedValue({ response: { status: 409 } });
+    render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
+      load={load} complete={vi.fn()} restAction={restAction} onOverview={vi.fn()} />);
+    await screen.findByRole('button', { name: 'Pular descanso' });
+    await userEvent.click(screen.getByRole('button', { name: 'Pular descanso' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/outro dispositivo.*recarga falhou/);
+    expect(screen.getByRole('button', { name: 'Pular descanso' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Atualizar estado salvo' }));
+    expect(await screen.findByRole('button', { name: 'Concluir série' })).toBeEnabled();
+    expect(restAction).toHaveBeenCalledTimes(1);
+  });
+});

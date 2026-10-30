@@ -4,6 +4,7 @@ import type {
   TrainingSessionExecutionValuesPayload,
   TrainingSessionExecutionView,
   GuidedResistanceCompletePayload,
+  GuidedResistanceRestActionPayload,
   GuidedResistanceView,
 } from '@corrida/types';
 import api from './api';
@@ -57,6 +58,19 @@ export const trainingRoutineService = {
       '/student/me/training-sessions/' + encodeURIComponent(sessionId) + '/execution/guided/complete',
       payload,
       options.contractId ? { headers: { 'x-contract-id': options.contractId } } : undefined
+    );
+    return response.data.data;
+  },
+
+  async actGuidedRestForStudent(
+    sessionId: string,
+    payload: GuidedResistanceRestActionPayload,
+    options: { contractId?: string } = {},
+  ): Promise<GuidedResistanceView> {
+    const response = await api.post<ApiEnvelope<GuidedResistanceView>>(
+      '/student/me/training-sessions/' + encodeURIComponent(sessionId) + '/execution/guided/rest',
+      payload,
+      options.contractId ? { headers: { 'x-contract-id': options.contractId } } : undefined,
     );
     return response.data.data;
   },

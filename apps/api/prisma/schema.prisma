@@ -2098,6 +2098,7 @@ model WorkoutExercisePlannedSet {
   updatedAt       DateTime                      @updatedAt
   block           WorkoutExerciseBlock          @relation(fields: [blockId], references: [id], onDelete: Cascade)
   executionItems  WorkoutSessionExecutionItem[]
+  resistanceRests WorkoutSessionResistanceRest[]
   @@unique([blockId, position])
 }
 
@@ -2155,6 +2156,7 @@ model WorkoutSessionExecution {
   pauseIntervals          WorkoutSessionPauseInterval[]
   items                   WorkoutSessionExecutionItem[]
   postWorkoutFeedbackRevisions PostWorkoutFeedbackRevision[]
+  resistanceRests WorkoutSessionResistanceRest[]
 
   @@index([alunoId, contractId, status])
   @@index([originReleaseId])
@@ -2178,6 +2180,33 @@ model WorkoutSessionExecutionOperation {
 
   @@unique([executionId, operationKey])
   @@index([createdAt])
+}
+
+enum WorkoutResistanceRestStatus {
+  active
+  completed
+  skipped
+  interrupted
+}
+
+/// Durable, execution-only rest following one canonical planned set (#488).
+model WorkoutSessionResistanceRest {
+  id String @id @default(cuid())
+  executionId String
+  afterPlannedSetId String
+  plannedSeconds Int
+  extensionSeconds Int @default(0)
+  startedAt DateTime
+  targetEndsAt DateTime
+  pausedDurationMs BigInt @default(0)
+  endedAt DateTime?
+  elapsedMs BigInt?
+  status WorkoutResistanceRestStatus @default(active)
+  execution WorkoutSessionExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  afterPlannedSet WorkoutExercisePlannedSet @relation(fields: [afterPlannedSetId], references: [id], onDelete: Restrict)
+
+  @@unique([executionId, afterPlannedSetId])
+  @@index([executionId, status])
 }
 
 model WorkoutSessionPauseInterval {
