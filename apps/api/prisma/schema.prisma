@@ -719,6 +719,7 @@ model StudentLifecycleEvent {
   actorProfessorId String?
   metadata         Json?
   createdAt        DateTime                  @default(now())
+  guidedExecutionOperations WorkoutSessionExecutionOperation[] @relation("GuidedExecutionLifecycleEvent")
   aluno            Aluno                     @relation(fields: [alunoId], references: [id], onDelete: Cascade)
   contract         CompanyContract           @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
@@ -2172,7 +2173,9 @@ model WorkoutSessionExecutionOperation {
   resultingVersion   Int
   lifecycleEventId   String?
   createdAt          DateTime                       @default(now())
+  lifecycleEvent     StudentLifecycleEvent?        @relation("GuidedExecutionLifecycleEvent", fields: [lifecycleEventId], references: [id], onDelete: Restrict)
   execution          WorkoutSessionExecution        @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  completedGuidedSet WorkoutSessionExecutionItem?    @relation("GuidedSetCompletionOperation")
 
   @@unique([executionId, operationKey])
   @@index([createdAt])
@@ -2201,6 +2204,8 @@ model WorkoutSessionExecutionItem {
   rpe            Float?
   tempo          String?
   restSec        Int?
+  completedAt    DateTime?
+  completedByOperationId String?           @unique
   loadKg         Float?
   repetitions    Int?
   durationSec    Int?
@@ -2213,6 +2218,7 @@ model WorkoutSessionExecutionItem {
   execution      WorkoutSessionExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
   plannedUnit    WorkoutExercise          @relation(fields: [plannedUnitId], references: [id], onDelete: Restrict)
   plannedSet     WorkoutExercisePlannedSet? @relation(fields: [plannedSetId], references: [id], onDelete: Restrict)
+  completionOperation WorkoutSessionExecutionOperation? @relation("GuidedSetCompletionOperation", fields: [completedByOperationId], references: [id], onDelete: Restrict)
 
   @@unique([executionId, plannedUnitId, setNumber])
   @@index([plannedUnitId])

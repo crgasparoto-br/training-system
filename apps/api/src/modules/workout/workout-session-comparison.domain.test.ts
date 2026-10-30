@@ -667,4 +667,88 @@ describe('issue #401: granular planned/executed comparison', () => {
     expect(projectWorkoutComparisonForAudience(comparison, 'student').units
       .some((entry) => entry.kind === 'set')).toBe(false);
   });
+  it('A-401-15: keeps time and distance together with all independently logged cyclic measurements', () => {
+    const result = compareWorkoutSession(planned(), execution({
+      sessionValues: { cyclicStages: [
+        { plannedStageId: 'warmup', outcome: 'full', durationSec: 310, distanceMeters: 900,
+          paceMinPerKm: 6.1, speedKmh: 9.8, heartRateBpm: 154, heartRateZone: 'Z3', pse: 7 },
+        { plannedStageId: 'work', iteration: 1, outcome: 'partial',
+          distanceMeters: 390, durationSec: 98, speedKmh: 12.5, paceMinPerKm: 4.8,
+          heartRateBpm: 165, heartRateZone: 'Z4', pse: 8 },
+      ] },
+    }), 'captured');
+    const warmup = get(result.units, 'warmup')[0];
+    expect(warmup.metrics.find((item) => item.key === 'duration'))
+      .toMatchObject({ planned: 300, executed: 310, difference: 10, plannedUnit: 's' });
+    for (const [key, value, unit] of [
+      ['distance', 900, 'm'], ['pace', 6.1, 'min/km'], ['speed', 9.8, 'km/h'],
+      ['heart_rate', 154, 'bpm'], ['heart_rate_zone', 'Z3', null], ['pse', 7, 'PSE'],
+    ] as const) {
+      expect(warmup.metrics.find((item) => item.key === key))
+        .toMatchObject({ planned: null, executed: value, difference: null,
+          plannedUnit: unit, executedUnit: unit });
+    }
+    const work = get(result.units, 'work')[0];
+    expect(work.metrics.find((item) => item.key === 'distance'))
+      .toMatchObject({ planned: 400, executed: 390, difference: -10, plannedUnit: 'm' });
+    expect(work.metrics.find((item) => item.key === 'duration'))
+      .toMatchObject({ planned: null, executed: 98, difference: null, plannedUnit: 's' });
+    expect(work.metrics.find((item) => item.key === 'target'))
+      .toMatchObject({ planned: 12, executed: 12.5, plannedUnit: 'km/h', difference: 0.5 });
+    expect(work.metrics.filter((item) => item.key === 'speed')).toHaveLength(0);
+    expect(work.metrics.find((item) => item.key === 'pace'))
+      .toMatchObject({ planned: null, executed: 4.8, difference: null });
+    expect(work.metrics.find((item) => item.key === 'heart_rate_zone')?.executed).toBe('Z4');
+    expect(work.metrics.find((item) => item.key === 'pse')?.executed).toBe(8);
+  });
+
+  it('A-401-15: keeps real zero, absent values and historical fallback without invented targets', () => {
+    const saved = execution({ sessionValues: { cyclicStages: [{
+      plannedStageId: 'warmup', outcome: 'partial', durationSec: 0,
+      distanceMeters: 0, paceMinPerKm: 0, heartRateBpm: 0, pse: 0,
+    }] } });
+    const current = get(compareWorkoutSession(planned(), saved, 'captured').units, 'warmup')[0];
+    expect(current.metrics.find((item) => item.key === 'distance'))
+      .toMatchObject({ planned: null, executed: 0, difference: null });
+    expect(current.metrics.find((item) => item.key === 'pse'))
+      .toMatchObject({ planned: null, executed: 0, difference: null });
+    expect(current.metrics.find((item) => item.key === 'speed')?.executed).toBeNull();
+    const historical = get(compareWorkoutSession(planned(), saved, 'released_plan').units, 'warmup')[0];
+    expect(historical.metrics.find((item) => item.key === 'duration'))
+      .toMatchObject({ planned: null, executed: 0, difference: null });
+    expect(historical.metrics.find((item) => item.key === 'distance'))
+      .toMatchObject({ planned: null, executed: 0, difference: null });
+    expect(historical.metrics.find((item) => item.key === 'pse'))
+      .toMatchObject({ planned: null, executed: 0, difference: null });
+  });
+
+  it('A-401-16: guided completedAt is explicit evidence for that set, never for missing sibling sets', () => {
+    const day = planned();
+    const guided = execution({ items: [
+      { plannedUnitId: 'ex-1', plannedSetId: 'set-1', setNumber: 1,
+        completedAt: '2026-10-30T18:00:00.000Z', repetitions: 8, loadKg: 20 },
+    ] });
+    const partial = compareWorkoutSession(day, guided, 'captured');
+    expect(get(partial.units, 'set-1')[0].outcome).toBe('full');
+    expect(get(partial.units, 'set-2')[0].outcome).toBe('not_recorded');
+    expect(get(partial.units, 'ex-1')[0].outcome).toBe('incomplete_record');
+    expect(get(partial.units, 'day-1')[0].outcome).not.toBe('full');
+
+    const completed = compareWorkoutSession(day, execution({
+      items: [...guided.items, { plannedUnitId: 'ex-1', plannedSetId: 'set-2',
+        setNumber: 2, completedAt: '2026-10-30T18:01:00.000Z', repetitions: 10, loadKg: 22 }],
+    }), 'captured');
+    expect(get(completed.units, 'ex-1')[0].outcome).toBe('full');
+    const unconfirmed = compareWorkoutSession(day, execution({
+      items: [{ plannedUnitId: 'ex-1', plannedSetId: 'set-1', setNumber: 1,
+        repetitions: 8 }],
+    }), 'captured');
+    expect(get(unconfirmed.units, 'set-1')[0].outcome).toBe('unclassified');
+    const explicitlyPartial = compareWorkoutSession(day, execution({
+      items: [{ plannedUnitId: 'ex-1', plannedSetId: 'set-1', setNumber: 1,
+        completedAt: '2026-10-30T18:00:00.000Z', outcome: 'partial' }],
+    }), 'captured');
+    expect(get(explicitlyPartial.units, 'set-1')[0].outcome).toBe('partial');
+  });
+
 });

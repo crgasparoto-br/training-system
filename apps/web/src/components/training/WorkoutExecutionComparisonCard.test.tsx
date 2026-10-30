@@ -252,4 +252,31 @@ describe('WorkoutExecutionComparisonCard (#401)', () => {
     expect(screen.queryByText(/diferença: 5 kg/)).not.toBeInTheDocument();
   });
 
+  it('A-401-15: renders simultaneous cyclic time, distance and intensity without invented deltas', () => {
+    const cyclic: TrainingSessionComparison = {
+      ...comparison,
+      units: [{
+        plannedUnitId: 'stage-1', kind: 'cyclic_stage', label: 'Etapa 1',
+        parentUnitId: null, iteration: null, outcome: 'partial',
+        metrics: [
+          { key: 'duration', label: 'Duração', planned: 300, plannedMax: null,
+            executed: 310, plannedUnit: 's', executedUnit: 's', difference: 10 },
+          { key: 'distance', label: 'Distância', planned: null, plannedMax: null,
+            executed: 900, plannedUnit: 'm', executedUnit: 'm', difference: null },
+          { key: 'heart_rate', label: 'Frequência cardíaca', planned: null, plannedMax: null,
+            executed: 154, plannedUnit: 'bpm', executedUnit: 'bpm', difference: null },
+          { key: 'pse', label: 'Esforço percebido', planned: null, plannedMax: null,
+            executed: 0, plannedUnit: 'PSE', executedUnit: 'PSE', difference: null },
+        ],
+      }],
+    };
+    render(<WorkoutExecutionComparisonCard comparison={cyclic} audience="professor" />);
+    expect(screen.getByText('310 s')).toBeInTheDocument();
+    expect(screen.getByText('900 m')).toBeInTheDocument();
+    expect(screen.getByText('154 bpm')).toBeInTheDocument();
+    expect(screen.getByText('0 PSE')).toBeInTheDocument();
+    expect(screen.getAllByText(/diferença:/)).toHaveLength(1);
+    expect(screen.queryByText(/melhora|piora/i)).not.toBeInTheDocument();
+  });
+
 });

@@ -130,6 +130,11 @@ function unit(
 
 type RecordedExerciseItem = TrainingSessionExecutionView['items'][number];
 
+/** A confirmed guided set is explicit unit evidence; lifecycle completion alone is not. */
+function recordedItemOutcome(item: RecordedExerciseItem): TrainingSessionComparisonOutcome {
+  return item.outcome ?? (item.completedAt ? 'full' : 'unclassified');
+}
+
 /** Execution measurements belong to the item, not to an invented day/stage target. */
 function exerciseItemCyclicMetrics(recorded: RecordedExerciseItem | null): TrainingSessionComparisonMetric[] {
   return [
@@ -214,8 +219,22 @@ export function compareWorkoutSession(
         : target === 'speed_kmh' ? 'km/h'
         : target === 'heart_rate_bpm' ? 'bpm'
         : target === 'zone' ? null : target === 'pse' ? 'PSE' : null;
-      const durationExecuted = stage.durationUnit === 'seconds'
-        ? actual?.durationSec : stage.durationUnit === 'meters' ? actual?.distanceMeters : null;
+      // The prescription determines which metric is comparable, not which
+      // independently recorded measurements remain visible.
+      const primaryMetric = stage.durationUnit === 'meters'
+        ? metric('distance', 'Distância', stage.durationValue, actual?.distanceMeters, 'm')
+        : metric('duration', 'Duração',
+          stage.durationUnit === 'seconds' ? stage.durationValue : null, actual?.durationSec, 's');
+      const secondaryMetric = stage.durationUnit === 'meters'
+        ? metric('duration', 'Duração', null, actual?.durationSec, 's')
+        : metric('distance', 'Distância', null, actual?.distanceMeters, 'm');
+      const otherMeasurements = [
+        ...(target === 'pace_min_per_km' ? [] : [metric('pace', 'Ritmo', null, actual?.paceMinPerKm, 'min/km')]),
+        ...(target === 'speed_kmh' ? [] : [metric('speed', 'Velocidade', null, actual?.speedKmh, 'km/h')]),
+        ...(target === 'heart_rate_bpm' ? [] : [metric('heart_rate', 'Frequência cardíaca', null, actual?.heartRateBpm, 'bpm')]),
+        ...(target === 'zone' ? [] : [metric('heart_rate_zone', 'Zona de FC', null, actual?.heartRateZone, null)]),
+        ...(target === 'pse' ? [] : [metric('pse', 'Esforço percebido', null, actual?.pse, 'PSE')]),
+      ];
       const childIds = stage.kind === 'repeat'
         ? planned.cyclicStages.filter((child) => child.parentStageId === stage.id).map((child) => child.id)
         : [];
@@ -226,10 +245,11 @@ export function compareWorkoutSession(
       result.push(unit(stage.id, 'cyclic_stage',
         'Etapa ' + stage.position + ' · ' + stage.kind,
         actual?.outcome ?? derivedOutcome, [
-          metric('duration', stage.durationUnit === 'meters' ? 'Distância' : 'Duração',
-            stage.durationValue, durationExecuted, stage.durationUnit === 'seconds' ? 's' : stage.durationUnit === 'meters' ? 'm' : null),
+          primaryMetric,
+          secondaryMetric,
           metric('target', 'Alvo', stage.targetValue ?? stage.targetMin,
             value, targetUnit, targetUnit, stage.targetMax, stage.targetValue == null),
+          ...otherMeasurements,
          ], stage.parentStageId, parent ? iteration : null, actual?.substitutionNote ?? null,
          null, actual?.outcome === 'substituted' || childRecords.some((item) => item.outcome === 'substituted')));
     }
@@ -247,10 +267,10 @@ export function compareWorkoutSession(
     const setStatuses = exercise.resistanceBlocks.flatMap((block) => block.plannedSets.map((set) => {
       const records = items.filter((item) => item.plannedSetId === set.id);
       return records.length
-        ? summaryOutcome(records.map((item) => item.outcome ?? 'unclassified'), 1)
+        ? summaryOutcome(records.map((item) => recordedItemOutcome(item)), 1)
         : 'not_recorded' as const;
     }));
-    const statuses = setCount ? setStatuses : items.map((item) => item.outcome ?? 'unclassified');
+    const statuses = setCount ? setStatuses : items.map((item) => recordedItemOutcome(item));
     const recordedCount = setCount
       ? setStatuses.filter((outcome) => outcome !== 'not_recorded').length : items.length;
     const exerciseMetrics = setCount > 0
@@ -277,7 +297,7 @@ export function compareWorkoutSession(
       // the recorded setNumber rather than choosing one record or inventing IDs.
       for (const logged of [...items].sort((a, b) => (a.setNumber ?? 0) - (b.setNumber ?? 0))) {
         result.push(unit(exercise.id, 'set', 'Série registrada',
-          logged.outcome ?? 'unclassified',
+          recordedItemOutcome(logged),
           legacyExerciseItemMetrics(exercise, logged),
           exercise.id, null, logged.substitutionNote ?? null, logged.setNumber ?? 0));
       }
@@ -289,7 +309,7 @@ export function compareWorkoutSession(
       const blockStatuses = block.plannedSets.map((set) => {
         const records = items.filter((item) => item.plannedSetId === set.id);
         return records.length
-          ? summaryOutcome(records.map((item) => item.outcome ?? 'unclassified'), 1)
+          ? summaryOutcome(records.map((item) => recordedItemOutcome(item)), 1)
           : 'not_recorded' as const;
       });
       result.push(unit(block.id, 'block', 'Bloco ' + block.position + ' · ' + block.kind,
@@ -300,7 +320,7 @@ export function compareWorkoutSession(
           .sort((a, b) => (a.setNumber ?? 0) - (b.setNumber ?? 0));
         for (const logged of recorded.length ? recorded : [null]) {
           result.push(unit(set.id, 'set', 'Série ' + set.position,
-            logged ? logged.outcome ?? 'unclassified' : missingOutcome, [
+            logged ? recordedItemOutcome(logged) : missingOutcome, [
               metric('repetitions', 'Repetições', set.repsMin, logged?.repetitions, 'rep', 'rep', set.repsMax, true),
               metric('load_kg', 'Carga (kg)', set.loadKg, logged?.loadKg, 'kg'),
               metric('load_pct', 'Carga (%)', set.loadPercent, null, '%'),

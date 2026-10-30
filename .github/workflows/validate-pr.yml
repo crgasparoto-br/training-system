@@ -346,6 +346,14 @@ jobs:
           mkdir -p artifacts/ci
           # Keep diagnostic output even on failure; pipefail preserves the test gate.
           pnpm test 2>&1 | tee artifacts/ci/full-tests.log
+      - name: Verify issue-487 exact-head browser captures
+        if: ${{ success() && hashFiles('apps/web/src/pages/issue-487-browser-evidence.test.js') != '' }}
+        env:
+          AUDIT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          node --test scripts/verify-issue-487-browser-evidence.test.mjs
+          node scripts/verify-issue-487-browser-evidence.mjs artifacts/ci/full-tests.log artifacts/issue-487 "$AUDIT_HEAD_SHA" | tee artifacts/issue-487/verified-captures.jsonl
       - name: Issue #399 full-page browser evidence
         env:
           ISSUE_399_BROWSER_EVIDENCE: '1'
@@ -361,6 +369,13 @@ jobs:
           pnpm --filter @corrida/types build
           pnpm --filter @corrida/utils build
           pnpm --filter @corrida/web exec vitest run --no-file-parallelism src/pages/WorkoutBuilder2/issue-399-real-api-browser-evidence.test.js
+      - name: Issue #487 authenticated real API student browser evidence
+        env:
+          ISSUE_487_REAL_API_BROWSER_EVIDENCE: '1'
+          ISSUE_487_REAL_API_PORT: '19194'
+          ISSUE_487_REAL_JWT_SECRET: 'issue487-ci-secret'
+          VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: pnpm --filter @corrida/web exec vitest run --no-file-parallelism src/pages/issue-487-real-api-browser-evidence.test.js
       - name: Build
         run: pnpm build
       - name: Validate settings parameters in real browser
@@ -373,6 +388,8 @@ jobs:
         run: pnpm access:check
       - name: Documentation checks
         run: pnpm docs:check
+      - name: Audit source proof checks (pnpm validate parity)
+        run: pnpm audit:source-proofs
       - name: Retain issue-399 exact-head evidence
         if: always()
         env:
@@ -419,6 +436,7 @@ jobs:
             artifacts/issue-391/**
             artifacts/issue-399/**
             artifacts/issue-400/**
+            artifacts/issue-487/**
           if-no-files-found: error
           retention-days: 30
 

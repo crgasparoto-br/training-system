@@ -3,7 +3,7 @@
 - Base: `develop`; branch de implementação: `feat/401-planned-executed-comparison`.
 - Autoridades: WorkoutDay/WorkoutCyclicStage/WorkoutExerciseBlock/WorkoutExercisePlannedSet/WorkoutResistanceGroup (prescrição); WorkoutSessionExecution/Item (#389) (realizado).
 - Dependências: #398, #399, #400 e #389 presentes na develop. Nenhuma nova árvore de montagem.
-- Status: remediações A-401-01..12 preservadas; A-401-13 e A-401-14 implementadas com testes adversariais. Aguardando CI exact-SHA do novo candidato e auditoria independente.
+- Status: remediações A-401-01..14 preservadas; A-401-15 implementada no comparador com regressões para múltiplas medições da etapa, zero e fallback histórico; A-401-16 reconcilia com a execução guiada #487 sem descartar seus controles. CI exact-SHA e auditoria independente ainda obrigatórias.
 
 ## Objetivo
 
@@ -37,6 +37,8 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - [x] Remediação A-401-12: exercício com séries estruturadas apresenta apenas cobertura por IDs distintos de séries; carga/repetições/intervalo pertencem à comparação da série específica. Exercícios sem blocos preservam comparação legada. Regressões para séries divergentes, única série registrada, conjunto completo e visões aluno/professor.
 - [x] Testes adversariais A-401-13: múltiplas séries legadas preservadas por ID do exercício e ordinal executado, valores divergentes, substituição, ausência e fallback histórico.
 - [x] Testes adversariais A-401-14: métricas cíclicas registradas por exercício legado ou série estruturada, valores ausentes/zero e alvos indisponíveis sem fabricação.
+- [x] A-401-15: a etapa cíclica apresenta duração e distância executadas simultaneamente e todas as medições adicionais pace, velocidade, FC, zona e PSE; apenas a grandeza com prescrição explícita recebe meta/diferença. Regressões cobrem tempo prescrito, distância prescrita, alvo de velocidade, zero, ausência e fallback histórico.
+- [x] A-401-16: integração sem perda das rotas, validações, esquema e execução guiada da #487 com o comparador da #401; o gate definitivo depende da confirmação remota de ausência de conflitos e da CI do commit combinado. A leitura reconhece `completedAt` por série como confirmação explícita guiada, sem classificar registros sem `outcome` e sem `completedAt` como integrais; a rotina semanal transporta esse campo.
 - [ ] `pnpm validate`, build e testes PostgreSQL no HEAD remoto definitivo.
 - [ ] Auditoria independente da PR com evidências de CI e revisão de segurança.
 
@@ -53,6 +55,7 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 9. Em exercício estruturado com séries de 20 kg e 22 kg, registrar apenas a segunda série com 22 kg: o resumo do exercício deve mostrar 1 de 2 séries registradas, sem comparar a carga legada do exercício com a série. Conferir ambas as séries registradas e o fallback de exercício sem blocos.
 10. Em exercício legado sem plannedSetId, registrar duas séries com setNumber distintos (inclusive fora de ordem), cargas/repetições e substituição diferentes: o professor deve ver cada registro, o aluno apenas o resumo; não atribuir a uma série planejada inexistente.
 11. Registrar tempo, distância, ritmo e FC/zona diretamente num exercício legado ou série estruturada: confirmar valor individual, zero real e meta indisponível quando não houver prescrição própria por exercício, sem reutilizar valores de sessão/etapa.
+12. Em etapa planejada por segundos, registrar também metros, pace, velocidade, FC, zona e PSE, verificar cada medição sem meta/delta artificial; repetir numa etapa por metros com segundos extras, zero real e fallback histórico. Confirmar que a tela de execução guiada #487 permanece utilizável.
 
 ## Decisões e riscos
 

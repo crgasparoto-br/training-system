@@ -115,6 +115,8 @@ export interface TrainingSessionExecutionItemValue {
   rpe?: number | null;
   tempo?: string | null;
   restSec?: number | null;
+  /** Marcador persistido de conclusão guiada; somente leitura, não aceito em payloads de escrita. */
+  completedAt?: string | null;
   loadKg?: number | null;
   repetitions?: number | null;
   durationSec?: number | null;
@@ -157,6 +159,65 @@ export interface TrainingSessionExecutionValuesPayload {
   expectedVersion: number;
   sessionValues?: TrainingSessionExecutionSessionValues;
   items?: TrainingSessionExecutionItemValue[];
+}
+
+/** O executor guia somente séries explicitamente modeladas por #399.
+ * Agrupamentos são estruturados pelas entidades canônicas da #400. */
+export type GuidedResistanceAvailability =
+  | 'available' | 'legacy_read_only' | 'grouping_pending' | 'no_structured_resistance';
+
+export type ResistanceExerciseGroupType =
+  | 'superserie' | 'bi_set' | 'tri_set' | 'circuito'
+  | 'bloco_tecnico' | 'mobilidade' | 'finalizacao';
+
+export interface GuidedResistanceUnit {
+  plannedUnitId: string;
+  plannedSetId: string;
+  setNumber: number;
+  exerciseName: string;
+  /** Link HTTPS configurado no catálogo; mídia opcional, sem reprodução automática. */
+  videoUrl: string | null;
+  section: string;
+  blockKind: string;
+  blockPosition: number;
+  setPosition: number;
+  exerciseSetTotal: number;
+  groupId: string | null;
+  groupType: ResistanceExerciseGroupType | null;
+  groupPosition: number | null;
+  groupSize: number | null;
+  roundNumber: number | null;
+  roundTotal: number | null;
+  repsMin: number | null;
+  repsMax: number | null;
+  loadKg: number | null;
+  loadPercent: number | null;
+  rir: number | null;
+  rpe: number | null;
+  tempo: string | null;
+  restSec: number | null;
+  notes: string | null;
+}
+
+export interface GuidedResistanceView {
+  sessionId: string;
+  status: TrainingSessionExecutionStatus;
+  version: number;
+  availability: GuidedResistanceAvailability;
+  completed: number;
+  total: number;
+  current: GuidedResistanceUnit | null;
+  next: GuidedResistanceUnit | null;
+}
+
+export interface GuidedResistanceCompletePayload {
+  operationKey: string;
+  expectedVersion: number;
+  plannedUnitId: string;
+  plannedSetId: string;
+  setNumber: number;
+  repetitions: number | null;
+  loadKg: number | null;
 }
 
 export type TrainingRoutineModality = 'resistance' | 'cyclic' | 'flexibility' | 'balance';

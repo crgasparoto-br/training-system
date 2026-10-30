@@ -6,6 +6,8 @@ const mockAlunoFindFirst = jest.fn();
 const mockAccessPermissionFindFirst = jest.fn();
 const mockGetRoutine = jest.fn();
 const mockGetCheckIn = jest.fn();
+const mockGetGuided = jest.fn();
+const mockCompleteGuided = jest.fn();
 const mockSaveCheckIn = jest.fn();
 const mockSaveExecutionValues = jest.fn();
 const mockResolveActiveStudentMembership = jest.fn();
@@ -75,6 +77,23 @@ jest.mock('../src/modules/workout/pre-workout-check-in.service', () => {
   };
 });
 
+jest.mock('../src/modules/workout/workout-session-execution.service', () => {
+  class WorkoutSessionExecutionNotFoundError extends Error {}
+  class WorkoutSessionExecutionInputError extends Error {}
+  class WorkoutSessionExecutionConflictError extends Error {
+    code = 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT';
+  }
+  return {
+    workoutSessionExecutionService: {
+      getGuidedForSession: mockGetGuided,
+      completeGuided: mockCompleteGuided,
+    },
+    WorkoutSessionExecutionInputError,
+    WorkoutSessionExecutionNotFoundError,
+    WorkoutSessionExecutionConflictError,
+  };
+});
+
 jest.mock('../src/modules/alunos/student-account-context.service', () => {
   class StudentAccountContextError extends Error {
     constructor(
@@ -115,6 +134,8 @@ const segmentedAlunoRouter = require('../src/modules/alunos/student-domain.route
 const { alunoService } = require('../src/modules/alunos/aluno.service');
 const { TrainingRoutineInputError } = require('../src/modules/workout/training-routine.service');
 const { StudentAccountContextError } = require('../src/modules/alunos/student-account-context.service');
+const { WorkoutSessionExecutionNotFoundError, WorkoutSessionExecutionConflictError } =
+  require('../src/modules/workout/workout-session-execution.service');
 
 const routine = { alunoId: 'aluno-1', execution: { available: false, reason: 'execution_contract_pending' } };
 
@@ -130,11 +151,85 @@ describe('training routine HTTP boundaries (#387)', () => {
     mockSaveCheckIn.mockReset().mockResolvedValue({ id: 'checkin-1', editable: true });
     mockSaveExecutionValues.mockReset().mockResolvedValue({ sessionId: 'day-1', version: 2,
       sessionValues: { speedKmh: 9 }, items: [] });
+    mockGetGuided.mockReset().mockResolvedValue({ sessionId: 'day-1', availability: 'available', current: null });
+    mockCompleteGuided.mockReset().mockResolvedValue({ sessionId: 'day-1', completed: 1 });
     mockAlunoFindFirst.mockReset();
     mockAccessPermissionFindFirst.mockReset().mockResolvedValue(null);
     mockResolveActiveStudentMembership.mockReset();
     (alunoService.belongsToContract as jest.Mock).mockReset().mockResolvedValue(true);
     (alunoService.belongsToProfessor as jest.Mock).mockReset().mockResolvedValue(true);
+  });
+
+  describe('guided resistance HTTP isolation (#487)', () => {
+    beforeEach(() => {
+      mockUser = { userId: 'user-1', type: 'aluno' };
+      mockResolveActiveStudentMembership.mockResolvedValue({ id: 'aluno-1', contractId: 'contract-1' });
+      mockAlunoFindFirst.mockResolvedValue({ id: 'aluno-1', contractId: 'contract-1', user: { id: 'user-1' } });
+    });
+
+    const payload = () => ({
+      operationKey: 'issue487-confirm-set-1',
+      expectedVersion: 1, plannedUnitId: 'exercise-a',
+      plannedSetId: 'planned-set-1', setNumber: 1,
+      repetitions: 8, loadKg: 40.5,
+    });
+
+    it('scopes guided reads to authenticated student and requested contract, never a body/query alunoId', async () => {
+      const response = await request(app)
+        .get('/student/me/training-sessions/day-1/execution/guided?alunoId=foreign')
+        .set('x-contract-id', 'contract-1');
+      expect(response.status).toBe(200);
+      expect(mockResolveActiveStudentMembership).toHaveBeenCalledWith('user-1', 'contract-1');
+      expect(mockGetGuided).toHaveBeenCalledWith({
+        sessionId: 'day-1', alunoId: 'aluno-1', contractId: 'contract-1',
+      });
+      expect(response.body.data).toMatchObject({ sessionId: 'day-1', availability: 'available' });
+    });
+
+    it('validates a single stable planned set and derives actor/tenant exclusively from membership', async () => {
+      const response = await request(app)
+        .post('/student/me/training-sessions/day-1/execution/guided/complete')
+        .set('x-contract-id', 'contract-1').send(payload());
+      expect(response.status).toBe(200);
+      expect(mockCompleteGuided).toHaveBeenCalledWith({
+        sessionId: 'day-1', alunoId: 'aluno-1', contractId: 'contract-1',
+        actorUserId: 'user-1', payload: payload(),
+      });
+    });
+
+    it('rejects tenant/student spoofing in a strict mutation body before entering service', async () => {
+      const response = await request(app)
+        .post('/student/me/training-sessions/day-1/execution/guided/complete')
+        .set('x-contract-id', 'contract-1')
+        .send({ ...payload(), contractId: 'foreign', alunoId: 'foreign' });
+      expect(response.status).toBe(400);
+      expect(mockCompleteGuided).not.toHaveBeenCalled();
+    });
+
+    it('never reads/writes without an explicit resolvable contract when required', async () => {
+      mockResolveActiveStudentMembership.mockRejectedValue(
+        new StudentAccountContextError('Selecione o contrato', 'STUDENT_CONTRACT_CONTEXT_REQUIRED')
+      );
+      const read = await request(app).get('/student/me/training-sessions/day-1/execution/guided');
+      const write = await request(app).post('/student/me/training-sessions/day-1/execution/guided/complete').send(payload());
+      expect(read.status).toBe(409);
+      expect(write.status).toBe(409);
+      expect(mockGetGuided).not.toHaveBeenCalled();
+      expect(mockCompleteGuided).not.toHaveBeenCalled();
+    });
+
+    it('does not reveal another contract session, and signals a stale version as 409', async () => {
+      mockGetGuided.mockRejectedValueOnce(new WorkoutSessionExecutionNotFoundError('not found'));
+      const foreign = await request(app)
+        .get('/student/me/training-sessions/foreign-day/execution/guided')
+        .set('x-contract-id', 'contract-1');
+      expect(foreign.status).toBe(404);
+      mockCompleteGuided.mockRejectedValueOnce(new WorkoutSessionExecutionConflictError('stale version'));
+      const stale = await request(app)
+        .post('/student/me/training-sessions/day-1/execution/guided/complete')
+        .set('x-contract-id', 'contract-1').send(payload());
+      expect(stale.status).toBe(409);
+    });
   });
 
   describe('GET /student/me/training-routine', () => {
