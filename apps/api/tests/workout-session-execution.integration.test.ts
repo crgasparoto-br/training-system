@@ -2947,4 +2947,67 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
     expect(accepted.version).toBe(2);
   });
 
+
+  it('A-401-13/14: persisted legacy records retain separate measures through the read API', async () => {
+    const fixture = await seedReleasedWorkout('issue401-legacy-item-metrics');
+    await transition(fixture, 'issue401-legacy-items-start', 0, 'in_progress');
+    const input = {
+      sessionId: fixture.dayId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId, actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: 'issue401-legacy-items-record', expectedVersion: 1,
+        items: [
+          { plannedUnitId: fixture.exerciseIds[0], setNumber: 1, outcome: 'full' as const,
+            repetitions: 10, loadKg: 20, durationSec: 0, distanceKm: 0,
+            pace: '6:30', heartRateBpm: 145, heartRateZone: 'Z3' },
+          { plannedUnitId: fixture.exerciseIds[0], setNumber: 2, outcome: 'substituted' as const,
+            substitutionNote: 'Adaptação do exercício', repetitions: 8, loadKg: 22,
+            durationSec: 600, distanceKm: 1.5, pace: '6:00',
+            heartRateBpm: 151, heartRateZone: 'Z4' },
+        ],
+      },
+    };
+    const saved = await service.saveValues(input);
+    expect(saved.version).toBe(2);
+    const frozen = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId },
+    });
+    const rows = await prisma.workoutSessionExecutionItem.findMany({
+      where: { executionId: frozen.id, plannedUnitId: fixture.exerciseIds[0] },
+      orderBy: { setNumber: 'asc' },
+    });
+    expect(rows.map((row) => row.setNumber)).toEqual([1, 2]);
+    expect(rows.map((row) => row.durationSec)).toEqual([0, 600]);
+    expect(rows.map((row) => row.distanceKm)).toEqual([0, 1.5]);
+    const plan = readCapturedWorkoutComparisonPlan(frozen.plannedSnapshot);
+    expect(plan).not.toBeNull();
+    expect(plan?.exercises.find((entry) => entry.id === fixture.exerciseIds[0])
+      ?.resistanceBlocks).toEqual([]);
+    const reread = await service.getForSession({
+      sessionId: fixture.dayId, alunoId: fixture.alunoId, contractId: fixture.contractId,
+    });
+    const comparison = compareWorkoutSession(plan!, reread, 'captured');
+    const records = comparison.units.filter((entry) =>
+      entry.kind === 'set' && entry.plannedUnitId === fixture.exerciseIds[0]);
+    expect(records.map((entry) => entry.executedSetNumber)).toEqual([1, 2]);
+    expect(records[0].metrics.find((entry) => entry.key === 'load'))
+      .toMatchObject({ planned: null, executed: 20, difference: null });
+    expect(records[1]).toMatchObject({
+      outcome: 'substituted', substitutionNote: 'Adaptação do exercício',
+      parentUnitId: fixture.exerciseIds[0],
+    });
+    expect(records[0].metrics.find((entry) => entry.key === 'duration'))
+      .toMatchObject({ planned: null, executed: 0, difference: null });
+    expect(records[1].metrics.find((entry) => entry.key === 'distance'))
+      .toMatchObject({ planned: null, executed: 1.5, difference: null });
+    expect(records[1].metrics.find((entry) => entry.key === 'heart_rate'))
+      .toMatchObject({ planned: null, executed: 151, difference: null });
+    const replay = await service.saveValues(input);
+    expect(replay.version).toBe(2);
+    expect(replay.items.filter((entry) => entry.plannedUnitId === fixture.exerciseIds[0]))
+      .toHaveLength(2);
+    expect((await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId },
+    })).plannedSnapshot).toEqual(frozen.plannedSnapshot);
+  });
 });
