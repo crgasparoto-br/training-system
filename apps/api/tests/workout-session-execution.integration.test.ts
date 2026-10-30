@@ -3208,3 +3208,206 @@ describeDatabase('issue #487: auditoria de ordinal e origem de evento', () => {
     })).rejects.toThrow(/completed guided lifecycle event is immutable/);
   });
 });
+
+describeDatabase('issue #488: durable resistant rest and canonical session ownership', () => {
+  const scope = (fixture: Fixture) => ({
+    sessionId: fixture.dayId, alunoId: fixture.alunoId, contractId: fixture.contractId,
+  });
+  const complete = async (fixture: Fixture, operationKey: string) => {
+    const before = await service.getGuidedForSession(scope(fixture));
+    expect(before.current).not.toBeNull();
+    const unit = before.current!;
+    return service.completeGuided({
+      ...scope(fixture), actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey, expectedVersion: before.version,
+        plannedUnitId: unit.plannedUnitId, plannedSetId: unit.plannedSetId,
+        setNumber: unit.setNumber, repetitions: unit.repsMin, loadKg: unit.loadKg,
+      },
+    });
+  };
+  const restCommand = (fixture: Fixture, restId: string, version: number,
+    action: 'extend_15' | 'skip' | 'finish', operationKey: string,
+  ) => service.actOnGuidedRest({
+    ...scope(fixture), actorUserId: fixture.alunoUserId,
+    payload: { restId, expectedVersion: version, action, operationKey },
+  });
+
+  it('starts exactly one 60-second rest after confirmed series; keeps prescribed set immutable', async () => {
+    const fixture = await seedReleasedWorkout('488-standalone-60', { seedGuidedResistance: true });
+    await transition(fixture, '488-start-60', 0, 'in_progress');
+    const before = await service.getGuidedForSession(scope(fixture));
+    expect(before.rest).toBeNull();
+    const first = await complete(fixture, '488-complete-60');
+    expect(first.rest).toMatchObject({
+      plannedSeconds: 60, extensionSeconds: 0,
+      afterPlannedSetId: before.current!.plannedSetId,
+    });
+    expect(first.rest!.remainingMs).toBeGreaterThan(0);
+    expect(first.rest!.remainingMs).toBeLessThanOrEqual(60_000);
+    const row = await prisma.workoutSessionResistanceRest.findFirstOrThrow({
+      where: { afterPlannedSetId: before.current!.plannedSetId },
+    });
+    expect(row.startedAt.getTime() + 60000).toBe(row.targetEndsAt.getTime());
+    const prescribed = await prisma.workoutExercisePlannedSet.findUniqueOrThrow({
+      where: { id: before.current!.plannedSetId },
+    });
+    expect(prescribed.restSec).toBe(60);
+    const identity = { operationKey: '488-complete-60', expectedVersion: 1,
+      plannedUnitId: before.current!.plannedUnitId, plannedSetId: before.current!.plannedSetId,
+      setNumber: before.current!.setNumber, repetitions: before.current!.repsMin,
+      loadKg: before.current!.loadKg };
+    const replay = await concurrentService.completeGuided({
+      ...scope(fixture), actorUserId: fixture.alunoUserId, payload: identity,
+    });
+    expect(replay.rest?.id).toBe(first.rest?.id);
+    expect(await prisma.workoutSessionResistanceRest.count({
+      where: { executionId: row.executionId },
+    })).toBe(1);
+    await expect(complete(fixture, '488-complete-blocked')).rejects.toMatchObject({
+      code: 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION',
+    });
+    const crossTenant = await seedReleasedWorkout('488-foreign-read');
+    await expect(concurrentService.actOnGuidedRest({
+      sessionId: fixture.dayId, alunoId: crossTenant.alunoId,
+      contractId: crossTenant.contractId, actorUserId: crossTenant.alunoUserId,
+      payload: { restId: row.id, expectedVersion: first.version, action: 'skip',
+        operationKey: '488-foreign-rest' },
+    })).rejects.toBeInstanceOf(WorkoutSessionExecutionNotFoundError);
+    const skipped = await restCommand(fixture, row.id, first.version, 'skip', '488-skip-60');
+    expect(skipped.rest).toBeNull();
+    const skippedDb = await prisma.workoutSessionResistanceRest.findUniqueOrThrow({ where: { id: row.id } });
+    expect(skippedDb.status).toBe('skipped');
+    expect(skippedDb.elapsedMs).not.toBeNull();
+    const replaySkip = await restCommand(fixture, row.id, first.version, 'skip', '488-skip-60');
+    expect(replaySkip.version).toBe(skipped.version);
+    expect(await prisma.workoutSessionResistanceRest.count({ where: { executionId: row.executionId } })).toBe(1);
+    expect((await complete(fixture, '488-second-confirmed')).completed).toBe(2);
+  });
+
+  it('uses group identity: no phantom rest inside a bi-set, 75 s between rounds and none after final unit', async () => {
+    const fixture = await seedReleasedWorkout('488-group-rounds', { seedGuidedGroup: true });
+    await transition(fixture, '488-group-start', 0, 'in_progress');
+    const first = await complete(fixture, '488-group-a1');
+    expect(first.rest).toBeNull();
+    expect(first.current?.groupPosition).toBe(2);
+    const second = await complete(fixture, '488-group-b1');
+    expect(second.rest).toMatchObject({ plannedSeconds: 75 });
+    expect(second.current?.roundNumber).toBe(2);
+    const skipped = await restCommand(fixture, second.rest!.id, second.version, 'skip', '488-group-skip');
+    expect(skipped.rest).toBeNull();
+    const third = await complete(fixture, '488-group-a2');
+    expect(third.rest).toBeNull();
+    const final = await complete(fixture, '488-group-b2');
+    expect(final.rest).toBeNull();
+    expect(final.completed).toBe(final.total);
+    expect(await prisma.workoutSessionResistanceRest.count({
+      where: { execution: { workoutDayId: fixture.dayId } },
+    })).toBe(1);
+  });
+
+  it('extends +15 only on actual execution; rejects early finish, stale version and mixed idempotency', async () => {
+    const fixture = await seedReleasedWorkout('488-extension', { seedGuidedResistance: true });
+    await transition(fixture, '488-ext-start', 0, 'in_progress');
+    const initial = await complete(fixture, '488-ext-first');
+    const originalTarget = Date.parse(initial.rest!.targetEndsAt);
+    const extended = await restCommand(fixture, initial.rest!.id, initial.version, 'extend_15', '488-ext-15');
+    expect(extended.rest!.plannedSeconds).toBe(60);
+    expect(extended.rest!.extensionSeconds).toBe(15);
+    expect(Date.parse(extended.rest!.targetEndsAt)).toBe(originalTarget + 15000);
+    const replay = await restCommand(fixture, initial.rest!.id, initial.version, 'extend_15', '488-ext-15');
+    expect(replay.version).toBe(extended.version);
+    expect(replay.rest!.extensionSeconds).toBe(15);
+    await expect(restCommand(fixture, initial.rest!.id, initial.version, 'skip', '488-ext-15'))
+      .rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_IDEMPOTENCY_CONFLICT' });
+    await expect(restCommand(fixture, initial.rest!.id, initial.version, 'skip', '488-ext-stale'))
+      .rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT' });
+    await expect(restCommand(fixture, initial.rest!.id, extended.version, 'finish', '488-ext-early'))
+      .rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION' });
+    expect((await prisma.workoutSessionResistanceRest.findUniqueOrThrow({
+      where: { id: initial.rest!.id },
+    })).status).toBe('active');
+    expect((await restCommand(fixture, initial.rest!.id, extended.version, 'skip', '488-ext-skip')).rest).toBeNull();
+    expect((await prisma.workoutExercisePlannedSet.findUniqueOrThrow({
+      where: { id: initial.rest!.afterPlannedSetId },
+    })).restSec).toBe(60);
+  });
+
+  it('freezes rest with #389 pause and shifts deadline on resume, including another client read', async () => {
+    const fixture = await seedReleasedWorkout('488-pause', { seedGuidedResistance: true });
+    await transition(fixture, '488-pause-start', 0, 'in_progress');
+    const restStarted = await complete(fixture, '488-pause-first');
+    const targetBefore = Date.parse(restStarted.rest!.targetEndsAt);
+    await transition(fixture, '488-pause-enter', restStarted.version, 'paused');
+    const paused = await concurrentService.getGuidedForSession(scope(fixture));
+    expect(paused.status).toBe('paused');
+    const pausedRemaining = paused.rest!.remainingMs;
+    await new Promise((resolve) => setTimeout(resolve, 75));
+    const pausedElsewhere = await concurrentService.getGuidedForSession(scope(fixture));
+    expect(pausedElsewhere.rest!.remainingMs).toBe(pausedRemaining);
+    await expect(restCommand(fixture, paused.rest!.id, paused.version, 'skip', '488-pause-denied'))
+      .rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION' });
+    await transition(fixture, '488-pause-resume', paused.version, 'in_progress');
+    const resumed = await concurrentService.getGuidedForSession(scope(fixture));
+    expect(resumed.status).toBe('in_progress');
+    expect(Date.parse(resumed.rest!.targetEndsAt)).toBeGreaterThan(targetBefore);
+    expect(Math.abs(resumed.rest!.remainingMs - pausedRemaining)).toBeLessThan(250);
+    expect((await prisma.workoutSessionResistanceRest.findUniqueOrThrow({
+      where: { id: paused.rest!.id },
+    })).pausedDurationMs).toBeGreaterThan(0n);
+  });
+
+  it('serializes simultaneous commands and interrupts active rest on partial termination', async () => {
+    const fixture = await seedReleasedWorkout('488-concurrency', { seedGuidedResistance: true });
+    await transition(fixture, '488-race-start', 0, 'in_progress');
+    const active = await complete(fixture, '488-race-first');
+    const restId = active.rest!.id;
+    const requests = await Promise.allSettled([
+      restCommand(fixture, restId, active.version, 'extend_15', '488-race-one'),
+      concurrentService.actOnGuidedRest({ ...scope(fixture), actorUserId: fixture.alunoUserId,
+        payload: { restId, expectedVersion: active.version, action: 'skip', operationKey: '488-race-two' } }),
+    ]);
+    expect(requests.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(requests.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    const after = await service.getGuidedForSession(scope(fixture));
+    const state = await prisma.workoutSessionResistanceRest.findUniqueOrThrow({ where: { id: restId } });
+    if (state.status === 'active') {
+      await transition(fixture, '488-race-terminal', after.version, 'partial', 'Interrompeu o treino');
+      const interrupted = await prisma.workoutSessionResistanceRest.findUniqueOrThrow({ where: { id: restId } });
+      expect(interrupted.status).toBe('interrupted');
+      expect(interrupted.endedAt).not.toBeNull();
+      expect(interrupted.elapsedMs).not.toBeNull();
+    } else {
+      expect(state.status).toBe('skipped');
+      await transition(fixture, '488-race-terminal', after.version, 'partial', 'Interrompeu o treino');
+    }
+    const ended = await service.getGuidedForSession(scope(fixture));
+    expect(ended.status).toBe('partial');
+    expect(ended.rest).toBeNull();
+    await expect(restCommand(fixture, restId, ended.version, 'skip', '488-race-after-terminal'))
+      .rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION' });
+  });
+
+  it('rejects raw SQL rest with another session planned set and prevents history rewrite', async () => {
+    const fixture = await seedReleasedWorkout('488-db-boundary', { seedGuidedResistance: true });
+    const foreign = await seedReleasedWorkout('488-db-foreign', { seedGuidedResistance: true });
+    await transition(fixture, '488-db-start', 0, 'in_progress');
+    await transition(foreign, '488-db-foreign-start', 0, 'in_progress');
+    const active = await complete(fixture, '488-db-first');
+    const foreignUnit = (await concurrentService.getGuidedForSession(scope(foreign))).current!;
+    const db = await prisma.workoutSessionExecution.findUniqueOrThrow({ where: { workoutDayId: fixture.dayId } });
+    await expect(prisma.workoutSessionResistanceRest.create({ data: {
+      executionId: db.id, afterPlannedSetId: foreignUnit.plannedSetId,
+      plannedSeconds: 60, startedAt: new Date(),
+      targetEndsAt: new Date(Date.now() + 60_000),
+    } })).rejects.toThrow(/rest requires a completed planned set/);
+    const skipped = await restCommand(fixture, active.rest!.id, active.version, 'skip', '488-db-skip');
+    expect(skipped.rest).toBeNull();
+    await expect(prisma.workoutSessionResistanceRest.update({
+      where: { id: active.rest!.id }, data: { plannedSeconds: 120 },
+    })).rejects.toThrow(/rest history and planned identity are immutable/);
+    await expect(prisma.workoutSessionResistanceRest.update({
+      where: { id: active.rest!.id }, data: { extensionSeconds: 150 },
+    })).rejects.toThrow(/rest history and planned identity are immutable/);
+  });
+});
