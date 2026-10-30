@@ -359,9 +359,15 @@ export function GuidedResistanceCard({
           return await refresh('conflict') ? 'retry' : 'blocked';
         }
       } else {
-        // Keep the same operation key on a timeout; retry is idempotent.
-        setError('Não foi possível confirmar o descanso. O estado anterior foi preservado; tente novamente.');
-        return 'retry';
+        // Permanent client errors cannot be retried on the old snapshot.
+        // Keep a network timeout/5xx retryable with the same idempotency key.
+        const permanentError = httpStatus !== undefined && httpStatus >= 400
+          && httpStatus < 500 && httpStatus !== 429;
+        if (permanentError) setReconciliationRequired(true);
+        setError(permanentError
+          ? 'Não foi possível validar o acesso ao descanso. Atualize o estado salvo antes de continuar.'
+          : 'Não foi possível confirmar o descanso. O estado anterior foi preservado; tente novamente.');
+        return permanentError ? 'blocked' : 'retry';
       }
     } finally {
       setBusy(false);
