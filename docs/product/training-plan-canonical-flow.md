@@ -144,3 +144,15 @@ A elegibilidade de exercícios cíclicos na API e nos gatilhos PostgreSQL usa o 
 Ao liberar um `WorkoutTemplate` (`released: false → true`), seja pelo fluxo legado, pelo consolidado com ledger ou por atualização SQL direta, o PostgreSQL captura um `WorkoutReleasedExerciseSnapshot` para cada `WorkoutExercise` real. A entidade contém os metadados de apresentação do catálogo em JSONB (nome, categoria, grupo muscular, vídeo, tipos de carga, contagem, movimento e observações); não duplica exercícios nem séries. As leituras do aluno, da rotina e dos detalhes do professor usam esse snapshot para treinos liberados, de modo que renomear o catálogo posteriormente não altera a prescrição histórica. Os triggers impedem alteração, exclusão ou inserção tardia de snapshots de um treino já liberado.
 
 A migração preenche snapshots de treinos **já liberados** somente com o catálogo disponível na data da migração. Nomes anteriores não podem ser reconstruídos e não são inventados; registros historicamente sem snapshot têm fallback explícito para o catálogo atual. Novas liberações capturam o valor real da liberação e não dependem desse fallback.
+
+### Leitura histórica por período — AUD-400-05
+
+As consultas `GET /api/v1/executions/workout-days` (aluno, somente treinos liberados) e
+`GET /api/v1/executions/professor/workout-days` (professor, incluindo rascunhos) usam a
+mesma projeção de catálogo que a leitura individual do dia. Cada `WorkoutDay`
+liberado exibe os metadados capturados em `WorkoutReleasedExerciseSnapshot`,
+mesmo após alterações posteriores na biblioteca. Dias ainda não liberados
+exibem o catálogo editável corrente. A resposta pública não inclui
+`releasedCatalog`; identidades dos exercícios, agrupamentos, membros e
+séries planejadas permanecem inalteradas. O escopo do aluno/contrato e
+a seleção `releasedOnly` das rotas são preservados.

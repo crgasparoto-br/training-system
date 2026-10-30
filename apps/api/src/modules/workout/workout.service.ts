@@ -822,7 +822,7 @@ export const workoutService = {
     const end = resolveUtcDate(endInput, true);
     const releasedOnly = options?.releasedOnly ?? true;
 
-    return await prisma.workoutDay.findMany({
+    const days = await prisma.workoutDay.findMany({
       where: {
         workoutDate: {
           gte: start,
@@ -855,6 +855,7 @@ export const workoutService = {
       },
       orderBy: { workoutDate: 'asc' },
     });
+    return days.map((day) => projectWorkoutDayExerciseCatalog(day, day.template.released));
   },
 
   /**
