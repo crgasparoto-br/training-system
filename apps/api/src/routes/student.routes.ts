@@ -853,6 +853,13 @@ const executionItemSchema = z.object({
   heartRateZone: z.string().trim().max(32).nullable().optional(),
 }).strict();
 
+const guidedRestActionSchema = z.object({
+  operationKey: z.string().trim().min(8).max(128),
+  expectedVersion: z.number().int().nonnegative(),
+  restId: z.string().trim().min(1),
+  action: z.enum(['extend_15', 'skip', 'finish']),
+}).strict();
+
 const guidedCompletionSchema = z.object({
   operationKey: z.string().trim().min(8).max(128),
   expectedVersion: z.number().int().nonnegative(),
@@ -944,6 +951,23 @@ router.post('/me/training-sessions/:sessionId/execution/guided/complete', async 
     if (handled) return handled;
     console.error('Erro ao concluir série guiada:', error);
     return sendError(res, 'Não foi possível concluir a série', 500);
+  }
+});
+
+router.post('/me/training-sessions/:sessionId/execution/guided/rest', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId as string;
+    const aluno = await requireAlunoByUserId(req, userId);
+    const payload = guidedRestActionSchema.parse(req.body);
+    return sendSuccess(res, await workoutSessionExecutionService.actOnGuidedRest({
+      sessionId: req.params.sessionId, alunoId: aluno.id,
+      contractId: aluno.contractId, actorUserId: userId, payload,
+    }), 'Descanso atualizado');
+  } catch (error: any) {
+    const handled = sendExecutionError(res, error);
+    if (handled) return handled;
+    console.error('Erro ao atualizar descanso guiado:', error);
+    return sendError(res, 'Não foi possível atualizar o descanso', 500);
   }
 });
 
