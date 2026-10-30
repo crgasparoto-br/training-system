@@ -31,9 +31,60 @@ describe('issue #488: relógio de descanso', () => {
     expect(onAction).toHaveBeenCalledTimes(1);
   });
 
+  it('compensa 40 s de resposta atrasada, inclusive após nova leitura do servidor', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-30T10:00:40.000Z'));
+    const onAction = vi.fn();
+    const { rerender } = render(
+      <ResistanceRestPanel rest={rest} status="in_progress" busy={false} onAction={onAction} />,
+    );
+    // A server snapshot created at 10:00:00 arrives at 10:00:40.
+    // Wrong implementation anchored to receipt would still show 01:00.
+    expect(screen.getByRole('timer')).toHaveTextContent('00:20');
+    expect(screen.getByText('Descanso transcorrido').nextSibling).toHaveTextContent('00:40');
+    expect(onAction).not.toHaveBeenCalled();
+
+    act(() => vi.advanceTimersByTime(5_000));
+    expect(screen.getByRole('timer')).toHaveTextContent('00:15');
+
+    // A delayed reconciliation must not return elapsed time to the athlete.
+    rerender(<ResistanceRestPanel
+      rest={{ ...rest, serverNow: '2026-10-30T10:00:42.000Z',
+        elapsedMs: 42_000, remainingMs: 18_000 }}
+      status="in_progress" busy={false} onAction={onAction}
+    />);
+    expect(screen.getByRole('timer')).toHaveTextContent('00:15');
+    expect(screen.getByText('Descanso transcorrido').nextSibling).toHaveTextContent('00:45');
+
+    act(() => vi.advanceTimersByTime(15_000));
+    expect(screen.getByRole('timer')).toHaveTextContent('00:00');
+    expect(onAction).toHaveBeenCalledTimes(1);
+    expect(onAction).toHaveBeenCalledWith('finish');
+
+    // A new GET for the same expired rest cannot submit a second finish.
+    rerender(<ResistanceRestPanel
+      rest={{ ...rest, serverNow: '2026-10-30T10:00:58.000Z',
+        elapsedMs: 58_000, remainingMs: 2_000 }}
+      status="in_progress" busy={false} onAction={onAction}
+    />);
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(onAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('não reinicia descanso já vencido quando a resposta chega depois do prazo', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-30T10:01:25.000Z'));
+    const onAction = vi.fn();
+    render(<ResistanceRestPanel rest={rest} status="in_progress" busy={false} onAction={onAction} />);
+    expect(screen.getByRole('timer')).toHaveTextContent('00:00');
+    expect(screen.getByText('Descanso transcorrido').nextSibling).toHaveTextContent('01:25');
+    expect(onAction).toHaveBeenCalledTimes(1);
+    expect(onAction).toHaveBeenCalledWith('finish');
+  });
+
   it('não progride nem oferece ações enquanto pausa canônica está ativa', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(rest.serverNow));
+    vi.setSystemTime(new Date('2026-10-30T10:00:40.000Z'));
     const onAction = vi.fn();
     render(<ResistanceRestPanel rest={{ ...rest, elapsedMs: 25000, remainingMs: 35000 }}
       status="paused" busy={false} onAction={onAction} />);

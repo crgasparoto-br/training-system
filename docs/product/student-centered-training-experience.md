@@ -118,7 +118,7 @@ Para descanso resistido:
 - preservar o intervalo planejado como parte do planejamento historico;
 - registrar o descanso efetivamente realizado separadamente;
 - permitir extensao manual, inicialmente em incrementos de 15 segundos, e pular o descanso sem alterar a prescricao;
-- usar timestamps persistidos para reconstruir o tempo restante; ticks do navegador nao sao fonte de verdade;
+- usar timestamps persistidos para reconstruir o tempo restante; ticks do navegador nao sao fonte de verdade; a exibicao desconta o tempo entre `serverNow` e a hora atual do dispositivo, inclusive durante atraso de transporte, mas apenas o servidor autoriza `finish`;
 - som e vibracao podem ser usados como ajuda opcional quando a plataforma e a permissao do dispositivo permitirem.
 
 A implementacao #488 usa `WorkoutSessionResistanceRest` subordinado a `WorkoutSessionExecution` (#389), vinculado ao `plannedSetId` concluido pela #487. O descanso nasce na mesma transacao serializavel da conclusao, somente quando existe proxima unidade resistida e `restSec > 0`, inclusive na transicao entre rodadas de agrupamento da #400. O relatorio de execucao expõe `rest` com `plannedSeconds`, `extensionSeconds`, `elapsedMs`, `remainingMs`, `targetEndsAt` e `serverNow`; nenhum desses campos altera a prescricao historica. Operacoes `extend_15 | skip | finish` usam `operationKey` e `expectedVersion`; `finish` so e aceito depois do prazo canonico e `skip` registra o efetivamente consumido. Em pausa explicita o prazo fica congelado e e deslocado pelo tempo pausado na retomada; estado terminal interrompe o descanso ativo com trilha duravel. Falha de rede permite repetir a mesma operacao; conflito exige nova consulta antes de confirmar outra serie.

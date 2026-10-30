@@ -23,16 +23,14 @@ function displaySeconds(value: number): string {
 export function ResistanceRestPanel({ rest, status, busy, disabled = false, onAction }: Props) {
   const [, setTick] = useState(0);
   const [alertsEnabled, setAlertsEnabled] = useState(false);
-  const anchorRef = useRef({ fingerprint: '', clientReceivedAt: Date.now() });
   const notifiedSecondsRef = useRef<string | null>(null);
   const autoFinishRef = useRef<string | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const fingerprint = [rest.id, rest.serverNow, rest.targetEndsAt, status].join(':');
-  if (anchorRef.current.fingerprint !== fingerprint) {
-    anchorRef.current = { fingerprint, clientReceivedAt: Date.now() };
-  }
+  // A server snapshot may spend seconds in transit. Include that age when
+  // rendering; receipt time must not restart elapsed rest. Only the server
+  // authorizes finish/skip, never this display-only wall clock.
   const displayDelta = status === 'in_progress'
-    ? Math.max(0, Date.now() - anchorRef.current.clientReceivedAt) : 0;
+    ? Math.max(0, Date.now() - Date.parse(rest.serverNow)) : 0;
   const remainingMs = Math.max(0, rest.remainingMs - displayDelta);
   const elapsedMs = rest.elapsedMs + displayDelta;
   const secondsLeft = Math.ceil(remainingMs / 1000);
@@ -72,7 +70,7 @@ export function ResistanceRestPanel({ rest, status, busy, disabled = false, onAc
   // Local expiry only REQUESTS the canonical finish. The API checks clock,
   // version, ownership and pause/terminal state on every request.
   useEffect(() => {
-    const key = rest.id + ':' + rest.targetEndsAt + ':' + rest.serverNow;
+    const key = rest.id + ':' + rest.targetEndsAt;
     if (remainingMs > 0 || controlsDisabled || autoFinishRef.current === key) return;
     autoFinishRef.current = key;
     onAction('finish');
