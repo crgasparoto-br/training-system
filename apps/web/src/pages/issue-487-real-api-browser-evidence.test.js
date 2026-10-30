@@ -234,7 +234,7 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
     const apiPort = Number(process.env.ISSUE_487_REAL_API_PORT || 19194);
     const apiOrigin = 'http://127.0.0.1:' + apiPort;
     let browser, vite, apiProcess;
-    const apiLogs = [], browserErrors = [], guidedWrites = [], screenshots = [];
+    const apiLogs = [], browserErrors = [], guidedWrites = [], restWrites = [], screenshots = [];
     try {
       const fixture = await seedReleasedSession(prisma, today, suffix);
       const token = jwt.sign({ userId: fixture.studentUserId,
@@ -263,6 +263,10 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
       page.on('request', (request) => {
         if (request.method() === 'POST' && request.url().endsWith('/execution/guided/complete')) {
           guidedWrites.push({ body: JSON.parse(request.postData() || '{}'),
+            contractId: request.headers()['x-contract-id'] });
+        }
+        if (request.method() === 'POST' && request.url().endsWith('/execution/guided/rest')) {
+          restWrites.push({ body: JSON.parse(request.postData() || '{}'),
             contractId: request.headers()['x-contract-id'] });
         }
       });
@@ -381,14 +385,54 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
       screenshots.push(await shot(page, 'mobile-pending-sets-guard'));
       await clickButton(page, 'Voltar às séries');
 
-      for (const next of [
-        'Bi-set · rodada 2 de 2 · item 1 de 2',
-        'Bi-set · rodada 2 de 2 · item 2 de 2',
-        'Todas as séries foram registradas',
-      ]) {
-        await clickButton(page, 'Concluir série');
-        await waitText(page, next);
-      }
+      // The first round ends in a genuine #488 rest, not an immediate set.
+      await clickButton(page, 'Concluir série');
+      await page.waitForSelector('section[aria-label="Descanso entre séries"]');
+      await waitText(page, 'Intervalo prescrito');
+      const activeRest = await apiRequest(apiOrigin, token, fixture.contractId, 'GET',
+        '/student/me/training-sessions/' + fixture.dayId + '/execution/guided');
+      expect(activeRest.status).toBe(200);
+      expect(activeRest.body.data.rest).toMatchObject({ plannedSeconds: 75, extensionSeconds: 0 });
+      expect(activeRest.body.data.current).toMatchObject({ roundNumber: 2, groupPosition: 1 });
+      const restId = activeRest.body.data.rest.id;
+      const plannedTarget = Date.parse(activeRest.body.data.rest.targetEndsAt);
+      await noHorizontalOverflow(page);
+      screenshots.push(await shot(page, 'mobile-rest-running'));
+      await clickButton(page, '+15 s');
+      await waitText(page, 'Acréscimo nesta execução');
+      const extendedRest = await apiRequest(apiOrigin, token, fixture.contractId, 'GET',
+        '/student/me/training-sessions/' + fixture.dayId + '/execution/guided');
+      expect(extendedRest.status).toBe(200);
+      expect(extendedRest.body.data.rest).toMatchObject({
+        id: restId, plannedSeconds: 75, extensionSeconds: 15,
+      });
+      expect(Date.parse(extendedRest.body.data.rest.targetEndsAt)).toBe(plannedTarget + 15000);
+      const extendRequest = restWrites.find((write) => write.body.action === 'extend_15');
+      expect(extendRequest).toBeDefined();
+      const duplicateExtension = await apiRequest(apiOrigin, token, fixture.contractId, 'POST',
+        '/student/me/training-sessions/' + fixture.dayId + '/execution/guided/rest',
+        extendRequest.body);
+      expect(duplicateExtension.status).toBe(200);
+      expect(duplicateExtension.body.data.version).toBe(extendedRest.body.data.version);
+      expect(duplicateExtension.body.data.rest.extensionSeconds).toBe(15);
+      // Background/refresh cannot start a new rest or reset the canonical deadline.
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('section[aria-label="Descanso entre séries"]');
+      await waitText(page, 'Acréscimo nesta execução');
+      expect((await apiRequest(apiOrigin, token, fixture.contractId, 'GET',
+        '/student/me/training-sessions/' + fixture.dayId + '/execution/guided')).body.data.rest.id).toBe(restId);
+      screenshots.push(await shot(page, 'mobile-rest-restored'));
+      await clickButton(page, 'Pular descanso');
+      await waitText(page, 'Bi-set · rodada 2 de 2 · item 1 de 2');
+      const rested = await prisma.workoutSessionResistanceRest.findUniqueOrThrow({ where: { id: restId } });
+      expect(rested.status).toBe('skipped');
+      expect(rested.elapsedMs).not.toBeNull();
+      expect(rested.plannedSeconds).toBe(75);
+      expect(rested.extensionSeconds).toBe(15);
+      await clickButton(page, 'Concluir série');
+      await waitText(page, 'Bi-set · rodada 2 de 2 · item 2 de 2');
+      await clickButton(page, 'Concluir série');
+      await waitText(page, 'Todas as séries foram registradas');
       await noHorizontalOverflow(page);
       // The guided card can show "all sets" before the parent panel has
       // finished its authoritative routine refresh. Finalization must use
@@ -455,7 +499,8 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
         scope: 'real student Chrome, signed JWT, actual HTTP routes and PostgreSQL, synthetic fixture',
         scenarios: ['desktop-start-and-complete', 'durable-refresh-and-overview',
           'replay-idempotent', 'cross-tenant-rejected', 'paused-write-rejected',
-          'mobile-resume-and-complete', 'planned-remains-immutable', 'pending-sets-finalization-guard'],
+          'mobile-resume-and-complete', 'planned-remains-immutable', 'pending-sets-finalization-guard',
+           'issue488-mobile-rest-extend-reload-idempotent-skip'],
         sessionId: fixture.dayId, completed: 4, status: final.status,
         screenshotEvidence: screenshots,
       }, null, 2));
