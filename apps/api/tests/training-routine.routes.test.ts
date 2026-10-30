@@ -56,7 +56,11 @@ jest.mock('../src/modules/workout/workout-session-execution.service', () => {
   class WorkoutSessionExecutionNotFoundError extends Error {}
   class WorkoutSessionExecutionConflictError extends Error {}
   return {
-    workoutSessionExecutionService: { saveValues: mockSaveExecutionValues },
+    workoutSessionExecutionService: {
+      saveValues: mockSaveExecutionValues,
+      getGuidedForSession: mockGetGuided,
+      completeGuided: mockCompleteGuided,
+    },
     WorkoutSessionExecutionInputError,
     WorkoutSessionExecutionNotFoundError,
     WorkoutSessionExecutionConflictError,
@@ -77,22 +81,7 @@ jest.mock('../src/modules/workout/pre-workout-check-in.service', () => {
   };
 });
 
-jest.mock('../src/modules/workout/workout-session-execution.service', () => {
-  class WorkoutSessionExecutionNotFoundError extends Error {}
-  class WorkoutSessionExecutionInputError extends Error {}
-  class WorkoutSessionExecutionConflictError extends Error {
-    code = 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT';
-  }
-  return {
-    workoutSessionExecutionService: {
-      getGuidedForSession: mockGetGuided,
-      completeGuided: mockCompleteGuided,
-    },
-    WorkoutSessionExecutionInputError,
-    WorkoutSessionExecutionNotFoundError,
-    WorkoutSessionExecutionConflictError,
-  };
-});
+
 
 jest.mock('../src/modules/alunos/student-account-context.service', () => {
   class StudentAccountContextError extends Error {
