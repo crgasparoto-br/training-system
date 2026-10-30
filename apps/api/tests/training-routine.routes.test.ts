@@ -7,6 +7,7 @@ const mockAccessPermissionFindFirst = jest.fn();
 const mockGetRoutine = jest.fn();
 const mockGetCheckIn = jest.fn();
 const mockSaveCheckIn = jest.fn();
+const mockSaveExecutionValues = jest.fn();
 const mockResolveActiveStudentMembership = jest.fn();
 const mockBlockAccessMiddleware = jest.fn(
   () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
@@ -43,6 +44,20 @@ jest.mock('../src/modules/workout/training-routine.service', () => {
   return {
     trainingRoutineService: { getRoutine: mockGetRoutine },
     TrainingRoutineInputError,
+  };
+});
+
+jest.mock('../src/modules/workout/workout-session-execution.service', () => {
+  class WorkoutSessionExecutionInputError extends Error {
+    code = 'WORKOUT_SESSION_EXECUTION_INVALID';
+  }
+  class WorkoutSessionExecutionNotFoundError extends Error {}
+  class WorkoutSessionExecutionConflictError extends Error {}
+  return {
+    workoutSessionExecutionService: { saveValues: mockSaveExecutionValues },
+    WorkoutSessionExecutionInputError,
+    WorkoutSessionExecutionNotFoundError,
+    WorkoutSessionExecutionConflictError,
   };
 });
 
@@ -113,6 +128,8 @@ describe('training routine HTTP boundaries (#387)', () => {
     mockGetRoutine.mockReset().mockResolvedValue(routine);
     mockGetCheckIn.mockReset().mockResolvedValue(null);
     mockSaveCheckIn.mockReset().mockResolvedValue({ id: 'checkin-1', editable: true });
+    mockSaveExecutionValues.mockReset().mockResolvedValue({ sessionId: 'day-1', version: 2,
+      sessionValues: { speedKmh: 9 }, items: [] });
     mockAlunoFindFirst.mockReset();
     mockAccessPermissionFindFirst.mockReset().mockResolvedValue(null);
     mockResolveActiveStudentMembership.mockReset();
@@ -167,6 +184,51 @@ describe('training routine HTTP boundaries (#387)', () => {
       expect(response.status).toBe(500);
       expect(JSON.stringify(response.body)).not.toContain('10.0.0.1');
       consoleError.mockRestore();
+    });
+  });
+
+  describe('session-speed write contract (#401 A-401-09)', () => {
+    beforeEach(() => {
+      mockUser = { userId: 'user-1', type: 'aluno' };
+      mockResolveActiveStudentMembership.mockResolvedValue({ id: 'aluno-1', contractId: 'contract-1' });
+      mockAlunoFindFirst.mockResolvedValue({ id: 'aluno-1', contractId: 'contract-1', user: { id: 'user-1' } });
+    });
+
+    it('accepts an explicit legacy session speed and forwards only the scoped validated payload', async () => {
+      const payload = { operationKey: 'issue401-speed-route', expectedVersion: 1,
+        sessionValues: { speedKmh: 9, pace: '5:30' } };
+      const response = await request(app)
+        .put('/student/me/training-sessions/day-1/execution/values')
+        .set('x-contract-id', 'contract-1').send(payload);
+      expect(response.status).toBe(200);
+      expect(mockSaveExecutionValues).toHaveBeenCalledWith({
+        sessionId: 'day-1', alunoId: 'aluno-1', contractId: 'contract-1',
+        actorUserId: 'user-1', payload,
+      });
+      expect(mockResolveActiveStudentMembership).toHaveBeenCalledWith('user-1', 'contract-1');
+    });
+
+    it('accepts a measured zero and a deliberate null without synthesizing either', async () => {
+      for (const speedKmh of [0, null]) {
+        mockSaveExecutionValues.mockClear();
+        const payload = { operationKey: 'issue401-speed-zero-or-null', expectedVersion: 1,
+          sessionValues: { speedKmh } };
+        const response = await request(app)
+          .put('/student/me/training-sessions/day-1/execution/values')
+          .set('x-contract-id', 'contract-1').send(payload);
+        expect(response.status).toBe(200);
+        expect(mockSaveExecutionValues).toHaveBeenCalledWith(expect.objectContaining({ payload }));
+      }
+    });
+
+    it.each([-0.5, '9', { kmh: 9 }])('rejects invalid speed %p with no service write', async (speedKmh) => {
+      const response = await request(app)
+        .put('/student/me/training-sessions/day-1/execution/values')
+        .set('x-contract-id', 'contract-1')
+        .send({ operationKey: 'issue401-speed-bad-route', expectedVersion: 1,
+          sessionValues: { speedKmh } });
+      expect(response.status).toBe(400);
+      expect(mockSaveExecutionValues).not.toHaveBeenCalled();
     });
   });
 

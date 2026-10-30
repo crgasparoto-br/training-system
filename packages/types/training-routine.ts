@@ -91,6 +91,8 @@ export interface TrainingSessionExecutionSessionValues {
   durationSec?: number | null;
   distanceKm?: number | null;
   pace?: string | null;
+  /** Average speed of this session, not a value inferred from pace or distance. */
+  speedKmh?: number | null;
   heartRateBpm?: number | null;
   heartRateZone?: string | null;
   /** Complete replacement arrays; the API verifies that every ID belongs to the released day. */

@@ -164,13 +164,13 @@ describe('issue #401: granular planned/executed comparison', () => {
     day.paceMin = 5;
     day.paceMax = 6;
     const metrics = get(compareWorkoutSession(day, execution({
-      sessionValues: { heartRateBpm: 140, pace: '5:30' },
+      sessionValues: { heartRateBpm: 140, pace: '5:30', speedKmh: 9 },
     }), 'captured').units, 'day-1')[0].metrics;
     expect(metrics.find((entry) => entry.key === 'heart_rate')).toMatchObject({
       planned: '120', plannedMax: '160', executed: 140, difference: null, plannedUnit: 'bpm',
     });
     expect(metrics.find((entry) => entry.key === 'speed')).toMatchObject({
-      planned: '8', plannedMax: '10', executed: null, difference: null, plannedUnit: 'km/h',
+      planned: '8', plannedMax: '10', executed: 9, difference: null, plannedUnit: 'km/h',
     });
     expect(metrics.find((entry) => entry.key === 'pace')).toMatchObject({
       planned: 5, plannedMax: 6, executed: '5:30', difference: null, plannedUnit: 'min/km',
@@ -180,6 +180,40 @@ describe('issue #401: granular planned/executed comparison', () => {
       .metrics.find((entry) => entry.key === 'heart_rate')).toMatchObject({
         planned: null, plannedMax: '160', difference: null,
       });
+  });
+
+  it('A-401-09: compares explicit speed for a legacy cyclic day without structured stages', () => {
+    const legacyDay = planned();
+    legacyDay.cyclicStages = [];
+    legacyDay.exercises = [];
+    legacyDay.resistanceGroups = [];
+    legacyDay.targetSpeedMin = '8';
+    legacyDay.targetSpeedMax = '10';
+    const recorded = compareWorkoutSession(legacyDay, execution({
+      sessionValues: { speedKmh: 9 },
+    }), 'captured');
+    const session = get(recorded.units, 'day-1')[0];
+    expect(recorded.units).toHaveLength(1);
+    expect(session.metrics.find((entry) => entry.key === 'speed')).toMatchObject({
+      planned: '8', plannedMax: '10', executed: 9,
+      plannedUnit: 'km/h', executedUnit: 'km/h', difference: null,
+    });
+    // A measurement alone cannot turn a lifecycle-completed workout into an inferred full workout.
+    expect(session.outcome).toBe('unclassified');
+    const missing = compareWorkoutSession(legacyDay, execution(), 'captured');
+    expect(get(missing.units, 'day-1')[0].metrics.find((entry) => entry.key === 'speed')?.executed)
+      .toBeNull();
+    const zero = compareWorkoutSession(legacyDay, execution({
+      sessionValues: { speedKmh: 0 },
+    }), 'captured');
+    expect(get(zero.units, 'day-1')[0].metrics.find((entry) => entry.key === 'speed')?.executed)
+      .toBe(0);
+    expect(get(zero.units, 'day-1')[0].outcome).toBe('unclassified');
+    const historical = compareWorkoutSession(legacyDay, execution({
+      sessionValues: { speedKmh: 9 },
+    }), 'released_plan');
+    expect(get(historical.units, 'day-1')[0].metrics.find((entry) => entry.key === 'speed'))
+      .toMatchObject({ planned: null, plannedMax: null, executed: 9, difference: null });
   });
 
   it('A-401-07: completed lifecycle is full only when all independent planned units are explicitly full', () => {

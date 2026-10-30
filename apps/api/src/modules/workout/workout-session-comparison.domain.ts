@@ -155,7 +155,7 @@ export function compareWorkoutSession(
     // Distance is compared only at stages that prescribe it explicitly.
     metric('distance', 'Distância', null, state.distanceKm, 'km'),
     metric('pace', 'Ritmo', planned.paceMin, state.pace, 'min/km', 'min/km', planned.paceMax),
-    metric('speed', 'Velocidade', planned.targetSpeedMin, null, 'km/h', 'km/h', planned.targetSpeedMax),
+    metric('speed', 'Velocidade', planned.targetSpeedMin, state.speedKmh, 'km/h', 'km/h', planned.targetSpeedMax),
     metric('heart_rate', 'Frequência cardíaca', planned.targetHrMin, state.heartRateBpm,
       'bpm', 'bpm', planned.targetHrMax),
     metric('heart_rate_zone', 'Zona de FC', null, state.heartRateZone, null),
@@ -280,7 +280,8 @@ export function compareWorkoutSession(
     || item.kind === 'group'
     || (item.kind === 'cyclic_stage' && cyclicLeafIds.has(item.plannedUnitId)));
   const hasSessionMeasurement = [state.durationSec, state.distanceKm, state.pace,
-    state.heartRateBpm, state.heartRateZone].some((value) => value !== undefined && value !== null);
+    state.speedKmh, state.heartRateBpm, state.heartRateZone]
+    .some((value) => value !== undefined && value !== null);
   const combined = summaryOutcome(children.map((item) => item.outcome), children.length);
   const recordedOutcome = combined === 'not_recorded' && hasSessionMeasurement
     ? children.length ? 'incomplete_record' : 'unclassified'

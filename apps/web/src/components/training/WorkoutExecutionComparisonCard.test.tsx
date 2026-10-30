@@ -65,7 +65,7 @@ describe('WorkoutExecutionComparisonCard (#401)', () => {
         { key: 'heart_rate', label: 'Frequência cardíaca', planned: '120', plannedMax: '160',
           executed: 140, plannedUnit: 'bpm', executedUnit: 'bpm', difference: null },
         { key: 'speed', label: 'Velocidade', planned: '8', plannedMax: '10',
-          executed: null, plannedUnit: 'km/h', executedUnit: 'km/h', difference: null },
+          executed: 9, plannedUnit: 'km/h', executedUnit: 'km/h', difference: null },
         { key: 'pace', label: 'Ritmo', planned: 5, plannedMax: 6,
           executed: '5:30', plannedUnit: 'min/km', executedUnit: 'min/km', difference: null },
         { key: 'hr_upper', label: 'Limite isolado', planned: null, plannedMax: '160',
@@ -75,6 +75,8 @@ describe('WorkoutExecutionComparisonCard (#401)', () => {
     render(<WorkoutExecutionComparisonCard comparison={rangeComparison} audience="student" />);
     expect(screen.getByText('120 bpm a 160 bpm')).toBeInTheDocument();
     expect(screen.getByText('8 km/h a 10 km/h')).toBeInTheDocument();
+    expect(screen.getByText((_text, element) => element?.tagName === 'DD'
+      && element.textContent?.includes('Executado: 9 km/h') === true)).toBeInTheDocument();
     expect(screen.getByText('5 min/km a 6 min/km')).toBeInTheDocument();
     expect(screen.getByText('Até 160 bpm')).toBeInTheDocument();
     expect(screen.queryByText(/diferença:/i)).not.toBeInTheDocument();

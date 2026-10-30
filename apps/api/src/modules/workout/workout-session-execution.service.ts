@@ -96,6 +96,9 @@ function normalizeSessionValues(values: TrainingSessionExecutionSessionValues | 
     normalized.distanceKm = values.distanceKm;
   }
   if (values.pace !== undefined) normalized.pace = normalizeText(values.pace, 32);
+  if (values.speedKmh !== undefined) {
+    normalized.speedKmh = checkNumber(values.speedKmh, 'Velocidade executada');
+  }
   if (values.heartRateBpm !== undefined) {
     if (values.heartRateBpm !== null && (!Number.isInteger(values.heartRateBpm) || values.heartRateBpm < 0 || values.heartRateBpm > 260)) throw new WorkoutSessionExecutionInputError('Frequência cardíaca executada inválida.');
     normalized.heartRateBpm = values.heartRateBpm;

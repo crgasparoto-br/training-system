@@ -11,6 +11,7 @@ import {
   WorkoutSessionExecutionNotFoundError,
 } from '../src/modules/workout/workout-session-execution.service.js';
 import { workoutService } from '../src/modules/workout/workout.service.js';
+import { compareWorkoutSession, readCapturedWorkoutComparisonPlan } from '../src/modules/workout/workout-session-comparison.domain.js';
 import { createStudentWorkoutService } from '../src/modules/workout/student-workout.service.js';
 import {
   createPostWorkoutFeedbackPersistenceService,
@@ -41,7 +42,8 @@ type Fixture = {
 
 async function seedReleasedWorkout(
   label: string,
-  options: { publish?: boolean; seedResistance?: boolean; seedComparison?: boolean; weeklyVolumeKm?: number } = {},
+  options: { publish?: boolean; seedResistance?: boolean; seedComparison?: boolean; weeklyVolumeKm?: number;
+    legacySpeedRange?: { min: string; max: string } } = {},
 ): Promise<Fixture> {
   const suffix = `${label}-${randomUUID()}`;
   const contractId = `issue-389-${suffix}`;
@@ -168,6 +170,8 @@ async function seedReleasedWorkout(
       dayOfWeek: 2,
       workoutDate: new Date('2026-10-06T00:00:00.000Z'),
       method: 'continuous',
+      ...(options.legacySpeedRange ? { targetSpeedMin: options.legacySpeedRange.min,
+        targetSpeedMax: options.legacySpeedRange.max } : {}),
     },
   });
 
@@ -2683,6 +2687,84 @@ describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
 
 
 describeDatabase('issue #401: frozen planned versus executed comparison', () => {
+  it('A-401-09: persists and compares a legacy session speed with versioning and historical origin', async () => {
+    const fixture = await seedReleasedWorkout('issue401-legacy-session-speed', {
+      legacySpeedRange: { min: '8', max: '10' },
+    });
+    expect(await prisma.workoutCyclicStage.count({ where: { workoutDayId: fixture.dayId } })).toBe(0);
+    await transition(fixture, 'issue401-legacy-speed-start', 0, 'in_progress');
+    const payload = {
+      operationKey: 'issue401-legacy-speed-measured', expectedVersion: 1,
+      sessionValues: { speedKmh: 9 },
+    };
+    const saved = await service.saveValues({
+      sessionId: fixture.dayId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId, actorUserId: fixture.alunoUserId, payload,
+    });
+    expect(saved.version).toBe(2);
+    expect(saved.sessionValues.speedKmh).toBe(9);
+    const replay = await service.saveValues({
+      sessionId: fixture.dayId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId, actorUserId: fixture.alunoUserId, payload,
+    });
+    expect(replay.version).toBe(2);
+    const persisted = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId },
+    });
+    expect(persisted.sessionValues).toMatchObject({ speedKmh: 9 });
+    const captured = readCapturedWorkoutComparisonPlan(persisted.plannedSnapshot);
+    expect(captured).not.toBeNull();
+    expect(captured?.targetSpeedMin).toBe('8');
+    expect(captured?.targetSpeedMax).toBe('10');
+    const reread = await service.getForSession({
+      sessionId: fixture.dayId, alunoId: fixture.alunoId, contractId: fixture.contractId,
+    });
+    const comparison = compareWorkoutSession(captured!, reread, 'captured');
+    expect(comparison.units.find((unit) => unit.kind === 'session')?.metrics
+      .find((metric) => metric.key === 'speed')).toMatchObject({
+      planned: '8', plannedMax: '10', executed: 9, difference: null,
+    });
+    const updateSibling = await service.saveValues({
+      sessionId: fixture.dayId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId, actorUserId: fixture.alunoUserId,
+      payload: { operationKey: 'issue401-legacy-speed-sibling', expectedVersion: 2,
+        sessionValues: { durationSec: 1200 } },
+    });
+    expect(updateSibling.sessionValues.speedKmh).toBe(9);
+    const clear = await service.saveValues({
+      sessionId: fixture.dayId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId, actorUserId: fixture.alunoUserId,
+      payload: { operationKey: 'issue401-legacy-speed-clear', expectedVersion: 3,
+        sessionValues: { speedKmh: null } },
+    });
+    expect(clear.sessionValues.speedKmh).toBeNull();
+    expect((await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId },
+    })).plannedSnapshot).toEqual(persisted.plannedSnapshot);
+  });
+
+  it('A-401-09: rejects invalid speed without writing an operation or changing the version', async () => {
+    const fixture = await seedReleasedWorkout('issue401-speed-invalid');
+    await transition(fixture, 'issue401-speed-invalid-start', 0, 'in_progress');
+    for (const [index, speedKmh] of [-1, '9', Infinity, Number.NaN].entries()) {
+      await expect(service.saveValues({
+        sessionId: fixture.dayId, alunoId: fixture.alunoId,
+        contractId: fixture.contractId, actorUserId: fixture.alunoUserId,
+        payload: { operationKey: `issue401-speed-invalid-${index}`, expectedVersion: 1,
+          sessionValues: { speedKmh: speedKmh as number } },
+      })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    }
+    const reread = await service.getForSession({
+      sessionId: fixture.dayId, alunoId: fixture.alunoId, contractId: fixture.contractId,
+    });
+    expect(reread.version).toBe(1);
+    expect(reread.sessionValues.speedKmh).toBeUndefined();
+    const stored = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, include: { operations: true },
+    });
+    expect(stored.operations).toHaveLength(1); // only the valid start transition
+  });
+
   it('captures the released graph on first execution, then compares stable stage, set and group IDs', async () => {
     const fixture = await seedReleasedWorkout('issue401-frozen', {
       seedResistance: true,

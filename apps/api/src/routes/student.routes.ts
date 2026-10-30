@@ -859,6 +859,7 @@ const executionSessionValuesSchema = z.object({
   durationSec: z.number().int().nonnegative().nullable().optional(),
   distanceKm: z.number().nonnegative().nullable().optional(),
   pace: z.string().trim().max(32).nullable().optional(),
+  speedKmh: z.number().finite().nonnegative().nullable().optional(),
   heartRateBpm: z.number().int().min(0).max(260).nullable().optional(),
   heartRateZone: z.string().trim().max(32).nullable().optional(),
   cyclicStages: z.array(executionCyclicStageSchema).max(500).optional(),
