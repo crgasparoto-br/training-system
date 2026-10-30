@@ -221,4 +221,35 @@ describe('WorkoutExecutionComparisonCard (#401)', () => {
     expect(screen.queryByText('Realizado')).not.toBeInTheDocument();
   });
 
+  it('A-401-13/14: renders distinct legacy recordings and their own cyclic measurements', () => {
+    const record = (setNumber: number, load: number, duration: number) => ({
+      ...comparison.units[2],
+      plannedUnitId: 'ex-1',
+      parentUnitId: 'ex-1',
+      label: 'Série registrada',
+      executedSetNumber: setNumber,
+      metrics: [
+        { key: 'load', label: 'Carga', planned: 20, plannedMax: null,
+          executed: load, plannedUnit: 'kg', executedUnit: 'kg',
+          difference: load - 20 },
+        { key: 'duration', label: 'Duração', planned: null, plannedMax: null,
+          executed: duration, plannedUnit: 's', executedUnit: 's', difference: null },
+      ],
+    });
+    const legacy: TrainingSessionComparison = {
+      ...comparison,
+      units: [comparison.units[0], record(1, 20, 0), record(3, 25, 600)],
+    };
+    const view = render(<WorkoutExecutionComparisonCard comparison={legacy} audience="professor" />);
+    expect(screen.getByText('Série registrada · registro 1')).toBeInTheDocument();
+    expect(screen.getByText('Série registrada · registro 3')).toBeInTheDocument();
+    expect(screen.getByText('0 s')).toBeInTheDocument();
+    expect(screen.getByText('600 s')).toBeInTheDocument();
+    expect(screen.getByText(/diferença: 5 kg/)).toBeInTheDocument();
+    view.rerender(<WorkoutExecutionComparisonCard comparison={legacy} audience="student" />);
+    expect(screen.queryByText('Série registrada · registro 1')).not.toBeInTheDocument();
+    expect(screen.queryByText('Série registrada · registro 3')).not.toBeInTheDocument();
+    expect(screen.queryByText(/diferença: 5 kg/)).not.toBeInTheDocument();
+  });
+
 });

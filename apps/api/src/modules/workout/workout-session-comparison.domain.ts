@@ -128,6 +128,35 @@ function unit(
   return { plannedUnitId, kind, label, outcome, parentUnitId, iteration, substitutionNote, executedSetNumber, containsSubstitution, metrics };
 }
 
+type RecordedExerciseItem = TrainingSessionExecutionView['items'][number];
+
+/** Execution measurements belong to the item, not to an invented day/stage target. */
+function exerciseItemCyclicMetrics(recorded: RecordedExerciseItem | null): TrainingSessionComparisonMetric[] {
+  return [
+    metric('duration', 'Duração', null, recorded?.durationSec, 's'),
+    metric('distance', 'Distância', null, recorded?.distanceKm, 'km'),
+    metric('pace', 'Ritmo', null, recorded?.pace, 'min/km'),
+    metric('heart_rate', 'Frequência cardíaca', null, recorded?.heartRateBpm, 'bpm'),
+    metric('heart_rate_zone', 'Zona de FC', null, recorded?.heartRateZone, null),
+  ];
+}
+
+/** Legacy exercises prescribe values at exercise level, not through plannedSetId. */
+function legacyExerciseItemMetrics(
+  exercise: DayPlan['exercises'][number],
+  recorded: RecordedExerciseItem | null,
+): TrainingSessionComparisonMetric[] {
+  return [
+    metric('repetitions', 'Repetições', exercise.reps, recorded?.repetitions, 'rep'),
+    metric('load', 'Carga', exercise.load, recorded?.loadKg, 'kg'),
+    metric('rest', 'Intervalo', exercise.intervalSec, recorded?.restSec, 's'),
+    metric('rir', 'RIR', null, recorded?.rir, null),
+    metric('rpe', 'RPE', null, recorded?.rpe, null),
+    metric('tempo', 'Cadência', null, recorded?.tempo, null),
+    ...exerciseItemCyclicMetrics(recorded),
+  ];
+}
+
 function summaryOutcome(
   recorded: TrainingSessionComparisonOutcome[],
   expectedCount: number,
@@ -225,15 +254,15 @@ export function compareWorkoutSession(
     const recordedCount = setCount
       ? setStatuses.filter((outcome) => outcome !== 'not_recorded').length : items.length;
     const exerciseMetrics = setCount > 0
-      // In structured workouts the exercise reports coverage only. Every actual
-      // repetition, load or rest is compared at its own planned set instead.
+      // Structured sets own their measurements; do not aggregate incompatible targets.
       ? [metric('sets', 'Séries com registro', setCount, recordedCount || null, 'séries')]
-      : [
-        metric('sets', 'Séries', exercise.sets, recordedCount || null, 'séries'),
-        metric('repetitions', 'Repetições', exercise.reps, actual?.repetitions, 'rep'),
-        metric('load', 'Carga', exercise.load, actual?.loadKg, 'kg'),
-        metric('rest', 'Intervalo', exercise.intervalSec, actual?.restSec, 's'),
-      ];
+      : items.length > 1
+        // Multiple legacy records cannot be collapsed into a single executed value.
+        ? [metric('sets', 'Séries', exercise.sets, recordedCount, 'séries')]
+        : [
+          metric('sets', 'Séries', exercise.sets, recordedCount || null, 'séries'),
+          ...legacyExerciseItemMetrics(exercise, actual),
+        ];
     result.push(unit(exercise.id, 'exercise', (() => {
       const catalog = exercise.releasedCatalog?.catalog;
       const name = catalog && typeof catalog === 'object' && !Array.isArray(catalog)
@@ -242,6 +271,17 @@ export function compareWorkoutSession(
     })(), recordedCount ? summaryOutcome(statuses, expected) : missingOutcome, exerciseMetrics,
     null, null, items.find((item) => item.outcome === 'substituted')?.substitutionNote ?? null,
     null, items.some((item) => item.outcome === 'substituted')));
+
+    if (setCount === 0 && items.length > 1) {
+      // A legacy series has no plannedSetId. Keep the exercise's real ID and
+      // the recorded setNumber rather than choosing one record or inventing IDs.
+      for (const logged of [...items].sort((a, b) => (a.setNumber ?? 0) - (b.setNumber ?? 0))) {
+        result.push(unit(exercise.id, 'set', 'Série registrada',
+          logged.outcome ?? 'unclassified',
+          legacyExerciseItemMetrics(exercise, logged),
+          exercise.id, null, logged.substitutionNote ?? null, logged.setNumber ?? 0));
+      }
+    }
 
     for (const block of exercise.resistanceBlocks) {
       const results = block.plannedSets.flatMap((set) =>
@@ -268,6 +308,7 @@ export function compareWorkoutSession(
               metric('rpe', 'RPE', set.rpe, logged?.rpe, null),
               metric('tempo', 'Cadência', set.tempo, logged?.tempo, null),
               metric('rest', 'Intervalo', set.restSec, logged?.restSec, 's'),
+              ...exerciseItemCyclicMetrics(logged),
             ], block.id, null, logged?.substitutionNote ?? null, logged?.setNumber ?? null));
         }
       }

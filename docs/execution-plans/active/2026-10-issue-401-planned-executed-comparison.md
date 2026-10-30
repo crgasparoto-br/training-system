@@ -3,7 +3,7 @@
 - Base: `develop`; branch de implementação: `feat/401-planned-executed-comparison`.
 - Autoridades: WorkoutDay/WorkoutCyclicStage/WorkoutExerciseBlock/WorkoutExercisePlannedSet/WorkoutResistanceGroup (prescrição); WorkoutSessionExecution/Item (#389) (realizado).
 - Dependências: #398, #399, #400 e #389 presentes na develop. Nenhuma nova árvore de montagem.
-- Status: remediações A-401-01..09 preservadas; A-401-10 corrigida no componente e testes, aguardando CI exact-SHA e nova auditoria independente.
+- Status: remediações A-401-01..12 preservadas; A-401-13 e A-401-14 implementadas com testes adversariais. Aguardando CI exact-SHA do novo candidato e auditoria independente.
 
 ## Objetivo
 
@@ -35,6 +35,8 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - [x] Remediação A-401-10: regressão web para diferenças de ±0,0004 kg, valores numéricos precisos, delta efetivamente zero, ausência e pequenas diferenças, inclusive projeção visual do professor.
 - [x] Remediação A-401-11: distinguir alvo exato, limite inferior isolado, limite superior e faixa (cíclico/sessão/série), sem delta para limites e sem conversão; `A partir de` na interface para mínimo unilateral. Cobertura com controle positivo para alvo exato e valores ausentes/zero.
 - [x] Remediação A-401-12: exercício com séries estruturadas apresenta apenas cobertura por IDs distintos de séries; carga/repetições/intervalo pertencem à comparação da série específica. Exercícios sem blocos preservam comparação legada. Regressões para séries divergentes, única série registrada, conjunto completo e visões aluno/professor.
+- [x] Testes adversariais A-401-13: múltiplas séries legadas preservadas por ID do exercício e ordinal executado, valores divergentes, substituição, ausência e fallback histórico.
+- [x] Testes adversariais A-401-14: métricas cíclicas registradas por exercício legado ou série estruturada, valores ausentes/zero e alvos indisponíveis sem fabricação.
 - [ ] `pnpm validate`, build e testes PostgreSQL no HEAD remoto definitivo.
 - [ ] Auditoria independente da PR com evidências de CI e revisão de segurança.
 
@@ -49,6 +51,8 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 7. No professor, comparar 20 kg prescritos com 20,0004 kg e 19,9996 kg executados: conferir valores originais distintos e diferenças positivas/negativas não zeradas; comparar também 20 kg versus 20 kg (zero legítimo), ausência de registro e uma diferença inferior a 0,001 kg.
 8. Na etapa cíclica e na série resistida, comparar limite inferior isolado (8 contra 9/10), superior isolado, faixa e alvo exato; confirmar `A partir de`/`Até` e que somente alvos exatos recebem diferença numérica.
 9. Em exercício estruturado com séries de 20 kg e 22 kg, registrar apenas a segunda série com 22 kg: o resumo do exercício deve mostrar 1 de 2 séries registradas, sem comparar a carga legada do exercício com a série. Conferir ambas as séries registradas e o fallback de exercício sem blocos.
+10. Em exercício legado sem plannedSetId, registrar duas séries com setNumber distintos (inclusive fora de ordem), cargas/repetições e substituição diferentes: o professor deve ver cada registro, o aluno apenas o resumo; não atribuir a uma série planejada inexistente.
+11. Registrar tempo, distância, ritmo e FC/zona diretamente num exercício legado ou série estruturada: confirmar valor individual, zero real e meta indisponível quando não houver prescrição própria por exercício, sem reutilizar valores de sessão/etapa.
 
 ## Decisões e riscos
 

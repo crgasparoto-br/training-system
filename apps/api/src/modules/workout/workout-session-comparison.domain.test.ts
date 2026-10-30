@@ -565,4 +565,103 @@ describe('issue #401: granular planned/executed comparison', () => {
     });
   });
 
+
+  it('A-401-13: preserves multiple legacy series by exercise ID and recorded ordinal', () => {
+    const day = planned();
+    day.exercises[0].resistanceBlocks = [];
+    day.exercises[0].sets = 3;
+    const comparison = compareWorkoutSession(day, execution({ items: [
+      { plannedUnitId: 'ex-1', setNumber: 3, outcome: 'substituted',
+        substitutionNote: 'Adaptação', repetitions: 8, loadKg: 25, restSec: 45,
+        rir: 1, rpe: 8, tempo: '3-1-1', durationSec: 600, distanceKm: 1.5,
+        pace: '6:40', heartRateBpm: 155, heartRateZone: 'Z4' },
+      { plannedUnitId: 'ex-1', setNumber: 1, outcome: 'full',
+        repetitions: 10, loadKg: 20, restSec: 60,
+        durationSec: 0, distanceKm: 0, heartRateBpm: 145, heartRateZone: 'Z3' },
+    ] }), 'captured');
+    const exercise = comparison.units.find((entry) => entry.kind === 'exercise');
+    expect(exercise).toMatchObject({ plannedUnitId: 'ex-1',
+      outcome: 'incomplete_record', containsSubstitution: true });
+    expect(exercise?.metrics).toEqual([expect.objectContaining({
+      key: 'sets', planned: 3, executed: 2,
+    })]);
+    const records = comparison.units.filter((entry) =>
+      entry.kind === 'set' && entry.plannedUnitId === 'ex-1');
+    expect(records.map((entry) => entry.executedSetNumber)).toEqual([1, 3]);
+    expect(records.map((entry) => entry.parentUnitId)).toEqual(['ex-1', 'ex-1']);
+    expect(records[0].metrics.find((entry) => entry.key === 'load'))
+      .toMatchObject({ planned: 20, executed: 20, difference: 0 });
+    expect(records[1].metrics.find((entry) => entry.key === 'load'))
+      .toMatchObject({ planned: 20, executed: 25, difference: 5 });
+    expect(records[1].metrics.find((entry) => entry.key === 'tempo'))
+      .toMatchObject({ planned: null, executed: '3-1-1', difference: null });
+    expect(records[1]).toMatchObject({
+      outcome: 'substituted', substitutionNote: 'Adaptação',
+    });
+    expect(records[0].metrics.find((entry) => entry.key === 'duration'))
+      .toMatchObject({ planned: null, executed: 0, difference: null });
+    expect(records[1].metrics.find((entry) => entry.key === 'duration'))
+      .toMatchObject({ planned: null, executed: 600, difference: null });
+    expect(projectWorkoutComparisonForAudience(comparison, 'student').units
+      .some((entry) => entry.kind === 'set')).toBe(false);
+    const legacy = compareWorkoutSession(day, execution({ items: [
+      { plannedUnitId: 'ex-1', setNumber: 1, outcome: 'full', loadKg: 20 },
+      { plannedUnitId: 'ex-1', setNumber: 2, outcome: 'full', loadKg: 22 },
+      { plannedUnitId: 'ex-1', setNumber: 3, outcome: 'full', loadKg: 24 },
+    ] }), 'released_plan');
+    expect(legacy.units.find((entry) => entry.kind === 'exercise')?.outcome).toBe('full');
+    expect(legacy.units.filter((entry) => entry.kind === 'set')).toHaveLength(3);
+    expect(legacy.units.flatMap((entry) => entry.metrics).every((entry) =>
+      entry.planned === null && entry.difference === null)).toBe(true);
+  });
+
+  it('A-401-14: exposes legacy per-exercise cyclic measurements without synthetic targets', () => {
+    const day = planned();
+    day.exercises[0].resistanceBlocks = [];
+    const comparison = compareWorkoutSession(day, execution({ items: [{
+      plannedUnitId: 'ex-1', setNumber: 1, outcome: 'partial',
+      durationSec: 600, distanceKm: 0, pace: '6:30',
+      heartRateBpm: 145, heartRateZone: 'Z3',
+      rir: 2, rpe: 7, tempo: '2-0-2',
+    }] }), 'captured');
+    const exercise = comparison.units.find((entry) => entry.kind === 'exercise');
+    expect(exercise).toBeDefined();
+    for (const [key, value, unit] of [
+      ['duration', 600, 's'], ['distance', 0, 'km'],
+      ['pace', '6:30', 'min/km'], ['heart_rate', 145, 'bpm'],
+      ['heart_rate_zone', 'Z3', null],
+    ] as const) {
+      expect(exercise?.metrics.find((entry) => entry.key === key))
+        .toMatchObject({ planned: null, executed: value,
+          plannedUnit: unit, executedUnit: unit, difference: null });
+    }
+    expect(exercise?.metrics.find((entry) => entry.key === 'rir'))
+      .toMatchObject({ planned: null, executed: 2, difference: null });
+    expect(projectWorkoutComparisonForAudience(comparison, 'student').units
+      .find((entry) => entry.kind === 'exercise')?.metrics.find((entry) =>
+        entry.key === 'distance')?.executed).toBe(0);
+  });
+
+  it('A-401-14: structured set cyclic recordings remain on their own planned set', () => {
+    const comparison = compareWorkoutSession(planned(), execution({ items: [{
+      plannedUnitId: 'ex-1', plannedSetId: 'set-2', setNumber: 2, outcome: 'full',
+      repetitions: 10, loadKg: 22, durationSec: 0, distanceKm: 1.8,
+      pace: '5:15', heartRateBpm: 151, heartRateZone: 'Z4',
+    }] }), 'captured');
+    const set = get(comparison.units, 'set-2')[0];
+    expect(set.metrics.find((entry) => entry.key === 'duration'))
+      .toMatchObject({ planned: null, executed: 0, difference: null });
+    expect(set.metrics.find((entry) => entry.key === 'distance'))
+      .toMatchObject({ planned: null, executed: 1.8, difference: null });
+    expect(set.metrics.find((entry) => entry.key === 'pace'))
+      .toMatchObject({ planned: null, executed: '5:15', difference: null });
+    expect(set.metrics.find((entry) => entry.key === 'heart_rate'))
+      .toMatchObject({ planned: null, executed: 151, difference: null });
+    expect(set.metrics.find((entry) => entry.key === 'heart_rate_zone'))
+      .toMatchObject({ planned: null, executed: 'Z4', difference: null });
+    expect(get(comparison.units, 'ex-1')[0].metrics.map((entry) => entry.key))
+      .toEqual(['sets']);
+    expect(projectWorkoutComparisonForAudience(comparison, 'student').units
+      .some((entry) => entry.kind === 'set')).toBe(false);
+  });
 });
