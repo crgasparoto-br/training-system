@@ -697,8 +697,13 @@ describeDb('student-lifecycle integration (banco real)', () => {
       where: { alunoId: prepared.lead.id },
       orderBy: { createdAt: 'asc' },
     });
-    expect(events.at(-1)).toMatchObject({
+    // STATUS_CHANGED and REOPENED may have identical createdAt values within
+    // one transaction; timestamp-only ordering cannot identify the last event.
+    const reopenedEvents = events.filter((event) => event.eventType === 'REOPENED');
+    expect(reopenedEvents).toHaveLength(1);
+    expect(reopenedEvents[0]).toMatchObject({
       eventType: 'REOPENED',
+      actorProfessorId: professorId,
       metadata: expect.objectContaining({
         from: 'DISCARDED',
         to: 'LEAD',
