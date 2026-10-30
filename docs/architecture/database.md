@@ -210,3 +210,18 @@ O mesmo guard relê release, execução iniciada, histórico legado e itens exec
 antes de permitir mutações. A integração adversarial mantém uma transação de início
 com lock do dia aberta e confirma que a inserção estrutural concorrente aguarda o
 commit e então é rejeitada.
+
+## Execução guiada e vínculo de conclusão (#487)
+
+A migration `20261028220000_issue_487_guided_resistance_completion` acrescenta `WorkoutSessionExecutionItem.completedAt` e `completedByOperationId`, com FK para `WorkoutSessionExecutionOperation.id` e unicidade por operação. Um item concluído é imutável, a operação deve pertencer à mesma execução e ter ação `complete_resistance_set`, e o trigger diferido exige vínculo com a versão resultante e o evento de lifecycle da #389. Assim, uma operação de uma série não pode confirmar outra, mesmo por SQL direto. Valores realizados permanecem distintos das séries planejadas da #399.
+
+Agrupamentos usam exclusivamente as tabelas `WorkoutResistanceGroup` e `WorkoutResistanceGroupMember` entregues pela #400 (PR #521), com identidade e ordem persistidas. A #487 não acrescenta campos de agrupamento em `WorkoutExercise`; a UI percorre o grafo canônico por rodada e participante, e treinos legados sem estrutura suficiente continuam em leitura segura. A migration #400 valida origem e destino das associações e cardinalidade final dos grupos em constraints diferidas.
+
+A migration adicional `20261029210000_issue_487_completed_operation_guard` fecha a janela de alteração direta no ledger de uma série já concluída enquanto a sessão permanece `in_progress`. Operações referenciadas por `completedByOperationId` rejeitam UPDATE de fingerprint, versão, chave, ação ou evento e DELETE, com a única exceção da ligação inicial `lifecycleEventId` nulo para não nulo no mesmo registro, sem alterar os demais campos, exigida pelo fluxo transacional #389. O teste PostgreSQL direto rejeita alterações posteriores e confirma que a conclusão normal e o replay idempotente continuam válidos.
+
+
+### Integridade ordinal e proveniência dos eventos da #487
+
+A migration 20261030120000_issue_487_set_event_integrity exige que WorkoutSessionExecutionItem.setNumber corresponda ao ranking persistido das séries, ordenado por bloco.position e série.position. Novas gravações SQL com IDs ou ordinais inconsistentes são rejeitadas. A migration não inventa backfill e não altera silenciosamente histórico; rascunhos anteriores são recuperados por serviço apenas quando há destino livre.
+
+A operação de conclusão passa a ter FK entre WorkoutSessionExecutionOperation.lifecycleEventId e StudentLifecycleEvent.id, validando os valores preexistentes e falhando caso haja referências órfãs. O trigger de ledger diferido garante o mesmo aluno, contrato, treino, operação, domínio, ação e versões do lifecycle. O evento vinculado a uma série concluída fica imutável. O fluxo canônico #389 cria, vincula e confirma tudo em uma transação serializável; a aprovação exige regressões PostgreSQL de casos falsos e replay verdadeiro.

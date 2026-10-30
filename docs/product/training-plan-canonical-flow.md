@@ -123,6 +123,8 @@ Treinamentos legados permanecem válidos: se `cyclicStages` estiver ausente, a s
 
 Tipos explícitos: `superserie` (2–4 participantes), `bi_set` (2), `tri_set` (3), `circuito` (2–20), `bloco_tecnico` (1–20), `mobilidade` (1–20) e `finalizacao` (1–20). O agrupamento pode informar `rounds` (1–100), `restBetweenExercisesSec`, `restBetweenRoundsSec` (0–86400 cada) e `notes` (até 500 caracteres). A omissão de rodadas ou descanso representa valor **não prescrito**, nunca zero presumido. Uma linha de `WorkoutExercise` participa de no máximo um grupo do seu dia. O código de `system` e o marcador legado `groupBreakBefore` continuam disponíveis para treinos antigos, mas **não definem** um grupo estruturado novo por inferência textual.
 
+Na projeção guiada da issue #487, `restBetweenExercisesSec` aplica-se entre participantes da mesma rodada, e `restBetweenRoundsSec` somente entre rodadas efetivamente existentes. Após o último participante da última rodada, não se reaplica o intervalo entre rodadas. Um descanso individual de série explicitamente planejado continua disponível como parâmetro próprio; a interface não o anuncia depois de encerrar todas as séries da sessão. Cronômetros e contagem temporal pertencem à #488.
+
 A tela de montagem resistida permite selecionar e substituir participantes já existentes sem desfazer grupos, alterar tipo, ordenar grupos e participantes, editar rodadas/intervalos e desfazer agrupamentos. Quando faltam participantes livres, explica o mínimo necessário antes de habilitar a criação. Excluir um exercício retira sua associação; um grupo que perder a cardinalidade mínima é desfeito sem apagar os outros exercícios. A tela de dia/semana liberados é de somente leitura.
 
 O salvamento principal da montagem é `PUT /api/v1/workout/templates/:id/save-week`, incluindo `resistanceGroups: { "1": [{ position, kind, rounds?, restBetweenExercisesSec?, restBetweenRoundsSec?, notes?, members: [{ position, section, exerciseOrder }] }] }`. Os campos `section` e `exerciseOrder` identificam a linha canônica **após a conciliação do mesmo snapshot de exercícios**; o servidor nunca aceita IDs ou relações Prisma arbitrárias do cliente como substituição de autorização. Também existe `PUT /api/v1/workout/days/:id/resistance-groups` com `{ groups: [...], baseUpdatedAt: "<WorkoutTemplate.updatedAt em ISO UTC>" }`. Sempre que `resistanceGroups` for enviado no snapshot semanal, `baseUpdatedAt` também é obrigatório; a API rejeita versão ausente/inválida (400) ou obsoleta (409) antes de resolver as posições dos participantes. A reordenação incrementa a revisão de maneira monotônica, mesmo quando duas alterações ocorrem no mesmo milissegundo. O campo omitido preserva agrupamentos anteriores; a lista vazia explícita os remove somente enquanto o planejamento estiver editável.
@@ -147,12 +149,12 @@ A migração preenche snapshots de treinos **já liberados** somente com o catá
 
 ### Leitura histórica por período — AUD-400-05
 
-As consultas `GET /api/v1/executions/workout-days` (aluno, somente treinos liberados) e
-`GET /api/v1/executions/professor/workout-days` (professor, incluindo rascunhos) usam a
-mesma projeção de catálogo que a leitura individual do dia. Cada `WorkoutDay`
-liberado exibe os metadados capturados em `WorkoutReleasedExerciseSnapshot`,
+As consultas GET /api/v1/executions/workout-days (aluno, somente treinos liberados) e
+GET /api/v1/executions/professor/workout-days (professor, incluindo rascunhos) usam a
+mesma projeção de catálogo que a leitura individual do dia. Cada WorkoutDay
+liberado exibe os metadados capturados em WorkoutReleasedExerciseSnapshot,
 mesmo após alterações posteriores na biblioteca. Dias ainda não liberados
 exibem o catálogo editável corrente. A resposta pública não inclui
-`releasedCatalog`; identidades dos exercícios, agrupamentos, membros e
+releasedCatalog; identidades dos exercícios, agrupamentos, membros e
 séries planejadas permanecem inalteradas. O escopo do aluno/contrato e
-a seleção `releasedOnly` das rotas são preservados.
+a seleção releasedOnly das rotas são preservados.
