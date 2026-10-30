@@ -557,6 +557,30 @@ describe('issue #488 - integração com guia e reconciliação', () => {
     expect(await screen.findByRole('button', { name: 'Concluir série' })).toBeEnabled();
   });
 
+  it('reativa a conclusão automática depois de 409, GET offline e atualização manual', async () => {
+    const expired = { ...rest, remainingMs: 0, elapsedMs: 60_000 };
+    const current = projection({ version: 2, completed: 1, current: second, next: null, rest: expired });
+    const refreshed = projection({ version: 3, completed: 1, current: second, next: null, rest: expired });
+    const load = vi.fn().mockResolvedValueOnce(current)
+      .mockRejectedValueOnce(new Error('GET offline after conflict'))
+      .mockResolvedValueOnce(refreshed);
+    const restAction = vi.fn()
+      .mockRejectedValueOnce({ response: { status: 409, data: { details: {
+        code: 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT',
+      } } } })
+      .mockResolvedValueOnce(projection({ version: 4, completed: 1, current: second, next: null, rest: null }));
+    render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
+      load={load} complete={vi.fn()} restAction={restAction} onOverview={vi.fn()} />);
+    await waitFor(() => expect(restAction).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/recarga falhou/);
+    expect(screen.getByRole('button', { name: 'Pular descanso' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Atualizar estado salvo' }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(restAction).toHaveBeenCalledTimes(2), { timeout: 4000 });
+    expect(restAction.mock.calls[1][1].expectedVersion).toBe(3);
+    expect(await screen.findByRole('button', { name: 'Concluir série' })).toBeEnabled();
+  });
+
   it('mantém bloqueio de 409 se GET de reconciliação falhar e restaura após nova versão', async () => {
     const stale = projection({ version: 2, completed: 1, current: second, next: null, rest });
     const fresh = projection({ version: 3, completed: 1, current: second, next: null, rest: null });

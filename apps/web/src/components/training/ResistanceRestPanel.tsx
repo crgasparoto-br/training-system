@@ -116,7 +116,10 @@ export function ResistanceRestPanel({ rest, observation, status, busy, disabled 
       }
       if (autoFinishRef.current !== currentAttempt) return;
       currentAttempt.pending = false;
-      if (outcome === 'retry') {
+      if (outcome === 'retry' || outcome === 'blocked') {
+        // Blocked reconciliation disables controls until a fresh canonical GET.
+        // Once it succeeds the same rest can request completion again, rather
+        // than being permanently disarmed by the earlier failed lookup.
         currentAttempt.failures += 1;
         currentAttempt.retryAtMs = performance.now()
           + Math.min(1000 * 2 ** (currentAttempt.failures - 1), 15_000);
