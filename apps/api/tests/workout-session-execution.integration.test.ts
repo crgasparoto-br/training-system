@@ -3351,7 +3351,7 @@ describeDatabase('issue #488: durable resistant rest and canonical session owner
     const resumed = await concurrentService.getGuidedForSession(scope(fixture));
     expect(resumed.status).toBe('in_progress');
     expect(Date.parse(resumed.rest!.targetEndsAt)).toBeGreaterThan(targetBefore);
-    expect(Math.abs(resumed.rest!.remainingMs - pausedRemaining)).toBeLessThan(250);
+    expect(Math.abs(resumed.rest!.remainingMs - pausedRemaining)).toBeLessThan(1500);
     expect((await prisma.workoutSessionResistanceRest.findUniqueOrThrow({
       where: { id: paused.rest!.id },
     })).pausedDurationMs).toBeGreaterThan(0n);

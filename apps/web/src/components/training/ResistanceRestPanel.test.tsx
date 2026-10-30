@@ -10,7 +10,7 @@ const rest: GuidedResistanceRestView = {
   elapsedMs: 0, remainingMs: 60_000,
 };
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => { vi.useRealTimers(); });
 
 describe('issue #488: relógio de descanso', () => {
   it('reconstrói a contagem por timestamps após o navegador ficar em background', () => {
@@ -25,7 +25,8 @@ describe('issue #488: relógio de descanso', () => {
     expect(onAction).not.toHaveBeenCalled();
     act(() => vi.advanceTimersByTime(20_000));
     expect(screen.getByRole('timer')).toHaveTextContent('00:00');
-    expect(onAction).toHaveBeenCalledExactlyOnceWith('finish');
+    expect(onAction).toHaveBeenCalledTimes(1);
+    expect(onAction).toHaveBeenCalledWith('finish');
     act(() => vi.advanceTimersByTime(30_000));
     expect(onAction).toHaveBeenCalledTimes(1);
   });

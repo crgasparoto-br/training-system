@@ -72,7 +72,7 @@ export function ResistanceRestPanel({ rest, status, busy, disabled = false, onAc
   // Local expiry only REQUESTS the canonical finish. The API checks clock,
   // version, ownership and pause/terminal state on every request.
   useEffect(() => {
-    const key = rest.id + ':' + rest.targetEndsAt;
+    const key = rest.id + ':' + rest.targetEndsAt + ':' + rest.serverNow;
     if (remainingMs > 0 || controlsDisabled || autoFinishRef.current === key) return;
     autoFinishRef.current = key;
     onAction('finish');
