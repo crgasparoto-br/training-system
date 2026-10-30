@@ -3202,5 +3202,9 @@ describeDatabase('issue #487: auditoria de ordinal e origem de evento', () => {
     await expect(prisma.studentLifecycleEvent.update({
       where: { id: operation.lifecycleEventId! }, data: { metadata: { eventKey: 'forged' } },
     })).rejects.toThrow(/completed guided lifecycle event is immutable/);
+    await expect(prisma.studentLifecycleEvent.update({
+      where: { id: operation.lifecycleEventId! },
+      data: { createdAt: new Date('2000-01-01T00:00:00.000Z') },
+    })).rejects.toThrow(/completed guided lifecycle event is immutable/);
   });
 });
