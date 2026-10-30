@@ -98,6 +98,8 @@ describe('issue #488: relógio de descanso', () => {
   });
 
   it('oferece extensão e interrupção como comandos, não escreve tempo planejado', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(rest.serverNow));
     const onAction = vi.fn();
     render(<ResistanceRestPanel rest={{ ...rest, extensionSeconds: 15 }}
       status="in_progress" busy={false} onAction={onAction} />);
