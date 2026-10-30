@@ -3,7 +3,7 @@
 - Repositório: `crgasparoto-br/training-system`
 - Base: `develop`; branch de implementação: `feat/400-resistance-groups`
 - Dependência: #399 (blocos e séries do exercício canônico)
-- Estado: candidato à validação em CI e revisão independente; não há autorização de merge.
+- Estado: PR #521 integrada à `develop` em 29/10/2026 (`c76276637e8136bc247c0aef53103764caa75827`); issue #400 permanece aberta por pendência AUD-400-05 e revisão independente. A remediação atual não possui autorização de merge automático.
 
 ## Contrato e riscos
 
@@ -49,7 +49,7 @@
 
 ## Entrega
 
-Não efetuar merge. A implementação só será considerada concluída após checks do HEAD exato, validação de migração, testes relevantes e auditoria independente sem pendências.
+A implementação original da PR #521 já foi mesclada na `develop`, mas isso **não** implica encerramento formal da issue. A remediação AUD-400-05 exige novos testes e CI no SHA definitivo, seguidos de auditoria independente; não efetuar novo merge automático.
 
 ## Evidência visual específica da #400 — 29/10/2026
 
@@ -58,3 +58,10 @@ Não efetuar merge. A implementação só será considerada concluída após che
 - Controles negativos: exercício cíclico Unicode NFD não oferecido, desfazer agrupamento preserva exercícios, e somente leitura desabilita ações.
 - As evidências ficam em `artifacts/issue-400/` do run do SHA exato. A suíte é isolada com UI/CSS reais, **não** representa login real ou backend autenticado; os controles API/PostgreSQL permanecem em testes separados.
 - Auditoria independente permanece necessária. Nenhum merge autorizado.
+
+## AUD-400-05 / REC-400-01 — remediação pós-merge (30/10/2026)
+
+- **AUD-400-05 (bloqueante):** `workoutService.getWorkoutDaysByRange()` fazia retorno direto do Prisma: o aluno e o professor recebiam nome atual do catálogo e a relação interna `releasedCatalog` em consultas por período, apesar do snapshot de liberação. Corrigir no serviço com `projectWorkoutDayExerciseCatalog(day, day.template.released)` por dia, reutilizando o projetor canônico existente.
+- **Cenários de regressão:** liberação com agrupamento/séries, renomeação posterior do exercício, listagens por período do aluno (`releasedOnly: true`) e professor (`releasedOnly: false`) preservam o nome prescrito, IDs e séries; exercício editável não liberado continua com o nome atual; aluno não recebe rascunhos de treino; `releasedCatalog` não atravessa a resposta; as duas rotas HTTP mantêm filtros por público.
+- **REC-400-01 (documental):** corrigir este plano e registrar na issue a integração já realizada da PR #521, diferenciando merge/CI de auditoria independente.
+- **Validação obrigatória:** testes PostgreSQL e HTTP afetados, `pnpm validate` e GitHub Actions exact-SHA; nova auditoria independente. Nenhuma alteração de schema, migração ou UI é necessária para esta correção.

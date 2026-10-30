@@ -2605,6 +2605,22 @@ describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
       .find((row) => row.id === exercise.id);
     expect(professorExercise?.exercise.name).toBe(originalName);
     expect(professorExercise?.releasedCatalog).toBeUndefined();
+    // AUD-400-05: both student and professor range reads must use the released catalog.
+    for (const releasedOnly of [true, false]) {
+      const range = await workoutService.getWorkoutDaysByRange(
+        fixture.alunoId, '2026-10-06', '2026-10-06', { releasedOnly },
+      );
+      expect(range).toHaveLength(1);
+      expect(range[0].template.released).toBe(true);
+      expect(range[0].resistanceGroups.map((item) => item.id)).toEqual([group.id]);
+      const rangeExercise = range[0].exercises.find((row) => row.id === exercise.id);
+      expect(rangeExercise?.exercise.name).toBe(originalName);
+      expect(rangeExercise?.releasedCatalog).toBeUndefined();
+      expect(rangeExercise?.resistanceBlocks[0].plannedSets[0].loadKg).toBe(32.5);
+    }
+    expect(await workoutService.getWorkoutDaysByRange(
+      'another-student', '2026-10-06', '2026-10-06', { releasedOnly: true },
+    )).toEqual([]);
     expect((await prisma.workoutResistanceGroup.findUniqueOrThrow({
       where: { id: group.id }, include: { members: { orderBy: { position: 'asc' } } },
     })).members.map((member) => member.workoutExerciseId))
@@ -2641,6 +2657,30 @@ describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
       'INSERT INTO "WorkoutReleasedExerciseSnapshot" ("workoutExerciseId", "catalog") VALUES ($1, $2::jsonb) ON CONFLICT ("workoutExerciseId") DO NOTHING',
       fixture.exerciseIds[1], JSON.stringify({ name: 'Inserção tardia' }),
     )).rejects.toThrow();
+  });
+
+  it('AUD-400-05: professor sees live draft metadata while student range excludes unpublished days', async () => {
+    const fixture = await seedReleasedWorkout('issue400-range-draft', { publish: false, seedResistance: true });
+    const exercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] }, include: { exercise: true },
+    });
+    await prisma.exerciseLibrary.update({
+      where: { id: exercise.exerciseId }, data: { name: 'Nome atual do rascunho' },
+    });
+
+    const professorRange = await workoutService.getWorkoutDaysByRange(
+      fixture.alunoId, '2026-10-06', '2026-10-06', { releasedOnly: false },
+    );
+    expect(professorRange).toHaveLength(1);
+    expect(professorRange[0].template.released).toBe(false);
+    const draftExercise = professorRange[0].exercises.find((row) => row.id === exercise.id);
+    expect(draftExercise?.exercise.name).toBe('Nome atual do rascunho');
+    expect(draftExercise?.releasedCatalog).toBeUndefined();
+    expect(draftExercise?.resistanceBlocks[0].plannedSets[0].loadKg).toBe(32.5);
+
+    expect(await workoutService.getWorkoutDaysByRange(
+      fixture.alunoId, '2026-10-06', '2026-10-06', { releasedOnly: true },
+    )).toEqual([]);
   });
 
   it('RISK-001: edição individual não pode mover ordinal, mas reordenação atômica pode', async () => {
