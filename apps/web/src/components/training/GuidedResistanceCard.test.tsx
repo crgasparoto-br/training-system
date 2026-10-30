@@ -457,3 +457,69 @@ describe('issue #487 - guia resistido', () => {
     expect(complete).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('issue #488 - integração com guia e reconciliação', () => {
+  const rest = {
+    id: 'rest-1', afterPlannedSetId: 'set-1', plannedSeconds: 60,
+    extensionSeconds: 0, startedAt: new Date().toISOString(),
+    targetEndsAt: new Date(Date.now() + 60000).toISOString(),
+    serverNow: new Date().toISOString(), elapsedMs: 0, remainingMs: 60000,
+  };
+
+  it('prioriza descanso canônico e não habilita a próxima série até confirmar o skip', async () => {
+    const current = projection({ version: 2, completed: 1, current: second, next: null, rest });
+    const load = vi.fn().mockResolvedValue(current);
+    const complete = vi.fn();
+    const restAction = vi.fn().mockResolvedValue(projection({
+      version: 3, completed: 1, current: second, next: null, rest: null,
+    }));
+    render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
+      load={load} complete={complete} restAction={restAction}
+      onOverview={vi.fn()} onExecutionChanged={vi.fn().mockResolvedValue(undefined)} />);
+    expect(await screen.findByRole('region', { name: 'Descanso entre séries' })).toBeInTheDocument();
+    expect(screen.getByRole('timer')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Concluir série' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Pular descanso' }));
+    await waitFor(() => expect(restAction).toHaveBeenCalledWith('day-1', expect.objectContaining({
+      operationKey: expect.stringContaining('rest-'), expectedVersion: 2, restId: 'rest-1', action: 'skip',
+    })));
+    expect(await screen.findByRole('button', { name: 'Concluir série' })).toBeEnabled();
+    expect(complete).not.toHaveBeenCalled();
+  });
+
+  it('reutiliza chave após timeout e não inventa sucesso antes de resposta válida', async () => {
+    const current = projection({ version: 2, completed: 1, current: second, next: null, rest });
+    const load = vi.fn().mockResolvedValue(current);
+    const restAction = vi.fn().mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce(projection({
+      version: 3, completed: 1, current: second, next: null, rest: null,
+    }));
+    render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
+      load={load} complete={vi.fn()} restAction={restAction} onOverview={vi.fn()} />);
+    await screen.findByRole('button', { name: 'Pular descanso' });
+    await userEvent.click(screen.getByRole('button', { name: 'Pular descanso' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/não foi possível confirmar o descanso/i);
+    expect(screen.getByRole('timer')).toBeInTheDocument();
+    expect(screen.queryByText(/Descanso pulado/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Pular descanso' }));
+    await waitFor(() => expect(restAction).toHaveBeenCalledTimes(2));
+    expect(restAction.mock.calls[0][1].operationKey).toBe(restAction.mock.calls[1][1].operationKey);
+    expect(await screen.findByText(/Descanso pulado/)).toBeInTheDocument();
+  });
+
+  it('mantém bloqueio de 409 se GET de reconciliação falhar e restaura após nova versão', async () => {
+    const stale = projection({ version: 2, completed: 1, current: second, next: null, rest });
+    const fresh = projection({ version: 3, completed: 1, current: second, next: null, rest: null });
+    const load = vi.fn().mockResolvedValueOnce(stale).mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(fresh);
+    const restAction = vi.fn().mockRejectedValue({ response: { status: 409 } });
+    render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
+      load={load} complete={vi.fn()} restAction={restAction} onOverview={vi.fn()} />);
+    await screen.findByRole('button', { name: 'Pular descanso' });
+    await userEvent.click(screen.getByRole('button', { name: 'Pular descanso' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/outro dispositivo.*recarga falhou/);
+    expect(screen.getByRole('button', { name: 'Pular descanso' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Atualizar estado salvo' }));
+    expect(await screen.findByRole('button', { name: 'Concluir série' })).toBeEnabled();
+    expect(restAction).toHaveBeenCalledTimes(1);
+  });
+});
