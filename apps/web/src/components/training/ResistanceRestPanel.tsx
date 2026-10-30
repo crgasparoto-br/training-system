@@ -2,12 +2,22 @@ import { useEffect, useRef, useState } from 'react';
 import type { GuidedResistanceRestView, TrainingSessionExecutionStatus } from '@corrida/types';
 import { Button } from '../ui/Button';
 
+/** Client-only measurement: one HTTP response was requested/received on this page's
+ * monotonic clock. It never changes the server's rest or its authorization. */
+export type ResistanceRestObservation = {
+  requestedAtMs: number;
+  receivedAtMs: number;
+};
+
+export type ResistanceRestActionResult = 'accepted' | 'retry' | 'blocked';
+
 type Props = {
   rest: GuidedResistanceRestView;
+  observation: ResistanceRestObservation;
   status: TrainingSessionExecutionStatus;
   busy: boolean;
   disabled?: boolean;
-  onAction: (action: 'extend_15' | 'skip' | 'finish') => void;
+  onAction: (action: 'extend_15' | 'skip' | 'finish') => Promise<ResistanceRestActionResult> | void;
 };
 
 function displaySeconds(value: number): string {
@@ -17,22 +27,38 @@ function displaySeconds(value: number): string {
 }
 
 /**
- * Rendering clock only: the server supplies deadlines, elapsed time and pause
- * semantics. setInterval cannot mutate execution or earn elapsed time.
+ * A server snapshot is created after a request begins. The round-trip is an
+ * upper estimate of its transport age (the server can spend some of it working).
+ * Measuring it with performance.now avoids trusting the device's wall-clock or
+ * its timezone. After receipt, the same monotonic clock advances the display.
+ * Only the backend may authorize the actual completion.
  */
-export function ResistanceRestPanel({ rest, status, busy, disabled = false, onAction }: Props) {
-  const [, setTick] = useState(0);
+export function projectRestDisplay(
+  rest: GuidedResistanceRestView,
+  status: TrainingSessionExecutionStatus,
+  observation: ResistanceRestObservation,
+  nowMs: number,
+) {
+  const displayDelta = status === 'in_progress'
+    ? Math.max(0, observation.receivedAtMs - observation.requestedAtMs)
+      + Math.max(0, nowMs - observation.receivedAtMs)
+    : 0;
+  return {
+    remainingMs: Math.max(0, rest.remainingMs - displayDelta),
+    elapsedMs: rest.elapsedMs + displayDelta,
+  };
+}
+
+/** Rendering only: timer ticks cannot mutate the persisted rest. */
+export function ResistanceRestPanel({ rest, observation, status, busy, disabled = false, onAction }: Props) {
+  const [tick, setTick] = useState(0);
   const [alertsEnabled, setAlertsEnabled] = useState(false);
   const notifiedSecondsRef = useRef<string | null>(null);
-  const autoFinishRef = useRef<string | null>(null);
+  const autoFinishRef = useRef<{
+    key: string; pending: boolean; finished: boolean; failures: number; retryAtMs: number;
+  } | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  // A server snapshot may spend seconds in transit. Include that age when
-  // rendering; receipt time must not restart elapsed rest. Only the server
-  // authorizes finish/skip, never this display-only wall clock.
-  const displayDelta = status === 'in_progress'
-    ? Math.max(0, Date.now() - Date.parse(rest.serverNow)) : 0;
-  const remainingMs = Math.max(0, rest.remainingMs - displayDelta);
-  const elapsedMs = rest.elapsedMs + displayDelta;
+  const { remainingMs, elapsedMs } = projectRestDisplay(rest, status, observation, performance.now());
   const secondsLeft = Math.ceil(remainingMs / 1000);
   const controlsDisabled = disabled || busy || status !== 'in_progress';
 
@@ -67,14 +93,38 @@ export function ResistanceRestPanel({ rest, status, busy, disabled = false, onAc
     } catch { /* device may block audio */ }
   }, [alertsEnabled, rest.id, rest.targetEndsAt, secondsLeft, status]);
 
-  // Local expiry only REQUESTS the canonical finish. The API checks clock,
-  // version, ownership and pause/terminal state on every request.
+  // Display expiry only REQUESTS finish. A 409 caused by an optimistic
+  // round-trip estimate or a network timeout must not permanently disarm it.
+  // The canonical GET/POST in the parent still guards state, version and owner.
   useEffect(() => {
     const key = rest.id + ':' + rest.targetEndsAt;
-    if (remainingMs > 0 || controlsDisabled || autoFinishRef.current === key) return;
-    autoFinishRef.current = key;
-    onAction('finish');
-  }, [remainingMs, controlsDisabled, rest.id, rest.targetEndsAt, onAction]);
+    if (remainingMs > 0 || controlsDisabled) return;
+    let attempt = autoFinishRef.current;
+    if (!attempt || attempt.key !== key) {
+      attempt = { key, pending: false, finished: false, failures: 0, retryAtMs: 0 };
+      autoFinishRef.current = attempt;
+    }
+    if (attempt.pending || attempt.finished || performance.now() < attempt.retryAtMs) return;
+    attempt.pending = true;
+    const currentAttempt = attempt;
+    void (async () => {
+      let outcome: ResistanceRestActionResult | void;
+      try {
+        outcome = await onAction('finish');
+      } catch {
+        outcome = 'retry';
+      }
+      if (autoFinishRef.current !== currentAttempt) return;
+      currentAttempt.pending = false;
+      if (outcome === 'retry') {
+        currentAttempt.failures += 1;
+        currentAttempt.retryAtMs = performance.now()
+          + Math.min(1000 * 2 ** (currentAttempt.failures - 1), 15_000);
+      } else {
+        currentAttempt.finished = true;
+      }
+    })();
+  }, [tick, remainingMs, controlsDisabled, rest.id, rest.targetEndsAt, onAction]);
 
   async function enableAlerts() {
     try {
@@ -106,9 +156,9 @@ export function ResistanceRestPanel({ rest, status, busy, disabled = false, onAc
         {rest.extensionSeconds > 0 && <div><dt className="text-muted-foreground">Acréscimo nesta execução</dt><dd className="font-semibold">+{rest.extensionSeconds} s</dd></div>}
       </dl>
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" disabled={controlsDisabled} onClick={() => onAction('extend_15')}>+15 s</Button>
-        <Button type="button" variant="outline" disabled={controlsDisabled} onClick={() => onAction('skip')}>Pular descanso</Button>
-        {secondsLeft === 0 && <Button type="button" disabled={controlsDisabled} onClick={() => onAction('finish')}>
+        <Button type="button" variant="outline" disabled={controlsDisabled} onClick={() => { void onAction('extend_15'); }}>+15 s</Button>
+        <Button type="button" variant="outline" disabled={controlsDisabled} onClick={() => { void onAction('skip'); }}>Pular descanso</Button>
+        {secondsLeft === 0 && <Button type="button" disabled={controlsDisabled} onClick={() => { void onAction('finish'); }}>
           Continuar para a próxima série
         </Button>}
       </div>

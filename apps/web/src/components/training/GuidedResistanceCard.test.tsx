@@ -506,6 +506,57 @@ describe('issue #488 - integração com guia e reconciliação', () => {
     expect(await screen.findByText(/Descanso pulado/)).toBeInTheDocument();
   });
 
+  it('reconcilia 409 prematuro e tenta finish novamente sem recarregar a página', async () => {
+    const expired = { ...rest, remainingMs: 0, elapsedMs: 60_000 };
+    const load = vi.fn().mockResolvedValue(projection({ version: 2, rest: expired, completed: 1, current: second, next: null }));
+    const restAction = vi.fn()
+      .mockRejectedValueOnce({ response: { status: 409, data: { details: {
+        code: 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION',
+      } } } })
+      .mockResolvedValueOnce(projection({ version: 3, rest: null, completed: 1, current: second, next: null }));
+    render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
+      load={load} complete={vi.fn()} restAction={restAction} onOverview={vi.fn()} />);
+    await waitFor(() => expect(restAction).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2)); // canonical GET after 409
+    await waitFor(() => expect(restAction).toHaveBeenCalledTimes(2), { timeout: 4000 });
+    expect(restAction.mock.calls[1][1].operationKey).not.toBe(restAction.mock.calls[0][1].operationKey);
+    expect(await screen.findByRole('button', { name: 'Concluir série' })).toBeEnabled();
+  });
+
+  it('mede no guia 40 s em trânsito pelo relógio monotônico, independentemente de Date.now()', async () => {
+    let monotonicMs = 100;
+    const spy = vi.spyOn(performance, 'now').mockImplementation(() => monotonicMs);
+    try {
+      const slowGet = deferred<GuidedResistanceView>();
+      const load = vi.fn().mockReturnValue(slowGet.promise);
+      const restAction = vi.fn();
+      render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
+        load={load} complete={vi.fn()} restAction={restAction} onOverview={vi.fn()} />);
+      expect(load).toHaveBeenCalledTimes(1);
+      monotonicMs = 40_100;
+      await act(async () => slowGet.resolve(projection({ version: 2, completed: 1,
+        current: second, next: null, rest: { ...rest, remainingMs: 60_000, elapsedMs: 0 },
+      })));
+      expect(screen.getByRole('timer')).toHaveTextContent('00:20');
+      expect(screen.getByText('Descanso transcorrido').nextSibling).toHaveTextContent('00:40');
+      expect(restAction).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('recupera finish após timeout mantendo a chave idempotente', async () => {
+    const expired = { ...rest, remainingMs: 0, elapsedMs: 60_000 };
+    const load = vi.fn().mockResolvedValue(projection({ version: 2, rest: expired, completed: 1, current: second, next: null }));
+    const restAction = vi.fn().mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValueOnce(projection({ version: 3, rest: null, completed: 1, current: second, next: null }));
+    render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
+      load={load} complete={vi.fn()} restAction={restAction} onOverview={vi.fn()} />);
+    await waitFor(() => expect(restAction).toHaveBeenCalledTimes(2), { timeout: 4000 });
+    expect(restAction.mock.calls[1][1].operationKey).toBe(restAction.mock.calls[0][1].operationKey);
+    expect(await screen.findByRole('button', { name: 'Concluir série' })).toBeEnabled();
+  });
+
   it('mantém bloqueio de 409 se GET de reconciliação falhar e restaura após nova versão', async () => {
     const stale = projection({ version: 2, completed: 1, current: second, next: null, rest });
     const fresh = projection({ version: 3, completed: 1, current: second, next: null, rest: null });

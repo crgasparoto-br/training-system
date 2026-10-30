@@ -4,10 +4,11 @@ import type {
   GuidedResistanceView, TrainingSessionExecutionStatus,
 } from '@corrida/types';
 import { Button } from '../ui/Button';
-import { ResistanceRestPanel } from './ResistanceRestPanel';
+import { ResistanceRestPanel, type ResistanceRestObservation, type ResistanceRestActionResult } from './ResistanceRestPanel';
 
 type GuidedResistanceOperation = { signature: string; payload: GuidedResistanceCompletePayload };
 type GuidedRestOperation = { signature: string; payload: GuidedResistanceRestActionPayload };
+type ObservedGuidedView = GuidedResistanceView & { restObservation: ResistanceRestObservation };
 
 export type GuidedResistanceDraft = {
   sessionId: string;
@@ -82,7 +83,7 @@ export function GuidedResistanceCard({
   const headingId = useId();
   const repsId = useId();
   const loadId = useId();
-  const [view, setView] = useState<GuidedResistanceView | null>(null);
+  const [view, setView] = useState<ObservedGuidedView | null>(null);
   const [repetitions, setRepetitions] = useState('');
   const [loadKg, setLoadKg] = useState('');
   const [busy, setBusy] = useState(false);
@@ -115,7 +116,9 @@ export function GuidedResistanceCard({
       loadKg: nextLoadKg, operation, conflictVersion: conflictVersionRef.current };
   };
 
-  const acceptView = useCallback((saved: GuidedResistanceView, sourceSessionId: string): boolean => {
+  const acceptView = useCallback((
+    saved: GuidedResistanceView, sourceSessionId: string, observation: ResistanceRestObservation,
+  ): boolean => {
     const accepted = acceptedVersionRef.current;
     const versionFloor = Math.max(
       parentVersionRef.current.sessionId === sourceSessionId ? parentVersionRef.current.version : -1,
@@ -156,15 +159,17 @@ export function GuidedResistanceCard({
       || saved.rest?.id !== restOperationRef.current.payload.restId)) {
       restOperationRef.current = null;
     }
-    setView(saved);
+    setView({ ...saved, restObservation: observation });
     return true;
   }, [draftStore]);
 
   const refresh = useCallback(async (reason: 'normal' | 'conflict' = 'normal'): Promise<boolean> => {
     const requestId = ++refreshSequenceRef.current;
     setLoading(true);
+    const requestedAtMs = performance.now();
     try {
       const saved = await load(sessionId);
+      const observation = { requestedAtMs, receivedAtMs: performance.now() };
       // An older GET must never override a newer GET, a POST, or a 409 lock.
       if (requestId !== refreshSequenceRef.current) return false;
       const previouslyAccepted = acceptedVersionRef.current;
@@ -173,7 +178,7 @@ export function GuidedResistanceCard({
         previouslyAccepted?.sessionId === sessionId ? previouslyAccepted.version : -1,
       );
       if (saved.sessionId !== sessionId || saved.version < highestKnownVersion ||
-          !acceptView(saved, sessionId)) {
+          !acceptView(saved, sessionId, observation)) {
         setReconciliationRequired(true);
         setError('O servidor retornou uma posição desatualizada. Atualize novamente antes de confirmar outra série.');
         return false;
@@ -247,13 +252,15 @@ export function GuidedResistanceCard({
     setError(null);
     setConfirmation(null);
     try {
+      const requestedAtMs = performance.now();
       const saved = await complete(sessionId, operationRef.current.payload);
+      const observation = { requestedAtMs, receivedAtMs: performance.now() };
       // A late POST may have committed while the parent already knew a newer
       // version. Invalidate older reads and revalidate before another write.
       refreshSequenceRef.current += 1;
       setLoading(false);
       operationRef.current = null;
-      if (saved.sessionId !== sessionId || !acceptView(saved, sessionId)) {
+      if (saved.sessionId !== sessionId || !acceptView(saved, sessionId, observation)) {
         setReconciliationRequired(true);
         // Do not show the stale POST result or a false success. Replace any
         // invalidated in-flight GET with a fresh authoritative read.
@@ -294,10 +301,10 @@ export function GuidedResistanceCard({
     }
   }
 
-  async function actOnRest(action: GuidedResistanceRestActionPayload['action']) {
+  async function actOnRest(action: GuidedResistanceRestActionPayload['action']): Promise<ResistanceRestActionResult> {
     const rest = view?.rest;
     if (!rest || !restAction || status !== 'in_progress' || view?.status !== 'in_progress'
-      || busy || loading || reconciliationRequired) return;
+      || busy || loading || reconciliationRequired) return 'blocked';
     const signature = [sessionId, view.version, rest.id, action].join(':');
     if (restOperationRef.current?.signature !== signature) {
       restOperationRef.current = {
@@ -312,18 +319,20 @@ export function GuidedResistanceCard({
     setError(null);
     setConfirmation(null);
     try {
+      const requestedAtMs = performance.now();
       const saved = await restAction(sessionId, restOperationRef.current.payload);
+      const observation = { requestedAtMs, receivedAtMs: performance.now() };
       refreshSequenceRef.current += 1;
       setLoading(false);
       restOperationRef.current = null;
-      if (saved.sessionId !== sessionId || !acceptView(saved, sessionId)) {
+      if (saved.sessionId !== sessionId || !acceptView(saved, sessionId, observation)) {
         setReconciliationRequired(true);
         if (await refresh('conflict')) {
           try { await onExecutionChanged?.(); } catch {
             setError('O descanso foi salvo, mas o resumo não pôde ser atualizado. Revise o estado exibido.');
           }
         }
-        return;
+        return 'blocked';
       }
       setConfirmation(action === 'extend_15' ? 'Foram adicionados 15 segundos ao descanso.'
         : action === 'skip' ? 'Descanso pulado. Continue para a próxima série.'
@@ -331,6 +340,7 @@ export function GuidedResistanceCard({
       try { await onExecutionChanged?.(); } catch {
         setError('O descanso foi salvo, mas o resumo não pôde ser atualizado. Revise o estado exibido.');
       }
+      return 'accepted';
     } catch (cause) {
       const httpStatus = (cause as { response?: { status?: number } })?.response?.status;
       const code = (cause as { response?: { data?: { details?: { code?: string } } } })?.response?.data?.details?.code;
@@ -339,17 +349,19 @@ export function GuidedResistanceCard({
         refreshSequenceRef.current += 1;
         setLoading(false);
         if (action === 'finish' && code === 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION') {
-          await refresh();
+          const reconciled = await refresh();
           setError('O servidor ainda está contando o descanso. Aguarde ou pule o intervalo.');
+          return reconciled ? 'retry' : 'blocked';
         } else {
           conflictVersionRef.current = Math.max(conflictVersionRef.current ?? -1, view.version);
           keepDraft(repetitions, loadKg);
           setReconciliationRequired(true);
-          await refresh('conflict');
+          return await refresh('conflict') ? 'retry' : 'blocked';
         }
       } else {
         // Keep the same operation key on a timeout; retry is idempotent.
         setError('Não foi possível confirmar o descanso. O estado anterior foi preservado; tente novamente.');
+        return 'retry';
       }
     } finally {
       setBusy(false);
@@ -398,10 +410,11 @@ export function GuidedResistanceCard({
           {view.rest && (
             <ResistanceRestPanel
               rest={view.rest}
+              observation={view.restObservation}
               status={status === 'in_progress' ? view.status : status}
               busy={busy || loading}
               disabled={reconciliationRequired || !restAction}
-              onAction={(action) => { void actOnRest(action); }}
+              onAction={(action) => actOnRest(action)}
             />
           )}
           {current && !view.rest ? (
