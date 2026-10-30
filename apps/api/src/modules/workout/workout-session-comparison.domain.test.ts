@@ -637,9 +637,12 @@ describe('issue #401: granular planned/executed comparison', () => {
     }
     expect(exercise?.metrics.find((entry) => entry.key === 'rir'))
       .toMatchObject({ planned: null, executed: 2, difference: null });
-    expect(projectWorkoutComparisonForAudience(comparison, 'student').units
-      .find((entry) => entry.kind === 'exercise')?.metrics.find((entry) =>
-        entry.key === 'distance')?.executed).toBe(0);
+    const studentMetrics = projectWorkoutComparisonForAudience(comparison, 'student').units
+      .find((entry) => entry.kind === 'exercise')?.metrics;
+    expect(studentMetrics?.find((entry) => entry.key === 'distance')?.executed).toBe(0);
+    expect(studentMetrics?.some((entry) => ['rir', 'rpe', 'tempo'].includes(entry.key)))
+      .toBe(false);
+    expect(exercise?.metrics.find((entry) => entry.key === 'tempo')?.executed).toBe('2-0-2');
   });
 
   it('A-401-14: structured set cyclic recordings remain on their own planned set', () => {

@@ -376,7 +376,11 @@ export function projectWorkoutComparisonForAudience(
       .filter((item) => item.kind !== 'block' && item.kind !== 'set')
       .map((item) => ({
         ...item,
-        metrics: item.metrics.map((metric) => ({ ...metric, difference: null })),
+        // Legacy exercise summaries also contain per-item technical readings.
+        // Redact those at the API boundary, not only via the UI's set filter.
+        metrics: item.metrics
+          .filter((metric) => !['rir', 'rpe', 'tempo'].includes(metric.key))
+          .map((metric) => ({ ...metric, difference: null })),
       })),
   };
 }
