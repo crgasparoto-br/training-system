@@ -2,7 +2,7 @@
 
 ## Arquitetura canônica e dependências
 
-A candidata vigente [PR #524](https://github.com/crgasparoto-br/training-system/pull/524) parte da `develop` após o merge da PR #521 da issue #400; a antiga PR #522 foi substituída sem merge, sem excluir sua branch ou histórico. Nenhum merge automático é permitido. O único modelo persistido de agrupamentos é `WorkoutResistanceGroup` + `WorkoutResistanceGroupMember` (#400). A execução usa `WorkoutExerciseBlock`/`WorkoutExercisePlannedSet` (#399), sem escrever valores realizados no planejamento. Lifecycle, versão e pausa vêm da `WorkoutSessionExecution` (#389). A #488 implementará o cronômetro; a #487 apenas comunica os intervalos prescritos.
+A candidata vigente da issue #487 é a [PR #527](https://github.com/crgasparoto-br/training-system/pull/527), branch `fix/487-canonical-set-lifecycle-develop-20261030`, aberta contra `develop` após a integração da PR #521 (#400) e da PR #525 (consulta histórica por período). As PRs #520, #522 e #524 foram substituídas sem merge, preservando suas branches e históricos. Nenhum merge automático é permitido. O único modelo persistido de agrupamentos é `WorkoutResistanceGroup` + `WorkoutResistanceGroupMember` (#400). A execução usa `WorkoutExerciseBlock`/`WorkoutExercisePlannedSet` (#399), sem escrever valores realizados no planejamento. Lifecycle, versão e pausa vêm da `WorkoutSessionExecution` (#389). A #488 implementará o cronômetro; a #487 apenas comunica os intervalos prescritos.
 
 O próximo passo é reconstruído pelo backend usando exercícios, blocos, séries e membros com IDs estáveis. Para cada grupo, a ordem é rodada → posição do participante, usando `kind`, `position`, `rounds`, `restBetweenExercisesSec` e `restBetweenRoundsSec` persistidos. Quando `rounds` não está preenchido, somente uma quantidade idêntica de séries planejadas para todos os participantes permite derivá-lo; contagens incompatíveis permanecem somente leitura. `system` legado não autoriza a criação de grupo ou rodada sintética.
 
@@ -50,7 +50,7 @@ congelada das leituras de treino; mudanças posteriores em `ExerciseLibrary`
 não podem alterar nome, vídeo ou orientação de uma sessão já liberada.
 
 A PR #521 foi integrada à `develop` em 29/10/2026 por merge `c76276637e8136bc247c0aef53103764caa75827`.
-A antiga PR #522 foi encerrada como substituída, sem merge. A PR #524 preserva o código corrigido e tem a nova `develop` como pai direto; a CI e a auditoria independente devem usar o HEAD final da #524, sem reutilizar o merge preview antigo.
+A PR #522 foi encerrada como substituída pela PR #524, também encerrada sem merge. A [PR #527](https://github.com/crgasparoto-br/training-system/pull/527) é a candidata atual: parte da `develop` após a PR #525 e preserva tanto as correções da execução guiada quanto as consultas por período da #400. A CI e a auditoria independente devem usar o HEAD material vigente da PR #527, sem reutilizar checks nem merge previews das PRs históricas.
 
 ## Remediação de concorrência após auditoria independente — 29/10/2026
 
@@ -58,7 +58,7 @@ A antiga PR #522 foi encerrada como substituída, sem merge. A PR #524 preserva 
 - **Projeção monotônica:** não aceitar GET com `version` menor que a versão já exibida ou a versão canônica informada pela tela; após 409, GET com a mesma versão da operação rejeitada também não libera a confirmação. Identidade `sessionId` divergente não é exibida.
 - **Recuperação:** se a revalidação falhar, o formulário mantém os dados digitados e a confirmação permanece desabilitada; somente uma nova consulta válida desfaz o bloqueio. O cartão é remontado ao trocar `sessionId`, evitando que estado de outro treino seja reutilizado.
 - **Controles negativos:** testes React com promessas controladas simulam GET anterior ao 409 resolvendo após GET falho, dois GETs retornando em ordem invertida, POST confirmado antes de GET antigo, resposta de mesma versão após 409 e identidade de sessão divergente. O teste de 409 + GET falho existente continua obrigatório.
-- **A-002 (dependência #400):** a PR #521 já foi integrada à `develop`. Sua árvore canônica está preservada na PR #524 por comparação de conteúdo, sem modelagem paralela de grupos. Novos deltas na `develop` exigem reconciliação sem apagar adaptações da #487. Não integrar nem encerrar a issue até CI exact-SHA e nova auditoria independente.
+- **A-002 (dependência #400):** a PR #521 já foi integrada à `develop`. A PR #524 (histórica, substituída sem merge) preservou sua árvore canônica por comparação de conteúdo; a candidata #527 mantém esse contrato sem modelagem paralela de grupos. Novos deltas na `develop` exigem reconciliação sem apagar adaptações da #487. Não integrar nem encerrar a issue até CI exact-SHA e nova auditoria independente.
 
 ## Remediação A-487-06 e R-487-01 — 29/10/2026
 
@@ -66,14 +66,14 @@ A antiga PR #522 foi encerrada como substituída, sem merge. A PR #524 preserva 
 - **R-487-01 (rascunho recuperável):** `TodaySession` guarda a referência do rascunho por sessão e `plannedSetId`; o cartão grava repetições/carga a cada edição e retém a operação (chave + payload) após timeout. Ao abrir a ficha e voltar, a mesma série restaura esses valores e a mesma chave quando a versão ainda corresponde; outra série/sessão recebe somente os próprios valores planejados.
 - **Concorrência:** o bloqueio de 409 acompanha o rascunho ao voltar da ficha. GET com mesma versão permanece recusado; GET com versão nova libera a confirmação após reconciliação e preserva o texto digitado para a unidade que não mudou. Não há persistência do rascunho em storage compartilhado do navegador.
 - **Provas adicionadas:** regressões React de timeout + ficha + mesma chave, isolamento entre sessões, bloqueio de conflito ao voltar e ausência de descanso após a série final. Browser Chrome de #487 executa timeout simulado, retorno ao mesmo item, retry sem operação duplicada e finalização sem descanso fictício; o validador exige as tags das novas verificações, com controle negativo correspondente.
-- **Integração:** código de #400 está presente na `develop` por merge da PR #521. A PR **#524 é a única candidata aberta** para #487; manter sem merge até os checks `Validate repository` exact-HEAD e a auditoria independente sobre o SHA definitivo. A PR #522 foi encerrada como substituída e sua branch permanece preservada.
+- **Integração:** código de #400 está presente na `develop` por merge da PR #521. A PR **#527 é a única candidata vigente aberta** para #487; manter sem merge até os checks `Validate repository` exact-HEAD e a auditoria independente sobre o SHA definitivo. As PRs #522 e #524 foram encerradas como substituídas e seus históricos permanecem preservados.
 
 ## Remediação da auditoria A-487-07 e RISK-487-02 (29/10/2026)
 
 - **A-487-07:** uma resposta POST obsoleta pode chegar depois de a `TrainingRoutinePanel` conhecer versão mais recente. `GuidedResistanceCard` usa um piso monotônico com a versão mais alta do pai e das leituras aceitas, inclusive dentro do callback assíncrono criado antes do rerender. Rejeita a projeção tardia, invalida GET anterior e revalida automaticamente antes de permitir nova confirmação. Falha de GET mantém rascunho e bloqueio, sem exibir sucesso falso.
 - **Controles A-487-07:** testes React simulam POST v2 tardio, prop v3, GET v3 em voo, reconciliação positiva e falha com recuperação manual; o Chrome reproduz a mesma condição por atualização do painel por foco real e respostas HTTP adiadas. O verificador de evidência exige a marca `stale-post-parent-version-reconciled` com um controle negativo.
 - **RISK-487-02:** migration PostgreSQL aditiva impede alteração de `WorkoutSessionExecutionOperation` referenciada por série concluída, mesmo antes do encerramento da sessão. Mantém somente a ligação inicial de evento canônico no commit; teste de SQL direto rejeita fingerprint, versão, evento e DELETE após a conclusão, e exige que replay canônico continue intacto.
-- **Validação obrigatória:** publicar material em PR #524 sem reescrever histórico, obter `Validate repository` + CRITICAL + PostgreSQL + browser no **novo SHA** e preparar auditoria independente; não reutilizar o run de `7fabcff` após esta correção.
+- **Validação obrigatória:** publicar material na PR #527 sem reescrever histórico, obter `Validate repository` + CRITICAL + PostgreSQL + browser no **novo SHA** e preparar auditoria independente; checks da PR #524 e o run do SHA `7fabcff` permanecem históricos e não certificam a candidata atual.
 
 
 ## Homologação automatizada com API real (R-487-01)
@@ -111,4 +111,4 @@ A validação do salvamento comum e da conclusão guiada agora compara plannedSe
 
 A migration aditiva 20261030120000_issue_487_set_event_integrity vincula a operação ao evento de StudentLifecycleEvent por FK, impõe metadata de execução, aluno/contrato, action, operationId, eventKey e versões no trigger diferido, e impede adulteração posterior do evento ligado a conclusão. Dados órfãos anteriores bloqueiam a implantação da constraint até reconciliação documentada, sem evento sintético. Os testes PostgreSQL adversariais devem provar rejeição de ordinal errado, evento inexistente, evento de outro contrato e metadata falsa, além de conclusão real e replay idempotente.
 
-A PR de remediação utiliza develop atualizado sem merge de PR em branch protegida; o HEAD final exige CI CRITICAL exact-SHA e auditoria independente separada. A homologação operacional física permanece na issue #526 após deploy.
+A PR #527 de remediação utiliza `develop` atualizado sem merge de PR em branch protegida; seu HEAD material final exige CI CRITICAL exact-SHA e auditoria independente separada. A homologação operacional física permanece na issue #526 após deploy.
