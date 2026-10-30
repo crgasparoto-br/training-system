@@ -583,7 +583,8 @@ describe('training routine service (#387)', () => {
         originWorkoutTemplateId: 'template-1', originTrainingPlanId: 'plan-1',
         sessionValues: {}, plannedSnapshot: historical,
         items: [{ plannedUnitId: 'exercise-old', plannedSetId: 'set-old',
-          setNumber: 1, outcome: 'full', loadKg: 22, repetitions: 10,
+          setNumber: 1, outcome: null, completedAt: new Date('2026-09-30T10:30:00.000Z'),
+          loadKg: 22, repetitions: 10,
           durationSec: null, distanceKm: null, pace: null,
           heartRateBpm: null, heartRateZone: null, substitutionNote: null,
           rir: null, rpe: null, tempo: null, restSec: 60 }],
@@ -599,10 +600,20 @@ describe('training routine service (#387)', () => {
     expect(studentComparison.snapshotSource).toBe('captured');
     expect(studentComparison.units.some((unit) => unit.kind === 'set')).toBe(false);
     const plannedSet = professorComparison.units.find((unit) => unit.plannedUnitId === 'set-old');
+    // #487 guided confirmation is durable set evidence even without an explicit outcome.
+    expect(plannedSet?.outcome).toBe('full');
+    expect(findMany.mock.calls.some(([args]) =>
+      args.select?.execution?.select?.items?.select?.completedAt === true
+    )).toBe(true);
     expect(plannedSet?.metrics.find((metric) => metric.key === 'load_kg')).toMatchObject({
       planned: 20, executed: 22, difference: 2,
     });
     expect(professorComparison.units.some((unit) => unit.kind === 'set')).toBe(true);
+    // A draft with no completion marker must remain unclassified.
+    releasedRows[0].execution.items[0].completedAt = null;
+    const notConfirmed = await service.getRoutine({ ...query, audience: 'professor' });
+    expect(notConfirmed.days[2].sessions[0].comparison?.units
+      .find((unit) => unit.plannedUnitId === 'set-old')?.outcome).toBe('unclassified');
     expect(findMany.mock.calls.some(([args]) =>
       args.select?.resistanceGroups && args.where.template.plan.alunoId === 'aluno-1'
         && args.where.template.plan.aluno.contractId === 'contract-1'
