@@ -486,8 +486,12 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
       expect(JSON.stringify(studentSession.comparison)).not.toContain('"key":"rir"');
 
       await page.waitForSelector('section[aria-label="Planejado e executado"]');
-      await page.$eval('section[aria-label="Planejado e executado"] details',
-        (items) => items.forEach((element) => { element.open = true; }));
+      const studentDetailsCount = await page.$$eval('section[aria-label="Planejado e executado"] details',
+        (items) => {
+          items.forEach((element) => { element.open = true; });
+          return items.length;
+        });
+      expect(studentDetailsCount).toBeGreaterThan(0);
       const studentText = await page.$eval('section[aria-label="Planejado e executado"]',
         (element) => element.innerText);
       expect(studentText).toContain('Planejado × executado');
@@ -526,8 +530,12 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
         && unit.metrics.some((metric) => metric.key === 'rir' && metric.planned === 2)))
         .toBe(true);
       await professorPage.waitForSelector('section[aria-label="Planejado e executado"]');
-      await professorPage.$eval('section[aria-label="Planejado e executado"] details',
-        (items) => items.forEach((element) => { element.open = true; }));
+      const professorDetailsCount = await professorPage.$$eval('section[aria-label="Planejado e executado"] details',
+        (items) => {
+          items.forEach((element) => { element.open = true; });
+          return items.length;
+        });
+      expect(professorDetailsCount).toBeGreaterThan(0);
       const professorText = await professorPage.$eval(
         'section[aria-label="Planejado e executado"]', (element) => element.innerText);
       expect(professorText).toContain('Série 1');
