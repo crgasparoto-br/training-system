@@ -232,7 +232,7 @@ describe('WorkoutExecutionComparisonCard (#401)', () => {
         substitutionNote: 'Bike adaptada' },
       repeated.units[2],
     ] }} audience="professor" />);
-    expect(screen.getAllByText(/Substituído · com substituição/)).toHaveLength(2);
+    expect(screen.getAllByText('Substituído')).toHaveLength(2);
     expect(screen.getByText('Substituição registrada: Bike adaptada')).toBeInTheDocument();
   });
 
