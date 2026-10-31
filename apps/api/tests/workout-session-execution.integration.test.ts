@@ -3219,7 +3219,7 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
       }] }],
       ['40123-zero-is-evidence', { sessionValues: { durationSec: 0 } }],
       ['40123-empty-units', { sessionValues: { cyclicStages: [] } }],
-    ] as const) {
+    ]) {
       await expect(service.transition({ ...scope, payload: {
         operationKey, expectedVersion: 0, targetStatus: 'not_performed',
         reason: 'Treino cancelado', ...values,
