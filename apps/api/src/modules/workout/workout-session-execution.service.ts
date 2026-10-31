@@ -114,17 +114,6 @@ function normalizeOutcome(value: string | undefined): 'full' | 'partial' | 'subs
   return value as 'full' | 'partial' | 'substituted' | 'not_performed';
 }
 
-function normalizeSubstitution(outcome: string | undefined, note: string | null | undefined) {
-  const normalized = normalizeText(note, 500);
-  if (outcome === 'substituted' && !normalized) {
-    throw new WorkoutSessionExecutionInputError('Informe qual substituição foi realizada.');
-  }
-  if (outcome !== 'substituted' && normalized) {
-    throw new WorkoutSessionExecutionInputError('Substituição só pode ser informada quando a unidade foi substituída.');
-  }
-  return normalized;
-}
-
 function checkNumber(value: number | null | undefined, label: string, options: { integer?: boolean; max?: number } = {}) {
   if (value !== undefined && value !== null
       && (!Number.isFinite(value) || value < 0 || (options.integer && !Number.isInteger(value))
@@ -251,7 +240,6 @@ function normalizeSessionValues(values: TrainingSessionExecutionSessionValuesPat
 
 function normalizeItems(items: TrainingSessionExecutionItemValue[] | undefined): TrainingSessionExecutionItemValue[] {
   if (!items) return [];
-  const seen = new Set<string>();
   return items.map((item) => {
     const plannedUnitId = item.plannedUnitId.trim();
     if (!plannedUnitId) throw new WorkoutSessionExecutionInputError('Identificador da unidade planejada é obrigatório.');
@@ -266,11 +254,10 @@ function normalizeItems(items: TrainingSessionExecutionItemValue[] | undefined):
     }
     const setNumber = item.setNumber ?? 0;
     if (!Number.isInteger(setNumber) || setNumber < 0) throw new WorkoutSessionExecutionInputError('Número da série executada inválido.');
-    const key = `${plannedUnitId}:${setNumber}`;
-    if (seen.has(key)) throw new WorkoutSessionExecutionInputError('A mesma unidade planejada/série foi informada mais de uma vez.');
-    seen.add(key);
+    // Duplicate validation runs after the transaction resolves planned-set IDs to canonical ordinals.
     const outcome = normalizeOutcome(item.outcome);
-    const substitutionNote = normalizeSubstitution(outcome, item.substitutionNote);
+    // Only the persisted outcome can decide whether an omitted substitution note is valid.
+    const substitutionNote = normalizeText(item.substitutionNote, 500);
     const nonNegative = (value: number | null | undefined, label: string, integer = false) => {
       if (value !== undefined && value !== null && (!Number.isFinite(value) || value < 0 || (integer && !Number.isInteger(value)))) throw new WorkoutSessionExecutionInputError(`${label} inválido.`);
       return value;

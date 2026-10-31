@@ -76,6 +76,10 @@ A exclusão de um registro executado exige a intenção **específica e autentic
 
 Identificadores de remoção, IDs de upsert e repetições são validados contra o `WorkoutDay` liberado do mesmo aluno/contrato dentro da transação; chaves duplicadas, operações contraditórias (remover + alterar a mesma unidade) e exclusão de registro inexistente são recusadas com HTTP 400 sem gravar efeitos. Valores e remoções somente ocorrem durante sessão `in_progress`, com versão correta e serialização transacional. A intenção de exclusão fica rastreável no fingerprint e na operação canônica, mas `removeCyclicStages`/`removeResistanceGroups` **não** são gravados como métricas nem aparecem no contrato público de leitura. A comparação histórica segue `plannedSnapshot` imutável.
 
+**Séries estruturadas e substituições (A-401-18/19):** em `items[]`, dois `plannedSetId` distintos do mesmo exercício podem ser enviados no mesmo lote com `setNumber` omitido. O backend resolve o ordinal canônico pelo planejamento liberado antes de validar a identidade duplicada; IDs repetidos, ordinais explícitos incorretos e referências de outra sessão/contrato continuam rejeitados atomicamente. Séries legadas sem `plannedSetId` continuam identificadas pelo `setNumber` executado.
+
+Em atualizações parciais, `outcome` e `substitutionNote` podem ser omitidos independentemente: a situação efetiva e a observação são conciliadas com o registro persistido dentro da mesma transação serializável. `substituted` exige observação não vazia no estado final; uma observação não vazia em unidade não substituída é inválida. Omissão preserva a observação anterior, `null` tenta limpá-la explicitamente (e é recusado enquanto a unidade continua substituída), e alterar para outro outcome limpa a observação. Erros devolvem HTTP 400 sem avançar versão, operação ou valores executados.
+
 ## Check-in pré-treino (#388)
 
 O check-in usa `PreWorkoutCheckIn` como fonte canônica única por `WorkoutDay`. A escrita do aluno ocorre em `PUT /api/v1/student/me/training-sessions/:sessionId/check-in`; aluno, contrato e ator são derivados da sessão autenticada e nunca do body.

@@ -3380,6 +3380,198 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
     expect(stored.operations).toHaveLength(1); // only the valid start transition
   });
 
+
+  it('A-401-18: merges substitution patches against the durable outcome before validating notes', async () => {
+    const fixture = await seedReleasedWorkout('issue401-substitution-patch', { seedResistance: true });
+    const plannedSet = await prisma.workoutExercisePlannedSet.findFirstOrThrow({
+      where: { block: { workoutExerciseId: fixture.exerciseIds[0] } },
+    });
+    const scope = { sessionId: fixture.dayId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId, actorUserId: fixture.alunoUserId };
+    const save = (
+      operationKey: string, expectedVersion: number,
+      item: { outcome?: 'full' | 'partial' | 'substituted' | 'not_performed';
+        substitutionNote?: string | null; loadKg?: number; repetitions?: number },
+    ) => service.saveValues({ ...scope, payload: {
+      operationKey, expectedVersion,
+      items: [{ plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSet.id, ...item }],
+    } });
+
+    await transition(fixture, '40118-substitution-start', 0, 'in_progress');
+    const initial = await save('40118-substitution-initial', 1, {
+      outcome: 'substituted', substitutionNote: '  Remada adaptada  ', loadKg: 20, repetitions: 10,
+    });
+    expect(initial.version).toBe(2);
+    expect(initial.items[0]).toMatchObject({
+      plannedSetId: plannedSet.id, setNumber: 1,
+      outcome: 'substituted', substitutionNote: 'Remada adaptada', loadKg: 20,
+    });
+
+    // Re-sending the outcome without a note must not require inventing a new note.
+    const updated = await save('40118-substitution-outcome-only', 2, {
+      outcome: 'substituted', loadKg: 25,
+    });
+    expect(updated.items[0]).toMatchObject({
+      outcome: 'substituted', substitutionNote: 'Remada adaptada', loadKg: 25, repetitions: 10,
+    });
+    // A note-only patch must use the persisted substituted outcome.
+    const renoted = await save('40118-substitution-note-only', 3, {
+      substitutionNote: '  Elástico orientado  ',
+    });
+    expect(renoted.items[0]).toMatchObject({
+      outcome: 'substituted', substitutionNote: 'Elástico orientado', loadKg: 25, repetitions: 10,
+    });
+    const zero = await save('40118-substitution-measure-only', 4, { loadKg: 0 });
+    expect(zero.items[0]).toMatchObject({
+      outcome: 'substituted', substitutionNote: 'Elástico orientado', loadKg: 0, repetitions: 10,
+    });
+    const replay = await save('40118-substitution-measure-only', 4, { loadKg: 0 });
+    expect(replay).toEqual(zero);
+
+    // Reject invalid final states without mutating version, row or operation ledger.
+    await expect(save('40118-substitution-clear-invalid', 5, {
+      outcome: 'substituted', substitutionNote: null,
+    })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    await expect(save('40118-substitution-mixed-invalid', 5, {
+      outcome: 'full', substitutionNote: 'Contraditório',
+    })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    await expect(save('40118-substitution-empty-invalid', 5, {
+      outcome: 'substituted', substitutionNote: '   ',
+    })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    await expect(service.saveValues({ ...scope, payload: {
+      operationKey: '40118-substitution-new-without-note', expectedVersion: 5,
+      items: [{ plannedUnitId: fixture.exerciseIds[1], setNumber: 1,
+        outcome: 'substituted', repetitions: 5 }],
+    } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    await expect(service.saveValues({ ...scope, payload: {
+      operationKey: '40118-substitution-new-note-unclassified', expectedVersion: 5,
+      items: [{ plannedUnitId: fixture.exerciseIds[1], setNumber: 1,
+        substitutionNote: 'Nota sem classificação' }],
+    } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    const unchanged = await service.getForSession(scope);
+    expect(unchanged.version).toBe(5);
+    expect(unchanged.items).toHaveLength(1);
+    expect(unchanged.items[0]).toMatchObject({
+      outcome: 'substituted', substitutionNote: 'Elástico orientado', loadKg: 0,
+    });
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId },
+    });
+    expect(await prisma.workoutSessionExecutionOperation.count({
+      where: { executionId: execution.id },
+    })).toBe(5);
+
+    const full = await save('40118-substitution-clear-full', 5, { outcome: 'full' });
+    expect(full.version).toBe(6);
+    expect(full.items[0]).toMatchObject({
+      outcome: 'full', substitutionNote: null, loadKg: 0, repetitions: 10,
+    });
+    await expect(save('40118-substitution-note-after-full', 6, {
+      substitutionNote: 'Não pode anexar',
+    })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    const reread = await concurrentService.getForSession(scope);
+    expect(reread.version).toBe(6);
+    expect(reread.items[0]).toMatchObject({ outcome: 'full', substitutionNote: null });
+  });
+
+  it('A-401-19: resolves multiple explicit planned-set IDs before detecting duplicate series', async () => {
+    const fixture = await seedReleasedWorkout('issue401-planned-set-batch', {
+      seedGuidedResistance: true,
+    });
+    const plannedSets = await prisma.workoutExercisePlannedSet.findMany({
+      where: { block: { workoutExerciseId: fixture.exerciseIds[0] } },
+      orderBy: [{ position: 'asc' }, { id: 'asc' }],
+    });
+    expect(plannedSets).toHaveLength(2);
+    const scope = { sessionId: fixture.dayId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId, actorUserId: fixture.alunoUserId };
+    await transition(fixture, '40119-planned-batch-start', 0, 'in_progress');
+
+    // Reverse the incoming order and omit both ordinals: IDs must win over raw key "exercise:0".
+    const payload = { operationKey: '40119-planned-batch-first', expectedVersion: 1,
+      items: [
+        { plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSets[1].id,
+          outcome: 'full' as const, loadKg: 22, repetitions: 9 },
+        { plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSets[0].id,
+          outcome: 'full' as const, loadKg: 20, repetitions: 10 },
+      ],
+    };
+    const saved = await service.saveValues({ ...scope, payload });
+    expect(saved.version).toBe(2);
+    expect(saved.items.map((item) => ({
+      plannedSetId: item.plannedSetId, setNumber: item.setNumber, loadKg: item.loadKg,
+    }))).toEqual([
+      { plannedSetId: plannedSets[0].id, setNumber: 1, loadKg: 20 },
+      { plannedSetId: plannedSets[1].id, setNumber: 2, loadKg: 22 },
+    ]);
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId },
+    });
+    const comparison = compareWorkoutSession(
+      readCapturedWorkoutComparisonPlan(execution.plannedSnapshot)!,
+      await concurrentService.getForSession(scope), 'captured',
+    );
+    for (const [id, load] of [[plannedSets[0].id, 20], [plannedSets[1].id, 22]] as const) {
+      const set = comparison.units.find((unit) => unit.kind === 'set' && unit.plannedUnitId === id);
+      expect(set?.outcome).toBe('full');
+      expect(set?.metrics.find((metric) => metric.key === 'load_kg')?.executed).toBe(load);
+    }
+    expect(comparison.units.find((unit) =>
+      unit.kind === 'exercise' && unit.plannedUnitId === fixture.exerciseIds[0])?.outcome).toBe('full');
+    expect((await service.saveValues({ ...scope, payload })).version).toBe(2);
+    expect(await prisma.workoutSessionExecutionItem.count({ where: { executionId: execution.id } })).toBe(2);
+
+    // Duplicate canonical IDs and invalid ordinals still fail atomically.
+    await expect(service.saveValues({ ...scope, payload: {
+      operationKey: '40119-reject-duplicate-id', expectedVersion: 2,
+      items: [{ plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSets[0].id,
+        loadKg: 23 },
+      { plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSets[0].id,
+        setNumber: 1, loadKg: 24 }],
+    } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    await expect(service.saveValues({ ...scope, payload: {
+      operationKey: '40119-reject-wrong-ordinal', expectedVersion: 2,
+      items: [{ plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSets[1].id,
+        setNumber: 1, repetitions: 5 }],
+    } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+
+    const foreign = await seedReleasedWorkout('issue401-planned-set-batch-foreign', {
+      seedResistance: true,
+    });
+    const foreignSet = await prisma.workoutExercisePlannedSet.findFirstOrThrow({
+      where: { block: { workoutExerciseId: foreign.exerciseIds[0] } },
+    });
+    await expect(service.saveValues({ ...scope, payload: {
+      operationKey: '40119-reject-foreign-in-batch', expectedVersion: 2,
+      items: [
+        { plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSets[0].id, loadKg: 99 },
+        { plannedUnitId: fixture.exerciseIds[0], plannedSetId: foreignSet.id, loadKg: 99 },
+      ],
+    } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    expect((await service.getForSession(scope)).version).toBe(2);
+    expect(await prisma.workoutSessionExecutionItem.count({ where: { executionId: execution.id } })).toBe(2);
+    expect((await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { id: execution.id },
+    })).plannedSnapshot).toEqual(execution.plannedSnapshot);
+
+    // The legacy identity without a plannedSetId must remain unique per executed ordinal.
+    const legacy = await seedReleasedWorkout('issue401-legacy-batch-duplicate');
+    await transition(legacy, '40119-legacy-duplicate-start', 0, 'in_progress');
+    await expect(service.saveValues({
+      sessionId: legacy.dayId, alunoId: legacy.alunoId,
+      contractId: legacy.contractId, actorUserId: legacy.alunoUserId,
+      payload: { operationKey: '40119-legacy-duplicate-records', expectedVersion: 1,
+        items: [
+          { plannedUnitId: legacy.exerciseIds[0], loadKg: 20 },
+          { plannedUnitId: legacy.exerciseIds[0], loadKg: 22 },
+        ],
+      },
+    })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    expect((await service.getForSession({
+      sessionId: legacy.dayId, alunoId: legacy.alunoId, contractId: legacy.contractId,
+    })).version).toBe(1);
+  });
+
   it('captures the released graph on first execution, then compares stable stage, set and group IDs', async () => {
     const fixture = await seedReleasedWorkout('issue401-frozen', {
       seedResistance: true,

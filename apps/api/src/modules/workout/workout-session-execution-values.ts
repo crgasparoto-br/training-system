@@ -244,6 +244,10 @@ export async function persistWorkoutSessionValues(
     if (outcome === 'substituted' && !substitutionNote?.trim()) {
       throw new WorkoutSessionExecutionInputError('Substituição exige uma descrição.');
     }
+    // An omitted outcome inherits the durable state, but cannot add a note to a non-substitution.
+    if (outcome !== 'substituted' && item.substitutionNote) {
+      throw new WorkoutSessionExecutionInputError('Substituição só pode ser informada quando a unidade foi substituída.');
+    }
     if (persistedPlannedSetId && await tx.workoutSessionExecutionItem.findFirst({
       where: { executionId, plannedSetId: persistedPlannedSetId, completedAt: { not: null } },
       select: { id: true },

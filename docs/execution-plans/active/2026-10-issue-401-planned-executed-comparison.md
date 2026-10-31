@@ -42,7 +42,9 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - [x] A-401017: testes PostgreSQL de duas gravações sequenciais, atualização parcial, remoção explícita, rollback por ID alheio, idempotência, versão, snapshots e projeção histórica; testes HTTP de schema de remoção.
 - [x] `pnpm validate`, build e testes PostgreSQL da correção A-401017 no HEAD `9ec2d6256faa249383ffc29dd06c2a6e7732a7c4`: [PR CI #41134648703](https://github.com/crgasparoto-br/training-system/actions/runs/41134648703) e [push CI #41134640232](https://github.com/crgasparoto-br/training-system/actions/runs/41134640232), ambos `completed/success`; `CRITICAL validation`, `Merge preview compatibility` e `Validate repository` da PR passaram. Este check registra somente esse SHA, não antecipa resultado de commits posteriores.
 - [x] Evidência visual dedicada da comparação aluno/professor adicionada em `apps/web/src/components/training/issue-401-browser-evidence.test.js`: Chromium real, 1440×900 / 768×1024 / 390×844, teclado, árvore de acessibilidade, ausência de overflow, substituição, valores ausentes/zero, séries técnicas exclusivamente ao professor e fallback histórico. O CI gera PNGs + `browser.json` com SHA-256 no artefato `validate-pr-critical-<HEAD>`; o teste usa cenário sintético da API e não substitui os testes reais de autorização/persistência.
-- [ ] Nova auditoria independente da PR após a alteração material, com verificações e artefatos do novo HEAD exato. Não reutilizar a aprovação do SHA anterior.
+- [x] Remediação A-401-18: atualização parcial de substituições validada após conciliação com o outcome/observação persistidos, inclusive rejeições atômicas e replay idempotente em PostgreSQL.
+- [x] Remediação A-401-19: lotes de plannedSetId distintos sem setNumber prévio resolvem ordinais canônicos antes do teste de duplicidade; regressões de duplicação real, ordinal incorreto, foreign ID e histórico legado.
+- [ ] CI exact-SHA do commit com A-401-18/19 e nova auditoria independente. Não reutilizar checks ou parecer de SHAs anteriores.
 
 ## Validação manual
 
@@ -65,3 +67,6 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - A trilha antiga sem `plannedSnapshot` não pode ser retroativamente reconstruída com certeza. O fallback usa o planejamento liberado apenas como referência de identidade/estrutura para os registros existentes, com metas planejadas e diferenças intencionalmente nulas; jamais apresentar como captura histórica realizada na origem.
 - A página não gera dados executados automaticamente. O modo guiado e os coletores específicos das issues #487–#489 poderão alimentar a mesma API sem criarem outra fonte.
 - CI e auditoria são bloqueios de conclusão, não justificativa para merge automático.
+
+14. A-401-18: alterar carga e depois a observação de série substituída em requisições separadas, omitindo ora a observação, ora o outcome; conferir trim, versões, replay e falha sem escrita para substituição sem observação ou observação em série não substituída.
+15. A-401-19: registrar de uma vez duas séries planejadas distintas de um exercício, com plannedSetId explícito e setNumber ausente, em ordem inversa; verificar ordinais, dados e comparação por série. Rejeitar duplicação da mesma série, ordinal inválido, plannedSetId estrangeiro e lote legado duplicado, sem gravar parcialmente.

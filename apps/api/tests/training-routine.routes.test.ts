@@ -278,6 +278,32 @@ describe('training routine HTTP boundaries (#387)', () => {
       mockAlunoFindFirst.mockResolvedValue({ id: 'aluno-1', contractId: 'contract-1', user: { id: 'user-1' } });
     });
 
+
+    it('A-401-18/19: forwards partial substitution notes and two distinct planned-set IDs without ordinals', async () => {
+      const payload = { operationKey: 'issue401-patch-ids-http', expectedVersion: 2,
+        items: [
+          { plannedUnitId: 'exercise-a', plannedSetId: 'planned-set-1',
+            outcome: 'substituted', loadKg: 25 },
+          { plannedUnitId: 'exercise-a', plannedSetId: 'planned-set-2',
+            substitutionNote: 'Alternativa registrada' },
+        ],
+      };
+      const response = await request(app)
+        .put('/student/me/training-sessions/day-1/execution/values')
+        .set('x-contract-id', 'contract-1').send(payload);
+      expect(response.status).toBe(200);
+      expect(mockSaveExecutionValues).toHaveBeenCalledWith({
+        sessionId: 'day-1', alunoId: 'aluno-1', contractId: 'contract-1',
+        actorUserId: 'user-1', payload,
+      });
+      mockSaveExecutionValues.mockClear();
+      const spoof = await request(app)
+        .put('/student/me/training-sessions/day-1/execution/values')
+        .set('x-contract-id', 'contract-1').send({ ...payload, actorUserId: 'attacker' });
+      expect(spoof.status).toBe(400);
+      expect(mockSaveExecutionValues).not.toHaveBeenCalled();
+    });
+
     it('accepts an explicit legacy session speed and forwards only the scoped validated payload', async () => {
       const payload = { operationKey: 'issue401-speed-route', expectedVersion: 1,
         sessionValues: { speedKmh: 9, pace: '5:30' } };
