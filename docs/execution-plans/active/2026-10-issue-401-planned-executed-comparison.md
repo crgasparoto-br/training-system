@@ -62,11 +62,11 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 12. Em etapa planejada por segundos, registrar também metros, pace, velocidade, FC, zona e PSE, verificar cada medição sem meta/delta artificial; repetir numa etapa por metros com segundos extras, zero real e fallback histórico. Confirmar que a tela de execução guiada #487 permanece utilizável.
 13. A-401017: gravar etapa A e grupo A; gravar apenas etapa B e grupo B sem reenviar os primeiros; alterar só velocidade de B. Recarregar e conferir A/B e duração original de B em aluno/professor. Informar `null` para limpar uma medição, `0` para registrar zero e `[]` para enviar lote vazio sem apagar histórico. Remover B apenas via `removeCyclicStages`/`removeResistanceGroups`, conferindo que A e o plano congelado permanecem intactos. Checar versionamento, replay, tentativa de ID de outro contrato e rejeição de entrada duplicada.
 
+14. A-401-18: alterar carga e depois a observação de série substituída em requisições separadas, omitindo ora a observação, ora o outcome; conferir trim, versões, replay e falha sem escrita para substituição sem observação ou observação em série não substituída.
+15. A-401-19: registrar de uma vez duas séries planejadas distintas de um exercício, com plannedSetId explícito e setNumber ausente, em ordem inversa; verificar ordinais, dados e comparação por série. Rejeitar duplicação da mesma série, ordinal inválido, plannedSetId estrangeiro e lote legado duplicado, sem gravar parcialmente.
+
 ## Decisões e riscos
 
 - A trilha antiga sem `plannedSnapshot` não pode ser retroativamente reconstruída com certeza. O fallback usa o planejamento liberado apenas como referência de identidade/estrutura para os registros existentes, com metas planejadas e diferenças intencionalmente nulas; jamais apresentar como captura histórica realizada na origem.
 - A página não gera dados executados automaticamente. O modo guiado e os coletores específicos das issues #487–#489 poderão alimentar a mesma API sem criarem outra fonte.
 - CI e auditoria são bloqueios de conclusão, não justificativa para merge automático.
-
-14. A-401-18: alterar carga e depois a observação de série substituída em requisições separadas, omitindo ora a observação, ora o outcome; conferir trim, versões, replay e falha sem escrita para substituição sem observação ou observação em série não substituída.
-15. A-401-19: registrar de uma vez duas séries planejadas distintas de um exercício, com plannedSetId explícito e setNumber ausente, em ordem inversa; verificar ordinais, dados e comparação por série. Rejeitar duplicação da mesma série, ordinal inválido, plannedSetId estrangeiro e lote legado duplicado, sem gravar parcialmente.
