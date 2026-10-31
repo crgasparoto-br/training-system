@@ -12,6 +12,34 @@ export class WorkoutSessionExecutionInputError extends Error {
   readonly code = 'WORKOUT_SESSION_EXECUTION_INVALID';
 }
 
+// A negative outcome is a declaration that the unit was not executed. Numeric
+// zero is an actual recorded measurement and must not be treated as missing.
+const CYCLIC_STAGE_MEASUREMENTS = [
+  'durationSec', 'distanceMeters', 'paceMinPerKm', 'speedKmh',
+  'heartRateBpm', 'heartRateZone', 'pse',
+] as const;
+const RESISTANCE_GROUP_MEASUREMENTS = [
+  'roundsCompleted', 'restBetweenExercisesSec', 'restBetweenRoundsSec',
+] as const;
+const EXECUTION_ITEM_MEASUREMENTS = [
+  'rir', 'rpe', 'tempo', 'restSec', 'loadKg', 'repetitions',
+  'durationSec', 'distanceKm', 'pace', 'heartRateBpm', 'heartRateZone',
+] as const;
+
+function assertNoMeasurementsForNotPerformed(
+  outcome: string | null | undefined,
+  effectiveValues: Record<string, unknown>,
+  measurementKeys: readonly string[],
+  label: string,
+) {
+  if (outcome === 'not_performed' && measurementKeys.some((key) =>
+    effectiveValues[key] !== undefined && effectiveValues[key] !== null)) {
+    throw new WorkoutSessionExecutionInputError(
+      `${label} não realizado(a) não pode conter valores executados. Corrija a situação ou limpe explicitamente as medidas.`,
+    );
+  }
+}
+
 /**
  * Keep every value-entry path aligned with the canonical #399/#487 planned-set order.
  * Zero is the legacy omitted ordinal. No confirmed history can be renumbered.
@@ -151,6 +179,8 @@ function mergeRecordedUnits<T extends { outcome: string; substitutionNote?: stri
   removedKeys: string[],
   keyOf: (item: T) => string,
   limit: number,
+  measurementKeys: readonly string[],
+  label: string,
 ): T[] {
   const byKey = new Map<string, T>();
   for (const item of stored ?? []) {
@@ -174,6 +204,8 @@ function mergeRecordedUnits<T extends { outcome: string; substitutionNote?: stri
     else if (!merged.substitutionNote?.trim()) {
       throw new WorkoutSessionExecutionInputError('Substituição exige uma descrição.');
     }
+    assertNoMeasurementsForNotPerformed(merged.outcome, merged as Record<string, unknown>,
+      measurementKeys, label);
     byKey.set(key, merged);
   }
   if (byKey.size > limit) {
@@ -209,12 +241,14 @@ export async function persistWorkoutSessionValues(
         stored.cyclicStages, updates.cyclicStages,
         (removeCyclicStages ?? []).map((entry) => `${entry.plannedStageId}:${entry.iteration ?? 1}`),
         (entry) => `${entry.plannedStageId}:${entry.iteration ?? 1}`, 500,
+        CYCLIC_STAGE_MEASUREMENTS, 'Etapa cíclica',
       );
     }
     if (updates.resistanceGroups !== undefined || removeResistanceGroups?.length) {
       merged.resistanceGroups = mergeRecordedUnits<TrainingSessionResistanceGroupExecutionValue>(
         stored.resistanceGroups, updates.resistanceGroups,
         removeResistanceGroups ?? [], (entry) => entry.plannedGroupId, 100,
+        RESISTANCE_GROUP_MEASUREMENTS, 'Agrupamento',
       );
     }
     // Removal intents are only in the operation fingerprint/ledger, never in the read model.
@@ -224,7 +258,12 @@ export async function persistWorkoutSessionValues(
     const setNumber = item.setNumber ?? 0;
     const existingItem = await tx.workoutSessionExecutionItem.findUnique({
       where: { executionId_plannedUnitId_setNumber: { executionId, plannedUnitId: item.plannedUnitId, setNumber } },
-      select: { plannedSetId: true, completedAt: true, outcome: true, substitutionNote: true },
+      select: {
+        plannedSetId: true, completedAt: true, outcome: true, substitutionNote: true,
+        rir: true, rpe: true, tempo: true, restSec: true, loadKg: true,
+        repetitions: true, durationSec: true, distanceKm: true, pace: true,
+        heartRateBpm: true, heartRateZone: true,
+      },
     });
     if (existingItem?.completedAt) {
       throw new WorkoutSessionExecutionInputError('Esta série já foi concluída e não pode ser reescrita.');
@@ -248,6 +287,14 @@ export async function persistWorkoutSessionValues(
     if (outcome !== 'substituted' && item.substitutionNote) {
       throw new WorkoutSessionExecutionInputError('Substituição só pode ser informada quando a unidade foi substituída.');
     }
+    // Prisma skips undefined update keys: validate the effective durable row,
+    // not only this sparse patch. Explicit null clears a prior measurement.
+    const effectiveItem = {
+      ...(existingItem ?? {}),
+      ...Object.fromEntries(Object.entries(item).filter(([, value]) => value !== undefined)),
+    };
+    assertNoMeasurementsForNotPerformed(outcome, effectiveItem,
+      EXECUTION_ITEM_MEASUREMENTS, 'Série/exercício');
     if (persistedPlannedSetId && await tx.workoutSessionExecutionItem.findFirst({
       where: { executionId, plannedSetId: persistedPlannedSetId, completedAt: { not: null } },
       select: { id: true },

@@ -67,3 +67,33 @@ describe('A-487-API-001: historic draft ordinal recovery', () => {
     expect(fixture.upsert).not.toHaveBeenCalled();
   });
 });
+
+
+describe('A-401-025: negative outcome rejects executed series metrics', () => {
+  it.each([
+    ['zero repetitions', { repetitions: 0 }],
+    ['positive load', { loadKg: 42 }],
+    ['technical effort', { rpe: 8 }],
+    ['cadence', { tempo: '2-0-2' }],
+  ])('rejects %s before any upsert', async (_label, measure) => {
+    const fixture = fakeTransaction([]);
+    await expect(persistWorkoutSessionValues(fixture.tx, 'execution-1', 'day-1', undefined, [{
+      plannedUnitId: 'exercise-1', plannedSetId: 'set-1',
+      outcome: 'not_performed', ...measure,
+    }])).rejects.toBeInstanceOf(WorkoutSessionExecutionInputError);
+    expect(fixture.upsert).not.toHaveBeenCalled();
+  });
+
+  it('preserves explicit zero for a legitimately performed unit', async () => {
+    const fixture = fakeTransaction([]);
+    await persistWorkoutSessionValues(fixture.tx, 'execution-1', 'day-1', undefined, [{
+      plannedUnitId: 'exercise-1', plannedSetId: 'set-1',
+      outcome: 'partial', repetitions: 0, loadKg: 0,
+    }]);
+    expect(fixture.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({
+        outcome: 'partial', repetitions: 0, loadKg: 0,
+      }),
+    }));
+  });
+});

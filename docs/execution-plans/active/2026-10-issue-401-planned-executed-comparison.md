@@ -3,7 +3,7 @@
 - Base: `develop`; branch de implementação: `feat/401-planned-executed-comparison`.
 - Autoridades: WorkoutDay/WorkoutCyclicStage/WorkoutExerciseBlock/WorkoutExercisePlannedSet/WorkoutResistanceGroup (prescrição); WorkoutSessionExecution/Item (#389) (realizado).
 - Dependências: #398, #399, #400 e #389 presentes na develop. Nenhuma nova árvore de montagem.
-- Status: remediações A-401-01..20 implementadas; A-021 (privacidade) e REC-001 (tradução) verificadas no HEAD `d43337b33e3920fad2b3b59bb17d7eec4208907e` pelos workflows [PR #41189819853](https://github.com/crgasparoto-br/training-system/actions/runs/41189819853) e [push #41189816669](https://github.com/crgasparoto-br/training-system/actions/runs/41189816669), ambos `completed/success`. Os novos ajustes A-401022/A-401023 e REC-401-01/02 exigem CI exact-SHA do novo commit e posterior auditoria independente.
+- Status: remediações A-401-01..20, A-021, A-401022/A-401023 e REC-401-01/02 implementadas. A PR #523 teve CI verde no HEAD anterior `e0efeeb9439c3dabb7f71e4de41cfb928246e74f` ([PR #41200008189](https://github.com/crgasparoto-br/training-system/actions/runs/41200008189), [push #41200003263](https://github.com/crgasparoto-br/training-system/actions/runs/41200003263)). A auditoria subsequente identificou A-401-025; a correção atual requer novo CI exact-SHA, sem reutilizar os checks históricos, e nova auditoria independente.
 
 ## Objetivo
 
@@ -21,6 +21,7 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - A-401-20: o estágio `repeat` é um agrupador de todas as subetapas em todas as voltas. `full` exige confirmação de cada filho; registro direto `full` sem cobertura gera `incomplete_record`, nunca execução integral. Um `not_performed` direto sem filhos é uma declaração negativa explícita, sem preencher filhos ausentes. `partial` ou `substituted` diretos podem restringir um grupo totalmente coberto, mas não sanar ausência de filhos; conflito entre não realização e execução confirmada gera `incomplete_record`. `containsSubstitution` permanece visível em cobertura incompleta. A sessão agrega cada grupo repetido uma vez, não os filhos e o pai juntos, evitando divergências entre resultados. Histórico sem snapshot continua sem metas/deltas inventados.
 - A-401022: a confirmação guiada é recusada com HTTP 409 (`WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME`) quando a mesma série possui `outcome=not_performed`; é necessário corrigir explicitamente a situação antes de confirmar. Classificações anteriores `partial` ou `substituted` permanecem intactas quando confirmadas legitimamente. O status e a versão não avançam em tentativas rejeitadas.
 - A-401023: a transição terminal `not_performed` não aceita nenhum `item` ou `sessionValues` no comando e rejeita um shell anterior que já contenha registros executados. Tentativas inválidas não criam snapshot, operação, timeline ou versão; a transição negativa sem execução continua permitida.
+- A-401-025: `not_performed` no nível de etapa, agrupamento ou série não pode coexistir com métricas executadas, inclusive zero explícito. O serviço valida a combinação efetiva após merge de patches com os registros persistidos e permite transição após limpeza explícita por `null`. Constraint/trigger PostgreSQL também rejeitam escrita direta inconsistente, sem backfill retroativo de classificação.
 - O cálculo é projeção read-only, sem média, adesão, progressão, sugestão de prescrição ou integração externa.
 
 ## Cenários de validação
@@ -56,6 +57,8 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - [x] A-401023: rejeição de payload executado ao encerrar como `not_performed`, controle de shell histórico, testes PostgreSQL, contrato HTTP e jornada HTTP autenticada contra PostgreSQL real.
 - [x] REC-401-01: ampliar a jornada Chromium já existente de #487 para verificar a comparação #401 em aluno autenticado e professor autenticado, lendo a mesma execução persistida por suas rotas reais e renderizando o componente de produção. Capturas/manifesto com SHA-256 em `artifacts/issue-401/`; a tela completa do professor não é alegada como E2E neste harness.
 - [x] REC-401-02: registrar a recertificação A-021/REC-001 anterior com seus SHAs reais e diferenciar os checks exigidos para a remediação atual.
+- [x] A-401-025: verificação transacional de não realização sem métricas nas três modalidades de unidade, atualização parcial com dados duráveis, zero preservado quando há execução, regressões PostgreSQL e SQL direto. Teste A-401022 ajustado para declaração negativa sem métricas.
+- [x] REC-401-03: plano e documentação técnica/funcional reconciliados com a nova regra; CI anterior identificada como histórica, sem alegação de aprovação do commit corretivo.
 - [ ] Gate obrigatório: CI exact-SHA do novo candidato e nova auditoria independente em contexto separado. Não reutilizar parecer ou checks de commits anteriores.
 
 ## Validação manual
@@ -87,3 +90,5 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - A trilha antiga sem `plannedSnapshot` não pode ser retroativamente reconstruída com certeza. O fallback usa o planejamento liberado apenas como referência de identidade/estrutura para os registros existentes, com metas planejadas e diferenças intencionalmente nulas; jamais apresentar como captura histórica realizada na origem.
 - A página não gera dados executados automaticamente. O modo guiado e os coletores específicos das issues #487–#489 poderão alimentar a mesma API sem criarem outra fonte.
 - CI e auditoria são bloqueios de conclusão, não justificativa para merge automático.
+
+20. A-401-025: tente registrar `not_performed` com carga positiva, repetições zero, FC, PSE e descanso em série, etapa ou grupo; todos devem retornar 400 sem alterar versão, operação ou captura histórica. Para uma unidade com métricas já gravadas, trocar apenas o outcome deve falhar; reenviar a troca com `null` explícito para cada medida deve funcionar e permanecer idempotente. Tentar o bypass por SQL direto deve falhar. `partial` com zero real continua permitido.
