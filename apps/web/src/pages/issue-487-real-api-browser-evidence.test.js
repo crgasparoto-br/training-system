@@ -39,7 +39,7 @@ async function waitForHealth(origin) {
   }
   throw new Error('Real API did not become healthy: ' + origin);
 }
-async function seedReleasedSession(prisma, today, suffix) {
+async function seedReleasedSession(prisma, today, suffix, options = {}) {
   const contract = await prisma.companyContract.create({
     data: { id: 'issue487-real-contract-' + suffix, type: 'academy',
       document: randomUUID().replace(/-/g, '').slice(0, 14), name: 'Contrato teste #487' },
@@ -132,6 +132,34 @@ async function seedReleasedSession(prisma, today, suffix) {
         { position: 2, workoutExerciseId: workoutB.id },
       ] } },
   });
+  // Optional, isolated #401 fixture; the primary guided workout stays unchanged.
+  let legacyWorkoutId = null;
+  let repeatedWorkId = null;
+  if (options.withLegacyAndRepeated) {
+    const legacyLibrary = await prisma.exerciseLibrary.create({
+      data: { contractId: contract.id, name: 'Execução legada #401',
+        category: 'Resistido' },
+    });
+    const legacyWorkout = await prisma.workoutExercise.create({
+      data: { workoutDayId: day.id, exerciseId: legacyLibrary.id,
+        section: 'principal', exerciseOrder: 3, sets: 1, reps: 10 },
+    });
+    legacyWorkoutId = legacyWorkout.id;
+    repeatedWorkId = await prisma.$transaction(async (tx) => {
+      const repeat = await tx.workoutCyclicStage.create({
+        data: { workoutDayId: day.id, position: 1, kind: 'repeat', repeatCount: 2 },
+      });
+      const work = await tx.workoutCyclicStage.create({
+        data: { workoutDayId: day.id, parentStageId: repeat.id, position: 1,
+          kind: 'work', durationUnit: 'seconds', durationValue: 60 },
+      });
+      await tx.workoutCyclicStage.create({
+        data: { workoutDayId: day.id, parentStageId: repeat.id, position: 2,
+          kind: 'recovery', durationUnit: 'seconds', durationValue: 30 },
+      });
+      return work.id;
+    });
+  }
   const releasedAt = new Date();
   await prisma.$executeRawUnsafe(
     'INSERT INTO "ConsolidatedPrescriptionOperationalRelease" (' +
@@ -151,7 +179,7 @@ async function seedReleasedSession(prisma, today, suffix) {
   });
   return { contractId: contract.id, studentUserId: studentUser.id,
     professorUserId: professorUser.id, alunoId: student.id, workoutAId: workoutA.id,
-    dayId: day.id, firstPlannedSetId: firstPlannedSet.id };
+    dayId: day.id, firstPlannedSetId: firstPlannedSet.id, legacyWorkoutId, repeatedWorkId };
 }
 async function startVite(apiOrigin, token) {
   process.env.VITE_API_URL = apiOrigin;
@@ -283,6 +311,96 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
       expect(await prisma.workoutSessionExecution.findUnique({
         where: { workoutDayId: fixture.dayId },
       })).toBeNull();
+
+
+      // A-401-025: independently exercise the two remaining HTTP/Prisma paths:
+      // a legacy exercise and a second iteration of a real cyclic repeat.
+      const auditFixture = await seedReleasedSession(
+        prisma, today, suffix + '-negative', { withLegacyAndRepeated: true });
+      const auditToken = jwt.sign({
+        userId: auditFixture.studentUserId, email: 'issue487-student-' + suffix + '-negative@example.test',
+        type: 'aluno',
+      }, jwtSecret, { expiresIn: '1h' });
+      const auditProfessorToken = jwt.sign({
+        userId: auditFixture.professorUserId, email: 'issue487-prof-' + suffix + '-negative@example.test',
+        type: 'professor',
+      }, jwtSecret, { expiresIn: '1h' });
+      const auditUrl = '/student/me/training-sessions/' + auditFixture.dayId + '/execution';
+      const auditStart = await apiRequest(apiOrigin, auditToken, auditFixture.contractId,
+        'POST', auditUrl + '/transition', {
+          operationKey: '40125-audit-start-' + suffix, expectedVersion: 0,
+          targetStatus: 'in_progress',
+        });
+      expect(auditStart.status).toBe(200);
+      const auditBefore = await prisma.workoutSessionExecution.findUniqueOrThrow({
+        where: { workoutDayId: auditFixture.dayId }, include: { items: true, operations: true },
+      });
+      for (const [label, patch] of [
+        ['legacy-nonzero', { items: [{ plannedUnitId: auditFixture.legacyWorkoutId,
+          setNumber: 1, outcome: 'not_performed', repetitions: 10, loadKg: 35 }] }],
+        ['legacy-zero', { items: [{ plannedUnitId: auditFixture.legacyWorkoutId,
+          setNumber: 1, outcome: 'not_performed', repetitions: 0 }] }],
+        ['repeat-iteration-two', { sessionValues: { cyclicStages: [{
+          plannedStageId: auditFixture.repeatedWorkId, iteration: 2,
+          outcome: 'not_performed', durationSec: 60 }] } }],
+      ]) {
+        const response = await apiRequest(apiOrigin, auditToken, auditFixture.contractId,
+          'PUT', auditUrl + '/values', {
+            operationKey: '40125-audit-' + label + '-' + suffix,
+            expectedVersion: auditBefore.version, ...patch,
+          });
+        expect(response.status).toBe(400);
+      }
+      expect(await prisma.workoutSessionExecution.findUniqueOrThrow({
+        where: { workoutDayId: auditFixture.dayId }, include: { items: true, operations: true },
+      })).toEqual(auditBefore);
+      const negativeAudit = await apiRequest(apiOrigin, auditToken, auditFixture.contractId,
+        'PUT', auditUrl + '/values', {
+          operationKey: '40125-audit-valid-negative-' + suffix,
+          expectedVersion: auditBefore.version,
+          sessionValues: { cyclicStages: [{
+            plannedStageId: auditFixture.repeatedWorkId, iteration: 2, outcome: 'not_performed',
+          }] },
+          items: [{ plannedUnitId: auditFixture.legacyWorkoutId,
+            setNumber: 1, outcome: 'not_performed' }],
+        });
+      expect(negativeAudit.status).toBe(200);
+      const afterNegativeVersion = negativeAudit.body.data.version;
+      const negativeReplay = await apiRequest(apiOrigin, auditToken, auditFixture.contractId,
+        'PUT', auditUrl + '/values', {
+          operationKey: '40125-audit-valid-negative-' + suffix,
+          expectedVersion: auditBefore.version,
+          sessionValues: { cyclicStages: [{
+            plannedStageId: auditFixture.repeatedWorkId, iteration: 2, outcome: 'not_performed',
+          }] },
+          items: [{ plannedUnitId: auditFixture.legacyWorkoutId,
+            setNumber: 1, outcome: 'not_performed' }],
+        });
+      expect(negativeReplay.status).toBe(200);
+      expect(negativeReplay.body.data.version).toBe(afterNegativeVersion);
+      const studentAuditRoutine = await apiRequest(apiOrigin, auditToken, auditFixture.contractId,
+        'GET', '/student/me/training-routine?date=' + today);
+      const professorAuditRoutine = await apiRequest(apiOrigin, auditProfessorToken, auditFixture.contractId,
+        'GET', '/alunos/' + encodeURIComponent(auditFixture.alunoId) +
+          '/training-routine?date=' + today);
+      expect(studentAuditRoutine.status).toBe(200);
+      expect(professorAuditRoutine.status).toBe(200);
+      for (const response of [studentAuditRoutine, professorAuditRoutine]) {
+        const comparison = response.body.data.today.sessions.find(
+          (session) => session.sessionId === auditFixture.dayId)?.comparison;
+        expect(comparison?.snapshotSource).toBe('captured');
+        expect(comparison.units.find((unit) => unit.kind === 'cyclic_stage' &&
+          unit.plannedUnitId === auditFixture.repeatedWorkId && unit.iteration === 2))
+          .toMatchObject({ outcome: 'not_performed', metrics: expect.arrayContaining([
+            expect.objectContaining({ key: 'duration', executed: null }),
+          ]) });
+        expect(comparison.units.find((unit) => unit.kind === 'exercise' &&
+          unit.plannedUnitId === auditFixture.legacyWorkoutId))
+          .toMatchObject({ outcome: 'not_performed' });
+      }
+      expect((await prisma.workoutSessionExecution.findUniqueOrThrow({
+        where: { workoutDayId: auditFixture.dayId },
+      })).plannedSnapshot).toEqual(auditBefore.plannedSnapshot);
 
       browser = await puppeteer.launch({
         executablePath: executablePath(), headless: true,
