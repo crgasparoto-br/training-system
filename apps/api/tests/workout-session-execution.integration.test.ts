@@ -257,15 +257,19 @@ async function seedReleasedWorkout(
   }
 
   if (options.seedRepeatedCyclic) {
-    const repeat = await prisma.workoutCyclicStage.create({
-      data: { workoutDayId: day.id, position: 1, kind: 'repeat', repeatCount: 2 },
+    // The deferred #398 constraint checks that a repeat has both work and
+    // recovery children at transaction commit, not between individual queries.
+    await prisma.$transaction(async (tx) => {
+      const repeat = await tx.workoutCyclicStage.create({
+        data: { workoutDayId: day.id, position: 1, kind: 'repeat', repeatCount: 2 },
+      });
+      await tx.workoutCyclicStage.createMany({ data: [
+        { workoutDayId: day.id, parentStageId: repeat.id, position: 1, kind: 'work',
+          durationUnit: 'seconds', durationValue: 60 },
+        { workoutDayId: day.id, parentStageId: repeat.id, position: 2, kind: 'recovery',
+          durationUnit: 'seconds', durationValue: 30 },
+      ] });
     });
-    await prisma.workoutCyclicStage.createMany({ data: [
-      { workoutDayId: day.id, parentStageId: repeat.id, position: 1, kind: 'work',
-        durationUnit: 'seconds', durationValue: 60 },
-      { workoutDayId: day.id, parentStageId: repeat.id, position: 2, kind: 'recovery',
-        durationUnit: 'seconds', durationValue: 30 },
-    ] });
   }
 
   if (options.seedGuidedResistance || options.seedGuidedGroup) {
