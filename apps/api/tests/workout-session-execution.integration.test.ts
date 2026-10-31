@@ -3433,6 +3433,93 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
     })).toEqual(before);
   });
 
+
+  it('A-401-025: legacy series and repeated cyclic stages reject negative measurements and reread by audience', async () => {
+    const fixture = await seedReleasedWorkout('40125-legacy-repeat', { seedRepeatedCyclic: true });
+    const work = await prisma.workoutCyclicStage.findFirstOrThrow({
+      where: { workoutDayId: fixture.dayId, kind: 'work' },
+    });
+    const scope = { sessionId: fixture.dayId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId, actorUserId: fixture.alunoUserId };
+    await transition(fixture, '40125-legacy-start', 0, 'in_progress');
+    for (const [operationKey, patch] of [
+      ['40125-repeated-cycle-positive', {
+        sessionValues: { cyclicStages: [{ plannedStageId: work.id, iteration: 2,
+          outcome: 'not_performed' as const, durationSec: 60 }] },
+      }],
+      ['40125-legacy-positive', {
+        items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
+          outcome: 'not_performed' as const, repetitions: 12, loadKg: 35 }],
+      }],
+    ] as const) {
+      await expect(service.saveValues({ ...scope, payload: {
+        operationKey, expectedVersion: 1, ...patch,
+      } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID', statusCode: 400 });
+    }
+    const initial = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, include: { operations: true, items: true },
+    });
+    expect(initial).toMatchObject({ version: 1, sessionValues: {} });
+    expect(initial.operations).toHaveLength(1);
+    expect(initial.items).toHaveLength(0);
+
+    const negativeCommand = { ...scope, payload: {
+      operationKey: '40125-legacy-negative', expectedVersion: 1,
+      sessionValues: { cyclicStages: [{ plannedStageId: work.id, iteration: 2,
+        outcome: 'not_performed' as const }] },
+      items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
+        outcome: 'not_performed' as const }],
+    } };
+    const negative = await service.saveValues(negativeCommand);
+    expect(negative.version).toBe(2);
+    expect((await service.saveValues(negativeCommand)).version).toBe(2);
+    for (const audience of ['student', 'professor'] as const) {
+      const routine = await createTrainingRoutineService(prisma).getRoutine({
+        alunoId: fixture.alunoId, contractId: fixture.contractId, audience,
+        date: '2026-10-06', now: new Date('2026-11-02T12:00:00.000Z'),
+      });
+      const compared = routine.days.flatMap((day) => day.sessions)
+        .find((session) => session.sessionId === fixture.dayId)?.comparison;
+      expect(compared?.snapshotSource).toBe('captured');
+      expect(compared?.units.find((unit) => unit.kind === 'cyclic_stage'
+        && unit.plannedUnitId === work.id && unit.iteration === 2))
+        .toMatchObject({ outcome: 'not_performed',
+          metrics: expect.arrayContaining([expect.objectContaining({ key: 'duration', executed: null })]) });
+      const legacy = compared?.units.find((unit) => unit.kind === 'exercise'
+        && unit.plannedUnitId === fixture.exerciseIds[0]);
+      expect(legacy?.outcome).toBe('incomplete_record');
+      expect(legacy?.metrics.find((metric) => metric.key === 'repetitions')?.executed).toBeNull();
+    }
+    await expect(service.saveValues({ ...scope, payload: {
+      operationKey: '40125-legacy-outcome-only', expectedVersion: negative.version,
+      sessionValues: { cyclicStages: [{ plannedStageId: work.id, iteration: 2,
+        outcome: 'not_performed', durationSec: 0 }] },
+    } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    const recordedZero = await service.saveValues({ ...scope, payload: {
+      operationKey: '40125-legacy-zero-partial', expectedVersion: negative.version,
+      sessionValues: { cyclicStages: [{ plannedStageId: work.id, iteration: 2,
+        outcome: 'partial', durationSec: 0 }] },
+      items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
+        outcome: 'partial', repetitions: 0, loadKg: 0 }],
+    } });
+    expect(recordedZero.sessionValues.cyclicStages?.[0]).toMatchObject({
+      outcome: 'partial', durationSec: 0,
+    });
+    expect(recordedZero.items[0]).toMatchObject({
+      outcome: 'partial', repetitions: 0, loadKg: 0,
+    });
+    await expect(service.saveValues({ ...scope, payload: {
+      operationKey: '40125-legacy-revert-invalid', expectedVersion: recordedZero.version,
+      items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1, outcome: 'not_performed' }],
+    } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    expect((await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId },
+    })).plannedSnapshot).toEqual(initial.plannedSnapshot);
+    await expect(service.getForSession({
+      sessionId: fixture.dayId, alunoId: fixture.alunoId, contractId: 'another-tenant',
+    })).rejects.toBeInstanceOf(WorkoutSessionExecutionNotFoundError);
+  });
+
   it('A-401-20: reconciles persisted repeat declarations with every child iteration and session', async () => {
     const fixture = await seedReleasedWorkout('issue401-repeat-outcome', { seedRepeatedCyclic: true });
     const stages = await prisma.workoutCyclicStage.findMany({ where: { workoutDayId: fixture.dayId } });

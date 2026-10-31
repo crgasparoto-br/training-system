@@ -307,6 +307,39 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
       await noHorizontalOverflow(page);
       screenshots.push(await shot(page, 'desktop-first-series'));
 
+
+      // A-401-025: real authenticated HTTP -> canonical service -> PostgreSQL.
+      // Invalid unit evidence must not advance the guided sequence or change
+      // the session snapshot/version/operation ledger.
+      const group = await prisma.workoutResistanceGroup.findFirstOrThrow({
+        where: { workoutDayId: fixture.dayId },
+      });
+      const negativeUrl = '/student/me/training-sessions/' + fixture.dayId + '/execution/values';
+      const priorNegative = await prisma.workoutSessionExecution.findUniqueOrThrow({
+        where: { workoutDayId: fixture.dayId }, include: { items: true, operations: true },
+      });
+      for (const [label, values] of [
+        ['structured-zero', { items: [{ plannedUnitId: fixture.workoutAId,
+          plannedSetId: fixture.firstPlannedSetId, outcome: 'not_performed', repetitions: 0 }] }],
+        ['structured-positive', { items: [{ plannedUnitId: fixture.workoutAId,
+          plannedSetId: fixture.firstPlannedSetId, outcome: 'not_performed', loadKg: 30.5 }] }],
+        ['group-zero', { sessionValues: { resistanceGroups: [{
+          plannedGroupId: group.id, outcome: 'not_performed', roundsCompleted: 0 }] } }],
+      ]) {
+        const rejected = await apiRequest(apiOrigin, token, fixture.contractId, 'PUT',
+          negativeUrl, { operationKey: '40125-real-http-' + label + '-' + suffix,
+            expectedVersion: priorNegative.version, ...values });
+        expect(rejected.status).toBe(400);
+      }
+      const afterNegative = await prisma.workoutSessionExecution.findUniqueOrThrow({
+        where: { workoutDayId: fixture.dayId }, include: { items: true, operations: true },
+      });
+      expect(afterNegative).toEqual(priorNegative);
+      const untouched = await apiRequest(apiOrigin, token, fixture.contractId,
+        'GET', '/student/me/training-sessions/' + fixture.dayId + '/execution');
+      expect(untouched.status).toBe(200);
+      expect(untouched.body.data).toMatchObject({ version: priorNegative.version, items: [] });
+
       await page.click('input[placeholder="Informe as repetições"]');
       await page.$eval('input[placeholder="Informe as repetições"]', (input) => input.select());
       await page.keyboard.type('7');

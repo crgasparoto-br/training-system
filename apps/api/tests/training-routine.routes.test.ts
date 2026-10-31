@@ -307,6 +307,34 @@ describe('training routine HTTP boundaries (#387)', () => {
       }));
     });
 
+
+    it.each([
+      ['série estruturada', { items: [{ plannedUnitId: 'exercise-a', plannedSetId: 'set-a',
+        outcome: 'not_performed', repetitions: 12, loadKg: 40 }] }],
+      ['série legada', { items: [{ plannedUnitId: 'exercise-a', setNumber: 1,
+        outcome: 'not_performed', repetitions: 0 }] }],
+      ['etapa repetida', { sessionValues: { cyclicStages: [{
+        plannedStageId: 'stage-a', iteration: 2, outcome: 'not_performed', durationSec: 90 }] } }],
+      ['agrupamento', { sessionValues: { resistanceGroups: [{
+        plannedGroupId: 'group-a', outcome: 'not_performed', roundsCompleted: 2 }] } }],
+    ])('A-401-025: HTTP maps negative %s metrics to typed 400 without leaking persistence data', async (_label, values) => {
+      const { WorkoutSessionExecutionInputError } =
+        require('../src/modules/workout/workout-session-execution.service');
+      mockSaveExecutionValues.mockRejectedValueOnce(
+        new WorkoutSessionExecutionInputError('Unidade não realizada não pode conter valores executados.')
+      );
+      const payload = { operationKey: '40125-http-negative-unit', expectedVersion: 1, ...values };
+      const response = await request(app)
+        .put('/student/me/training-sessions/day-1/execution/values')
+        .set('x-contract-id', 'contract-1').send(payload);
+      expect(response.status).toBe(400);
+      expect(response.body.data?.items).toBeUndefined();
+      expect(mockSaveExecutionValues).toHaveBeenCalledWith({
+        sessionId: 'day-1', alunoId: 'aluno-1', contractId: 'contract-1',
+        actorUserId: 'user-1', payload,
+      });
+    });
+
     it('A-021: GET, transition and save return student-safe data at the HTTP boundary', async () => {
       const recorded = {
         sessionId: 'day-1', status: 'in_progress', version: 2,
