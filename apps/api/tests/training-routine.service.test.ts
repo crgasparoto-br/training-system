@@ -283,6 +283,44 @@ describe('training routine service (#387)', () => {
     expect(pending.days[3].pendingReleaseCount).toBe(1);
   });
 
+
+  it('A-021: student routine redacts raw technical readings, professor retains them', async () => {
+    const executionItem = {
+      plannedUnitId: 'exercise-1', plannedSetId: null, setNumber: 1,
+      completedAt: null, outcome: 'full', substitutionNote: null,
+      rir: 2, rpe: 7, tempo: '2-0-2', restSec: 45,
+      repetitions: 8, loadKg: 20, durationSec: null, distanceKm: null,
+      pace: null, heartRateBpm: null, heartRateZone: null,
+    };
+    const row = makeRow({ execution: {
+      workoutDayId: 'day-1', status: 'in_progress', version: 2,
+      startedAt: new Date('2026-10-01T14:00:00.000Z'), finishedAt: null,
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0),
+      interruptionReason: null, originReleaseId: 'release-1',
+      originWorkoutTemplateId: 'template-1', originTrainingPlanId: 'plan-1',
+      sessionValues: { speedKmh: 0 },
+      plannedSnapshot: { id: 'day-1', cyclicStages: [], exercises: [], resistanceGroups: [] },
+      items: [executionItem],
+    } });
+    releasedRows = [row];
+
+    const student = await service.getRoutine({ alunoId: 'aluno-1',
+      contractId: 'contract-1', audience: 'student', now });
+    const professor = await service.getRoutine({ alunoId: 'aluno-1',
+      contractId: 'contract-1', audience: 'professor', now });
+
+    const studentItem = student.today.sessions[0].execution.items[0];
+    const professorItem = professor.today.sessions[0].execution.items[0];
+    expect(studentItem).not.toHaveProperty('rir');
+    expect(studentItem).not.toHaveProperty('rpe');
+    expect(studentItem).not.toHaveProperty('tempo');
+    expect(studentItem).toMatchObject({ loadKg: 20, repetitions: 8, restSec: 45 });
+    expect(student.today.sessions[0].execution.sessionValues.speedKmh).toBe(0);
+    expect(JSON.stringify(student)).not.toContain('2-0-2');
+    expect(professorItem).toMatchObject({ rir: 2, rpe: 7, tempo: '2-0-2' });
+    expect(executionItem).toMatchObject({ rir: 2, rpe: 7, tempo: '2-0-2' });
+  });
+
   it('expõe a origem consolidada e o contexto técnico somente ao professor', async () => {
     releasedRows = [makeRow()];
     releaseRows = [

@@ -87,6 +87,24 @@ export function readCapturedWorkoutComparisonPlan(value: unknown): TrainingCompa
 const present = (value: number | string | null | undefined): number | string | null =>
   value === undefined ? null : value;
 
+const cyclicStageLabels: Record<string, string> = {
+  warmup: 'aquecimento', work: 'trabalho', recovery: 'recuperação',
+  cooldown: 'desaquecimento', repeat: 'repetições',
+};
+const resistanceBlockLabels: Record<string, string> = {
+  aquecimento: 'aquecimento', principal: 'principal', tecnica: 'técnica',
+  tecnico: 'técnico', complementar: 'complementar', finalizacao: 'finalização',
+  warmup: 'aquecimento', main: 'principal', technique: 'técnica',
+  technical: 'técnico', complementary: 'complementar', finisher: 'finalização',
+};
+const resistanceGroupLabels: Record<string, string> = {
+  superserie: 'supersérie', bi_set: 'bi-set', tri_set: 'tri-set',
+  circuito: 'circuito', bloco_tecnico: 'bloco técnico',
+  mobilidade: 'mobilidade', finalizacao: 'finalização',
+};
+const localizedUnitKind = (kind: string, labels: Record<string, string>) =>
+  labels[kind] ?? kind.replace(/_/g, ' ');
+
 function metric(
   key: string,
   label: string,
@@ -255,7 +273,7 @@ export function compareWorkoutSession(
         ...(target === 'pse' ? [] : [metric('pse', 'Esforço percebido', null, actual?.pse, 'PSE')]),
       ];
       result.push(unit(stage.id, 'cyclic_stage',
-        'Etapa ' + stage.position + ' · ' + stage.kind,
+        'Etapa ' + stage.position + ' · ' + localizedUnitKind(stage.kind, cyclicStageLabels),
         actual?.outcome ?? missingOutcome, [
           primaryMetric,
           secondaryMetric,
@@ -338,7 +356,7 @@ export function compareWorkoutSession(
           ? summaryOutcome(records.map((item) => recordedItemOutcome(item)), 1)
           : 'not_recorded' as const;
       });
-      result.push(unit(block.id, 'block', 'Bloco ' + block.position + ' · ' + block.kind,
+      result.push(unit(block.id, 'block', 'Bloco ' + block.position + ' · ' + localizedUnitKind(block.kind, resistanceBlockLabels),
         results.length ? summaryOutcome(blockStatuses, block.plannedSets.length) : missingOutcome,
         [], exercise.id, null, null, null, results.some((item) => item.outcome === 'substituted')));
       for (const set of block.plannedSets) {
@@ -362,7 +380,7 @@ export function compareWorkoutSession(
   }
   for (const group of planned.resistanceGroups) {
     const actual = state.resistanceGroups?.find((item) => item.plannedGroupId === group.id);
-    result.push(unit(group.id, 'group', 'Agrupamento ' + group.position + ' · ' + group.kind,
+    result.push(unit(group.id, 'group', 'Agrupamento ' + group.position + ' · ' + localizedUnitKind(group.kind, resistanceGroupLabels),
       actual?.outcome ?? missingOutcome, [
         metric('rounds', 'Rodadas', group.rounds, actual?.roundsCompleted, 'rodadas'),
         metric('exercise_rest', 'Intervalo entre exercícios',
@@ -428,5 +446,28 @@ export function projectWorkoutComparisonForAudience(
           .filter((metric) => !['rir', 'rpe', 'tempo'].includes(metric.key))
           .map((metric) => ({ ...metric, difference: null })),
       })),
+  };
+}
+
+/**
+ * Public execution payloads must not leak raw RIR/RPE/cadence readings to a
+ * student, even though the same values remain persisted for the professor.
+ * Keep ordinary load, repetitions, rests, timing and lifecycle information.
+ * The guided prescription contract is separate and is not changed here.
+ */
+export function projectWorkoutExecutionForAudience(
+  execution: TrainingSessionExecutionView,
+  audience: TrainingRoutineAudience,
+): TrainingSessionExecutionView {
+  if (audience === 'professor') return execution;
+  return {
+    ...execution,
+    items: execution.items.map((item) => {
+      const publicItem = { ...item };
+      delete publicItem.rir;
+      delete publicItem.rpe;
+      delete publicItem.tempo;
+      return publicItem;
+    }),
   };
 }

@@ -10,6 +10,8 @@ const mockGetGuided = jest.fn();
 const mockCompleteGuided = jest.fn();
 const mockSaveCheckIn = jest.fn();
 const mockSaveExecutionValues = jest.fn();
+const mockGetSessionExecution = jest.fn();
+const mockTransitionExecution = jest.fn();
 const mockResolveActiveStudentMembership = jest.fn();
 const mockBlockAccessMiddleware = jest.fn(
   () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
@@ -58,6 +60,8 @@ jest.mock('../src/modules/workout/workout-session-execution.service', () => {
   return {
     workoutSessionExecutionService: {
       saveValues: mockSaveExecutionValues,
+      getForSession: mockGetSessionExecution,
+      transition: mockTransitionExecution,
       getGuidedForSession: mockGetGuided,
       completeGuided: mockCompleteGuided,
     },
@@ -138,6 +142,8 @@ describe('training routine HTTP boundaries (#387)', () => {
     mockGetRoutine.mockReset().mockResolvedValue(routine);
     mockGetCheckIn.mockReset().mockResolvedValue(null);
     mockSaveCheckIn.mockReset().mockResolvedValue({ id: 'checkin-1', editable: true });
+    mockGetSessionExecution.mockReset();
+    mockTransitionExecution.mockReset();
     mockSaveExecutionValues.mockReset().mockResolvedValue({ sessionId: 'day-1', version: 2,
       sessionValues: { speedKmh: 9 }, items: [] });
     mockGetGuided.mockReset().mockResolvedValue({ sessionId: 'day-1', availability: 'available', current: null });
@@ -278,6 +284,50 @@ describe('training routine HTTP boundaries (#387)', () => {
       mockAlunoFindFirst.mockResolvedValue({ id: 'aluno-1', contractId: 'contract-1', user: { id: 'user-1' } });
     });
 
+
+
+    it('A-021: GET, transition and save return student-safe data at the HTTP boundary', async () => {
+      const recorded = {
+        sessionId: 'day-1', status: 'in_progress', version: 2,
+        sessionValues: { speedKmh: 0 },
+        items: [{ plannedUnitId: 'exercise-a', plannedSetId: 'set-1', setNumber: 1,
+          rir: 2, rpe: 7, tempo: '2-0-2', restSec: 45,
+          repetitions: 8, loadKg: 20 }],
+      };
+      mockGetSessionExecution.mockResolvedValue(recorded);
+      mockTransitionExecution.mockResolvedValue(recorded);
+      mockSaveExecutionValues.mockResolvedValue(recorded);
+      const url = '/student/me/training-sessions/day-1/execution';
+      const read = await request(app).get(url).set('x-contract-id', 'contract-1');
+      const transition = await request(app).post(url + '/transition')
+        .set('x-contract-id', 'contract-1')
+        .send({ operationKey: 'issue401-redact-transition', expectedVersion: 2,
+          targetStatus: 'paused' });
+      const save = await request(app).put(url + '/values')
+        .set('x-contract-id', 'contract-1')
+        .send({ operationKey: 'issue401-redact-values', expectedVersion: 2,
+          items: [{ plannedUnitId: 'exercise-a', plannedSetId: 'set-1', setNumber: 1,
+            rir: 2, rpe: 7, tempo: '2-0-2', repetitions: 8, loadKg: 20 }] });
+
+      for (const response of [read, transition, save]) {
+        expect(response.status).toBe(200);
+        const item = response.body.data.items[0];
+        expect(item).not.toHaveProperty('rir');
+        expect(item).not.toHaveProperty('rpe');
+        expect(item).not.toHaveProperty('tempo');
+        expect(item).toMatchObject({ loadKg: 20, repetitions: 8, restSec: 45 });
+        expect(response.body.data.sessionValues.speedKmh).toBe(0);
+        expect(JSON.stringify(response.body)).not.toContain('2-0-2');
+      }
+      expect(mockGetSessionExecution).toHaveBeenCalledWith({
+        sessionId: 'day-1', alunoId: 'aluno-1', contractId: 'contract-1',
+      });
+      expect(mockTransitionExecution).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId: 'day-1', alunoId: 'aluno-1', contractId: 'contract-1',
+        actorUserId: 'user-1',
+      }));
+      expect(recorded.items[0]).toMatchObject({ rir: 2, rpe: 7, tempo: '2-0-2' });
+    });
 
     it('A-401-18/19: forwards partial substitution notes and two distinct planned-set IDs without ordinals', async () => {
       const payload = { operationKey: 'issue401-patch-ids-http', expectedVersion: 2,

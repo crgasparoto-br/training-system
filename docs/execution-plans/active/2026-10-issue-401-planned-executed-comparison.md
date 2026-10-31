@@ -3,7 +3,7 @@
 - Base: `develop`; branch de implementação: `feat/401-planned-executed-comparison`.
 - Autoridades: WorkoutDay/WorkoutCyclicStage/WorkoutExerciseBlock/WorkoutExercisePlannedSet/WorkoutResistanceGroup (prescrição); WorkoutSessionExecution/Item (#389) (realizado).
 - Dependências: #398, #399, #400 e #389 presentes na develop. Nenhuma nova árvore de montagem.
-- Status: remediações A-401-01..19 preservadas e com CI anterior verde em `9dbae39adf03a7e13d03d4e5270a6dbca5942bba`. Remediação A-401-20 implementada neste candidato; exige CI no novo SHA e auditoria independente posterior.
+- Status: remediações A-401-01..20 implementadas; A-401-20 com CI exact-SHA verde no HEAD anterior `b63cec0418cfe20191750230ef1569fa08762a60`. A remediação de privacidade A-021 e a tradução REC-001 exigem CI exact-SHA do novo candidato e auditoria independente posterior.
 
 ## Objetivo
 
@@ -47,7 +47,9 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - [x] Remediação A-401-19: lotes de plannedSetId distintos sem setNumber prévio resolvem ordinais canônicos antes do teste de duplicidade; regressões de duplicação real, ordinal incorreto, foreign ID e histórico legado.
 - [x] A-401-20: domínio, integração PostgreSQL e interface cobrem pai `full` sem filhos, uma volta parcial, todos os filhos completos, substituição de filho ou agrupador, declaração direta de não realização e conflitos. Controle adversarial local sobre o domínio passou após a correção.
 - [x] CI exact-SHA de A-401-18/19 no commit `9dbae39adf03a7e13d03d4e5270a6dbca5942bba`: [PR CI #41157439500](https://github.com/crgasparoto-br/training-system/actions/runs/41157439500) e [push CI #41157435401](https://github.com/crgasparoto-br/training-system/actions/runs/41157435401), ambos `completed/success`.
-- [ ] Auditoria independente após a recertificação CI exact-SHA da remediação A-401-20. Registrar execução e status terminal no histórico da PR; não reutilizar checks ou parecer de SHAs anteriores.
+- [x] A-021: filtragem no backend dos campos técnicos executados RIR/RPE/cadência em rotina do aluno e respostas GET/POST/PUT da execução; testes de domínio, serviço e fronteira HTTP com dados técnicos contrastantes, preservação dos demais valores, escopo contratual e visão do professor.
+- [x] REC-001: tipos de etapas cíclicas, blocos e agrupamentos em rótulos portugueses, sem modificar códigos persistidos; teste positivo para os tipos estruturados.
+- [ ] Auditoria independente após a recertificação CI exact-SHA de A-021 e REC-001. Registrar execução e status terminal no histórico da PR; não reutilizar checks ou parecer de SHAs anteriores.
 
 ## Validação manual
 

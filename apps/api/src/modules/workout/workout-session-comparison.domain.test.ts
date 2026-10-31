@@ -8,6 +8,7 @@ import {
   captureWorkoutComparisonPlan,
   compareWorkoutSession,
   projectWorkoutComparisonForAudience,
+  projectWorkoutExecutionForAudience,
   readCapturedWorkoutComparisonPlan,
   workoutComparisonPlanSelect,
   type TrainingComparisonSnapshot,
@@ -848,6 +849,31 @@ describe('issue #401: granular planned/executed comparison', () => {
         completedAt: '2026-10-30T18:00:00.000Z', outcome: 'partial' }],
     }), 'captured');
     expect(get(explicitlyPartial.units, 'set-1')[0].outcome).toBe('partial');
+  });
+
+  it('A-021: redacts raw execution technical fields without mutating the durable professor view', () => {
+    const stored = execution({ sessionValues: { speedKmh: 0 }, items: [{
+      plannedUnitId: 'ex-1', plannedSetId: 'set-1', setNumber: 1,
+      repetitions: 8, loadKg: 20, restSec: 45, rir: 2, rpe: 7, tempo: '2-0-2',
+    }] });
+    const student = projectWorkoutExecutionForAudience(stored, 'student');
+    expect(student.items[0]).not.toHaveProperty('rir');
+    expect(student.items[0]).not.toHaveProperty('rpe');
+    expect(student.items[0]).not.toHaveProperty('tempo');
+    expect(student.items[0]).toMatchObject({ repetitions: 8, loadKg: 20, restSec: 45 });
+    expect(student.sessionValues.speedKmh).toBe(0);
+    expect(student.origin).toEqual(stored.origin);
+    expect(projectWorkoutExecutionForAudience(stored, 'professor')).toBe(stored);
+    expect(stored.items[0]).toMatchObject({ rir: 2, rpe: 7, tempo: '2-0-2' });
+  });
+
+  it('REC-001: labels known cyclic stages, resistance blocks and groups in Portuguese', () => {
+    const units = compareWorkoutSession(planned(), execution(), 'captured').units;
+    expect(get(units, 'warmup')[0].label).toBe('Etapa 1 · aquecimento');
+    expect(get(units, 'work')[0].label).toBe('Etapa 1 · trabalho');
+    expect(get(units, 'repeat')[0].label).toBe('Etapa 2 · repetições');
+    expect(get(units, 'block-1')[0].label).toBe('Bloco 1 · principal');
+    expect(get(units, 'group-1')[0].label).toBe('Agrupamento 1 · bi-set');
   });
 
 });

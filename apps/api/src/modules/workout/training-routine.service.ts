@@ -23,6 +23,7 @@ import { projectWorkoutSessionExecution } from './workout-session-execution.serv
 import {
   compareWorkoutSession,
   projectWorkoutComparisonForAudience,
+  projectWorkoutExecutionForAudience,
   readCapturedWorkoutComparisonPlan,
   workoutComparisonPlanSelect,
 } from './workout-session-comparison.domain.js';
@@ -385,7 +386,7 @@ function toDetail(
   includePostWorkoutFeedback: boolean,
   comparison?: TrainingSessionComparison
 ): TrainingRoutineSessionDetail {
-  const execution = buildExecution(row, release);
+  const execution = projectWorkoutExecutionForAudience(buildExecution(row, release), audience);
   const detail: TrainingRoutineSessionDetail = {
     ...toSummary(row, audience, capacities, release, comparison),
     execution,

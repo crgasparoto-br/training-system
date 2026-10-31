@@ -34,6 +34,7 @@ import {
   WorkoutSessionExecutionInputError,
   WorkoutSessionExecutionNotFoundError,
 } from '../modules/workout/workout-session-execution.service.js';
+import { projectWorkoutExecutionForAudience } from '../modules/workout/workout-session-comparison.domain.js';
 import { postWorkoutFeedbackPersistenceService, PostWorkoutFeedbackConflictError, PostWorkoutFeedbackInputError, PostWorkoutFeedbackNotFoundError } from '../modules/post-workout-feedback/post-workout-feedback-persistence.service.js';
 
 const prisma = new PrismaClient();
@@ -942,7 +943,7 @@ router.get('/me/training-sessions/:sessionId/execution', async (req: Request, re
       alunoId: aluno.id,
       contractId: aluno.contractId,
     });
-    return sendSuccess(res, execution);
+    return sendSuccess(res, projectWorkoutExecutionForAudience(execution, 'student'));
   } catch (error: any) {
     const handled = sendExecutionError(res, error);
     if (handled) return handled;
@@ -996,7 +997,7 @@ router.post('/me/training-sessions/:sessionId/execution/transition', async (req:
       actorUserId: userId,
       payload,
     });
-    return sendSuccess(res, execution, 'Estado do treino atualizado');
+    return sendSuccess(res, projectWorkoutExecutionForAudience(execution, 'student'), 'Estado do treino atualizado');
   } catch (error: any) {
     const handled = sendExecutionError(res, error);
     if (handled) return handled;
@@ -1017,7 +1018,7 @@ router.put('/me/training-sessions/:sessionId/execution/values', async (req: Requ
       actorUserId: userId,
       payload,
     });
-    return sendSuccess(res, execution, 'Execução do treino salva');
+    return sendSuccess(res, projectWorkoutExecutionForAudience(execution, 'student'), 'Execução do treino salva');
   } catch (error: any) {
     const handled = sendExecutionError(res, error);
     if (handled) return handled;
