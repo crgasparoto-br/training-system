@@ -3151,6 +3151,98 @@ describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
 
 
 describeDatabase('issue #401: frozen planned versus executed comparison', () => {
+  it('A-401022: guided confirmation rejects a negatively declared set without changing durable history', async () => {
+    const fixture = await seedReleasedWorkout('40122-guided-negative', { seedGuidedResistance: true });
+    const scope = { sessionId: fixture.dayId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId, actorUserId: fixture.alunoUserId };
+    await transition(fixture, '40122-start', 0, 'in_progress');
+    const current = (await service.getGuidedForSession(scope)).current!;
+    expect(current).toMatchObject({ setNumber: 1 });
+    const negative = await service.saveValues({ ...scope, payload: {
+      operationKey: '40122-record-not-performed', expectedVersion: 1,
+      items: [{ plannedUnitId: current.plannedUnitId, plannedSetId: current.plannedSetId,
+        setNumber: current.setNumber, outcome: 'not_performed', repetitions: 0, loadKg: 0 }],
+    } });
+    const before = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, include: { items: true, operations: true },
+    });
+    const guidance = { plannedUnitId: current.plannedUnitId, plannedSetId: current.plannedSetId,
+      setNumber: current.setNumber, repetitions: 8, loadKg: 30.5 };
+    await expect(service.completeGuided({ ...scope, payload: {
+      operationKey: '40122-invalid-confirmation', expectedVersion: negative.version, ...guidance,
+    } })).rejects.toMatchObject({
+      statusCode: 409, code: 'WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME',
+    });
+    const after = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, include: { items: true, operations: true },
+    });
+    expect(after).toEqual(before);
+    expect((await service.getGuidedForSession(scope)).completed).toBe(0);
+
+    // A deliberate manual correction can retain the legitimate substitution.
+    const corrected = await service.saveValues({ ...scope, payload: {
+      operationKey: '40122-correct-to-substitution', expectedVersion: negative.version,
+      items: [{ plannedUnitId: current.plannedUnitId, plannedSetId: current.plannedSetId,
+        setNumber: current.setNumber, outcome: 'substituted',
+        substitutionNote: 'Adaptação orientada pelo professor' }],
+    } });
+    const confirmation = { operationKey: '40122-valid-confirmation',
+      expectedVersion: corrected.version, ...guidance };
+    const guided = await service.completeGuided({ ...scope, payload: confirmation });
+    expect(guided).toMatchObject({ completed: 1 });
+    expect(await concurrentService.completeGuided({ ...scope, payload: confirmation }))
+      .toMatchObject({ completed: 1, version: guided.version });
+    const persisted = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, include: { items: true },
+    });
+    expect(persisted.items[0]).toMatchObject({
+      outcome: 'substituted', substitutionNote: 'Adaptação orientada pelo professor',
+      repetitions: 8, loadKg: 30.5,
+    });
+    expect(persisted.items[0].completedAt).not.toBeNull();
+    const snapshot = readCapturedWorkoutComparisonPlan(persisted.plannedSnapshot)!;
+    const comparison = compareWorkoutSession(snapshot, await service.getForSession(scope), 'captured');
+    expect(comparison.units.find((unit) => unit.kind === 'set'
+      && unit.plannedUnitId === current.plannedSetId)).toMatchObject({
+      outcome: 'substituted', substitutionNote: 'Adaptação orientada pelo professor',
+    });
+  });
+
+  it('A-401023: non-performance cannot carry executed items or session measurements', async () => {
+    const fixture = await seedReleasedWorkout('40123-nonperformed');
+    const scope = { sessionId: fixture.dayId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId, actorUserId: fixture.alunoUserId };
+    for (const [operationKey, values] of [
+      ['40123-forged-item', { items: [{
+        plannedUnitId: fixture.exerciseIds[0], setNumber: 1, outcome: 'full' as const,
+        repetitions: 10, loadKg: 20,
+      }] }],
+      ['40123-zero-is-evidence', { sessionValues: { durationSec: 0 } }],
+      ['40123-empty-units', { sessionValues: { cyclicStages: [] } }],
+    ] as const) {
+      await expect(service.transition({ ...scope, payload: {
+        operationKey, expectedVersion: 0, targetStatus: 'not_performed',
+        reason: 'Treino cancelado', ...values,
+      } })).rejects.toMatchObject({ statusCode: 400, code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+      expect(await prisma.workoutSessionExecution.findUnique({ where: { workoutDayId: fixture.dayId } }))
+        .toBeNull();
+      expect(await prisma.studentLifecycleEvent.count({
+        where: { alunoId: fixture.alunoId, metadata: { path: ['domain'], equals: 'workout_session_execution' } },
+      })).toBe(0);
+    }
+    const terminal = await service.transition({ ...scope, payload: {
+      operationKey: '40123-valid-negative', expectedVersion: 0,
+      targetStatus: 'not_performed', reason: 'Treino cancelado',
+    } });
+    expect(terminal).toMatchObject({ status: 'not_performed', version: 1, items: [], sessionValues: {} });
+    const durable = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, include: { items: true, operations: true },
+    });
+    expect(durable.items).toHaveLength(0);
+    expect(durable.operations).toHaveLength(1);
+    expect(durable.status).toBe('not_performed');
+  });
+
   it('A-401-20: reconciles persisted repeat declarations with every child iteration and session', async () => {
     const fixture = await seedReleasedWorkout('issue401-repeat-outcome', { seedRepeatedCyclic: true });
     const stages = await prisma.workoutCyclicStage.findMany({ where: { workoutDayId: fixture.dayId } });

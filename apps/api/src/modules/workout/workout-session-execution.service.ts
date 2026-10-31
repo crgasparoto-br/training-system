@@ -91,6 +91,7 @@ export class WorkoutSessionExecutionConflictError extends Error {
       | 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT'
       | 'WORKOUT_SESSION_EXECUTION_IDEMPOTENCY_CONFLICT'
       | 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION'
+      | 'WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME'
   ) {
     super(message);
   }
@@ -468,6 +469,11 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
     const reason = normalizeText(input.reason, 500);
     const sessionValues = normalizeSessionValues(input.sessionValues);
     const items = normalizeItems(input.items);
+    // A non-performed session is an explicit negative lifecycle decision.
+    // It cannot atomically carry positive or synthetic execution evidence.
+    if (input.targetStatus === 'not_performed' && (sessionValues !== undefined || items.length > 0)) {
+      throw new WorkoutSessionExecutionInputError('Sessão não realizada não aceita valores ou unidades executadas.');
+    }
     const action = input.guidedCompletion ? 'complete_resistance_set' : input.targetStatus ? 'transition' : 'record_values';
     if (input.guidedCompletion && (input.targetStatus || sessionValues || items.length !== 1 || !items[0].plannedSetId)) {
       throw new WorkoutSessionExecutionInputError('Informe exatamente uma série planejada para concluir.');
@@ -520,6 +526,18 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
         );
       }
 
+      if (input.targetStatus === 'not_performed' && execution) {
+        // A pre-existing not_started shell may contain legacy/bypassed values.
+        // Do not convert recorded history into a negative session outcome.
+        const storedValues = execution.sessionValues;
+        const hasStoredValues = storedValues !== null && typeof storedValues === 'object'
+          && !Array.isArray(storedValues) && Object.keys(storedValues).length > 0;
+        const hasStoredItems = await tx.workoutSessionExecutionItem.count({ where: { executionId: execution.id } }) > 0;
+        if (hasStoredValues || hasStoredItems) {
+          throw new WorkoutSessionExecutionInputError('Sessão com histórico executado não pode ser marcada como não realizada.');
+        }
+      }
+
       if (input.targetStatus) {
         try {
           assertWorkoutSessionTransition(currentStatus, input.targetStatus);
@@ -554,6 +572,19 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
           throw new WorkoutSessionExecutionConflictError(
             'Esta série não é a próxima do planejamento. Atualize o treino antes de continuar.',
             'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT'
+          );
+        }
+        const previous = persisted.items.find((record) =>
+          record.plannedUnitId === items[0].plannedUnitId
+          && record.plannedSetId === items[0].plannedSetId
+          && record.setNumber === items[0].setNumber
+        );
+        // A guided completion must never leave a persisted "not performed"
+        // outcome on a completed set. Keep partial/substituted outcomes intact.
+        if (previous?.outcome === 'not_performed') {
+          throw new WorkoutSessionExecutionConflictError(
+            'Esta série está marcada como não realizada. Corrija o resultado registrado antes de confirmá-la.',
+            'WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME'
           );
         }
       }

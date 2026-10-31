@@ -3,7 +3,7 @@
 - Base: `develop`; branch de implementação: `feat/401-planned-executed-comparison`.
 - Autoridades: WorkoutDay/WorkoutCyclicStage/WorkoutExerciseBlock/WorkoutExercisePlannedSet/WorkoutResistanceGroup (prescrição); WorkoutSessionExecution/Item (#389) (realizado).
 - Dependências: #398, #399, #400 e #389 presentes na develop. Nenhuma nova árvore de montagem.
-- Status: remediações A-401-01..20 implementadas; A-401-20 com CI exact-SHA verde no HEAD anterior `b63cec0418cfe20191750230ef1569fa08762a60`. A remediação de privacidade A-021 e a tradução REC-001 exigem CI exact-SHA do novo candidato e auditoria independente posterior.
+- Status: remediações A-401-01..20 implementadas; A-021 (privacidade) e REC-001 (tradução) verificadas no HEAD `d43337b33e3920fad2b3b59bb17d7eec4208907e` pelos workflows [PR #41189819853](https://github.com/crgasparoto-br/training-system/actions/runs/41189819853) e [push #41189816669](https://github.com/crgasparoto-br/training-system/actions/runs/41189816669), ambos `completed/success`. Os novos ajustes A-401022/A-401023 e REC-401-01/02 exigem CI exact-SHA do novo commit e posterior auditoria independente.
 
 ## Objetivo
 
@@ -19,6 +19,8 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - Diferença numérica é mostrada apenas na unidade física equivalente e sem alvo em faixa; dados com unidades incompatíveis ou ausentes não produzem diferença. Diferença nunca é classificação de desempenho. Metas de volume semanal não são usadas como distância diária; os limites de faixas de FC, velocidade e pace permanecem disponíveis. O resultado `full` da sessão só decorre de confirmação explícita de todas as unidades comparáveis, não apenas do status terminal. Em legado sem snapshot, as metas e deltas históricos permanecem indisponíveis para evitar falsas comparações.
 - A apresentação numérica preserva os valores de entrada distintos com até 17 algarismos significativos, em `pt-BR`; diferenças calculadas usam até 8 algarismos significativos e recebem o sinal `≈` quando aproximadas, sem exibir um delta real não nulo como zero (A-401-10). String, unidade, ausência e zero real mantêm seus significados.
 - A-401-20: o estágio `repeat` é um agrupador de todas as subetapas em todas as voltas. `full` exige confirmação de cada filho; registro direto `full` sem cobertura gera `incomplete_record`, nunca execução integral. Um `not_performed` direto sem filhos é uma declaração negativa explícita, sem preencher filhos ausentes. `partial` ou `substituted` diretos podem restringir um grupo totalmente coberto, mas não sanar ausência de filhos; conflito entre não realização e execução confirmada gera `incomplete_record`. `containsSubstitution` permanece visível em cobertura incompleta. A sessão agrega cada grupo repetido uma vez, não os filhos e o pai juntos, evitando divergências entre resultados. Histórico sem snapshot continua sem metas/deltas inventados.
+- A-401022: a confirmação guiada é recusada com HTTP 409 (`WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME`) quando a mesma série possui `outcome=not_performed`; é necessário corrigir explicitamente a situação antes de confirmar. Classificações anteriores `partial` ou `substituted` permanecem intactas quando confirmadas legitimamente. O status e a versão não avançam em tentativas rejeitadas.
+- A-401023: a transição terminal `not_performed` não aceita nenhum `item` ou `sessionValues` no comando e rejeita um shell anterior que já contenha registros executados. Tentativas inválidas não criam snapshot, operação, timeline ou versão; a transição negativa sem execução continua permitida.
 - O cálculo é projeção read-only, sem média, adesão, progressão, sugestão de prescrição ou integração externa.
 
 ## Cenários de validação
@@ -49,7 +51,12 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - [x] CI exact-SHA de A-401-18/19 no commit `9dbae39adf03a7e13d03d4e5270a6dbca5942bba`: [PR CI #41157439500](https://github.com/crgasparoto-br/training-system/actions/runs/41157439500) e [push CI #41157435401](https://github.com/crgasparoto-br/training-system/actions/runs/41157435401), ambos `completed/success`.
 - [x] A-021: filtragem no backend dos campos técnicos executados RIR/RPE/cadência em rotina do aluno e respostas GET/POST/PUT da execução; testes de domínio, serviço e fronteira HTTP com dados técnicos contrastantes, preservação dos demais valores, escopo contratual e visão do professor.
 - [x] REC-001: tipos de etapas cíclicas, blocos e agrupamentos em rótulos portugueses, sem modificar códigos persistidos; teste positivo para os tipos estruturados.
-- [ ] Auditoria independente após a recertificação CI exact-SHA de A-021 e REC-001. Registrar execução e status terminal no histórico da PR; não reutilizar checks ou parecer de SHAs anteriores.
+- [x] Recertificação CI exact-SHA de A-021 e REC-001 no HEAD `d43337b33e3920fad2b3b59bb17d7eec4208907e` em 31/10/2026: PR #41189819853 e push #41189816669, ambos `completed/success`; `Validate repository`, `CRITICAL validation` e merge preview da PR aprovados.
+- [x] A-401022: guarda transacional de confirmação guiada após `not_performed`, com recuperação explícita para substituição e regressões PostgreSQL de rollback, idempotência e comparação.
+- [x] A-401023: rejeição de payload executado ao encerrar como `not_performed`, controle de shell histórico, testes PostgreSQL, contrato HTTP e jornada HTTP autenticada contra PostgreSQL real.
+- [x] REC-401-01: ampliar a jornada Chromium já existente de #487 para verificar a comparação #401 em aluno autenticado e professor autenticado, lendo a mesma execução persistida por suas rotas reais e renderizando o componente de produção. Capturas/manifesto com SHA-256 em `artifacts/issue-401/`; a tela completa do professor não é alegada como E2E neste harness.
+- [x] REC-401-02: registrar a recertificação A-021/REC-001 anterior com seus SHAs reais e diferenciar os checks exigidos para a remediação atual.
+- [ ] Gate obrigatório: CI exact-SHA do novo candidato e nova auditoria independente em contexto separado. Não reutilizar parecer ou checks de commits anteriores.
 
 ## Validação manual
 
@@ -70,6 +77,10 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 14. A-401-18: alterar carga e depois a observação de série substituída em requisições separadas, omitindo ora a observação, ora o outcome; conferir trim, versões, replay e falha sem escrita para substituição sem observação ou observação em série não substituída.
 15. A-401-19: registrar de uma vez duas séries planejadas distintas de um exercício, com plannedSetId explícito e setNumber ausente, em ordem inversa; verificar ordinais, dados e comparação por série. Rejeitar duplicação da mesma série, ordinal inválido, plannedSetId estrangeiro e lote legado duplicado, sem gravar parcialmente.
 16. A-401-20: registrar `full` somente no pai `repeat` (sem filhos), depois uma volta parcial e a outra ausente, depois todas as subetapas de todas as voltas. Conferir que pai e sessão nunca informam `full` com filhos ausentes, e que o caso completo passa a `full` após conclusão do lifecycle. Repetir com `substituted` no pai ou filho, com declaração `not_performed` isolada ou contraditória; preservar notas, `containsSubstitution`, IDs e campos ausentes sem valores fictícios. Conferir aluno/professor e fallback `released_plan`.
+
+17. A-401022: registrar uma série guiada com `outcome=not_performed`, tentar confirmá-la e verificar 409 sem mudança de versão/itens/operações; corrigir explicitamente para `substituted` com motivo e confirmar, preservando substituição e idempotência.
+18. A-401023: tentar encerrar como `not_performed` enviando exercício `full`, duração `0` e lista de etapas vazia; todas devem falhar sem histórico parcialmente criado. O encerramento sem valores continua funcionando.
+19. REC-401-01: confirmar as capturas aluno/professor geradas pelo Chromium real com JWTs distintos, rotas autenticadas, PostgreSQL, carga, diferença neutra e RIR técnico apenas no professor; não confundir o harness de cartão do professor com a navegação completa da Central.
 
 ## Decisões e riscos
 

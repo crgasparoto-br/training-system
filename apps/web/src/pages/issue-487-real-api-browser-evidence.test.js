@@ -112,7 +112,8 @@ async function seedReleasedSession(prisma, today, suffix) {
   await prisma.workoutExerciseBlock.create({
     data: { workoutExerciseId: workoutA.id, position: 1, kind: 'principal',
       plannedSets: { create: [
-        { position: 1, repsMin: 8, repsMax: 12, loadKg: 32.5, restSec: 60 },
+        { position: 1, repsMin: 8, repsMax: 12, loadKg: 32.5, restSec: 60,
+          rir: 2, rpe: 7, tempo: '2-0-2' },
         { position: 2, repsMin: 6, repsMax: 10, loadKg: 35, restSec: 90 },
       ] } },
   });
@@ -149,6 +150,7 @@ async function seedReleasedSession(prisma, today, suffix) {
     where: { block: { workoutExerciseId: workoutA.id }, position: 1 },
   });
   return { contractId: contract.id, studentUserId: studentUser.id,
+    professorUserId: professorUser.id, alunoId: student.id, workoutAId: workoutA.id,
     dayId: day.id, firstPlannedSetId: firstPlannedSet.id };
 }
 async function startVite(apiOrigin, token) {
@@ -166,6 +168,16 @@ async function startVite(apiOrigin, token) {
     'createRoot(document.getElementById("root")).render(' +
     'React.createElement(BrowserRouter, null, React.createElement(StudentTraining)));' +
     '</script></body></html>';
+  const professorComparisonHtml = '<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1"></head>' +
+    '<body><main id="root" style="max-width:68rem;margin:0 auto;padding:1rem"></main><script type="module">' +
+    'import React from "react"; import { createRoot } from "react-dom/client";' +
+    'import { WorkoutExecutionComparisonCard } from "/src/components/training/WorkoutExecutionComparisonCard.tsx";' +
+    'import "/src/index.css";' +
+    'const root = createRoot(document.getElementById("root"));' +
+    'window.renderIssue401Comparison = (comparison) => root.render(' +
+    'React.createElement(WorkoutExecutionComparisonCard, {comparison, audience: "professor"}));' +
+    '</script></body></html>';
   const vite = await createServer({
     root: process.cwd(), logLevel: 'error',
     server: { host: '127.0.0.1', port: 0 },
@@ -174,10 +186,11 @@ async function startVite(apiOrigin, token) {
       configureServer(server) {
         server.middlewares.use(async (req, res, next) => {
           const requestPath = (req.url || '').split('?')[0];
-          if (requestPath !== '/student/training') return next();
+          if (requestPath !== '/student/training' && requestPath !== '/__issue-401-professor') return next();
           try {
             res.setHeader('Content-Type', 'text/html; charset=utf-8');
-            res.end(await server.transformIndexHtml(requestPath, html));
+            res.end(await server.transformIndexHtml(requestPath,
+              requestPath === '/student/training' ? html : professorComparisonHtml));
           } catch (error) { next(error); }
         });
       },
@@ -240,6 +253,9 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
       const token = jwt.sign({ userId: fixture.studentUserId,
         email: 'issue487-student-' + suffix + '@example.test', type: 'aluno' },
       jwtSecret, { expiresIn: '1h' });
+      const professorToken = jwt.sign({ userId: fixture.professorUserId,
+        email: 'issue487-prof-' + suffix + '@example.test', type: 'professor' },
+      jwtSecret, { expiresIn: '1h' });
       const web = await startVite(apiOrigin, token);
       vite = web.vite;
       const webOrigin = web.origin;
@@ -253,6 +269,20 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
       apiProcess.stdout?.on('data', (chunk) => apiLogs.push(String(chunk).slice(0, 1200)));
       apiProcess.stderr?.on('data', (chunk) => apiLogs.push(String(chunk).slice(0, 1200)));
       await waitForHealth(apiOrigin);
+
+      // A-401023: exercise evidence cannot be committed with an explicit
+      // negative lifecycle decision, even through the actual HTTP boundary.
+      const invalidTerminal = await apiRequest(apiOrigin, token, fixture.contractId, 'POST',
+        '/student/me/training-sessions/' + fixture.dayId + '/execution/transition', {
+          operationKey: '40123-real-http-' + suffix, expectedVersion: 0,
+          targetStatus: 'not_performed', reason: 'Treino cancelado',
+          items: [{ plannedUnitId: fixture.workoutAId, plannedSetId: fixture.firstPlannedSetId,
+            setNumber: 1, outcome: 'full', repetitions: 8 }],
+        });
+      expect(invalidTerminal.status).toBe(400);
+      expect(await prisma.workoutSessionExecution.findUnique({
+        where: { workoutDayId: fixture.dayId },
+      })).toBeNull();
 
       browser = await puppeteer.launch({
         executablePath: executablePath(), headless: true,
@@ -443,6 +473,91 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
       expect(await prisma.workoutExercisePlannedSet.findUniqueOrThrow({
         where: { id: fixture.firstPlannedSetId },
       })).toMatchObject({ repsMin: 8, loadKg: 32.5 });
+      // REC-401-01: two genuinely authenticated roles read the same PostgreSQL
+      // execution via their distinct HTTP routes. Chrome renders the real
+      // student screen and the production comparison card for the professor.
+      const studentRoutine = await apiRequest(apiOrigin, token, fixture.contractId, 'GET',
+        '/student/me/training-routine?date=' + today);
+      expect(studentRoutine.status).toBe(200);
+      const studentSession = studentRoutine.body.data.today.sessions.find(
+        (session) => session.sessionId === fixture.dayId);
+      expect(studentSession?.comparison?.snapshotSource).toBe('captured');
+      expect(studentSession.comparison.units.some((unit) => unit.kind === 'set')).toBe(false);
+      expect(JSON.stringify(studentSession.comparison)).not.toContain('"key":"rir"');
+
+      await page.waitForSelector('section[aria-label="Planejado e executado"]');
+      await page.$eval('section[aria-label="Planejado e executado"] details',
+        (items) => items.forEach((element) => { element.open = true; }));
+      const studentText = await page.$eval('section[aria-label="Planejado e executado"]',
+        (element) => element.innerText);
+      expect(studentText).toContain('Planejado × executado');
+      expect(studentText).not.toContain('Série 1');
+      expect(studentText).not.toContain('RIR');
+      expect(studentText).not.toContain('diferença:');
+      await noHorizontalOverflow(page);
+
+      const professorPage = await browser.newPage();
+      professorPage.on('pageerror', (error) => browserErrors.push(error.message));
+      await professorPage.setViewport({ width: 1440, height: 900 });
+      await professorPage.goto(webOrigin + '/__issue-401-professor',
+        { waitUntil: 'domcontentloaded' });
+      await professorPage.waitForFunction(
+        () => typeof window.renderIssue401Comparison === 'function');
+      const professorComparison = await professorPage.evaluate(async (credentials) => {
+        const response = await fetch(credentials.apiOrigin +
+          '/api/v1/alunos/' + encodeURIComponent(credentials.alunoId) +
+          '/training-routine?date=' + credentials.today, {
+          headers: { Authorization: 'Bearer ' + credentials.token,
+            'x-contract-id': credentials.contractId },
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error('Professor routine HTTP ' + response.status +
+          ' ' + JSON.stringify(payload).slice(0, 250));
+        const session = payload.data.today.sessions.find(
+          (candidate) => candidate.sessionId === credentials.sessionId);
+        if (!session?.comparison) throw new Error('Professor comparison was not projected');
+        window.renderIssue401Comparison(session.comparison);
+        return session.comparison;
+      }, { apiOrigin, alunoId: fixture.alunoId, contractId: fixture.contractId,
+        today, sessionId: fixture.dayId, token: professorToken });
+      expect(professorComparison.snapshotSource).toBe('captured');
+      expect(professorComparison.units.some((unit) => unit.kind === 'set')).toBe(true);
+      expect(professorComparison.units.some((unit) => unit.kind === 'set'
+        && unit.metrics.some((metric) => metric.key === 'rir' && metric.planned === 2)))
+        .toBe(true);
+      await professorPage.waitForSelector('section[aria-label="Planejado e executado"]');
+      await professorPage.$eval('section[aria-label="Planejado e executado"] details',
+        (items) => items.forEach((element) => { element.open = true; }));
+      const professorText = await professorPage.$eval(
+        'section[aria-label="Planejado e executado"]', (element) => element.innerText);
+      expect(professorText).toContain('Série 1');
+      expect(professorText).toContain('RIR');
+      expect(professorText).toContain('diferença:');
+      await noHorizontalOverflow(professorPage);
+      const issue401Output = path.join(repoRoot, 'artifacts/issue-401');
+      mkdirSync(issue401Output, { recursive: true });
+      const captureComparison = async (targetPage, file) => {
+        const bytes = await targetPage.screenshot({ fullPage: true });
+        writeFileSync(path.join(issue401Output, file), bytes);
+        return { file, bytes: bytes.length,
+          sha256: createHash('sha256').update(bytes).digest('hex') };
+      };
+      const comparisonScreenshots = [
+        await captureComparison(page, 'real-api-student-comparison.png'),
+        await captureComparison(professorPage, 'real-api-professor-comparison.png'),
+      ];
+      const comparisonHeadSha = process.env.VERIFICATION_HEAD_SHA || process.env.GITHUB_SHA || 'local';
+      writeFileSync(path.join(issue401Output, 'authenticated-real-api-browser.json'),
+        JSON.stringify({ schemaVersion: 1, kind: 'issue-401-authenticated-real-api-browser',
+          result: 'PASS', headSha: comparisonHeadSha, sessionId: fixture.dayId,
+          coverage: ['student-real-page-and-API', 'professor-real-API-and-production-comparison-card',
+            'postgresql-persisted-guided-execution', 'A-401023-HTTP-negative-rollback',
+            'student-technical-redaction', 'professor-technical-values-and-difference'],
+          scope: 'Actual signed JWT/HTTP/PostgreSQL; teacher uses production card in isolated test harness',
+          comparisonScreenshots,
+        }, null, 2));
+      await professorPage.close();
+
       expect(browserErrors).toEqual([]);
       expect(guidedWrites.every((write) => write.contractId === fixture.contractId)).toBe(true);
 

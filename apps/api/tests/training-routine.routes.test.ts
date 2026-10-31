@@ -286,6 +286,27 @@ describe('training routine HTTP boundaries (#387)', () => {
 
 
 
+
+    it('A-401023: HTTP rejects non-performed transitions carrying executed evidence', async () => {
+      const { WorkoutSessionExecutionInputError } =
+        require('../src/modules/workout/workout-session-execution.service');
+      mockTransitionExecution.mockRejectedValueOnce(
+        new WorkoutSessionExecutionInputError('Sessão não realizada não aceita valores ou unidades executadas.')
+      );
+      const response = await request(app)
+        .post('/student/me/training-sessions/day-1/execution/transition')
+        .set('x-contract-id', 'contract-1')
+        .send({ operationKey: '40123-invalid-http', expectedVersion: 0,
+          targetStatus: 'not_performed', reason: 'Cancelamento',
+          items: [{ plannedUnitId: 'exercise-a', setNumber: 1,
+            outcome: 'full', repetitions: 10 }] });
+      expect(response.status).toBe(400);
+      expect(response.body.data?.items).toBeUndefined();
+      expect(mockTransitionExecution).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId: 'day-1', alunoId: 'aluno-1', contractId: 'contract-1',
+      }));
+    });
+
     it('A-021: GET, transition and save return student-safe data at the HTTP boundary', async () => {
       const recorded = {
         sessionId: 'day-1', status: 'in_progress', version: 2,

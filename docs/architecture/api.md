@@ -57,6 +57,14 @@ Os contratos permanentes estão em `docs/product/consolidated-prescription-opera
 
 As regras de produto estão em `docs/product/student-centered-training-experience.md`.
 
+## Coerência entre classificação e execução (#401, A-401022/A-401023)
+
+A confirmação guiada de uma série já marcada como `not_performed` é rejeitada com HTTP 409 e código `WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME` na mesma transação serializável. O aluno deve alterar explicitamente o outcome manual antes de confirmar; uma série `partial` ou `substituted` pode ser confirmada sem reclassificação silenciosa. O replay da chave idempotente preserva o estado após confirmação legítima.
+
+A transição da sessão para `not_performed` exige motivo e ausência total de `sessionValues` e `items` no payload; também recusa um shell persistido que já contenha qualquer registro executado. A rejeição HTTP 400 ocorre antes de qualquer escrita de execução, operação ou evento, e zero explícito não é tratado como ausência. A transição válida sem registros permanece disponível.
+
+A regressão inclui PostgreSQL real para os dois casos, testes HTTP e a jornada Chrome autenticada da #487 ampliada com prova da comparação #401 para aluno e professor a partir das mesmas rotas reais, com evidências em `artifacts/issue-401/`. O professor é exercitado por um harness do componente real alimentado pela API autenticada, não por uma alegação de E2E da Central.
+
 ## Escrita incremental do planejado versus executado (#401, A-401017)
 
 `PUT /api/v1/student/me/training-sessions/:sessionId/execution/values` (e `POST /execution/transition` enquanto aplicável) conserva o controle de sessão/contrato, `operationKey` idempotente e `expectedVersion` da execução canônica. `sessionValues.cyclicStages` é uma lista de **upserts por (`plannedStageId`, `iteration` 1-based, padrão 1)**; `sessionValues.resistanceGroups` faz upsert por `plannedGroupId`. Os arrays **não** substituem o histórico: outra unidade omitida permanece, assim como qualquer medição omitida em uma unidade enviada. `null` limpa explicitamente uma métrica (não a unidade), `0` é medição real e array vazio é lote vazio (não limpa registros).
