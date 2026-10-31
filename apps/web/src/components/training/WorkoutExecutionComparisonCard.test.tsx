@@ -208,6 +208,34 @@ describe('WorkoutExecutionComparisonCard (#401)', () => {
     expect(screen.getByText(/Registro incompleto · com substituição/)).toBeInTheDocument();
   });
 
+  it('A-401-20: exposes reconciled repeat and session results without asserting false completion', () => {
+    const repeated: TrainingSessionComparison = {
+      ...comparison,
+      units: [{ ...comparison.units[0], outcome: 'incomplete_record', metrics: [] }, {
+        ...comparison.units[1], plannedUnitId: 'repeat-1', kind: 'cyclic_stage',
+        label: 'Etapa 1 · repeat', parentUnitId: null, outcome: 'incomplete_record',
+        containsSubstitution: false, substitutionNote: null, metrics: [],
+      }, {
+        ...comparison.units[1], plannedUnitId: 'work-1', kind: 'cyclic_stage',
+        label: 'Etapa 1 · work', parentUnitId: 'repeat-1', iteration: 1,
+        outcome: 'not_recorded', containsSubstitution: false, substitutionNote: null, metrics: [],
+      }],
+    };
+    const view = render(<WorkoutExecutionComparisonCard comparison={repeated} audience="student" />);
+    expect(screen.getAllByText(/Registro incompleto/)).toHaveLength(2);
+    expect(screen.getByText('Sem registro')).toBeInTheDocument();
+    expect(screen.queryByText('Realizado')).not.toBeInTheDocument();
+
+    view.rerender(<WorkoutExecutionComparisonCard comparison={{ ...repeated, units: [
+      { ...repeated.units[0], outcome: 'substituted', containsSubstitution: true },
+      { ...repeated.units[1], outcome: 'substituted', containsSubstitution: true,
+        substitutionNote: 'Bike adaptada' },
+      repeated.units[2],
+    ] }} audience="professor" />);
+    expect(screen.getAllByText(/Substituído · com substituição/)).toHaveLength(2);
+    expect(screen.getByText('Substituição registrada: Bike adaptada')).toBeInTheDocument();
+  });
+
   it('does not claim completion for a recording without an explicit outcome', () => {
     const unknown: TrainingSessionComparison = {
       ...comparison,

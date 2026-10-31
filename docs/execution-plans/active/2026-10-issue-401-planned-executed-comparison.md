@@ -3,7 +3,7 @@
 - Base: `develop`; branch de implementação: `feat/401-planned-executed-comparison`.
 - Autoridades: WorkoutDay/WorkoutCyclicStage/WorkoutExerciseBlock/WorkoutExercisePlannedSet/WorkoutResistanceGroup (prescrição); WorkoutSessionExecution/Item (#389) (realizado).
 - Dependências: #398, #399, #400 e #389 presentes na develop. Nenhuma nova árvore de montagem.
-- Status: remediações A-401-01..16 e A-401017 preservadas. O CI exact-SHA da correção A-401017 passou em `9ec2d6256faa249383ffc29dd06c2a6e7732a7c4` (push e PR); a evidência visual acrescentada depois exige seus próprios checks no novo HEAD e uma nova auditoria independente.
+- Status: remediações A-401-01..19 preservadas e com CI anterior verde em `9dbae39adf03a7e13d03d4e5270a6dbca5942bba`. Remediação A-401-20 implementada neste candidato; exige CI no novo SHA e auditoria independente posterior.
 
 ## Objetivo
 
@@ -18,6 +18,7 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - A velocidade da sessão executada (`sessionValues.speedKmh`) é opcional, explícita e não negativa, inclusive para treinos cíclicos legados sem `cyclicStages`. A API rejeita tipo não numérico/valor inválido; `0` não é ausência e `null` limpa o registro sem gerar valor fictício. Não se converte distância/pace em velocidade.
 - Diferença numérica é mostrada apenas na unidade física equivalente e sem alvo em faixa; dados com unidades incompatíveis ou ausentes não produzem diferença. Diferença nunca é classificação de desempenho. Metas de volume semanal não são usadas como distância diária; os limites de faixas de FC, velocidade e pace permanecem disponíveis. O resultado `full` da sessão só decorre de confirmação explícita de todas as unidades comparáveis, não apenas do status terminal. Em legado sem snapshot, as metas e deltas históricos permanecem indisponíveis para evitar falsas comparações.
 - A apresentação numérica preserva os valores de entrada distintos com até 17 algarismos significativos, em `pt-BR`; diferenças calculadas usam até 8 algarismos significativos e recebem o sinal `≈` quando aproximadas, sem exibir um delta real não nulo como zero (A-401-10). String, unidade, ausência e zero real mantêm seus significados.
+- A-401-20: o estágio `repeat` é um agrupador de todas as subetapas em todas as voltas. `full` exige confirmação de cada filho; registro direto `full` sem cobertura gera `incomplete_record`, nunca execução integral. Um `not_performed` direto sem filhos é uma declaração negativa explícita, sem preencher filhos ausentes. `partial` ou `substituted` diretos podem restringir um grupo totalmente coberto, mas não sanar ausência de filhos; conflito entre não realização e execução confirmada gera `incomplete_record`. `containsSubstitution` permanece visível em cobertura incompleta. A sessão agrega cada grupo repetido uma vez, não os filhos e o pai juntos, evitando divergências entre resultados. Histórico sem snapshot continua sem metas/deltas inventados.
 - O cálculo é projeção read-only, sem média, adesão, progressão, sugestão de prescrição ou integração externa.
 
 ## Cenários de validação
@@ -44,7 +45,9 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 - [x] Evidência visual dedicada da comparação aluno/professor adicionada em `apps/web/src/components/training/issue-401-browser-evidence.test.js`: Chromium real, 1440×900 / 768×1024 / 390×844, teclado, árvore de acessibilidade, ausência de overflow, substituição, valores ausentes/zero, séries técnicas exclusivamente ao professor e fallback histórico. O CI gera PNGs + `browser.json` com SHA-256 no artefato `validate-pr-critical-<HEAD>`; o teste usa cenário sintético da API e não substitui os testes reais de autorização/persistência.
 - [x] Remediação A-401-18: atualização parcial de substituições validada após conciliação com o outcome/observação persistidos, inclusive rejeições atômicas e replay idempotente em PostgreSQL.
 - [x] Remediação A-401-19: lotes de plannedSetId distintos sem setNumber prévio resolvem ordinais canônicos antes do teste de duplicidade; regressões de duplicação real, ordinal incorreto, foreign ID e histórico legado.
-- [ ] CI exact-SHA do commit com A-401-18/19 e nova auditoria independente. Não reutilizar checks ou parecer de SHAs anteriores.
+- [x] A-401-20: domínio, integração PostgreSQL e interface cobrem pai `full` sem filhos, uma volta parcial, todos os filhos completos, substituição de filho ou agrupador, declaração direta de não realização e conflitos. Controle adversarial local sobre o domínio passou após a correção.
+- [x] CI exact-SHA de A-401-18/19 no commit `9dbae39adf03a7e13d03d4e5270a6dbca5942bba`: [PR CI #41157439500](https://github.com/crgasparoto-br/training-system/actions/runs/41157439500) e [push CI #41157435401](https://github.com/crgasparoto-br/training-system/actions/runs/41157435401), ambos `completed/success`.
+- [ ] Auditoria independente após a recertificação CI exact-SHA da remediação A-401-20. Registrar execução e status terminal no histórico da PR; não reutilizar checks ou parecer de SHAs anteriores.
 
 ## Validação manual
 
@@ -64,6 +67,7 @@ Permitir que aluno e professor comparem cada etapa cíclica (inclusive iteraçõ
 
 14. A-401-18: alterar carga e depois a observação de série substituída em requisições separadas, omitindo ora a observação, ora o outcome; conferir trim, versões, replay e falha sem escrita para substituição sem observação ou observação em série não substituída.
 15. A-401-19: registrar de uma vez duas séries planejadas distintas de um exercício, com plannedSetId explícito e setNumber ausente, em ordem inversa; verificar ordinais, dados e comparação por série. Rejeitar duplicação da mesma série, ordinal inválido, plannedSetId estrangeiro e lote legado duplicado, sem gravar parcialmente.
+16. A-401-20: registrar `full` somente no pai `repeat` (sem filhos), depois uma volta parcial e a outra ausente, depois todas as subetapas de todas as voltas. Conferir que pai e sessão nunca informam `full` com filhos ausentes, e que o caso completo passa a `full` após conclusão do lifecycle. Repetir com `substituted` no pai ou filho, com declaração `not_performed` isolada ou contraditória; preservar notas, `containsSubstitution`, IDs e campos ausentes sem valores fictícios. Conferir aluno/professor e fallback `released_plan`.
 
 ## Decisões e riscos
 

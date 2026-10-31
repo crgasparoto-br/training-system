@@ -6,6 +6,7 @@ import type {
   TrainingSessionComparisonOutcome,
   TrainingSessionComparisonUnit,
   TrainingSessionExecutionView,
+  TrainingSessionExecutionOutcome,
 } from '@corrida/types';
 
 /**
@@ -177,6 +178,24 @@ function summaryOutcome(
   return 'full';
 }
 
+/** A repeat groups independent iterations; its own declaration is not proof of child coverage. */
+function reconcileRepeatOutcome(
+  children: TrainingSessionComparisonOutcome,
+  declared: TrainingSessionExecutionOutcome | undefined,
+): TrainingSessionComparisonOutcome {
+  if (!declared) return children;
+  // A whole-group declaration does not manufacture missing per-iteration records.
+  // Explicit non-performance is a negative declaration, not a fictitious child value.
+  if (children === 'not_recorded') return declared === 'not_performed' ? 'not_performed' : 'incomplete_record';
+  if (children === 'full') return declared === 'not_performed' ? 'incomplete_record' : declared;
+  // Conflicting affirmative and negative declarations have no reliable aggregate result.
+  if (children === 'not_performed') return declared === 'not_performed' ? 'not_performed' : 'incomplete_record';
+  if (declared === 'not_performed') return 'incomplete_record';
+  // A partial group declaration can restrict (but never upgrade) a substituted child aggregate.
+  if (declared === 'partial' && children === 'substituted') return 'partial';
+  return children;
+}
+
 export function compareWorkoutSession(
   planned: TrainingComparisonSnapshot,
   execution: TrainingSessionExecutionView,
@@ -235,24 +254,31 @@ export function compareWorkoutSession(
         ...(target === 'zone' ? [] : [metric('heart_rate_zone', 'Zona de FC', null, actual?.heartRateZone, null)]),
         ...(target === 'pse' ? [] : [metric('pse', 'Esforço percebido', null, actual?.pse, 'PSE')]),
       ];
-      const childIds = stage.kind === 'repeat'
-        ? planned.cyclicStages.filter((child) => child.parentStageId === stage.id).map((child) => child.id)
-        : [];
-      const childRecords = stageRecords.filter((entry) => childIds.includes(entry.plannedStageId));
-      const derivedOutcome = childRecords.length
-        ? summaryOutcome(childRecords.map((entry) => entry.outcome), childIds.length * (stage.repeatCount ?? 1))
-        : missingOutcome;
       result.push(unit(stage.id, 'cyclic_stage',
         'Etapa ' + stage.position + ' · ' + stage.kind,
-        actual?.outcome ?? derivedOutcome, [
+        actual?.outcome ?? missingOutcome, [
           primaryMetric,
           secondaryMetric,
           metric('target', 'Alvo', stage.targetValue ?? stage.targetMin,
             value, targetUnit, targetUnit, stage.targetMax, stage.targetValue == null),
           ...otherMeasurements,
-         ], stage.parentStageId, parent ? iteration : null, actual?.substitutionNote ?? null,
-         null, actual?.outcome === 'substituted' || childRecords.some((item) => item.outcome === 'substituted')));
+         ], stage.parentStageId, parent ? iteration : null, actual?.substitutionNote ?? null));
     }
+  }
+
+  // Reconcile after all child iterations are projected. This uses the same
+  // child outcomes shown in the UI, even when the parent appears first in the plan.
+  for (const repeat of planned.cyclicStages.filter((stage) => stage.kind === 'repeat')) {
+    const group = result.find((item) => item.kind === 'cyclic_stage'
+      && item.plannedUnitId === repeat.id && item.parentUnitId === null);
+    if (!group) continue;
+    const children = result.filter((item) => item.kind === 'cyclic_stage' && item.parentUnitId === repeat.id);
+    const expected = planned.cyclicStages.filter((stage) => stage.parentStageId === repeat.id).length
+      * Math.max(1, repeat.repeatCount ?? 1);
+    const declared = stageRecords.find((item) => item.plannedStageId === repeat.id && (item.iteration ?? 1) === 1);
+    group.outcome = reconcileRepeatOutcome(summaryOutcome(children.map((item) => item.outcome), expected), declared?.outcome);
+    group.containsSubstitution = declared?.outcome === 'substituted'
+      || children.some((item) => item.containsSubstitution);
   }
 
   const itemRecords = execution.items;
@@ -346,14 +372,14 @@ export function compareWorkoutSession(
       ], null, null, actual?.substitutionNote ?? null));
   }
 
-  // Roll up only independent planned units: repeated cyclic stage children,
-  // exercises (which already consolidate their sets), and resistance groups.
-  // Missing and unclassified child records must never become a full session.
-  const cyclicLeafIds = new Set(planned.cyclicStages
-    .filter((stage) => stage.kind !== 'repeat').map((stage) => stage.id));
+  // Roll up each top-level cyclic unit exactly once, including reconciled
+  // repetitions. Counting only leaves would discard whole-repeat declarations,
+  // while counting both the parent and leaves would duplicate their evidence.
+  const topLevelCyclicIds = new Set(planned.cyclicStages
+    .filter((stage) => stage.parentStageId === null).map((stage) => stage.id));
   const children = result.slice(1).filter((item) => item.kind === 'exercise'
     || item.kind === 'group'
-    || (item.kind === 'cyclic_stage' && cyclicLeafIds.has(item.plannedUnitId)));
+    || (item.kind === 'cyclic_stage' && topLevelCyclicIds.has(item.plannedUnitId)));
   const hasSessionMeasurement = [state.durationSec, state.distanceKm, state.pace,
     state.speedKmh, state.heartRateBpm, state.heartRateZone]
     .some((value) => value !== undefined && value !== null);
@@ -365,7 +391,7 @@ export function compareWorkoutSession(
     : execution.status === 'partial' ? 'partial'
       : execution.status === 'completed' ? recordedOutcome
         : recordedOutcome === 'full' ? 'incomplete_record' : recordedOutcome;
-  result[0].containsSubstitution = result.slice(1).some((item) => item.containsSubstitution);
+  result[0].containsSubstitution = children.some((item) => item.containsSubstitution);
 
   // An older execution without its own frozen plan cannot prove historical
   // prescription values. Keep recorded values and explicit source provenance,

@@ -553,6 +553,105 @@ describe('issue #401: granular planned/executed comparison', () => {
     expect(get(comparison.units, 'ex-1')[0].metrics[0].executed).toBe(1);
   });
 
+  const repeatChild = (plannedStageId: string, iteration: number,
+    outcome: TrainingSessionExecutionOutcome) => ({ plannedStageId, iteration, outcome });
+  const everyRepeatChild = () => [
+    repeatChild('work', 1, 'full'), repeatChild('work', 2, 'full'),
+    repeatChild('recovery', 1, 'full'), repeatChild('recovery', 2, 'full'),
+  ];
+  const repeatCases: Array<{
+    label: string;
+    recorded: NonNullable<TrainingSessionExecutionView['sessionValues']['cyclicStages']>;
+    outcome: TrainingSessionComparisonOutcome;
+    substitution: boolean;
+  }> = [
+    { label: 'no parent or child record', recorded: [], outcome: 'not_recorded', substitution: false },
+    { label: 'direct full without children is incomplete',
+      recorded: [{ plannedStageId: 'repeat', outcome: 'full' }],
+      outcome: 'incomplete_record', substitution: false },
+    { label: 'direct full with a partial first lap and missing siblings is incomplete',
+      recorded: [{ plannedStageId: 'repeat', outcome: 'full' }, repeatChild('work', 1, 'partial')],
+      outcome: 'incomplete_record', substitution: false },
+    { label: 'a full lap without the second lap is incomplete',
+      recorded: [repeatChild('work', 1, 'full'), repeatChild('recovery', 1, 'full')],
+      outcome: 'incomplete_record', substitution: false },
+    { label: 'only complete records of every lap establish full',
+      recorded: everyRepeatChild(), outcome: 'full', substitution: false },
+    { label: 'direct full plus complete children remains full',
+      recorded: [{ plannedStageId: 'repeat', outcome: 'full' }, ...everyRepeatChild()],
+      outcome: 'full', substitution: false },
+    { label: 'a partial child prevents direct full from upgrading the group',
+      recorded: [{ plannedStageId: 'repeat', outcome: 'full' },
+        ...everyRepeatChild().map((item) => item.plannedStageId === 'work' && item.iteration === 2
+          ? { ...item, outcome: 'partial' as const } : item)],
+      outcome: 'partial', substitution: false },
+    { label: 'a substituted child propagates even when the parent says full',
+      recorded: [{ plannedStageId: 'repeat', outcome: 'full' },
+        ...everyRepeatChild().map((item) => item.plannedStageId === 'work' && item.iteration === 2
+          ? { ...item, outcome: 'substituted' as const, substitutionNote: 'Bike' } : item)],
+      outcome: 'substituted', substitution: true },
+    { label: 'a substituted child with a missing sibling is incomplete but retains substitution',
+      recorded: [{ ...repeatChild('work', 1, 'substituted'), substitutionNote: 'Bike' }],
+      outcome: 'incomplete_record', substitution: true },
+    { label: 'a direct substitution with full children propagates to the session',
+      recorded: [{ plannedStageId: 'repeat', outcome: 'substituted', substitutionNote: 'Bike' },
+        ...everyRepeatChild()], outcome: 'substituted', substitution: true },
+    { label: 'a direct substitution without child coverage is incomplete',
+      recorded: [{ plannedStageId: 'repeat', outcome: 'substituted', substitutionNote: 'Bike' }],
+      outcome: 'incomplete_record', substitution: true },
+    { label: 'direct partial limits otherwise full children',
+      recorded: [{ plannedStageId: 'repeat', outcome: 'partial' }, ...everyRepeatChild()],
+      outcome: 'partial', substitution: false },
+    { label: 'an explicit unperformed parent does not fabricate child readings',
+      recorded: [{ plannedStageId: 'repeat', outcome: 'not_performed' }],
+      outcome: 'not_performed', substitution: false },
+    { label: 'a negative parent declaration contradicting full children stays incomplete',
+      recorded: [{ plannedStageId: 'repeat', outcome: 'not_performed' }, ...everyRepeatChild()],
+      outcome: 'incomplete_record', substitution: false },
+    { label: 'a full parent declaration contradicting not performed children stays incomplete',
+      recorded: [{ plannedStageId: 'repeat', outcome: 'full' },
+        ...everyRepeatChild().map((item) => ({ ...item, outcome: 'not_performed' as const }))],
+      outcome: 'incomplete_record', substitution: false },
+    { label: 'mixed full and not performed children constitute partial execution',
+      recorded: [...everyRepeatChild().map((item) => item.plannedStageId === 'work' && item.iteration === 1
+        ? { ...item, outcome: 'not_performed' as const } : item)],
+      outcome: 'partial', substitution: false },
+  ];
+
+  it.each(repeatCases)('A-401-20: reconciles repeat group and session — $label',
+    ({ recorded, outcome, substitution }) => {
+      const day = planned();
+      day.cyclicStages = day.cyclicStages.filter((stage) => stage.id !== 'warmup');
+      day.cyclicStages.push({ id: 'recovery', parentStageId: 'repeat', position: 2,
+        kind: 'recovery', durationUnit: 'seconds', durationValue: 30,
+        targetKind: null, targetValue: null, targetMin: null, targetMax: null, repeatCount: null });
+      day.exercises = [];
+      day.resistanceGroups = [];
+      const compared = compareWorkoutSession(day, execution({ sessionValues: { cyclicStages: recorded } }), 'captured');
+      expect(get(compared.units, 'repeat')[0]).toMatchObject({
+        outcome, containsSubstitution: substitution,
+      });
+      expect(get(compared.units, 'day-1')[0]).toMatchObject({
+        outcome, containsSubstitution: substitution,
+      });
+      expect(get(compared.units, 'work').map((entry) => entry.iteration)).toEqual([1, 2]);
+      expect(get(compared.units, 'recovery').map((entry) => entry.iteration)).toEqual([1, 2]);
+      // No report of the parent can manufacture readings for a missing child.
+      for (const child of compared.units.filter((entry) => entry.parentUnitId === 'repeat')) {
+        const actual = recorded.find((entry) => entry.plannedStageId === child.plannedUnitId
+          && (entry.iteration ?? 1) === child.iteration);
+        if (!actual) {
+          expect(child.outcome).toBe('not_recorded');
+          expect(child.metrics.every((entry) => entry.executed === null)).toBe(true);
+        }
+      }
+      const historical = compareWorkoutSession(day, execution({ sessionValues: { cyclicStages: recorded } }),
+        'released_plan');
+      expect(get(historical.units, 'repeat')[0].outcome).toBe(outcome);
+      expect(historical.units.flatMap((entry) => entry.metrics)
+        .every((metric) => metric.planned === null && metric.difference === null)).toBe(true);
+    });
+
   it('keeps a repeated stage incomplete while exposing its substitution', () => {
     const comparison = compareWorkoutSession(planned(), execution({
       sessionValues: { cyclicStages: [{

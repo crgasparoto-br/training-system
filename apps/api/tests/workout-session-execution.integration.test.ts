@@ -45,7 +45,8 @@ type Fixture = {
 async function seedReleasedWorkout(
   label: string,
   options: { publish?: boolean; seedResistance?: boolean; seedGuidedResistance?: boolean; seedGuidedGroup?: boolean;
-    seedComparison?: boolean; seedIncrementalComparison?: boolean; weeklyVolumeKm?: number; legacySpeedRange?: { min: string; max: string } } = {},
+    seedComparison?: boolean; seedIncrementalComparison?: boolean; seedRepeatedCyclic?: boolean;
+    weeklyVolumeKm?: number; legacySpeedRange?: { min: string; max: string } } = {},
 ): Promise<Fixture> {
   const suffix = `${label}-${randomUUID()}`;
   const contractId = `issue-389-${suffix}`;
@@ -253,6 +254,18 @@ async function seedReleasedWorkout(
           members: { create: [{ workoutExerciseId: workoutExerciseC.id, position: 1 }] } },
       });
     }
+  }
+
+  if (options.seedRepeatedCyclic) {
+    const repeat = await prisma.workoutCyclicStage.create({
+      data: { workoutDayId: day.id, position: 1, kind: 'repeat', repeatCount: 2 },
+    });
+    await prisma.workoutCyclicStage.createMany({ data: [
+      { workoutDayId: day.id, parentStageId: repeat.id, position: 1, kind: 'work',
+        durationUnit: 'seconds', durationValue: 60 },
+      { workoutDayId: day.id, parentStageId: repeat.id, position: 2, kind: 'recovery',
+        durationUnit: 'seconds', durationValue: 30 },
+    ] });
   }
 
   if (options.seedGuidedResistance || options.seedGuidedGroup) {
@@ -3134,6 +3147,88 @@ describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
 
 
 describeDatabase('issue #401: frozen planned versus executed comparison', () => {
+  it('A-401-20: reconciles persisted repeat declarations with every child iteration and session', async () => {
+    const fixture = await seedReleasedWorkout('issue401-repeat-outcome', { seedRepeatedCyclic: true });
+    const stages = await prisma.workoutCyclicStage.findMany({ where: { workoutDayId: fixture.dayId } });
+    const repeat = stages.find((stage) => stage.kind === 'repeat')!;
+    const work = stages.find((stage) => stage.kind === 'work')!;
+    const recovery = stages.find((stage) => stage.kind === 'recovery')!;
+    const scope = { sessionId: fixture.dayId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId, actorUserId: fixture.alunoUserId };
+    const compare = async () => {
+      const stored = await prisma.workoutSessionExecution.findUniqueOrThrow({
+        where: { workoutDayId: fixture.dayId },
+      });
+      const plan = readCapturedWorkoutComparisonPlan(stored.plannedSnapshot)!;
+      return compareWorkoutSession(plan, await service.getForSession(scope), 'captured');
+    };
+    const status = (units: Awaited<ReturnType<typeof compare>>['units'], id: string) =>
+      units.find((item) => item.plannedUnitId === id)!;
+
+    await transition(fixture, '40120-start', 0, 'in_progress');
+    let saved = await service.saveValues({ ...scope, payload: {
+      operationKey: '40120-parent-full', expectedVersion: 1,
+      sessionValues: { cyclicStages: [{ plannedStageId: repeat.id, outcome: 'full' }] },
+      items: fixture.exerciseIds.flatMap((plannedUnitId) => [1, 2, 3].map((setNumber) => ({
+        plannedUnitId, setNumber, outcome: 'full' as const,
+      }))),
+    } });
+    expect(status((await compare()).units, repeat.id).outcome).toBe('incomplete_record');
+    expect(status((await compare()).units, fixture.dayId).outcome).toBe('incomplete_record');
+
+    saved = await service.saveValues({ ...scope, payload: {
+      operationKey: '40120-first-lap', expectedVersion: saved.version,
+      sessionValues: { cyclicStages: [
+        { plannedStageId: work.id, iteration: 1, outcome: 'partial', durationSec: 40 },
+        { plannedStageId: recovery.id, iteration: 1, outcome: 'full', durationSec: 30 },
+      ] },
+    } });
+    expect(status((await compare()).units, repeat.id).outcome).toBe('incomplete_record');
+
+    saved = await service.saveValues({ ...scope, payload: {
+      operationKey: '40120-second-lap', expectedVersion: saved.version,
+      sessionValues: { cyclicStages: [
+        { plannedStageId: work.id, iteration: 2, outcome: 'full', durationSec: 60 },
+        { plannedStageId: recovery.id, iteration: 2, outcome: 'full', durationSec: 30 },
+      ] },
+    } });
+    expect(status((await compare()).units, repeat.id).outcome).toBe('partial');
+    saved = await service.saveValues({ ...scope, payload: {
+      operationKey: '40120-finish-first-lap', expectedVersion: saved.version,
+      sessionValues: { cyclicStages: [{ plannedStageId: work.id, iteration: 1, outcome: 'full' }] },
+    } });
+    expect(status((await compare()).units, repeat.id).outcome).toBe('full');
+
+    saved = await service.saveValues({ ...scope, payload: {
+      operationKey: '40120-substitute-repeat', expectedVersion: saved.version,
+      sessionValues: { cyclicStages: [{ plannedStageId: repeat.id, outcome: 'substituted',
+        substitutionNote: 'Bicicleta adaptada' }] },
+    } });
+    const substituted = await compare();
+    expect(status(substituted.units, repeat.id)).toMatchObject({
+      outcome: 'substituted', containsSubstitution: true,
+      substitutionNote: 'Bicicleta adaptada',
+    });
+    expect(status(substituted.units, fixture.dayId).outcome).toBe('substituted');
+    expect(status(substituted.units, work.id).outcome).toBe('full');
+
+    saved = await service.saveValues({ ...scope, payload: {
+      operationKey: '40120-restore-full', expectedVersion: saved.version,
+      sessionValues: { cyclicStages: [{ plannedStageId: repeat.id, outcome: 'full',
+        substitutionNote: null }] },
+    } });
+    const completed = await transition(fixture, '40120-complete', saved.version, 'completed');
+    const comparison = await compare();
+    expect(status(comparison.units, repeat.id)).toMatchObject({ outcome: 'full', containsSubstitution: false });
+    expect(status(comparison.units, fixture.dayId)).toMatchObject({ outcome: 'full', containsSubstitution: false });
+    expect(completed.sessionValues.cyclicStages).toHaveLength(5);
+    const persisted = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId },
+    });
+    expect(persisted.plannedSnapshot).toMatchObject({ id: fixture.dayId });
+    expect((persisted.plannedSnapshot as Record<string, any>).cyclicStages).toHaveLength(3);
+  });
+
   it('A-401017: incremental stage/group writes preserve siblings, omitted metrics and exact historical comparison', async () => {
     const fixture = await seedReleasedWorkout('issue401-incremental-upsert', {
       seedComparison: true, seedIncrementalComparison: true,
