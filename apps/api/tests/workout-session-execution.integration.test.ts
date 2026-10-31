@@ -3442,7 +3442,8 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
     const scope = { sessionId: fixture.dayId, alunoId: fixture.alunoId,
       contractId: fixture.contractId, actorUserId: fixture.alunoUserId };
     await transition(fixture, '40125-legacy-start', 0, 'in_progress');
-    for (const [operationKey, patch] of [
+    type ExecutionPatch = Pick<Parameters<typeof service.saveValues>[0]['payload'], 'sessionValues' | 'items'>;
+    const invalidPatches: Array<[string, ExecutionPatch]> = [
       ['40125-repeated-cycle-positive', {
         sessionValues: { cyclicStages: [{ plannedStageId: work.id, iteration: 2,
           outcome: 'not_performed' as const, durationSec: 60 }] },
@@ -3451,7 +3452,8 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
         items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
           outcome: 'not_performed' as const, repetitions: 12, loadKg: 35 }],
       }],
-    ] as const) {
+    ];
+    for (const [operationKey, patch] of invalidPatches) {
       await expect(service.saveValues({ ...scope, payload: {
         operationKey, expectedVersion: 1, ...patch,
       } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID', statusCode: 400 });
