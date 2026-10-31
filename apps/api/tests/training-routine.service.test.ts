@@ -102,9 +102,18 @@ describe('training routine service (#387)', () => {
     preWorkoutCheckInFindMany.mockResolvedValue([]);
     postWorkoutFeedbackFindMany.mockResolvedValue([]);
     latestExecutionRows = [];
-    findMany.mockImplementation((args: any) =>
-      Promise.resolve(args.where.template.released ? releasedRows : pendingRows)
-    );
+    findMany.mockImplementation((args: any) => {
+      if (args.select?.resistanceGroups) {
+        // New #401 comparison plan is an additional, independently scoped read.
+        return Promise.resolve(releasedRows.filter((row) => args.where.id.in.includes(row.id))
+          .map((row) => ({
+            ...row,
+            resistanceGroups: [],
+            exercises: row.exercises.map((item: Row) => ({ ...item, resistanceBlocks: [] })),
+          })));
+      }
+      return Promise.resolve(args.where.template.released ? releasedRows : pendingRows);
+    });
     queryRaw.mockImplementation((strings: TemplateStringsArray) => {
       const sql = strings.join('?');
       if (sql.includes('FROM "WorkoutDay" day')) return Promise.resolve(upcomingRows);
@@ -272,6 +281,44 @@ describe('training routine service (#387)', () => {
     expect(pending.today.state).toBe('not_released');
     expect(pending.today.sessions).toEqual([]);
     expect(pending.days[3].pendingReleaseCount).toBe(1);
+  });
+
+
+  it('A-021: student routine redacts raw technical readings, professor retains them', async () => {
+    const executionItem = {
+      plannedUnitId: 'exercise-1', plannedSetId: null, setNumber: 1,
+      completedAt: null, outcome: 'full', substitutionNote: null,
+      rir: 2, rpe: 7, tempo: '2-0-2', restSec: 45,
+      repetitions: 8, loadKg: 20, durationSec: null, distanceKm: null,
+      pace: null, heartRateBpm: null, heartRateZone: null,
+    };
+    const row = makeRow({ execution: {
+      workoutDayId: 'day-1', status: 'in_progress', version: 2,
+      startedAt: new Date('2026-10-01T14:00:00.000Z'), finishedAt: null,
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0),
+      interruptionReason: null, originReleaseId: 'release-1',
+      originWorkoutTemplateId: 'template-1', originTrainingPlanId: 'plan-1',
+      sessionValues: { speedKmh: 0 },
+      plannedSnapshot: { id: 'day-1', cyclicStages: [], exercises: [], resistanceGroups: [] },
+      items: [executionItem],
+    } });
+    releasedRows = [row];
+
+    const student = await service.getRoutine({ alunoId: 'aluno-1',
+      contractId: 'contract-1', audience: 'student', now });
+    const professor = await service.getRoutine({ alunoId: 'aluno-1',
+      contractId: 'contract-1', audience: 'professor', now });
+
+    const studentItem = student.today.sessions[0].execution.items[0];
+    const professorItem = professor.today.sessions[0].execution.items[0];
+    expect(studentItem).not.toHaveProperty('rir');
+    expect(studentItem).not.toHaveProperty('rpe');
+    expect(studentItem).not.toHaveProperty('tempo');
+    expect(studentItem).toMatchObject({ loadKg: 20, repetitions: 8, restSec: 45 });
+    expect(student.today.sessions[0].execution.sessionValues.speedKmh).toBe(0);
+    expect(JSON.stringify(student)).not.toContain('2-0-2');
+    expect(professorItem).toMatchObject({ rir: 2, rpe: 7, tempo: '2-0-2' });
+    expect(executionItem).toMatchObject({ rir: 2, rpe: 7, tempo: '2-0-2' });
   });
 
   it('expõe a origem consolidada e o contexto técnico somente ao professor', async () => {
@@ -466,7 +513,7 @@ describe('training routine service (#387)', () => {
     expect(query?.[0]?.select?.exercises?.select?.releasedCatalog).toEqual({ select: { catalog: true } });
   });
 
-  it('identifica modalidades e preserva distância da projeção operacional consolidada', async () => {
+  it('A-401-05: preserva modalidade cíclica sem projetar volume semanal como distância do dia', async () => {
     const cyclicRow = makeRow({ sessionDurationMin: null, cyclicTimeMin: 30, resistanceTimeMin: 20, targetHrMin: '140', targetHrMax: '150' });
     cyclicRow.template.totalVolumeKm = 5;
     releasedRows = [cyclicRow];
@@ -479,11 +526,27 @@ describe('training routine service (#387)', () => {
     expect(session.durationMin).toBe(50);
     expect(session.cyclic).toEqual({
       durationMin: 30,
-      distanceKm: 5,
+      distanceKm: null,
       heartRate: { min: '140', max: '150' },
       speed: null,
       pace: null,
     });
+  });
+
+
+  it('A-401-05: volume semanal isolado não cria falsa meta ou modalidade diária', async () => {
+    const row = makeRow({ sessionDurationMin: null, cyclicTimeMin: null, exercises: [], cyclicStages: [] });
+    row.template.totalVolumeKm = 30;
+    releasedRows = [row];
+
+    const routine = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    const session = routine.today.sessions[0];
+    expect(session.modalities).toEqual([]);
+    expect(session.cyclic).toBeNull();
+    const projectedSelect = findMany.mock.calls.find(([args]) => args.where.template?.released === true)?.[0].select;
+    expect(projectedSelect.template.select.totalVolumeKm).toBeUndefined();
   });
 
   it('projeta o status legado no vocabulário canônico da #389 sem criar segunda autoridade', async () => {
@@ -529,4 +592,70 @@ describe('training routine service (#387)', () => {
     const week = resolveRoutineWeek(parseDateOnly('2026-10-04'));
     expect(week.start.toISOString().slice(0, 10)).toBe('2026-09-28');
   });
+  it('exposes the frozen comparison for an earlier session in the selected week, per audience', async () => {
+    const historical = {
+      id: 'day-past',
+      sessionDurationMin: 60, cyclicTimeMin: null, stimulusDurationMin: null,
+      targetHrMin: null, targetHrMax: null, targetSpeedMin: null, targetSpeedMax: null,
+      paceMin: null, paceMax: null, template: { totalVolumeKm: null },
+      cyclicStages: [], resistanceGroups: [],
+      exercises: [{
+        id: 'exercise-old', section: 'principal', exerciseOrder: 1,
+        sets: 1, reps: 10, load: 20, intervalSec: 60,
+        exercise: { name: 'Original' }, releasedCatalog: null,
+        resistanceBlocks: [{ id: 'block-old', position: 1, kind: 'principal',
+          plannedSets: [{ id: 'set-old', position: 1, repsMin: 10, repsMax: 10,
+            loadKg: 20, loadPercent: null, rir: null, rpe: null, tempo: null, restSec: 60 }],
+        }],
+      }],
+    };
+    releasedRows = [makeRow({
+      id: 'day-past',
+      workoutDate: new Date('2026-09-30T00:00:00.000Z'),
+      execution: {
+        workoutDayId: 'day-past', status: 'completed', version: 2,
+        startedAt: new Date('2026-09-30T10:00:00.000Z'),
+        finishedAt: new Date('2026-09-30T11:00:00.000Z'),
+        currentPauseStartedAt: null, pausedDurationMs: BigInt(0),
+        interruptionReason: null, originReleaseId: 'release-1',
+        originWorkoutTemplateId: 'template-1', originTrainingPlanId: 'plan-1',
+        sessionValues: {}, plannedSnapshot: historical,
+        items: [{ plannedUnitId: 'exercise-old', plannedSetId: 'set-old',
+          setNumber: 1, outcome: null, completedAt: new Date('2026-09-30T10:30:00.000Z'),
+          loadKg: 22, repetitions: 10,
+          durationSec: null, distanceKm: null, pace: null,
+          heartRateBpm: null, heartRateZone: null, substitutionNote: null,
+          rir: null, rpe: null, tempo: null, restSec: 60 }],
+      },
+    })];
+    const query = { alunoId: 'aluno-1', contractId: 'contract-1',
+      now, date: '2026-09-30' };
+    const student = await service.getRoutine({ ...query, audience: 'student' });
+    const professor = await service.getRoutine({ ...query, audience: 'professor' });
+    expect(student.today.sessions).toEqual([]);
+    const studentComparison = student.days[2].sessions[0].comparison!;
+    const professorComparison = professor.days[2].sessions[0].comparison!;
+    expect(studentComparison.snapshotSource).toBe('captured');
+    expect(studentComparison.units.some((unit) => unit.kind === 'set')).toBe(false);
+    const plannedSet = professorComparison.units.find((unit) => unit.plannedUnitId === 'set-old');
+    // #487 guided confirmation is durable set evidence even without an explicit outcome.
+    expect(plannedSet?.outcome).toBe('full');
+    expect(findMany.mock.calls.some(([args]) =>
+      args.select?.execution?.select?.items?.select?.completedAt === true
+    )).toBe(true);
+    expect(plannedSet?.metrics.find((metric) => metric.key === 'load_kg')).toMatchObject({
+      planned: 20, executed: 22, difference: 2,
+    });
+    expect(professorComparison.units.some((unit) => unit.kind === 'set')).toBe(true);
+    // A draft with no completion marker must remain unclassified.
+    releasedRows[0].execution.items[0].completedAt = null;
+    const notConfirmed = await service.getRoutine({ ...query, audience: 'professor' });
+    expect(notConfirmed.days[2].sessions[0].comparison?.units
+      .find((unit) => unit.plannedUnitId === 'set-old')?.outcome).toBe('unclassified');
+    expect(findMany.mock.calls.some(([args]) =>
+      args.select?.resistanceGroups && args.where.template.plan.alunoId === 'aluno-1'
+        && args.where.template.plan.aluno.contractId === 'contract-1'
+    )).toBe(true);
+  });
+
 });

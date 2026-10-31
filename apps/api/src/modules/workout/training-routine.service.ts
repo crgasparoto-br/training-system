@@ -15,10 +15,18 @@ import type {
   TrainingRoutineSessionSummary,
   TrainingRoutineView,
   TrainingSessionExecutionView,
+  TrainingSessionComparison,
 } from '@corrida/types';
 import { DEFAULT_CONTRACT_TIME_ZONE } from '../contracts/contract-date-input.js';
 import { projectPreWorkoutCheckIn } from './pre-workout-check-in.service.js';
 import { projectWorkoutSessionExecution } from './workout-session-execution.service.js';
+import {
+  compareWorkoutSession,
+  projectWorkoutComparisonForAudience,
+  projectWorkoutExecutionForAudience,
+  readCapturedWorkoutComparisonPlan,
+  workoutComparisonPlanSelect,
+} from './workout-session-comparison.domain.js';
 import { projectPostWorkoutFeedback } from '../post-workout-feedback/post-workout-feedback-persistence.service.js';
 
 /**
@@ -76,12 +84,14 @@ const sessionSelect = {
       originWorkoutTemplateId: true,
       originTrainingPlanId: true,
       sessionValues: true,
+      plannedSnapshot: true,
       items: {
         orderBy: [{ plannedUnitId: 'asc' as const }, { setNumber: 'asc' as const }, { id: 'asc' as const }],
         select: {
           plannedUnitId: true,
           plannedSetId: true,
           setNumber: true,
+          completedAt: true,
           loadKg: true,
           repetitions: true,
           durationSec: true,
@@ -89,6 +99,12 @@ const sessionSelect = {
           pace: true,
           heartRateBpm: true,
           heartRateZone: true,
+          outcome: true,
+          substitutionNote: true,
+          rir: true,
+          rpe: true,
+          tempo: true,
+          restSec: true,
         },
       },
     },
@@ -120,7 +136,6 @@ const sessionSelect = {
       trainingMethod: true,
       trainingDivision: true,
       repReserve: true,
-      totalVolumeKm: true,
       plan: { select: { id: true, name: true } },
     },
   },
@@ -217,14 +232,14 @@ const toRange = (
 function buildCyclicTargets(row: SessionRow): TrainingRoutineCyclicTargets | null {
   const targets: TrainingRoutineCyclicTargets = {
     durationMin: row.cyclicTimeMin ?? row.stimulusDurationMin ?? null,
-    distanceKm: row.template.totalVolumeKm ?? null,
+    // WorkoutTemplate.totalVolumeKm is weekly; never present it as this day's target.
+    distanceKm: null,
     heartRate: toRange(row.targetHrMin, row.targetHrMax),
     speed: toRange(row.targetSpeedMin, row.targetSpeedMax),
     pace: toRange(row.paceMin, row.paceMax),
   };
   const hasTargets =
     targets.durationMin !== null ||
-    targets.distanceKm !== null ||
     targets.heartRate ||
     targets.speed ||
     targets.pace ||
@@ -304,7 +319,8 @@ function toSummary(
   row: SessionRow,
   audience: TrainingRoutineAudience,
   capacities: string[],
-  release: ReleaseRow
+  release: ReleaseRow,
+  comparison?: TrainingSessionComparison
 ): TrainingRoutineSessionSummary {
   const consolidatedRelease: TrainingRoutineConsolidatedRelease = {
     releaseId: release.id,
@@ -327,6 +343,7 @@ function toSummary(
     location: cleanText(row.location),
     method: cleanText(row.method),
     status: buildExecution(row, release).status,
+    ...(comparison ? { comparison } : {}),
     origin: {
       kind: 'consolidated',
       releasedAt: row.template.releasedAt?.toISOString() ?? null,
@@ -366,11 +383,12 @@ function toDetail(
   checkIn: Awaited<ReturnType<PrismaClient['preWorkoutCheckIn']['findFirst']>>,
   includePreWorkoutCheckIn: boolean,
   feedback: Array<PostWorkoutFeedbackRevision & { execution: { status: WorkoutSessionExecutionStatus } }>,
-  includePostWorkoutFeedback: boolean
+  includePostWorkoutFeedback: boolean,
+  comparison?: TrainingSessionComparison
 ): TrainingRoutineSessionDetail {
-  const execution = buildExecution(row, release);
+  const execution = projectWorkoutExecutionForAudience(buildExecution(row, release), audience);
   const detail: TrainingRoutineSessionDetail = {
-    ...toSummary(row, audience, capacities, release),
+    ...toSummary(row, audience, capacities, release, comparison),
     execution,
     objective: cleanText(row.template.studentGoal),
     guidelines: [row.generalGuidelines, row.detailNotes, row.complementNotes]
@@ -379,6 +397,7 @@ function toDetail(
     cyclic: buildCyclicTargets(row),
     cyclicStages: projectCyclicStages(row),
     blocks: buildBlocks(row),
+    ...(comparison ? { comparison } : {}),
     ...(includePreWorkoutCheckIn ? { preWorkoutCheckIn: checkIn ? projectPreWorkoutCheckIn(checkIn, audience, execution.status) : null } : {}),
     ...(includePostWorkoutFeedback ? { postWorkoutFeedback: feedback.map((row) => projectPostWorkoutFeedback(row, row.execution.status, audience, true)) } : {}),
   };
@@ -544,12 +563,32 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
       const context = (row: SessionRow) =>
         [query.audience, capacitiesByDay.get(row.id) ?? [], releaseByTemplate.get(row.template.id)!] as const;
 
+      // Compare every authorized executed session in the selected week, not only today's.
+      // The snapshot belongs to the execution; never substitute a mutable template for it.
+      const executedRows = visibleRows.filter((row) => Boolean(row.execution));
+      const comparisonPlans = executedRows.length ? await client.workoutDay.findMany({
+        where: { id: { in: executedRows.map((row) => row.id) }, template: { released: true, plan: studentScope } },
+        select: workoutComparisonPlanSelect,
+      }) : [];
+      const planByDay = new Map(comparisonPlans.map((day) => [day.id, day]));
+      const comparisonByDay = new Map<string, TrainingSessionComparison>();
+      for (const row of executedRows) {
+        const execution = buildExecution(row, releaseByTemplate.get(row.template.id)!);
+        const frozen = readCapturedWorkoutComparisonPlan(row.execution?.plannedSnapshot);
+        const plan = frozen ?? planByDay.get(row.id);
+        if (plan && plan.id === row.id) {
+          comparisonByDay.set(row.id, projectWorkoutComparisonForAudience(
+            compareWorkoutSession(plan, execution, frozen ? 'captured' : 'released_plan'),
+            query.audience
+          ));
+        }
+      }
       const days: TrainingRoutineDay[] = week.days.map((date) => {
         const key = toDateOnly(date);
         return {
           date: key,
           isToday: key === today,
-          sessions: rowsOn(key).map((row) => toSummary(row, ...context(row))),
+          sessions: rowsOn(key).map((row) => toSummary(row, ...context(row), comparisonByDay.get(row.id))),
           pendingReleaseCount: pendingByDate.get(key) ?? 0,
         };
       });
@@ -582,7 +621,8 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
               checkInBySession.get(row.id) ?? null,
               canProjectPreWorkoutCheckIn,
               latestFeedbackBySession.get(row.id) ?? [],
-              canProjectPostWorkoutFeedback
+              canProjectPostWorkoutFeedback,
+              comparisonByDay.get(row.id)
             )
           ),
         },

@@ -9,6 +9,9 @@ const mockGetCheckIn = jest.fn();
 const mockGetGuided = jest.fn();
 const mockCompleteGuided = jest.fn();
 const mockSaveCheckIn = jest.fn();
+const mockSaveExecutionValues = jest.fn();
+const mockGetSessionExecution = jest.fn();
+const mockTransitionExecution = jest.fn();
 const mockResolveActiveStudentMembership = jest.fn();
 const mockBlockAccessMiddleware = jest.fn(
   () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
@@ -48,6 +51,26 @@ jest.mock('../src/modules/workout/training-routine.service', () => {
   };
 });
 
+jest.mock('../src/modules/workout/workout-session-execution.service', () => {
+  class WorkoutSessionExecutionInputError extends Error {
+    code = 'WORKOUT_SESSION_EXECUTION_INVALID';
+  }
+  class WorkoutSessionExecutionNotFoundError extends Error {}
+  class WorkoutSessionExecutionConflictError extends Error {}
+  return {
+    workoutSessionExecutionService: {
+      saveValues: mockSaveExecutionValues,
+      getForSession: mockGetSessionExecution,
+      transition: mockTransitionExecution,
+      getGuidedForSession: mockGetGuided,
+      completeGuided: mockCompleteGuided,
+    },
+    WorkoutSessionExecutionInputError,
+    WorkoutSessionExecutionNotFoundError,
+    WorkoutSessionExecutionConflictError,
+  };
+});
+
 jest.mock('../src/modules/workout/pre-workout-check-in.service', () => {
   class PreWorkoutCheckInInputError extends Error {}
   class PreWorkoutCheckInNotFoundError extends Error {}
@@ -62,22 +85,7 @@ jest.mock('../src/modules/workout/pre-workout-check-in.service', () => {
   };
 });
 
-jest.mock('../src/modules/workout/workout-session-execution.service', () => {
-  class WorkoutSessionExecutionNotFoundError extends Error {}
-  class WorkoutSessionExecutionInputError extends Error {}
-  class WorkoutSessionExecutionConflictError extends Error {
-    code = 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT';
-  }
-  return {
-    workoutSessionExecutionService: {
-      getGuidedForSession: mockGetGuided,
-      completeGuided: mockCompleteGuided,
-    },
-    WorkoutSessionExecutionInputError,
-    WorkoutSessionExecutionNotFoundError,
-    WorkoutSessionExecutionConflictError,
-  };
-});
+
 
 jest.mock('../src/modules/alunos/student-account-context.service', () => {
   class StudentAccountContextError extends Error {
@@ -134,6 +142,10 @@ describe('training routine HTTP boundaries (#387)', () => {
     mockGetRoutine.mockReset().mockResolvedValue(routine);
     mockGetCheckIn.mockReset().mockResolvedValue(null);
     mockSaveCheckIn.mockReset().mockResolvedValue({ id: 'checkin-1', editable: true });
+    mockGetSessionExecution.mockReset();
+    mockTransitionExecution.mockReset();
+    mockSaveExecutionValues.mockReset().mockResolvedValue({ sessionId: 'day-1', version: 2,
+      sessionValues: { speedKmh: 9 }, items: [] });
     mockGetGuided.mockReset().mockResolvedValue({ sessionId: 'day-1', availability: 'available', current: null });
     mockCompleteGuided.mockReset().mockResolvedValue({ sessionId: 'day-1', completed: 1 });
     mockAlunoFindFirst.mockReset();
@@ -262,6 +274,172 @@ describe('training routine HTTP boundaries (#387)', () => {
       expect(response.status).toBe(500);
       expect(JSON.stringify(response.body)).not.toContain('10.0.0.1');
       consoleError.mockRestore();
+    });
+  });
+
+  describe('session-speed write contract (#401 A-401-09)', () => {
+    beforeEach(() => {
+      mockUser = { userId: 'user-1', type: 'aluno' };
+      mockResolveActiveStudentMembership.mockResolvedValue({ id: 'aluno-1', contractId: 'contract-1' });
+      mockAlunoFindFirst.mockResolvedValue({ id: 'aluno-1', contractId: 'contract-1', user: { id: 'user-1' } });
+    });
+
+
+
+
+    it('A-401023: HTTP rejects non-performed transitions carrying executed evidence', async () => {
+      const { WorkoutSessionExecutionInputError } =
+        require('../src/modules/workout/workout-session-execution.service');
+      mockTransitionExecution.mockRejectedValueOnce(
+        new WorkoutSessionExecutionInputError('Sessão não realizada não aceita valores ou unidades executadas.')
+      );
+      const response = await request(app)
+        .post('/student/me/training-sessions/day-1/execution/transition')
+        .set('x-contract-id', 'contract-1')
+        .send({ operationKey: '40123-invalid-http', expectedVersion: 0,
+          targetStatus: 'not_performed', reason: 'Cancelamento',
+          items: [{ plannedUnitId: 'exercise-a', setNumber: 1,
+            outcome: 'full', repetitions: 10 }] });
+      expect(response.status).toBe(400);
+      expect(response.body.data?.items).toBeUndefined();
+      expect(mockTransitionExecution).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId: 'day-1', alunoId: 'aluno-1', contractId: 'contract-1',
+      }));
+    });
+
+    it('A-021: GET, transition and save return student-safe data at the HTTP boundary', async () => {
+      const recorded = {
+        sessionId: 'day-1', status: 'in_progress', version: 2,
+        sessionValues: { speedKmh: 0 },
+        items: [{ plannedUnitId: 'exercise-a', plannedSetId: 'set-1', setNumber: 1,
+          rir: 2, rpe: 7, tempo: '2-0-2', restSec: 45,
+          repetitions: 8, loadKg: 20 }],
+      };
+      mockGetSessionExecution.mockResolvedValue(recorded);
+      mockTransitionExecution.mockResolvedValue(recorded);
+      mockSaveExecutionValues.mockResolvedValue(recorded);
+      const url = '/student/me/training-sessions/day-1/execution';
+      const read = await request(app).get(url).set('x-contract-id', 'contract-1');
+      const transition = await request(app).post(url + '/transition')
+        .set('x-contract-id', 'contract-1')
+        .send({ operationKey: 'issue401-redact-transition', expectedVersion: 2,
+          targetStatus: 'paused' });
+      const save = await request(app).put(url + '/values')
+        .set('x-contract-id', 'contract-1')
+        .send({ operationKey: 'issue401-redact-values', expectedVersion: 2,
+          items: [{ plannedUnitId: 'exercise-a', plannedSetId: 'set-1', setNumber: 1,
+            rir: 2, rpe: 7, tempo: '2-0-2', repetitions: 8, loadKg: 20 }] });
+
+      for (const response of [read, transition, save]) {
+        expect(response.status).toBe(200);
+        const item = response.body.data.items[0];
+        expect(item).not.toHaveProperty('rir');
+        expect(item).not.toHaveProperty('rpe');
+        expect(item).not.toHaveProperty('tempo');
+        expect(item).toMatchObject({ loadKg: 20, repetitions: 8, restSec: 45 });
+        expect(response.body.data.sessionValues.speedKmh).toBe(0);
+        expect(JSON.stringify(response.body)).not.toContain('2-0-2');
+      }
+      expect(mockGetSessionExecution).toHaveBeenCalledWith({
+        sessionId: 'day-1', alunoId: 'aluno-1', contractId: 'contract-1',
+      });
+      expect(mockTransitionExecution).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId: 'day-1', alunoId: 'aluno-1', contractId: 'contract-1',
+        actorUserId: 'user-1',
+      }));
+      expect(recorded.items[0]).toMatchObject({ rir: 2, rpe: 7, tempo: '2-0-2' });
+    });
+
+    it('A-401-18/19: forwards partial substitution notes and two distinct planned-set IDs without ordinals', async () => {
+      const payload = { operationKey: 'issue401-patch-ids-http', expectedVersion: 2,
+        items: [
+          { plannedUnitId: 'exercise-a', plannedSetId: 'planned-set-1',
+            outcome: 'substituted', loadKg: 25 },
+          { plannedUnitId: 'exercise-a', plannedSetId: 'planned-set-2',
+            substitutionNote: 'Alternativa registrada' },
+        ],
+      };
+      const response = await request(app)
+        .put('/student/me/training-sessions/day-1/execution/values')
+        .set('x-contract-id', 'contract-1').send(payload);
+      expect(response.status).toBe(200);
+      expect(mockSaveExecutionValues).toHaveBeenCalledWith({
+        sessionId: 'day-1', alunoId: 'aluno-1', contractId: 'contract-1',
+        actorUserId: 'user-1', payload,
+      });
+      mockSaveExecutionValues.mockClear();
+      const spoof = await request(app)
+        .put('/student/me/training-sessions/day-1/execution/values')
+        .set('x-contract-id', 'contract-1').send({ ...payload, actorUserId: 'attacker' });
+      expect(spoof.status).toBe(400);
+      expect(mockSaveExecutionValues).not.toHaveBeenCalled();
+    });
+
+    it('accepts an explicit legacy session speed and forwards only the scoped validated payload', async () => {
+      const payload = { operationKey: 'issue401-speed-route', expectedVersion: 1,
+        sessionValues: { speedKmh: 9, pace: '5:30' } };
+      const response = await request(app)
+        .put('/student/me/training-sessions/day-1/execution/values')
+        .set('x-contract-id', 'contract-1').send(payload);
+      expect(response.status).toBe(200);
+      expect(mockSaveExecutionValues).toHaveBeenCalledWith({
+        sessionId: 'day-1', alunoId: 'aluno-1', contractId: 'contract-1',
+        actorUserId: 'user-1', payload,
+      });
+      expect(mockResolveActiveStudentMembership).toHaveBeenCalledWith('user-1', 'contract-1');
+    });
+
+    it('accepts a measured zero and a deliberate null without synthesizing either', async () => {
+      for (const speedKmh of [0, null]) {
+        mockSaveExecutionValues.mockClear();
+        const payload = { operationKey: 'issue401-speed-zero-or-null', expectedVersion: 1,
+          sessionValues: { speedKmh } };
+        const response = await request(app)
+          .put('/student/me/training-sessions/day-1/execution/values')
+          .set('x-contract-id', 'contract-1').send(payload);
+        expect(response.status).toBe(200);
+        expect(mockSaveExecutionValues).toHaveBeenCalledWith(expect.objectContaining({ payload }));
+      }
+    });
+
+    it('passes explicit patch removals without accepting forged fields on the HTTP boundary', async () => {
+      const payload = { operationKey: 'issue401-patch-remove-http', expectedVersion: 2,
+        sessionValues: { cyclicStages: [{ plannedStageId: 'stage-2', outcome: 'partial', speedKmh: 0 }],
+          removeCyclicStages: [{ plannedStageId: 'stage-1', iteration: 1 }],
+          removeResistanceGroups: ['group-1'] },
+      };
+      const response = await request(app).put('/student/me/training-sessions/day-1/execution/values')
+        .set('x-contract-id', 'contract-1').send(payload);
+      expect(response.status).toBe(200);
+      expect(mockSaveExecutionValues).toHaveBeenCalledWith({
+        sessionId: 'day-1', alunoId: 'aluno-1', contractId: 'contract-1',
+        actorUserId: 'user-1', payload,
+      });
+    });
+
+    it.each([
+      { removeCyclicStages: [{ plannedStageId: 'stage-1', iteration: 0 }] },
+      { removeCyclicStages: [{ plannedStageId: 'stage-1', wrong: true }] },
+      { removeResistanceGroups: [null] },
+      { removeResistanceGroups: [123] },
+      { removeCyclicStages: 'stage-1' },
+    ])('rejects malformed patch deletion intent before persistence: %p', async (sessionValues) => {
+      mockSaveExecutionValues.mockClear();
+      const response = await request(app).put('/student/me/training-sessions/day-1/execution/values')
+        .set('x-contract-id', 'contract-1')
+        .send({ operationKey: 'issue401-delete-bad', expectedVersion: 2, sessionValues });
+      expect(response.status).toBe(400);
+      expect(mockSaveExecutionValues).not.toHaveBeenCalled();
+    });
+
+    it.each([-0.5, '9', { kmh: 9 }])('rejects invalid speed %p with no service write', async (speedKmh) => {
+      const response = await request(app)
+        .put('/student/me/training-sessions/day-1/execution/values')
+        .set('x-contract-id', 'contract-1')
+        .send({ operationKey: 'issue401-speed-bad-route', expectedVersion: 1,
+          sessionValues: { speedKmh } });
+      expect(response.status).toBe(400);
+      expect(mockSaveExecutionValues).not.toHaveBeenCalled();
     });
   });
 

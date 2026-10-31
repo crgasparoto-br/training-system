@@ -2148,6 +2148,7 @@ model WorkoutSessionExecution {
   currentPauseStartedAt   DateTime?
   pausedDurationMs        BigInt                        @default(0)
   sessionValues           Json                          @default("{}")
+  plannedSnapshot         Json?
   createdAt               DateTime                      @default(now())
   updatedAt               DateTime                      @updatedAt
   workoutDay              WorkoutDay                    @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
@@ -2197,6 +2198,12 @@ model WorkoutSessionExecutionItem {
   plannedUnitId  String
   plannedSetId   String?
   setNumber      Int                     @default(0)
+  outcome        String?
+  substitutionNote String?
+  rir            Float?
+  rpe            Float?
+  tempo          String?
+  restSec        Int?
   completedAt    DateTime?
   completedByOperationId String?           @unique
   loadKg         Float?

@@ -1,5 +1,11 @@
 import { Prisma } from '@prisma/client';
-import type { TrainingSessionExecutionItemValue, TrainingSessionExecutionSessionValues } from '@corrida/types';
+import type {
+  TrainingSessionExecutionItemValue,
+  TrainingSessionExecutionSessionValues,
+  TrainingSessionExecutionSessionValuesPatch,
+  TrainingSessionCyclicStageExecutionValue,
+  TrainingSessionResistanceGroupExecutionValue,
+} from '@corrida/types';
 
 export class WorkoutSessionExecutionInputError extends Error {
   readonly statusCode = 400;
@@ -96,11 +102,91 @@ async function validatePlannedUnits(
   return normalized;
 }
 
+
+/** Reject cross-session or synthetic identifiers before any executed values are persisted. */
+async function validateStructuredValues(
+  tx: Prisma.TransactionClient,
+  sessionId: string,
+  values: TrainingSessionExecutionSessionValuesPatch | undefined,
+) {
+  const stages = [...(values?.cyclicStages ?? []), ...(values?.removeCyclicStages ?? [])];
+  if (stages.length > 0) {
+    const ids = [...new Set(stages.map((item) => item.plannedStageId))];
+    const found = await tx.workoutCyclicStage.findMany({
+      where: { id: { in: ids }, workoutDayId: sessionId },
+      select: { id: true, parent: { select: { kind: true, repeatCount: true } } },
+    });
+    if (found.length !== ids.length) {
+      throw new WorkoutSessionExecutionInputError('Uma ou mais etapas não pertencem ao treino planejado.');
+    }
+    const allowed = new Map(found.map((item) => [item.id, item.parent]));
+    for (const item of stages) {
+      const parent = allowed.get(item.plannedStageId);
+      const repetitions = parent?.kind === 'repeat' ? parent.repeatCount ?? 1 : 1;
+      if ((item.iteration ?? 1) > repetitions) {
+        throw new WorkoutSessionExecutionInputError('Repetição de etapa fora do planejamento.');
+      }
+    }
+  }
+
+  const groups = [...(values?.resistanceGroups ?? []).map((item) => item.plannedGroupId),
+    ...(values?.removeResistanceGroups ?? [])];
+  if (groups.length > 0) {
+    const ids = [...new Set(groups)];
+    const found = await tx.workoutResistanceGroup.findMany({
+      where: { id: { in: ids }, workoutDayId: sessionId },
+      select: { id: true },
+    });
+    if (found.length !== ids.length) {
+      throw new WorkoutSessionExecutionInputError('Um ou mais agrupamentos não pertencem ao treino planejado.');
+    }
+  }
+}
+
+/** Combine the latest incremental entries with durable history by their released-plan identities.
+ * A missing field means unchanged; only an explicit JSON null clears its metric. */
+function mergeRecordedUnits<T extends { outcome: string; substitutionNote?: string | null }>(
+  stored: T[] | undefined,
+  incoming: T[] | undefined,
+  removedKeys: string[],
+  keyOf: (item: T) => string,
+  limit: number,
+): T[] {
+  const byKey = new Map<string, T>();
+  for (const item of stored ?? []) {
+    const key = keyOf(item);
+    if (!key || byKey.has(key)) {
+      throw new WorkoutSessionExecutionInputError('Histórico executado inconsistente; reconciliação supervisionada necessária.');
+    }
+    byKey.set(key, item);
+  }
+  for (const key of removedKeys) {
+    if (!byKey.delete(key)) {
+      throw new WorkoutSessionExecutionInputError('A unidade informada para remoção não possui registro executado.');
+    }
+  }
+  for (const patch of incoming ?? []) {
+    const key = keyOf(patch);
+    // Normalization may contain undefined keys. Never overwrite a recorded value with omission.
+    const provided = Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined));
+    const merged = { ...byKey.get(key), ...provided } as T;
+    if (merged.outcome !== 'substituted') merged.substitutionNote = null;
+    else if (!merged.substitutionNote?.trim()) {
+      throw new WorkoutSessionExecutionInputError('Substituição exige uma descrição.');
+    }
+    byKey.set(key, merged);
+  }
+  if (byKey.size > limit) {
+    throw new WorkoutSessionExecutionInputError('O histórico executado excede o limite de unidades permitido.');
+  }
+  return [...byKey.values()];
+}
+
 export async function persistWorkoutSessionValues(
   tx: Prisma.TransactionClient,
   executionId: string,
   sessionId: string,
-  sessionValues: TrainingSessionExecutionSessionValues | undefined,
+  sessionValues: TrainingSessionExecutionSessionValuesPatch | undefined,
   items: TrainingSessionExecutionItemValue[],
   completedAt?: Date,
   completionOperationId?: string
@@ -109,19 +195,36 @@ export async function persistWorkoutSessionValues(
     throw new WorkoutSessionExecutionInputError('A conclusão guiada exige uma operação canônica vinculada.');
   }
   const validItems = await validatePlannedUnits(tx, executionId, sessionId, items);
+  await validateStructuredValues(tx, sessionId, sessionValues);
   let mergedSessionValues: Prisma.InputJsonValue | undefined;
   if (sessionValues) {
-    const existing = await tx.workoutSessionExecution.findUnique({ where: { id: executionId }, select: { sessionValues: true } });
-    mergedSessionValues = {
-      ...((existing?.sessionValues ?? {}) as Record<string, unknown>),
-      ...sessionValues,
-    } as Prisma.InputJsonValue;
+    const existing = await tx.workoutSessionExecution.findUnique({
+      where: { id: executionId }, select: { sessionValues: true },
+    });
+    const stored = (existing?.sessionValues ?? {}) as unknown as TrainingSessionExecutionSessionValues;
+    const { removeCyclicStages, removeResistanceGroups, ...updates } = sessionValues;
+    const merged: TrainingSessionExecutionSessionValues = { ...stored, ...updates };
+    if (updates.cyclicStages !== undefined || removeCyclicStages?.length) {
+      merged.cyclicStages = mergeRecordedUnits<TrainingSessionCyclicStageExecutionValue>(
+        stored.cyclicStages, updates.cyclicStages,
+        (removeCyclicStages ?? []).map((entry) => `${entry.plannedStageId}:${entry.iteration ?? 1}`),
+        (entry) => `${entry.plannedStageId}:${entry.iteration ?? 1}`, 500,
+      );
+    }
+    if (updates.resistanceGroups !== undefined || removeResistanceGroups?.length) {
+      merged.resistanceGroups = mergeRecordedUnits<TrainingSessionResistanceGroupExecutionValue>(
+        stored.resistanceGroups, updates.resistanceGroups,
+        removeResistanceGroups ?? [], (entry) => entry.plannedGroupId, 100,
+      );
+    }
+    // Removal intents are only in the operation fingerprint/ledger, never in the read model.
+    mergedSessionValues = merged as unknown as Prisma.InputJsonValue;
   }
   for (const item of validItems) {
     const setNumber = item.setNumber ?? 0;
     const existingItem = await tx.workoutSessionExecutionItem.findUnique({
       where: { executionId_plannedUnitId_setNumber: { executionId, plannedUnitId: item.plannedUnitId, setNumber } },
-      select: { plannedSetId: true, completedAt: true },
+      select: { plannedSetId: true, completedAt: true, outcome: true, substitutionNote: true },
     });
     if (existingItem?.completedAt) {
       throw new WorkoutSessionExecutionInputError('Esta série já foi concluída e não pode ser reescrita.');
@@ -132,6 +235,19 @@ export async function persistWorkoutSessionValues(
     const persistedPlannedSetId = item.plannedSetId === undefined
       ? existingItem?.plannedSetId ?? null
       : item.plannedSetId;
+    const outcome = item.outcome ?? existingItem?.outcome ?? null;
+    const substitutionNote = outcome === 'substituted'
+      ? item.substitutionNote === undefined
+        ? existingItem?.substitutionNote ?? null
+        : item.substitutionNote
+      : null;
+    if (outcome === 'substituted' && !substitutionNote?.trim()) {
+      throw new WorkoutSessionExecutionInputError('Substituição exige uma descrição.');
+    }
+    // An omitted outcome inherits the durable state, but cannot add a note to a non-substitution.
+    if (outcome !== 'substituted' && item.substitutionNote) {
+      throw new WorkoutSessionExecutionInputError('Substituição só pode ser informada quando a unidade foi substituída.');
+    }
     if (persistedPlannedSetId && await tx.workoutSessionExecutionItem.findFirst({
       where: { executionId, plannedSetId: persistedPlannedSetId, completedAt: { not: null } },
       select: { id: true },
@@ -145,6 +261,12 @@ export async function persistWorkoutSessionValues(
         plannedUnitId: item.plannedUnitId,
         plannedSetId: persistedPlannedSetId,
         setNumber,
+        outcome,
+        substitutionNote,
+        rir: item.rir,
+        rpe: item.rpe,
+        tempo: item.tempo,
+        restSec: item.restSec,
         ...(completedAt ? { completedAt, completedByOperationId: completionOperationId } : {}),
         loadKg: item.loadKg,
         repetitions: item.repetitions,
@@ -156,6 +278,12 @@ export async function persistWorkoutSessionValues(
       },
       update: {
         plannedSetId: persistedPlannedSetId,
+        outcome,
+        substitutionNote,
+        rir: item.rir,
+        rpe: item.rpe,
+        tempo: item.tempo,
+        restSec: item.restSec,
         ...(completedAt ? { completedAt, completedByOperationId: completionOperationId } : {}),
         loadKg: item.loadKg,
         repetitions: item.repetitions,
