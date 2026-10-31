@@ -3212,14 +3212,15 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
     const fixture = await seedReleasedWorkout('40123-nonperformed');
     const scope = { sessionId: fixture.dayId, alunoId: fixture.alunoId,
       contractId: fixture.contractId, actorUserId: fixture.alunoUserId };
-    for (const [operationKey, values] of [
+    const invalidCases: Array<[string, Partial<Parameters<typeof service.transition>[0]['payload']>]> = [
       ['40123-forged-item', { items: [{
         plannedUnitId: fixture.exerciseIds[0], setNumber: 1, outcome: 'full' as const,
         repetitions: 10, loadKg: 20,
       }] }],
       ['40123-zero-is-evidence', { sessionValues: { durationSec: 0 } }],
       ['40123-empty-units', { sessionValues: { cyclicStages: [] } }],
-    ]) {
+    ];
+    for (const [operationKey, values] of invalidCases) {
       await expect(service.transition({ ...scope, payload: {
         operationKey, expectedVersion: 0, targetStatus: 'not_performed',
         reason: 'Treino cancelado', ...values,
