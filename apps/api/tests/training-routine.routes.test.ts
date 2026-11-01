@@ -231,9 +231,8 @@ describe('training routine HTTP boundaries (#387)', () => {
     });
 
     it('returns the @corrida/utils details.code envelope for a premature finish', async () => {
-      mockActGuidedRest.mockRejectedValueOnce(Object.assign(
-        new WorkoutSessionExecutionConflictError('O descanso ainda não terminou.'),
-        { code: 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION' },
+      mockActGuidedRest.mockRejectedValueOnce(new WorkoutSessionExecutionConflictError(
+        'O descanso ainda não terminou.', 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION',
       ));
       const response = await request(app)
         .post('/student/me/training-sessions/day-1/execution/guided/rest')
@@ -251,7 +250,9 @@ describe('training routine HTTP boundaries (#387)', () => {
     });
 
     it('keeps version conflicts distinguishable from a premature finish in the public response', async () => {
-      mockActGuidedRest.mockRejectedValueOnce(new WorkoutSessionExecutionConflictError('Versão alterada.'));
+      mockActGuidedRest.mockRejectedValueOnce(new WorkoutSessionExecutionConflictError(
+        'Versão alterada.', 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT',
+      ));
       const response = await request(app)
         .post('/student/me/training-sessions/day-1/execution/guided/rest')
         .set('x-contract-id', 'contract-1').send(restPayload());
