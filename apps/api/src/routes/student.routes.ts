@@ -34,6 +34,7 @@ import {
   WorkoutSessionExecutionInputError,
   WorkoutSessionExecutionNotFoundError,
 } from '../modules/workout/workout-session-execution.service.js';
+import { projectWorkoutExecutionForAudience } from '../modules/workout/workout-session-comparison.domain.js';
 import { postWorkoutFeedbackPersistenceService, PostWorkoutFeedbackConflictError, PostWorkoutFeedbackInputError, PostWorkoutFeedbackNotFoundError } from '../modules/post-workout-feedback/post-workout-feedback-persistence.service.js';
 
 const prisma = new PrismaClient();
@@ -832,18 +833,55 @@ router.put('/me/training-sessions/:sessionId/check-in', async (req: Request, res
 // GET/POST/PUT /api/v1/student/me/training-sessions/:sessionId/execution
 // Lifecycle canônico e valores executados da sessão (#389).
 // ---------------------------------------------------------------------------
+
+const executionUnitOutcomeSchema = z.enum(['full', 'partial', 'substituted', 'not_performed']);
+const executionCyclicStageSchema = z.object({
+  plannedStageId: z.string().trim().min(1),
+  iteration: z.number().int().min(1).max(100).optional(),
+  outcome: executionUnitOutcomeSchema,
+  substitutionNote: z.string().trim().max(500).nullable().optional(),
+  durationSec: z.number().int().nonnegative().nullable().optional(),
+  distanceMeters: z.number().nonnegative().nullable().optional(),
+  paceMinPerKm: z.number().nonnegative().nullable().optional(),
+  speedKmh: z.number().nonnegative().nullable().optional(),
+  heartRateBpm: z.number().int().min(0).max(260).nullable().optional(),
+  heartRateZone: z.string().trim().max(32).nullable().optional(),
+  pse: z.number().min(0).max(10).nullable().optional(),
+}).strict();
+const executionResistanceGroupSchema = z.object({
+  plannedGroupId: z.string().trim().min(1),
+  outcome: executionUnitOutcomeSchema,
+  substitutionNote: z.string().trim().max(500).nullable().optional(),
+  roundsCompleted: z.number().int().nonnegative().nullable().optional(),
+  restBetweenExercisesSec: z.number().int().min(0).max(86400).nullable().optional(),
+  restBetweenRoundsSec: z.number().int().min(0).max(86400).nullable().optional(),
+}).strict();
 const executionSessionValuesSchema = z.object({
   durationSec: z.number().int().nonnegative().nullable().optional(),
   distanceKm: z.number().nonnegative().nullable().optional(),
   pace: z.string().trim().max(32).nullable().optional(),
+  speedKmh: z.number().finite().nonnegative().nullable().optional(),
   heartRateBpm: z.number().int().min(0).max(260).nullable().optional(),
   heartRateZone: z.string().trim().max(32).nullable().optional(),
+  cyclicStages: z.array(executionCyclicStageSchema).max(500).optional(),
+  resistanceGroups: z.array(executionResistanceGroupSchema).max(100).optional(),
+  removeCyclicStages: z.array(z.object({
+    plannedStageId: z.string().trim().min(1),
+    iteration: z.number().int().min(1).max(100).optional(),
+  }).strict()).max(500).optional(),
+  removeResistanceGroups: z.array(z.string().trim().min(1)).max(100).optional(),
 }).strict();
 
 const executionItemSchema = z.object({
   plannedUnitId: z.string().trim().min(1),
   plannedSetId: z.string().trim().min(1).nullable().optional(),
   setNumber: z.number().int().nonnegative().optional(),
+  outcome: executionUnitOutcomeSchema.optional(),
+  substitutionNote: z.string().trim().max(500).nullable().optional(),
+  rir: z.number().min(0).max(30).nullable().optional(),
+  rpe: z.number().min(0).max(10).nullable().optional(),
+  tempo: z.string().trim().max(80).nullable().optional(),
+  restSec: z.number().int().min(0).max(86400).nullable().optional(),
   loadKg: z.number().nonnegative().nullable().optional(),
   repetitions: z.number().int().nonnegative().nullable().optional(),
   durationSec: z.number().int().nonnegative().nullable().optional(),
@@ -905,7 +943,7 @@ router.get('/me/training-sessions/:sessionId/execution', async (req: Request, re
       alunoId: aluno.id,
       contractId: aluno.contractId,
     });
-    return sendSuccess(res, execution);
+    return sendSuccess(res, projectWorkoutExecutionForAudience(execution, 'student'));
   } catch (error: any) {
     const handled = sendExecutionError(res, error);
     if (handled) return handled;
@@ -959,7 +997,7 @@ router.post('/me/training-sessions/:sessionId/execution/transition', async (req:
       actorUserId: userId,
       payload,
     });
-    return sendSuccess(res, execution, 'Estado do treino atualizado');
+    return sendSuccess(res, projectWorkoutExecutionForAudience(execution, 'student'), 'Estado do treino atualizado');
   } catch (error: any) {
     const handled = sendExecutionError(res, error);
     if (handled) return handled;
@@ -980,7 +1018,7 @@ router.put('/me/training-sessions/:sessionId/execution/values', async (req: Requ
       actorUserId: userId,
       payload,
     });
-    return sendSuccess(res, execution, 'Execução do treino salva');
+    return sendSuccess(res, projectWorkoutExecutionForAudience(execution, 'student'), 'Execução do treino salva');
   } catch (error: any) {
     const handled = sendExecutionError(res, error);
     if (handled) return handled;

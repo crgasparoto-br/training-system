@@ -57,6 +57,41 @@ Os contratos permanentes estão em `docs/product/consolidated-prescription-opera
 
 As regras de produto estão em `docs/product/student-centered-training-experience.md`.
 
+## Coerência entre classificação e execução (#401, A-401022/A-401023)
+
+A confirmação guiada de uma série já marcada como `not_performed` é rejeitada com HTTP 409 e código `WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME` na mesma transação serializável. O aluno deve alterar explicitamente o outcome manual antes de confirmar; uma série `partial` ou `substituted` pode ser confirmada sem reclassificação silenciosa. O replay da chave idempotente preserva o estado após confirmação legítima.
+
+A transição da sessão para `not_performed` exige motivo e ausência total de `sessionValues` e `items` no payload; também recusa um shell persistido que já contenha qualquer registro executado. A rejeição HTTP 400 ocorre antes de qualquer escrita de execução, operação ou evento, e zero explícito não é tratado como ausência. A transição válida sem registros permanece disponível.
+
+A regressão inclui PostgreSQL real para os dois casos, testes HTTP e a jornada Chrome autenticada da #487 ampliada com prova da comparação #401 para aluno e professor a partir das mesmas rotas reais, com evidências em `artifacts/issue-401/`. O professor é exercitado tanto por um harness isolado do componente real quanto pela navegação completa autenticada da Central do Aluno (`/central-do-aluno/:id` → Aluno 360 → Treinos / Planos) em Chromium desktop/mobile, usando os mesmos dados do PostgreSQL e rotas HTTP reais.
+
+**A-401-026 — histórico sem snapshot:** se `WorkoutSessionExecution.plannedSnapshot` estiver ausente ou inválido, a leitura da rotina semanal compara apenas `sessionValues`/`items` persistidos por IDs; não consulta o plano atualmente liberado para calcular quantidades, rótulos ou cobertura daquela execução. `snapshotSource=released_plan` sinaliza o caminho conservador: dados e classificações explícitos de etapa, grupo e série são preservados, sem metas/diferenças inventadas; agregados cuja cobertura não é comprovável usam `historical_unknown` (somente leitura). `partial` e `not_performed` do lifecycle continuam fatos explícitos. A versão, origem de release e isolamento por aluno/contrato não mudam. `captured` permanece com sua comparação exata. Testes de domínio, serviço e HTTP devem discriminar mudanças posteriores no planejamento sem alteração da execução.
+
+**A-401-025 — não realização por unidade:** `not_performed` em etapa cíclica, agrupamento ou série não admite nenhuma medida executada não nula, inclusive `0`, RIR/RPE/cadência, duração, distância, intensidade ou descanso. A API verifica a combinação efetiva com os valores já persistidos dentro da transação; patches que omitem uma medida não a removem. Para mudar uma unidade com medidas anteriores para `not_performed`, o consumidor deve limpá-las explicitamente com `null` no mesmo comando, ou ajustar o outcome para refletir a execução. A persistência PostgreSQL bloqueia desvios por SQL direto em itens e arrays de `sessionValues`; a nova constraint de itens é `NOT VALID` para preservar histórico anterior sem inferir a execução. Zeros permanecem válidos em outcomes de execução reais. Falhas de coerência retornam HTTP 400 sem mutação, versão ou evento parcial.
+
+## Escrita incremental do planejado versus executado (#401, A-401017)
+
+`PUT /api/v1/student/me/training-sessions/:sessionId/execution/values` (e `POST /execution/transition` enquanto aplicável) conserva o controle de sessão/contrato, `operationKey` idempotente e `expectedVersion` da execução canônica. `sessionValues.cyclicStages` é uma lista de **upserts por (`plannedStageId`, `iteration` 1-based, padrão 1)**; `sessionValues.resistanceGroups` faz upsert por `plannedGroupId`. Os arrays **não** substituem o histórico: outra unidade omitida permanece, assim como qualquer medição omitida em uma unidade enviada. `null` limpa explicitamente uma métrica (não a unidade), `0` é medição real e array vazio é lote vazio (não limpa registros).
+
+A exclusão de um registro executado exige a intenção **específica e autenticada** dentro de `sessionValues`:
+
+```json
+{
+  "operationKey": "execucao-401-remocao-001",
+  "expectedVersion": 4,
+  "sessionValues": {
+    "removeCyclicStages": [{ "plannedStageId": "id-etapa", "iteration": 1 }],
+    "removeResistanceGroups": ["id-agrupamento"]
+  }
+}
+```
+
+Identificadores de remoção, IDs de upsert e repetições são validados contra o `WorkoutDay` liberado do mesmo aluno/contrato dentro da transação; chaves duplicadas, operações contraditórias (remover + alterar a mesma unidade) e exclusão de registro inexistente são recusadas com HTTP 400 sem gravar efeitos. Valores e remoções somente ocorrem durante sessão `in_progress`, com versão correta e serialização transacional. A intenção de exclusão fica rastreável no fingerprint e na operação canônica, mas `removeCyclicStages`/`removeResistanceGroups` **não** são gravados como métricas nem aparecem no contrato público de leitura. A comparação histórica segue `plannedSnapshot` imutável. Na projeção da issue #401, a etapa `repeat` é reconciliada com cada subetapa/volta para calcular seu outcome: uma declaração direta `full` sem filhos não comprova execução integral; uma declaração direta `not_performed` sem filhos é uma evidência negativa do agrupador, sem completar artificialmente os filhos. Agregação da sessão considera o resultado consolidado do agrupador apenas uma vez, preservando substituição e ausência como estados distintos.
+
+**Séries estruturadas e substituições (A-401-18/19):** em `items[]`, dois `plannedSetId` distintos do mesmo exercício podem ser enviados no mesmo lote com `setNumber` omitido. O backend resolve o ordinal canônico pelo planejamento liberado antes de validar a identidade duplicada; IDs repetidos, ordinais explícitos incorretos e referências de outra sessão/contrato continuam rejeitados atomicamente. Séries legadas sem `plannedSetId` continuam identificadas pelo `setNumber` executado.
+
+Em atualizações parciais, `outcome` e `substitutionNote` podem ser omitidos independentemente: a situação efetiva e a observação são conciliadas com o registro persistido dentro da mesma transação serializável. `substituted` exige observação não vazia no estado final; uma observação não vazia em unidade não substituída é inválida. Omissão preserva a observação anterior, `null` tenta limpá-la explicitamente (e é recusado enquanto a unidade continua substituída), e alterar para outro outcome limpa a observação. Erros devolvem HTTP 400 sem avançar versão, operação ou valores executados.
+
 ## Check-in pré-treino (#388)
 
 O check-in usa `PreWorkoutCheckIn` como fonte canônica única por `WorkoutDay`. A escrita do aluno ocorre em `PUT /api/v1/student/me/training-sessions/:sessionId/check-in`; aluno, contrato e ator são derivados da sessão autenticada e nunca do body.

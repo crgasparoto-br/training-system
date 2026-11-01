@@ -39,7 +39,7 @@ async function waitForHealth(origin) {
   }
   throw new Error('Real API did not become healthy: ' + origin);
 }
-async function seedReleasedSession(prisma, today, suffix) {
+async function seedReleasedSession(prisma, today, suffix, options = {}) {
   const contract = await prisma.companyContract.create({
     data: { id: 'issue487-real-contract-' + suffix, type: 'academy',
       document: randomUUID().replace(/-/g, '').slice(0, 14), name: 'Contrato teste #487' },
@@ -112,7 +112,8 @@ async function seedReleasedSession(prisma, today, suffix) {
   await prisma.workoutExerciseBlock.create({
     data: { workoutExerciseId: workoutA.id, position: 1, kind: 'principal',
       plannedSets: { create: [
-        { position: 1, repsMin: 8, repsMax: 12, loadKg: 32.5, restSec: 60 },
+        { position: 1, repsMin: 8, repsMax: 12, loadKg: 32.5, restSec: 60,
+          rir: 2, rpe: 7, tempo: '2-0-2' },
         { position: 2, repsMin: 6, repsMax: 10, loadKg: 35, restSec: 90 },
       ] } },
   });
@@ -131,6 +132,34 @@ async function seedReleasedSession(prisma, today, suffix) {
         { position: 2, workoutExerciseId: workoutB.id },
       ] } },
   });
+  // Optional, isolated #401 fixture; the primary guided workout stays unchanged.
+  let legacyWorkoutId = null;
+  let repeatedWorkId = null;
+  if (options.withLegacyAndRepeated) {
+    const legacyLibrary = await prisma.exerciseLibrary.create({
+      data: { contractId: contract.id, name: 'Execução legada #401',
+        category: 'Resistido' },
+    });
+    const legacyWorkout = await prisma.workoutExercise.create({
+      data: { workoutDayId: day.id, exerciseId: legacyLibrary.id,
+        section: 'principal', exerciseOrder: 3, sets: 1, reps: 10 },
+    });
+    legacyWorkoutId = legacyWorkout.id;
+    repeatedWorkId = await prisma.$transaction(async (tx) => {
+      const repeat = await tx.workoutCyclicStage.create({
+        data: { workoutDayId: day.id, position: 1, kind: 'repeat', repeatCount: 2 },
+      });
+      const work = await tx.workoutCyclicStage.create({
+        data: { workoutDayId: day.id, parentStageId: repeat.id, position: 1,
+          kind: 'work', durationUnit: 'seconds', durationValue: 60 },
+      });
+      await tx.workoutCyclicStage.create({
+        data: { workoutDayId: day.id, parentStageId: repeat.id, position: 2,
+          kind: 'recovery', durationUnit: 'seconds', durationValue: 30 },
+      });
+      return work.id;
+    });
+  }
   const releasedAt = new Date();
   await prisma.$executeRawUnsafe(
     'INSERT INTO "ConsolidatedPrescriptionOperationalRelease" (' +
@@ -149,7 +178,8 @@ async function seedReleasedSession(prisma, today, suffix) {
     where: { block: { workoutExerciseId: workoutA.id }, position: 1 },
   });
   return { contractId: contract.id, studentUserId: studentUser.id,
-    dayId: day.id, firstPlannedSetId: firstPlannedSet.id };
+    professorUserId: professorUser.id, alunoId: student.id, workoutAId: workoutA.id,
+    dayId: day.id, firstPlannedSetId: firstPlannedSet.id, legacyWorkoutId, repeatedWorkId };
 }
 async function startVite(apiOrigin, token) {
   process.env.VITE_API_URL = apiOrigin;
@@ -166,6 +196,16 @@ async function startVite(apiOrigin, token) {
     'createRoot(document.getElementById("root")).render(' +
     'React.createElement(BrowserRouter, null, React.createElement(StudentTraining)));' +
     '</script></body></html>';
+  const professorComparisonHtml = '<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1"></head>' +
+    '<body><main id="root" style="max-width:68rem;margin:0 auto;padding:1rem"></main><script type="module">' +
+    'import React from "react"; import { createRoot } from "react-dom/client";' +
+    'import { WorkoutExecutionComparisonCard } from "/src/components/training/WorkoutExecutionComparisonCard.tsx";' +
+    'import "/src/index.css";' +
+    'const root = createRoot(document.getElementById("root"));' +
+    'window.renderIssue401Comparison = (comparison) => root.render(' +
+    'React.createElement(WorkoutExecutionComparisonCard, {comparison, audience: "professor"}));' +
+    '</script></body></html>';
   const vite = await createServer({
     root: process.cwd(), logLevel: 'error',
     server: { host: '127.0.0.1', port: 0 },
@@ -174,10 +214,11 @@ async function startVite(apiOrigin, token) {
       configureServer(server) {
         server.middlewares.use(async (req, res, next) => {
           const requestPath = (req.url || '').split('?')[0];
-          if (requestPath !== '/student/training') return next();
+          if (requestPath !== '/student/training' && requestPath !== '/__issue-401-professor') return next();
           try {
             res.setHeader('Content-Type', 'text/html; charset=utf-8');
-            res.end(await server.transformIndexHtml(requestPath, html));
+            res.end(await server.transformIndexHtml(requestPath,
+              requestPath === '/student/training' ? html : professorComparisonHtml));
           } catch (error) { next(error); }
         });
       },
@@ -240,6 +281,9 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
       const token = jwt.sign({ userId: fixture.studentUserId,
         email: 'issue487-student-' + suffix + '@example.test', type: 'aluno' },
       jwtSecret, { expiresIn: '1h' });
+      const professorToken = jwt.sign({ userId: fixture.professorUserId,
+        email: 'issue487-prof-' + suffix + '@example.test', type: 'professor' },
+      jwtSecret, { expiresIn: '1h' });
       const web = await startVite(apiOrigin, token);
       vite = web.vite;
       const webOrigin = web.origin;
@@ -253,6 +297,110 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
       apiProcess.stdout?.on('data', (chunk) => apiLogs.push(String(chunk).slice(0, 1200)));
       apiProcess.stderr?.on('data', (chunk) => apiLogs.push(String(chunk).slice(0, 1200)));
       await waitForHealth(apiOrigin);
+
+      // A-401023: exercise evidence cannot be committed with an explicit
+      // negative lifecycle decision, even through the actual HTTP boundary.
+      const invalidTerminal = await apiRequest(apiOrigin, token, fixture.contractId, 'POST',
+        '/student/me/training-sessions/' + fixture.dayId + '/execution/transition', {
+          operationKey: '40123-real-http-' + suffix, expectedVersion: 0,
+          targetStatus: 'not_performed', reason: 'Treino cancelado',
+          items: [{ plannedUnitId: fixture.workoutAId, plannedSetId: fixture.firstPlannedSetId,
+            setNumber: 1, outcome: 'full', repetitions: 8 }],
+        });
+      expect(invalidTerminal.status).toBe(400);
+      expect(await prisma.workoutSessionExecution.findUnique({
+        where: { workoutDayId: fixture.dayId },
+      })).toBeNull();
+
+
+      // A-401-025: independently exercise the two remaining HTTP/Prisma paths:
+      // a legacy exercise and a second iteration of a real cyclic repeat.
+      const auditFixture = await seedReleasedSession(
+        prisma, today, suffix + '-negative', { withLegacyAndRepeated: true });
+      const auditToken = jwt.sign({
+        userId: auditFixture.studentUserId, email: 'issue487-student-' + suffix + '-negative@example.test',
+        type: 'aluno',
+      }, jwtSecret, { expiresIn: '1h' });
+      const auditProfessorToken = jwt.sign({
+        userId: auditFixture.professorUserId, email: 'issue487-prof-' + suffix + '-negative@example.test',
+        type: 'professor',
+      }, jwtSecret, { expiresIn: '1h' });
+      const auditUrl = '/student/me/training-sessions/' + auditFixture.dayId + '/execution';
+      const auditStart = await apiRequest(apiOrigin, auditToken, auditFixture.contractId,
+        'POST', auditUrl + '/transition', {
+          operationKey: '40125-audit-start-' + suffix, expectedVersion: 0,
+          targetStatus: 'in_progress',
+        });
+      expect(auditStart.status).toBe(200);
+      const auditBefore = await prisma.workoutSessionExecution.findUniqueOrThrow({
+        where: { workoutDayId: auditFixture.dayId }, include: { items: true, operations: true },
+      });
+      for (const [label, patch] of [
+        ['legacy-nonzero', { items: [{ plannedUnitId: auditFixture.legacyWorkoutId,
+          setNumber: 1, outcome: 'not_performed', repetitions: 10, loadKg: 35 }] }],
+        ['legacy-zero', { items: [{ plannedUnitId: auditFixture.legacyWorkoutId,
+          setNumber: 1, outcome: 'not_performed', repetitions: 0 }] }],
+        ['repeat-iteration-two', { sessionValues: { cyclicStages: [{
+          plannedStageId: auditFixture.repeatedWorkId, iteration: 2,
+          outcome: 'not_performed', durationSec: 60 }] } }],
+      ]) {
+        const response = await apiRequest(apiOrigin, auditToken, auditFixture.contractId,
+          'PUT', auditUrl + '/values', {
+            operationKey: '40125-audit-' + label + '-' + suffix,
+            expectedVersion: auditBefore.version, ...patch,
+          });
+        expect(response.status).toBe(400);
+      }
+      expect(await prisma.workoutSessionExecution.findUniqueOrThrow({
+        where: { workoutDayId: auditFixture.dayId }, include: { items: true, operations: true },
+      })).toEqual(auditBefore);
+      const negativeAudit = await apiRequest(apiOrigin, auditToken, auditFixture.contractId,
+        'PUT', auditUrl + '/values', {
+          operationKey: '40125-audit-valid-negative-' + suffix,
+          expectedVersion: auditBefore.version,
+          sessionValues: { cyclicStages: [{
+            plannedStageId: auditFixture.repeatedWorkId, iteration: 2, outcome: 'not_performed',
+          }] },
+          items: [{ plannedUnitId: auditFixture.legacyWorkoutId,
+            setNumber: 1, outcome: 'not_performed' }],
+        });
+      expect(negativeAudit.status).toBe(200);
+      const afterNegativeVersion = negativeAudit.body.data.version;
+      const negativeReplay = await apiRequest(apiOrigin, auditToken, auditFixture.contractId,
+        'PUT', auditUrl + '/values', {
+          operationKey: '40125-audit-valid-negative-' + suffix,
+          expectedVersion: auditBefore.version,
+          sessionValues: { cyclicStages: [{
+            plannedStageId: auditFixture.repeatedWorkId, iteration: 2, outcome: 'not_performed',
+          }] },
+          items: [{ plannedUnitId: auditFixture.legacyWorkoutId,
+            setNumber: 1, outcome: 'not_performed' }],
+        });
+      expect(negativeReplay.status).toBe(200);
+      expect(negativeReplay.body.data.version).toBe(afterNegativeVersion);
+      const studentAuditRoutine = await apiRequest(apiOrigin, auditToken, auditFixture.contractId,
+        'GET', '/student/me/training-routine?date=' + today);
+      const professorAuditRoutine = await apiRequest(apiOrigin, auditProfessorToken, auditFixture.contractId,
+        'GET', '/alunos/' + encodeURIComponent(auditFixture.alunoId) +
+          '/training-routine?date=' + today);
+      expect(studentAuditRoutine.status).toBe(200);
+      expect(professorAuditRoutine.status).toBe(200);
+      for (const response of [studentAuditRoutine, professorAuditRoutine]) {
+        const comparison = response.body.data.today.sessions.find(
+          (session) => session.sessionId === auditFixture.dayId)?.comparison;
+        expect(comparison?.snapshotSource).toBe('captured');
+        expect(comparison.units.find((unit) => unit.kind === 'cyclic_stage' &&
+          unit.plannedUnitId === auditFixture.repeatedWorkId && unit.iteration === 2))
+          .toMatchObject({ outcome: 'not_performed', metrics: expect.arrayContaining([
+            expect.objectContaining({ key: 'duration', executed: null }),
+          ]) });
+        expect(comparison.units.find((unit) => unit.kind === 'exercise' &&
+          unit.plannedUnitId === auditFixture.legacyWorkoutId))
+          .toMatchObject({ outcome: 'not_performed' });
+      }
+      expect((await prisma.workoutSessionExecution.findUniqueOrThrow({
+        where: { workoutDayId: auditFixture.dayId },
+      })).plannedSnapshot).toEqual(auditBefore.plannedSnapshot);
 
       browser = await puppeteer.launch({
         executablePath: executablePath(), headless: true,
@@ -276,6 +424,39 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
       await waitText(page, 'Bi-set · rodada 1 de 2 · item 1 de 2');
       await noHorizontalOverflow(page);
       screenshots.push(await shot(page, 'desktop-first-series'));
+
+
+      // A-401-025: real authenticated HTTP -> canonical service -> PostgreSQL.
+      // Invalid unit evidence must not advance the guided sequence or change
+      // the session snapshot/version/operation ledger.
+      const group = await prisma.workoutResistanceGroup.findFirstOrThrow({
+        where: { workoutDayId: fixture.dayId },
+      });
+      const negativeUrl = '/student/me/training-sessions/' + fixture.dayId + '/execution/values';
+      const priorNegative = await prisma.workoutSessionExecution.findUniqueOrThrow({
+        where: { workoutDayId: fixture.dayId }, include: { items: true, operations: true },
+      });
+      for (const [label, values] of [
+        ['structured-zero', { items: [{ plannedUnitId: fixture.workoutAId,
+          plannedSetId: fixture.firstPlannedSetId, outcome: 'not_performed', repetitions: 0 }] }],
+        ['structured-positive', { items: [{ plannedUnitId: fixture.workoutAId,
+          plannedSetId: fixture.firstPlannedSetId, outcome: 'not_performed', loadKg: 30.5 }] }],
+        ['group-zero', { sessionValues: { resistanceGroups: [{
+          plannedGroupId: group.id, outcome: 'not_performed', roundsCompleted: 0 }] } }],
+      ]) {
+        const rejected = await apiRequest(apiOrigin, token, fixture.contractId, 'PUT',
+          negativeUrl, { operationKey: '40125-real-http-' + label + '-' + suffix,
+            expectedVersion: priorNegative.version, ...values });
+        expect(rejected.status).toBe(400);
+      }
+      const afterNegative = await prisma.workoutSessionExecution.findUniqueOrThrow({
+        where: { workoutDayId: fixture.dayId }, include: { items: true, operations: true },
+      });
+      expect(afterNegative).toEqual(priorNegative);
+      const untouched = await apiRequest(apiOrigin, token, fixture.contractId,
+        'GET', '/student/me/training-sessions/' + fixture.dayId + '/execution');
+      expect(untouched.status).toBe(200);
+      expect(untouched.body.data).toMatchObject({ version: priorNegative.version, items: [] });
 
       await page.click('input[placeholder="Informe as repetições"]');
       await page.$eval('input[placeholder="Informe as repetições"]', (input) => input.select());
@@ -443,6 +624,156 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
       expect(await prisma.workoutExercisePlannedSet.findUniqueOrThrow({
         where: { id: fixture.firstPlannedSetId },
       })).toMatchObject({ repsMin: 8, loadKg: 32.5 });
+      // REC-401-01: two genuinely authenticated roles read the same PostgreSQL
+      // execution via their distinct HTTP routes. Chrome renders the real
+      // student screen and the production comparison card for the professor.
+      const studentRoutine = await apiRequest(apiOrigin, token, fixture.contractId, 'GET',
+        '/student/me/training-routine?date=' + today);
+      expect(studentRoutine.status).toBe(200);
+      const studentSession = studentRoutine.body.data.today.sessions.find(
+        (session) => session.sessionId === fixture.dayId);
+      expect(studentSession?.comparison?.snapshotSource).toBe('captured');
+      expect(studentSession.comparison.units.some((unit) => unit.kind === 'set')).toBe(false);
+      expect(JSON.stringify(studentSession.comparison)).not.toContain('"key":"rir"');
+
+      await page.waitForSelector('section[aria-label="Planejado e executado"]');
+      const studentDetailsCount = await page.$$eval('section[aria-label="Planejado e executado"] details',
+        (items) => {
+          items.forEach((element) => { element.open = true; });
+          return items.length;
+        });
+      expect(studentDetailsCount).toBeGreaterThan(0);
+      const studentText = await page.$eval('section[aria-label="Planejado e executado"]',
+        (element) => element.innerText);
+      expect(studentText).toContain('Planejado × executado');
+      expect(studentText).not.toContain('Série 1');
+      expect(studentText).not.toContain('RIR');
+      expect(studentText).not.toContain('diferença:');
+      await noHorizontalOverflow(page);
+
+      const professorPage = await browser.newPage();
+      professorPage.on('pageerror', (error) => browserErrors.push(error.message));
+      await professorPage.setViewport({ width: 1440, height: 900 });
+      await professorPage.goto(webOrigin + '/__issue-401-professor',
+        { waitUntil: 'domcontentloaded' });
+      await professorPage.waitForFunction(
+        () => typeof window.renderIssue401Comparison === 'function');
+      const professorComparison = await professorPage.evaluate(async (credentials) => {
+        const response = await fetch(credentials.apiOrigin +
+          '/api/v1/alunos/' + encodeURIComponent(credentials.alunoId) +
+          '/training-routine?date=' + credentials.today, {
+          headers: { Authorization: 'Bearer ' + credentials.token,
+            'x-contract-id': credentials.contractId },
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error('Professor routine HTTP ' + response.status +
+          ' ' + JSON.stringify(payload).slice(0, 250));
+        const session = payload.data.today.sessions.find(
+          (candidate) => candidate.sessionId === credentials.sessionId);
+        if (!session?.comparison) throw new Error('Professor comparison was not projected');
+        window.renderIssue401Comparison(session.comparison);
+        return session.comparison;
+      }, { apiOrigin, alunoId: fixture.alunoId, contractId: fixture.contractId,
+        today, sessionId: fixture.dayId, token: professorToken });
+      expect(professorComparison.snapshotSource).toBe('captured');
+      expect(professorComparison.units.some((unit) => unit.kind === 'set')).toBe(true);
+      expect(professorComparison.units.some((unit) => unit.kind === 'set'
+        && unit.metrics.some((metric) => metric.key === 'rir' && metric.planned === 2)))
+        .toBe(true);
+      await professorPage.waitForSelector('section[aria-label="Planejado e executado"]');
+      const professorDetailsCount = await professorPage.$$eval('section[aria-label="Planejado e executado"] details',
+        (items) => {
+          items.forEach((element) => { element.open = true; });
+          return items.length;
+        });
+      expect(professorDetailsCount).toBeGreaterThan(0);
+      const professorText = await professorPage.$eval(
+        'section[aria-label="Planejado e executado"]', (element) => element.innerText);
+      expect(professorText).toContain('Série 1');
+      expect(professorText).toContain('RIR');
+      expect(professorText).toContain('diferença:');
+      await noHorizontalOverflow(professorPage);
+      const issue401Output = path.join(repoRoot, 'artifacts/issue-401');
+      mkdirSync(issue401Output, { recursive: true });
+      const captureComparison = async (targetPage, file) => {
+        const bytes = await targetPage.screenshot({ fullPage: true });
+        writeFileSync(path.join(issue401Output, file), bytes);
+        return { file, bytes: bytes.length,
+          sha256: createHash('sha256').update(bytes).digest('hex') };
+      };
+      const comparisonScreenshots = [
+        await captureComparison(page, 'real-api-student-comparison.png'),
+        await captureComparison(professorPage, 'real-api-professor-comparison.png'),
+      ];
+      // REC-401-04: navigate the ACTUAL Central do Aluno as an authenticated
+      // professor, not only the isolated comparison component. The same signed
+      // JWT, real /auth/me, real HTTP routine and PostgreSQL rows are used.
+      const professorIdentity = await apiRequest(apiOrigin, professorToken,
+        fixture.contractId, 'GET', '/auth/me');
+      expect(professorIdentity.status).toBe(200);
+      expect(professorIdentity.body.data).toMatchObject({
+        id: fixture.professorUserId, type: 'professor',
+      });
+      const centralPage = await browser.newPage();
+      centralPage.on('pageerror', (error) => browserErrors.push(error.message));
+      const centralScreenshots = [];
+      for (const viewport of [
+        { width: 1440, height: 900, name: 'desktop' },
+        { width: 390, height: 844, name: 'mobile' },
+      ]) {
+        await centralPage.setViewport(viewport);
+        await centralPage.goto(webOrigin + '/login', { waitUntil: 'domcontentloaded' });
+        await centralPage.evaluate(({ token, user }) => {
+          localStorage.setItem('token', token);
+          localStorage.setItem('user', JSON.stringify(user));
+        }, { token: professorToken, user: professorIdentity.body.data });
+        await centralPage.goto(webOrigin + '/central-do-aluno/' + fixture.alunoId,
+          { waitUntil: 'domcontentloaded' });
+        await centralPage.waitForSelector('#aluno-details-menu-selectedStudent',
+          { visible: true, timeout: 25000 });
+        await centralPage.click('#aluno-details-menu-selectedStudent');
+        await centralPage.waitForSelector('#aluno-details-tab-treinos', { visible: true });
+        await centralPage.click('#aluno-details-tab-treinos');
+        await waitText(centralPage, 'Rotina da semana');
+        await centralPage.waitForSelector('section[aria-label="Planejado e executado"]',
+          { visible: true, timeout: 25000 });
+        const actualDetailsCount = await centralPage.$$eval(
+          'section[aria-label="Planejado e executado"] details', (items) => {
+            items.forEach((element) => { element.open = true; });
+            return items.length;
+          });
+        expect(actualDetailsCount).toBeGreaterThan(0);
+        const centralText = await centralPage.$eval('section[aria-label="Planejado e executado"]',
+          (element) => element.innerText);
+        expect(centralText).toContain('Planejado × executado');
+        expect(centralText).toContain('Série 1');
+        expect(centralText).toContain('RIR');
+        expect(centralText).toContain('diferença:');
+        expect(new URL(centralPage.url()).pathname).toBe('/central-do-aluno/' + fixture.alunoId);
+        await noHorizontalOverflow(centralPage);
+        centralScreenshots.push(await captureComparison(centralPage,
+          'real-api-professor-central-' + viewport.name + '.png'));
+      }
+      const centralRoutine = await apiRequest(apiOrigin, professorToken,
+        fixture.contractId, 'GET', '/alunos/' + encodeURIComponent(fixture.alunoId) +
+          '/training-routine?date=' + today);
+      expect(centralRoutine.status).toBe(200);
+      expect(centralRoutine.body.data.today.sessions.find(
+        (session) => session.sessionId === fixture.dayId)?.comparison).toEqual(professorComparison);
+      await centralPage.close();
+      const comparisonHeadSha = process.env.VERIFICATION_HEAD_SHA || process.env.GITHUB_SHA || 'local';
+      writeFileSync(path.join(issue401Output, 'authenticated-real-api-browser.json'),
+        JSON.stringify({ schemaVersion: 1, kind: 'issue-401-authenticated-real-api-browser',
+          result: 'PASS', headSha: comparisonHeadSha, sessionId: fixture.dayId,
+          coverage: ['student-real-page-and-API', 'professor-real-API-and-production-comparison-card',
+            'professor-full-central-navigation-desktop-mobile',
+            'postgresql-persisted-guided-execution', 'A-401023-HTTP-negative-rollback',
+            'student-technical-redaction', 'professor-technical-values-and-difference'],
+          scope: 'Signed JWT, real professor Central do Aluno UI and API, PostgreSQL, plus isolated component control',
+          comparisonScreenshots, centralScreenshots,
+        }, null, 2));
+      await professorPage.close();
+
       expect(browserErrors).toEqual([]);
       expect(guidedWrites.every((write) => write.contractId === fixture.contractId)).toBe(true);
 
