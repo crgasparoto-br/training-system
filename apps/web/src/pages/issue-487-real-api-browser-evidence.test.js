@@ -705,15 +705,72 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
         await captureComparison(page, 'real-api-student-comparison.png'),
         await captureComparison(professorPage, 'real-api-professor-comparison.png'),
       ];
+      // REC-401-04: navigate the ACTUAL Central do Aluno as an authenticated
+      // professor, not only the isolated comparison component. The same signed
+      // JWT, real /auth/me, real HTTP routine and PostgreSQL rows are used.
+      const professorIdentity = await apiRequest(apiOrigin, professorToken,
+        fixture.contractId, 'GET', '/auth/me');
+      expect(professorIdentity.status).toBe(200);
+      expect(professorIdentity.body.data).toMatchObject({
+        id: fixture.professorUserId, type: 'professor',
+      });
+      const centralPage = await browser.newPage();
+      centralPage.on('pageerror', (error) => browserErrors.push(error.message));
+      const centralScreenshots = [];
+      for (const viewport of [
+        { width: 1440, height: 900, name: 'desktop' },
+        { width: 390, height: 844, name: 'mobile' },
+      ]) {
+        await centralPage.setViewport(viewport);
+        await centralPage.goto(webOrigin + '/login', { waitUntil: 'domcontentloaded' });
+        await centralPage.evaluate(({ token, user }) => {
+          localStorage.setItem('token', token);
+          localStorage.setItem('user', JSON.stringify(user));
+        }, { token: professorToken, user: professorIdentity.body.data });
+        await centralPage.goto(webOrigin + '/central-do-aluno/' + fixture.alunoId,
+          { waitUntil: 'domcontentloaded' });
+        await centralPage.waitForSelector('#aluno-details-menu-selectedStudent',
+          { visible: true, timeout: 25000 });
+        await centralPage.click('#aluno-details-menu-selectedStudent');
+        await centralPage.waitForSelector('#aluno-details-tab-treinos', { visible: true });
+        await centralPage.click('#aluno-details-tab-treinos');
+        await waitText(centralPage, 'Rotina da semana');
+        await centralPage.waitForSelector('section[aria-label="Planejado e executado"]',
+          { visible: true, timeout: 25000 });
+        const actualDetailsCount = await centralPage.$$eval(
+          'section[aria-label="Planejado e executado"] details', (items) => {
+            items.forEach((element) => { element.open = true; });
+            return items.length;
+          });
+        expect(actualDetailsCount).toBeGreaterThan(0);
+        const centralText = await centralPage.$eval('section[aria-label="Planejado e executado"]',
+          (element) => element.innerText);
+        expect(centralText).toContain('Planejado × executado');
+        expect(centralText).toContain('Série 1');
+        expect(centralText).toContain('RIR');
+        expect(centralText).toContain('diferença:');
+        expect(new URL(centralPage.url()).pathname).toBe('/central-do-aluno/' + fixture.alunoId);
+        await noHorizontalOverflow(centralPage);
+        centralScreenshots.push(await captureComparison(centralPage,
+          'real-api-professor-central-' + viewport.name + '.png'));
+      }
+      const centralRoutine = await apiRequest(apiOrigin, professorToken,
+        fixture.contractId, 'GET', '/alunos/' + encodeURIComponent(fixture.alunoId) +
+          '/training-routine?date=' + today);
+      expect(centralRoutine.status).toBe(200);
+      expect(centralRoutine.body.data.today.sessions.find(
+        (session) => session.sessionId === fixture.dayId)?.comparison).toEqual(professorComparison);
+      await centralPage.close();
       const comparisonHeadSha = process.env.VERIFICATION_HEAD_SHA || process.env.GITHUB_SHA || 'local';
       writeFileSync(path.join(issue401Output, 'authenticated-real-api-browser.json'),
         JSON.stringify({ schemaVersion: 1, kind: 'issue-401-authenticated-real-api-browser',
           result: 'PASS', headSha: comparisonHeadSha, sessionId: fixture.dayId,
           coverage: ['student-real-page-and-API', 'professor-real-API-and-production-comparison-card',
+            'professor-full-central-navigation-desktop-mobile',
             'postgresql-persisted-guided-execution', 'A-401023-HTTP-negative-rollback',
             'student-technical-redaction', 'professor-technical-values-and-difference'],
-          scope: 'Actual signed JWT/HTTP/PostgreSQL; teacher uses production card in isolated test harness',
-          comparisonScreenshots,
+          scope: 'Signed JWT, real professor Central do Aluno UI and API, PostgreSQL, plus isolated component control',
+          comparisonScreenshots, centralScreenshots,
         }, null, 2));
       await professorPage.close();
 

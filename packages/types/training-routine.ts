@@ -24,7 +24,8 @@ export type TrainingSessionExecutionStatus = TrainingRoutineExecutionProjectionS
 
 /** #401: neutral comparisons; differences do not imply improvement or decline. */
 export type TrainingSessionExecutionOutcome = 'full' | 'partial' | 'substituted' | 'not_performed';
-export type TrainingSessionComparisonOutcome = TrainingSessionExecutionOutcome | 'not_recorded' | 'unclassified' | 'incomplete_record';
+/** historical_unknown: the original plan was not captured; coverage cannot be reconstructed. */
+export type TrainingSessionComparisonOutcome = TrainingSessionExecutionOutcome | 'not_recorded' | 'unclassified' | 'incomplete_record' | 'historical_unknown';
 
 export interface TrainingSessionComparisonMetric {
   key: string;

@@ -13,6 +13,7 @@ const outcomeLabel: Record<TrainingSessionComparisonOutcome, string> = {
   not_recorded: 'Sem registro',
   unclassified: 'Situação não informada',
   incomplete_record: 'Registro incompleto',
+  historical_unknown: 'Cobertura histórica indisponível',
 };
 
 // All distinguishable numeric inputs must stay distinguishable in the UI.
@@ -71,8 +72,8 @@ export function WorkoutExecutionComparisonCard({
       </p>
       {comparison.snapshotSource === 'released_plan' && (
         <p className="mt-2 text-xs text-muted-foreground">
-          Esta execução antiga não possui uma captura congelada própria. As metas históricas e
-          diferenças ficam indisponíveis para evitar usar a prescrição atual como se fosse a original.
+          Esta execução antiga não possui uma captura congelada própria. Metas, diferenças e
+          cobertura histórica não podem ser reconstituídas usando a prescrição atual.
         </p>
       )}
       <div className="mt-3 space-y-2">

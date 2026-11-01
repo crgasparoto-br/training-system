@@ -22,10 +22,10 @@ import { projectPreWorkoutCheckIn } from './pre-workout-check-in.service.js';
 import { projectWorkoutSessionExecution } from './workout-session-execution.service.js';
 import {
   compareWorkoutSession,
+  compareWorkoutSessionWithoutSnapshot,
   projectWorkoutComparisonForAudience,
   projectWorkoutExecutionForAudience,
   readCapturedWorkoutComparisonPlan,
-  workoutComparisonPlanSelect,
 } from './workout-session-comparison.domain.js';
 import { projectPostWorkoutFeedback } from '../post-workout-feedback/post-workout-feedback-persistence.service.js';
 
@@ -563,25 +563,17 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
       const context = (row: SessionRow) =>
         [query.audience, capacitiesByDay.get(row.id) ?? [], releaseByTemplate.get(row.template.id)!] as const;
 
-      // Compare every authorized executed session in the selected week, not only today's.
-      // The snapshot belongs to the execution; never substitute a mutable template for it.
-      const executedRows = visibleRows.filter((row) => Boolean(row.execution));
-      const comparisonPlans = executedRows.length ? await client.workoutDay.findMany({
-        where: { id: { in: executedRows.map((row) => row.id) }, template: { released: true, plan: studentScope } },
-        select: workoutComparisonPlanSelect,
-      }) : [];
-      const planByDay = new Map(comparisonPlans.map((day) => [day.id, day]));
+      // Project authorized sessions from their immutable execution records. When
+      // no original plan was captured, the current WorkoutDay cannot supply a
+      // historical denominator, names or series structure for comparison.
       const comparisonByDay = new Map<string, TrainingSessionComparison>();
-      for (const row of executedRows) {
+      for (const row of visibleRows.filter((entry) => Boolean(entry.execution))) {
         const execution = buildExecution(row, releaseByTemplate.get(row.template.id)!);
         const frozen = readCapturedWorkoutComparisonPlan(row.execution?.plannedSnapshot);
-        const plan = frozen ?? planByDay.get(row.id);
-        if (plan && plan.id === row.id) {
-          comparisonByDay.set(row.id, projectWorkoutComparisonForAudience(
-            compareWorkoutSession(plan, execution, frozen ? 'captured' : 'released_plan'),
-            query.audience
-          ));
-        }
+        const comparison = frozen && frozen.id === execution.sessionId
+          ? compareWorkoutSession(frozen, execution, 'captured')
+          : compareWorkoutSessionWithoutSnapshot(execution);
+        comparisonByDay.set(row.id, projectWorkoutComparisonForAudience(comparison, query.audience));
       }
       const days: TrainingRoutineDay[] = week.days.map((date) => {
         const key = toDateOnly(date);

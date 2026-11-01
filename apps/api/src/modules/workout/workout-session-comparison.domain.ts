@@ -214,12 +214,105 @@ function reconcileRepeatOutcome(
   return children;
 }
 
+/**
+ * A pre-#401 execution has no historical prescription snapshot. Its persisted
+ * recordings are trustworthy; the number, labels and targets of the current
+ * released WorkoutDay are not. Reconstruct only recorded units by their stable
+ * IDs, without using a current plan to decide historic completeness.
+ */
+export function compareWorkoutSessionWithoutSnapshot(
+  execution: TrainingSessionExecutionView,
+): TrainingSessionComparison {
+  const recorded = execution.sessionValues;
+  const recordedStages = [...(recorded.cyclicStages ?? [])].sort((a, b) =>
+    a.plannedStageId.localeCompare(b.plannedStageId) || (a.iteration ?? 1) - (b.iteration ?? 1));
+  const recordedGroups = [...(recorded.resistanceGroups ?? [])].sort((a, b) =>
+    a.plannedGroupId.localeCompare(b.plannedGroupId));
+  const itemGroups = new Map<string, RecordedExerciseItem[]>();
+  for (const item of execution.items) {
+    const group = itemGroups.get(item.plannedUnitId) ?? [];
+    group.push(item);
+    itemGroups.set(item.plannedUnitId, group);
+  }
+  const hasSessionMeasurements = [recorded.durationSec, recorded.distanceKm, recorded.pace,
+    recorded.speedKmh, recorded.heartRateBpm, recorded.heartRateZone]
+    .some((value) => value !== undefined && value !== null);
+  const hasRecords = recordedStages.length > 0 || recordedGroups.length > 0
+    || execution.items.length > 0 || hasSessionMeasurements;
+  const sessionOutcome: TrainingSessionComparisonOutcome = execution.status === 'not_performed'
+    ? 'not_performed' : execution.status === 'partial' ? 'partial'
+      : execution.status === 'not_started' && !hasRecords ? 'not_recorded' : 'historical_unknown';
+  const units: TrainingSessionComparisonUnit[] = [unit(execution.sessionId, 'session', 'Sessão',
+    sessionOutcome, [
+      metric('duration', 'Duração', null, recorded.durationSec, 's'),
+      metric('distance', 'Distância', null, recorded.distanceKm, 'km'),
+      metric('pace', 'Ritmo', null, recorded.pace, 'min/km'),
+      metric('speed', 'Velocidade', null, recorded.speedKmh, 'km/h'),
+      metric('heart_rate', 'Frequência cardíaca', null, recorded.heartRateBpm, 'bpm'),
+      metric('heart_rate_zone', 'Zona de FC', null, recorded.heartRateZone, null),
+    ])];
+  for (const stage of recordedStages) {
+    units.push(unit(stage.plannedStageId, 'cyclic_stage', 'Etapa registrada', stage.outcome, [
+      metric('duration', 'Duração', null, stage.durationSec, 's'),
+      metric('distance', 'Distância', null, stage.distanceMeters, 'm'),
+      metric('pace', 'Ritmo', null, stage.paceMinPerKm, 'min/km'),
+      metric('speed', 'Velocidade', null, stage.speedKmh, 'km/h'),
+      metric('heart_rate', 'Frequência cardíaca', null, stage.heartRateBpm, 'bpm'),
+      metric('heart_rate_zone', 'Zona de FC', null, stage.heartRateZone, null),
+      metric('pse', 'Esforço percebido', null, stage.pse, 'PSE'),
+    ], null, stage.iteration ?? null, stage.substitutionNote ?? null));
+  }
+  const recordedItemMetrics = (item: RecordedExerciseItem): TrainingSessionComparisonMetric[] => [
+    metric('repetitions', 'Repetições', null, item.repetitions, 'rep'),
+    metric('load_kg', 'Carga (kg)', null, item.loadKg, 'kg'),
+    metric('rest', 'Intervalo', null, item.restSec, 's'),
+    metric('rir', 'RIR', null, item.rir, null),
+    metric('rpe', 'RPE', null, item.rpe, null),
+    metric('tempo', 'Cadência', null, item.tempo, null),
+    ...exerciseItemCyclicMetrics(item),
+  ];
+  for (const [exerciseId, records] of [...itemGroups].sort(([a], [b]) => a.localeCompare(b))) {
+    const ordered = [...records].sort((a, b) => (a.setNumber ?? 0) - (b.setNumber ?? 0)
+      || (a.plannedSetId ?? '').localeCompare(b.plannedSetId ?? ''));
+    const containsSubstitution = ordered.some((item) => item.outcome === 'substituted');
+    // One recorded set does not prove that the exercise required only one set.
+    units.push(unit(exerciseId, 'exercise', 'Exercício registrado', 'historical_unknown', [
+      metric('sets', 'Séries registradas', null, ordered.length, 'séries'),
+      ...(ordered.length === 1 ? recordedItemMetrics(ordered[0]) : []),
+    ], null, null,
+    ordered.find((item) => item.outcome === 'substituted')?.substitutionNote ?? null,
+    null, containsSubstitution));
+    for (const item of ordered) {
+      units.push(unit(item.plannedSetId ?? item.plannedUnitId,
+        'set', 'Série registrada', recordedItemOutcome(item),
+        recordedItemMetrics(item), exerciseId, null,
+        item.substitutionNote ?? null, item.setNumber ?? 0));
+    }
+  }
+  for (const group of recordedGroups) {
+    units.push(unit(group.plannedGroupId, 'group', 'Agrupamento registrado', group.outcome, [
+      metric('rounds', 'Rodadas', null, group.roundsCompleted, 'rodadas'),
+      metric('exercise_rest', 'Intervalo entre exercícios', null,
+        group.restBetweenExercisesSec, 's'),
+      metric('round_rest', 'Intervalo entre rodadas', null,
+        group.restBetweenRoundsSec, 's'),
+    ], null, null, group.substitutionNote ?? null));
+  }
+  units[0].containsSubstitution = units.slice(1).some((entry) => entry.containsSubstitution);
+  return {
+    sessionId: execution.sessionId,
+    originReleaseId: execution.origin.releaseId,
+    snapshotSource: 'released_plan', executionVersion: execution.version, units,
+  };
+}
+
 export function compareWorkoutSession(
   planned: TrainingComparisonSnapshot,
   execution: TrainingSessionExecutionView,
   snapshotSource: TrainingSessionComparison['snapshotSource'],
 ): TrainingSessionComparison {
   if (planned.id !== execution.sessionId) throw new Error('A execução não pertence ao planejamento capturado.');
+  if (snapshotSource === 'released_plan') return compareWorkoutSessionWithoutSnapshot(execution);
   const result: TrainingSessionComparisonUnit[] = [];
   const state = execution.sessionValues;
   const missingOutcome: TrainingSessionComparisonOutcome = execution.status === 'not_performed'
@@ -411,20 +504,12 @@ export function compareWorkoutSession(
         : recordedOutcome === 'full' ? 'incomplete_record' : recordedOutcome;
   result[0].containsSubstitution = children.some((item) => item.containsSubstitution);
 
-  // An older execution without its own frozen plan cannot prove historical
-  // prescription values. Keep recorded values and explicit source provenance,
-  // but never show contemporary released-plan targets as historical facts.
-  const units = snapshotSource === 'released_plan'
-    ? result.map((item) => ({ ...item, metrics: item.metrics.map((entry) => ({
-      ...entry, planned: null, plannedMax: null, plannedConstraint: null, difference: null,
-    })) }))
-    : result;
   return {
     sessionId: planned.id,
     originReleaseId: execution.origin.releaseId,
     snapshotSource,
     executionVersion: execution.version,
-    units,
+    units: result,
   };
 }
 

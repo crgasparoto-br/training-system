@@ -42,6 +42,22 @@ describe('WorkoutExecutionComparisonCard (#401)', () => {
     expect(screen.queryByText('Série 1')).not.toBeInTheDocument();
   });
 
+  it('A-401-026: warns both audiences about indeterminate historical coverage', () => {
+    const legacy: TrainingSessionComparison = { ...comparison, snapshotSource: 'released_plan',
+      units: [{ ...comparison.units[0], outcome: 'historical_unknown', metrics: [
+        { key: 'duration', label: 'Duração', planned: null, plannedMax: null,
+          executed: 0, plannedUnit: 's', executedUnit: 's', difference: null },
+      ] }] };
+    for (const audience of ['student', 'professor'] as const) {
+      const { unmount } = render(<WorkoutExecutionComparisonCard comparison={legacy} audience={audience} />);
+      expect(screen.getByText(/Cobertura histórica indisponível/)).toBeInTheDocument();
+      expect(screen.getByText(/cobertura histórica não podem ser reconstituídas/)).toBeInTheDocument();
+      expect(screen.getByText('0 s')).toBeInTheDocument();
+      expect(screen.queryByText(/diferença:/i)).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
   it('permite que o professor confira série, faixa e diferença sem veredicto', () => {
     render(<WorkoutExecutionComparisonCard comparison={comparison} audience="professor" />);
     expect(screen.getByText('Série 1')).toBeInTheDocument();

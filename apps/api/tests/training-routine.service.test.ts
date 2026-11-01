@@ -103,15 +103,6 @@ describe('training routine service (#387)', () => {
     postWorkoutFeedbackFindMany.mockResolvedValue([]);
     latestExecutionRows = [];
     findMany.mockImplementation((args: any) => {
-      if (args.select?.resistanceGroups) {
-        // New #401 comparison plan is an additional, independently scoped read.
-        return Promise.resolve(releasedRows.filter((row) => args.where.id.in.includes(row.id))
-          .map((row) => ({
-            ...row,
-            resistanceGroups: [],
-            exercises: row.exercises.map((item: Row) => ({ ...item, resistanceBlocks: [] })),
-          })));
-      }
       return Promise.resolve(args.where.template.released ? releasedRows : pendingRows);
     });
     queryRaw.mockImplementation((strings: TemplateStringsArray) => {
@@ -592,6 +583,53 @@ describe('training routine service (#387)', () => {
     const week = resolveRoutineWeek(parseDateOnly('2026-10-04'));
     expect(week.start.toISOString().slice(0, 10)).toBe('2026-09-28');
   });
+  it('A-401-026: a historical routine with no snapshot does not read the mutable plan', async () => {
+    const persisted = {
+      workoutDayId: 'day-past', status: 'completed', version: 5,
+      startedAt: new Date('2026-09-30T10:00:00.000Z'),
+      finishedAt: new Date('2026-09-30T11:00:00.000Z'),
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1', plannedSnapshot: null, sessionValues: {},
+      items: [{ plannedUnitId: 'exercise-old', plannedSetId: 'set-old',
+        setNumber: 1, outcome: 'full', completedAt: new Date('2026-09-30T10:30:00.000Z'),
+        repetitions: 10, loadKg: 25, rir: 2, rpe: null, tempo: null,
+        restSec: 30, durationSec: null, distanceKm: null, pace: null,
+        heartRateBpm: null, heartRateZone: null, substitutionNote: null }],
+    };
+    const legacy = makeRow({ id: 'day-past', workoutDate: new Date('2026-09-30T00:00:00.000Z'),
+      exercises: [exercise('exercise-old', 'principal', 1)], execution: persisted });
+    releasedRows = [legacy];
+    const query = { alunoId: 'aluno-1', contractId: 'contract-1',
+      date: '2026-09-30', now };
+    const firstStudent = await service.getRoutine({ ...query, audience: 'student' });
+    const firstProfessor = await service.getRoutine({ ...query, audience: 'professor' });
+    // A mutable prescription changes its series count and exercises; historical
+    // comparison stays byte-for-byte equivalent for both audiences.
+    legacy.exercises = [exercise('exercise-old', 'principal', 1),
+      exercise('added-later', 'principal', 2)];
+    legacy.exercises[0].sets = 99;
+    const nextStudent = await service.getRoutine({ ...query, audience: 'student' });
+    const nextProfessor = await service.getRoutine({ ...query, audience: 'professor' });
+    const historical = (routine: typeof firstStudent) => routine.days[2].sessions[0].comparison;
+    expect(historical(nextStudent)).toEqual(historical(firstStudent));
+    expect(historical(nextProfessor)).toEqual(historical(firstProfessor));
+    const student = historical(firstStudent)!;
+    const professor = historical(firstProfessor)!;
+    expect(student.snapshotSource).toBe('released_plan');
+    expect(student.units[0].outcome).toBe('historical_unknown');
+    expect(student.units.some((unit) => unit.kind === 'set')).toBe(false);
+    expect(professor.units.find((unit) => unit.plannedUnitId === 'set-old'))
+      .toMatchObject({ outcome: 'full' });
+    expect(professor.units.find((unit) => unit.plannedUnitId === 'exercise-old'))
+      .toMatchObject({ outcome: 'historical_unknown' });
+    expect(professor.units.find((unit) => unit.plannedUnitId === 'set-old')?.metrics
+      .find((metric) => metric.key === 'load_kg')).toMatchObject({
+        planned: null, executed: 25, difference: null,
+      });
+    expect(findMany.mock.calls.some(([args]) => args.select?.resistanceGroups)).toBe(false);
+  });
+
   it('exposes the frozen comparison for an earlier session in the selected week, per audience', async () => {
     const historical = {
       id: 'day-past',
@@ -652,10 +690,9 @@ describe('training routine service (#387)', () => {
     const notConfirmed = await service.getRoutine({ ...query, audience: 'professor' });
     expect(notConfirmed.days[2].sessions[0].comparison?.units
       .find((unit) => unit.plannedUnitId === 'set-old')?.outcome).toBe('unclassified');
-    expect(findMany.mock.calls.some(([args]) =>
-      args.select?.resistanceGroups && args.where.template.plan.alunoId === 'aluno-1'
-        && args.where.template.plan.aluno.contractId === 'contract-1'
-    )).toBe(true);
+    // Only the scoped routine read is needed; captured snapshots are already
+    // on the execution, and a legacy comparison must not query a current plan.
+    expect(findMany.mock.calls.some(([args]) => args.select?.resistanceGroups)).toBe(false);
   });
 
 });

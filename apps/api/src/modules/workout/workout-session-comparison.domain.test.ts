@@ -7,6 +7,7 @@ import type {
 import {
   captureWorkoutComparisonPlan,
   compareWorkoutSession,
+  compareWorkoutSessionWithoutSnapshot,
   projectWorkoutComparisonForAudience,
   projectWorkoutExecutionForAudience,
   readCapturedWorkoutComparisonPlan,
@@ -428,6 +429,93 @@ describe('issue #401: granular planned/executed comparison', () => {
       .toMatchObject({ planned: 6, plannedMax: 7 });
   });
 
+  it('A-401-026: historic coverage and labels ignore changes to the unproven current plan', () => {
+    const original = planned();
+    const changed = planned();
+    changed.exercises[0].sets = 7;
+    changed.exercises[0].resistanceBlocks[0].plannedSets = [];
+    changed.exercises[0].exercise.name = 'Novo catálogo';
+    changed.exercises.push({ ...changed.exercises[0], id: 'new-exercise',
+      exercise: { name: 'Exercício incluído depois' }, resistanceBlocks: [] });
+    changed.cyclicStages = [];
+    changed.resistanceGroups = [];
+    const durable = execution({
+      sessionValues: { durationSec: 0, cyclicStages: [
+        { plannedStageId: 'work', iteration: 2, outcome: 'substituted',
+          substitutionNote: 'Bicicleta', distanceMeters: 0, speedKmh: 9 },
+      ], resistanceGroups: [
+        { plannedGroupId: 'group-1', outcome: 'partial', roundsCompleted: 1 },
+      ] },
+      items: [{ plannedUnitId: 'ex-1', plannedSetId: 'set-1', setNumber: 1,
+        outcome: 'full', repetitions: 10, loadKg: 20, completedAt: '2026-10-01T10:10:00.000Z' }],
+    });
+    const oldProjection = compareWorkoutSession(original, durable, 'released_plan');
+    const newProjection = compareWorkoutSession(changed, durable, 'released_plan');
+    const directProjection = compareWorkoutSessionWithoutSnapshot(durable);
+    expect(newProjection).toEqual(oldProjection);
+    expect(directProjection).toEqual(oldProjection);
+    for (const audience of ['student', 'professor'] as const) {
+      expect(projectWorkoutComparisonForAudience(newProjection, audience)).toEqual(
+        projectWorkoutComparisonForAudience(oldProjection, audience));
+    }
+    expect(get(newProjection.units, 'day-1')[0].outcome).toBe('historical_unknown');
+    expect(get(newProjection.units, 'ex-1')[0].outcome).toBe('historical_unknown');
+    expect(get(newProjection.units, 'set-1')[0].outcome).toBe('full');
+    expect(get(newProjection.units, 'work')[0]).toMatchObject({
+      outcome: 'substituted', iteration: 2, substitutionNote: 'Bicicleta',
+    });
+    expect(newProjection.units.some((unit) => unit.plannedUnitId === 'new-exercise')).toBe(false);
+    expect(newProjection.units.flatMap((unit) => unit.metrics).every((metric) =>
+      metric.planned === null && metric.plannedMax === null && metric.difference === null)).toBe(true);
+    expect(get(newProjection.units, 'set-1')[0].metrics.find((m) => m.key === 'load_kg')?.executed).toBe(20);
+    expect(get(newProjection.units, 'work')[0].metrics.find((m) => m.key === 'distance')?.executed).toBe(0);
+    expect(projectWorkoutComparisonForAudience(newProjection, 'student').units.some((unit) =>
+      unit.kind === 'set')).toBe(false);
+    expect(projectWorkoutComparisonForAudience(newProjection, 'student').units.flatMap((unit) =>
+      unit.metrics).some((m) => ['rir', 'rpe', 'tempo'].includes(m.key))).toBe(false);
+    // A genuinely captured plan still compares the exact planned set and its coverage.
+    expect(get(compareWorkoutSession(original, durable, 'captured').units, 'set-1')[0]
+      .metrics.find((metric) => metric.key === 'load_kg')?.planned).toBe(20);
+  });
+
+  it('A-401-026: no snapshot or retained catalogue cannot invent a completed exercise', () => {
+    const durable = execution({
+      items: [{ plannedUnitId: 'deleted-exercise', plannedSetId: 'deleted-set',
+        setNumber: 3, outcome: 'substituted', substitutionNote: 'Adaptação',
+        repetitions: 12, loadKg: 0, rir: 2 }],
+    });
+    const comparison = compareWorkoutSessionWithoutSnapshot(durable);
+    expect(comparison.units.map((unit) => unit.plannedUnitId)).toEqual([
+      'day-1', 'deleted-exercise', 'deleted-set',
+    ]);
+    expect(get(comparison.units, 'deleted-exercise')[0]).toMatchObject({
+      outcome: 'historical_unknown', containsSubstitution: true,
+      substitutionNote: 'Adaptação',
+    });
+    const student = projectWorkoutComparisonForAudience(comparison, 'student');
+    expect(student.units.some((unit) => unit.kind === 'set')).toBe(false);
+    expect(get(student.units, 'deleted-exercise')[0].metrics.find((m) => m.key === 'load_kg'))
+      .toMatchObject({ planned: null, executed: 0, difference: null });
+    expect(get(student.units, 'deleted-exercise')[0].metrics.some((m) => m.key === 'rir')).toBe(false);
+    const professor = projectWorkoutComparisonForAudience(comparison, 'professor');
+    expect(get(professor.units, 'deleted-set')[0]).toMatchObject({
+      outcome: 'substituted', executedSetNumber: 3,
+    });
+    expect(get(professor.units, 'deleted-set')[0].metrics.find((m) => m.key === 'rir')?.executed).toBe(2);
+  });
+
+  it('A-401-026: explicit negative and partial lifecycle remain factual without a snapshot', () => {
+    expect(get(compareWorkoutSessionWithoutSnapshot(execution({
+      status: 'not_performed', items: [],
+    })).units, 'day-1')[0].outcome).toBe('not_performed');
+    expect(get(compareWorkoutSessionWithoutSnapshot(execution({
+      status: 'partial', items: [{ plannedUnitId: 'exercise', outcome: 'full' }],
+    })).units, 'day-1')[0].outcome).toBe('partial');
+    expect(get(compareWorkoutSessionWithoutSnapshot(execution({
+      status: 'not_started', items: [],
+    })).units, 'day-1')[0].outcome).toBe('not_recorded');
+  });
+
   it('A-401-08: public write outcomes exactly match the four API-accepted values', () => {
     type WriteOutcome = NonNullable<TrainingSessionExecutionItemValue['outcome']>;
     type ApiOutcome = TrainingSessionExecutionOutcome;
@@ -435,10 +523,10 @@ describe('issue #401: granular planned/executed comparison', () => {
       ? [ApiOutcome] extends [WriteOutcome] ? true : false : false;
     const contractAligned: ContractIsExact = true;
     const comparisonOnly: Exclude<TrainingSessionComparisonOutcome, ApiOutcome>[] = [
-      'not_recorded', 'unclassified', 'incomplete_record',
+      'not_recorded', 'unclassified', 'incomplete_record', 'historical_unknown',
     ];
     expect(contractAligned).toBe(true);
-    expect(comparisonOnly).toHaveLength(3);
+    expect(comparisonOnly).toHaveLength(4);
   });
 
   it('historical capture stays unchanged after template/catalog objects evolve', () => {
@@ -648,7 +736,14 @@ describe('issue #401: granular planned/executed comparison', () => {
       }
       const historical = compareWorkoutSession(day, execution({ sessionValues: { cyclicStages: recorded } }),
         'released_plan');
-      expect(get(historical.units, 'repeat')[0].outcome).toBe(outcome);
+      // Without a frozen plan the historical projection does not know which
+      // repeat children existed or how many iterations were prescribed.
+      expect(get(historical.units, 'day-1')[0].outcome).toBe('historical_unknown');
+      expect(historical.units.filter((entry) => entry.kind === 'cyclic_stage')).toHaveLength(recorded.length);
+      for (const entry of recorded) {
+        expect(get(historical.units, entry.plannedStageId).find(
+          (unit) => unit.iteration === (entry.iteration ?? null))?.outcome).toBe(entry.outcome);
+      }
       expect(historical.units.flatMap((entry) => entry.metrics)
         .every((metric) => metric.planned === null && metric.difference === null)).toBe(true);
     });
@@ -709,7 +804,8 @@ describe('issue #401: granular planned/executed comparison', () => {
       { plannedUnitId: 'ex-1', setNumber: 2, outcome: 'full', loadKg: 22 },
       { plannedUnitId: 'ex-1', setNumber: 3, outcome: 'full', loadKg: 24 },
     ] }), 'released_plan');
-    expect(legacy.units.find((entry) => entry.kind === 'exercise')?.outcome).toBe('full');
+    expect(legacy.units.find((entry) => entry.kind === 'exercise')?.outcome).toBe('historical_unknown');
+    expect(legacy.units.filter((entry) => entry.kind === 'set').every((entry) => entry.outcome === 'full')).toBe(true);
     expect(legacy.units.filter((entry) => entry.kind === 'set')).toHaveLength(3);
     expect(legacy.units.flatMap((entry) => entry.metrics).every((entry) =>
       entry.planned === null && entry.difference === null)).toBe(true);
