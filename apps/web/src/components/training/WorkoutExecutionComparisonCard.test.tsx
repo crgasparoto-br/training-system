@@ -181,7 +181,7 @@ describe('WorkoutExecutionComparisonCard (#401)', () => {
   it('expõe legado sem snapshot como alternativa explícita, sem fingir captura', () => {
     render(<WorkoutExecutionComparisonCard comparison={{ ...comparison, snapshotSource: 'released_plan' }} audience="student" />);
     expect(screen.getByText(/execução antiga não possui uma captura congelada/)).toBeInTheDocument();
-    expect(screen.getByText(/metas históricas e diferenças ficam indisponíveis/)).toBeInTheDocument();
+    expect(screen.getByText(/Metas, diferenças e cobertura histórica não podem ser reconstituídas/)).toBeInTheDocument();
   });
   it('renders repeated recordings for one planned set with distinct React keys', () => {
     const duplicatedPlanId: TrainingSessionComparison = {

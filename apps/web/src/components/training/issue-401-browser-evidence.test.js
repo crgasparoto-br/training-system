@@ -192,7 +192,7 @@ suite('Issue #401 - comparação em Chromium real (aluno/professor)', () => {
       await page.waitForSelector('section[aria-label="Planejado e executado"]');
       const historicalText = await page.$eval('section[aria-label="Planejado e executado"]', (el) => el.innerText);
       expect(historicalText).toContain('execução antiga não possui uma captura congelada');
-      expect(historicalText).toContain('metas históricas e');
+      expect(historicalText).toContain('cobertura histórica não podem ser reconstituídas');
       expect(historicalText).not.toContain('diferença:');
       const legacyFile = 'mobile-student-historical-fallback.png';
       const legacyPng = await page.screenshot({ path: path.join(outputDir, legacyFile), fullPage: true });
