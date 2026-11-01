@@ -2,11 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import type { GuidedResistanceRestView, TrainingSessionExecutionStatus } from '@corrida/types';
 import { Button } from '../ui/Button';
 
-/** Client-only measurement: one HTTP response was requested/received on this page's
- * monotonic clock. It never changes the server's rest or its authorization. */
+/** Measured on one monotonic client clock. The optional bounds are inferred from
+ * earlier server snapshots, never from Date.now() or the full HTTP round-trip. */
 export type ResistanceRestObservation = {
   requestedAtMs: number;
   receivedAtMs: number;
+  /** Proven lower bound on response age at receipt; zero without a trusted anchor. */
+  snapshotAgeLowerBoundMs?: number;
+  /** Remaining upload/download ambiguity; a large value requests server reconciliation. */
+  transportUncertaintyMs?: number;
 };
 
 export type ResistanceRestActionResult = 'accepted' | 'retry' | 'blocked';
@@ -27,11 +31,11 @@ function displaySeconds(value: number): string {
 }
 
 /**
- * A snapshot can be created late in a GET/POST. The server sends the elapsed
- * request-processing time BEFORE capturing it; charging that time again as
- * snapshot age makes a newly created rest expire early. Subtract it from the
- * monotonic round-trip to estimate remaining transport age. Client civil clocks
- * are never compared to server timestamps, and only the backend can finish.
+ * Upload, middleware and download delays cannot be separated from one RTT.
+ * Charge only the post-snapshot age proven by a previous SERVER clock sample
+ * plus time elapsed since receipt. In an uncalibrated or asymmetric request,
+ * display the conservative bound until the next canonical GET. The server
+ * remains the sole authority for finish, regardless of the visible countdown.
  */
 export function projectRestDisplay(
   rest: GuidedResistanceRestView,
@@ -42,10 +46,11 @@ export function projectRestDisplay(
   const roundTripMs = Math.max(0, observation.receivedAtMs - observation.requestedAtMs);
   const processingMs = Number.isFinite(rest.requestProcessingMs)
     ? Math.max(0, rest.requestProcessingMs ?? 0) : 0;
-  // The processing time already precedes the server's remainingMs projection.
-  // Never subtract it again, even when the rest starts near the end of the POST.
+  const afterSnapshotUpperBoundMs = Math.max(0, roundTripMs - processingMs);
+  const provenAgeMs = Number.isFinite(observation.snapshotAgeLowerBoundMs)
+    ? Math.max(0, observation.snapshotAgeLowerBoundMs ?? 0) : 0;
   const displayDelta = status === 'in_progress'
-    ? Math.max(0, roundTripMs - processingMs)
+    ? Math.min(afterSnapshotUpperBoundMs, provenAgeMs)
       + Math.max(0, nowMs - observation.receivedAtMs)
     : 0;
   return {

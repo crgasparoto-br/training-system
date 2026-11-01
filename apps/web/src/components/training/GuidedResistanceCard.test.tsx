@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { GuidedResistanceCompletePayload, GuidedResistanceView } from '@corrida/types';
-import { GuidedResistanceCard, type GuidedResistanceDraft } from './GuidedResistanceCard';
+import { GuidedResistanceCard, observeGuidedRestTiming, type GuidedResistanceDraft } from './GuidedResistanceCard';
 
 const first = {
   plannedUnitId: 'exercise-a', plannedSetId: 'set-1', setNumber: 1,
@@ -528,7 +528,7 @@ describe('issue #488 - integração com guia e reconciliação', () => {
     const spy = vi.spyOn(performance, 'now').mockImplementation(() => monotonicMs);
     try {
       const latePost = deferred<GuidedResistanceView>();
-      const load = vi.fn().mockResolvedValue(projection());
+      const load = vi.fn().mockResolvedValue(projection({ serverNow: '2026-10-30T10:00:00.000Z' }));
       const complete = vi.fn().mockReturnValue(latePost.promise);
       const restAction = vi.fn();
       render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={1}
@@ -538,7 +538,8 @@ describe('issue #488 - integração com guia e reconciliação', () => {
       monotonicMs = 40_100;
       await act(async () => latePost.resolve(projection({ version: 2, completed: 1,
         current: second, next: null,
-        rest: { ...rest, requestProcessingMs: 40_000, remainingMs: 60_000, elapsedMs: 0 },
+        rest: { ...rest, serverNow: '2026-10-30T10:00:40.000Z',
+          requestProcessingMs: 40_000, remainingMs: 60_000, elapsedMs: 0 },
       })));
       expect(screen.getByRole('timer')).toHaveTextContent('01:00');
       expect(screen.getByText('Descanso transcorrido').nextSibling).toHaveTextContent('00:00');
@@ -561,7 +562,8 @@ describe('issue #488 - integração com guia e reconciliação', () => {
       monotonicMs = 40_100;
       await act(async () => slowGet.resolve(projection({ version: 2, completed: 1,
         current: second, next: null,
-        rest: { ...rest, requestProcessingMs: 40_000, remainingMs: 60_000, elapsedMs: 0 },
+        rest: { ...rest, serverNow: '2026-10-30T10:00:40.000Z',
+          requestProcessingMs: 40_000, remainingMs: 60_000, elapsedMs: 0 },
       })));
       expect(screen.getByRole('timer')).toHaveTextContent('01:00');
       expect(restAction).not.toHaveBeenCalled();
@@ -570,26 +572,102 @@ describe('issue #488 - integração com guia e reconciliação', () => {
     }
   });
 
-  it('mede no guia 40 s em trânsito pelo relógio monotônico, independentemente de Date.now()', async () => {
+  it('reconcilia GET lento sem âncora em vez de presumir que o upload foi download', async () => {
     let monotonicMs = 100;
     const spy = vi.spyOn(performance, 'now').mockImplementation(() => monotonicMs);
     try {
       const slowGet = deferred<GuidedResistanceView>();
-      const load = vi.fn().mockReturnValue(slowGet.promise);
       const restAction = vi.fn();
+      const load = vi.fn().mockReturnValueOnce(slowGet.promise).mockResolvedValueOnce(projection({
+        version: 2, completed: 1, current: second, next: null,
+        serverNow: '2026-10-30T10:00:40.000Z',
+        rest: { ...rest, serverNow: '2026-10-30T10:00:40.000Z', remainingMs: 20_000, elapsedMs: 40_000 },
+      }));
       render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
         load={load} complete={vi.fn()} restAction={restAction} onOverview={vi.fn()} />);
       expect(load).toHaveBeenCalledTimes(1);
       monotonicMs = 40_100;
       await act(async () => slowGet.resolve(projection({ version: 2, completed: 1,
-        current: second, next: null, rest: { ...rest, remainingMs: 60_000, elapsedMs: 0 },
+        current: second, next: null, serverNow: '2026-10-30T10:00:00.000Z',
+        rest: { ...rest, serverNow: '2026-10-30T10:00:00.000Z', remainingMs: 60_000, elapsedMs: 0 },
       })));
-      expect(screen.getByRole('timer')).toHaveTextContent('00:20');
+      await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(screen.getByRole('timer')).toHaveTextContent('00:20'));
       expect(screen.getByText('Descanso transcorrido').nextSibling).toHaveTextContent('00:40');
       expect(restAction).not.toHaveBeenCalled();
     } finally {
       spy.mockRestore();
     }
+  });
+
+  it('usa GET inicial para distinguir POST lento antes do snapshot de resposta atrasada', async () => {
+    let monotonicMs = 100;
+    const spy = vi.spyOn(performance, 'now').mockImplementation(() => monotonicMs);
+    try {
+      const latePost = deferred<GuidedResistanceView>();
+      const load = vi.fn().mockResolvedValue(projection({ serverNow: '2026-10-30T10:00:00.000Z' }));
+      const complete = vi.fn().mockReturnValue(latePost.promise);
+      const restAction = vi.fn();
+      render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={1}
+        load={load} complete={complete} restAction={restAction} onOverview={vi.fn()} />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Concluir série' }));
+      await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+      monotonicMs = 40_100;
+      await act(async () => latePost.resolve(projection({ version: 2, completed: 1,
+        current: second, next: null, serverNow: '2026-10-30T10:00:00.000Z',
+        rest: { ...rest, serverNow: '2026-10-30T10:00:00.000Z',
+          requestProcessingMs: 0, remainingMs: 60_000, elapsedMs: 0 },
+      })));
+      expect(screen.getByRole('timer')).toHaveTextContent('00:20');
+      expect(screen.getByText('Descanso transcorrido').nextSibling).toHaveTextContent('00:40');
+      expect(restAction).not.toHaveBeenCalled();
+    } finally { spy.mockRestore(); }
+  });
+
+  it('mantém os 60 s quando o POST demora 40 s no upload ou middleware antes da série', async () => {
+    let monotonicMs = 100;
+    const spy = vi.spyOn(performance, 'now').mockImplementation(() => monotonicMs);
+    try {
+      const latePost = deferred<GuidedResistanceView>();
+      const load = vi.fn().mockResolvedValue(projection({ serverNow: '2026-10-30T10:00:00.000Z' }));
+      const complete = vi.fn().mockReturnValue(latePost.promise);
+      const restAction = vi.fn();
+      render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={1}
+        load={load} complete={complete} restAction={restAction} onOverview={vi.fn()} />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Concluir série' }));
+      await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+      monotonicMs = 40_100;
+      await act(async () => latePost.resolve(projection({ version: 2, completed: 1,
+        current: second, next: null, serverNow: '2026-10-30T10:00:40.000Z',
+        rest: { ...rest, serverNow: '2026-10-30T10:00:40.000Z',
+          requestProcessingMs: 0, remainingMs: 60_000, elapsedMs: 0 },
+      })));
+      expect(screen.getByRole('timer')).toHaveTextContent('01:00');
+      expect(screen.getByText('Descanso transcorrido').nextSibling).toHaveTextContent('00:00');
+      expect(restAction).not.toHaveBeenCalled();
+      // This is not the same as a late HTTP response. No extra GET is necessary.
+      expect(load).toHaveBeenCalledTimes(1);
+    } finally { spy.mockRestore(); }
+  });
+
+  it('calcula idade demonstrável com dois snapshots sem depender da hora civil do telefone', () => {
+    const base = { sessionId: 'day-1', serverNowMs: Date.parse('2026-10-30T10:00:00.000Z'), receivedAtMs: 100, ageUpperBoundMs: 0 };
+    const observation = { requestedAtMs: 100, receivedAtMs: 40_100 };
+    const snapshot = (when: string, processingMs = 0) => projection({
+      rest: { ...rest, serverNow: when, requestProcessingMs: processingMs },
+    });
+    expect(observeGuidedRestTiming(snapshot('2026-10-30T10:00:40.000Z'), observation, base))
+      .toMatchObject({ snapshotAgeLowerBoundMs: 0, transportUncertaintyMs: 0 });
+    expect(observeGuidedRestTiming(snapshot('2026-10-30T10:00:00.000Z'), observation, base))
+      .toMatchObject({ snapshotAgeLowerBoundMs: 40_000, transportUncertaintyMs: 0 });
+    expect(observeGuidedRestTiming(snapshot('2026-10-30T10:00:25.000Z'), observation, base))
+      .toMatchObject({ snapshotAgeLowerBoundMs: 15_000, transportUncertaintyMs: 0 });
+    expect(observeGuidedRestTiming(snapshot('2026-10-30T10:00:40.000Z', 40_000), observation, base))
+      .toMatchObject({ snapshotAgeLowerBoundMs: 0, transportUncertaintyMs: 0 });
+    expect(observeGuidedRestTiming(snapshot('2026-10-30T10:00:00.000Z'), observation, null))
+      .toMatchObject({ snapshotAgeLowerBoundMs: 0, transportUncertaintyMs: 40_000 });
+    expect(observeGuidedRestTiming(snapshot('2026-10-30T10:00:00.000Z'), observation,
+      { ...base, sessionId: 'other' })).toMatchObject({ snapshotAgeLowerBoundMs: 0 });
   });
 
   it('recupera finish após timeout mantendo a chave idempotente', async () => {

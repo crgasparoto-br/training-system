@@ -9,6 +9,45 @@ import { ResistanceRestPanel, type ResistanceRestObservation, type ResistanceRes
 type GuidedResistanceOperation = { signature: string; payload: GuidedResistanceCompletePayload };
 type GuidedRestOperation = { signature: string; payload: GuidedResistanceRestActionPayload };
 type ObservedGuidedView = GuidedResistanceView & { restObservation: ResistanceRestObservation };
+type ServerClockAnchor = {
+  sessionId: string; serverNowMs: number; receivedAtMs: number; ageUpperBoundMs: number;
+};
+
+/** The server's two snapshots establish a lower bound on elapsed time after the
+ * second snapshot. RTT alone is only an upper bound (upload may be slow).
+ * No comparison between client civil time and server civil time is made. */
+export function observeGuidedRestTiming(
+  saved: GuidedResistanceView, observation: ResistanceRestObservation,
+  previousAnchor: ServerClockAnchor | null,
+): ResistanceRestObservation {
+  if (!saved.rest) return observation;
+  const serverNowMs = Date.parse(saved.rest.serverNow);
+  const roundTripMs = Math.max(0, observation.receivedAtMs - observation.requestedAtMs);
+  const processingMs = Number.isFinite(saved.rest.requestProcessingMs)
+    ? Math.max(0, saved.rest.requestProcessingMs ?? 0) : 0;
+  const upperBoundMs = Math.max(0, roundTripMs - processingMs);
+  // A previous snapshot was created no later than its client receipt.
+  // Only a same-session, ordered monotonic observation can calibrate the age.
+  const validAnchor = previousAnchor?.sessionId === saved.sessionId
+    && observation.receivedAtMs >= previousAnchor.receivedAtMs
+    && Number.isFinite(serverNowMs)
+    && serverNowMs >= previousAnchor.serverNowMs;
+  const provenAgeMs = validAnchor
+    ? Math.max(0, previousAnchor.serverNowMs
+      + (observation.receivedAtMs - previousAnchor.receivedAtMs) - serverNowMs)
+    : 0;
+  const snapshotAgeLowerBoundMs = Math.min(upperBoundMs, provenAgeMs);
+  // The previous sample also bounds how long THAT response was in transit.
+  // This distinguishes a slow upload from a slow download when that sample
+  // was fresh; an unknown first sample still triggers canonical reconciliation.
+  const calibratedUpperBoundMs = validAnchor
+    ? Math.min(upperBoundMs, Math.max(0, previousAnchor.serverNowMs
+      + (observation.receivedAtMs - previousAnchor.receivedAtMs)
+      + previousAnchor.ageUpperBoundMs - serverNowMs))
+    : upperBoundMs;
+  return { ...observation, snapshotAgeLowerBoundMs,
+    transportUncertaintyMs: Math.max(0, calibratedUpperBoundMs - snapshotAgeLowerBoundMs) };
+}
 
 export type GuidedResistanceDraft = {
   sessionId: string;
@@ -108,6 +147,8 @@ export function GuidedResistanceCard({
     ? draftStore.current.conflictVersion : null);
   const operationRef = useRef<GuidedResistanceOperation | null>(null);
   const restOperationRef = useRef<GuidedRestOperation | null>(null);
+  const serverClockAnchorRef = useRef<ServerClockAnchor | null>(null);
+  const reconciledUncertainRestRef = useRef<string | null>(null);
 
   const keepDraft = (nextRepetitions: string, nextLoadKg: string, operation = operationRef.current) => {
     const plannedSetId = currentSetRef.current;
@@ -159,7 +200,19 @@ export function GuidedResistanceCard({
       || saved.rest?.id !== restOperationRef.current.payload.restId)) {
       restOperationRef.current = null;
     }
-    setView({ ...saved, restObservation: observation });
+    const restObservation = observeGuidedRestTiming(saved, observation, serverClockAnchorRef.current);
+    // Capture the server clock even when there is no active rest. A fast initial
+    // GET can then distinguish delayed POST upload from delayed POST download.
+    const serverNowMs = Date.parse(saved.serverNow ?? saved.rest?.serverNow ?? '');
+    if (Number.isFinite(serverNowMs)) {
+      const roundTripMs = Math.max(0, observation.receivedAtMs - observation.requestedAtMs);
+      const processingMs = Number.isFinite(saved.rest?.requestProcessingMs)
+        ? Math.max(0, saved.rest?.requestProcessingMs ?? 0) : 0;
+      serverClockAnchorRef.current = { sessionId: sourceSessionId, serverNowMs,
+        receivedAtMs: observation.receivedAtMs,
+        ageUpperBoundMs: Math.max(0, roundTripMs - processingMs) };
+    }
+    setView({ ...saved, restObservation });
     return true;
   }, [draftStore]);
 
@@ -373,6 +426,19 @@ export function GuidedResistanceCard({
       setBusy(false);
     }
   }
+
+  useEffect(() => {
+    const rest = view?.rest;
+    if (!rest || view.status !== 'in_progress' || status !== 'in_progress'
+      || loading || busy || reconciliationRequired
+      || (view?.restObservation.transportUncertaintyMs ?? 0) < 2_000) return;
+    // One additional canonical GET resolves the ambiguous leg of a slow POST/GET
+    // when the next request is healthy. Avoid loops if the network stays slow.
+    const key = [sessionId, rest.id, rest.targetEndsAt].join(':');
+    if (reconciledUncertainRestRef.current === key) return;
+    reconciledUncertainRestRef.current = key;
+    void refresh();
+  }, [busy, loading, reconciliationRequired, refresh, sessionId, status, view]);
 
   useEffect(() => {
     const onReturn = () => {

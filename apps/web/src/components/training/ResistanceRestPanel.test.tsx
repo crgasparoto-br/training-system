@@ -12,9 +12,10 @@ const rest: GuidedResistanceRestView = {
 
 // HTTP request start and response receipt are measured on the same monotonic clock.
 // The server's ISO timestamp never needs to be compared with Date.now().
-const observed = (roundTripMs = 0): ResistanceRestObservation => ({
+const observed = (roundTripMs = 0, provenAgeMs = 0): ResistanceRestObservation => ({
   requestedAtMs: performance.now() - roundTripMs,
   receivedAtMs: performance.now(),
+  snapshotAgeLowerBoundMs: provenAgeMs,
 });
 
 let monotonicNowMs = 100_000;
@@ -58,7 +59,7 @@ describe('issue #488: relógio de descanso', () => {
     vi.setSystemTime(new Date('2026-10-30T10:00:40.000Z'));
     const onAction = vi.fn();
     const { rerender } = render(
-      <ResistanceRestPanel rest={rest} observation={observed(40_000)} status="in_progress" busy={false} onAction={onAction} />,
+      <ResistanceRestPanel rest={rest} observation={observed(40_000, 40_000)} status="in_progress" busy={false} onAction={onAction} />,
     );
     // A server snapshot created at 10:00:00 arrives at 10:00:40.
     // Wrong implementation anchored to receipt would still show 01:00.
@@ -73,7 +74,7 @@ describe('issue #488: relógio de descanso', () => {
     rerender(<ResistanceRestPanel
       rest={{ ...rest, serverNow: '2026-10-30T10:00:42.000Z',
         elapsedMs: 42_000, remainingMs: 18_000 }}
-      observation={observed(3_000)} status="in_progress" busy={false} onAction={onAction}
+      observation={observed(3_000, 3_000)} status="in_progress" busy={false} onAction={onAction}
     />);
     expect(screen.getByRole('timer')).toHaveTextContent('00:15');
     expect(screen.getByText('Descanso transcorrido').nextSibling).toHaveTextContent('00:45');
@@ -87,7 +88,7 @@ describe('issue #488: relógio de descanso', () => {
     rerender(<ResistanceRestPanel
       rest={{ ...rest, serverNow: '2026-10-30T10:00:58.000Z',
         elapsedMs: 58_000, remainingMs: 2_000 }}
-      observation={observed(3_000)} status="in_progress" busy={false} onAction={onAction}
+      observation={observed(3_000, 3_000)} status="in_progress" busy={false} onAction={onAction}
     />);
     advanceMonotonicTime(10_000);
     expect(onAction).toHaveBeenCalledTimes(1);
@@ -106,7 +107,7 @@ describe('issue #488: relógio de descanso', () => {
   });
 
   it('desconta apenas a parte da requisição posterior ao snapshot do servidor', () => {
-    const observation = { requestedAtMs: 100, receivedAtMs: 40_100 };
+    const observation = { requestedAtMs: 100, receivedAtMs: 40_100, snapshotAgeLowerBoundMs: 10_000 };
     expect(projectRestDisplay({ ...rest, requestProcessingMs: 30_000 },
       'in_progress', observation, 40_100)).toMatchObject({ remainingMs: 50_000, elapsedMs: 10_000 });
     expect(projectRestDisplay({ ...rest, requestProcessingMs: 60_000 },
@@ -115,11 +116,39 @@ describe('issue #488: relógio de descanso', () => {
       'paused', observation, 40_100)).toMatchObject({ remainingMs: 60_000, elapsedMs: 0 });
   });
 
+  it('nunca antecipa descanso com 40 s de upload ou GET sem calibração anterior', () => {
+    installMonotonicFakeTimers();
+    const onAction = vi.fn();
+    const { rerender } = render(<ResistanceRestPanel rest={rest} observation={observed(40_000)}
+      status="in_progress" busy={false} onAction={onAction} />);
+    // Same RTT for upload and download: without a trusted clock sample it
+    // cannot be attributed to time after the server snapshot.
+    expect(screen.getByRole('timer')).toHaveTextContent('01:00');
+    expect(screen.getByText('Descanso transcorrido').nextSibling).toHaveTextContent('00:00');
+    expect(onAction).not.toHaveBeenCalled();
+    rerender(<ResistanceRestPanel rest={{ ...rest, remainingMs: 30_000, elapsedMs: 30_000 }}
+      observation={observed(30_000)} status="in_progress" busy={false} onAction={onAction} />);
+    expect(screen.getByRole('timer')).toHaveTextContent('00:30');
+    expect(onAction).not.toHaveBeenCalled();
+    advanceMonotonicTime(30_000);
+    expect(onAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('limita a idade calibrada ao máximo possível do transporte, sem cobrar processamento anterior', () => {
+    const snapshot = { requestedAtMs: 100, receivedAtMs: 40_100, snapshotAgeLowerBoundMs: 999_000 };
+    expect(projectRestDisplay({ ...rest, requestProcessingMs: 30_000 }, 'in_progress', snapshot, 40_100))
+      .toMatchObject({ remainingMs: 50_000, elapsedMs: 10_000 });
+    expect(projectRestDisplay({ ...rest, requestProcessingMs: 40_000 }, 'in_progress', snapshot, 40_100))
+      .toMatchObject({ remainingMs: 60_000, elapsedMs: 0 });
+    expect(projectRestDisplay({ ...rest }, 'paused', snapshot, 140_100))
+      .toMatchObject({ remainingMs: 60_000, elapsedMs: 0 });
+  });
+
   it('não reinicia descanso já vencido quando a resposta chega depois do prazo', () => {
     installMonotonicFakeTimers();
     vi.setSystemTime(new Date('2026-10-30T10:01:25.000Z'));
     const onAction = vi.fn();
-    render(<ResistanceRestPanel rest={rest} observation={observed(85_000)} status="in_progress" busy={false} onAction={onAction} />);
+    render(<ResistanceRestPanel rest={rest} observation={observed(85_000, 85_000)} status="in_progress" busy={false} onAction={onAction} />);
     expect(screen.getByRole('timer')).toHaveTextContent('00:00');
     expect(screen.getByText('Descanso transcorrido').nextSibling).toHaveTextContent('01:25');
     expect(onAction).toHaveBeenCalledTimes(1);
@@ -147,14 +176,14 @@ describe('issue #488: relógio de descanso', () => {
     installMonotonicFakeTimers();
     vi.setSystemTime(new Date('2026-10-30T09:55:40.000Z'));
     const onAction = vi.fn();
-    render(<ResistanceRestPanel rest={rest} observation={observed(40_000)} status="in_progress" busy={false} onAction={onAction} />);
+    render(<ResistanceRestPanel rest={rest} observation={observed(40_000, 40_000)} status="in_progress" busy={false} onAction={onAction} />);
     expect(screen.getByRole('timer')).toHaveTextContent('00:20');
     expect(screen.getByText('Descanso transcorrido').nextSibling).toHaveTextContent('00:40');
     expect(onAction).not.toHaveBeenCalled();
   });
 
   it('usa somente relógio monotônico e mantém a pausa congelada mesmo com resposta tardia', () => {
-    const observation = { requestedAtMs: 100, receivedAtMs: 40_100 };
+    const observation = { requestedAtMs: 100, receivedAtMs: 40_100, snapshotAgeLowerBoundMs: 40_000 };
     expect(projectRestDisplay(rest, 'paused', observation, 240_100))
       .toMatchObject({ remainingMs: 60_000, elapsedMs: 0 });
     expect(projectRestDisplay(rest, 'in_progress', observation, 40_100))
@@ -167,7 +196,7 @@ describe('issue #488: relógio de descanso', () => {
     let resolveFirst!: (outcome: 'retry') => void;
     const pending = new Promise<'retry'>((resolve) => { resolveFirst = resolve; });
     const onAction = vi.fn().mockReturnValueOnce(pending).mockResolvedValueOnce('accepted');
-    render(<ResistanceRestPanel rest={rest} observation={observed(70_000)} status="in_progress" busy={false} onAction={onAction} />);
+    render(<ResistanceRestPanel rest={rest} observation={observed(70_000, 70_000)} status="in_progress" busy={false} onAction={onAction} />);
     expect(onAction).toHaveBeenCalledTimes(1);
     await advanceMonotonicTimeAsync(3_000);
     expect(onAction).toHaveBeenCalledTimes(1); // pending request cannot duplicate

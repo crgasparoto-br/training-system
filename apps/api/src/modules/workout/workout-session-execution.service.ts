@@ -626,11 +626,15 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
       const activeRest = execution ? await tx.workoutSessionResistanceRest.findFirst({
         where: { executionId: execution.id, status: 'active' },
       }) : null;
+      const snapshotAt = new Date();
       return {
         ...projectGuidedResistance(input.sessionId, view, plan),
+        // A trusted server clock sample must be available before the first rest starts.
+        // It is only used by the UI to bound response age, never to authorize finish.
+        serverNow: snapshotAt.toISOString(),
         rest: projectResistanceRest(activeRest, {
           status: view.status, currentPauseStartedAt: execution?.currentPauseStartedAt ?? null,
-        }, new Date()),
+        }, snapshotAt),
       };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }

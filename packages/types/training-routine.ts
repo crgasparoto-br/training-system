@@ -145,6 +145,8 @@ export interface GuidedResistanceRestActionPayload {
 
 export interface GuidedResistanceView {
   sessionId: string;
+  /** Servidor no instante da projeção, mesmo sem descanso; usado apenas para calibrar a apresentação. */
+  serverNow?: string;
   status: TrainingSessionExecutionStatus;
   version: number;
   availability: GuidedResistanceAvailability;

@@ -856,6 +856,8 @@ describeDatabase('workout session execution persistence - issue 389', () => {
     const scope = { sessionId: fixture.dayId, alunoId: fixture.alunoId, contractId: fixture.contractId };
     const initial = await service.getGuidedForSession(scope);
     expect(initial).toMatchObject({ availability: 'available', status: 'not_started', total: 3, completed: 0 });
+    // A server time sample is available before any rest, for safe RTT calibration.
+    expect(Number.isFinite(Date.parse(initial.serverNow ?? ''))).toBe(true);
     await transition(fixture, 'issue487-start-ordered', 0, 'in_progress');
     const first = await service.getGuidedForSession(scope);
     expect(first.current).toMatchObject({ plannedUnitId: fixture.exerciseIds[0], setNumber: 1, repsMin: 8, repsMax: 12, loadKg: 32.5 });
@@ -866,6 +868,7 @@ describeDatabase('workout session execution persistence - issue 389', () => {
     };
     const completed = await service.completeGuided({ ...scope, actorUserId: fixture.alunoUserId, payload });
     expect(completed).toMatchObject({ availability: 'available', version: 2, completed: 1, total: 3 });
+    expect(Number.isFinite(Date.parse(completed.serverNow ?? ''))).toBe(true);
     expect(completed.current).toMatchObject({ plannedUnitId: fixture.exerciseIds[0], setNumber: 2 });
     await expect(service.saveValues({
       ...scope, actorUserId: fixture.alunoUserId,
