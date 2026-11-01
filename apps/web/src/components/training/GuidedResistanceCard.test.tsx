@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { GuidedResistanceCompletePayload, GuidedResistanceView } from '@corrida/types';
@@ -521,6 +521,53 @@ describe('issue #488 - integração com guia e reconciliação', () => {
     await waitFor(() => expect(restAction).toHaveBeenCalledTimes(2), { timeout: 4000 });
     expect(restAction.mock.calls[1][1].operationKey).not.toBe(restAction.mock.calls[0][1].operationKey);
     expect(await screen.findByRole('button', { name: 'Concluir série' })).toBeEnabled();
+  });
+
+  it('mantém 60 s após POST de conclusão cuja série só foi gravada ao fim de 40 s no servidor', async () => {
+    let monotonicMs = 100;
+    const spy = vi.spyOn(performance, 'now').mockImplementation(() => monotonicMs);
+    try {
+      const latePost = deferred<GuidedResistanceView>();
+      const load = vi.fn().mockResolvedValue(projection());
+      const complete = vi.fn().mockReturnValue(latePost.promise);
+      const restAction = vi.fn();
+      render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={1}
+        load={load} complete={complete} restAction={restAction} onOverview={vi.fn()} />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Concluir série' }));
+      await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+      monotonicMs = 40_100;
+      await act(async () => latePost.resolve(projection({ version: 2, completed: 1,
+        current: second, next: null,
+        rest: { ...rest, requestProcessingMs: 40_000, remainingMs: 60_000, elapsedMs: 0 },
+      })));
+      expect(screen.getByRole('timer')).toHaveTextContent('01:00');
+      expect(screen.getByText('Descanso transcorrido').nextSibling).toHaveTextContent('00:00');
+      expect(restAction).not.toHaveBeenCalled();
+      expect(screen.queryByRole('button', { name: 'Concluir série' })).not.toBeInTheDocument();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('não cobra 40 s de GET processado antes do snapshot de descanso', async () => {
+    let monotonicMs = 100;
+    const spy = vi.spyOn(performance, 'now').mockImplementation(() => monotonicMs);
+    try {
+      const slowGet = deferred<GuidedResistanceView>();
+      const load = vi.fn().mockReturnValue(slowGet.promise);
+      const restAction = vi.fn();
+      render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
+        load={load} complete={vi.fn()} restAction={restAction} onOverview={vi.fn()} />);
+      monotonicMs = 40_100;
+      await act(async () => slowGet.resolve(projection({ version: 2, completed: 1,
+        current: second, next: null,
+        rest: { ...rest, requestProcessingMs: 40_000, remainingMs: 60_000, elapsedMs: 0 },
+      })));
+      expect(screen.getByRole('timer')).toHaveTextContent('01:00');
+      expect(restAction).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('mede no guia 40 s em trânsito pelo relógio monotônico, independentemente de Date.now()', async () => {

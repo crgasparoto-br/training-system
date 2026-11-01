@@ -93,6 +93,28 @@ describe('issue #488: relógio de descanso', () => {
     expect(onAction).toHaveBeenCalledTimes(1);
   });
 
+  it('não cobra processamento lento do POST como descanso realizado antes do snapshot', () => {
+    installMonotonicFakeTimers();
+    const onAction = vi.fn();
+    render(<ResistanceRestPanel rest={{ ...rest, requestProcessingMs: 40_000 }}
+      observation={observed(40_000)} status="in_progress" busy={false} onAction={onAction} />);
+    expect(screen.getByRole('timer')).toHaveTextContent('01:00');
+    expect(screen.getByText('Descanso transcorrido').nextSibling).toHaveTextContent('00:00');
+    advanceMonotonicTime(20_000);
+    expect(screen.getByRole('timer')).toHaveTextContent('00:40');
+    expect(onAction).not.toHaveBeenCalled();
+  });
+
+  it('desconta apenas a parte da requisição posterior ao snapshot do servidor', () => {
+    const observation = { requestedAtMs: 100, receivedAtMs: 40_100 };
+    expect(projectRestDisplay({ ...rest, requestProcessingMs: 30_000 },
+      'in_progress', observation, 40_100)).toMatchObject({ remainingMs: 50_000, elapsedMs: 10_000 });
+    expect(projectRestDisplay({ ...rest, requestProcessingMs: 60_000 },
+      'in_progress', observation, 40_100)).toMatchObject({ remainingMs: 60_000, elapsedMs: 0 });
+    expect(projectRestDisplay({ ...rest, requestProcessingMs: 40_000 },
+      'paused', observation, 40_100)).toMatchObject({ remainingMs: 60_000, elapsedMs: 0 });
+  });
+
   it('não reinicia descanso já vencido quando a resposta chega depois do prazo', () => {
     installMonotonicFakeTimers();
     vi.setSystemTime(new Date('2026-10-30T10:01:25.000Z'));

@@ -129,6 +129,9 @@ export interface GuidedResistanceRestView {
   targetEndsAt: string;
   /** Instante canônico do servidor usado como âncora para exibição. */
   serverNow: string;
+  /** Tempo gasto no servidor até obter este snapshot, não é tempo de descanso.
+   * Omitido somente por consumidores antigos; nunca compara relógios do cliente e do servidor. */
+  requestProcessingMs?: number;
   elapsedMs: number;
   remainingMs: number;
 }

@@ -1,4 +1,4 @@
-import { prescribedRestAfter, projectResistanceRest, measuredRestMs } from './resistance-rest.domain.js';
+import { prescribedRestAfter, projectResistanceRest, measuredRestMs, withResistanceRestRequestTiming } from './resistance-rest.domain.js';
 import type { GuidedResistanceUnit } from '@corrida/types';
 
 const unit = (restSec: number | null) => ({ restSec }) as GuidedResistanceUnit;
@@ -9,6 +9,21 @@ const base = {
 };
 
 describe('issue #488: canonical resistance rest', () => {
+  it('subtracts server work before a late-starting rest without changing its deadline', () => {
+    const view = { sessionId: 'day-1', status: 'in_progress' as const, version: 2,
+      availability: 'available' as const, completed: 1, total: 2,
+      current: null, next: null,
+      rest: projectResistanceRest(base, { status: 'in_progress', currentPauseStartedAt: null },
+        new Date('2026-10-30T10:00:00.000Z')) };
+    const timed = withResistanceRestRequestTiming(view, Date.parse('2026-10-30T09:59:20.000Z'));
+    expect(timed.rest).toMatchObject({ plannedSeconds: 60, remainingMs: 60000,
+      requestProcessingMs: 40000 });
+    expect(view.rest).not.toHaveProperty('requestProcessingMs');
+    expect(withResistanceRestRequestTiming({ ...view, rest: null }, 0).rest).toBeNull();
+    expect(withResistanceRestRequestTiming(view, Date.parse('2026-10-30T10:00:05.000Z'))
+      .rest?.requestProcessingMs).toBe(0);
+  });
+
   it('starts only for a positive explicitly planned transition with a successor', () => {
     expect(prescribedRestAfter(unit(60), unit(null))).toBe(60);
     expect(prescribedRestAfter(unit(null), unit(null))).toBeNull();

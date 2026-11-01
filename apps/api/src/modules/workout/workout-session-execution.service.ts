@@ -417,16 +417,6 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
             'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION'
           );
         }
-        const plan = await loadGuidedResistancePlan(tx, input.sessionId);
-        const persisted = await readExecution(tx, input.sessionId);
-        if (!persisted) throw new WorkoutSessionExecutionNotFoundError('Execução de treino não encontrada.');
-        const guided = projectGuidedResistance(input.sessionId, projectWorkoutSessionExecution(persisted), plan);
-        if (!matchesCurrentGuidedUnit(guided, items[0])) {
-          throw new WorkoutSessionExecutionConflictError(
-            'Esta série não é a próxima do planejamento. Atualize o treino antes de continuar.',
-            'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT'
-          );
-        }
         const activeRest = await tx.workoutSessionResistanceRest.findFirst({
           where: { executionId: execution.id, status: 'active' },
         });
@@ -436,9 +426,19 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
             'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION'
           );
         }
+        const plan = await loadGuidedResistancePlan(tx, input.sessionId);
+        const persisted = await readExecution(tx, input.sessionId);
+        if (!persisted) throw new WorkoutSessionExecutionNotFoundError('Execução de treino não encontrada.');
+        const guided = projectGuidedResistance(input.sessionId, projectWorkoutSessionExecution(persisted), plan);
         const plannedSeconds = prescribedRestAfter(guided.current, guided.next);
         if (plannedSeconds !== null && guided.current) {
           restAfterGuidedSet = { plannedSetId: guided.current.plannedSetId, seconds: plannedSeconds };
+        }
+        if (!matchesCurrentGuidedUnit(guided, items[0])) {
+          throw new WorkoutSessionExecutionConflictError(
+            'Esta série não é a próxima do planejamento. Atualize o treino antes de continuar.',
+            'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT'
+          );
         }
       }
 

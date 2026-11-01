@@ -27,11 +27,11 @@ function displaySeconds(value: number): string {
 }
 
 /**
- * A server snapshot is created after a request begins. The round-trip is an
- * upper estimate of its transport age (the server can spend some of it working).
- * Measuring it with performance.now avoids trusting the device's wall-clock or
- * its timezone. After receipt, the same monotonic clock advances the display.
- * Only the backend may authorize the actual completion.
+ * A snapshot can be created late in a GET/POST. The server sends the elapsed
+ * request-processing time BEFORE capturing it; charging that time again as
+ * snapshot age makes a newly created rest expire early. Subtract it from the
+ * monotonic round-trip to estimate remaining transport age. Client civil clocks
+ * are never compared to server timestamps, and only the backend can finish.
  */
 export function projectRestDisplay(
   rest: GuidedResistanceRestView,
@@ -39,8 +39,13 @@ export function projectRestDisplay(
   observation: ResistanceRestObservation,
   nowMs: number,
 ) {
+  const roundTripMs = Math.max(0, observation.receivedAtMs - observation.requestedAtMs);
+  const processingMs = Number.isFinite(rest.requestProcessingMs)
+    ? Math.max(0, rest.requestProcessingMs ?? 0) : 0;
+  // The processing time already precedes the server's remainingMs projection.
+  // Never subtract it again, even when the rest starts near the end of the POST.
   const displayDelta = status === 'in_progress'
-    ? Math.max(0, observation.receivedAtMs - observation.requestedAtMs)
+    ? Math.max(0, roundTripMs - processingMs)
       + Math.max(0, nowMs - observation.receivedAtMs)
     : 0;
   return {

@@ -1,5 +1,5 @@
 import type {
-  GuidedResistanceRestView, GuidedResistanceUnit, TrainingSessionExecutionStatus,
+  GuidedResistanceRestView, GuidedResistanceUnit, GuidedResistanceView, TrainingSessionExecutionStatus,
 } from '@corrida/types';
 
 export type PersistedResistanceRest = {
@@ -45,4 +45,24 @@ export function projectResistanceRest(
 
 export function measuredRestMs(rest: PersistedResistanceRest, now: Date): number {
   return Math.max(0, now.getTime() - rest.startedAt.getTime() - Number(rest.pausedDurationMs));
+}
+
+/**
+ * The server snapshot is captured after request processing; that preceding time
+ * cannot be charged to an interval that may have started during this request.
+ * Transport delay AFTER the snapshot is estimated separately by the web client.
+ */
+export function withResistanceRestRequestTiming(
+  view: GuidedResistanceView, requestStartedAtMs: number,
+): GuidedResistanceView {
+  if (!view.rest) return view;
+  const capturedAtMs = Date.parse(view.rest.serverNow);
+  return {
+    ...view,
+    rest: {
+      ...view.rest,
+      requestProcessingMs: Number.isFinite(capturedAtMs) && Number.isFinite(requestStartedAtMs)
+        ? Math.max(0, capturedAtMs - requestStartedAtMs) : 0,
+    },
+  };
 }
