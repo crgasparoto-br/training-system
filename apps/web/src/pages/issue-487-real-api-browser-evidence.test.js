@@ -395,6 +395,23 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
       expect(activeRest.body.data.rest).toMatchObject({ plannedSeconds: 75, extensionSeconds: 0 });
       expect(activeRest.body.data.current).toMatchObject({ roundNumber: 2, groupPosition: 1 });
       const restId = activeRest.body.data.rest.id;
+      // A premature finish is a real server-side 409. The shared @corrida/utils
+      // envelope exposes details.code (not the unused API-local errors.code).
+      const prematureFinish = await apiRequest(apiOrigin, token, fixture.contractId, 'POST',
+        '/student/me/training-sessions/' + fixture.dayId + '/execution/guided/rest', {
+          operationKey: 'issue488-premature-finish-' + suffix,
+          expectedVersion: activeRest.body.data.version, restId, action: 'finish',
+        });
+      expect(prematureFinish.status).toBe(409);
+      expect(prematureFinish.body).toMatchObject({
+        success: false, details: { code: 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION' },
+      });
+      expect(prematureFinish.body.errors).toBeUndefined();
+      const afterRejection = await apiRequest(apiOrigin, token, fixture.contractId, 'GET',
+        '/student/me/training-sessions/' + fixture.dayId + '/execution/guided');
+      expect(afterRejection.body.data).toMatchObject({
+        version: activeRest.body.data.version, rest: { id: restId, plannedSeconds: 75 },
+      });
       const plannedTarget = Date.parse(activeRest.body.data.rest.targetEndsAt);
       await noHorizontalOverflow(page);
       screenshots.push(await shot(page, 'mobile-rest-running'));

@@ -510,14 +510,20 @@ describe('issue #488 - integração com guia e reconciliação', () => {
     const expired = { ...rest, remainingMs: 0, elapsedMs: 60_000 };
     const load = vi.fn().mockResolvedValue(projection({ version: 2, rest: expired, completed: 1, current: second, next: null }));
     const restAction = vi.fn()
-      .mockRejectedValueOnce({ response: { status: 409, data: { details: {
-        code: 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION',
-      } } } })
+      .mockRejectedValueOnce({ response: { status: 409, data: {
+        success: false, error: 'O descanso ainda não terminou.',
+        details: { code: 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION' },
+      } } })
       .mockResolvedValueOnce(projection({ version: 3, rest: null, completed: 1, current: second, next: null }));
     render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
       load={load} complete={vi.fn()} restAction={restAction} onOverview={vi.fn()} />);
     await waitFor(() => expect(restAction).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(load).toHaveBeenCalledTimes(2)); // canonical GET after 409
+    // The early finish did not mutate the execution; GET returns the *same*
+    // version and the retry must not be trapped behind a conflict-version lock.
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    const reconciled = await load.mock.results[1].value;
+    expect(reconciled.version).toBe(2);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Pular descanso' })).toBeEnabled());
     await waitFor(() => expect(restAction).toHaveBeenCalledTimes(2), { timeout: 4000 });
     expect(restAction.mock.calls[1][1].operationKey).not.toBe(restAction.mock.calls[0][1].operationKey);
     expect(await screen.findByRole('button', { name: 'Concluir série' })).toBeEnabled();
@@ -690,9 +696,10 @@ describe('issue #488 - integração com guia e reconciliação', () => {
       .mockRejectedValueOnce(new Error('GET offline after conflict'))
       .mockResolvedValueOnce(refreshed);
     const restAction = vi.fn()
-      .mockRejectedValueOnce({ response: { status: 409, data: { details: {
-        code: 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT',
-      } } } })
+      .mockRejectedValueOnce({ response: { status: 409, data: {
+        success: false, error: 'A sessão mudou em outro cliente.',
+        details: { code: 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT' },
+      } } })
       .mockResolvedValueOnce(projection({ version: 4, completed: 1, current: second, next: null, rest: null }));
     render(<GuidedResistanceCard sessionId="day-1" status="in_progress" version={2}
       load={load} complete={vi.fn()} restAction={restAction} onOverview={vi.fn()} />);

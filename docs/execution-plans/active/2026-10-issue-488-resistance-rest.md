@@ -31,6 +31,12 @@
 - Correção: campo `GuidedResistanceView.serverNow` (inclusive pré-descanso), amostras consecutivas do mesmo servidor com âncora monotônica, limite inferior comprovável para idade de resposta; sem âncora, exibição conservadora e GET de reconciliação único por descanso/prazo se a incerteza exceder 2 s. Nenhuma decisão temporal persistida migrou para o cliente.
 - Provas previstas: resposta lenta após snapshot, requisição e middleware lentos antes do snapshot, processamento longo, transporte misto, ausência de âncora, mudança civil local, pausa, status terminal, idempotência e API real. As validações internas não substituem nova auditoria independente.
 
+## Reclassificação do finding A-004 — contrato HTTP 409
+
+- Auditoria de 01/11/2026, SHA `566f803e558e4876ab6084a0451ea6e40bccb8b0`, rejeição `audit-rejection:9875d7e3-154a-43c3-b6fd-ceacb2ec5444`: **achado inválido**, não defeito da implementação. A auditoria examinou `apps/api/src/common/response.ts`, mas `student.routes.ts` importa `sendError` de `@corrida/utils` (`packages/utils/common.ts`), que serializa o código de erro em `details.code`, exatamente como `GuidedResistanceCard.tsx` já consome. Mudar a leitura para `errors.code` quebraria o fluxo existente.
+- Cobertura adicionada: teste HTTP Supertest na rota guiada real (com serviço injetado) valida `details.code` e ausência de `errors`, distinguindo `INVALID_TRANSITION` de `VERSION_CONFLICT`; teste navegador com API/PostgreSQL reais tenta `finish` cedo, recebe 409 e comprova que versão/descanso não mudaram; teste React exercita o mesmo envelope, GET na mesma versão e retry de conclusão. A UI continua sem autoridade temporal.
+- Não houve modificação do contrato de produção. A reclassificação é análise técnica e evidência interna; **somente nova auditoria independente** pode emitir aprovação.
+
 ## Riscos e compatibilidade
 
 - Dados legados e séries sem descanso permanecem executáveis sem descanso sintético.

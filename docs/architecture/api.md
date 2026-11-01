@@ -124,6 +124,7 @@ O contrato detalhado e as fontes canônicas estão registrados em `docs/architec
 
 As rotas autenticadas `GET /api/v1/student/me/training-sessions/:sessionId/execution/guided` e `POST /api/v1/student/me/training-sessions/:sessionId/execution/guided/complete` exigem aluno do `contractId` contextual, release consolidado e lifecycle/versão da sessão #389. A série seguinte deriva exclusivamente dos IDs planejados #399 e do grafo `WorkoutResistanceGroup` + `WorkoutResistanceGroupMember` da #400 (PR #521). Nenhum texto de `system` estabelece agrupamentos. Um comando confirmado liga o item à sua operação canônica única, ao evento e à versão; conflito retorna 409 e exige revalidação no servidor.
 
+**Erro HTTP da execução guiada/descanso (#488):** `student.routes.ts` usa `sendError` de `@corrida/utils` (`packages/utils/common.ts`), que envia `{ success: false, error: string, details: { code: string }, timestamp }` nos conflitos 409. O frontend consome `response.data.details.code`: `WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION` em `finish` antes do prazo requer GET e retry sem bloqueio permanente da mesma versão; `WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT` exige reconciliação e nova versão antes de escrever. Não confundir com o helper de mesmo nome em `apps/api/src/common/response.ts` (`errors.code`), que **não** é o importado por essas rotas. Testes HTTP reais e da interface devem cobrir esta distinção.
 
 ### Validação cruzada de séries planejadas (#487)
 
