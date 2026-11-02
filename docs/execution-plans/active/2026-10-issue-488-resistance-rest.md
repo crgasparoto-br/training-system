@@ -3,7 +3,8 @@
 ## Identidade, pré-requisitos e fontes
 
 - Repositório: `crgasparoto-br/training-system`; branch-base: `develop`.
-- Entrega: `feat/488-resistance-rest-timer`; PR deve ser auditada sem merge automático.
+- Entrega vigente: branch `feat/488-resistance-rest-develop-reconciled`, [PR #529](https://github.com/crgasparoto-br/training-system/pull/529) com base `develop`. A CI e a auditoria independente devem ser revalidadas no HEAD exato após qualquer alteração; não realizar merge automático.
+- Histórico substituído: branch `feat/488-resistance-rest-timer` e [PR #528](https://github.com/crgasparoto-br/training-system/pull/528), que possuía conflitos com `develop`. Preservar a PR #528 somente como histórico; não integrar ambas as PRs.
 - Base: #389 (sessão, pausa, versão e operações), #399 (séries planejadas), #400 (grupos/rodadas) e #487 (conclusão guiada e ordem persistida).
 - Não criar árvore paralela de planejamento nem persistir cronômetro no navegador.
 
