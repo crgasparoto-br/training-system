@@ -206,8 +206,34 @@ export interface GuidedResistanceUnit {
   notes: string | null;
 }
 
+/** Descanso real da transição entre séries; nunca altera a prescrição. */
+export interface GuidedResistanceRestView {
+  id: string;
+  afterPlannedSetId: string;
+  plannedSeconds: number;
+  extensionSeconds: number;
+  startedAt: string;
+  targetEndsAt: string;
+  /** Instante canônico do servidor usado como âncora para exibição. */
+  serverNow: string;
+  /** Tempo gasto no servidor até obter este snapshot, não é tempo de descanso.
+   * Omitido somente por consumidores antigos; nunca compara relógios do cliente e do servidor. */
+  requestProcessingMs?: number;
+  elapsedMs: number;
+  remainingMs: number;
+}
+
+export interface GuidedResistanceRestActionPayload {
+  operationKey: string;
+  expectedVersion: number;
+  restId: string;
+  action: 'extend_15' | 'skip' | 'finish';
+}
+
 export interface GuidedResistanceView {
   sessionId: string;
+  /** Servidor no instante da projeção, mesmo sem descanso; usado apenas para calibrar a apresentação. */
+  serverNow?: string;
   status: TrainingSessionExecutionStatus;
   version: number;
   availability: GuidedResistanceAvailability;
@@ -215,6 +241,8 @@ export interface GuidedResistanceView {
   total: number;
   current: GuidedResistanceUnit | null;
   next: GuidedResistanceUnit | null;
+  /** Null significa sem descanso pendente; opcional para consumidores legados. */
+  rest?: GuidedResistanceRestView | null;
 }
 
 export interface GuidedResistanceCompletePayload {

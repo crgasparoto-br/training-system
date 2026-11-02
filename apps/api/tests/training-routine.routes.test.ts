@@ -8,6 +8,7 @@ const mockGetRoutine = jest.fn();
 const mockGetCheckIn = jest.fn();
 const mockGetGuided = jest.fn();
 const mockCompleteGuided = jest.fn();
+const mockActGuidedRest = jest.fn();
 const mockSaveCheckIn = jest.fn();
 const mockSaveExecutionValues = jest.fn();
 const mockGetSessionExecution = jest.fn();
@@ -56,7 +57,14 @@ jest.mock('../src/modules/workout/workout-session-execution.service', () => {
     code = 'WORKOUT_SESSION_EXECUTION_INVALID';
   }
   class WorkoutSessionExecutionNotFoundError extends Error {}
-  class WorkoutSessionExecutionConflictError extends Error {}
+  class WorkoutSessionExecutionConflictError extends Error {
+    constructor(message: string, public readonly code:
+      | 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT'
+      | 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION'
+      | 'WORKOUT_SESSION_EXECUTION_IDEMPOTENCY_CONFLICT' = 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT') {
+      super(message);
+    }
+  }
   return {
     workoutSessionExecutionService: {
       saveValues: mockSaveExecutionValues,
@@ -64,6 +72,7 @@ jest.mock('../src/modules/workout/workout-session-execution.service', () => {
       transition: mockTransitionExecution,
       getGuidedForSession: mockGetGuided,
       completeGuided: mockCompleteGuided,
+      actOnGuidedRest: mockActGuidedRest,
     },
     WorkoutSessionExecutionInputError,
     WorkoutSessionExecutionNotFoundError,
@@ -148,6 +157,7 @@ describe('training routine HTTP boundaries (#387)', () => {
       sessionValues: { speedKmh: 9 }, items: [] });
     mockGetGuided.mockReset().mockResolvedValue({ sessionId: 'day-1', availability: 'available', current: null });
     mockCompleteGuided.mockReset().mockResolvedValue({ sessionId: 'day-1', completed: 1 });
+    mockActGuidedRest.mockReset().mockResolvedValue({ sessionId: 'day-1', version: 3, rest: null });
     mockAlunoFindFirst.mockReset();
     mockAccessPermissionFindFirst.mockReset().mockResolvedValue(null);
     mockResolveActiveStudentMembership.mockReset();
@@ -224,6 +234,61 @@ describe('training routine HTTP boundaries (#387)', () => {
         .post('/student/me/training-sessions/day-1/execution/guided/complete')
         .set('x-contract-id', 'contract-1').send(payload());
       expect(stale.status).toBe(409);
+    });
+  });
+
+  describe('guided rest HTTP conflict envelope (#488)', () => {
+    beforeEach(() => {
+      mockUser = { userId: 'user-1', type: 'aluno' };
+      mockResolveActiveStudentMembership.mockResolvedValue({ id: 'aluno-1', contractId: 'contract-1' });
+      mockAlunoFindFirst.mockResolvedValue({ id: 'aluno-1', contractId: 'contract-1', user: { id: 'user-1' } });
+    });
+
+    const restPayload = () => ({
+      operationKey: 'issue488-rest-finish-early', expectedVersion: 2,
+      restId: 'rest-1', action: 'finish',
+    });
+
+    it('returns the @corrida/utils details.code envelope for a premature finish', async () => {
+      mockActGuidedRest.mockRejectedValueOnce(new WorkoutSessionExecutionConflictError(
+        'O descanso ainda não terminou.', 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION',
+      ));
+      const response = await request(app)
+        .post('/student/me/training-sessions/day-1/execution/guided/rest')
+        .set('x-contract-id', 'contract-1').send(restPayload());
+      expect(response.status).toBe(409);
+      expect(response.body).toMatchObject({
+        success: false,
+        details: { code: 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION' },
+      });
+      expect(response.body.errors).toBeUndefined();
+      expect(mockActGuidedRest).toHaveBeenCalledWith({
+        sessionId: 'day-1', alunoId: 'aluno-1', contractId: 'contract-1',
+        actorUserId: 'user-1', payload: restPayload(),
+      });
+    });
+
+    it('keeps version conflicts distinguishable from a premature finish in the public response', async () => {
+      mockActGuidedRest.mockRejectedValueOnce(new WorkoutSessionExecutionConflictError(
+        'Versão alterada.', 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT',
+      ));
+      const response = await request(app)
+        .post('/student/me/training-sessions/day-1/execution/guided/rest')
+        .set('x-contract-id', 'contract-1').send(restPayload());
+      expect(response.status).toBe(409);
+      expect(response.body.details).toEqual({ code: 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT' });
+      expect(response.body.errors).toBeUndefined();
+    });
+
+    it('preserves the normal rest action path and versioned canonical response', async () => {
+      const response = await request(app)
+        .post('/student/me/training-sessions/day-1/execution/guided/rest')
+        .set('x-contract-id', 'contract-1').send({ ...restPayload(), action: 'skip' });
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        success: true, data: { sessionId: 'day-1', version: 3, rest: null },
+      });
+      expect(mockActGuidedRest).toHaveBeenCalledTimes(1);
     });
   });
 
