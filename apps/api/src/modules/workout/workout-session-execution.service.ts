@@ -10,8 +10,10 @@ import type {
   TrainingSessionExecutionView,
   GuidedResistanceCompletePayload,
   GuidedResistanceView,
+  GuidedResistanceRestActionPayload,
 } from '@corrida/types';
 import { deriveGuidedResistancePlan, matchesCurrentGuidedUnit, projectGuidedResistance } from './guided-resistance.domain.js';
+import { prescribedRestAfter, projectResistanceRest, measuredRestMs } from './resistance-rest.domain.js';
 import { projectReleasedExerciseCatalog } from './workout-release-catalog.js';
 import { persistWorkoutSessionValues, WorkoutSessionExecutionInputError } from './workout-session-execution-values.js';
 import { captureWorkoutComparisonPlan, workoutComparisonPlanSelect } from './workout-session-comparison.domain.js';
@@ -554,6 +556,8 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
         throw new WorkoutSessionExecutionConflictError('Valores executados só podem ser registrados enquanto o treino está em andamento.', 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION');
       }
 
+      // The same transaction owns completion, its rest and the operation ledger.
+      let restAfterGuidedSet: { plannedSetId: string; seconds: number } | null = null;
       // Guide confirmation is checked against the authoritative plan and current
       // durable progress INSIDE the same serializable transaction as the write.
       // It cannot jump a set, reuse another exercise, or progress while paused.
@@ -564,10 +568,23 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
             'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION'
           );
         }
+        const activeRest = await tx.workoutSessionResistanceRest.findFirst({
+          where: { executionId: execution.id, status: 'active' },
+        });
+        if (activeRest) {
+          throw new WorkoutSessionExecutionConflictError(
+            'Finalize ou pule o descanso atual antes de concluir outra série.',
+            'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION'
+          );
+        }
         const plan = await loadGuidedResistancePlan(tx, input.sessionId);
         const persisted = await readExecution(tx, input.sessionId);
         if (!persisted) throw new WorkoutSessionExecutionNotFoundError('Execução de treino não encontrada.');
         const guided = projectGuidedResistance(input.sessionId, projectWorkoutSessionExecution(persisted), plan);
+        const plannedSeconds = prescribedRestAfter(guided.current, guided.next);
+        if (plannedSeconds !== null && guided.current) {
+          restAfterGuidedSet = { plannedSetId: guided.current.plannedSetId, seconds: plannedSeconds };
+        }
         if (!matchesCurrentGuidedUnit(guided, items[0])) {
           throw new WorkoutSessionExecutionConflictError(
             'Esta série não é a próxima do planejamento. Atualize o treino antes de continuar.',
@@ -625,6 +642,17 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
         tx, execution.id, input.sessionId, sessionValues, items,
         input.guidedCompletion ? now : undefined, guidedOperation?.id,
       );
+      if (restAfterGuidedSet) {
+        // Unique completed-set identity and partial unique active index guard retries
+        // and race conditions. Prescribed values are read, never updated.
+        await tx.workoutSessionResistanceRest.create({ data: {
+          executionId: execution.id,
+          afterPlannedSetId: restAfterGuidedSet.plannedSetId,
+          plannedSeconds: restAfterGuidedSet.seconds,
+          startedAt: now,
+          targetEndsAt: new Date(now.getTime() + restAfterGuidedSet.seconds * 1000),
+        } });
+      }
 
       let nextStatus = currentStatus;
       let startedAt = execution.startedAt;
@@ -642,14 +670,38 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
         }
         if (currentStatus === 'paused' && (nextStatus === 'in_progress' || nextStatus === 'partial')) {
           const pauseStarted = currentPauseStartedAt;
-          if (pauseStarted) pausedDurationMs += BigInt(Math.max(0, now.getTime() - pauseStarted.getTime()));
+          const pauseMs = pauseStarted ? Math.max(0, now.getTime() - pauseStarted.getTime()) : 0;
+          pausedDurationMs += BigInt(pauseMs);
+          const resting = await tx.workoutSessionResistanceRest.findFirst({
+            where: { executionId: execution.id, status: 'active' },
+          });
+          if (resting) {
+            await tx.workoutSessionResistanceRest.update({
+              where: { id: resting.id },
+              data: {
+                pausedDurationMs: resting.pausedDurationMs + BigInt(pauseMs),
+                targetEndsAt: new Date(resting.targetEndsAt.getTime() + pauseMs),
+              },
+            });
+          }
           await tx.workoutSessionPauseInterval.updateMany({
             where: { executionId: execution.id, endedAt: null },
             data: { endedAt: now },
           });
           currentPauseStartedAt = null;
         }
-        if (TERMINAL_EXECUTION_STATUSES.has(nextStatus) && !finishedAt) finishedAt = now;
+        if (TERMINAL_EXECUTION_STATUSES.has(nextStatus)) {
+          if (!finishedAt) finishedAt = now;
+          const activeRest = await tx.workoutSessionResistanceRest.findFirst({
+            where: { executionId: execution.id, status: 'active' },
+          });
+          if (activeRest) {
+            await tx.workoutSessionResistanceRest.update({
+              where: { id: activeRest.id },
+              data: { status: 'interrupted', endedAt: now, elapsedMs: BigInt(measuredRestMs(activeRest, now)) },
+            });
+          }
+        }
         if (nextStatus === 'partial' || nextStatus === 'not_performed') interruptionReason = reason ?? null;
       }
 
@@ -741,12 +793,124 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
       const execution = await readExecution(tx, input.sessionId);
       const view = execution ? projectWorkoutSessionExecution(execution) : defaultView(locked);
       const plan = await loadGuidedResistancePlan(tx, input.sessionId);
-      return projectGuidedResistance(input.sessionId, view, plan);
+      const activeRest = execution ? await tx.workoutSessionResistanceRest.findFirst({
+        where: { executionId: execution.id, status: 'active' },
+      }) : null;
+      const snapshotAt = new Date();
+      return {
+        ...projectGuidedResistance(input.sessionId, view, plan),
+        // A trusted server clock sample must be available before the first rest starts.
+        // It is only used by the UI to bound response age, never to authorize finish.
+        serverNow: snapshotAt.toISOString(),
+        rest: projectResistanceRest(activeRest, {
+          status: view.status, currentPauseStartedAt: execution?.currentPauseStartedAt ?? null,
+        }, snapshotAt),
+      };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
+  /** REST operations reuse #389 versioning, ownership, idempotency and event ledger. */
+  async function actOnGuidedRest(input: {
+    sessionId: string; alunoId: string; contractId: string; actorUserId: string;
+    payload: GuidedResistanceRestActionPayload;
+  }): Promise<GuidedResistanceView> {
+    const { operationKey, expectedVersion, restId, action } = input.payload;
+    ensureOperationKey(operationKey);
+    if (!Number.isInteger(expectedVersion) || expectedVersion < 0 || !restId?.trim()
+      || !['extend_15', 'skip', 'finish'].includes(action)) {
+      throw new WorkoutSessionExecutionInputError('Comando de descanso inválido.');
+    }
+    const operationFingerprint = fingerprint({ action: 'guided_rest', restId, expectedVersion, command: action });
+    try {
+      await client.$transaction(async (tx) => {
+        const locked = await lockReleasedSession(tx, input.sessionId, input.alunoId, input.contractId);
+        if (!locked) throw new WorkoutSessionExecutionNotFoundError('Sessão de treino não encontrada.');
+        const execution = await tx.workoutSessionExecution.findUnique({ where: { workoutDayId: input.sessionId } });
+        if (!execution) throw new WorkoutSessionExecutionConflictError(
+          'Inicie a sessão antes de controlar o descanso.', 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION'
+        );
+        const prior = await tx.workoutSessionExecutionOperation.findUnique({
+          where: { executionId_operationKey: { executionId: execution.id, operationKey } },
+        });
+        if (prior) {
+          if (prior.payloadFingerprint !== operationFingerprint) throw new WorkoutSessionExecutionConflictError(
+            'Chave de operação já utilizada com outro comando.', 'WORKOUT_SESSION_EXECUTION_IDEMPOTENCY_CONFLICT'
+          );
+          return;
+        }
+        if (execution.version !== expectedVersion) throw new WorkoutSessionExecutionConflictError(
+          'A sessão mudou em outro cliente. Atualize o estado salvo.', 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT'
+        );
+        if (execution.status !== 'in_progress') throw new WorkoutSessionExecutionConflictError(
+          'Retome a sessão antes de continuar o descanso.', 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION'
+        );
+        const rest = await tx.workoutSessionResistanceRest.findFirst({
+          where: { id: restId, executionId: execution.id, status: 'active' },
+        });
+        if (!rest) throw new WorkoutSessionExecutionConflictError(
+          'Este descanso não está mais ativo. Atualize a sessão.', 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT'
+        );
+        const now = new Date();
+        let actualElapsedMs: number | null = null;
+        if (action === 'extend_15') {
+          if (rest.extensionSeconds > 2147483632) throw new WorkoutSessionExecutionInputError(
+            'O limite de acréscimos deste descanso foi atingido.'
+          );
+          await tx.workoutSessionResistanceRest.update({ where: { id: rest.id }, data: {
+            extensionSeconds: { increment: 15 },
+            targetEndsAt: new Date(rest.targetEndsAt.getTime() + 15000),
+          } });
+        } else {
+          if (action === 'finish' && now.getTime() < rest.targetEndsAt.getTime()) {
+            throw new WorkoutSessionExecutionConflictError(
+              'O descanso ainda não terminou. Aguarde ou escolha Pular descanso.',
+              'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION'
+            );
+          }
+          actualElapsedMs = measuredRestMs(rest, now);
+          await tx.workoutSessionResistanceRest.update({ where: { id: rest.id }, data: {
+            status: action === 'skip' ? 'skipped' : 'completed',
+            endedAt: now, elapsedMs: BigInt(actualElapsedMs),
+          } });
+        }
+        const nextVersion = execution.version + 1;
+        const operation = await tx.workoutSessionExecutionOperation.create({ data: {
+          executionId: execution.id, operationKey, payloadFingerprint: operationFingerprint,
+          action: 'rest_' + action, expectedVersion, resultingVersion: nextVersion,
+        } });
+        await tx.workoutSessionExecution.update({
+          where: { id: execution.id }, data: { version: nextVersion },
+        });
+        const event = await tx.studentLifecycleEvent.create({ data: {
+          alunoId: input.alunoId, contractId: input.contractId,
+          eventType: 'STATUS_CHANGED', actorUserId: input.actorUserId,
+          metadata: {
+            eventKey: 'workout-session-execution:' + execution.id + ':' + operation.id,
+            domain: 'workout_session_execution', action: 'rest_' + action,
+            workoutDayId: input.sessionId, executionId: execution.id, operationId: operation.id,
+            restId: rest.id, afterPlannedSetId: rest.afterPlannedSetId,
+            plannedSeconds: rest.plannedSeconds, actualElapsedMs,
+            previousStatus: execution.status, status: execution.status,
+            previousVersion: expectedVersion, version: nextVersion,
+          },
+        }, select: { id: true } });
+        await tx.workoutSessionExecutionOperation.update({
+          where: { id: operation.id }, data: { lifecycleEventId: event.id },
+        });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (isSerializableTransactionConflict(error)) throw new WorkoutSessionExecutionConflictError(
+        'O descanso foi alterado em outro cliente. Atualize a sessão.',
+        'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT'
+      );
+      throw error;
+    }
+    return getGuidedForSession(input);
   }
 
   return {
     getGuidedForSession,
+    actOnGuidedRest,
     async getForSession(input: { sessionId: string; alunoId: string; contractId: string }): Promise<TrainingSessionExecutionView> {
       const released = await client.$transaction((tx) => lockReleasedSession(tx, input.sessionId, input.alunoId, input.contractId));
       if (!released) throw new WorkoutSessionExecutionNotFoundError('Sessão de treino não encontrada.');

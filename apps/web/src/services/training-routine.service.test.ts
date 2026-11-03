@@ -34,6 +34,7 @@ describe('trainingRoutineService', () => {
 
   it('expõe leitura e mutações canônicas de execução', async () => {
     expect(Object.keys(trainingRoutineService).sort()).toEqual([
+      'actGuidedRestForStudent',
       'completeGuidedForStudent',
       'getForAluno',
       'getForStudent',
@@ -93,6 +94,19 @@ describe('trainingRoutineService', () => {
     expect(mocks.post).toHaveBeenCalledWith(
       '/student/me/training-sessions/day-1/execution/guided/complete',
       guidedCompletion,
+      { headers: { 'x-contract-id': 'contract-1' } },
+    );
+
+    const restOperation = {
+      operationKey: 'rest-operation-123', expectedVersion: 3,
+      restId: 'rest-1', action: 'extend_15' as const,
+    };
+    await trainingRoutineService.actGuidedRestForStudent(
+      'day-1', restOperation, { contractId: 'contract-1' },
+    );
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/student/me/training-sessions/day-1/execution/guided/rest',
+      restOperation,
       { headers: { 'x-contract-id': 'contract-1' } },
     );
 

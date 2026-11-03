@@ -13,6 +13,7 @@ import type {
   TrainingSessionExecutionTransitionPayload,
   TrainingSessionExecutionView,
   GuidedResistanceCompletePayload,
+  GuidedResistanceRestActionPayload,
   GuidedResistanceView,
 } from '@corrida/types';
 import { Button } from '../ui/Button';
@@ -141,6 +142,7 @@ function TodaySession({
   transitionExecution,
   loadGuided,
   completeGuided,
+  actRest,
   onExecutionChanged,
 }: {
   session: TrainingRoutineSessionDetail;
@@ -151,6 +153,7 @@ function TodaySession({
   transitionExecution?: (sessionId: string, payload: TrainingSessionExecutionTransitionPayload) => Promise<TrainingSessionExecutionView>;
   loadGuided?: (sessionId: string) => Promise<GuidedResistanceView>;
   completeGuided?: (sessionId: string, payload: GuidedResistanceCompletePayload) => Promise<GuidedResistanceView>;
+  actRest?: (sessionId: string, payload: GuidedResistanceRestActionPayload) => Promise<GuidedResistanceView>;
   onExecutionChanged?: () => Promise<void>;
 }) {
   const headingId = useId();
@@ -408,6 +411,7 @@ function TodaySession({
           version={session.execution.version}
           load={loadGuided}
           complete={completeGuided}
+          restAction={actRest}
           onExecutionChanged={onExecutionChanged}
           onOverview={() => setShowGuided(false)}
           draftStore={guidedDraftStore}
@@ -751,6 +755,7 @@ export type TrainingRoutinePanelProps = {
   transitionExecution?: (sessionId: string, payload: TrainingSessionExecutionTransitionPayload) => Promise<TrainingSessionExecutionView>;
   loadGuided?: (sessionId: string) => Promise<GuidedResistanceView>;
   completeGuided?: (sessionId: string, payload: GuidedResistanceCompletePayload) => Promise<GuidedResistanceView>;
+  actRest?: (sessionId: string, payload: GuidedResistanceRestActionPayload) => Promise<GuidedResistanceView>;
 };
 
 export function TrainingRoutinePanel({
@@ -764,6 +769,7 @@ export function TrainingRoutinePanel({
   transitionExecution,
   loadGuided,
   completeGuided,
+  actRest,
 }: TrainingRoutinePanelProps) {
   const [routine, setRoutine] = useState<TrainingRoutineView | null>(null);
   const [referenceDate, setReferenceDate] = useState<string | undefined>(undefined);
@@ -893,6 +899,7 @@ export function TrainingRoutinePanel({
                 transitionExecution={transitionExecution}
                 loadGuided={loadGuided}
                 completeGuided={completeGuided}
+                actRest={actRest}
                 onExecutionChanged={async () => {
                   if (!await fetchRoutine(referenceDate)) throw new Error('Falha ao revalidar treino');
                 }}

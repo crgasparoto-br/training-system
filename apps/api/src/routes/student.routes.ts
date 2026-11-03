@@ -36,6 +36,7 @@ import {
 } from '../modules/workout/workout-session-execution.service.js';
 import { projectWorkoutExecutionForAudience } from '../modules/workout/workout-session-comparison.domain.js';
 import { postWorkoutFeedbackPersistenceService, PostWorkoutFeedbackConflictError, PostWorkoutFeedbackInputError, PostWorkoutFeedbackNotFoundError } from '../modules/post-workout-feedback/post-workout-feedback-persistence.service.js';
+import { withResistanceRestRequestTiming } from '../modules/workout/resistance-rest.domain.js';
 
 const prisma = new PrismaClient();
 
@@ -891,6 +892,13 @@ const executionItemSchema = z.object({
   heartRateZone: z.string().trim().max(32).nullable().optional(),
 }).strict();
 
+const guidedRestActionSchema = z.object({
+  operationKey: z.string().trim().min(8).max(128),
+  expectedVersion: z.number().int().nonnegative(),
+  restId: z.string().trim().min(1),
+  action: z.enum(['extend_15', 'skip', 'finish']),
+}).strict();
+
 const guidedCompletionSchema = z.object({
   operationKey: z.string().trim().min(8).max(128),
   expectedVersion: z.number().int().nonnegative(),
@@ -954,12 +962,14 @@ router.get('/me/training-sessions/:sessionId/execution', async (req: Request, re
 
 // Canonical #389 execution remains the only state/version authority for #487.
 router.get('/me/training-sessions/:sessionId/execution/guided', async (req: Request, res: Response) => {
+  const requestStartedAtMs = Date.now();
   try {
     const userId = (req as any).user.userId as string;
     const aluno = await requireAlunoByUserId(req, userId);
-    return sendSuccess(res, await workoutSessionExecutionService.getGuidedForSession({
+    const view = await workoutSessionExecutionService.getGuidedForSession({
       sessionId: req.params.sessionId, alunoId: aluno.id, contractId: aluno.contractId,
-    }));
+    });
+    return sendSuccess(res, withResistanceRestRequestTiming(view, requestStartedAtMs));
   } catch (error: any) {
     const handled = sendExecutionError(res, error);
     if (handled) return handled;
@@ -969,19 +979,40 @@ router.get('/me/training-sessions/:sessionId/execution/guided', async (req: Requ
 });
 
 router.post('/me/training-sessions/:sessionId/execution/guided/complete', async (req: Request, res: Response) => {
+  const requestStartedAtMs = Date.now();
   try {
     const userId = (req as any).user.userId as string;
     const aluno = await requireAlunoByUserId(req, userId);
     const payload = guidedCompletionSchema.parse(req.body);
-    return sendSuccess(res, await workoutSessionExecutionService.completeGuided({
+    const view = await workoutSessionExecutionService.completeGuided({
       sessionId: req.params.sessionId, alunoId: aluno.id,
       contractId: aluno.contractId, actorUserId: userId, payload,
-    }), 'Série concluída');
+    });
+    return sendSuccess(res, withResistanceRestRequestTiming(view, requestStartedAtMs), 'Série concluída');
   } catch (error: any) {
     const handled = sendExecutionError(res, error);
     if (handled) return handled;
     console.error('Erro ao concluir série guiada:', error);
     return sendError(res, 'Não foi possível concluir a série', 500);
+  }
+});
+
+router.post('/me/training-sessions/:sessionId/execution/guided/rest', async (req: Request, res: Response) => {
+  const requestStartedAtMs = Date.now();
+  try {
+    const userId = (req as any).user.userId as string;
+    const aluno = await requireAlunoByUserId(req, userId);
+    const payload = guidedRestActionSchema.parse(req.body);
+    const view = await workoutSessionExecutionService.actOnGuidedRest({
+      sessionId: req.params.sessionId, alunoId: aluno.id,
+      contractId: aluno.contractId, actorUserId: userId, payload,
+    });
+    return sendSuccess(res, withResistanceRestRequestTiming(view, requestStartedAtMs), 'Descanso atualizado');
+  } catch (error: any) {
+    const handled = sendExecutionError(res, error);
+    if (handled) return handled;
+    console.error('Erro ao atualizar descanso guiado:', error);
+    return sendError(res, 'Não foi possível atualizar o descanso', 500);
   }
 });
 
