@@ -22,12 +22,92 @@ export type TrainingRoutineExecutionProjectionStatus =
 
 export type TrainingSessionExecutionStatus = TrainingRoutineExecutionProjectionStatus;
 
+/** #401: neutral comparisons; differences do not imply improvement or decline. */
+export type TrainingSessionExecutionOutcome = 'full' | 'partial' | 'substituted' | 'not_performed';
+/** historical_unknown: the original plan was not captured; coverage cannot be reconstructed. */
+export type TrainingSessionComparisonOutcome = TrainingSessionExecutionOutcome | 'not_recorded' | 'unclassified' | 'incomplete_record' | 'historical_unknown';
+
+export interface TrainingSessionComparisonMetric {
+  key: string;
+  label: string;
+  planned: number | string | null;
+  plannedMax: number | string | null;
+  /** Exact prescription, lower bound, upper bound, interval or unavailable.
+   * Optional for backwards compatibility with previously serialized comparisons. */
+  plannedConstraint?: 'exact' | 'minimum' | 'maximum' | 'range' | null;
+  executed: number | string | null;
+  plannedUnit: string | null;
+  executedUnit: string | null;
+  difference: number | null;
+}
+
+export interface TrainingSessionComparisonUnit {
+  /** Stable planned ID, not the display position or exercise name. */
+  plannedUnitId: string;
+  parentUnitId: string | null;
+  iteration: number | null;
+  /** Set execution number, when the same planned set was logged more than once. */
+  executedSetNumber?: number | null;
+  /** Explicit user-provided replacement, never inferred from exercise names. */
+  substitutionNote?: string | null;
+  kind: 'session' | 'cyclic_stage' | 'exercise' | 'block' | 'set' | 'group';
+  label: string;
+  outcome: TrainingSessionComparisonOutcome;
+  /** Substitutions remain visible even in incomplete or partial aggregates. */
+  containsSubstitution?: boolean;
+  metrics: TrainingSessionComparisonMetric[];
+}
+
+export interface TrainingSessionComparison {
+  sessionId: string;
+  originReleaseId: string;
+  /** Older sessions without a captured plan use an explicitly marked legacy fallback. */
+  snapshotSource: 'captured' | 'released_plan';
+  executionVersion: number;
+  units: TrainingSessionComparisonUnit[];
+}
+
+export interface TrainingSessionCyclicStageExecutionValue {
+  plannedStageId: string;
+  /** Repeat iteration, 1-based. */
+  iteration?: number;
+  outcome: TrainingSessionExecutionOutcome;
+  substitutionNote?: string | null;
+  durationSec?: number | null;
+  distanceMeters?: number | null;
+  paceMinPerKm?: number | null;
+  speedKmh?: number | null;
+  heartRateBpm?: number | null;
+  heartRateZone?: string | null;
+  pse?: number | null;
+}
+
+export interface TrainingSessionResistanceGroupExecutionValue {
+  plannedGroupId: string;
+  outcome: TrainingSessionExecutionOutcome;
+  substitutionNote?: string | null;
+  roundsCompleted?: number | null;
+  restBetweenExercisesSec?: number | null;
+  restBetweenRoundsSec?: number | null;
+}
+
 export interface TrainingSessionExecutionSessionValues {
   durationSec?: number | null;
   distanceKm?: number | null;
   pace?: string | null;
+  /** Average speed of this session, not a value inferred from pace or distance. */
+  speedKmh?: number | null;
   heartRateBpm?: number | null;
   heartRateZone?: string | null;
+  /** Keyed incremental upserts. Omitted units/fields remain untouched; null clears a metric. */
+  cyclicStages?: TrainingSessionCyclicStageExecutionValue[];
+  resistanceGroups?: TrainingSessionResistanceGroupExecutionValue[];
+}
+
+/** Write-only deletion intents. The execution view never exposes or persists these controls. */
+export interface TrainingSessionExecutionSessionValuesPatch extends TrainingSessionExecutionSessionValues {
+  removeCyclicStages?: Array<{ plannedStageId: string; iteration?: number }>;
+  removeResistanceGroups?: string[];
 }
 
 export interface TrainingSessionExecutionItemValue {
@@ -35,6 +115,15 @@ export interface TrainingSessionExecutionItemValue {
   /** Série planejada correspondente; nulo somente para unidades sem séries estruturadas. */
   plannedSetId?: string | null;
   setNumber?: number;
+  /** Only explicit write outcomes; aggregate/unknown labels are derived on read. */
+  outcome?: TrainingSessionExecutionOutcome;
+  substitutionNote?: string | null;
+  rir?: number | null;
+  rpe?: number | null;
+  tempo?: string | null;
+  restSec?: number | null;
+  /** Marcador persistido de conclusão guiada; somente leitura, não aceito em payloads de escrita. */
+  completedAt?: string | null;
   loadKg?: number | null;
   repetitions?: number | null;
   durationSec?: number | null;
@@ -68,15 +157,102 @@ export interface TrainingSessionExecutionTransitionPayload {
   expectedVersion: number;
   targetStatus: TrainingSessionExecutionStatus;
   reason?: string | null;
-  sessionValues?: TrainingSessionExecutionSessionValues;
+  sessionValues?: TrainingSessionExecutionSessionValuesPatch;
   items?: TrainingSessionExecutionItemValue[];
 }
 
 export interface TrainingSessionExecutionValuesPayload {
   operationKey: string;
   expectedVersion: number;
-  sessionValues?: TrainingSessionExecutionSessionValues;
+  sessionValues?: TrainingSessionExecutionSessionValuesPatch;
   items?: TrainingSessionExecutionItemValue[];
+}
+
+/** O executor guia somente séries explicitamente modeladas por #399.
+ * Agrupamentos são estruturados pelas entidades canônicas da #400. */
+export type GuidedResistanceAvailability =
+  | 'available' | 'legacy_read_only' | 'grouping_pending' | 'no_structured_resistance';
+
+export type ResistanceExerciseGroupType =
+  | 'superserie' | 'bi_set' | 'tri_set' | 'circuito'
+  | 'bloco_tecnico' | 'mobilidade' | 'finalizacao';
+
+export interface GuidedResistanceUnit {
+  plannedUnitId: string;
+  plannedSetId: string;
+  setNumber: number;
+  exerciseName: string;
+  /** Link HTTPS configurado no catálogo; mídia opcional, sem reprodução automática. */
+  videoUrl: string | null;
+  section: string;
+  blockKind: string;
+  blockPosition: number;
+  setPosition: number;
+  exerciseSetTotal: number;
+  groupId: string | null;
+  groupType: ResistanceExerciseGroupType | null;
+  groupPosition: number | null;
+  groupSize: number | null;
+  roundNumber: number | null;
+  roundTotal: number | null;
+  repsMin: number | null;
+  repsMax: number | null;
+  loadKg: number | null;
+  loadPercent: number | null;
+  rir: number | null;
+  rpe: number | null;
+  tempo: string | null;
+  restSec: number | null;
+  notes: string | null;
+}
+
+/** Descanso real da transição entre séries; nunca altera a prescrição. */
+export interface GuidedResistanceRestView {
+  id: string;
+  afterPlannedSetId: string;
+  plannedSeconds: number;
+  extensionSeconds: number;
+  startedAt: string;
+  targetEndsAt: string;
+  /** Instante canônico do servidor usado como âncora para exibição. */
+  serverNow: string;
+  /** Tempo gasto no servidor até obter este snapshot, não é tempo de descanso.
+   * Omitido somente por consumidores antigos; nunca compara relógios do cliente e do servidor. */
+  requestProcessingMs?: number;
+  elapsedMs: number;
+  remainingMs: number;
+}
+
+export interface GuidedResistanceRestActionPayload {
+  operationKey: string;
+  expectedVersion: number;
+  restId: string;
+  action: 'extend_15' | 'skip' | 'finish';
+}
+
+export interface GuidedResistanceView {
+  sessionId: string;
+  /** Servidor no instante da projeção, mesmo sem descanso; usado apenas para calibrar a apresentação. */
+  serverNow?: string;
+  status: TrainingSessionExecutionStatus;
+  version: number;
+  availability: GuidedResistanceAvailability;
+  completed: number;
+  total: number;
+  current: GuidedResistanceUnit | null;
+  next: GuidedResistanceUnit | null;
+  /** Null significa sem descanso pendente; opcional para consumidores legados. */
+  rest?: GuidedResistanceRestView | null;
+}
+
+export interface GuidedResistanceCompletePayload {
+  operationKey: string;
+  expectedVersion: number;
+  plannedUnitId: string;
+  plannedSetId: string;
+  setNumber: number;
+  repetitions: number | null;
+  loadKg: number | null;
 }
 
 export type TrainingRoutineModality = 'resistance' | 'cyclic' | 'flexibility' | 'balance';
@@ -121,6 +297,8 @@ export interface TrainingRoutineSessionSummary {
   method: string | null;
   status: TrainingRoutineExecutionProjectionStatus;
   origin: TrainingRoutineOrigin;
+  /** Only executed, authorized sessions have historical comparisons. */
+  comparison?: TrainingSessionComparison;
 }
 
 export interface TrainingRoutineExercise {
@@ -138,6 +316,24 @@ export interface TrainingRoutineExercise {
 export interface TrainingRoutineBlock {
   key: TrainingRoutineBlockKey;
   exercises: TrainingRoutineExercise[];
+}
+
+/** Immutable cyclic prescription; repeated stages contain ordered work and recovery children. */
+export interface TrainingRoutineCyclicStage {
+  id: string;
+  position: number;
+  kind: 'warmup' | 'work' | 'recovery' | 'cooldown' | 'repeat';
+  durationUnit: 'seconds' | 'meters' | null;
+  durationValue: number | null;
+  targetKind: 'pace_min_per_km' | 'speed_kmh' | 'heart_rate_bpm' | 'zone' | 'pse' | null;
+  targetValue: number | null;
+  targetMin: number | null;
+  targetMax: number | null;
+  repeatCount: number | null;
+  inclinePercent: number | null;
+  cadenceSpm: number | null;
+  notes: string | null;
+  children: TrainingRoutineCyclicStage[];
 }
 
 export interface TrainingRoutineCyclicTargets {
@@ -161,7 +357,9 @@ export interface TrainingRoutineSessionDetail extends TrainingRoutineSessionSumm
   objective: string | null;
   guidelines: string[];
   cyclic: TrainingRoutineCyclicTargets | null;
+  cyclicStages: TrainingRoutineCyclicStage[];
   blocks: TrainingRoutineBlock[];
+  comparison?: TrainingSessionComparison;
   preWorkoutCheckIn?: PreWorkoutCheckInView | null;
   postWorkoutFeedback?: CanonicalPostWorkoutFeedbackRevisionView[];
   /** Presente somente na visão do professor. */

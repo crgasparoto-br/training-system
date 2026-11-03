@@ -34,8 +34,11 @@ describe('trainingRoutineService', () => {
 
   it('expõe leitura e mutações canônicas de execução', async () => {
     expect(Object.keys(trainingRoutineService).sort()).toEqual([
+      'actGuidedRestForStudent',
+      'completeGuidedForStudent',
       'getForAluno',
       'getForStudent',
+      'getGuidedForStudent',
       'saveExecutionValuesForStudent',
       'transitionForStudent',
     ]);
@@ -68,6 +71,43 @@ describe('trainingRoutineService', () => {
         sessionValues: { distanceKm: 5 },
       },
       { contractId: 'contract-1' }
+    );
+
+    await trainingRoutineService.getGuidedForStudent('day-1', { contractId: 'contract-1' });
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/student/me/training-sessions/day-1/execution/guided',
+      { headers: { 'x-contract-id': 'contract-1' } },
+    );
+
+    const guidedCompletion = {
+      operationKey: 'guided-completion-123',
+      expectedVersion: 2,
+      plannedUnitId: 'exercise-1',
+      plannedSetId: 'set-1',
+      setNumber: 1,
+      repetitions: 8,
+      loadKg: 42.5,
+    };
+    await trainingRoutineService.completeGuidedForStudent(
+      'day-1', guidedCompletion, { contractId: 'contract-1' },
+    );
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/student/me/training-sessions/day-1/execution/guided/complete',
+      guidedCompletion,
+      { headers: { 'x-contract-id': 'contract-1' } },
+    );
+
+    const restOperation = {
+      operationKey: 'rest-operation-123', expectedVersion: 3,
+      restId: 'rest-1', action: 'extend_15' as const,
+    };
+    await trainingRoutineService.actGuidedRestForStudent(
+      'day-1', restOperation, { contractId: 'contract-1' },
+    );
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/student/me/training-sessions/day-1/execution/guided/rest',
+      restOperation,
+      { headers: { 'x-contract-id': 'contract-1' } },
     );
 
     expect(mocks.put).toHaveBeenCalledWith(

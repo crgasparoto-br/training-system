@@ -12,10 +12,15 @@ import type {
   TrainingSessionExecutionStatus,
   TrainingSessionExecutionTransitionPayload,
   TrainingSessionExecutionView,
+  GuidedResistanceCompletePayload,
+  GuidedResistanceRestActionPayload,
+  GuidedResistanceView,
 } from '@corrida/types';
 import { Button } from '../ui/Button';
 import { PreWorkoutCheckInCard } from './PreWorkoutCheckInCard';
 import { PostWorkoutFeedbackCard } from './PostWorkoutFeedbackCard';
+import { WorkoutExecutionComparisonCard } from './WorkoutExecutionComparisonCard';
+import { GuidedResistanceCard, type GuidedResistanceDraft } from './GuidedResistanceCard';
 import type { UpsertPreWorkoutCheckInPayload, PreWorkoutCheckInView, CreateCanonicalPostWorkoutFeedbackPayload, CanonicalPostWorkoutFeedbackRevisionView } from '@corrida/types';
 import {
   getTrainingRoutineErrorKind,
@@ -135,6 +140,9 @@ function TodaySession({
   saveCheckIn,
   saveFeedback,
   transitionExecution,
+  loadGuided,
+  completeGuided,
+  actRest,
   onExecutionChanged,
 }: {
   session: TrainingRoutineSessionDetail;
@@ -143,6 +151,9 @@ function TodaySession({
   saveCheckIn?: (sessionId: string, payload: UpsertPreWorkoutCheckInPayload) => Promise<PreWorkoutCheckInView>;
   saveFeedback?: (sessionId: string, payload: CreateCanonicalPostWorkoutFeedbackPayload) => Promise<CanonicalPostWorkoutFeedbackRevisionView>;
   transitionExecution?: (sessionId: string, payload: TrainingSessionExecutionTransitionPayload) => Promise<TrainingSessionExecutionView>;
+  loadGuided?: (sessionId: string) => Promise<GuidedResistanceView>;
+  completeGuided?: (sessionId: string, payload: GuidedResistanceCompletePayload) => Promise<GuidedResistanceView>;
+  actRest?: (sessionId: string, payload: GuidedResistanceRestActionPayload) => Promise<GuidedResistanceView>;
   onExecutionChanged?: () => Promise<void>;
 }) {
   const headingId = useId();
@@ -150,29 +161,100 @@ function TodaySession({
   const [executionReason, setExecutionReason] = useState('');
   const [executionError, setExecutionError] = useState<string | null>(null);
   const [executionBusy, setExecutionBusy] = useState(false);
+  const [pendingGuidedSets, setPendingGuidedSets] = useState<{ remaining: number; total: number } | null>(null);
+  const [showGuided, setShowGuided] = useState(true);
+  const reasonInputRef = useRef<HTMLTextAreaElement>(null);
+  const completionReadRef = useRef(0);
+  // The read-only #387 projection can omit the #389 execution object entirely.
+  // Never dereference it at render time just to initialize the #487 guard.
+  const executionVersion = session.execution?.version ?? null;
+  const executionStatus = session.execution?.status ?? null;
+  const liveExecutionRef = useRef({
+    sessionId: session.sessionId, version: executionVersion, status: executionStatus,
+  });
+  liveExecutionRef.current = {
+    sessionId: session.sessionId, version: executionVersion, status: executionStatus,
+  };
+  // Survives guide <-> overview toggles without leaking drafts across sessions.
+  const guidedDraftStore = useRef<GuidedResistanceDraft | null>(null);
   const operationRef = useRef<{ signature: string; key: string } | null>(null);
   const duration = formatDuration(session.durationMin);
 
+  useEffect(() => {
+    // A new canonical version invalidates a previous incomplete-set warning.
+    completionReadRef.current += 1;
+    setPendingGuidedSets(null);
+  }, [session.sessionId, executionVersion, executionStatus]);
+
   const transition = async (targetStatus: TrainingSessionExecutionStatus) => {
-    if (!transitionExecution || executionBusy) return;
+    if (!transitionExecution || executionBusy || !session.execution) return;
     const requiresReason = targetStatus === 'partial' || targetStatus === 'not_performed';
     const reason = executionReason.trim();
     if (requiresReason && !reason) {
       setExecutionError('Informe o motivo antes de encerrar o treino dessa forma.');
+      reasonInputRef.current?.focus();
       return;
-    }
-
-    const signature = `${session.execution.version}:${targetStatus}:${reason}`;
-    if (!operationRef.current || operationRef.current.signature !== signature) {
-      operationRef.current = {
-        signature,
-        key: `workout-${session.sessionId}-${targetStatus}-${Date.now()}`,
-      };
     }
 
     setExecutionBusy(true);
     setExecutionError(null);
+    const readId = ++completionReadRef.current;
     try {
+      if (targetStatus === 'completed' && session.modalities.includes('resistance') && loadGuided) {
+        // Read the canonical #487 projection immediately before the #389 lifecycle transition.
+        // Never infer completion from the component's current position or its local draft.
+        let guided: GuidedResistanceView;
+        try {
+          guided = await loadGuided(session.sessionId);
+        } catch {
+          if (readId === completionReadRef.current) {
+            setExecutionError('Não foi possível verificar as séries confirmadas. O treino não foi encerrado. Tente novamente.');
+          }
+          return;
+        }
+        if (readId !== completionReadRef.current) return;
+        if (guided.sessionId !== session.sessionId) {
+          setExecutionError('A verificação retornou uma sessão diferente. O treino não foi encerrado. Atualize a página antes de tentar novamente.');
+          return;
+        }
+        if (guided.version !== session.execution.version || guided.status !== session.execution.status) {
+          try {
+            if (!onExecutionChanged) throw new Error('Missing canonical refresh');
+            await onExecutionChanged();
+            setExecutionError('O progresso mudou em outro dispositivo. Confira o treino atualizado antes de encerrar.');
+          } catch {
+            setExecutionError('O progresso mudou, mas não foi possível atualizar o treino. Nenhum encerramento foi enviado.');
+          }
+          return;
+        }
+        if (guided.availability === 'available') {
+          if (!Number.isInteger(guided.total) || !Number.isInteger(guided.completed) ||
+              guided.total <= 0 || guided.completed < 0 || guided.completed > guided.total) {
+            setExecutionError('O progresso das séries está inconsistente. Atualize o treino antes de tentar encerrar.');
+            return;
+          }
+          if (guided.completed < guided.total) {
+            setPendingGuidedSets({ remaining: guided.total - guided.completed, total: guided.total });
+            return;
+          }
+        }
+        // Legacy / unstructured training has no canonical series count. Keep the
+        // existing #389 transition available rather than inventing pending series.
+      }
+
+      const live = liveExecutionRef.current;
+      if (live.sessionId !== session.sessionId || live.version !== session.execution.version ||
+          live.status !== session.execution.status) {
+        setExecutionError('O estado do treino mudou. Confira a sessão atualizada antes de encerrar.');
+        return;
+      }
+      const signature = `${session.execution.version}:${targetStatus}:${reason}`;
+      if (!operationRef.current || operationRef.current.signature !== signature) {
+        operationRef.current = {
+          signature,
+          key: `workout-${session.sessionId}-${targetStatus}-${Date.now()}`,
+        };
+      }
       await transitionExecution(session.sessionId, {
         operationKey: operationRef.current.key,
         expectedVersion: session.execution.version,
@@ -180,6 +262,7 @@ function TodaySession({
         ...(requiresReason ? { reason } : {}),
       });
       operationRef.current = null;
+      setPendingGuidedSets(null);
       // Persistencia confirmada: falha da revalidacao nao invalida a gravacao.
       try {
         if (onExecutionChanged) await onExecutionChanged();
@@ -212,6 +295,31 @@ function TodaySession({
       setExecutionBusy(false);
     }
   };
+  const stageKindLabel: Record<string, string> = {
+    warmup: 'Aquecimento', work: 'Trabalho', recovery: 'Recuperação',
+    cooldown: 'Desaquecimento', repeat: 'Repetições',
+  };
+  const stageTargetUnit: Record<string, string> = {
+    pace_min_per_km: 'min/km', speed_kmh: 'km/h', heart_rate_bpm: 'bpm',
+    zone: 'zona', pse: 'PSE',
+  };
+  const renderStageDetail = (stage: (typeof session.cyclicStages)[number]) => {
+    if (stage.kind === 'repeat') return `${stage.repeatCount} voltas`;
+    const duration = stage.durationValue !== null
+      ? `${stage.durationValue} ${stage.durationUnit === 'seconds' ? 's' : 'm'}` : '';
+    const targetUnit = stage.targetKind ? stageTargetUnit[stage.targetKind] : '';
+    const values = stage.targetValue !== null ? String(stage.targetValue)
+      : stage.targetMin !== null && stage.targetMax !== null
+        ? `${stage.targetMin}–${stage.targetMax}`
+        : String(stage.targetMin ?? stage.targetMax ?? '');
+    return [duration, values ? `${values} ${targetUnit}` : '',
+      stage.inclinePercent !== null ? `Inclinação ${stage.inclinePercent}%` : '',
+      stage.cadenceSpm !== null ? `Cadência ${stage.cadenceSpm} ppm` : ''
+    ].filter(Boolean).join(' · ');
+  };
+  const hasGuided = audience === 'student' && session.modalities.includes('resistance')
+    && (session.status === 'in_progress' || session.status === 'paused')
+    && Boolean(session.execution && loadGuided && completeGuided);
   const cyclicItems = session.cyclic
     ? [
         { label: 'Tempo do aeróbio', value: formatDuration(session.cyclic.durationMin) },
@@ -267,7 +375,54 @@ function TodaySession({
         </section>
       )}
 
-      {session.blocks.map((block) => (
+      {session.cyclicStages?.length > 0 && (
+        <section aria-label="Etapas do treino aeróbio">
+          <h4 className="text-sm font-semibold text-foreground">Etapas do aeróbio</h4>
+          <ol className="mt-2 space-y-2">
+            {session.cyclicStages.map((stage) => (
+              <li key={stage.id} className="rounded-lg border border-border p-3">
+                <p className="font-medium text-foreground">
+                  {stage.position}. {stageKindLabel[stage.kind]}
+                  <span className="ml-2 font-normal text-muted-foreground">{renderStageDetail(stage)}</span>
+                </p>
+                {stage.notes && <p className="mt-1 text-sm text-muted-foreground">{stage.notes}</p>}
+                {stage.kind === 'repeat' && (
+                  <ol className="mt-2 space-y-1 border-l-2 border-border pl-4">
+                    {stage.children.map((child) => (
+                      <li key={child.id} className="text-sm">
+                        <span className="font-medium">{child.position}. {stageKindLabel[child.kind]}</span>
+                        <span className="ml-2 text-muted-foreground">{renderStageDetail(child)}</span>
+                        {child.notes && <p className="text-muted-foreground">{child.notes}</p>}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
+      {hasGuided && showGuided && loadGuided && completeGuided && (
+        <GuidedResistanceCard
+          key={session.sessionId}
+          sessionId={session.sessionId}
+          status={session.execution.status}
+          version={session.execution.version}
+          load={loadGuided}
+          complete={completeGuided}
+          restAction={actRest}
+          onExecutionChanged={onExecutionChanged}
+          onOverview={() => setShowGuided(false)}
+          draftStore={guidedDraftStore}
+        />
+      )}
+      {hasGuided && !showGuided && (
+        <Button type="button" onClick={() => setShowGuided(true)} className="w-full sm:w-auto">
+          Continuar execução guiada
+        </Button>
+      )}
+      {(!hasGuided || !showGuided) && session.blocks.map((block) => (
         <section key={block.key} aria-label={blockLabels[block.key]}>
           <h4 className="text-sm font-semibold text-foreground">{blockLabels[block.key]}</h4>
           <ol className="mt-2 divide-y divide-border rounded-lg border border-border">
@@ -290,6 +445,10 @@ function TodaySession({
           </ol>
         </section>
       ))}
+
+      {session.comparison && (
+        <WorkoutExecutionComparisonCard comparison={session.comparison} audience={audience} />
+      )}
 
       {session.guidelines.length > 0 && (
         <section aria-label="Orientações da sessão" className="rounded-lg bg-muted/40 p-3">
@@ -356,9 +515,19 @@ function TodaySession({
         <OriginNote session={session} audience={audience} />
         {audience === 'student' && !['completed', 'partial', 'not_performed'].includes(session.status) && (
           <div className="space-y-3">
+            {pendingGuidedSets && (
+              <div role="alert" className="space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-3 text-sm text-amber-900">
+                <p className="font-semibold">Ainda faltam {pendingGuidedSets.remaining} de {pendingGuidedSets.total} séries para confirmar.</p>
+                <p>O treino não foi concluído. Continue registrando as séries ou informe o motivo abaixo e escolha “Encerrar como parcial”.</p>
+                <Button type="button" variant="outline" size="sm" disabled={executionBusy} onClick={() => setShowGuided(true)}>
+                  Voltar às séries
+                </Button>
+              </div>
+            )}
             <label className="block text-sm text-foreground">
               <span className="font-medium">Motivo (necessário para treino parcial ou não realizado)</span>
               <textarea
+                ref={reasonInputRef}
                 value={executionReason}
                 onChange={(event) => setExecutionReason(event.target.value)}
                 rows={2}
@@ -506,7 +675,7 @@ function TodayEmptyState({ state, audience }: { state: 'not_released' | 'none'; 
   );
 }
 
-function WeekDayItem({ day }: { day: TrainingRoutineDay }) {
+function WeekDayItem({ day, audience }: { day: TrainingRoutineDay; audience: TrainingRoutineAudience }) {
   return (
     <li
       className={`flex gap-3 p-3 ${day.isToday ? 'bg-primary/5' : ''}`}
@@ -523,14 +692,26 @@ function WeekDayItem({ day }: { day: TrainingRoutineDay }) {
       </div>
       <div className="min-w-0 flex-1 space-y-2">
         {day.sessions.map((session) => (
-          <div key={session.sessionId} className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-foreground">{sessionTitle(session.modalities)}</p>
-              <p className="text-xs text-muted-foreground">
-                {[formatDuration(session.durationMin), session.location].filter(Boolean).join(' · ') || session.planName}
-              </p>
+          <div key={session.sessionId} className="min-w-0 space-y-2">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">{sessionTitle(session.modalities)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {[formatDuration(session.durationMin), session.location].filter(Boolean).join(' · ') || session.planName}
+                </p>
+              </div>
+              <StatusBadge status={session.status} />
             </div>
-            <StatusBadge status={session.status} />
+            {!day.isToday && session.comparison && (
+              <details className="min-w-0 rounded-md border border-border p-2">
+                <summary className="cursor-pointer text-xs font-medium text-foreground">
+                  Ver planejado × executado
+                </summary>
+                <div className="mt-2 min-w-0">
+                  <WorkoutExecutionComparisonCard comparison={session.comparison} audience={audience} />
+                </div>
+              </details>
+            )}
           </div>
         ))}
         {day.sessions.length === 0 && day.pendingReleaseCount > 0 && (
@@ -572,6 +753,9 @@ export type TrainingRoutinePanelProps = {
   saveCheckIn?: (sessionId: string, payload: UpsertPreWorkoutCheckInPayload) => Promise<PreWorkoutCheckInView>;
   saveFeedback?: (sessionId: string, payload: CreateCanonicalPostWorkoutFeedbackPayload) => Promise<CanonicalPostWorkoutFeedbackRevisionView>;
   transitionExecution?: (sessionId: string, payload: TrainingSessionExecutionTransitionPayload) => Promise<TrainingSessionExecutionView>;
+  loadGuided?: (sessionId: string) => Promise<GuidedResistanceView>;
+  completeGuided?: (sessionId: string, payload: GuidedResistanceCompletePayload) => Promise<GuidedResistanceView>;
+  actRest?: (sessionId: string, payload: GuidedResistanceRestActionPayload) => Promise<GuidedResistanceView>;
 };
 
 export function TrainingRoutinePanel({
@@ -583,6 +767,9 @@ export function TrainingRoutinePanel({
   saveCheckIn,
   saveFeedback,
   transitionExecution,
+  loadGuided,
+  completeGuided,
+  actRest,
 }: TrainingRoutinePanelProps) {
   const [routine, setRoutine] = useState<TrainingRoutineView | null>(null);
   const [referenceDate, setReferenceDate] = useState<string | undefined>(undefined);
@@ -710,6 +897,9 @@ export function TrainingRoutinePanel({
                   return saved;
                 } : undefined}
                 transitionExecution={transitionExecution}
+                loadGuided={loadGuided}
+                completeGuided={completeGuided}
+                actRest={actRest}
                 onExecutionChanged={async () => {
                   if (!await fetchRoutine(referenceDate)) throw new Error('Falha ao revalidar treino');
                 }}
@@ -758,7 +948,7 @@ export function TrainingRoutinePanel({
           </div>
           <ol className="divide-y divide-border rounded-lg border border-border bg-background">
             {routine.days.map((day) => (
-              <WeekDayItem key={day.date} day={day} />
+              <WeekDayItem key={day.date} day={day} audience={audience} />
             ))}
           </ol>
         </section>

@@ -1,6 +1,8 @@
 import type { PrismaClient } from '@prisma/client';
 import { matchResistanceExerciseRows, normalizeResistanceBlocks, sanitizeWorkoutMutation, validateWorkoutWeekEnvelope, ResistanceStructureNotFoundError, ResistanceStructureValidationError, WorkoutPlanningVersionConflictError } from './resistance-structure.domain.js';
 import { assertDayContract, comparableResistanceBlocks, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
+import { cyclicStageInclude, replaceCyclicStagesInTransaction } from './cyclic-stages.domain.js';
+import { normalizeResistanceGroups, replaceResistanceGroupsInTransaction, resistanceGroupInclude, unlinkResistanceGroupMemberForExercise } from './resistance-groups.domain.js';
 import type { CreateWorkoutExerciseDTO, SaveWorkoutWeekDTO } from './workout.service.js';
 
 export async function saveTemplateWeek(prisma: PrismaClient, id: string, data: SaveWorkoutWeekDTO, contractId?: string) {
@@ -103,6 +105,27 @@ export async function saveTemplateWeek(prisma: PrismaClient, id: string, data: S
       }
     }
     for (const day of existingDays) daysByWeekday.set(day.dayOfWeek, { id: day.id });
+
+    // Omitted day keys preserve legacy text and existing structured steps.
+    // Explicit [] removes only the cyclic structure, within the week transaction.
+    if (data.cyclicStages !== undefined) {
+      childGraphChanged = true;
+      for (const [dayKey, stages] of Object.entries(data.cyclicStages)) {
+        const dayOfWeek = Number(dayKey);
+        let targetDay = daysByWeekday.get(dayOfWeek);
+        // Clearing an already-absent stage list must not invent a workout day.
+        if (!targetDay && Array.isArray(stages) && stages.length === 0) continue;
+        if (!targetDay) {
+          targetDay = await tx.workoutDay.create({
+            data: { templateId: id, dayOfWeek, workoutDate: workoutDateInTargetWeek(nextWeekStartDate, dayOfWeek) },
+            select: { id: true },
+          });
+          daysByWeekday.set(dayOfWeek, targetDay);
+        }
+        if (contractId) await assertDayContract(tx, targetDay.id, contractId);
+        await replaceCyclicStagesInTransaction(tx, targetDay.id, stages);
+      }
+    }
 
     const resisted = data.resistedExercises;
     if (resisted !== undefined) {
@@ -225,11 +248,30 @@ export async function saveTemplateWeek(prisma: PrismaClient, id: string, data: S
           });
         }
         for (const prior of current) {
-          if (!preserved.has(prior.id)) await tx.workoutExercise.delete({ where: { id: prior.id } });
+          if (!preserved.has(prior.id)) {
+            await unlinkResistanceGroupMemberForExercise(tx, prior.id);
+            await tx.workoutExercise.delete({ where: { id: prior.id } });
+          }
         }
       }
     }
 
+    // Reconcile groups only after the canonical exercise rows have been saved.
+    // Omission preserves existing structures. An explicit empty list removes them.
+    if (data.resistanceGroups !== undefined) {
+      for (const [dayKey, rawGroups] of Object.entries(data.resistanceGroups)) {
+        const dayOfWeek = Number(dayKey);
+        const groups = normalizeResistanceGroups(rawGroups);
+        const targetDay = daysByWeekday.get(dayOfWeek);
+        if (!targetDay) {
+          if (groups.length === 0) continue;
+          throw new ResistanceStructureValidationError('Inclua os exercícios do dia antes de criar o agrupamento.');
+        }
+        if (contractId) await assertDayContract(tx, targetDay.id, contractId);
+        const replaced = await replaceResistanceGroupsInTransaction(tx, targetDay.id, groups);
+        childGraphChanged ||= replaced.changed;
+      }
+    }
     if (childGraphChanged && Object.keys(templateInput).length === 0) {
       await touchWorkoutTemplateRevision(tx, id);
     }
@@ -239,7 +281,7 @@ export async function saveTemplateWeek(prisma: PrismaClient, id: string, data: S
       include: {
         plan: true,
         workoutDays: {
-          include: { exercises: { include: { exercise: true, resistanceBlocks: resistanceBlockInclude } } },
+          include: { cyclicStages: cyclicStageInclude, resistanceGroups: resistanceGroupInclude, exercises: { include: { exercise: true, resistanceBlocks: resistanceBlockInclude } } },
           orderBy: { dayOfWeek: 'asc' },
         },
       },
@@ -352,6 +394,7 @@ export async function replaceDayResistanceExercises(prisma: PrismaClient, workou
     }
     for (const prior of current) {
       if (!preserved.has(prior.id)) {
+        await unlinkResistanceGroupMemberForExercise(tx, prior.id);
         await tx.workoutExercise.delete({ where: { id: prior.id } });
       }
     }

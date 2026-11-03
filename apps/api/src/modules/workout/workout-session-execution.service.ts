@@ -3,12 +3,20 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import type {
   TrainingSessionExecutionItemValue,
   TrainingSessionExecutionSessionValues,
+  TrainingSessionExecutionSessionValuesPatch,
   TrainingSessionExecutionStatus,
   TrainingSessionExecutionTransitionPayload,
   TrainingSessionExecutionValuesPayload,
   TrainingSessionExecutionView,
+  GuidedResistanceCompletePayload,
+  GuidedResistanceView,
+  GuidedResistanceRestActionPayload,
 } from '@corrida/types';
+import { deriveGuidedResistancePlan, matchesCurrentGuidedUnit, projectGuidedResistance } from './guided-resistance.domain.js';
+import { prescribedRestAfter, projectResistanceRest, measuredRestMs } from './resistance-rest.domain.js';
+import { projectReleasedExerciseCatalog } from './workout-release-catalog.js';
 import { persistWorkoutSessionValues, WorkoutSessionExecutionInputError } from './workout-session-execution-values.js';
+import { captureWorkoutComparisonPlan, workoutComparisonPlanSelect } from './workout-session-comparison.domain.js';
 export { WorkoutSessionExecutionInputError } from './workout-session-execution-values.js';
 import {
   assertWorkoutSessionTransition,
@@ -17,6 +25,51 @@ import {
 } from './workout-session-execution.domain.js';
 
 const prisma = new PrismaClient();
+
+/** The read/write boundary always takes its exercise and set identities from this query. */
+async function loadGuidedResistancePlan(tx: Prisma.TransactionClient, sessionId: string) {
+  const exercises = await tx.workoutExercise.findMany({
+    where: { workoutDayId: sessionId },
+    select: {
+      id: true, section: true, exerciseOrder: true, system: true, groupBreakBefore: true,
+      exerciseNotes: true,
+      exercise: { select: { name: true, videoUrl: true, notes: true } },
+      releasedCatalog: { select: { catalog: true } },
+      resistanceBlocks: {
+        orderBy: { position: 'asc' },
+        select: {
+          position: true, kind: true, notes: true,
+          plannedSets: {
+            orderBy: { position: 'asc' },
+            select: {
+              id: true, position: true, repsMin: true, repsMax: true,
+              loadKg: true, loadPercent: true, rir: true, rpe: true,
+              tempo: true, restSec: true, notes: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  const groups = await tx.workoutResistanceGroup.findMany({
+    where: { workoutDayId: sessionId },
+    orderBy: [{ position: 'asc' }, { id: 'asc' }],
+    select: {
+      id: true, position: true, kind: true, rounds: true,
+      restBetweenExercisesSec: true, restBetweenRoundsSec: true, notes: true,
+      members: {
+        orderBy: [{ position: 'asc' }, { id: 'asc' }],
+        select: { position: true, workoutExerciseId: true },
+      },
+    },
+  });
+  // #400 freezes catalog presentation at release; guided execution must read
+  // that same snapshot instead of a mutable ExerciseLibrary row.
+  return deriveGuidedResistancePlan(exercises.map(({ releasedCatalog, ...item }) => ({
+    ...item,
+    exercise: projectReleasedExerciseCatalog(item.exercise, releasedCatalog),
+  })), groups);
+}
 
 type LockedReleasedSession = {
   id: string;
@@ -40,6 +93,7 @@ export class WorkoutSessionExecutionConflictError extends Error {
       | 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT'
       | 'WORKOUT_SESSION_EXECUTION_IDEMPOTENCY_CONFLICT'
       | 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION'
+      | 'WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME'
   ) {
     super(message);
   }
@@ -54,9 +108,27 @@ function normalizeText(value: string | null | undefined, max: number) {
   return normalized;
 }
 
-function normalizeSessionValues(values: TrainingSessionExecutionSessionValues | undefined): TrainingSessionExecutionSessionValues | undefined {
+
+const COMPARABLE_OUTCOMES = new Set(['full', 'partial', 'substituted', 'not_performed']);
+
+function normalizeOutcome(value: string | undefined): 'full' | 'partial' | 'substituted' | 'not_performed' | undefined {
+  if (value === undefined) return undefined;
+  if (!COMPARABLE_OUTCOMES.has(value)) throw new WorkoutSessionExecutionInputError('Situação da unidade executada inválida.');
+  return value as 'full' | 'partial' | 'substituted' | 'not_performed';
+}
+
+function checkNumber(value: number | null | undefined, label: string, options: { integer?: boolean; max?: number } = {}) {
+  if (value !== undefined && value !== null
+      && (!Number.isFinite(value) || value < 0 || (options.integer && !Number.isInteger(value))
+        || (options.max !== undefined && value > options.max))) {
+    throw new WorkoutSessionExecutionInputError(`${label} inválido.`);
+  }
+  return value;
+}
+
+function normalizeSessionValues(values: TrainingSessionExecutionSessionValuesPatch | undefined): TrainingSessionExecutionSessionValuesPatch | undefined {
   if (!values) return undefined;
-  const normalized: TrainingSessionExecutionSessionValues = {};
+  const normalized: TrainingSessionExecutionSessionValuesPatch = {};
   if (values.durationSec !== undefined) {
     if (values.durationSec !== null && (!Number.isInteger(values.durationSec) || values.durationSec < 0)) throw new WorkoutSessionExecutionInputError('Tempo executado deve ser informado em segundos inteiros não negativos.');
     normalized.durationSec = values.durationSec;
@@ -66,17 +138,111 @@ function normalizeSessionValues(values: TrainingSessionExecutionSessionValues | 
     normalized.distanceKm = values.distanceKm;
   }
   if (values.pace !== undefined) normalized.pace = normalizeText(values.pace, 32);
+  if (values.speedKmh !== undefined) {
+    normalized.speedKmh = checkNumber(values.speedKmh, 'Velocidade executada');
+  }
   if (values.heartRateBpm !== undefined) {
     if (values.heartRateBpm !== null && (!Number.isInteger(values.heartRateBpm) || values.heartRateBpm < 0 || values.heartRateBpm > 260)) throw new WorkoutSessionExecutionInputError('Frequência cardíaca executada inválida.');
     normalized.heartRateBpm = values.heartRateBpm;
   }
   if (values.heartRateZone !== undefined) normalized.heartRateZone = normalizeText(values.heartRateZone, 32);
+  if (values.cyclicStages !== undefined) {
+    if (!Array.isArray(values.cyclicStages) || values.cyclicStages.length > 500) {
+      throw new WorkoutSessionExecutionInputError('Quantidade de etapas executadas inválida.');
+    }
+    const keys = new Set<string>();
+    normalized.cyclicStages = values.cyclicStages.map((entry) => {
+      const plannedStageId = entry.plannedStageId?.trim();
+      const iteration = entry.iteration ?? 1;
+      if (!plannedStageId || !Number.isInteger(iteration) || iteration < 1 || iteration > 100) {
+        throw new WorkoutSessionExecutionInputError('Etapa planejada ou repetição inválida.');
+      }
+      const key = `${plannedStageId}:${iteration}`;
+      if (keys.has(key)) throw new WorkoutSessionExecutionInputError('Etapa/repetição executada duplicada.');
+      keys.add(key);
+      const outcome = normalizeOutcome(entry.outcome);
+      if (!outcome) throw new WorkoutSessionExecutionInputError('Situação da etapa obrigatória.');
+      // A patch can omit the original substitution text; the merged record is
+      // validated after reading durable state in the same transaction.
+      const substitutionNote = normalizeText(entry.substitutionNote, 500);
+      if (outcome !== 'substituted' && substitutionNote) {
+        throw new WorkoutSessionExecutionInputError('Substituição só pode ser informada quando a unidade foi substituída.');
+      }
+      return {
+        plannedStageId, iteration, outcome, substitutionNote,
+        durationSec: checkNumber(entry.durationSec, 'Duração da etapa', { integer: true }),
+        distanceMeters: checkNumber(entry.distanceMeters, 'Distância da etapa'),
+        paceMinPerKm: checkNumber(entry.paceMinPerKm, 'Ritmo da etapa'),
+        speedKmh: checkNumber(entry.speedKmh, 'Velocidade da etapa'),
+        heartRateBpm: checkNumber(entry.heartRateBpm, 'Frequência cardíaca da etapa', { integer: true, max: 260 }),
+        heartRateZone: normalizeText(entry.heartRateZone, 32),
+        pse: checkNumber(entry.pse, 'PSE da etapa', { max: 10 }),
+      };
+    });
+  }
+  if (values.removeCyclicStages !== undefined) {
+    if (!Array.isArray(values.removeCyclicStages) || values.removeCyclicStages.length > 500) {
+      throw new WorkoutSessionExecutionInputError('Quantidade de etapas removidas inválida.');
+    }
+    const keys = new Set<string>();
+    normalized.removeCyclicStages = values.removeCyclicStages.map((entry) => {
+      const plannedStageId = typeof entry?.plannedStageId === 'string' ? entry.plannedStageId.trim() : '';
+      const iteration = entry?.iteration ?? 1;
+      if (!plannedStageId || !Number.isInteger(iteration) || iteration < 1 || iteration > 100) {
+        throw new WorkoutSessionExecutionInputError('Etapa ou repetição para remoção inválida.');
+      }
+      const key = `${plannedStageId}:${iteration}`;
+      if (keys.has(key) || normalized.cyclicStages?.some((item) => `${item.plannedStageId}:${item.iteration ?? 1}` === key)) {
+        throw new WorkoutSessionExecutionInputError('Etapa/repetição duplicada ou enviada simultaneamente para registro e remoção.');
+      }
+      keys.add(key);
+      return { plannedStageId, iteration };
+    });
+  }
+  if (values.resistanceGroups !== undefined) {
+    if (!Array.isArray(values.resistanceGroups) || values.resistanceGroups.length > 100) {
+      throw new WorkoutSessionExecutionInputError('Quantidade de agrupamentos executados inválida.');
+    }
+    const ids = new Set<string>();
+    normalized.resistanceGroups = values.resistanceGroups.map((entry) => {
+      const plannedGroupId = entry.plannedGroupId?.trim();
+      if (!plannedGroupId || ids.has(plannedGroupId)) {
+        throw new WorkoutSessionExecutionInputError('Agrupamento planejado inválido ou duplicado.');
+      }
+      ids.add(plannedGroupId);
+      const outcome = normalizeOutcome(entry.outcome);
+      if (!outcome) throw new WorkoutSessionExecutionInputError('Situação do agrupamento obrigatória.');
+      const substitutionNote = normalizeText(entry.substitutionNote, 500);
+      if (outcome !== 'substituted' && substitutionNote) {
+        throw new WorkoutSessionExecutionInputError('Substituição só pode ser informada quando a unidade foi substituída.');
+      }
+      return {
+        plannedGroupId, outcome, substitutionNote,
+        roundsCompleted: checkNumber(entry.roundsCompleted, 'Rodadas realizadas', { integer: true }),
+        restBetweenExercisesSec: checkNumber(entry.restBetweenExercisesSec, 'Descanso entre exercícios', { integer: true, max: 86400 }),
+        restBetweenRoundsSec: checkNumber(entry.restBetweenRoundsSec, 'Descanso entre rodadas', { integer: true, max: 86400 }),
+      };
+    });
+  }
+  if (values.removeResistanceGroups !== undefined) {
+    if (!Array.isArray(values.removeResistanceGroups) || values.removeResistanceGroups.length > 100) {
+      throw new WorkoutSessionExecutionInputError('Quantidade de agrupamentos removidos inválida.');
+    }
+    const ids = new Set<string>();
+    normalized.removeResistanceGroups = values.removeResistanceGroups.map((rawId) => {
+      const id = typeof rawId === 'string' ? rawId.trim() : '';
+      if (!id || ids.has(id) || normalized.resistanceGroups?.some((item) => item.plannedGroupId === id)) {
+        throw new WorkoutSessionExecutionInputError('Agrupamento duplicado ou enviado simultaneamente para registro e remoção.');
+      }
+      ids.add(id);
+      return id;
+    });
+  }
   return normalized;
 }
 
 function normalizeItems(items: TrainingSessionExecutionItemValue[] | undefined): TrainingSessionExecutionItemValue[] {
   if (!items) return [];
-  const seen = new Set<string>();
   return items.map((item) => {
     const plannedUnitId = item.plannedUnitId.trim();
     if (!plannedUnitId) throw new WorkoutSessionExecutionInputError('Identificador da unidade planejada é obrigatório.');
@@ -91,9 +257,10 @@ function normalizeItems(items: TrainingSessionExecutionItemValue[] | undefined):
     }
     const setNumber = item.setNumber ?? 0;
     if (!Number.isInteger(setNumber) || setNumber < 0) throw new WorkoutSessionExecutionInputError('Número da série executada inválido.');
-    const key = `${plannedUnitId}:${setNumber}`;
-    if (seen.has(key)) throw new WorkoutSessionExecutionInputError('A mesma unidade planejada/série foi informada mais de uma vez.');
-    seen.add(key);
+    // Duplicate validation runs after the transaction resolves planned-set IDs to canonical ordinals.
+    const outcome = normalizeOutcome(item.outcome);
+    // Only the persisted outcome can decide whether an omitted substitution note is valid.
+    const substitutionNote = normalizeText(item.substitutionNote, 500);
     const nonNegative = (value: number | null | undefined, label: string, integer = false) => {
       if (value !== undefined && value !== null && (!Number.isFinite(value) || value < 0 || (integer && !Number.isInteger(value)))) throw new WorkoutSessionExecutionInputError(`${label} inválido.`);
       return value;
@@ -102,6 +269,12 @@ function normalizeItems(items: TrainingSessionExecutionItemValue[] | undefined):
       plannedUnitId,
       ...(hasPlannedSetId ? { plannedSetId } : {}),
       setNumber,
+      ...(outcome !== undefined ? { outcome } : {}),
+      ...(item.substitutionNote !== undefined ? { substitutionNote } : {}),
+      rir: checkNumber(item.rir, 'RIR executado', { max: 30 }),
+      rpe: checkNumber(item.rpe, 'RPE executado', { max: 10 }),
+      tempo: normalizeText(item.tempo, 80),
+      restSec: checkNumber(item.restSec, 'Descanso executado', { integer: true, max: 86400 }),
       loadKg: nonNegative(item.loadKg, 'Carga executada'),
       repetitions: nonNegative(item.repetitions, 'Repetições executadas', true),
       durationSec: nonNegative(item.durationSec, 'Tempo executado', true),
@@ -215,6 +388,7 @@ type ExecutionProjectionRow = {
     plannedUnitId: string;
     plannedSetId: string | null;
     setNumber: number;
+    completedAt?: Date | null;
     loadKg: number | null;
     repetitions: number | null;
     durationSec: number | null;
@@ -222,6 +396,12 @@ type ExecutionProjectionRow = {
     pace: string | null;
     heartRateBpm: number | null;
     heartRateZone: string | null;
+    outcome?: string | null;
+    substitutionNote?: string | null;
+    rir?: number | null;
+    rpe?: number | null;
+    tempo?: string | null;
+    restSec?: number | null;
   }>;
 };
 
@@ -248,6 +428,13 @@ export function projectWorkoutSessionExecution(
       plannedUnitId: item.plannedUnitId,
       plannedSetId: item.plannedSetId,
       setNumber: item.setNumber,
+      outcome: (item.outcome ?? undefined) as TrainingSessionExecutionItemValue['outcome'],
+      substitutionNote: item.substitutionNote ?? null,
+      rir: item.rir ?? null,
+      rpe: item.rpe ?? null,
+      tempo: item.tempo ?? null,
+      restSec: item.restSec ?? null,
+      completedAt: item.completedAt?.toISOString() ?? null,
       loadKg: item.loadKg,
       repetitions: item.repetitions,
       durationSec: item.durationSec,
@@ -275,15 +462,24 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
     expectedVersion: number;
     targetStatus?: TrainingSessionExecutionStatus;
     reason?: string | null;
-    sessionValues?: TrainingSessionExecutionSessionValues;
+    sessionValues?: TrainingSessionExecutionSessionValuesPatch;
     items?: TrainingSessionExecutionItemValue[];
+    guidedCompletion?: boolean;
   }): Promise<TrainingSessionExecutionView> {
     const operationKey = ensureOperationKey(input.operationKey);
     if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 0) throw new WorkoutSessionExecutionInputError('Versão esperada inválida.');
     const reason = normalizeText(input.reason, 500);
     const sessionValues = normalizeSessionValues(input.sessionValues);
     const items = normalizeItems(input.items);
-    const action = input.targetStatus ? 'transition' : 'record_values';
+    // A non-performed session is an explicit negative lifecycle decision.
+    // It cannot atomically carry positive or synthetic execution evidence.
+    if (input.targetStatus === 'not_performed' && (sessionValues !== undefined || items.length > 0)) {
+      throw new WorkoutSessionExecutionInputError('Sessão não realizada não aceita valores ou unidades executadas.');
+    }
+    const action = input.guidedCompletion ? 'complete_resistance_set' : input.targetStatus ? 'transition' : 'record_values';
+    if (input.guidedCompletion && (input.targetStatus || sessionValues || items.length !== 1 || !items[0].plannedSetId)) {
+      throw new WorkoutSessionExecutionInputError('Informe exatamente uma série planejada para concluir.');
+    }
     if (!input.targetStatus && !sessionValues && items.length === 0) throw new WorkoutSessionExecutionInputError('Informe pelo menos um valor executado.');
 
     const normalizedOperation = {
@@ -332,6 +528,18 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
         );
       }
 
+      if (input.targetStatus === 'not_performed' && execution) {
+        // A pre-existing not_started shell may contain legacy/bypassed values.
+        // Do not convert recorded history into a negative session outcome.
+        const storedValues = execution.sessionValues;
+        const hasStoredValues = storedValues !== null && typeof storedValues === 'object'
+          && !Array.isArray(storedValues) && Object.keys(storedValues).length > 0;
+        const hasStoredItems = await tx.workoutSessionExecutionItem.count({ where: { executionId: execution.id } }) > 0;
+        if (hasStoredValues || hasStoredItems) {
+          throw new WorkoutSessionExecutionInputError('Sessão com histórico executado não pode ser marcada como não realizada.');
+        }
+      }
+
       if (input.targetStatus) {
         try {
           assertWorkoutSessionTransition(currentStatus, input.targetStatus);
@@ -348,8 +556,63 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
         throw new WorkoutSessionExecutionConflictError('Valores executados só podem ser registrados enquanto o treino está em andamento.', 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION');
       }
 
+      // The same transaction owns completion, its rest and the operation ledger.
+      let restAfterGuidedSet: { plannedSetId: string; seconds: number } | null = null;
+      // Guide confirmation is checked against the authoritative plan and current
+      // durable progress INSIDE the same serializable transaction as the write.
+      // It cannot jump a set, reuse another exercise, or progress while paused.
+      if (input.guidedCompletion) {
+        if (currentStatus !== 'in_progress' || !execution) {
+          throw new WorkoutSessionExecutionConflictError(
+            'A sessão não está em andamento. Atualize o treino para continuar.',
+            'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION'
+          );
+        }
+        const activeRest = await tx.workoutSessionResistanceRest.findFirst({
+          where: { executionId: execution.id, status: 'active' },
+        });
+        if (activeRest) {
+          throw new WorkoutSessionExecutionConflictError(
+            'Finalize ou pule o descanso atual antes de concluir outra série.',
+            'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION'
+          );
+        }
+        const plan = await loadGuidedResistancePlan(tx, input.sessionId);
+        const persisted = await readExecution(tx, input.sessionId);
+        if (!persisted) throw new WorkoutSessionExecutionNotFoundError('Execução de treino não encontrada.');
+        const guided = projectGuidedResistance(input.sessionId, projectWorkoutSessionExecution(persisted), plan);
+        const plannedSeconds = prescribedRestAfter(guided.current, guided.next);
+        if (plannedSeconds !== null && guided.current) {
+          restAfterGuidedSet = { plannedSetId: guided.current.plannedSetId, seconds: plannedSeconds };
+        }
+        if (!matchesCurrentGuidedUnit(guided, items[0])) {
+          throw new WorkoutSessionExecutionConflictError(
+            'Esta série não é a próxima do planejamento. Atualize o treino antes de continuar.',
+            'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT'
+          );
+        }
+        const previous = persisted.items.find((record) =>
+          record.plannedUnitId === items[0].plannedUnitId
+          && record.plannedSetId === items[0].plannedSetId
+          && record.setNumber === items[0].setNumber
+        );
+        // A guided completion must never leave a persisted "not performed"
+        // outcome on a completed set. Keep partial/substituted outcomes intact.
+        if (previous?.outcome === 'not_performed') {
+          throw new WorkoutSessionExecutionConflictError(
+            'Esta série está marcada como não realizada. Corrija o resultado registrado antes de confirmá-la.',
+            'WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME'
+          );
+        }
+      }
+
       const now = new Date();
       if (!execution) {
+        const dayPlan = await tx.workoutDay.findUnique({
+          where: { id: input.sessionId },
+          select: workoutComparisonPlanSelect,
+        });
+        if (!dayPlan) throw new WorkoutSessionExecutionNotFoundError('Treino planejado não encontrado.');
         execution = await tx.workoutSessionExecution.create({
           data: {
             workoutDayId: input.sessionId,
@@ -358,13 +621,38 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
             originReleaseId: locked.releaseId,
             originWorkoutTemplateId: locked.workoutTemplateId,
             originTrainingPlanId: locked.trainingPlanId,
+            plannedSnapshot: captureWorkoutComparisonPlan(dayPlan) as unknown as Prisma.InputJsonValue,
             status: currentStatus,
             version: currentVersion,
           },
         });
       }
 
-      const mergedSessionValues = await persistWorkoutSessionValues(tx, execution.id, input.sessionId, sessionValues, items);
+      // Guided completion belongs to one operation; create its intent first.
+      // The database verifies this identity after the event and version commit.
+      const resultingVersion = currentVersion + 1;
+      const guidedOperation = input.guidedCompletion
+        ? await tx.workoutSessionExecutionOperation.create({
+            data: { executionId: execution.id, operationKey, payloadFingerprint,
+              action, targetStatus: input.targetStatus, expectedVersion: currentVersion,
+              resultingVersion },
+          })
+        : null;
+      const mergedSessionValues = await persistWorkoutSessionValues(
+        tx, execution.id, input.sessionId, sessionValues, items,
+        input.guidedCompletion ? now : undefined, guidedOperation?.id,
+      );
+      if (restAfterGuidedSet) {
+        // Unique completed-set identity and partial unique active index guard retries
+        // and race conditions. Prescribed values are read, never updated.
+        await tx.workoutSessionResistanceRest.create({ data: {
+          executionId: execution.id,
+          afterPlannedSetId: restAfterGuidedSet.plannedSetId,
+          plannedSeconds: restAfterGuidedSet.seconds,
+          startedAt: now,
+          targetEndsAt: new Date(now.getTime() + restAfterGuidedSet.seconds * 1000),
+        } });
+      }
 
       let nextStatus = currentStatus;
       let startedAt = execution.startedAt;
@@ -382,22 +670,46 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
         }
         if (currentStatus === 'paused' && (nextStatus === 'in_progress' || nextStatus === 'partial')) {
           const pauseStarted = currentPauseStartedAt;
-          if (pauseStarted) pausedDurationMs += BigInt(Math.max(0, now.getTime() - pauseStarted.getTime()));
+          const pauseMs = pauseStarted ? Math.max(0, now.getTime() - pauseStarted.getTime()) : 0;
+          pausedDurationMs += BigInt(pauseMs);
+          const resting = await tx.workoutSessionResistanceRest.findFirst({
+            where: { executionId: execution.id, status: 'active' },
+          });
+          if (resting) {
+            await tx.workoutSessionResistanceRest.update({
+              where: { id: resting.id },
+              data: {
+                pausedDurationMs: resting.pausedDurationMs + BigInt(pauseMs),
+                targetEndsAt: new Date(resting.targetEndsAt.getTime() + pauseMs),
+              },
+            });
+          }
           await tx.workoutSessionPauseInterval.updateMany({
             where: { executionId: execution.id, endedAt: null },
             data: { endedAt: now },
           });
           currentPauseStartedAt = null;
         }
-        if (TERMINAL_EXECUTION_STATUSES.has(nextStatus) && !finishedAt) finishedAt = now;
+        if (TERMINAL_EXECUTION_STATUSES.has(nextStatus)) {
+          if (!finishedAt) finishedAt = now;
+          const activeRest = await tx.workoutSessionResistanceRest.findFirst({
+            where: { executionId: execution.id, status: 'active' },
+          });
+          if (activeRest) {
+            await tx.workoutSessionResistanceRest.update({
+              where: { id: activeRest.id },
+              data: { status: 'interrupted', endedAt: now, elapsedMs: BigInt(measuredRestMs(activeRest, now)) },
+            });
+          }
+        }
         if (nextStatus === 'partial' || nextStatus === 'not_performed') interruptionReason = reason ?? null;
       }
 
-      const nextVersion = currentVersion + 1;
+      const nextVersion = resultingVersion;
       // Insert the intent ledger while the execution is still non-terminal.
       // The operation, state transition and lifecycle link remain atomic, but
       // the database can now reject every direct INSERT into terminal history.
-      const operation = await tx.workoutSessionExecutionOperation.create({
+      const operation = guidedOperation ?? await tx.workoutSessionExecutionOperation.create({
         data: {
           executionId: execution.id,
           operationKey,
@@ -474,7 +786,131 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
     }
   }
 
+  async function getGuidedForSession(input: { sessionId: string; alunoId: string; contractId: string }): Promise<GuidedResistanceView> {
+    return client.$transaction(async (tx) => {
+      const locked = await lockReleasedSession(tx, input.sessionId, input.alunoId, input.contractId);
+      if (!locked) throw new WorkoutSessionExecutionNotFoundError('Sessão de treino não encontrada.');
+      const execution = await readExecution(tx, input.sessionId);
+      const view = execution ? projectWorkoutSessionExecution(execution) : defaultView(locked);
+      const plan = await loadGuidedResistancePlan(tx, input.sessionId);
+      const activeRest = execution ? await tx.workoutSessionResistanceRest.findFirst({
+        where: { executionId: execution.id, status: 'active' },
+      }) : null;
+      const snapshotAt = new Date();
+      return {
+        ...projectGuidedResistance(input.sessionId, view, plan),
+        // A trusted server clock sample must be available before the first rest starts.
+        // It is only used by the UI to bound response age, never to authorize finish.
+        serverNow: snapshotAt.toISOString(),
+        rest: projectResistanceRest(activeRest, {
+          status: view.status, currentPauseStartedAt: execution?.currentPauseStartedAt ?? null,
+        }, snapshotAt),
+      };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
+  /** REST operations reuse #389 versioning, ownership, idempotency and event ledger. */
+  async function actOnGuidedRest(input: {
+    sessionId: string; alunoId: string; contractId: string; actorUserId: string;
+    payload: GuidedResistanceRestActionPayload;
+  }): Promise<GuidedResistanceView> {
+    const { operationKey, expectedVersion, restId, action } = input.payload;
+    ensureOperationKey(operationKey);
+    if (!Number.isInteger(expectedVersion) || expectedVersion < 0 || !restId?.trim()
+      || !['extend_15', 'skip', 'finish'].includes(action)) {
+      throw new WorkoutSessionExecutionInputError('Comando de descanso inválido.');
+    }
+    const operationFingerprint = fingerprint({ action: 'guided_rest', restId, expectedVersion, command: action });
+    try {
+      await client.$transaction(async (tx) => {
+        const locked = await lockReleasedSession(tx, input.sessionId, input.alunoId, input.contractId);
+        if (!locked) throw new WorkoutSessionExecutionNotFoundError('Sessão de treino não encontrada.');
+        const execution = await tx.workoutSessionExecution.findUnique({ where: { workoutDayId: input.sessionId } });
+        if (!execution) throw new WorkoutSessionExecutionConflictError(
+          'Inicie a sessão antes de controlar o descanso.', 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION'
+        );
+        const prior = await tx.workoutSessionExecutionOperation.findUnique({
+          where: { executionId_operationKey: { executionId: execution.id, operationKey } },
+        });
+        if (prior) {
+          if (prior.payloadFingerprint !== operationFingerprint) throw new WorkoutSessionExecutionConflictError(
+            'Chave de operação já utilizada com outro comando.', 'WORKOUT_SESSION_EXECUTION_IDEMPOTENCY_CONFLICT'
+          );
+          return;
+        }
+        if (execution.version !== expectedVersion) throw new WorkoutSessionExecutionConflictError(
+          'A sessão mudou em outro cliente. Atualize o estado salvo.', 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT'
+        );
+        if (execution.status !== 'in_progress') throw new WorkoutSessionExecutionConflictError(
+          'Retome a sessão antes de continuar o descanso.', 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION'
+        );
+        const rest = await tx.workoutSessionResistanceRest.findFirst({
+          where: { id: restId, executionId: execution.id, status: 'active' },
+        });
+        if (!rest) throw new WorkoutSessionExecutionConflictError(
+          'Este descanso não está mais ativo. Atualize a sessão.', 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT'
+        );
+        const now = new Date();
+        let actualElapsedMs: number | null = null;
+        if (action === 'extend_15') {
+          if (rest.extensionSeconds > 2147483632) throw new WorkoutSessionExecutionInputError(
+            'O limite de acréscimos deste descanso foi atingido.'
+          );
+          await tx.workoutSessionResistanceRest.update({ where: { id: rest.id }, data: {
+            extensionSeconds: { increment: 15 },
+            targetEndsAt: new Date(rest.targetEndsAt.getTime() + 15000),
+          } });
+        } else {
+          if (action === 'finish' && now.getTime() < rest.targetEndsAt.getTime()) {
+            throw new WorkoutSessionExecutionConflictError(
+              'O descanso ainda não terminou. Aguarde ou escolha Pular descanso.',
+              'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION'
+            );
+          }
+          actualElapsedMs = measuredRestMs(rest, now);
+          await tx.workoutSessionResistanceRest.update({ where: { id: rest.id }, data: {
+            status: action === 'skip' ? 'skipped' : 'completed',
+            endedAt: now, elapsedMs: BigInt(actualElapsedMs),
+          } });
+        }
+        const nextVersion = execution.version + 1;
+        const operation = await tx.workoutSessionExecutionOperation.create({ data: {
+          executionId: execution.id, operationKey, payloadFingerprint: operationFingerprint,
+          action: 'rest_' + action, expectedVersion, resultingVersion: nextVersion,
+        } });
+        await tx.workoutSessionExecution.update({
+          where: { id: execution.id }, data: { version: nextVersion },
+        });
+        const event = await tx.studentLifecycleEvent.create({ data: {
+          alunoId: input.alunoId, contractId: input.contractId,
+          eventType: 'STATUS_CHANGED', actorUserId: input.actorUserId,
+          metadata: {
+            eventKey: 'workout-session-execution:' + execution.id + ':' + operation.id,
+            domain: 'workout_session_execution', action: 'rest_' + action,
+            workoutDayId: input.sessionId, executionId: execution.id, operationId: operation.id,
+            restId: rest.id, afterPlannedSetId: rest.afterPlannedSetId,
+            plannedSeconds: rest.plannedSeconds, actualElapsedMs,
+            previousStatus: execution.status, status: execution.status,
+            previousVersion: expectedVersion, version: nextVersion,
+          },
+        }, select: { id: true } });
+        await tx.workoutSessionExecutionOperation.update({
+          where: { id: operation.id }, data: { lifecycleEventId: event.id },
+        });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (isSerializableTransactionConflict(error)) throw new WorkoutSessionExecutionConflictError(
+        'O descanso foi alterado em outro cliente. Atualize a sessão.',
+        'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT'
+      );
+      throw error;
+    }
+    return getGuidedForSession(input);
+  }
+
   return {
+    getGuidedForSession,
+    actOnGuidedRest,
     async getForSession(input: { sessionId: string; alunoId: string; contractId: string }): Promise<TrainingSessionExecutionView> {
       const released = await client.$transaction((tx) => lockReleasedSession(tx, input.sessionId, input.alunoId, input.contractId));
       if (!released) throw new WorkoutSessionExecutionNotFoundError('Sessão de treino não encontrada.');
@@ -500,6 +936,26 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
       payload: TrainingSessionExecutionValuesPayload;
     }) {
       return runOperation({ ...input, ...input.payload });
+    },
+    async completeGuided(input: {
+      sessionId: string;
+      alunoId: string;
+      contractId: string;
+      actorUserId: string;
+      payload: GuidedResistanceCompletePayload;
+    }): Promise<GuidedResistanceView> {
+      const { operationKey, expectedVersion, plannedUnitId, plannedSetId, setNumber, repetitions, loadKg } = input.payload;
+      await runOperation({
+        sessionId: input.sessionId,
+        alunoId: input.alunoId,
+        contractId: input.contractId,
+        actorUserId: input.actorUserId,
+        operationKey,
+        expectedVersion,
+        items: [{ plannedUnitId, plannedSetId, setNumber, repetitions, loadKg }],
+        guidedCompletion: true,
+      });
+      return getGuidedForSession(input);
     },
   };
 }

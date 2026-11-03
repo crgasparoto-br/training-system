@@ -3,6 +3,9 @@ import type {
   TrainingSessionExecutionTransitionPayload,
   TrainingSessionExecutionValuesPayload,
   TrainingSessionExecutionView,
+  GuidedResistanceCompletePayload,
+  GuidedResistanceRestActionPayload,
+  GuidedResistanceView,
 } from '@corrida/types';
 import api from './api';
 
@@ -31,6 +34,43 @@ export const trainingRoutineService = {
     const response = await api.get<ApiEnvelope<TrainingRoutineView>>(
       `/alunos/${encodeURIComponent(alunoId)}/training-routine`,
       options.date ? { params: { date: options.date } } : undefined
+    );
+    return response.data.data;
+  },
+
+  async getGuidedForStudent(
+    sessionId: string,
+    options: { contractId?: string } = {}
+  ): Promise<GuidedResistanceView> {
+    const response = await api.get<ApiEnvelope<GuidedResistanceView>>(
+      '/student/me/training-sessions/' + encodeURIComponent(sessionId) + '/execution/guided',
+      options.contractId ? { headers: { 'x-contract-id': options.contractId } } : undefined
+    );
+    return response.data.data;
+  },
+
+  async completeGuidedForStudent(
+    sessionId: string,
+    payload: GuidedResistanceCompletePayload,
+    options: { contractId?: string } = {}
+  ): Promise<GuidedResistanceView> {
+    const response = await api.post<ApiEnvelope<GuidedResistanceView>>(
+      '/student/me/training-sessions/' + encodeURIComponent(sessionId) + '/execution/guided/complete',
+      payload,
+      options.contractId ? { headers: { 'x-contract-id': options.contractId } } : undefined
+    );
+    return response.data.data;
+  },
+
+  async actGuidedRestForStudent(
+    sessionId: string,
+    payload: GuidedResistanceRestActionPayload,
+    options: { contractId?: string } = {},
+  ): Promise<GuidedResistanceView> {
+    const response = await api.post<ApiEnvelope<GuidedResistanceView>>(
+      '/student/me/training-sessions/' + encodeURIComponent(sessionId) + '/execution/guided/rest',
+      payload,
+      options.contractId ? { headers: { 'x-contract-id': options.contractId } } : undefined,
     );
     return response.data.data;
   },

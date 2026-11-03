@@ -719,6 +719,7 @@ model StudentLifecycleEvent {
   actorProfessorId String?
   metadata         Json?
   createdAt        DateTime                  @default(now())
+  guidedExecutionOperations WorkoutSessionExecutionOperation[] @relation("GuidedExecutionLifecycleEvent")
   aluno            Aluno                     @relation(fields: [alunoId], references: [id], onDelete: Cascade)
   contract         CompanyContract           @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
@@ -1921,6 +1922,8 @@ model WorkoutDay {
   status              WorkoutDayStatus  @default(planned)
   template            WorkoutTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
   exercises           WorkoutExercise[]
+  cyclicStages        WorkoutCyclicStage[]
+  resistanceGroups    WorkoutResistanceGroup[]
   preWorkoutCheckIn   PreWorkoutCheckIn?
   execution           WorkoutSessionExecution?
   postWorkoutFeedbackRevisions PostWorkoutFeedbackRevision[]
@@ -1928,6 +1931,32 @@ model WorkoutDay {
   @@unique([templateId, dayOfWeek])
   @@index([templateId])
   @@index([workoutDate])
+}
+
+model WorkoutCyclicStage {
+  id             String              @id @default(cuid())
+  workoutDayId   String
+  parentStageId  String?
+  position       Int
+  kind           String
+  durationUnit   String?
+  durationValue  Float?
+  targetKind     String?
+  targetValue    Float?
+  targetMin      Float?
+  targetMax      Float?
+  repeatCount    Int?
+  inclinePercent Float?
+  cadenceSpm     Int?
+  notes          String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  workoutDay     WorkoutDay          @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  parent         WorkoutCyclicStage? @relation("CyclicStageChildren", fields: [parentStageId], references: [id], onDelete: Cascade)
+  children       WorkoutCyclicStage[] @relation("CyclicStageChildren")
+
+  @@unique([parentStageId, position])
+  @@index([workoutDayId, parentStageId, position])
 }
 
 model PreWorkoutCheckIn {
@@ -1991,12 +2020,52 @@ model WorkoutExercise {
   exercise      ExerciseLibrary    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
   workoutDay    WorkoutDay         @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
   resistanceBlocks WorkoutExerciseBlock[]
+  resistanceGroupMember WorkoutResistanceGroupMember?
+  releasedCatalog WorkoutReleasedExerciseSnapshot?
   executionItems WorkoutSessionExecutionItem[]
 
   @@index([workoutDayId])
   @@index([workoutDayId, section, exerciseOrder])
 }
 
+
+/// #400: execution arrangement of existing exercises; planned sets remain on WorkoutExercise.
+model WorkoutResistanceGroup {
+  id                       String                         @id @default(cuid())
+  workoutDayId             String
+  position                 Int
+  kind                     String
+  rounds                   Int?
+  restBetweenExercisesSec  Int?
+  restBetweenRoundsSec     Int?
+  notes                    String?
+  createdAt                DateTime                       @default(now())
+  updatedAt                DateTime                       @updatedAt
+  workoutDay               WorkoutDay                     @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  members                  WorkoutResistanceGroupMember[]
+
+  @@unique([workoutDayId, position], map: "WorkoutResistanceGroup_day_position_key")
+}
+
+model WorkoutResistanceGroupMember {
+  id                 String                 @id @default(cuid())
+  groupId            String
+  workoutExerciseId  String                 @unique(map: "WorkoutResistanceGroupMember_exercise_key")
+  position           Int
+  group              WorkoutResistanceGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  workoutExercise    WorkoutExercise        @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, position], map: "WorkoutResistanceGroupMember_group_position_key")
+  @@index([groupId], map: "WorkoutResistanceGroupMember_group_idx")
+}
+
+/// Release-time snapshot of the catalog fields of a canonical exercise.
+model WorkoutReleasedExerciseSnapshot {
+  workoutExerciseId String @id
+  catalog Json
+  capturedAt DateTime @default(now())
+  workoutExercise WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+}
 
 model WorkoutExerciseBlock {
   id                String                      @id @default(cuid())
@@ -2029,6 +2098,7 @@ model WorkoutExercisePlannedSet {
   updatedAt       DateTime                      @updatedAt
   block           WorkoutExerciseBlock          @relation(fields: [blockId], references: [id], onDelete: Cascade)
   executionItems  WorkoutSessionExecutionItem[]
+  resistanceRests WorkoutSessionResistanceRest[]
   @@unique([blockId, position])
 }
 
@@ -2079,6 +2149,7 @@ model WorkoutSessionExecution {
   currentPauseStartedAt   DateTime?
   pausedDurationMs        BigInt                        @default(0)
   sessionValues           Json                          @default("{}")
+  plannedSnapshot         Json?
   createdAt               DateTime                      @default(now())
   updatedAt               DateTime                      @updatedAt
   workoutDay              WorkoutDay                    @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
@@ -2086,6 +2157,7 @@ model WorkoutSessionExecution {
   pauseIntervals          WorkoutSessionPauseInterval[]
   items                   WorkoutSessionExecutionItem[]
   postWorkoutFeedbackRevisions PostWorkoutFeedbackRevision[]
+  resistanceRests WorkoutSessionResistanceRest[]
 
   @@index([alunoId, contractId, status])
   @@index([originReleaseId])
@@ -2103,10 +2175,39 @@ model WorkoutSessionExecutionOperation {
   resultingVersion   Int
   lifecycleEventId   String?
   createdAt          DateTime                       @default(now())
+  lifecycleEvent     StudentLifecycleEvent?        @relation("GuidedExecutionLifecycleEvent", fields: [lifecycleEventId], references: [id], onDelete: Restrict)
   execution          WorkoutSessionExecution        @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  completedGuidedSet WorkoutSessionExecutionItem?    @relation("GuidedSetCompletionOperation")
 
   @@unique([executionId, operationKey])
   @@index([createdAt])
+}
+
+enum WorkoutResistanceRestStatus {
+  active
+  completed
+  skipped
+  interrupted
+}
+
+/// Durable, execution-only rest following one canonical planned set (#488).
+model WorkoutSessionResistanceRest {
+  id String @id @default(cuid())
+  executionId String
+  afterPlannedSetId String
+  plannedSeconds Int
+  extensionSeconds Int @default(0)
+  startedAt DateTime
+  targetEndsAt DateTime
+  pausedDurationMs BigInt @default(0)
+  endedAt DateTime?
+  elapsedMs BigInt?
+  status WorkoutResistanceRestStatus @default(active)
+  execution WorkoutSessionExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  afterPlannedSet WorkoutExercisePlannedSet @relation(fields: [afterPlannedSetId], references: [id], onDelete: Restrict)
+
+  @@unique([executionId, afterPlannedSetId])
+  @@index([executionId, status])
 }
 
 model WorkoutSessionPauseInterval {
@@ -2126,6 +2227,14 @@ model WorkoutSessionExecutionItem {
   plannedUnitId  String
   plannedSetId   String?
   setNumber      Int                     @default(0)
+  outcome        String?
+  substitutionNote String?
+  rir            Float?
+  rpe            Float?
+  tempo          String?
+  restSec        Int?
+  completedAt    DateTime?
+  completedByOperationId String?           @unique
   loadKg         Float?
   repetitions    Int?
   durationSec    Int?
@@ -2138,6 +2247,7 @@ model WorkoutSessionExecutionItem {
   execution      WorkoutSessionExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
   plannedUnit    WorkoutExercise          @relation(fields: [plannedUnitId], references: [id], onDelete: Restrict)
   plannedSet     WorkoutExercisePlannedSet? @relation(fields: [plannedSetId], references: [id], onDelete: Restrict)
+  completionOperation WorkoutSessionExecutionOperation? @relation("GuidedSetCompletionOperation", fields: [completedByOperationId], references: [id], onDelete: Restrict)
 
   @@unique([executionId, plannedUnitId, setNumber])
   @@index([plannedUnitId])

@@ -16,6 +16,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { ProfessorManualContextPanel } from '../../components/ProfessorManualContextPanel';
 import {
   buildResistedExercisesFromTemplate,
+  buildResistanceGroupsFromTemplate,
   buildWorkoutCacheKey,
   buildWorkoutSaveKey,
   buildWorkoutWeekDayEditability,
@@ -645,7 +646,10 @@ export default function WorkoutBuilder2() {
             const authoritativeTemplate = recoveredDraft && !templateFromApi.released
               ? recoveredDraft
               : templateFromApi;
-            const resistedFromApi = buildResistedExercisesFromTemplate(authoritativeTemplate);
+            const resistedFromApi = recoveredDraft?.resistedExercises
+              ?? buildResistedExercisesFromTemplate(authoritativeTemplate);
+            const groupsFromApi = recoveredDraft?.resistanceGroupsByDay
+              ?? buildResistanceGroupsFromTemplate(authoritativeTemplate);
 
             const persistedWeekStartDate = templateFromApi.weekStartDate || weekStartDate;
             const mergedTemplate = {
@@ -663,6 +667,7 @@ export default function WorkoutBuilder2() {
               weekNumber,
               baseTemplateUpdatedAt: templateFromApi.updatedAt,
               resistedExercises: resistedFromApi,
+              resistanceGroupsByDay: groupsFromApi,
             };
 
             // A pending draft is recovered only when it belongs to this exact
@@ -703,6 +708,9 @@ export default function WorkoutBuilder2() {
       resistedExercises: newData?.resistedExercises !== undefined
         ? newData.resistedExercises
         : templateDataByWeek[weekNumber]?.resistedExercises,
+      resistanceGroupsByDay: newData?.resistanceGroupsByDay !== undefined
+        ? newData.resistanceGroupsByDay
+        : templateDataByWeek[weekNumber]?.resistanceGroupsByDay,
     };
     const resolvedMesocycle = Number(merged?.mesocycleNumber ?? mesocycleNumber);
     const resolvedWeek = Number(merged?.weekNumber ?? weekNumber);
@@ -796,6 +804,7 @@ export default function WorkoutBuilder2() {
                   ...prev[resolvedWeek],
                   ...authoritative,
                   resistedExercises: buildResistedExercisesFromTemplate(authoritative),
+                  resistanceGroupsByDay: buildResistanceGroupsFromTemplate(authoritative),
                   planId: snapshot.planId,
                   mesocycleNumber: resolvedMesocycle,
                   weekNumber: resolvedWeek,
@@ -967,10 +976,12 @@ export default function WorkoutBuilder2() {
       clearCacheForWeek();
 
       const refreshedResisted = buildResistedExercisesFromTemplate(refreshed);
+      const refreshedGroups = buildResistanceGroupsFromTemplate(refreshed);
       const mergedTemplate = {
         ...targetTemplate,
         ...refreshed,
         resistedExercises: refreshedResisted,
+        resistanceGroupsByDay: refreshedGroups,
         alunoId: planData?.alunoId,
         weekStartDate: refreshed.weekStartDate ?? resolvedStartDate,
         mesocycleNumber: operationMesocycle,

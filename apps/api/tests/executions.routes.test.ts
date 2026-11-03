@@ -46,6 +46,27 @@ describe('legacy execution route error boundary', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  it.each([
+    { audience: 'aluno', url: '/executions/workout-days?startDate=2026-10-06&endDate=2026-10-06', releasedOnly: true },
+    { audience: 'professor', url: '/executions/professor/workout-days?alunoId=student-1&startDate=2026-10-06&endDate=2026-10-06', releasedOnly: false },
+  ])('AUD-400-05: rota de $audience mantém o contrato de consulta por período', async ({ url, releasedOnly }) => {
+    const historical = [{
+      id: 'day-1',
+      template: { released: true },
+      resistanceGroups: [{ id: 'group-1', members: [{ workoutExerciseId: 'exercise-1' }] }],
+      exercises: [{ id: 'exercise-1', exercise: { name: 'Nome prescrito na liberação' } }],
+    }];
+    workoutService.getWorkoutDaysByRange.mockResolvedValueOnce(historical);
+
+    const response = await request(app).get(url);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(historical);
+    expect(workoutService.getWorkoutDaysByRange).toHaveBeenCalledWith(
+      'student-1', '2026-10-06', '2026-10-06', { releasedOnly },
+    );
+  });
+
   it('redacts internal errors from the student workout-day endpoint', async () => {
     const secret = 'Prisma SQL secret password=must-not-leak';
     workoutService.getWorkoutDay.mockRejectedValueOnce(new Error(secret));
