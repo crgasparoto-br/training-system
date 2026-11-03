@@ -143,7 +143,36 @@ function exactHead() {
   return event?.pull_request?.head?.sha || process.env.VERIFICATION_HEAD_SHA || process.env.GITHUB_SHA || 'unknown';
 }
 async function untilText(page, fragment) {
-  await page.waitForFunction((text) => document.body?.innerText.includes(text), { timeout: 14000 }, fragment);
+  try {
+    await page.waitForFunction((text) => document.body?.innerText.includes(text), { timeout: 14000 }, fragment);
+  } catch (error) {
+    // A failed browser gate must show whether the write, revalidation or render stalled.
+    const screen = await page.evaluate(() => ({
+      path: location.pathname,
+      text: document.body?.innerText.slice(-2200),
+      alerts: [...document.querySelectorAll('[role="alert"]')].map((node) => node.textContent),
+      selectedOutcomes: [...document.querySelectorAll('select')].map((node) => node.value),
+      enabledButtons: [...document.querySelectorAll('button')].filter((node) => !node.disabled)
+        .map((node) => node.textContent?.trim()).filter(Boolean),
+    })).catch((cause) => ({ inspectionError: String(cause) }));
+    throw new Error('Waiting for ' + JSON.stringify(fragment) +
+      ' failed: ' + String(error) + '\nScreen: ' + JSON.stringify(screen) +
+      '\nRecent API requests: ' + JSON.stringify(calls.slice(-15)));
+  }
+}
+async function selectOutcome(page, value) {
+  // Use Chrome's actual select interaction so React receives input/change events.
+  // Directly changing HTMLSelectElement.value can skip React's controlled state.
+  const id = await page.evaluate(() => {
+    const label = [...document.querySelectorAll('label')]
+      .find((node) => node.textContent?.includes('Como foi a etapa?'));
+    const input = label?.htmlFor ? document.getElementById(label.htmlFor) : null;
+    if (!(input instanceof HTMLSelectElement)) throw new Error('Outcome not labelled');
+    return input.id;
+  });
+  const selected = await page.select('[id="' + id + '"]', value);
+  expect(selected).toEqual([value]);
+  await untilButton(page, 'Confirmar etapa');
 }
 async function untilButton(page, text) {
   await page.waitForFunction((text) => [...document.querySelectorAll('button')]
@@ -223,13 +252,7 @@ suite('Issue #489 - guided cyclic browser, responsive and accessible', () => {
         await checkLayout(page);
         await clickButton(page, 'Retomar treino');
         await untilText(page, 'Confirmar etapa');
-        await page.evaluate(() => {
-          const label = [...document.querySelectorAll('label')].find((el) => el.textContent?.includes('Como foi a etapa?'));
-          const input = label?.htmlFor ? document.getElementById(label.htmlFor) : null;
-          if (!(input instanceof HTMLSelectElement)) throw new Error('Outcome not labelled');
-          input.value = 'not_performed';
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-        });
+        await selectOutcome(page, 'not_performed');
         await clickButton(page, 'Confirmar etapa');
         await untilText(page, 'Rodada 1 de 2');
         await untilText(page, 'Velocidade: 9,5 a 12,5 km/h');
@@ -242,13 +265,7 @@ suite('Issue #489 - guided cyclic browser, responsive and accessible', () => {
         const work = await screenshot(page, viewport.name, 'work-round1');
         await clickButton(page, 'Iniciar etapa');
         await untilText(page, 'Confirmar etapa');
-        await page.evaluate(() => {
-          const label = [...document.querySelectorAll('label')].find((el) => el.textContent?.includes('Como foi a etapa?'));
-          const input = label?.htmlFor ? document.getElementById(label.htmlFor) : null;
-          if (!(input instanceof HTMLSelectElement)) throw new Error('Outcome not labelled');
-          input.value = 'not_performed';
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-        });
+        await selectOutcome(page, 'not_performed');
         await clickButton(page, 'Confirmar etapa');
         await untilText(page, 'Recuperação');
         await page.waitForFunction(() => [...document.querySelectorAll('h5')]
