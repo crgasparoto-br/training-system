@@ -92,6 +92,14 @@ Identificadores de remoção, IDs de upsert e repetições são validados contra
 
 Em atualizações parciais, `outcome` e `substitutionNote` podem ser omitidos independentemente: a situação efetiva e a observação são conciliadas com o registro persistido dentro da mesma transação serializável. `substituted` exige observação não vazia no estado final; uma observação não vazia em unidade não substituída é inválida. Omissão preserva a observação anterior, `null` tenta limpá-la explicitamente (e é recusado enquanto a unidade continua substituída), e alterar para outro outcome limpa a observação. Erros devolvem HTTP 400 sem avançar versão, operação ou valores executados.
 
+## Executor guiado de etapas cíclicas (#489)
+
+A leitura `GET /api/v1/student/me/training-sessions/:sessionId/execution/guided-cyclic` e o comando `POST .../execution/guided-cyclic/step` reutilizam `WorkoutSessionExecution` (#389) e `WorkoutCyclicStage` (#398). O contexto de aluno e `contractId` é resolvido pela sessão autenticada; a transação serializável bloqueia o `WorkoutDay` liberado com vínculo operacional consolidado antes de consultar ou escrever.
+
+O comando inclui `operationKey`, `expectedVersion`, `plannedStageId`, `iteration`, `action = start | complete`; na conclusão informa `outcome` e opcionalmente `values` com duração, distância, FC, zona, velocidade, ritmo, PSE ou descrição de substituição. IDs, ocorrência da repetição e ordem são revalidados sobre o plano liberado antes de atualizar: `sessionValues.cyclicStages` (#401), `sessionValues.guidedCyclic`, versão, operação idempotente e `StudentLifecycleEvent` são atômicos. Versão vencida, etapa fora de ordem, pausa ou sessão terminal retornam HTTP 409 sem avanço; dados inválidos retornam HTTP 400.
+
+O relógio é calculado apenas a partir de timestamps do servidor e das pausas da #389. O navegador só projeta contagem transitória e não pode avançar o treino ao completar a exibição. Ausência de etapas estruturadas retorna `legacy_read_only` sem inventar dados; histórico sem cursor consistente retorna `reconciliation_required` sem sobrescrita. O limite atual de 500 ocorrências por execução em `cyclicStages` é aplicado de forma explícita como `invalid_plan`, nunca com truncamento silencioso. O plano de validação e os cenários adversariais estão em `docs/execution-plans/active/2026-11-issue-489-guided-cyclic-execution.md`.
+
 ## Check-in pré-treino (#388)
 
 O check-in usa `PreWorkoutCheckIn` como fonte canônica única por `WorkoutDay`. A escrita do aluno ocorre em `PUT /api/v1/student/me/training-sessions/:sessionId/check-in`; aluno, contrato e ator são derivados da sessão autenticada e nunca do body.
