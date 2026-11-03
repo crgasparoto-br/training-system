@@ -61,6 +61,12 @@ O erro canônico usa `error` e `details.code`. HTTP 409 com `PRE_WORKOUT_CHECK_I
 
 Os IDs das regioes identificam registros existentes e devem permanecer estaveis. Na vista frontal, o lado direito anatomico aparece a esquerda da imagem; na posterior, aparece a direita. A ilustracao posterior usa contornos clinicos sem vestuario para permitir a indicacao de desconforto nas nadegas.
 
+## Execução guiada de etapas cíclicas (#489)
+
+`GuidedCyclicCard` usa o mesmo Treino de hoje para exibir uma etapa por vez (aquecimento, trabalho, recuperação, desaquecimento), incluindo posição, rodada, duração/distância, alvo e próximo passo. O aluno inicia e confirma etapas por comandos `start | complete`; cada resposta vem da API com versão, estágio e relógio canônicos. A duração é projetada apenas por `performance.now()` a partir do tempo restante fornecido pelo servidor; após refresh/foco/retomada ocorre nova leitura. Pausa congela o relógio e bloqueia mutações; sessão terminal mantém histórico.
+
+Para etapas por distância, o formulário pede o realizado em metros; metas de FC/velocidade/ritmo/zona/PSE têm campos opcionais. Desvios ou substituições não alteram o prescrito. Em timeout, a mesma chave de operação é mantida para retry do mesmo payload; após HTTP 409 ou leitura inconsistente, o guia exige recarga canônica antes de novo comando. Plano legado sem estrutura e progresso inconsistente exibem estados distintos, sem criar etapas. A conclusão total na UI confere `completed === total` na API quando existe estrutura; oferece continuar ou conclusão parcial, preservando a regra #389.
+
 ## Execução guiada no Treino de hoje (#487)
 
 `GuidedResistanceCard` exibe uma unidade resistida por vez, com prescrição histórica, repetições/carga realizadas separadas, bloco, série, agrupamento e rodada quando existirem. O backend entrega a ordem a partir do grafo persistido #399/#400 e do progresso #389; a UI não usa posição visual como identidade. A ficha completa permanece acessível, e ausência de granularidade libera apenas leitura sem séries fictícias.
