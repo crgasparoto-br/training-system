@@ -1,4 +1,6 @@
 import type { TrainingSessionExecutionView } from '@corrida/types';
+import { MAX_CYCLIC_STAGE_EXECUTION_RECORDS, MAX_CYCLIC_STAGE_OCCURRENCES,
+  MAX_CYCLIC_TOP_LEVEL_STAGES } from './cyclic-stages.domain.js';
 import {
   canCompleteGuidedCyclic, deriveGuidedCyclicPlan, elapsedGuidedCyclicMs, projectGuidedCyclic,
   type GuidedCyclicPlannedStage,
@@ -34,6 +36,10 @@ const record = (id: string, iteration = 1) => ({
 });
 
 describe('issue #489: canonical guided cyclic domain', () => {
+  it('reserves room for #401 repeat parents without reducing the #398 leaf limit', () => {
+    expect(MAX_CYCLIC_STAGE_OCCURRENCES).toBe(80_000);
+    expect(MAX_CYCLIC_STAGE_EXECUTION_RECORDS).toBe(MAX_CYCLIC_STAGE_OCCURRENCES + MAX_CYCLIC_TOP_LEVEL_STAGES);
+  });
   it('expands explicit warmup, work/recovery rounds and cooldown in released order', () => {
     const result = plan();
     expect(result.availability).toBe('available');
@@ -132,6 +138,66 @@ describe('issue #489: canonical guided cyclic domain', () => {
     expect(afterRefresh.remainingMs).toBe(48_000);
   });
 
+  it('keeps the optional #401 repeat-parent aggregate separate from guided leaf progress and completion', () => {
+    const released = plan();
+    const cursor = { plannedStageId: 'work', iteration: 1,
+      startedAt: '2026-11-03T09:00:00.000Z', pausedDurationAtStartMs: 0 };
+    const now = new Date('2026-11-03T09:00:15.000Z');
+    const withRows = (rows: ReturnType<typeof record>[], guidedCyclic = cursor) => execution({
+      sessionValues: { cyclicStages: rows, guidedCyclic },
+    });
+    const withoutParent = projectGuidedCyclic('day', withRows([record('warmup')]), released, now);
+    const withParent = projectGuidedCyclic('day', withRows([
+      record('repeated'), record('warmup'),
+    ]), released, now);
+    expect(withParent).toEqual(withoutParent);
+    expect(withParent).toMatchObject({ availability: 'available', completed: 1, total: 6,
+      current: { plannedStageId: 'work', iteration: 1, roundNumber: 1 },
+      next: { plannedStageId: 'recover', iteration: 1 }, remainingMs: 45_000 });
+
+    const leaves = released.units.map((unit) => record(unit.plannedStageId, unit.iteration));
+    const finishedCursor = { plannedStageId: null, iteration: null,
+      startedAt: null, pausedDurationAtStartMs: null };
+    for (const rows of [[record('repeated'), ...leaves], [...leaves, record('repeated')]]) {
+      const finished = execution({ sessionValues: { cyclicStages: rows, guidedCyclic: finishedCursor } });
+      expect(projectGuidedCyclic('day', finished, released, now)).toMatchObject({
+        availability: 'available', completed: 6, total: 6, current: null, next: null,
+      });
+      expect(canCompleteGuidedCyclic('day', finished, released, now)).toBe(true);
+      expect(canCompleteGuidedCyclic('day', execution({ sessionValues: { cyclicStages: rows } }),
+        released, now)).toBe(true); // The manual #401 path has the same coverage rule.
+    }
+  });
+
+  it('fails closed for invalid or duplicated parent aggregates without hiding missing or reordered leaves', () => {
+    const released = plan();
+    const now = new Date('2026-11-03T09:00:30.000Z');
+    const leaves = released.units.map((unit) => record(unit.plannedStageId, unit.iteration));
+    const finishedCursor = { plannedStageId: null, iteration: null,
+      startedAt: null, pausedDurationAtStartMs: null };
+    const invalidRows = [
+      [...leaves, record('repeated'), record('repeated')],
+      [...leaves, record('repeated', 2)],
+      [...leaves, record('foreign-parent')],
+      [...leaves, record('work', 3)],
+      [...leaves, record('warmup')],
+      [record('repeated'), ...leaves.slice(1)],
+    ];
+    for (const cyclicStages of invalidRows) {
+      const guided = execution({ sessionValues: { cyclicStages, guidedCyclic: finishedCursor } });
+      expect(projectGuidedCyclic('day', guided, released, now).availability)
+        .toBe('reconciliation_required');
+      expect(canCompleteGuidedCyclic('day', guided, released, now)).toBe(false);
+      expect(canCompleteGuidedCyclic('day', execution({ sessionValues: { cyclicStages } }),
+        released, now)).toBe(false);
+    }
+    const skipped = execution({ sessionValues: { cyclicStages: [record('repeated'), record('work', 2)],
+      guidedCyclic: { plannedStageId: 'warmup', iteration: 1,
+        startedAt: null, pausedDurationAtStartMs: null } } });
+    expect(projectGuidedCyclic('day', skipped, released, now).availability)
+      .toBe('reconciliation_required');
+  });
+
   it('freezes on #389 pause and resumes without double-counting old pauses', () => {
     const cursor = { plannedStageId: 'warmup', iteration: 1,
       startedAt: '2026-11-03T09:00:00.000Z', pausedDurationAtStartMs: 4000 };
@@ -181,7 +247,7 @@ describe('issue #489: canonical guided cyclic domain', () => {
     expect(check([...rows, record('repeated', 2)])).toBe(false);
     expect(check([...rows, record('repeated'), record('repeated')])).toBe(false);
     expect(check([...rows, record('repeated')], { plannedStageId: null, iteration: null,
-      startedAt: null, pausedDurationAtStartMs: null })).toBe(false);
+      startedAt: null, pausedDurationAtStartMs: null })).toBe(true);
     expect(canCompleteGuidedCyclic('day', manual(rows), deriveGuidedCyclicPlan([]),
       new Date('2026-11-03T09:01:00.000Z'))).toBe(false);
     const gui = manual(rows, { plannedStageId: null, iteration: null,

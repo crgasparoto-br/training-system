@@ -118,28 +118,36 @@ function hasCompleteManualCyclicCoverage(
   plan: Plan,
   recorded: readonly TrainingSessionCyclicStageExecutionValue[] | undefined,
 ): boolean {
-  if (!Array.isArray(recorded)) return false;
+  const completedLeaves = recordedLeafOccurrences(plan, recorded);
+  return completedLeaves !== null && completedLeaves.size === plan.units.length;
+}
+
+/** #401 permits one optional aggregate per #398 repeat parent, but it is never a timed leaf. */
+function recordedLeafOccurrences(
+  plan: Plan,
+  recorded: readonly TrainingSessionCyclicStageExecutionValue[] | undefined,
+): Set<string> | null {
+  if (!Array.isArray(recorded)) return null;
   const expected = new Set(plan.units.map((unit) => JSON.stringify([unit.plannedStageId, unit.iteration])));
   const parents = new Set(plan.repeatParentIds ?? []);
-  const found = new Set<string>();
+  const leaves = new Set<string>();
   const parentFound = new Set<string>();
   for (const row of recorded) {
-    if (!row || typeof row.plannedStageId !== 'string'
-      || !Number.isInteger(row.iteration ?? 1) || (row.iteration ?? 1) < 1) return false;
+    if (!row || typeof row.plannedStageId !== 'string' || !row.plannedStageId
+      || !Number.isInteger(row.iteration ?? 1) || (row.iteration ?? 1) < 1) return null;
     const iteration = row.iteration ?? 1;
     const key = JSON.stringify([row.plannedStageId, iteration]);
     if (expected.has(key)) {
-      if (found.has(key)) return false;
-      found.add(key);
+      if (leaves.has(key)) return null;
+      leaves.add(key);
     } else if (iteration === 1 && parents.has(row.plannedStageId)) {
-      // Optional aggregate result for the #398 repeat parent, not a timed leaf.
-      if (parentFound.has(row.plannedStageId)) return false;
+      if (parentFound.has(row.plannedStageId)) return null;
       parentFound.add(row.plannedStageId);
     } else {
-      return false;
+      return null;
     }
   }
-  return found.size === expected.size;
+  return leaves;
 }
 
 function isCursor(value: unknown): value is GuidedCyclicCursor {
@@ -188,21 +196,11 @@ export function projectGuidedCyclic(
     current: null, next: null, currentStartedAt: null, elapsedMs: null, remainingMs: null,
   };
   if (plan.availability !== 'available') return base;
-  const recorded = execution.sessionValues.cyclicStages ?? [];
-  if (!Array.isArray(recorded)) return { ...base, availability: 'reconciliation_required' };
-  const occurrences = new Set<string>();
-  for (const row of recorded) {
-    const key = row.plannedStageId + ':' + (row.iteration ?? 1);
-    if (occurrences.has(key)) return { ...base, availability: 'reconciliation_required' };
-    occurrences.add(key);
-  }
-  const expected = new Set(plan.units.map((unit) => unit.plannedStageId + ':' + unit.iteration));
-  if ([...occurrences].some((key) => !expected.has(key))) {
-    return { ...base, availability: 'reconciliation_required' };
-  }
+  const occurrences = recordedLeafOccurrences(plan, execution.sessionValues.cyclicStages ?? []);
+  if (!occurrences) return { ...base, availability: 'reconciliation_required' };
   let completed = 0;
   for (const unit of plan.units) {
-    if (!occurrences.has(unit.plannedStageId + ':' + unit.iteration)) break;
+    if (!occurrences.has(JSON.stringify([unit.plannedStageId, unit.iteration]))) break;
     completed += 1;
   }
   if (completed !== occurrences.size) return { ...base, availability: 'reconciliation_required' };

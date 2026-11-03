@@ -18,7 +18,7 @@ import type {
 } from '@corrida/types';
 import { deriveGuidedResistancePlan, matchesCurrentGuidedUnit, projectGuidedResistance } from './guided-resistance.domain.js';
 import { canCompleteGuidedCyclic, deriveGuidedCyclicPlan, projectGuidedCyclic } from './guided-cyclic.domain.js';
-import { MAX_CYCLIC_STAGE_OCCURRENCES } from './cyclic-stages.domain.js';
+import { MAX_CYCLIC_STAGE_EXECUTION_RECORDS } from './cyclic-stages.domain.js';
 import { prescribedRestAfter, projectResistanceRest, measuredRestMs } from './resistance-rest.domain.js';
 import { projectReleasedExerciseCatalog } from './workout-release-catalog.js';
 import { persistWorkoutSessionValues, WorkoutSessionExecutionInputError } from './workout-session-execution-values.js';
@@ -166,7 +166,7 @@ function normalizeSessionValues(values: TrainingSessionExecutionSessionValuesPat
   }
   if (values.heartRateZone !== undefined) normalized.heartRateZone = normalizeText(values.heartRateZone, 32);
   if (values.cyclicStages !== undefined) {
-    if (!Array.isArray(values.cyclicStages) || values.cyclicStages.length > MAX_CYCLIC_STAGE_OCCURRENCES) {
+    if (!Array.isArray(values.cyclicStages) || values.cyclicStages.length > MAX_CYCLIC_STAGE_EXECUTION_RECORDS) {
       throw new WorkoutSessionExecutionInputError('Quantidade de etapas executadas inválida.');
     }
     const keys = new Set<string>();
@@ -200,7 +200,7 @@ function normalizeSessionValues(values: TrainingSessionExecutionSessionValuesPat
     });
   }
   if (values.removeCyclicStages !== undefined) {
-    if (!Array.isArray(values.removeCyclicStages) || values.removeCyclicStages.length > MAX_CYCLIC_STAGE_OCCURRENCES) {
+    if (!Array.isArray(values.removeCyclicStages) || values.removeCyclicStages.length > MAX_CYCLIC_STAGE_EXECUTION_RECORDS) {
       throw new WorkoutSessionExecutionInputError('Quantidade de etapas removidas inválida.');
     }
     const keys = new Set<string>();

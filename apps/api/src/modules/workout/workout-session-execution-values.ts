@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { MAX_CYCLIC_STAGE_OCCURRENCES } from './cyclic-stages.domain.js';
+import { MAX_CYCLIC_STAGE_EXECUTION_RECORDS } from './cyclic-stages.domain.js';
 import type {
   TrainingSessionExecutionItemValue,
   TrainingSessionExecutionSessionValues,
@@ -241,7 +241,7 @@ export async function persistWorkoutSessionValues(
       merged.cyclicStages = mergeRecordedUnits<TrainingSessionCyclicStageExecutionValue>(
         stored.cyclicStages, updates.cyclicStages,
         (removeCyclicStages ?? []).map((entry) => `${entry.plannedStageId}:${entry.iteration ?? 1}`),
-        (entry) => `${entry.plannedStageId}:${entry.iteration ?? 1}`, MAX_CYCLIC_STAGE_OCCURRENCES,
+        (entry) => `${entry.plannedStageId}:${entry.iteration ?? 1}`, MAX_CYCLIC_STAGE_EXECUTION_RECORDS,
         CYCLIC_STAGE_MEASUREMENTS, 'Etapa cíclica',
       );
     }

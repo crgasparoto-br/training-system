@@ -37,7 +37,7 @@ import {
 import { projectWorkoutExecutionForAudience } from '../modules/workout/workout-session-comparison.domain.js';
 import { postWorkoutFeedbackPersistenceService, PostWorkoutFeedbackConflictError, PostWorkoutFeedbackInputError, PostWorkoutFeedbackNotFoundError } from '../modules/post-workout-feedback/post-workout-feedback-persistence.service.js';
 import { withResistanceRestRequestTiming } from '../modules/workout/resistance-rest.domain.js';
-import { MAX_CYCLIC_STAGE_OCCURRENCES } from '../modules/workout/cyclic-stages.domain.js';
+import { MAX_CYCLIC_STAGE_EXECUTION_RECORDS } from '../modules/workout/cyclic-stages.domain.js';
 
 const prisma = new PrismaClient();
 
@@ -865,12 +865,12 @@ const executionSessionValuesSchema = z.object({
   speedKmh: z.number().finite().nonnegative().nullable().optional(),
   heartRateBpm: z.number().int().min(0).max(260).nullable().optional(),
   heartRateZone: z.string().trim().max(32).nullable().optional(),
-  cyclicStages: z.array(executionCyclicStageSchema).max(MAX_CYCLIC_STAGE_OCCURRENCES).optional(),
+  cyclicStages: z.array(executionCyclicStageSchema).max(MAX_CYCLIC_STAGE_EXECUTION_RECORDS).optional(),
   resistanceGroups: z.array(executionResistanceGroupSchema).max(100).optional(),
   removeCyclicStages: z.array(z.object({
     plannedStageId: z.string().trim().min(1),
     iteration: z.number().int().min(1).max(100).optional(),
-  }).strict()).max(MAX_CYCLIC_STAGE_OCCURRENCES).optional(),
+  }).strict()).max(MAX_CYCLIC_STAGE_EXECUTION_RECORDS).optional(),
   removeResistanceGroups: z.array(z.string().trim().min(1)).max(100).optional(),
 }).strict();
 

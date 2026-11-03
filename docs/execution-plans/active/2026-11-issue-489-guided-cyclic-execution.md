@@ -31,8 +31,9 @@ Nova árvore de prescrição, relógio durável duplicado, inferência de etapas
 8. Em `partial`/`completed`/`not_performed` o relógio deixa de avançar no `finishedAt` persistido, inclusive se a sessão foi encerrada durante pausa; leituras futuras são historicamente idênticas. Pausa explícita não é contabilizada como execução.
 
 ## Capacidade e fallback
-- O limite de execução `cyclicStages` é derivado da prescrição #398: 40 etapas principais, até 100 rodadas com até 20 filhos cada (no máximo **80.000 ocorrências**). O guard, o merge persistido e a normalização usam o mesmo limite; uma sequência válida de 600 ocorrências não é truncada nem classificada falsamente como `invalid_plan`. Todas as gravações guiadas continuam incrementais e versionadas. Em planos extremos, custos de armazenamento/leitura do histórico JSONB devem ser monitorados operacionalmente, sem restringir silenciosamente as sessões liberadas.
+- O limite de execução `cyclicStages` é derivado da prescrição #398: 40 etapas principais, até 100 rodadas com até 20 filhos cada (no máximo **80.000 ocorrências**). O guard da sequência mantém 80.000 ocorrências folha; o merge persistido, a normalização e o Zod aceitam até 80.040 registros executados (40 agregados opcionais adicionais dos pais `repeat`), sem inventar etapas. Uma sequência válida de 600 ocorrências e seu agregado não são truncados nem classificados falsamente como `invalid_plan`. Todas as gravações guiadas continuam incrementais e versionadas. Em planos extremos, custos de armazenamento/leitura do histórico JSONB devem ser monitorados operacionalmente, sem restringir silenciosamente as sessões liberadas.
 - Se uma execução histórica tiver valores sem cursor compatível, a projeção retorna `reconciliation_required` e bloqueia avanço; não corrige, atribui ou elimina histórico automaticamente.
+- Agregados opcionais do pai `repeat` registrados pela #401 são vinculados ao ID histórico do pai (iteração 1), permanecem no histórico para comparação, mas não são contados como etapas temporais. A projeção guiada e a conclusão canônica compartilham validação do mesmo conjunto de folhas e pais, recusando agregados duplicados, de outra sessão ou com iteração inválida (A-489-005).
 
 ## Checklist de implementação
 - [x] Contratos e domínio de expansão de etapas e relógio.
@@ -40,6 +41,7 @@ Nova árvore de prescrição, relógio durável duplicado, inferência de etapas
 - [x] UI responsiva, metas e registros realizados.
 - [x] Testes focados e integração PostgreSQL preparados.
 - [x] Documentação técnica de API/Web atualizada.
+- [x] A-489-005: projeção guiada e conclusão #389 reconciliam agregado de pai `repeat` com execução #401; testes de domínio e integração PostgreSQL cobrem sucesso, concorrência/retry e rejeições adversariais.
 - [ ] `pnpm validate` verde no HEAD material final (confirmar no workflow do GitHub Actions).
 - [ ] Confirmar as capturas Chrome da #489 no artefato da CI exact-SHA (desktop 1440x900 e mobile 390x844, teclado, foco, pausa, rodada, alvos, contraste, escopo autenticado).
 - [ ] Nova auditoria independente exact-SHA após a remediação.

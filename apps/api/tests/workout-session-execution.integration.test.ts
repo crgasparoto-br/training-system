@@ -4804,6 +4804,111 @@ describeDatabase('issue #489: guided cyclic stages share the canonical lifecycle
     } })).toBe(1);
   });
 
+  it('continues guided #489 steps with a #401 repeat-parent aggregate and completes via canonical #389', async () => {
+    const fixture = await seedReleasedWorkout('489-parent-aggregate', { seedRepeatedCyclic: true });
+    const parent = await prisma.workoutCyclicStage.findFirstOrThrow({
+      where: { workoutDayId: fixture.dayId, kind: 'repeat' }, select: { id: true },
+    });
+    await transition(fixture, '489-parent-session-start', 0, 'in_progress');
+    let view = await service.getGuidedCyclicForSession(scope(fixture));
+    view = await step(fixture, view, 'start', '489-parent-step-start');
+    const firstStage = view.current!.plannedStageId;
+    const originalStartedAt = view.currentStartedAt;
+
+    // #401 accepts an optional aggregate for the released repeat parent. This
+    // upsert must not count as a leaf or reset the durable #389 guided cursor.
+    const saved = await service.saveValues({ ...scope(fixture), actorUserId: fixture.alunoUserId,
+      payload: { operationKey: '489-parent-aggregate-upsert', expectedVersion: view.version,
+        sessionValues: { cyclicStages: [{ plannedStageId: parent.id, outcome: 'full' }] } },
+    });
+    expect(saved.sessionValues.cyclicStages).toHaveLength(1);
+    view = await concurrentService.getGuidedCyclicForSession(scope(fixture));
+    expect(view).toMatchObject({ availability: 'available', completed: 0, total: 4,
+      current: { plannedStageId: firstStage, iteration: 1 },
+      currentStartedAt: originalStartedAt });
+    await expect(transition(fixture, '489-parent-early-complete', view.version, 'completed'))
+      .rejects.toMatchObject({ statusCode: 409 });
+
+    view = await step(fixture, view, 'complete', '489-parent-first-complete', 'partial');
+    expect(view).toMatchObject({ availability: 'available', completed: 1,
+      current: { kind: 'recovery', iteration: 1 } });
+    for (let i = 1; i < 4; i++) {
+      view = await step(fixture, view, 'start', '489-parent-next-start-' + i);
+      view = await step(fixture, view, 'complete', '489-parent-next-complete-' + i, 'not_performed');
+      expect(view.availability).toBe('available');
+    }
+    expect(view).toMatchObject({ completed: 4, total: 4, current: null, next: null });
+    const executed = await service.getForSession(scope(fixture));
+    expect(executed.sessionValues.cyclicStages).toHaveLength(5); // Four leaves + one parent.
+    expect(executed.sessionValues.cyclicStages?.filter((row) => row.plannedStageId === parent.id)).toHaveLength(1);
+    const persisted = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId },
+    });
+    const comparisonPlan = readCapturedWorkoutComparisonPlan(persisted.plannedSnapshot)!;
+    const comparison = compareWorkoutSession(comparisonPlan, executed, 'captured');
+    expect(comparison.units.filter((unit) => unit.plannedUnitId === parent.id)).toHaveLength(1);
+
+    const payload = { operationKey: '489-parent-session-complete', expectedVersion: view.version,
+      targetStatus: 'completed' as const };
+    const complete = await service.transition({ ...scope(fixture), actorUserId: fixture.alunoUserId, payload });
+    expect(complete.status).toBe('completed');
+    const retry = await concurrentService.transition({ ...scope(fixture), actorUserId: fixture.alunoUserId, payload });
+    expect(retry.version).toBe(complete.version);
+    expect((await service.getGuidedCyclicForSession(scope(fixture))).completed).toBe(4);
+    expect(await prisma.workoutSessionExecutionOperation.count({ where: {
+      executionId: persisted.id, operationKey: payload.operationKey,
+    } })).toBe(1);
+  });
+
+  it('rejects duplicated, foreign and illegally iterated repeat-parent values without saving them', async () => {
+    const fixture = await seedReleasedWorkout('489-parent-invalid', { seedRepeatedCyclic: true });
+    const foreign = await seedReleasedWorkout('489-parent-foreign', { seedRepeatedCyclic: true });
+    const parent = await prisma.workoutCyclicStage.findFirstOrThrow({
+      where: { workoutDayId: fixture.dayId, kind: 'repeat' }, select: { id: true },
+    });
+    const foreignParent = await prisma.workoutCyclicStage.findFirstOrThrow({
+      where: { workoutDayId: foreign.dayId, kind: 'repeat' }, select: { id: true },
+    });
+    await transition(fixture, '489-invalid-parent-session-start', 0, 'in_progress');
+    const invalidRows = [
+      [{ plannedStageId: parent.id, outcome: 'full' as const },
+        { plannedStageId: parent.id, iteration: 1, outcome: 'full' as const }],
+      [{ plannedStageId: parent.id, iteration: 2, outcome: 'full' as const }],
+      [{ plannedStageId: foreignParent.id, outcome: 'full' as const }],
+    ];
+    for (const [index, cyclicStages] of invalidRows.entries()) {
+      await expect(service.saveValues({ ...scope(fixture), actorUserId: fixture.alunoUserId,
+        payload: { operationKey: '489-parent-invalid-' + index, expectedVersion: 1,
+          sessionValues: { cyclicStages } },
+      })).rejects.toBeInstanceOf(WorkoutSessionExecutionInputError);
+    }
+    const persisted = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId },
+    });
+    expect(persisted.version).toBe(1);
+    expect((await service.getForSession(scope(fixture))).sessionValues.cyclicStages ?? []).toHaveLength(0);
+    expect(await prisma.workoutSessionExecutionOperation.count({ where: {
+      executionId: persisted.id,
+      operationKey: { in: invalidRows.map((_, index) => '489-parent-invalid-' + index) },
+    } })).toBe(0);
+
+    // Even if historical JSON was corrupted outside the canonical write API,
+    // neither guided progression nor a direct terminal transition may use it.
+    await prisma.workoutSessionExecution.update({ where: { id: persisted.id },
+      data: { sessionValues: { cyclicStages: [
+        { plannedStageId: parent.id, iteration: 1, outcome: 'full' },
+        { plannedStageId: parent.id, iteration: 1, outcome: 'full' },
+      ] } },
+    });
+    expect((await service.getGuidedCyclicForSession(scope(fixture))).availability)
+      .toBe('reconciliation_required');
+    await expect(transition(fixture, '489-parent-corrupt-finish', 1, 'completed'))
+      .rejects.toMatchObject({ statusCode: 409 });
+    expect(await prisma.workoutSessionExecutionOperation.count({ where: {
+      executionId: persisted.id, operationKey: '489-parent-corrupt-finish',
+    } })).toBe(0);
+  });
+
   it('stores all 600 #398-valid executed occurrences without truncating at 500', async () => {
     const fixture = await seedReleasedWorkout('489-six-hundred', { seedLargeCyclic: true });
     await transition(fixture, '489-600-start', 0, 'in_progress');
@@ -4817,13 +4922,16 @@ describeDatabase('issue #489: guided cyclic stages share the canonical lifecycle
     const recorded = Array.from({ length: 100 }, (_, index) => planned.map((stage) => ({
       plannedStageId: stage.id, iteration: index + 1, outcome: 'not_performed' as const,
     }))).flat();
+    const repeat = await prisma.workoutCyclicStage.findFirstOrThrow({
+      where: { workoutDayId: fixture.dayId, kind: 'repeat' }, select: { id: true },
+    });
     const saved = await service.saveValues({ ...scope(fixture), actorUserId: fixture.alunoUserId,
       payload: { operationKey: '489-600-records', expectedVersion: 1,
-        sessionValues: { cyclicStages: recorded } },
+        sessionValues: { cyclicStages: [...recorded, { plannedStageId: repeat.id, outcome: 'full' }] } },
     });
-    expect(saved.sessionValues.cyclicStages).toHaveLength(600);
+    expect(saved.sessionValues.cyclicStages).toHaveLength(601);
     const reread = await concurrentService.getForSession(scope(fixture));
-    expect(reread.sessionValues.cyclicStages).toHaveLength(600);
+    expect(reread.sessionValues.cyclicStages).toHaveLength(601);
     // A missing single child still blocks the canonical #389 completion; a
     // complete #401 manual history without a guided cursor may finish safely.
     const missing = await service.saveValues({ ...scope(fixture), actorUserId: fixture.alunoUserId,
