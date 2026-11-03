@@ -4894,15 +4894,17 @@ describeDatabase('issue #489: guided cyclic stages share the canonical lifecycle
 
     // Even if historical JSON was corrupted outside the canonical write API,
     // neither guided progression nor a direct terminal transition may use it.
+    // #399 also protects direct SQL writes: every root mutation must increment
+    // the canonical version, even when simulating malformed historical JSON.
     await prisma.workoutSessionExecution.update({ where: { id: persisted.id },
-      data: { sessionValues: { cyclicStages: [
+      data: { version: { increment: 1 }, sessionValues: { cyclicStages: [
         { plannedStageId: parent.id, iteration: 1, outcome: 'full' },
         { plannedStageId: parent.id, iteration: 1, outcome: 'full' },
       ] } },
     });
     expect((await service.getGuidedCyclicForSession(scope(fixture))).availability)
       .toBe('reconciliation_required');
-    await expect(transition(fixture, '489-parent-corrupt-finish', 1, 'completed'))
+    await expect(transition(fixture, '489-parent-corrupt-finish', persisted.version + 1, 'completed'))
       .rejects.toMatchObject({ statusCode: 409 });
     expect(await prisma.workoutSessionExecutionOperation.count({ where: {
       executionId: persisted.id, operationKey: '489-parent-corrupt-finish',
