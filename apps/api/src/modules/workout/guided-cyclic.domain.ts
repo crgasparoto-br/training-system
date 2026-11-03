@@ -1,6 +1,6 @@
 import type {
   GuidedCyclicCursor, GuidedCyclicUnit, GuidedCyclicView,
-  TrainingSessionExecutionView,
+  TrainingSessionCyclicStageExecutionValue, TrainingSessionExecutionView,
 } from '@corrida/types';
 import { MAX_CYCLIC_STAGE_OCCURRENCES } from './cyclic-stages.domain.js';
 import { TERMINAL_EXECUTION_STATUSES } from './workout-session-execution.domain.js';
@@ -23,7 +23,10 @@ export type GuidedCyclicPlannedStage = {
   children: GuidedCyclicPlannedStage[];
 };
 
-type Plan = { availability: 'available' | 'legacy_read_only' | 'invalid_plan'; units: GuidedCyclicUnit[] };
+type Plan = { availability: 'available' | 'legacy_read_only' | 'invalid_plan'; units: GuidedCyclicUnit[];
+  /** #401 may record a repeat parent's aggregate independently of its child executions. */
+  repeatParentIds?: string[];
+};
 const KINDS = new Set(['warmup', 'work', 'recovery', 'cooldown']);
 const TARGETS = new Set(['pace_min_per_km', 'speed_kmh', 'heart_rate_bpm', 'zone', 'pse']);
 
@@ -49,6 +52,7 @@ function plannedUnit(stage: GuidedCyclicPlannedStage, iteration: number, roundTo
 export function deriveGuidedCyclicPlan(stages: readonly GuidedCyclicPlannedStage[]): Plan {
   if (stages.length === 0) return { availability: 'legacy_read_only', units: [] };
   const units: GuidedCyclicUnit[] = [];
+  const repeatParentIds: string[] = [];
   const append = (stage: GuidedCyclicPlannedStage, iteration: number, total: number | null) => {
     const item = plannedUnit(stage, iteration, total);
     if (!item || units.length >= MAX_CYCLIC_STAGE_OCCURRENCES) return false;
@@ -69,6 +73,7 @@ export function deriveGuidedCyclicPlan(stages: readonly GuidedCyclicPlannedStage
       || stage.durationUnit !== null || stage.durationValue !== null || stage.targetKind !== null) {
       return { availability: 'invalid_plan', units: [] };
     }
+    repeatParentIds.push(stage.id);
     const children = [...stage.children].sort((a, b) => a.position - b.position);
     for (const [childIndex, child] of children.entries()) {
       if (child.position !== childIndex + 1 || ids.has(child.id)) return { availability: 'invalid_plan', units: [] };
@@ -83,7 +88,58 @@ export function deriveGuidedCyclicPlan(stages: readonly GuidedCyclicPlannedStage
       }
     }
   }
-  return { availability: 'available', units };
+  return { availability: 'available', units, repeatParentIds };
+}
+
+/**
+ * #389 terminality must accept a fully recorded historical #401 session as well as
+ * a guided #489 cursor. The read-only guided projection deliberately requires a
+ * cursor, but that is not a prerequisite for a complete manual #401 execution.
+ * Never treat a repeat-parent aggregate record as a missing/extra child stage.
+ */
+export function canCompleteGuidedCyclic(
+  sessionId: string,
+  execution: TrainingSessionExecutionView,
+  plan: Plan,
+  now: Date,
+): boolean {
+  if (plan.availability !== 'available' || plan.units.length === 0) return false;
+  const projected = projectGuidedCyclic(sessionId, execution, plan, now);
+  if (projected.availability === 'available') {
+    return projected.completed === projected.total && projected.current === null;
+  }
+  // No synthetic cursor may be accepted, including one inconsistent with history.
+  // The #401 manual-values path has no guided cursor by design.
+  if (execution.sessionValues.guidedCyclic !== undefined) return false;
+  return hasCompleteManualCyclicCoverage(plan, execution.sessionValues.cyclicStages);
+}
+
+function hasCompleteManualCyclicCoverage(
+  plan: Plan,
+  recorded: readonly TrainingSessionCyclicStageExecutionValue[] | undefined,
+): boolean {
+  if (!Array.isArray(recorded)) return false;
+  const expected = new Set(plan.units.map((unit) => JSON.stringify([unit.plannedStageId, unit.iteration])));
+  const parents = new Set(plan.repeatParentIds ?? []);
+  const found = new Set<string>();
+  const parentFound = new Set<string>();
+  for (const row of recorded) {
+    if (!row || typeof row.plannedStageId !== 'string'
+      || !Number.isInteger(row.iteration ?? 1) || (row.iteration ?? 1) < 1) return false;
+    const iteration = row.iteration ?? 1;
+    const key = JSON.stringify([row.plannedStageId, iteration]);
+    if (expected.has(key)) {
+      if (found.has(key)) return false;
+      found.add(key);
+    } else if (iteration === 1 && parents.has(row.plannedStageId)) {
+      // Optional aggregate result for the #398 repeat parent, not a timed leaf.
+      if (parentFound.has(row.plannedStageId)) return false;
+      parentFound.add(row.plannedStageId);
+    } else {
+      return false;
+    }
+  }
+  return found.size === expected.size;
 }
 
 function isCursor(value: unknown): value is GuidedCyclicCursor {

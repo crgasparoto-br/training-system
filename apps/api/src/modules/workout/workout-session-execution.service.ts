@@ -17,7 +17,7 @@ import type {
   TrainingSessionCyclicStageExecutionValue,
 } from '@corrida/types';
 import { deriveGuidedResistancePlan, matchesCurrentGuidedUnit, projectGuidedResistance } from './guided-resistance.domain.js';
-import { deriveGuidedCyclicPlan, projectGuidedCyclic } from './guided-cyclic.domain.js';
+import { canCompleteGuidedCyclic, deriveGuidedCyclicPlan, projectGuidedCyclic } from './guided-cyclic.domain.js';
 import { MAX_CYCLIC_STAGE_OCCURRENCES } from './cyclic-stages.domain.js';
 import { prescribedRestAfter, projectResistanceRest, measuredRestMs } from './resistance-rest.domain.js';
 import { projectReleasedExerciseCatalog } from './workout-release-catalog.js';
@@ -593,11 +593,9 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
         if (plan.availability === 'available') {
           const persisted = await readExecution(tx, input.sessionId);
           if (!persisted) throw new WorkoutSessionExecutionNotFoundError('Execução não encontrada.');
-          const progress = projectGuidedCyclic(
+          if (!canCompleteGuidedCyclic(
             input.sessionId, projectWorkoutSessionExecution(persisted), plan, new Date(),
-          );
-          if (progress.availability !== 'available' || progress.completed !== progress.total
-            || progress.current !== null || progress.total === 0) {
+          )) {
             throw new WorkoutSessionExecutionConflictError(
               'Existem etapas cíclicas pendentes ou inconsistentes. Confirme cada etapa antes de concluir o treino.',
               'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION',

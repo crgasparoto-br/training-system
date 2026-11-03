@@ -1,6 +1,6 @@
 import type { TrainingSessionExecutionView } from '@corrida/types';
 import {
-  deriveGuidedCyclicPlan, elapsedGuidedCyclicMs, projectGuidedCyclic,
+  canCompleteGuidedCyclic, deriveGuidedCyclicPlan, elapsedGuidedCyclicMs, projectGuidedCyclic,
   type GuidedCyclicPlannedStage,
 } from './guided-cyclic.domain.js';
 
@@ -163,6 +163,31 @@ describe('issue #489: canonical guided cyclic domain', () => {
       sessionValues: { guidedCyclic: { ...current, startedAt: 'not-a-date',
         pausedDurationAtStartMs: 0 } },
     }), plan(), new Date()).availability).toBe('reconciliation_required');
+  });
+
+  it('permits complete #401 manual values with repeat-parent aggregate while rejecting incomplete, duplicate and foreign records', () => {
+    const planned = plan();
+    const rows = planned.units.map((unit) => record(unit.plannedStageId, unit.iteration));
+    const manual = (cyclicStages: typeof rows, guidedCyclic?: TrainingSessionExecutionView['sessionValues']['guidedCyclic']) =>
+      execution({ sessionValues: { cyclicStages, ...(guidedCyclic === undefined ? {} : { guidedCyclic }) } });
+    const check = (cyclicStages: typeof rows, guidedCyclic?: TrainingSessionExecutionView['sessionValues']['guidedCyclic']) =>
+      canCompleteGuidedCyclic('day', manual(cyclicStages, guidedCyclic), planned,
+        new Date('2026-11-03T09:01:00.000Z'));
+    expect(check([...rows, record('repeated')])).toBe(true);
+    expect(check(rows)).toBe(true);
+    expect(check(rows.slice(1))).toBe(false);
+    expect(check([...rows, rows[0]])).toBe(false);
+    expect(check([...rows, record('foreign')])).toBe(false);
+    expect(check([...rows, record('repeated', 2)])).toBe(false);
+    expect(check([...rows, record('repeated'), record('repeated')])).toBe(false);
+    expect(check([...rows, record('repeated')], { plannedStageId: null, iteration: null,
+      startedAt: null, pausedDurationAtStartMs: null })).toBe(false);
+    expect(canCompleteGuidedCyclic('day', manual(rows), deriveGuidedCyclicPlan([]),
+      new Date('2026-11-03T09:01:00.000Z'))).toBe(false);
+    const gui = manual(rows, { plannedStageId: null, iteration: null,
+      startedAt: null, pausedDurationAtStartMs: null });
+    expect(canCompleteGuidedCyclic('day', gui, planned, new Date('2026-11-03T09:01:00.000Z')))
+      .toBe(true);
   });
 
   it('executes every #398-valid repetition without truncating at the former 500-record limit', () => {

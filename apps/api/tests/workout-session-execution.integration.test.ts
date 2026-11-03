@@ -4824,9 +4824,21 @@ describeDatabase('issue #489: guided cyclic stages share the canonical lifecycle
     expect(saved.sessionValues.cyclicStages).toHaveLength(600);
     const reread = await concurrentService.getForSession(scope(fixture));
     expect(reread.sessionValues.cyclicStages).toHaveLength(600);
-    // Legacy direct values cannot spoof a completed guided cursor.
-    await expect(transition(fixture, '489-600-bypass', saved.version, 'completed'))
+    // A missing single child still blocks the canonical #389 completion; a
+    // complete #401 manual history without a guided cursor may finish safely.
+    const missing = await service.saveValues({ ...scope(fixture), actorUserId: fixture.alunoUserId,
+      payload: { operationKey: '489-600-remove-one', expectedVersion: saved.version,
+        sessionValues: { removeCyclicStages: [{ plannedStageId: recorded[0].plannedStageId,
+          iteration: recorded[0].iteration }] } },
+    });
+    await expect(transition(fixture, '489-600-bypass', missing.version, 'completed'))
       .rejects.toMatchObject({ statusCode: 409 });
+    const repaired = await service.saveValues({ ...scope(fixture), actorUserId: fixture.alunoUserId,
+      payload: { operationKey: '489-600-restore-one', expectedVersion: missing.version,
+        sessionValues: { cyclicStages: [recorded[0]] } },
+    });
+    expect((await transition(fixture, '489-600-manual-complete', repaired.version, 'completed')).status)
+      .toBe('completed');
   });
 
   it('rolls back all progress, ledger, version and events when persistence of lifecycle event fails', async () => {
