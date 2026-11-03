@@ -6,6 +6,8 @@ import type {
   GuidedResistanceCompletePayload,
   GuidedResistanceRestActionPayload,
   GuidedResistanceView,
+  GuidedCyclicActionPayload,
+  GuidedCyclicView,
 } from '@corrida/types';
 import api from './api';
 
@@ -34,6 +36,28 @@ export const trainingRoutineService = {
     const response = await api.get<ApiEnvelope<TrainingRoutineView>>(
       `/alunos/${encodeURIComponent(alunoId)}/training-routine`,
       options.date ? { params: { date: options.date } } : undefined
+    );
+    return response.data.data;
+  },
+
+  async getGuidedCyclicForStudent(
+    sessionId: string, options: { contractId?: string } = {},
+  ): Promise<GuidedCyclicView> {
+    const response = await api.get<ApiEnvelope<GuidedCyclicView>>(
+      '/student/me/training-sessions/' + encodeURIComponent(sessionId) + '/execution/guided-cyclic',
+      options.contractId ? { headers: { 'x-contract-id': options.contractId } } : undefined,
+    );
+    return response.data.data;
+  },
+
+  async actGuidedCyclicForStudent(
+    sessionId: string, payload: GuidedCyclicActionPayload,
+    options: { contractId?: string } = {},
+  ): Promise<GuidedCyclicView> {
+    const response = await api.post<ApiEnvelope<GuidedCyclicView>>(
+      '/student/me/training-sessions/' + encodeURIComponent(sessionId) + '/execution/guided-cyclic/step',
+      payload,
+      options.contractId ? { headers: { 'x-contract-id': options.contractId } } : undefined,
     );
     return response.data.data;
   },
