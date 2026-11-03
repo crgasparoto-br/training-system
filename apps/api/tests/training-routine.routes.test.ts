@@ -7,6 +7,8 @@ const mockAccessPermissionFindFirst = jest.fn();
 const mockGetRoutine = jest.fn();
 const mockGetCheckIn = jest.fn();
 const mockGetGuided = jest.fn();
+const mockGetGuidedCyclic = jest.fn();
+const mockActGuidedCyclic = jest.fn();
 const mockCompleteGuided = jest.fn();
 const mockActGuidedRest = jest.fn();
 const mockSaveCheckIn = jest.fn();
@@ -71,6 +73,8 @@ jest.mock('../src/modules/workout/workout-session-execution.service', () => {
       getForSession: mockGetSessionExecution,
       transition: mockTransitionExecution,
       getGuidedForSession: mockGetGuided,
+      getGuidedCyclicForSession: mockGetGuidedCyclic,
+      actOnGuidedCyclic: mockActGuidedCyclic,
       completeGuided: mockCompleteGuided,
       actOnGuidedRest: mockActGuidedRest,
     },
@@ -156,6 +160,8 @@ describe('training routine HTTP boundaries (#387)', () => {
     mockSaveExecutionValues.mockReset().mockResolvedValue({ sessionId: 'day-1', version: 2,
       sessionValues: { speedKmh: 9 }, items: [] });
     mockGetGuided.mockReset().mockResolvedValue({ sessionId: 'day-1', availability: 'available', current: null });
+    mockGetGuidedCyclic.mockReset().mockResolvedValue({ sessionId: 'day-1', version: 2, availability: 'available', current: { plannedStageId: 'stage-1', iteration: 1 } });
+    mockActGuidedCyclic.mockReset().mockResolvedValue({ sessionId: 'day-1', version: 3, completed: 1 });
     mockCompleteGuided.mockReset().mockResolvedValue({ sessionId: 'day-1', completed: 1 });
     mockActGuidedRest.mockReset().mockResolvedValue({ sessionId: 'day-1', version: 3, rest: null });
     mockAlunoFindFirst.mockReset();
@@ -234,6 +240,103 @@ describe('training routine HTTP boundaries (#387)', () => {
         .post('/student/me/training-sessions/day-1/execution/guided/complete')
         .set('x-contract-id', 'contract-1').send(payload());
       expect(stale.status).toBe(409);
+    });
+  });
+
+  describe('guided cyclic HTTP authorization and version boundary (#489)', () => {
+    beforeEach(() => {
+      mockUser = { userId: 'user-1', type: 'aluno' };
+      mockResolveActiveStudentMembership.mockResolvedValue({ id: 'aluno-1', contractId: 'contract-1' });
+      mockAlunoFindFirst.mockResolvedValue({ id: 'aluno-1', contractId: 'contract-1', user: { id: 'user-1' } });
+    });
+
+    const step = () => ({
+      operationKey: 'issue489-stage-work-1', expectedVersion: 2, plannedStageId: 'stage-1',
+      iteration: 1, action: 'complete', outcome: 'partial',
+      values: { durationSec: 35, heartRateBpm: 140 },
+    });
+
+    it('reads the scoped current step by membership; URL/query alunoId never overrides context', async () => {
+      const response = await request(app)
+        .get('/student/me/training-sessions/day-1/execution/guided-cyclic?alunoId=foreign')
+        .set('x-contract-id', 'contract-1');
+      expect(response.status).toBe(200);
+      expect(response.body.data).toMatchObject({
+        sessionId: 'day-1', version: 2, availability: 'available',
+      });
+      expect(mockResolveActiveStudentMembership).toHaveBeenCalledWith('user-1', 'contract-1');
+      expect(mockGetGuidedCyclic).toHaveBeenCalledWith({
+        sessionId: 'day-1', alunoId: 'aluno-1', contractId: 'contract-1',
+      });
+    });
+
+    it('accepts stable stage identity, iteration and metrics without accepting client actor/tenant', async () => {
+      const payload = step();
+      const response = await request(app)
+        .post('/student/me/training-sessions/day-1/execution/guided-cyclic/step')
+        .set('x-contract-id', 'contract-1')
+        .send(payload);
+      expect(response.status).toBe(200);
+      expect(response.body.data).toMatchObject({ sessionId: 'day-1', version: 3, completed: 1 });
+      expect(mockActGuidedCyclic).toHaveBeenCalledWith({
+        sessionId: 'day-1', alunoId: 'aluno-1', contractId: 'contract-1',
+        actorUserId: 'user-1', payload,
+      });
+      const forged = await request(app)
+        .post('/student/me/training-sessions/day-1/execution/guided-cyclic/step')
+        .set('x-contract-id', 'contract-1')
+        .send({ ...payload, contractId: 'foreign', alunoId: 'foreign', actorUserId: 'other' });
+      expect(forged.status).toBe(400);
+      expect(mockActGuidedCyclic).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects malformed iterations, negative metrics and invalid action/outcome combinations', async () => {
+      const invalid = [
+        { ...step(), iteration: 0 },
+        { ...step(), values: { distanceMeters: -1 } },
+        { ...step(), values: { speedKmh: 'fast' } },
+        { ...step(), action: 'fast_forward' },
+        { ...step(), operationKey: '' },
+      ];
+      for (const payload of invalid) {
+        const response = await request(app)
+          .post('/student/me/training-sessions/day-1/execution/guided-cyclic/step')
+          .set('x-contract-id', 'contract-1').send(payload);
+        expect(response.status).toBe(400);
+      }
+      expect(mockActGuidedCyclic).not.toHaveBeenCalled();
+    });
+
+    it('does not leak foreign sessions; propagates version conflicts with canonical error code', async () => {
+      mockGetGuidedCyclic.mockRejectedValueOnce(new WorkoutSessionExecutionNotFoundError('not found'));
+      const foreign = await request(app)
+        .get('/student/me/training-sessions/foreign-day/execution/guided-cyclic')
+        .set('x-contract-id', 'contract-1');
+      expect(foreign.status).toBe(404);
+      mockActGuidedCyclic.mockRejectedValueOnce(new WorkoutSessionExecutionConflictError(
+        'versão obsoleta', 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT',
+      ));
+      const conflict = await request(app)
+        .post('/student/me/training-sessions/day-1/execution/guided-cyclic/step')
+        .set('x-contract-id', 'contract-1').send(step());
+      expect(conflict.status).toBe(409);
+      expect(conflict.body).toMatchObject({
+        success: false, details: { code: 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT' },
+      });
+    });
+
+    it('blocks reads and writes when the selected student contract cannot be resolved', async () => {
+      mockResolveActiveStudentMembership.mockRejectedValue(
+        new StudentAccountContextError('Selecione o contrato', 'STUDENT_CONTRACT_CONTEXT_REQUIRED')
+      );
+      const read = await request(app)
+        .get('/student/me/training-sessions/day-1/execution/guided-cyclic');
+      const write = await request(app)
+        .post('/student/me/training-sessions/day-1/execution/guided-cyclic/step').send(step());
+      expect(read.status).toBe(409);
+      expect(write.status).toBe(409);
+      expect(mockGetGuidedCyclic).not.toHaveBeenCalled();
+      expect(mockActGuidedCyclic).not.toHaveBeenCalled();
     });
   });
 
