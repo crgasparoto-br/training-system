@@ -571,6 +571,37 @@ describe('training routine HTTP boundaries (#387)', () => {
       expect(mockSaveExecutionValues).not.toHaveBeenCalled();
     });
 
+    it('A-489-003: HTTP admits more than 500 #398-valid cyclic executions and removals', async () => {
+      const cyclicStages = Array.from({ length: 600 }, (_, index) => ({
+        plannedStageId: `repeat-child-${Math.floor(index / 100) + 1}`,
+        iteration: (index % 100) + 1, outcome: 'not_performed' as const,
+      }));
+      const removeCyclicStages = cyclicStages.map(({ plannedStageId, iteration }) => ({
+        plannedStageId, iteration,
+      }));
+      const send = (sessionValues: unknown) => request(app)
+        .put('/student/me/training-sessions/day-1/execution/values')
+        .set('x-contract-id', 'contract-1')
+        .send({ operationKey: 'issue489-large-cyclic-http', expectedVersion: 1, sessionValues });
+      const recorded = await send({ cyclicStages });
+      expect(recorded.status).toBe(200);
+      expect(mockSaveExecutionValues).toHaveBeenCalledWith(expect.objectContaining({
+        payload: expect.objectContaining({ sessionValues: { cyclicStages } }),
+      }));
+      mockSaveExecutionValues.mockClear();
+      const removed = await send({ removeCyclicStages });
+      expect(removed.status).toBe(200);
+      expect(mockSaveExecutionValues).toHaveBeenCalledWith(expect.objectContaining({
+        payload: expect.objectContaining({ sessionValues: { removeCyclicStages } }),
+      }));
+      mockSaveExecutionValues.mockClear();
+      const invalid = await send({ cyclicStages: [...cyclicStages.slice(0, 599), {
+        plannedStageId: 'repeat-child-6', iteration: 101, outcome: 'not_performed',
+      }] });
+      expect(invalid.status).toBe(400);
+      expect(mockSaveExecutionValues).not.toHaveBeenCalled();
+    });
+
     it('accepts an explicit legacy session speed and forwards only the scoped validated payload', async () => {
       const payload = { operationKey: 'issue401-speed-route', expectedVersion: 1,
         sessionValues: { speedKmh: 9, pace: '5:30' } };
