@@ -160,6 +160,18 @@ async function untilText(page, fragment) {
       '\nRecent API requests: ' + JSON.stringify(calls.slice(-15)));
   }
 }
+async function untilRound(page, kind, round, total) {
+  // The visible label uses CSS text-transform: uppercase. Match its underlying
+  // semantic text in the visible current-stage heading, not body.innerText.
+  const expected = 'Rodada ' + round + ' de ' + total;
+  await page.waitForFunction(({ stageKind, roundLabel }) => {
+    const heading = [...document.querySelectorAll('h5')]
+      .find((node) => node.textContent === stageKind && node.getClientRects().length > 0);
+    const context = heading?.previousElementSibling;
+    return context instanceof HTMLElement && context.getClientRects().length > 0
+      && context.textContent?.includes(roundLabel);
+  }, { timeout: 14000 }, { stageKind: kind, roundLabel: expected });
+}
 async function selectOutcome(page, value) {
   // Use Chrome's actual select interaction so React receives input/change events.
   // Directly changing HTMLSelectElement.value can skip React's controlled state.
@@ -254,7 +266,7 @@ suite('Issue #489 - guided cyclic browser, responsive and accessible', () => {
         await untilText(page, 'Confirmar etapa');
         await selectOutcome(page, 'not_performed');
         await clickButton(page, 'Confirmar etapa');
-        await untilText(page, 'Rodada 1 de 2');
+        await untilRound(page, 'Trabalho', 1, 2);
         await untilText(page, 'Velocidade: 9,5 a 12,5 km/h');
         await checkLayout(page);
         const workColor = await page.evaluate(() => {
