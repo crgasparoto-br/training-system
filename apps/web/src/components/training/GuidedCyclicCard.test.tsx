@@ -49,6 +49,26 @@ function setup(options: {
 }
 
 describe('issue #489: guided cyclic web execution', () => {
+  it('shows speed, pace, HR, zone and PSE with explicit numeric ranges and correct units', () => {
+    expect(cyclicTargetText({ ...first, targetKind: 'speed_kmh',
+      targetValue: null, targetMin: 9.5, targetMax: 12.5 }))
+      .toBe('Velocidade: 9,5 a 12,5 km/h');
+    expect(cyclicTargetText({ ...first, targetKind: 'pace_min_per_km',
+      targetValue: null, targetMin: 4.5, targetMax: 5.75 }))
+      .toBe('Ritmo (pace): 4,5 a 5,75 min/km');
+    expect(cyclicTargetText({ ...first, targetKind: 'heart_rate_bpm',
+      targetValue: 152, targetMin: null, targetMax: null }))
+      .toBe('Frequência cardíaca: 152 bpm');
+    expect(cyclicTargetText({ ...first, targetKind: 'zone',
+      targetValue: 3, targetMin: null, targetMax: null }))
+      .toBe('Zona de frequência cardíaca: 3 zona');
+    expect(cyclicTargetText({ ...first, targetKind: 'pse',
+      targetValue: 7, targetMin: null, targetMax: null }))
+      .toBe('Percepção de esforço (PSE): 7 PSE');
+    expect(cyclicTargetText({ ...first, targetKind: null,
+      targetValue: null, targetMin: null, targetMax: null })).toBeNull();
+  });
+
   it('shows one stage, next step, round context and the released target without a synthetic result', async () => {
     setup();
     expect(await screen.findByRole('heading', { name: 'Etapa por etapa' })).toBeInTheDocument();
