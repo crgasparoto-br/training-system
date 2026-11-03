@@ -47,6 +47,50 @@ describe('issue #489: canonical guided cyclic domain', () => {
     expect(result.units[5]).toMatchObject({ durationUnit: 'meters', durationValue: 800 });
   });
 
+  it('preserves exact 90-second work and recovery timing and the order of four rounds', () => {
+    const repeat = { ...stage('block-90', 2, 'repeat'), durationUnit: null, durationValue: null,
+      repeatCount: 4, children: [
+        { ...stage('work-90', 1, 'work', 'seconds', 90),
+          targetKind: 'speed_kmh', targetMin: 9.5, targetMax: 12.5 },
+        stage('recovery-90', 2, 'recovery', 'seconds', 90),
+      ] };
+    const released = deriveGuidedCyclicPlan([
+      stage('warmup-90', 1, 'warmup', 'seconds', 240),
+      repeat,
+      stage('cooldown-90', 3, 'cooldown', 'meters', 500),
+    ]);
+    expect(released.availability).toBe('available');
+    expect(released.units).toHaveLength(10);
+    expect(released.units.map((unit) => [unit.plannedStageId, unit.iteration])).toEqual([
+      ['warmup-90', 1], ['work-90', 1], ['recovery-90', 1],
+      ['work-90', 2], ['recovery-90', 2],
+      ['work-90', 3], ['recovery-90', 3],
+      ['work-90', 4], ['recovery-90', 4],
+      ['cooldown-90', 1],
+    ]);
+    expect(released.units[1]).toMatchObject({
+      roundNumber: 1, roundTotal: 4, durationValue: 90, targetMin: 9.5, targetMax: 12.5,
+    });
+    expect(released.units[2]).toMatchObject({
+      kind: 'recovery', roundNumber: 1, roundTotal: 4, durationValue: 90,
+    });
+    const base = execution({
+      sessionValues: {
+        cyclicStages: [record('warmup-90')],
+        guidedCyclic: { plannedStageId: 'work-90', iteration: 1,
+          startedAt: '2026-11-03T09:00:00.000Z', pausedDurationAtStartMs: 0 },
+      },
+    });
+    expect(projectGuidedCyclic('day', base, released,
+      new Date('2026-11-03T09:00:45.000Z'))).toMatchObject({
+      completed: 1, remainingMs: 45_000,
+      current: { plannedStageId: 'work-90', iteration: 1 },
+      next: { plannedStageId: 'recovery-90', iteration: 1 },
+    });
+    expect(projectGuidedCyclic('day', base, released,
+      new Date('2026-11-03T09:01:30.000Z')).remainingMs).toBe(0);
+  });
+
   it('does not hallucinate stages for a legacy prescription and rejects malformed plans', () => {
     expect(deriveGuidedCyclicPlan([])).toEqual({ availability: 'legacy_read_only', units: [] });
     expect(deriveGuidedCyclicPlan([stage('id', 2)])).toMatchObject({ availability: 'invalid_plan' });
