@@ -15,12 +15,15 @@ import type {
   GuidedResistanceCompletePayload,
   GuidedResistanceRestActionPayload,
   GuidedResistanceView,
+  GuidedCyclicActionPayload,
+  GuidedCyclicView,
 } from '@corrida/types';
 import { Button } from '../ui/Button';
 import { PreWorkoutCheckInCard } from './PreWorkoutCheckInCard';
 import { PostWorkoutFeedbackCard } from './PostWorkoutFeedbackCard';
 import { WorkoutExecutionComparisonCard } from './WorkoutExecutionComparisonCard';
 import { GuidedResistanceCard, type GuidedResistanceDraft } from './GuidedResistanceCard';
+import { GuidedCyclicCard } from './GuidedCyclicCard';
 import type { UpsertPreWorkoutCheckInPayload, PreWorkoutCheckInView, CreateCanonicalPostWorkoutFeedbackPayload, CanonicalPostWorkoutFeedbackRevisionView } from '@corrida/types';
 import {
   getTrainingRoutineErrorKind,
@@ -143,6 +146,8 @@ function TodaySession({
   loadGuided,
   completeGuided,
   actRest,
+  loadGuidedCyclic,
+  actGuidedCyclic,
   onExecutionChanged,
 }: {
   session: TrainingRoutineSessionDetail;
@@ -154,6 +159,8 @@ function TodaySession({
   loadGuided?: (sessionId: string) => Promise<GuidedResistanceView>;
   completeGuided?: (sessionId: string, payload: GuidedResistanceCompletePayload) => Promise<GuidedResistanceView>;
   actRest?: (sessionId: string, payload: GuidedResistanceRestActionPayload) => Promise<GuidedResistanceView>;
+  loadGuidedCyclic?: (sessionId: string) => Promise<GuidedCyclicView>;
+  actGuidedCyclic?: (sessionId: string, payload: GuidedCyclicActionPayload) => Promise<GuidedCyclicView>;
   onExecutionChanged?: () => Promise<void>;
 }) {
   const headingId = useId();
@@ -162,6 +169,7 @@ function TodaySession({
   const [executionError, setExecutionError] = useState<string | null>(null);
   const [executionBusy, setExecutionBusy] = useState(false);
   const [pendingGuidedSets, setPendingGuidedSets] = useState<{ remaining: number; total: number } | null>(null);
+  const [pendingCyclicStages, setPendingCyclicStages] = useState<{ remaining: number; total: number } | null>(null);
   const [showGuided, setShowGuided] = useState(true);
   const reasonInputRef = useRef<HTMLTextAreaElement>(null);
   const completionReadRef = useRef(0);
@@ -184,6 +192,7 @@ function TodaySession({
     // A new canonical version invalidates a previous incomplete-set warning.
     completionReadRef.current += 1;
     setPendingGuidedSets(null);
+    setPendingCyclicStages(null);
   }, [session.sessionId, executionVersion, executionStatus]);
 
   const transition = async (targetStatus: TrainingSessionExecutionStatus) => {
@@ -200,6 +209,41 @@ function TodaySession({
     setExecutionError(null);
     const readId = ++completionReadRef.current;
     try {
+      if (targetStatus === 'completed' && session.modalities.includes('cyclic') && loadGuidedCyclic) {
+        let cyclic: GuidedCyclicView;
+        try {
+          cyclic = await loadGuidedCyclic(session.sessionId);
+        } catch {
+          setExecutionError('Não foi possível verificar as etapas do aeróbio. O treino não foi encerrado.');
+          return;
+        }
+        if (readId !== completionReadRef.current) return;
+        if (cyclic.sessionId !== session.sessionId || cyclic.status !== session.execution.status
+          || cyclic.version !== session.execution.version) {
+          try { await onExecutionChanged?.(); } catch {
+            setExecutionError('O progresso mudou em outro dispositivo e a atualização falhou. Nenhum encerramento foi enviado.');
+            return;
+          }
+          setExecutionError('O progresso mudou em outro dispositivo. Revise as etapas antes de encerrar.');
+          return;
+        }
+        if (cyclic.availability === 'invalid_plan' || cyclic.availability === 'reconciliation_required') {
+          setExecutionError('As etapas liberadas exigem revisão antes de encerrar a sessão.');
+          return;
+        }
+        if (cyclic.availability === 'available') {
+          if (!Number.isInteger(cyclic.total) || !Number.isInteger(cyclic.completed)
+            || cyclic.total <= 0 || cyclic.completed < 0 || cyclic.completed > cyclic.total) {
+            setExecutionError('O progresso das etapas está inconsistente. Atualize o treino.');
+            return;
+          }
+          if (cyclic.completed < cyclic.total) {
+            setPendingCyclicStages({ remaining: cyclic.total - cyclic.completed, total: cyclic.total });
+            return;
+          }
+        }
+        // Legacy cyclical prescriptions have no structured stage count; do not invent it.
+      }
       if (targetStatus === 'completed' && session.modalities.includes('resistance') && loadGuided) {
         // Read the canonical #487 projection immediately before the #389 lifecycle transition.
         // Never infer completion from the component's current position or its local draft.
@@ -263,6 +307,7 @@ function TodaySession({
       });
       operationRef.current = null;
       setPendingGuidedSets(null);
+      setPendingCyclicStages(null);
       // Persistencia confirmada: falha da revalidacao nao invalida a gravacao.
       try {
         if (onExecutionChanged) await onExecutionChanged();
@@ -317,6 +362,9 @@ function TodaySession({
       stage.cadenceSpm !== null ? `Cadência ${stage.cadenceSpm} ppm` : ''
     ].filter(Boolean).join(' · ');
   };
+  const hasGuidedCyclic = audience === 'student' && session.modalities.includes('cyclic')
+    && (session.status === 'in_progress' || session.status === 'paused')
+    && Boolean(session.execution && loadGuidedCyclic && actGuidedCyclic);
   const hasGuided = audience === 'student' && session.modalities.includes('resistance')
     && (session.status === 'in_progress' || session.status === 'paused')
     && Boolean(session.execution && loadGuided && completeGuided);
@@ -403,6 +451,17 @@ function TodaySession({
         </section>
       )}
 
+      {hasGuidedCyclic && loadGuidedCyclic && actGuidedCyclic && (
+        <GuidedCyclicCard
+          key={session.sessionId + '-cyclic'}
+          sessionId={session.sessionId}
+          status={session.execution.status}
+          version={session.execution.version}
+          load={loadGuidedCyclic}
+          act={actGuidedCyclic}
+          onExecutionChanged={onExecutionChanged}
+        />
+      )}
       {hasGuided && showGuided && loadGuided && completeGuided && (
         <GuidedResistanceCard
           key={session.sessionId}
@@ -515,6 +574,12 @@ function TodaySession({
         <OriginNote session={session} audience={audience} />
         {audience === 'student' && !['completed', 'partial', 'not_performed'].includes(session.status) && (
           <div className="space-y-3">
+            {pendingCyclicStages && (
+              <div role="alert" className="space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-3 text-sm text-amber-900">
+                <p className="font-semibold">Ainda faltam {pendingCyclicStages.remaining} de {pendingCyclicStages.total} etapas cíclicas.</p>
+                <p>O treino não foi concluído. Registre as etapas pendentes ou informe um motivo e encerre como parcial.</p>
+              </div>
+            )}
             {pendingGuidedSets && (
               <div role="alert" className="space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-3 text-sm text-amber-900">
                 <p className="font-semibold">Ainda faltam {pendingGuidedSets.remaining} de {pendingGuidedSets.total} séries para confirmar.</p>
@@ -756,6 +821,8 @@ export type TrainingRoutinePanelProps = {
   loadGuided?: (sessionId: string) => Promise<GuidedResistanceView>;
   completeGuided?: (sessionId: string, payload: GuidedResistanceCompletePayload) => Promise<GuidedResistanceView>;
   actRest?: (sessionId: string, payload: GuidedResistanceRestActionPayload) => Promise<GuidedResistanceView>;
+  loadGuidedCyclic?: (sessionId: string) => Promise<GuidedCyclicView>;
+  actGuidedCyclic?: (sessionId: string, payload: GuidedCyclicActionPayload) => Promise<GuidedCyclicView>;
 };
 
 export function TrainingRoutinePanel({
@@ -770,6 +837,8 @@ export function TrainingRoutinePanel({
   loadGuided,
   completeGuided,
   actRest,
+  loadGuidedCyclic,
+  actGuidedCyclic,
 }: TrainingRoutinePanelProps) {
   const [routine, setRoutine] = useState<TrainingRoutineView | null>(null);
   const [referenceDate, setReferenceDate] = useState<string | undefined>(undefined);
@@ -900,6 +969,8 @@ export function TrainingRoutinePanel({
                 loadGuided={loadGuided}
                 completeGuided={completeGuided}
                 actRest={actRest}
+                loadGuidedCyclic={loadGuidedCyclic}
+                actGuidedCyclic={actGuidedCyclic}
                 onExecutionChanged={async () => {
                   if (!await fetchRoutine(referenceDate)) throw new Error('Falha ao revalidar treino');
                 }}
