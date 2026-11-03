@@ -102,7 +102,7 @@ describe('issue #489: canonical guided cyclic domain', () => {
       .toMatchObject({ availability: 'invalid_plan' });
     expect(deriveGuidedCyclicPlan([{ ...stage('repeat', 1, 'repeat'), durationUnit: null,
       durationValue: null, repeatCount: 2, children: [
-        stage('work', 1), stage('recover', 2, 'recovery'), stage('work', 3, 'work'),
+        stage('work', 1), stage('recover', 2, 'recovery'), stage('work-second', 3, 'work'),
       ] }])).toMatchObject({ availability: 'available' });
   });
 
