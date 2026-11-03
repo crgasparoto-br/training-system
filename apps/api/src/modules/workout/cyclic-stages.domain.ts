@@ -1,5 +1,8 @@
 import { ResistanceStructureValidationError } from './resistance-structure.domain.js';
 
+/** #398's published limits: at most 40 repeat blocks of 100 x 20 occurrences.
+ * #489 and #389 must be able to execute and store every plan accepted here. */
+export const MAX_CYCLIC_STAGE_OCCURRENCES = 40 * 100 * 20;
 export const CYCLIC_STAGE_KINDS = ['warmup', 'work', 'recovery', 'cooldown', 'repeat'] as const;
 export const CYCLIC_TARGET_KINDS = ['pace_min_per_km', 'speed_kmh', 'heart_rate_bpm', 'zone', 'pse'] as const;
 export type CyclicStageKind = typeof CYCLIC_STAGE_KINDS[number];

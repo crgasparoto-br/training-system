@@ -27,10 +27,11 @@ Nova árvore de prescrição, relógio durável duplicado, inferência de etapas
 4. A duração é calculada com `startedAt` de etapa e `pausedDurationMs/currentPauseStartedAt` da #389, nunca a partir de relógio civil do aparelho. UI avança visualmente com `performance.now()` a partir da amostra servidor; somente a API autoriza confirmação. Etapa por distância exige medição explícita no resultado total/parcial.
 5. Toda mutação exige vínculo aluno/contrato e release consolidado; `FOR UPDATE` serializa a sessão e a transação `Serializable` engloba cursor, valores da #401, versão, operação e evento. Repetir chave e payload não duplica efeito; reutilizar a chave com dados distintos resulta 409.
 6. A API recusa ações antes de iniciar, durante pausa, em sessão terminal, em etapa errada, após versão vencida ou quando os registros não formam prefixo ordenado. O frontend preserva entradas em falhas de rede, reconcilia 409 e não declara sucesso sem resposta confirmada.
-7. A conclusão total da sessão na UI consulta o progresso canônico: etapas pendentes bloqueiam `Concluir treino`, permitindo continuar ou encerrar como parcial com motivo; legado não inventa pendências.
+7. A conclusão total da sessão é bloqueada **no backend** pela transição canônica #389, dentro da mesma transação serializável e após checar versão e idempotência, quando alguma etapa #398 permanece pendente ou inconsistente. A UI mantém o guard preventivo. Encerramento `partial` com motivo e legado sem estrutura continuam possíveis.
+8. Em `partial`/`completed`/`not_performed` o relógio deixa de avançar no `finishedAt` persistido, inclusive se a sessão foi encerrada durante pausa; leituras futuras são historicamente idênticas. Pausa explícita não é contabilizada como execução.
 
 ## Capacidade e fallback
-- O contrato de execução #389 atualmente limita `cyclicStages` a 500 ocorrências. Planos válidos da #398 que excedam isso são sinalizados como `invalid_plan` para não executar uma sequência truncada. Essa limitação explícita requer decisão de ampliação para uma futura estrutura operacional em lote, sem inventar progresso.
+- O limite de execução `cyclicStages` é derivado da prescrição #398: 40 etapas principais, até 100 rodadas com até 20 filhos cada (no máximo **80.000 ocorrências**). O guard, o merge persistido e a normalização usam o mesmo limite; uma sequência válida de 600 ocorrências não é truncada nem classificada falsamente como `invalid_plan`. Todas as gravações guiadas continuam incrementais e versionadas. Em planos extremos, custos de armazenamento/leitura do histórico JSONB devem ser monitorados operacionalmente, sem restringir silenciosamente as sessões liberadas.
 - Se uma execução histórica tiver valores sem cursor compatível, a projeção retorna `reconciliation_required` e bloqueia avanço; não corrige, atribui ou elimina histórico automaticamente.
 
 ## Checklist de implementação
@@ -39,8 +40,9 @@ Nova árvore de prescrição, relógio durável duplicado, inferência de etapas
 - [x] UI responsiva, metas e registros realizados.
 - [x] Testes focados e integração PostgreSQL preparados.
 - [x] Documentação técnica de API/Web atualizada.
-- [ ] `pnpm validate` verde no HEAD material final.
-- [ ] Auditoria independente exact-SHA com evidência funcional desktop/mobile.
+- [ ] `pnpm validate` verde no HEAD material final (confirmar no workflow do GitHub Actions).
+- [ ] Confirmar as capturas Chrome da #489 no artefato da CI exact-SHA (desktop 1440x900 e mobile 390x844, teclado, foco, pausa, rodada, alvos, contraste, escopo autenticado).
+- [ ] Nova auditoria independente exact-SHA após a remediação.
 
 ## Validação manual
 1. Liberar aquecimento de 5 min, duas rodadas (trabalho 60 s + recuperação 30 s) e desaquecimento de 800 m, com metas FC/pace.
@@ -51,5 +53,6 @@ Nova árvore de prescrição, relógio durável duplicado, inferência de etapas
 6. Conferir navegação, foco, alertas, labels, botões tocáveis e layout mobile e desktop.
 
 ## Decisões e pendências
-- Sem migration: `sessionValues` existente da execução #389 carrega o cursor e os resultados vinculados às unidades históricas.
+- Sem migration: `sessionValues` JSONB existente da execução #389 carrega o cursor e os resultados vinculados às unidades históricas; o novo máximo mantém o mesmo schema.
+- Capturas da #489 são produzidas por `issue-489-browser-evidence.test.js` e validadas por `scripts/verify-issue-489-browser-evidence.mjs`; CI arquiva arquivos e hashes com o SHA exact-HEAD. O teste visual usa uma API HTTP isolada para estados e ações de UI; os testes PostgreSQL verificam o boundary real no backend.
 - Sem merge ou exclusão de arquivos; toda evidência de CI e revisão visual depende do SHA definitivo.

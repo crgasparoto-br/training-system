@@ -376,6 +376,16 @@ jobs:
           ISSUE_487_REAL_JWT_SECRET: 'issue487-ci-secret'
           VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: pnpm --filter @corrida/web exec vitest run --no-file-parallelism src/pages/issue-487-real-api-browser-evidence.test.js
+      - name: Issue #489 authenticated cyclic browser evidence (desktop/mobile)
+        env:
+          ISSUE_489_BROWSER_EVIDENCE: '1'
+          VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/issue-489
+          pnpm --filter @corrida/web exec vitest run --no-file-parallelism src/pages/issue-489-browser-evidence.test.js 2>&1 | tee artifacts/issue-489/browser.log
+          node scripts/verify-issue-489-browser-evidence.mjs artifacts/issue-489/browser.log artifacts/issue-489 "$VERIFICATION_HEAD_SHA" | tee artifacts/issue-489/verified-captures.jsonl
       - name: Build
         run: pnpm build
       - name: Validate settings parameters in real browser
@@ -438,6 +448,7 @@ jobs:
             artifacts/issue-400/**
             artifacts/issue-401/**
             artifacts/issue-487/**
+            artifacts/issue-489/**
           if-no-files-found: error
           retention-days: 30
 

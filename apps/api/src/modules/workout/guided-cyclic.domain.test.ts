@@ -165,10 +165,44 @@ describe('issue #489: canonical guided cyclic domain', () => {
     }), plan(), new Date()).availability).toBe('reconciliation_required');
   });
 
-  it('does not silently accept more stage occurrences than the canonical value limit', () => {
+  it('executes every #398-valid repetition without truncating at the former 500-record limit', () => {
     const repeated = [{ ...stage('repeat', 1, 'repeat'), durationUnit: null,
       durationValue: null, repeatCount: 100, children: Array.from({ length: 6 }, (_, i) =>
         stage('child-' + i, i + 1, i === 0 ? 'work' : i === 1 ? 'recovery' : 'work')) }];
-    expect(deriveGuidedCyclicPlan(repeated).availability).toBe('invalid_plan');
+    const derived = deriveGuidedCyclicPlan(repeated);
+    expect(derived.availability).toBe('available');
+    expect(derived.units).toHaveLength(600);
+    expect(derived.units.at(-1)).toMatchObject({ plannedStageId: 'child-5', iteration: 100,
+      order: 600, roundTotal: 100 });
+    const recorded = derived.units.slice(0, 501).map((unit) => record(unit.plannedStageId, unit.iteration));
+    const projected = projectGuidedCyclic('day', execution({
+      sessionValues: { cyclicStages: recorded,
+        guidedCyclic: { plannedStageId: 'child-3', iteration: 84,
+          startedAt: null, pausedDurationAtStartMs: null } },
+    }), derived, new Date('2026-11-03T09:00:00.000Z'));
+    // Round 84: indices 498-503, so index 501 is child-3.
+    expect(projected).toMatchObject({ availability: 'available', completed: 501, total: 600,
+      current: { plannedStageId: 'child-3', iteration: 84 } });
+  });
+
+  it('never advances the clock after terminal completion or partial interruption, even after refresh', () => {
+    const cursor = { plannedStageId: 'warmup', iteration: 1,
+      startedAt: '2026-11-03T09:00:00.000Z', pausedDurationAtStartMs: 0 };
+    const running = execution({ sessionValues: { guidedCyclic: cursor } });
+    const initial = projectGuidedCyclic('day', running, plan(), new Date('2026-11-03T09:00:30.000Z'));
+    expect(initial).toMatchObject({ elapsedMs: 30_000, remainingMs: 270_000 });
+    for (const status of ['partial', 'completed'] as const) {
+      const terminal = execution({ ...running, status, finishedAt: '2026-11-03T09:00:30.000Z' });
+      const later = projectGuidedCyclic('day', terminal, plan(), new Date('2026-11-03T09:12:00.000Z'));
+      expect(later).toMatchObject({ elapsedMs: 30_000, remainingMs: 270_000 });
+      expect(elapsedGuidedCyclicMs(cursor, terminal, new Date('2026-11-04T09:00:00.000Z'))).toBe(30_000);
+    }
+    const pausedPartial = execution({ ...running, status: 'partial',
+      finishedAt: '2026-11-03T09:04:30.000Z', pausedDurationMs: 240_000 });
+    expect(projectGuidedCyclic('day', pausedPartial, plan(), new Date('2026-11-03T10:00:00.000Z')))
+      .toMatchObject({ elapsedMs: 30_000, remainingMs: 270_000 });
+    const corruptedTerminal = execution({ ...running, status: 'partial', finishedAt: null });
+    expect(projectGuidedCyclic('day', corruptedTerminal, plan(), new Date()).availability)
+      .toBe('reconciliation_required');
   });
 });

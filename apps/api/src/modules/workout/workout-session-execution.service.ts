@@ -18,6 +18,7 @@ import type {
 } from '@corrida/types';
 import { deriveGuidedResistancePlan, matchesCurrentGuidedUnit, projectGuidedResistance } from './guided-resistance.domain.js';
 import { deriveGuidedCyclicPlan, projectGuidedCyclic } from './guided-cyclic.domain.js';
+import { MAX_CYCLIC_STAGE_OCCURRENCES } from './cyclic-stages.domain.js';
 import { prescribedRestAfter, projectResistanceRest, measuredRestMs } from './resistance-rest.domain.js';
 import { projectReleasedExerciseCatalog } from './workout-release-catalog.js';
 import { persistWorkoutSessionValues, WorkoutSessionExecutionInputError } from './workout-session-execution-values.js';
@@ -165,7 +166,7 @@ function normalizeSessionValues(values: TrainingSessionExecutionSessionValuesPat
   }
   if (values.heartRateZone !== undefined) normalized.heartRateZone = normalizeText(values.heartRateZone, 32);
   if (values.cyclicStages !== undefined) {
-    if (!Array.isArray(values.cyclicStages) || values.cyclicStages.length > 500) {
+    if (!Array.isArray(values.cyclicStages) || values.cyclicStages.length > MAX_CYCLIC_STAGE_OCCURRENCES) {
       throw new WorkoutSessionExecutionInputError('Quantidade de etapas executadas inválida.');
     }
     const keys = new Set<string>();
@@ -199,10 +200,13 @@ function normalizeSessionValues(values: TrainingSessionExecutionSessionValuesPat
     });
   }
   if (values.removeCyclicStages !== undefined) {
-    if (!Array.isArray(values.removeCyclicStages) || values.removeCyclicStages.length > 500) {
+    if (!Array.isArray(values.removeCyclicStages) || values.removeCyclicStages.length > MAX_CYCLIC_STAGE_OCCURRENCES) {
       throw new WorkoutSessionExecutionInputError('Quantidade de etapas removidas inválida.');
     }
     const keys = new Set<string>();
+    const upsertedKeys = new Set((normalized.cyclicStages ?? []).map(
+      (item) => `${item.plannedStageId}:${item.iteration ?? 1}`,
+    ));
     normalized.removeCyclicStages = values.removeCyclicStages.map((entry) => {
       const plannedStageId = typeof entry?.plannedStageId === 'string' ? entry.plannedStageId.trim() : '';
       const iteration = entry?.iteration ?? 1;
@@ -210,7 +214,7 @@ function normalizeSessionValues(values: TrainingSessionExecutionSessionValuesPat
         throw new WorkoutSessionExecutionInputError('Etapa ou repetição para remoção inválida.');
       }
       const key = `${plannedStageId}:${iteration}`;
-      if (keys.has(key) || normalized.cyclicStages?.some((item) => `${item.plannedStageId}:${item.iteration ?? 1}` === key)) {
+      if (keys.has(key) || upsertedKeys.has(key)) {
         throw new WorkoutSessionExecutionInputError('Etapa/repetição duplicada ou enviada simultaneamente para registro e remoção.');
       }
       keys.add(key);
@@ -572,6 +576,34 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
         }
       } else if (currentStatus !== 'in_progress') {
         throw new WorkoutSessionExecutionConflictError('Valores executados só podem ser registrados enquanto o treino está em andamento.', 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION');
+      }
+
+      // #489: a direct public lifecycle request must not bypass the UI's
+      // guided-stage completion guard. Keep this INSIDE the serializable #389
+      // transaction and behind the version/idempotency check. Legacy sessions
+      // without #398 stages still use the ordinary #389 lifecycle.
+      if (input.targetStatus === 'completed') {
+        const plan = await loadGuidedCyclicPlan(tx, input.sessionId);
+        if (plan.availability === 'invalid_plan') {
+          throw new WorkoutSessionExecutionConflictError(
+            'A estrutura das etapas cíclicas requer revisão antes da conclusão.',
+            'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION',
+          );
+        }
+        if (plan.availability === 'available') {
+          const persisted = await readExecution(tx, input.sessionId);
+          if (!persisted) throw new WorkoutSessionExecutionNotFoundError('Execução não encontrada.');
+          const progress = projectGuidedCyclic(
+            input.sessionId, projectWorkoutSessionExecution(persisted), plan, new Date(),
+          );
+          if (progress.availability !== 'available' || progress.completed !== progress.total
+            || progress.current !== null || progress.total === 0) {
+            throw new WorkoutSessionExecutionConflictError(
+              'Existem etapas cíclicas pendentes ou inconsistentes. Confirme cada etapa antes de concluir o treino.',
+              'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION',
+            );
+          }
+        }
       }
 
       // The same transaction owns completion, its rest and the operation ledger.

@@ -2,6 +2,8 @@ import type {
   GuidedCyclicCursor, GuidedCyclicUnit, GuidedCyclicView,
   TrainingSessionExecutionView,
 } from '@corrida/types';
+import { MAX_CYCLIC_STAGE_OCCURRENCES } from './cyclic-stages.domain.js';
+import { TERMINAL_EXECUTION_STATUSES } from './workout-session-execution.domain.js';
 
 /** Read the #398 prescription by stable ID, never by free text or a UI cursor index. */
 export type GuidedCyclicPlannedStage = {
@@ -24,7 +26,6 @@ export type GuidedCyclicPlannedStage = {
 type Plan = { availability: 'available' | 'legacy_read_only' | 'invalid_plan'; units: GuidedCyclicUnit[] };
 const KINDS = new Set(['warmup', 'work', 'recovery', 'cooldown']);
 const TARGETS = new Set(['pace_min_per_km', 'speed_kmh', 'heart_rate_bpm', 'zone', 'pse']);
-const MAX_OCCURRENCES = 500; // canonical #389 cyclicStages execution record limit
 
 function plannedUnit(stage: GuidedCyclicPlannedStage, iteration: number, roundTotal: number | null): GuidedCyclicUnit | null {
   if (!stage.id || !KINDS.has(stage.kind) || !Number.isInteger(stage.position) || stage.position < 1
@@ -50,7 +51,7 @@ export function deriveGuidedCyclicPlan(stages: readonly GuidedCyclicPlannedStage
   const units: GuidedCyclicUnit[] = [];
   const append = (stage: GuidedCyclicPlannedStage, iteration: number, total: number | null) => {
     const item = plannedUnit(stage, iteration, total);
-    if (!item || units.length >= MAX_OCCURRENCES) return false;
+    if (!item || units.length >= MAX_CYCLIC_STAGE_OCCURRENCES) return false;
     units.push({ ...item, order: units.length + 1 });
     return true;
   };
@@ -103,8 +104,15 @@ export function elapsedGuidedCyclicMs(
 ): number | null {
   if (!cursor.startedAt || cursor.pausedDurationAtStartMs === null
     || cursor.pausedDurationAtStartMs > execution.pausedDurationMs) return null;
-  const stopAt = execution.status === 'paused' && execution.currentPauseStartedAt
-    ? Date.parse(execution.currentPauseStartedAt) : now.getTime();
+  // A terminal session has no active clock: repeated reads must show the
+  // elapsed time as of the persisted finish, not as of the GET request.
+  // #389 already includes the whole explicit pause in pausedDurationMs when
+  // transitioning paused -> partial, so subtract it exactly once here.
+  const stopAt = execution.status === 'paused'
+    ? (execution.currentPauseStartedAt ? Date.parse(execution.currentPauseStartedAt) : NaN)
+    : TERMINAL_EXECUTION_STATUSES.has(execution.status)
+      ? (execution.finishedAt ? Date.parse(execution.finishedAt) : NaN)
+      : now.getTime();
   const elapsed = stopAt - Date.parse(cursor.startedAt)
     - (execution.pausedDurationMs - cursor.pausedDurationAtStartMs);
   if (!Number.isFinite(elapsed) || elapsed < -500) return null;

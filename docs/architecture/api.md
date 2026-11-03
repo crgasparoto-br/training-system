@@ -172,3 +172,7 @@ As rotas autenticadas `GET /api/v1/student/me/training-sessions/:sessionId/execu
 ### Validação cruzada de séries planejadas (#487)
 
 O PUT /api/v1/student/me/training-sessions/:sessionId/execution/values usa a mesma ordem canônica por exercício/bloco/série de POST .../execution/guided/complete. Um plannedSetId de número/ordinal errado é rejeitado com 400 sem gravar operação ou progredir a sessão; setNumber legado omitido é resolvido pela posição da série planejada. Atualizações legadas sem ID de série só são permitidas quando o registro existente é inequivocamente identificado. Rascunhos históricos são reposicionados exclusivamente se não estiverem concluídos e o destino estiver livre, preservando repetições e carga. Conflitos requerem reconciliação supervisionada, nunca sobrescrita silenciosa nem avanço fictício.
+
+### Limites e segurança do executor cíclico (#489, remediação)
+
+A validação de sequência usa os IDs históricos da #398 e o cursor da própria execução #389. A transição pública `completed` consulta o plano e o progresso persistido na **mesma transação serializável** que grava o lifecycle/ledger; `invalid_plan`, `reconciliation_required` ou etapas pendentes retornam 409 e preservam o estado. `partial` e o fallback legado continuam pelo #389. O teto do array `sessionValues.cyclicStages` corresponde ao máximo de 80.000 ocorrências autorizado pela modelagem #398 e é verificado também no merge persistido. O relógio dos estados terminais é projetado pelo `finishedAt`; pausas efetivamente registradas são deduzidas de `pausedDurationMs`.
