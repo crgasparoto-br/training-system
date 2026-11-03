@@ -144,7 +144,7 @@ export function GuidedCyclicCard({ sessionId, status, version, load, act, onExec
 
   useEffect(() => {
     if (!view?.currentStartedAt || view.status !== 'in_progress' || status !== 'in_progress'
-      || view.remainingMs === null || view.availability !== 'available') return;
+      || view.elapsedMs === null || view.availability !== 'available') return;
     const timer = window.setInterval(() => setTick((n) => n + 1), 500);
     return () => window.clearInterval(timer);
   }, [status, view]);
@@ -159,6 +159,10 @@ export function GuidedCyclicCard({ sessionId, status, version, load, act, onExec
     ? null : view.status === 'in_progress' && status === 'in_progress'
       ? Math.max(0, view.remainingMs - Math.max(0, performance.now() - receivedAt))
       : view.remainingMs;
+  const liveElapsed = view?.elapsedMs === null || view?.elapsedMs === undefined
+    ? null : view.status === 'in_progress' && status === 'in_progress'
+      ? view.elapsedMs + Math.max(0, performance.now() - receivedAt)
+      : view.elapsedMs;
   const target = current?.targetKind ? targets[current.targetKind] : null;
 
   async function submit(action: 'start' | 'complete') {
@@ -299,7 +303,16 @@ export function GuidedCyclicCard({ sessionId, status, version, load, act, onExec
                 </div>
               )}
               {view.currentStartedAt && current.durationUnit === 'meters' && (
-                <p className="text-sm">Avance após percorrer a distância. Confirme o valor realizado abaixo.</p>
+                <div className="space-y-2">
+                  {liveElapsed !== null && (
+                    <div className="rounded-lg border border-border bg-background px-3 py-2 text-center"
+                      role="timer" aria-label="Tempo decorrido da etapa">
+                      <p className="text-xs text-muted-foreground">Tempo decorrido</p>
+                      <p className="text-3xl font-semibold tabular-nums">{clock(liveElapsed)}</p>
+                    </div>
+                  )}
+                  <p className="text-sm">Avance após percorrer a distância. Confirme o valor realizado abaixo.</p>
+                </div>
               )}
               {view.status === 'paused' && (
                 <p role="status" className="text-sm font-medium text-amber-900">
