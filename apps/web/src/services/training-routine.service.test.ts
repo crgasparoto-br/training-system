@@ -34,10 +34,12 @@ describe('trainingRoutineService', () => {
 
   it('expõe leitura e mutações canônicas de execução', async () => {
     expect(Object.keys(trainingRoutineService).sort()).toEqual([
+      'actGuidedCyclicForStudent',
       'actGuidedRestForStudent',
       'completeGuidedForStudent',
       'getForAluno',
       'getForStudent',
+      'getGuidedCyclicForStudent',
       'getGuidedForStudent',
       'saveExecutionValuesForStudent',
       'transitionForStudent',
@@ -71,6 +73,30 @@ describe('trainingRoutineService', () => {
         sessionValues: { distanceKm: 5 },
       },
       { contractId: 'contract-1' }
+    );
+
+    await trainingRoutineService.getGuidedCyclicForStudent('day-1', { contractId: 'contract-1' });
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/student/me/training-sessions/day-1/execution/guided-cyclic',
+      { headers: { 'x-contract-id': 'contract-1' } },
+    );
+
+    const cyclicAction = {
+      operationKey: '489-cyclic-stage-123',
+      expectedVersion: 2,
+      plannedStageId: 'stage-1',
+      iteration: 1,
+      action: 'complete' as const,
+      outcome: 'partial' as const,
+      values: { distanceMeters: 550, heartRateBpm: 137 },
+    };
+    await trainingRoutineService.actGuidedCyclicForStudent(
+      'day-1', cyclicAction, { contractId: 'contract-1' },
+    );
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/student/me/training-sessions/day-1/execution/guided-cyclic/step',
+      cyclicAction,
+      { headers: { 'x-contract-id': 'contract-1' } },
     );
 
     await trainingRoutineService.getGuidedForStudent('day-1', { contractId: 'contract-1' });
