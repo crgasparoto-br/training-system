@@ -11,7 +11,9 @@ const viewports = [
 const phases = ['warmup', 'work-round1', 'recovery-round1'];
 const controls = ['keyboard-enter', 'accessible-timer', 'aria-live-status', 'touch-targets',
   'no-horizontal-overflow', 'pause-resume', 'work-recovery-contrast',
-  'round-context', 'speed-range', 'authenticated-contract-scoping'];
+  'round-context', 'speed-range', 'authenticated-contract-scoping',
+  'active-reload-wall-clock', 'active-background-wall-clock', 'paused-background-freeze',
+  'paused-reload-freeze', 'resume-after-background'];
 const png = Buffer.from('89504e470d0a1a0a', 'hex');
 const prefix = 'BROWSER_EVIDENCE_489 ';
 
@@ -37,6 +39,25 @@ export function verifyIssue489BrowserEvidence({ logFile, imageDirectory, headSha
   for (const [index, viewport] of viewports.entries()) {
     const scenario = record.scenarios[index];
     assert.deepEqual(scenario.viewport, viewport);
+    // The log must attest both sides of the wall-clock/paused distinction.
+    // Reject a screenshot-only PASS with no actual reload/background measurements.
+    const continuity = scenario.continuity;
+    assert.equal(continuity?.progression?.stageId, 'warmup');
+    assert.equal(continuity.progression.version, 4);
+    assert.equal(continuity.progression.completed, 0);
+    const active = continuity.active;
+    const paused = continuity.paused;
+    const resumed = continuity.resumed;
+    for (const seconds of [...Object.values(active), ...Object.values(paused), ...Object.values(resumed)]) {
+      assert.ok(Number.isInteger(seconds) && seconds >= 0 && seconds <= 90,
+        'Real-browser timer samples must be bounded integers');
+    }
+    assert.ok(active.afterReload < active.beforeReload && active.afterBackground < active.beforeBackground,
+      'Reload and background without explicit pause must advance the server clock');
+    assert.ok(Math.abs(paused.afterBackground - paused.beforeBackground) <= 1 &&
+      Math.abs(paused.afterReload - paused.beforeBackground) <= 1,
+    'Explicit pause must freeze time across background and reload');
+    assert.ok(resumed.after < resumed.before, 'Clock must continue after explicit resume');
     for (const phase of phases) {
       const result = scenario[phase === 'work-round1' ? 'work' : phase === 'recovery-round1' ? 'recovery' : 'warmup'];
       assert.match(result?.sha256, /^[0-9a-f]{64}$/);

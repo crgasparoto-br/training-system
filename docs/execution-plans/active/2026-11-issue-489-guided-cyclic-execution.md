@@ -42,9 +42,13 @@ Nova árvore de prescrição, relógio durável duplicado, inferência de etapas
 - [x] Testes focados e integração PostgreSQL preparados.
 - [x] Documentação técnica de API/Web atualizada.
 - [x] A-489-005: projeção guiada e conclusão #389 reconciliam agregado de pai `repeat` com execução #401; testes de domínio e integração PostgreSQL cobrem sucesso, concorrência/retry e rejeições adversariais.
-- [ ] `pnpm validate` verde no HEAD material final (confirmar no workflow do GitHub Actions).
-- [ ] Confirmar as capturas Chrome da #489 no artefato da CI exact-SHA (desktop 1440x900 e mobile 390x844, teclado, foco, pausa, rodada, alvos, contraste, escopo autenticado).
-- [ ] Nova auditoria independente exact-SHA após a remediação.
+- [x] Paridade dos gates de `pnpm validate` aprovada no SHA auditado `bfb2f4b28d8ffb27297d039fccb296ae1c6e2998`: [Validate PR #41723513816](https://github.com/crgasparoto-br/training-system/actions/runs/41723513816), `CRITICAL validation`, `Merge preview compatibility` e `Validate repository` = `success` (03/11/2026).
+- [x] Chrome real da #489 no SHA auditado acima: `validate-pr-critical-bfb2f4b28d8ffb27297d039fccb296ae1c6e2998` (artifact ID `13275446367`, digest do ZIP `sha256:0f6d61f8751db506ef03847c52d58a8fbdbc304028746e35c7723458a091f9ed`). O validador comprovou os hashes SHA-256 das seis PNGs aquecimento/trabalho/recuperação em desktop 1440×900 e mobile 390×844, além de teclado, pausa, rodada, alvos, contraste e escopo autenticado.
+- [x] Auditoria independente de 04/11/2026 da entrega acima: **APROVADA COM RESSALVAS** (REC-489-01, REC-489-02), sem bloqueadores; evidência local não publicada automaticamente no GitHub.
+- [x] REC-489-01: ampliar as provas Chrome exact-SHA com reload ativo e pausado, ocultação/retorno de aba com e sem pausa, relógio por timestamps persistidos, retomada e prova negativa de ausência de avanços automáticos; `scripts/verify-issue-489-browser-evidence.mjs` valida os controles por viewport.
+- [x] REC-489-02: registrar neste checklist o run, SHA e digest do artifact previamente aprovado, sem extrapolar a validade para commits posteriores.
+- [ ] Obter CI terminal verde e inspecionar logs/capturas Chrome para o **novo HEAD** que incorpora REC-489-01/02; o run #41723513816 comprova exclusivamente o SHA anterior.
+- [ ] Nova auditoria independente exact-SHA da remediação, após a CI do novo HEAD.
 
 ## Validação manual
 1. Liberar aquecimento de 5 min, duas rodadas (trabalho 60 s + recuperação 30 s) e desaquecimento de 800 m, com metas FC/pace.
@@ -56,5 +60,5 @@ Nova árvore de prescrição, relógio durável duplicado, inferência de etapas
 
 ## Decisões e pendências
 - Sem migration: `sessionValues` JSONB existente da execução #389 carrega o cursor e os resultados vinculados às unidades históricas; o novo máximo mantém o mesmo schema.
-- Capturas da #489 são produzidas por `issue-489-browser-evidence.test.js` e validadas por `scripts/verify-issue-489-browser-evidence.mjs`; CI arquiva arquivos e hashes com o SHA exact-HEAD. O teste visual usa uma API HTTP isolada para estados e ações de UI; os testes PostgreSQL verificam o boundary real no backend.
+- Capturas da #489 são produzidas por `issue-489-browser-evidence.test.js` e validadas por `scripts/verify-issue-489-browser-evidence.mjs`; CI arquiva arquivos e hashes com o SHA exact-HEAD. O teste visual usa uma API HTTP isolada com relógio wall-clock, pausas persistidas na fixture e ações reais da UI; os testes PostgreSQL verificam o boundary real no backend. O manifesto de Chrome exige amostras de tempo e retomada em ambos os viewports, além dos hashes das seis PNGs.
 - Sem merge ou exclusão de arquivos; toda evidência de CI e revisão visual depende do SHA definitivo.

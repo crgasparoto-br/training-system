@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import http from 'node:http';
 import { accessSync, constants, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { describe, expect, it } from 'vitest';
 
 const apiRequire = createRequire(path.resolve(process.cwd(), '../api/package.json'));
@@ -43,13 +44,17 @@ const planned = [
   targetMin: step.targetMin ?? null, targetMax: step.targetMax ?? null,
   inclinePercent: null, cadenceSpm: null, notes: null,
 }));
-let version = 1, completed = 0, state = 'in_progress', startedAt = null, conflictNext = false;
+let version = 1, completed = 0, state = 'in_progress', startedAt = null;
+let pauseStartedAt = null, pausedDurationMs = 0, conflictNext = false;
 const calls = [];
-function reset() { version = 1; completed = 0; state = 'in_progress'; startedAt = null; conflictNext = false; calls.length = 0; }
+function reset() {
+  version = 1; completed = 0; state = 'in_progress'; startedAt = null;
+  pauseStartedAt = null; pausedDurationMs = 0; conflictNext = false; calls.length = 0;
+}
 function execution() {
   return { sessionId: SESSION_ID, status: state, version, startedAt: '2026-11-03T09:00:00.000Z',
-    finishedAt: null, currentPauseStartedAt: state === 'paused' ? new Date().toISOString() : null,
-    pausedDurationMs: 0, interruptionReason: null, sessionValues: {}, items: [],
+    finishedAt: null, currentPauseStartedAt: pauseStartedAt,
+    pausedDurationMs, interruptionReason: null, sessionValues: {}, items: [],
     origin: { releaseId: 'release-489', workoutTemplateId: 'template-489', trainingPlanId: 'plan-489' } };
 }
 function summary() {
@@ -69,12 +74,16 @@ function routine() {
     feedbackContinuity: { state: 'available', pendingCount: 0, registeredCount: 0 } };
 }
 function guided() {
+  const now = Date.now();
+  // Same server-side wall-clock semantics as #389: only explicit pause freezes time.
+  const clockEnd = pauseStartedAt ? Date.parse(pauseStartedAt) : now;
+  const elapsedMs = startedAt ? Math.max(0, clockEnd - Date.parse(startedAt) - pausedDurationMs) : null;
   return { sessionId: SESSION_ID, status: state, version,
-    serverNow: new Date().toISOString(), availability: 'available',
+    serverNow: new Date(now).toISOString(), availability: 'available',
     completed, total: planned.length, current: planned[completed] ?? null,
-    next: planned[completed + 1] ?? null, currentStartedAt: startedAt,
-    elapsedMs: startedAt ? 1000 : null,
-    remainingMs: startedAt && planned[completed]?.durationUnit === 'seconds' ? 89000 : null };
+    next: planned[completed + 1] ?? null, currentStartedAt: startedAt, elapsedMs,
+    remainingMs: elapsedMs !== null && planned[completed]?.durationUnit === 'seconds'
+      ? Math.max(0, planned[completed].durationValue * 1000 - elapsedMs) : null };
 }
 function response(res, status, data) {
   res.writeHead(status, { 'Access-Control-Allow-Origin': WEB_ORIGIN,
@@ -105,9 +114,11 @@ function startApi() {
       if (state !== 'in_progress' || !current || input.expectedVersion !== version ||
         input.plannedStageId !== current.plannedStageId || input.iteration !== current.iteration ||
         (input.action === 'complete' && !startedAt)) return response(res, 409, { code: 'VERSION_CONFLICT' });
-      if (input.action === 'start') startedAt = new Date().toISOString();
-      else if (input.action === 'complete') { completed++; startedAt = null; }
-      else return response(res, 400, { code: 'INVALID_ACTION' });
+      if (input.action === 'start') {
+        startedAt = new Date().toISOString(); pausedDurationMs = 0; pauseStartedAt = null;
+      } else if (input.action === 'complete') {
+        completed++; startedAt = null; pausedDurationMs = 0; pauseStartedAt = null;
+      } else return response(res, 400, { code: 'INVALID_ACTION' });
       version++;
       return response(res, 200, { success: true, data: guided() });
     }
@@ -116,6 +127,11 @@ function startApi() {
       if (input.expectedVersion !== version ||
         !(state === 'in_progress' && input.targetStatus === 'paused' ||
           state === 'paused' && input.targetStatus === 'in_progress')) return response(res, 409, { code: 'VERSION_CONFLICT' });
+      if (input.targetStatus === 'paused') pauseStartedAt = new Date().toISOString();
+      else {
+        pausedDurationMs += Date.now() - Date.parse(pauseStartedAt);
+        pauseStartedAt = null;
+      }
       state = input.targetStatus; version++;
       return response(res, 200, { success: true, data: execution() });
     }
@@ -198,6 +214,14 @@ async function clickButton(page, text) {
     control.click();
   }, text);
 }
+async function timerSeconds(page) {
+  return page.evaluate(() => {
+    const timer = document.querySelector('[role=timer][aria-label="Tempo restante da etapa"]');
+    const match = timer?.textContent?.match(/(\d{2}):(\d{2})/);
+    if (!match) throw new Error('Server-derived remaining timer not visible');
+    return Number(match[1]) * 60 + Number(match[2]);
+  });
+}
 async function screenshot(page, viewport, phase) {
   const bytes = await page.screenshot({ fullPage: true });
   mkdirSync(outputDir, { recursive: true });
@@ -259,11 +283,66 @@ suite('Issue #489 - guided cyclic browser, responsive and accessible', () => {
         await page.keyboard.press('Enter');
         await untilText(page, 'Confirmar etapa');
         expect(await page.evaluate(() => !!document.querySelector('[role=timer][aria-label="Tempo restante da etapa"]'))).toBe(true);
-        await clickButton(page, 'Pausar treino');
-        await untilText(page, 'Treino pausado. O relógio está congelado');
-        await checkLayout(page);
-        await clickButton(page, 'Retomar treino');
+        const beforeReload = await timerSeconds(page);
+        await delay(1350);
+        await page.reload({ waitUntil: 'domcontentloaded' });
         await untilText(page, 'Confirmar etapa');
+        const afterReload = await timerSeconds(page);
+        expect(afterReload).toBeLessThan(beforeReload);
+        expect([completed, version, planned[completed].id]).toEqual([0, 2, 'warmup']);
+        const beforeBackground = afterReload;
+        const otherTab = await browser.newPage();
+        let afterBackground, pauseBefore, pauseAfterBackground, pauseAfterReload, resumedBefore, resumedAfter;
+        try {
+          await page.bringToFront();
+          await otherTab.bringToFront();
+          expect(await page.evaluate(() => document.visibilityState)).toBe('hidden');
+          await delay(1350);
+          await page.bringToFront();
+          await page.waitForFunction(() => document.visibilityState === 'visible');
+          await untilText(page, 'Confirmar etapa');
+          afterBackground = await timerSeconds(page);
+          expect(afterBackground).toBeLessThan(beforeBackground);
+          expect([completed, version, planned[completed].id]).toEqual([0, 2, 'warmup']);
+
+          await clickButton(page, 'Pausar treino');
+          await untilText(page, 'Treino pausado. O relógio está congelado');
+          await checkLayout(page);
+          pauseBefore = await timerSeconds(page);
+          const savedWhilePaused = guided().remainingMs;
+          await otherTab.bringToFront();
+          expect(await page.evaluate(() => document.visibilityState)).toBe('hidden');
+          await delay(1350);
+          await page.bringToFront();
+          await page.waitForFunction(() => document.visibilityState === 'visible');
+          await untilText(page, 'Treino pausado. O relógio está congelado');
+          pauseAfterBackground = await timerSeconds(page);
+          expect(Math.abs(pauseAfterBackground - pauseBefore)).toBeLessThanOrEqual(1);
+          expect(guided().remainingMs).toBe(savedWhilePaused);
+          await page.reload({ waitUntil: 'domcontentloaded' });
+          await untilText(page, 'Treino pausado. O relógio está congelado');
+          pauseAfterReload = await timerSeconds(page);
+          expect(Math.abs(pauseAfterReload - pauseBefore)).toBeLessThanOrEqual(1);
+          expect(guided().remainingMs).toBe(savedWhilePaused);
+          expect([completed, version, planned[completed].id]).toEqual([0, 3, 'warmup']);
+
+          await clickButton(page, 'Retomar treino');
+          await untilText(page, 'Confirmar etapa');
+          resumedBefore = await timerSeconds(page);
+          await delay(1350);
+          resumedAfter = await timerSeconds(page);
+          expect(resumedAfter).toBeLessThan(resumedBefore);
+          expect([completed, version, planned[completed].id]).toEqual([0, 4, 'warmup']);
+          // Reloads, tab switches and ticking never POST an advance; only student actions can.
+          expect(calls.filter((call) => call.method === 'POST' && call.path.endsWith('/execution/guided-cyclic/step')).length).toBe(1);
+          expect(calls.filter((call) => call.method === 'POST' && call.path.endsWith('/execution/transition')).length).toBe(2);
+        } finally {
+          await otherTab.close();
+        }
+        const continuity = { active: { beforeReload, afterReload, beforeBackground, afterBackground },
+          paused: { beforeBackground: pauseBefore, afterBackground: pauseAfterBackground, afterReload: pauseAfterReload },
+          resumed: { before: resumedBefore, after: resumedAfter },
+          progression: { stageId: planned[completed].id, version, completed } };
         await selectOutcome(page, 'not_performed');
         await clickButton(page, 'Confirmar etapa');
         await untilRound(page, 'Trabalho', 1, 2);
@@ -293,13 +372,15 @@ suite('Issue #489 - guided cyclic browser, responsive and accessible', () => {
         expect(calls.filter((c) => c.path.includes('training-sessions') && c.method === 'POST')
           .every((c) => c.contractId === CONTRACT_ID && c.authenticated)).toBe(true);
         scenarios.push({ viewport: { name: viewport.name, width: viewport.width, height: viewport.height },
-          warmup: before, work, recovery });
+          warmup: before, work, recovery, continuity });
       }
       const evidence = { schemaVersion: 1, kind: 'issue-489-browser-evidence', result: 'PASS',
         identity: { headSha: exactHead() }, browser: await browser.version(), scenarios,
         verified: ['desktop-1440x900', 'mobile-390x844', 'keyboard-enter', 'accessible-timer',
           'aria-live-status', 'touch-targets', 'no-horizontal-overflow', 'pause-resume',
-          'work-recovery-contrast', 'round-context', 'speed-range', 'authenticated-contract-scoping'] };
+          'work-recovery-contrast', 'round-context', 'speed-range', 'authenticated-contract-scoping',
+          'active-reload-wall-clock', 'active-background-wall-clock', 'paused-background-freeze',
+          'paused-reload-freeze', 'resume-after-background'] };
       console.log('BROWSER_EVIDENCE_489 ' + JSON.stringify(evidence));
       console.log(`BROWSER_EVIDENCE_489 PASS head=${evidence.identity.headSha}`);
     } finally {
