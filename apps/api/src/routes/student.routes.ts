@@ -37,6 +37,7 @@ import {
 import { projectWorkoutExecutionForAudience } from '../modules/workout/workout-session-comparison.domain.js';
 import { postWorkoutFeedbackPersistenceService, PostWorkoutFeedbackConflictError, PostWorkoutFeedbackInputError, PostWorkoutFeedbackNotFoundError } from '../modules/post-workout-feedback/post-workout-feedback-persistence.service.js';
 import { withResistanceRestRequestTiming } from '../modules/workout/resistance-rest.domain.js';
+import { MAX_CYCLIC_STAGE_EXECUTION_RECORDS } from '../modules/workout/cyclic-stages.domain.js';
 
 const prisma = new PrismaClient();
 
@@ -864,12 +865,12 @@ const executionSessionValuesSchema = z.object({
   speedKmh: z.number().finite().nonnegative().nullable().optional(),
   heartRateBpm: z.number().int().min(0).max(260).nullable().optional(),
   heartRateZone: z.string().trim().max(32).nullable().optional(),
-  cyclicStages: z.array(executionCyclicStageSchema).max(500).optional(),
+  cyclicStages: z.array(executionCyclicStageSchema).max(MAX_CYCLIC_STAGE_EXECUTION_RECORDS).optional(),
   resistanceGroups: z.array(executionResistanceGroupSchema).max(100).optional(),
   removeCyclicStages: z.array(z.object({
     plannedStageId: z.string().trim().min(1),
     iteration: z.number().int().min(1).max(100).optional(),
-  }).strict()).max(500).optional(),
+  }).strict()).max(MAX_CYCLIC_STAGE_EXECUTION_RECORDS).optional(),
   removeResistanceGroups: z.array(z.string().trim().min(1)).max(100).optional(),
 }).strict();
 
@@ -907,6 +908,25 @@ const guidedCompletionSchema = z.object({
   setNumber: z.number().int().positive(),
   repetitions: z.number().int().nonnegative().nullable(),
   loadKg: z.number().finite().nonnegative().nullable(),
+}).strict();
+
+const guidedCyclicActionSchema = z.object({
+  operationKey: z.string().trim().min(8).max(128),
+  expectedVersion: z.number().int().nonnegative(),
+  plannedStageId: z.string().trim().min(1),
+  iteration: z.number().int().min(1).max(100),
+  action: z.enum(['start', 'complete']),
+  outcome: executionUnitOutcomeSchema.optional(),
+  values: z.object({
+    substitutionNote: z.string().trim().max(500).nullable().optional(),
+    durationSec: z.number().int().nonnegative().nullable().optional(),
+    distanceMeters: z.number().nonnegative().nullable().optional(),
+    paceMinPerKm: z.number().nonnegative().nullable().optional(),
+    speedKmh: z.number().nonnegative().nullable().optional(),
+    heartRateBpm: z.number().int().min(0).max(260).nullable().optional(),
+    heartRateZone: z.string().trim().max(32).nullable().optional(),
+    pse: z.number().min(0).max(10).nullable().optional(),
+  }).strict().optional(),
 }).strict();
 
 const executionTransitionSchema = z.object({
@@ -1013,6 +1033,41 @@ router.post('/me/training-sessions/:sessionId/execution/guided/rest', async (req
     if (handled) return handled;
     console.error('Erro ao atualizar descanso guiado:', error);
     return sendError(res, 'Não foi possível atualizar o descanso', 500);
+  }
+});
+
+// #489: guided cyclic sessions project #398 and mutate only the #389 execution.
+router.get('/me/training-sessions/:sessionId/execution/guided-cyclic', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId as string;
+    const aluno = await requireAlunoByUserId(req, userId);
+    const view = await workoutSessionExecutionService.getGuidedCyclicForSession({
+      sessionId: req.params.sessionId, alunoId: aluno.id, contractId: aluno.contractId,
+    });
+    return sendSuccess(res, view);
+  } catch (error: any) {
+    const handled = sendExecutionError(res, error);
+    if (handled) return handled;
+    console.error('Erro ao consultar etapas cíclicas:', error);
+    return sendError(res, 'Não foi possível carregar as etapas do treino', 500);
+  }
+});
+
+router.post('/me/training-sessions/:sessionId/execution/guided-cyclic/step', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId as string;
+    const aluno = await requireAlunoByUserId(req, userId);
+    const payload = guidedCyclicActionSchema.parse(req.body);
+    const view = await workoutSessionExecutionService.actOnGuidedCyclic({
+      sessionId: req.params.sessionId, alunoId: aluno.id,
+      contractId: aluno.contractId, actorUserId: userId, payload,
+    });
+    return sendSuccess(res, view, 'Etapa atualizada');
+  } catch (error: any) {
+    const handled = sendExecutionError(res, error);
+    if (handled) return handled;
+    console.error('Erro ao registrar etapa cíclica:', error);
+    return sendError(res, 'Não foi possível registrar a etapa', 500);
   }
 });
 
