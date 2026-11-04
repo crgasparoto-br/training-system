@@ -1,5 +1,10 @@
 import { ResistanceStructureValidationError } from './resistance-structure.domain.js';
 
+/** #398's published limits: 40 top-level stages with up to 100 x 20 leaves each.
+ * #401 may additionally persist one aggregate for every top-level repeat parent. */
+export const MAX_CYCLIC_TOP_LEVEL_STAGES = 40;
+export const MAX_CYCLIC_STAGE_OCCURRENCES = MAX_CYCLIC_TOP_LEVEL_STAGES * 100 * 20;
+export const MAX_CYCLIC_STAGE_EXECUTION_RECORDS = MAX_CYCLIC_STAGE_OCCURRENCES + MAX_CYCLIC_TOP_LEVEL_STAGES;
 export const CYCLIC_STAGE_KINDS = ['warmup', 'work', 'recovery', 'cooldown', 'repeat'] as const;
 export const CYCLIC_TARGET_KINDS = ['pace_min_per_km', 'speed_kmh', 'heart_rate_bpm', 'zone', 'pse'] as const;
 export type CyclicStageKind = typeof CYCLIC_STAGE_KINDS[number];
@@ -112,7 +117,7 @@ function parseStage(value: unknown, position: number, withinRepeat: boolean): Cy
 }
 /** Undefined means legacy planning; [] deliberately clears an editable structured session. */
 export function normalizeCyclicStages(input: unknown): CyclicStageInput[] {
-  if (!Array.isArray(input) || input.length > 40) return invalid('Informe até 40 etapas cíclicas.');
+  if (!Array.isArray(input) || input.length > MAX_CYCLIC_TOP_LEVEL_STAGES) return invalid('Informe até 40 etapas cíclicas.');
   return input.map((item, i) => parseStage(item, i + 1, false));
 }
 export const cyclicStageInclude = {

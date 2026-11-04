@@ -46,6 +46,16 @@ export function StudentTraining() {
     [contractId]
   );
 
+  const loadGuidedCyclic = useCallback(
+    (sessionId: string) => trainingRoutineService.getGuidedCyclicForStudent(sessionId, { contractId }),
+    [contractId],
+  );
+  const actGuidedCyclic = useCallback(
+    (sessionId: string, payload: Parameters<typeof trainingRoutineService.actGuidedCyclicForStudent>[1]) =>
+      trainingRoutineService.actGuidedCyclicForStudent(sessionId, payload, { contractId }),
+    [contractId],
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-2">
@@ -68,6 +78,8 @@ export function StudentTraining() {
         saveFeedback={saveFeedback}
         transitionExecution={transitionExecution}
         loadGuided={loadGuided}
+        loadGuidedCyclic={loadGuidedCyclic}
+        actGuidedCyclic={actGuidedCyclic}
         completeGuided={completeGuided}
         actRest={actRest}
       />

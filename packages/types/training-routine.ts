@@ -82,6 +82,59 @@ export interface TrainingSessionCyclicStageExecutionValue {
   pse?: number | null;
 }
 
+/** #489: cursor within the #389 execution JSON, never a second lifecycle. */
+export interface GuidedCyclicCursor {
+  plannedStageId: string | null;
+  iteration: number | null;
+  startedAt: string | null;
+  pausedDurationAtStartMs: number | null;
+}
+
+/** One *occurrence* of a canonical #398 stage; repeated children reuse the planned ID. */
+export interface GuidedCyclicUnit {
+  plannedStageId: string;
+  iteration: number;
+  order: number;
+  kind: 'warmup' | 'work' | 'recovery' | 'cooldown';
+  roundNumber: number | null;
+  roundTotal: number | null;
+  durationUnit: 'seconds' | 'meters';
+  durationValue: number;
+  targetKind: 'pace_min_per_km' | 'speed_kmh' | 'heart_rate_bpm' | 'zone' | 'pse' | null;
+  targetValue: number | null;
+  targetMin: number | null;
+  targetMax: number | null;
+  inclinePercent: number | null;
+  cadenceSpm: number | null;
+  notes: string | null;
+}
+
+export interface GuidedCyclicView {
+  sessionId: string;
+  status: TrainingSessionExecutionStatus;
+  version: number;
+  serverNow: string;
+  availability: 'available' | 'legacy_read_only' | 'invalid_plan' | 'reconciliation_required';
+  completed: number;
+  total: number;
+  current: GuidedCyclicUnit | null;
+  next: GuidedCyclicUnit | null;
+  currentStartedAt: string | null;
+  elapsedMs: number | null;
+  remainingMs: number | null;
+}
+
+export interface GuidedCyclicActionPayload {
+  operationKey: string;
+  expectedVersion: number;
+  plannedStageId: string;
+  iteration: number;
+  action: 'start' | 'complete';
+  /** Only completion accepts an outcome and performed measurements. */
+  outcome?: TrainingSessionExecutionOutcome;
+  values?: Omit<TrainingSessionCyclicStageExecutionValue, 'plannedStageId' | 'iteration' | 'outcome'>;
+}
+
 export interface TrainingSessionResistanceGroupExecutionValue {
   plannedGroupId: string;
   outcome: TrainingSessionExecutionOutcome;
@@ -101,6 +154,8 @@ export interface TrainingSessionExecutionSessionValues {
   heartRateZone?: string | null;
   /** Keyed incremental upserts. Omitted units/fields remain untouched; null clears a metric. */
   cyclicStages?: TrainingSessionCyclicStageExecutionValue[];
+  /** #489: stable occurrence and server-timestamp anchor for guided execution. */
+  guidedCyclic?: GuidedCyclicCursor;
   resistanceGroups?: TrainingSessionResistanceGroupExecutionValue[];
 }
 

@@ -45,7 +45,7 @@ type Fixture = {
 async function seedReleasedWorkout(
   label: string,
   options: { publish?: boolean; seedResistance?: boolean; seedGuidedResistance?: boolean; seedGuidedGroup?: boolean;
-    seedComparison?: boolean; seedIncrementalComparison?: boolean; seedRepeatedCyclic?: boolean;
+    seedComparison?: boolean; seedIncrementalComparison?: boolean; seedRepeatedCyclic?: boolean; seedLargeCyclic?: boolean;
     weeklyVolumeKm?: number; legacySpeedRange?: { min: string; max: string } } = {},
 ): Promise<Fixture> {
   const suffix = `${label}-${randomUUID()}`;
@@ -269,6 +269,19 @@ async function seedReleasedWorkout(
         { workoutDayId: day.id, parentStageId: repeat.id, position: 2, kind: 'recovery',
           durationUnit: 'seconds', durationValue: 30 },
       ] });
+    });
+  }
+
+  if (options.seedLargeCyclic) {
+    // A #398-valid prescription of 100 rounds x 6 children must be executable.
+    await prisma.$transaction(async (tx) => {
+      const repeat = await tx.workoutCyclicStage.create({
+        data: { workoutDayId: day.id, position: 1, kind: 'repeat', repeatCount: 100 },
+      });
+      await tx.workoutCyclicStage.createMany({ data: Array.from({ length: 6 }, (_, index) => ({
+        workoutDayId: day.id, parentStageId: repeat.id, position: index + 1,
+        kind: index === 1 ? 'recovery' : 'work', durationUnit: 'seconds', durationValue: 1,
+      })) });
     });
   }
 
@@ -4613,5 +4626,372 @@ describeDatabase('issue #488: durable resistant rest and canonical session owner
     await expect(prisma.workoutSessionResistanceRest.update({
       where: { id: active.rest!.id }, data: { extensionSeconds: 150 },
     })).rejects.toThrow(/rest history and planned identity are immutable/);
+  });
+});
+
+describeDatabase('issue #489: guided cyclic stages share the canonical lifecycle and ledger', () => {
+  const scope = (fixture: Fixture) => ({
+    sessionId: fixture.dayId, alunoId: fixture.alunoId, contractId: fixture.contractId,
+  });
+  const step = (fixture: Fixture, view: Awaited<ReturnType<typeof service.getGuidedCyclicForSession>>,
+    action: 'start' | 'complete', operationKey: string,
+    outcome?: 'full' | 'partial' | 'substituted' | 'not_performed',
+  ) => service.actOnGuidedCyclic({
+    ...scope(fixture), actorUserId: fixture.alunoUserId,
+    payload: {
+      operationKey, expectedVersion: view.version,
+      plannedStageId: view.current!.plannedStageId, iteration: view.current!.iteration,
+      action, ...(outcome ? { outcome } : {}),
+    },
+  });
+
+  it('rebuilds work/recovery rounds, preserves their planned IDs and never invents legacy stages', async () => {
+    const legacy = await seedReleasedWorkout('489-legacy');
+    const legacyView = await service.getGuidedCyclicForSession(scope(legacy));
+    expect(legacyView).toMatchObject({ availability: 'legacy_read_only', total: 0, current: null, version: 0 });
+    const fixture = await seedReleasedWorkout('489-plan', { seedRepeatedCyclic: true });
+    const view = await service.getGuidedCyclicForSession(scope(fixture));
+    expect(view.availability).toBe('available');
+    expect(view.total).toBe(4);
+    expect(view.current).toMatchObject({ kind: 'work', iteration: 1, roundNumber: 1, roundTotal: 2 });
+    expect(view.next).toMatchObject({ kind: 'recovery', iteration: 1 });
+    const planned = await prisma.workoutCyclicStage.findMany({ where: { workoutDayId: fixture.dayId } });
+    expect(planned).toHaveLength(3);
+    await expect(service.getGuidedCyclicForSession({
+      sessionId: fixture.dayId, alunoId: legacy.alunoId, contractId: legacy.contractId,
+    })).rejects.toBeInstanceOf(WorkoutSessionExecutionNotFoundError);
+    await expect(service.actOnGuidedCyclic({
+      ...scope(fixture), actorUserId: fixture.alunoUserId,
+      payload: { operationKey: '489-start-before-lifecycle', expectedVersion: 0,
+        action: 'start', plannedStageId: view.current!.plannedStageId, iteration: 1 },
+    })).rejects.toMatchObject({ statusCode: 409 });
+    expect((await service.getGuidedCyclicForSession(scope(fixture))).version).toBe(0);
+  });
+
+  it('starts, pauses and resumes from durable timestamps; forbids early full and paused writes', async () => {
+    const fixture = await seedReleasedWorkout('489-paused', { seedRepeatedCyclic: true });
+    await transition(fixture, '489-start-session-paused', 0, 'in_progress');
+    let view = await service.getGuidedCyclicForSession(scope(fixture));
+    view = await step(fixture, view, 'start', '489-start-stage-paused');
+    expect(view).toMatchObject({ version: 2, completed: 0, currentStartedAt: expect.any(String) });
+    expect(view.remainingMs).toBeGreaterThan(0);
+    await expect(step(fixture, view, 'complete', '489-too-early-full', 'full'))
+      .rejects.toBeInstanceOf(WorkoutSessionExecutionConflictError);
+    expect((await service.getGuidedCyclicForSession(scope(fixture))).version).toBe(2);
+    await transition(fixture, '489-pause-session', 2, 'paused');
+    const frozen = await service.getGuidedCyclicForSession(scope(fixture));
+    expect(frozen.status).toBe('paused');
+    expect(frozen.remainingMs).toBeGreaterThan(0);
+    expect((await concurrentService.getGuidedCyclicForSession(scope(fixture))).remainingMs)
+      .toBe(frozen.remainingMs);
+    await expect(step(fixture, frozen, 'complete', '489-complete-while-paused', 'partial'))
+      .rejects.toBeInstanceOf(WorkoutSessionExecutionConflictError);
+    await transition(fixture, '489-resume-session', 3, 'in_progress');
+    const resumed = await concurrentService.getGuidedCyclicForSession(scope(fixture));
+    expect(resumed).toMatchObject({ version: 4, status: 'in_progress', currentStartedAt: frozen.currentStartedAt });
+    expect(resumed.remainingMs).toBeGreaterThan(0);
+  });
+
+  it('rejects foreign/out-of-order steps, makes retries idempotent and persists performed values separately', async () => {
+    const fixture = await seedReleasedWorkout('489-steps', { seedRepeatedCyclic: true });
+    const other = await seedReleasedWorkout('489-other');
+    await transition(fixture, '489-session-start-steps', 0, 'in_progress');
+    let view = await service.getGuidedCyclicForSession(scope(fixture));
+    const startedPayload = {
+      operationKey: '489-stage-start-idempotent', expectedVersion: 1,
+      action: 'start' as const, plannedStageId: view.current!.plannedStageId, iteration: 1,
+    };
+    view = await service.actOnGuidedCyclic({ ...scope(fixture), actorUserId: fixture.alunoUserId, payload: startedPayload });
+    expect(view.version).toBe(2);
+    expect((await concurrentService.actOnGuidedCyclic({
+      ...scope(fixture), actorUserId: fixture.alunoUserId, payload: startedPayload,
+    })).version).toBe(2);
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({ where: { workoutDayId: fixture.dayId } });
+    expect(await prisma.workoutSessionExecutionOperation.count({ where: {
+      executionId: execution.id, operationKey: startedPayload.operationKey,
+    } })).toBe(1);
+    expect(await prisma.studentLifecycleEvent.count({ where: {
+      alunoId: fixture.alunoId,
+      metadata: { path: ['action'], equals: 'guided_cyclic_start' },
+    } })).toBe(1);
+
+    await expect(service.actOnGuidedCyclic({
+      ...scope(fixture), actorUserId: fixture.alunoUserId,
+      payload: { ...startedPayload, action: 'complete', outcome: 'partial' },
+    })).rejects.toMatchObject({ statusCode: 409 });
+    await expect(service.actOnGuidedCyclic({
+      ...scope(fixture), actorUserId: fixture.alunoUserId,
+      payload: { operationKey: '489-wrong-round', expectedVersion: view.version,
+        action: 'complete', plannedStageId: view.current!.plannedStageId,
+        iteration: 2, outcome: 'partial' },
+    })).rejects.toMatchObject({ statusCode: 409 });
+    await expect(service.actOnGuidedCyclic({
+      sessionId: fixture.dayId, alunoId: other.alunoId, contractId: other.contractId,
+      actorUserId: other.alunoUserId,
+      payload: { ...startedPayload, operationKey: '489-foreign-write' },
+    })).rejects.toBeInstanceOf(WorkoutSessionExecutionNotFoundError);
+
+    view = await service.actOnGuidedCyclic({
+      ...scope(fixture), actorUserId: fixture.alunoUserId,
+      payload: { operationKey: '489-stage-partial-work', expectedVersion: view.version,
+        action: 'complete', plannedStageId: view.current!.plannedStageId,
+        iteration: view.current!.iteration, outcome: 'partial',
+        values: { heartRateBpm: 155 } },
+    });
+    expect(view).toMatchObject({ version: 3, completed: 1, current: { kind: 'recovery', iteration: 1 } });
+    const after = await service.getForSession(scope(fixture));
+    expect(after.sessionValues.cyclicStages?.[0]).toMatchObject({
+      plannedStageId: startedPayload.plannedStageId, iteration: 1, outcome: 'partial', heartRateBpm: 155,
+      durationSec: expect.any(Number),
+    });
+    const plan = await prisma.workoutCyclicStage.findUniqueOrThrow({ where: { id: startedPayload.plannedStageId } });
+    expect(plan.durationValue).toBe(60); // executing never changes the prescription
+
+    for (let i = 0; i < 3; i++) {
+      view = await step(fixture, view, 'start', '489-stage-start-' + i);
+      view = await step(fixture, view, 'complete', '489-stage-skip-' + i, 'not_performed');
+    }
+    expect(view).toMatchObject({ completed: 4, total: 4, current: null });
+    expect((await concurrentService.getGuidedCyclicForSession(scope(fixture))).completed).toBe(4);
+    expect((await service.getForSession(scope(fixture))).sessionValues.cyclicStages).toHaveLength(4);
+  });
+
+  it('blocks direct canonical completed while #398 stages are pending, without partial writes; allows partial and legacy', async () => {
+    const fixture = await seedReleasedWorkout('489-completion-guard', { seedRepeatedCyclic: true });
+    const legacy = await seedReleasedWorkout('489-completion-legacy');
+    await transition(fixture, '489-guard-start', 0, 'in_progress');
+    await transition(legacy, '489-legacy-start', 0, 'in_progress');
+    const early = () => transition(fixture, '489-guard-early', 1, 'completed');
+    await expect(early()).rejects.toMatchObject({ statusCode: 409,
+      code: 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION' });
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({ where: { workoutDayId: fixture.dayId } });
+    expect(await prisma.workoutSessionExecutionOperation.count({ where: {
+      executionId: execution.id, operationKey: '489-guard-early',
+    } })).toBe(0);
+    expect((await service.getForSession(scope(fixture)))).toMatchObject({ status: 'in_progress', version: 1 });
+    await expect(concurrentService.transition({ ...scope(fixture), actorUserId: fixture.alunoUserId,
+      payload: { operationKey: '489-guard-other-device', expectedVersion: 1, targetStatus: 'completed' },
+    })).rejects.toMatchObject({ statusCode: 409 });
+    await expect(service.transition({ sessionId: fixture.dayId, alunoId: legacy.alunoId,
+      contractId: legacy.contractId, actorUserId: legacy.alunoUserId,
+      payload: { operationKey: '489-cross-contract-completed', expectedVersion: 1,
+        targetStatus: 'completed' },
+    })).rejects.toBeInstanceOf(WorkoutSessionExecutionNotFoundError);
+    const completedLegacy = await transition(legacy, '489-legacy-completed', 1, 'completed');
+    expect(completedLegacy).toMatchObject({ status: 'completed', version: 2 });
+    const partial = await transition(fixture, '489-interrupted', 1, 'partial', 'Interrompido pelo aluno');
+    expect(partial).toMatchObject({ status: 'partial', version: 2 });
+  });
+
+  it('allows completed only after every guided occurrence is persisted, including retry', async () => {
+    const fixture = await seedReleasedWorkout('489-guard-complete-all', { seedRepeatedCyclic: true });
+    await transition(fixture, '489-all-start', 0, 'in_progress');
+    let view = await service.getGuidedCyclicForSession(scope(fixture));
+    for (let i = 0; i < 4; i++) {
+      view = await step(fixture, view, 'start', '489-guard-step-start-' + i);
+      view = await step(fixture, view, 'complete', '489-guard-step-complete-' + i, 'not_performed');
+    }
+    expect(view).toMatchObject({ availability: 'available', completed: 4, total: 4, current: null });
+    const payload = { operationKey: '489-guard-finish', expectedVersion: view.version,
+      targetStatus: 'completed' as const };
+    const finished = await service.transition({ ...scope(fixture), actorUserId: fixture.alunoUserId, payload });
+    expect(finished.status).toBe('completed');
+    const same = await concurrentService.transition({ ...scope(fixture), actorUserId: fixture.alunoUserId, payload });
+    expect(same).toMatchObject({ status: 'completed', version: finished.version });
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({ where: { workoutDayId: fixture.dayId } });
+    expect(await prisma.workoutSessionExecutionOperation.count({ where: {
+      executionId: execution.id, operationKey: payload.operationKey,
+    } })).toBe(1);
+  });
+
+  it('continues guided #489 steps with a #401 repeat-parent aggregate and completes via canonical #389', async () => {
+    const fixture = await seedReleasedWorkout('489-parent-aggregate', { seedRepeatedCyclic: true });
+    const parent = await prisma.workoutCyclicStage.findFirstOrThrow({
+      where: { workoutDayId: fixture.dayId, kind: 'repeat' }, select: { id: true },
+    });
+    await transition(fixture, '489-parent-session-start', 0, 'in_progress');
+    let view = await service.getGuidedCyclicForSession(scope(fixture));
+    view = await step(fixture, view, 'start', '489-parent-step-start');
+    const firstStage = view.current!.plannedStageId;
+    const originalStartedAt = view.currentStartedAt;
+
+    // #401 accepts an optional aggregate for the released repeat parent. This
+    // upsert must not count as a leaf or reset the durable #389 guided cursor.
+    const saved = await service.saveValues({ ...scope(fixture), actorUserId: fixture.alunoUserId,
+      payload: { operationKey: '489-parent-aggregate-upsert', expectedVersion: view.version,
+        sessionValues: { cyclicStages: [{ plannedStageId: parent.id, outcome: 'full' }] } },
+    });
+    expect(saved.sessionValues.cyclicStages).toHaveLength(1);
+    view = await concurrentService.getGuidedCyclicForSession(scope(fixture));
+    expect(view).toMatchObject({ availability: 'available', completed: 0, total: 4,
+      current: { plannedStageId: firstStage, iteration: 1 },
+      currentStartedAt: originalStartedAt });
+    await expect(transition(fixture, '489-parent-early-complete', view.version, 'completed'))
+      .rejects.toMatchObject({ statusCode: 409 });
+
+    view = await step(fixture, view, 'complete', '489-parent-first-complete', 'partial');
+    expect(view).toMatchObject({ availability: 'available', completed: 1,
+      current: { kind: 'recovery', iteration: 1 } });
+    for (let i = 1; i < 4; i++) {
+      view = await step(fixture, view, 'start', '489-parent-next-start-' + i);
+      view = await step(fixture, view, 'complete', '489-parent-next-complete-' + i, 'not_performed');
+      expect(view.availability).toBe('available');
+    }
+    expect(view).toMatchObject({ completed: 4, total: 4, current: null, next: null });
+    const executed = await service.getForSession(scope(fixture));
+    expect(executed.sessionValues.cyclicStages).toHaveLength(5); // Four leaves + one parent.
+    expect(executed.sessionValues.cyclicStages?.filter((row) => row.plannedStageId === parent.id)).toHaveLength(1);
+    const persisted = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId },
+    });
+    const comparisonPlan = readCapturedWorkoutComparisonPlan(persisted.plannedSnapshot)!;
+    const comparison = compareWorkoutSession(comparisonPlan, executed, 'captured');
+    expect(comparison.units.filter((unit) => unit.plannedUnitId === parent.id)).toHaveLength(1);
+
+    const payload = { operationKey: '489-parent-session-complete', expectedVersion: view.version,
+      targetStatus: 'completed' as const };
+    const complete = await service.transition({ ...scope(fixture), actorUserId: fixture.alunoUserId, payload });
+    expect(complete.status).toBe('completed');
+    const retry = await concurrentService.transition({ ...scope(fixture), actorUserId: fixture.alunoUserId, payload });
+    expect(retry.version).toBe(complete.version);
+    expect((await service.getGuidedCyclicForSession(scope(fixture))).completed).toBe(4);
+    expect(await prisma.workoutSessionExecutionOperation.count({ where: {
+      executionId: persisted.id, operationKey: payload.operationKey,
+    } })).toBe(1);
+  });
+
+  it('rejects duplicated, foreign and illegally iterated repeat-parent values without saving them', async () => {
+    const fixture = await seedReleasedWorkout('489-parent-invalid', { seedRepeatedCyclic: true });
+    const foreign = await seedReleasedWorkout('489-parent-foreign', { seedRepeatedCyclic: true });
+    const parent = await prisma.workoutCyclicStage.findFirstOrThrow({
+      where: { workoutDayId: fixture.dayId, kind: 'repeat' }, select: { id: true },
+    });
+    const foreignParent = await prisma.workoutCyclicStage.findFirstOrThrow({
+      where: { workoutDayId: foreign.dayId, kind: 'repeat' }, select: { id: true },
+    });
+    await transition(fixture, '489-invalid-parent-session-start', 0, 'in_progress');
+    const invalidRows = [
+      [{ plannedStageId: parent.id, outcome: 'full' as const },
+        { plannedStageId: parent.id, iteration: 1, outcome: 'full' as const }],
+      [{ plannedStageId: parent.id, iteration: 2, outcome: 'full' as const }],
+      [{ plannedStageId: foreignParent.id, outcome: 'full' as const }],
+    ];
+    for (const [index, cyclicStages] of invalidRows.entries()) {
+      await expect(service.saveValues({ ...scope(fixture), actorUserId: fixture.alunoUserId,
+        payload: { operationKey: '489-parent-invalid-' + index, expectedVersion: 1,
+          sessionValues: { cyclicStages } },
+      })).rejects.toBeInstanceOf(WorkoutSessionExecutionInputError);
+    }
+    const persisted = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId },
+    });
+    expect(persisted.version).toBe(1);
+    expect((await service.getForSession(scope(fixture))).sessionValues.cyclicStages ?? []).toHaveLength(0);
+    expect(await prisma.workoutSessionExecutionOperation.count({ where: {
+      executionId: persisted.id,
+      operationKey: { in: invalidRows.map((_, index) => '489-parent-invalid-' + index) },
+    } })).toBe(0);
+
+    // Even if historical JSON was corrupted outside the canonical write API,
+    // neither guided progression nor a direct terminal transition may use it.
+    // #399 also protects direct SQL writes: every root mutation must increment
+    // the canonical version, even when simulating malformed historical JSON.
+    await prisma.workoutSessionExecution.update({ where: { id: persisted.id },
+      data: { version: { increment: 1 }, sessionValues: { cyclicStages: [
+        { plannedStageId: parent.id, iteration: 1, outcome: 'full' },
+        { plannedStageId: parent.id, iteration: 1, outcome: 'full' },
+      ] } },
+    });
+    expect((await service.getGuidedCyclicForSession(scope(fixture))).availability)
+      .toBe('reconciliation_required');
+    await expect(transition(fixture, '489-parent-corrupt-finish', persisted.version + 1, 'completed'))
+      .rejects.toMatchObject({ statusCode: 409 });
+    expect(await prisma.workoutSessionExecutionOperation.count({ where: {
+      executionId: persisted.id, operationKey: '489-parent-corrupt-finish',
+    } })).toBe(0);
+  });
+
+  it('stores all 600 #398-valid executed occurrences without truncating at 500', async () => {
+    const fixture = await seedReleasedWorkout('489-six-hundred', { seedLargeCyclic: true });
+    await transition(fixture, '489-600-start', 0, 'in_progress');
+    const guided = await service.getGuidedCyclicForSession(scope(fixture));
+    expect(guided).toMatchObject({ availability: 'available', total: 600 });
+    const planned = await prisma.workoutCyclicStage.findMany({
+      where: { workoutDayId: fixture.dayId, parentStageId: { not: null } },
+      orderBy: { position: 'asc' }, select: { id: true },
+    });
+    expect(planned).toHaveLength(6);
+    const recorded = Array.from({ length: 100 }, (_, index) => planned.map((stage) => ({
+      plannedStageId: stage.id, iteration: index + 1, outcome: 'not_performed' as const,
+    }))).flat();
+    const repeat = await prisma.workoutCyclicStage.findFirstOrThrow({
+      where: { workoutDayId: fixture.dayId, kind: 'repeat' }, select: { id: true },
+    });
+    const saved = await service.saveValues({ ...scope(fixture), actorUserId: fixture.alunoUserId,
+      payload: { operationKey: '489-600-records', expectedVersion: 1,
+        sessionValues: { cyclicStages: [...recorded, { plannedStageId: repeat.id, outcome: 'full' }] } },
+    });
+    expect(saved.sessionValues.cyclicStages).toHaveLength(601);
+    const reread = await concurrentService.getForSession(scope(fixture));
+    expect(reread.sessionValues.cyclicStages).toHaveLength(601);
+    // A missing single child still blocks the canonical #389 completion; a
+    // complete #401 manual history without a guided cursor may finish safely.
+    const missing = await service.saveValues({ ...scope(fixture), actorUserId: fixture.alunoUserId,
+      payload: { operationKey: '489-600-remove-one', expectedVersion: saved.version,
+        sessionValues: { removeCyclicStages: [{ plannedStageId: recorded[0].plannedStageId,
+          iteration: recorded[0].iteration }] } },
+    });
+    await expect(transition(fixture, '489-600-bypass', missing.version, 'completed'))
+      .rejects.toMatchObject({ statusCode: 409 });
+    const repaired = await service.saveValues({ ...scope(fixture), actorUserId: fixture.alunoUserId,
+      payload: { operationKey: '489-600-restore-one', expectedVersion: missing.version,
+        sessionValues: { cyclicStages: [recorded[0]] } },
+    });
+    expect((await transition(fixture, '489-600-manual-complete', repaired.version, 'completed')).status)
+      .toBe('completed');
+  });
+
+  it('rolls back all progress, ledger, version and events when persistence of lifecycle event fails', async () => {
+    const fixture = await seedReleasedWorkout('489-atomic', { seedRepeatedCyclic: true });
+    await transition(fixture, '489-session-atomic-start', 0, 'in_progress');
+    const before = await service.getGuidedCyclicForSession(scope(fixture));
+    const releaseTrigger = await installLifecycleEventTrigger(fixture.alunoId, 'fail');
+    try {
+      await expect(step(fixture, before, 'start', '489-stage-atomic-start'))
+        .rejects.toThrow(/issue389 forced lifecycle event failure/);
+    } finally {
+      await releaseTrigger();
+    }
+    const unchanged = await service.getGuidedCyclicForSession(scope(fixture));
+    expect(unchanged).toMatchObject({ version: 1, completed: 0, currentStartedAt: null });
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({ where: { workoutDayId: fixture.dayId } });
+    expect(await prisma.workoutSessionExecutionOperation.count({
+      where: { executionId: execution.id, operationKey: '489-stage-atomic-start' },
+    })).toBe(0);
+    expect(await prisma.studentLifecycleEvent.count({
+      where: { alunoId: fixture.alunoId, metadata: { path: ['action'], equals: 'guided_cyclic_start' } },
+    })).toBe(0);
+  });
+
+  it('serializes concurrent device commands by canonical version without duplicate progress', async () => {
+    const fixture = await seedReleasedWorkout('489-race', { seedRepeatedCyclic: true });
+    await transition(fixture, '489-session-race-start', 0, 'in_progress');
+    const view = await service.getGuidedCyclicForSession(scope(fixture));
+    const payload = { expectedVersion: 1, action: 'start' as const,
+      plannedStageId: view.current!.plannedStageId, iteration: view.current!.iteration };
+    const attempts = await Promise.allSettled([
+      service.actOnGuidedCyclic({ ...scope(fixture), actorUserId: fixture.alunoUserId,
+        payload: { ...payload, operationKey: '489-race-actor-a' } }),
+      concurrentService.actOnGuidedCyclic({ ...scope(fixture), actorUserId: fixture.alunoUserId,
+        payload: { ...payload, operationKey: '489-race-actor-b' } }),
+    ]);
+    expect(attempts.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(attempts.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    const persisted = await service.getGuidedCyclicForSession(scope(fixture));
+    expect(persisted).toMatchObject({ version: 2, completed: 0, currentStartedAt: expect.any(String) });
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({ where: { workoutDayId: fixture.dayId } });
+    expect(await prisma.workoutSessionExecutionOperation.count({
+      where: { executionId: execution.id, action: 'guided_cyclic_start' },
+    })).toBe(1);
   });
 });

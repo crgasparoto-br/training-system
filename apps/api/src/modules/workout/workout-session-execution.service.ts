@@ -11,8 +11,14 @@ import type {
   GuidedResistanceCompletePayload,
   GuidedResistanceView,
   GuidedResistanceRestActionPayload,
+  GuidedCyclicActionPayload,
+  GuidedCyclicView,
+  GuidedCyclicCursor,
+  TrainingSessionCyclicStageExecutionValue,
 } from '@corrida/types';
 import { deriveGuidedResistancePlan, matchesCurrentGuidedUnit, projectGuidedResistance } from './guided-resistance.domain.js';
+import { canCompleteGuidedCyclic, deriveGuidedCyclicPlan, projectGuidedCyclic } from './guided-cyclic.domain.js';
+import { MAX_CYCLIC_STAGE_EXECUTION_RECORDS } from './cyclic-stages.domain.js';
 import { prescribedRestAfter, projectResistanceRest, measuredRestMs } from './resistance-rest.domain.js';
 import { projectReleasedExerciseCatalog } from './workout-release-catalog.js';
 import { persistWorkoutSessionValues, WorkoutSessionExecutionInputError } from './workout-session-execution-values.js';
@@ -69,6 +75,19 @@ async function loadGuidedResistancePlan(tx: Prisma.TransactionClient, sessionId:
     ...item,
     exercise: projectReleasedExerciseCatalog(item.exercise, releasedCatalog),
   })), groups);
+}
+
+/** Read #398's immutable released plan directly, including stable child IDs. */
+async function loadGuidedCyclicPlan(tx: Prisma.TransactionClient, sessionId: string) {
+  const stages = await tx.workoutCyclicStage.findMany({
+    where: { workoutDayId: sessionId, parentStageId: null },
+    orderBy: [{ position: 'asc' }, { id: 'asc' }],
+    include: { children: { orderBy: [{ position: 'asc' }, { id: 'asc' }] } },
+  });
+  return deriveGuidedCyclicPlan(stages.map((stage) => ({
+    ...stage,
+    children: stage.children.map((child) => ({ ...child, children: [] })),
+  })));
 }
 
 type LockedReleasedSession = {
@@ -147,7 +166,7 @@ function normalizeSessionValues(values: TrainingSessionExecutionSessionValuesPat
   }
   if (values.heartRateZone !== undefined) normalized.heartRateZone = normalizeText(values.heartRateZone, 32);
   if (values.cyclicStages !== undefined) {
-    if (!Array.isArray(values.cyclicStages) || values.cyclicStages.length > 500) {
+    if (!Array.isArray(values.cyclicStages) || values.cyclicStages.length > MAX_CYCLIC_STAGE_EXECUTION_RECORDS) {
       throw new WorkoutSessionExecutionInputError('Quantidade de etapas executadas inválida.');
     }
     const keys = new Set<string>();
@@ -181,10 +200,13 @@ function normalizeSessionValues(values: TrainingSessionExecutionSessionValuesPat
     });
   }
   if (values.removeCyclicStages !== undefined) {
-    if (!Array.isArray(values.removeCyclicStages) || values.removeCyclicStages.length > 500) {
+    if (!Array.isArray(values.removeCyclicStages) || values.removeCyclicStages.length > MAX_CYCLIC_STAGE_EXECUTION_RECORDS) {
       throw new WorkoutSessionExecutionInputError('Quantidade de etapas removidas inválida.');
     }
     const keys = new Set<string>();
+    const upsertedKeys = new Set((normalized.cyclicStages ?? []).map(
+      (item) => `${item.plannedStageId}:${item.iteration ?? 1}`,
+    ));
     normalized.removeCyclicStages = values.removeCyclicStages.map((entry) => {
       const plannedStageId = typeof entry?.plannedStageId === 'string' ? entry.plannedStageId.trim() : '';
       const iteration = entry?.iteration ?? 1;
@@ -192,7 +214,7 @@ function normalizeSessionValues(values: TrainingSessionExecutionSessionValuesPat
         throw new WorkoutSessionExecutionInputError('Etapa ou repetição para remoção inválida.');
       }
       const key = `${plannedStageId}:${iteration}`;
-      if (keys.has(key) || normalized.cyclicStages?.some((item) => `${item.plannedStageId}:${item.iteration ?? 1}` === key)) {
+      if (keys.has(key) || upsertedKeys.has(key)) {
         throw new WorkoutSessionExecutionInputError('Etapa/repetição duplicada ou enviada simultaneamente para registro e remoção.');
       }
       keys.add(key);
@@ -556,6 +578,32 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
         throw new WorkoutSessionExecutionConflictError('Valores executados só podem ser registrados enquanto o treino está em andamento.', 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION');
       }
 
+      // #489: a direct public lifecycle request must not bypass the UI's
+      // guided-stage completion guard. Keep this INSIDE the serializable #389
+      // transaction and behind the version/idempotency check. Legacy sessions
+      // without #398 stages still use the ordinary #389 lifecycle.
+      if (input.targetStatus === 'completed') {
+        const plan = await loadGuidedCyclicPlan(tx, input.sessionId);
+        if (plan.availability === 'invalid_plan') {
+          throw new WorkoutSessionExecutionConflictError(
+            'A estrutura das etapas cíclicas requer revisão antes da conclusão.',
+            'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION',
+          );
+        }
+        if (plan.availability === 'available') {
+          const persisted = await readExecution(tx, input.sessionId);
+          if (!persisted) throw new WorkoutSessionExecutionNotFoundError('Execução não encontrada.');
+          if (!canCompleteGuidedCyclic(
+            input.sessionId, projectWorkoutSessionExecution(persisted), plan, new Date(),
+          )) {
+            throw new WorkoutSessionExecutionConflictError(
+              'Existem etapas cíclicas pendentes ou inconsistentes. Confirme cada etapa antes de concluir o treino.',
+              'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION',
+            );
+          }
+        }
+      }
+
       // The same transaction owns completion, its rest and the operation ledger.
       let restAfterGuidedSet: { plannedSetId: string; seconds: number } | null = null;
       // Guide confirmation is checked against the authoritative plan and current
@@ -786,6 +834,177 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
     }
   }
 
+  async function getGuidedCyclicForSession(input: {
+    sessionId: string; alunoId: string; contractId: string;
+  }): Promise<GuidedCyclicView> {
+    return client.$transaction(async (tx) => {
+      const released = await lockReleasedSession(tx, input.sessionId, input.alunoId, input.contractId);
+      if (!released) throw new WorkoutSessionExecutionNotFoundError('Sessão de treino não encontrada.');
+      const persisted = await readExecution(tx, input.sessionId);
+      const view = persisted ? projectWorkoutSessionExecution(persisted) : defaultView(released);
+      const plan = await loadGuidedCyclicPlan(tx, input.sessionId);
+      return projectGuidedCyclic(input.sessionId, view, plan, new Date());
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
+  /**
+   * #489: the same canonical execution, operation ledger and event transaction
+   * used by #389/#487 owns every stage start and completion. No UI cursor index
+   * is accepted as identity, and no browser timer advances the database.
+   */
+  async function actOnGuidedCyclic(input: {
+    sessionId: string; alunoId: string; contractId: string; actorUserId: string;
+    payload: GuidedCyclicActionPayload;
+  }): Promise<GuidedCyclicView> {
+    const { operationKey: rawKey, expectedVersion, plannedStageId, iteration, action, outcome, values } = input.payload;
+    const operationKey = ensureOperationKey(rawKey);
+    if (!Number.isInteger(expectedVersion) || expectedVersion < 0
+      || typeof plannedStageId !== 'string' || !plannedStageId.trim()
+      || !Number.isInteger(iteration) || iteration < 1 || iteration > 100
+      || (action !== 'start' && action !== 'complete')) {
+      throw new WorkoutSessionExecutionInputError('Comando de etapa cíclica inválido.');
+    }
+    if (action === 'start' ? outcome !== undefined || values !== undefined
+      : !outcome || !COMPARABLE_OUTCOMES.has(outcome)) {
+      throw new WorkoutSessionExecutionInputError('Informe uma ação e situação compatíveis com a etapa.');
+    }
+    const allowedMetrics = new Set([
+      'substitutionNote', 'durationSec', 'distanceMeters', 'paceMinPerKm', 'speedKmh',
+      'heartRateBpm', 'heartRateZone', 'pse',
+    ]);
+    if (values !== undefined && (typeof values !== 'object' || Array.isArray(values)
+      || Object.keys(values).some((key) => !allowedMetrics.has(key)))) {
+      throw new WorkoutSessionExecutionInputError('Valores executados da etapa inválidos.');
+    }
+    const normalized = action === 'complete'
+      ? normalizeSessionValues({ cyclicStages: [{
+          plannedStageId: plannedStageId.trim(), iteration,
+          outcome: outcome!, ...values,
+        }] })?.cyclicStages?.[0] : null;
+    const operationFingerprint = fingerprint({
+      action: 'guided_cyclic_' + action, expectedVersion,
+      plannedStageId: plannedStageId.trim(), iteration, outcome: outcome ?? null,
+      values: normalized ?? null,
+    });
+    try {
+      await client.$transaction(async (tx) => {
+        const released = await lockReleasedSession(tx, input.sessionId, input.alunoId, input.contractId);
+        if (!released) throw new WorkoutSessionExecutionNotFoundError('Sessão de treino não encontrada.');
+        const execution = await tx.workoutSessionExecution.findUnique({ where: { workoutDayId: input.sessionId } });
+        if (!execution) throw new WorkoutSessionExecutionConflictError(
+          'Inicie a sessão antes de executar uma etapa.', 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION',
+        );
+        const prior = await tx.workoutSessionExecutionOperation.findUnique({
+          where: { executionId_operationKey: { executionId: execution.id, operationKey } },
+        });
+        if (prior) {
+          if (prior.payloadFingerprint !== operationFingerprint) throw new WorkoutSessionExecutionConflictError(
+            'Esta chave já foi usada em uma ação diferente.', 'WORKOUT_SESSION_EXECUTION_IDEMPOTENCY_CONFLICT',
+          );
+          return;
+        }
+        if (execution.version !== expectedVersion) throw new WorkoutSessionExecutionConflictError(
+          'A etapa mudou em outro dispositivo. Atualize o treino.', 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT',
+        );
+        if (execution.status !== 'in_progress') throw new WorkoutSessionExecutionConflictError(
+          'Retome a sessão antes de executar uma etapa.', 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION',
+        );
+        const persisted = await readExecution(tx, input.sessionId);
+        if (!persisted) throw new WorkoutSessionExecutionNotFoundError('Execução não encontrada.');
+        const plan = await loadGuidedCyclicPlan(tx, input.sessionId);
+        const now = new Date();
+        const projected = projectGuidedCyclic(input.sessionId, projectWorkoutSessionExecution(persisted), plan, now);
+        const stage = projected.current;
+        if (projected.availability !== 'available' || !stage) {
+          throw new WorkoutSessionExecutionConflictError(
+            'Não é possível avançar: confira a estrutura e o progresso salvo.', 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT',
+          );
+        }
+        if (stage.plannedStageId !== plannedStageId.trim() || stage.iteration !== iteration) {
+          throw new WorkoutSessionExecutionConflictError(
+            'A etapa informada não é a próxima etapa planejada.', 'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT',
+          );
+        }
+        let cursor: GuidedCyclicCursor;
+        let sessionValues: TrainingSessionExecutionSessionValues;
+        if (action === 'start') {
+          if (projected.currentStartedAt) throw new WorkoutSessionExecutionConflictError(
+            'A etapa já foi iniciada.', 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION',
+          );
+          cursor = {
+            plannedStageId: stage.plannedStageId, iteration: stage.iteration,
+            startedAt: now.toISOString(), pausedDurationAtStartMs: Number(execution.pausedDurationMs),
+          };
+          sessionValues = { ...projectWorkoutSessionExecution(persisted).sessionValues, guidedCyclic: cursor };
+        } else {
+          if (!projected.currentStartedAt || projected.elapsedMs === null || !normalized) {
+            throw new WorkoutSessionExecutionConflictError(
+              'Inicie a etapa antes de confirmá-la.', 'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION',
+            );
+          }
+          if (stage.durationUnit === 'seconds' && outcome === 'full' && (projected.remainingMs ?? 1) > 0) {
+            throw new WorkoutSessionExecutionConflictError(
+              'O tempo previsto ainda não terminou. Aguarde ou registre execução parcial.',
+              'WORKOUT_SESSION_EXECUTION_INVALID_TRANSITION',
+            );
+          }
+          if (stage.durationUnit === 'meters' && (outcome === 'full' || outcome === 'partial')
+            && normalized.distanceMeters == null) {
+            throw new WorkoutSessionExecutionInputError('Confirme a distância realizada em metros.');
+          }
+          const completed: TrainingSessionCyclicStageExecutionValue = {
+            ...normalized,
+            plannedStageId: stage.plannedStageId, iteration: stage.iteration,
+            outcome: normalized.outcome,
+            ...(outcome !== 'not_performed' && stage.durationUnit === 'seconds'
+              && normalized.durationSec === undefined
+              ? { durationSec: Math.floor(projected.elapsedMs / 1000) } : {}),
+          };
+          const persistedValues = await persistWorkoutSessionValues(
+            tx, execution.id, input.sessionId, { cyclicStages: [completed] }, [],
+          );
+          const following = plan.units[projected.completed + 1] ?? null;
+          cursor = {
+            plannedStageId: following?.plannedStageId ?? null, iteration: following?.iteration ?? null,
+            startedAt: null, pausedDurationAtStartMs: null,
+          };
+          sessionValues = { ...(persistedValues as TrainingSessionExecutionSessionValues), guidedCyclic: cursor };
+        }
+        const version = execution.version + 1;
+        const operation = await tx.workoutSessionExecutionOperation.create({ data: {
+          executionId: execution.id, operationKey, payloadFingerprint: operationFingerprint,
+          action: 'guided_cyclic_' + action, expectedVersion, resultingVersion: version,
+        } });
+        await tx.workoutSessionExecution.update({
+          where: { id: execution.id },
+          data: { sessionValues: sessionValues as unknown as Prisma.InputJsonValue, version },
+        });
+        const event = await tx.studentLifecycleEvent.create({ data: {
+          alunoId: input.alunoId, contractId: input.contractId,
+          actorUserId: input.actorUserId, eventType: 'STATUS_CHANGED',
+          metadata: {
+            eventKey: 'workout-session-execution:' + execution.id + ':' + operation.id,
+            domain: 'workout_session_execution', action: 'guided_cyclic_' + action,
+            workoutDayId: input.sessionId, executionId: execution.id, operationId: operation.id,
+            plannedStageId: stage.plannedStageId, iteration: stage.iteration,
+            previousStatus: execution.status, status: execution.status,
+            previousVersion: execution.version, version,
+          },
+        }, select: { id: true } });
+        await tx.workoutSessionExecutionOperation.update({
+          where: { id: operation.id }, data: { lifecycleEventId: event.id },
+        });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (isSerializableTransactionConflict(error)) throw new WorkoutSessionExecutionConflictError(
+        'O treino foi alterado em outro dispositivo. Atualize a etapa.',
+        'WORKOUT_SESSION_EXECUTION_VERSION_CONFLICT',
+      );
+      throw error;
+    }
+    return getGuidedCyclicForSession(input);
+  }
+
   async function getGuidedForSession(input: { sessionId: string; alunoId: string; contractId: string }): Promise<GuidedResistanceView> {
     return client.$transaction(async (tx) => {
       const locked = await lockReleasedSession(tx, input.sessionId, input.alunoId, input.contractId);
@@ -909,6 +1128,8 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
   }
 
   return {
+    getGuidedCyclicForSession,
+    actOnGuidedCyclic,
     getGuidedForSession,
     actOnGuidedRest,
     async getForSession(input: { sessionId: string; alunoId: string; contractId: string }): Promise<TrainingSessionExecutionView> {
