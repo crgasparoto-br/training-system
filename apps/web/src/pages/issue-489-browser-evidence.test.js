@@ -289,7 +289,7 @@ suite('Issue #489 - guided cyclic browser, responsive and accessible', () => {
         await untilText(page, 'Confirmar etapa');
         const afterReload = await timerSeconds(page);
         expect(afterReload).toBeLessThan(beforeReload);
-        expect([completed, version, planned[completed].id]).toEqual([0, 2, 'warmup']);
+        expect([completed, version, planned[completed].plannedStageId]).toEqual([0, 2, 'warmup']);
         const beforeBackground = afterReload;
         const otherTab = await browser.newPage();
         let afterBackground, pauseBefore, pauseAfterBackground, pauseAfterReload, resumedBefore, resumedAfter;
@@ -303,7 +303,7 @@ suite('Issue #489 - guided cyclic browser, responsive and accessible', () => {
           await untilText(page, 'Confirmar etapa');
           afterBackground = await timerSeconds(page);
           expect(afterBackground).toBeLessThan(beforeBackground);
-          expect([completed, version, planned[completed].id]).toEqual([0, 2, 'warmup']);
+          expect([completed, version, planned[completed].plannedStageId]).toEqual([0, 2, 'warmup']);
 
           await clickButton(page, 'Pausar treino');
           await untilText(page, 'Treino pausado. O relógio está congelado');
@@ -324,7 +324,7 @@ suite('Issue #489 - guided cyclic browser, responsive and accessible', () => {
           pauseAfterReload = await timerSeconds(page);
           expect(Math.abs(pauseAfterReload - pauseBefore)).toBeLessThanOrEqual(1);
           expect(guided().remainingMs).toBe(savedWhilePaused);
-          expect([completed, version, planned[completed].id]).toEqual([0, 3, 'warmup']);
+          expect([completed, version, planned[completed].plannedStageId]).toEqual([0, 3, 'warmup']);
 
           await clickButton(page, 'Retomar treino');
           await untilText(page, 'Confirmar etapa');
@@ -332,7 +332,7 @@ suite('Issue #489 - guided cyclic browser, responsive and accessible', () => {
           await delay(1350);
           resumedAfter = await timerSeconds(page);
           expect(resumedAfter).toBeLessThan(resumedBefore);
-          expect([completed, version, planned[completed].id]).toEqual([0, 4, 'warmup']);
+          expect([completed, version, planned[completed].plannedStageId]).toEqual([0, 4, 'warmup']);
           // Reloads, tab switches and ticking never POST an advance; only student actions can.
           expect(calls.filter((call) => call.method === 'POST' && call.path.endsWith('/execution/guided-cyclic/step')).length).toBe(1);
           expect(calls.filter((call) => call.method === 'POST' && call.path.endsWith('/execution/transition')).length).toBe(2);
@@ -342,7 +342,7 @@ suite('Issue #489 - guided cyclic browser, responsive and accessible', () => {
         const continuity = { active: { beforeReload, afterReload, beforeBackground, afterBackground },
           paused: { beforeBackground: pauseBefore, afterBackground: pauseAfterBackground, afterReload: pauseAfterReload },
           resumed: { before: resumedBefore, after: resumedAfter },
-          progression: { stageId: planned[completed].id, version, completed } };
+          progression: { stageId: planned[completed].plannedStageId, version, completed } };
         await selectOutcome(page, 'not_performed');
         await clickButton(page, 'Confirmar etapa');
         await untilRound(page, 'Trabalho', 1, 2);
