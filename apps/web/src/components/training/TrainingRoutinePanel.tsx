@@ -165,11 +165,13 @@ function TodaySession({
 }) {
   const headingId = useId();
   const executionNoteId = useId();
+  const cyclicCompletionNoteId = useId();
   const [executionReason, setExecutionReason] = useState('');
   const [executionError, setExecutionError] = useState<string | null>(null);
   const [executionBusy, setExecutionBusy] = useState(false);
   const [pendingGuidedSets, setPendingGuidedSets] = useState<{ remaining: number; total: number } | null>(null);
   const [pendingCyclicStages, setPendingCyclicStages] = useState<{ remaining: number; total: number } | null>(null);
+  const [cyclicSnapshot, setCyclicSnapshot] = useState<{ sessionId: string; contextVersion: number | null; view: GuidedCyclicView | null } | null>(null);
   const [showGuided, setShowGuided] = useState(true);
   const reasonInputRef = useRef<HTMLTextAreaElement>(null);
   const completionReadRef = useRef(0);
@@ -177,6 +179,11 @@ function TodaySession({
   // Never dereference it at render time just to initialize the #487 guard.
   const executionVersion = session.execution?.version ?? null;
   const executionStatus = session.execution?.status ?? null;
+  // Use the same server projection already fetched by the guided executor;
+  // a UI position or planned stage count is never proof of completion.
+  const handleCyclicViewChanged = useCallback((view: GuidedCyclicView | null) => {
+    setCyclicSnapshot({ sessionId: session.sessionId, contextVersion: executionVersion, view });
+  }, [session.sessionId, executionVersion]);
   const liveExecutionRef = useRef({
     sessionId: session.sessionId, version: executionVersion, status: executionStatus,
   });
@@ -365,6 +372,33 @@ function TodaySession({
   const hasGuidedCyclic = audience === 'student' && session.modalities.includes('cyclic')
     && (session.status === 'in_progress' || session.status === 'paused')
     && Boolean(session.execution && loadGuidedCyclic && actGuidedCyclic);
+  const currentCyclicView = cyclicSnapshot?.sessionId === session.sessionId
+    && cyclicSnapshot.contextVersion === executionVersion ? cyclicSnapshot.view : undefined;
+  const cyclicCompletionNotice = (() => {
+    if (audience !== 'student' || session.status !== 'in_progress'
+      || !session.modalities.includes('cyclic') || !session.execution) return null;
+    if (!hasGuidedCyclic) return session.cyclicStages.length > 0
+      ? 'O executor das etapas cíclicas está indisponível. Não é possível concluir sem confirmar o progresso.' : null;
+    if (currentCyclicView === undefined) return 'Conferindo as etapas cíclicas antes de liberar a conclusão.';
+    if (currentCyclicView === null) return 'Não foi possível verificar as etapas. Use “Atualizar estado salvo” no executor acima.';
+    if (currentCyclicView.sessionId !== session.sessionId || currentCyclicView.version !== executionVersion
+      || currentCyclicView.status !== executionStatus) {
+      return 'O progresso mudou em outro dispositivo. Atualize as etapas antes de concluir.';
+    }
+    if (currentCyclicView.availability === 'legacy_read_only') return null;
+    if (currentCyclicView.availability !== 'available') {
+      return 'O progresso das etapas exige revisão. A conclusão total não está disponível.';
+    }
+    if (!Number.isInteger(currentCyclicView.total) || !Number.isInteger(currentCyclicView.completed)
+      || currentCyclicView.total <= 0 || currentCyclicView.completed < 0
+      || currentCyclicView.completed > currentCyclicView.total) {
+      return 'O progresso das etapas está inconsistente. Atualize o treino antes de concluir.';
+    }
+    const remaining = currentCyclicView.total - currentCyclicView.completed;
+    return remaining > 0
+      ? `Ainda faltam ${remaining} de ${currentCyclicView.total} etapas cíclicas. Confirme-as no executor acima ou encerre como parcial com motivo.`
+      : null;
+  })();
   const hasGuided = audience === 'student' && session.modalities.includes('resistance')
     && (session.status === 'in_progress' || session.status === 'paused')
     && Boolean(session.execution && loadGuided && completeGuided);
@@ -460,6 +494,7 @@ function TodaySession({
           load={loadGuidedCyclic}
           act={actGuidedCyclic}
           onExecutionChanged={onExecutionChanged}
+          onViewChanged={handleCyclicViewChanged}
         />
       )}
       {hasGuided && showGuided && loadGuided && completeGuided && (
@@ -618,7 +653,9 @@ function TodaySession({
                   <Button type="button" variant="outline" disabled={!executionAvailable || executionBusy} onClick={() => void transition('paused')} className="w-full sm:w-auto">
                     Pausar treino
                   </Button>
-                  <Button type="button" disabled={!executionAvailable || executionBusy} onClick={() => void transition('completed')} className="w-full sm:w-auto">
+                  <Button type="button" disabled={!executionAvailable || executionBusy || Boolean(cyclicCompletionNotice)}
+                    aria-describedby={cyclicCompletionNotice ? cyclicCompletionNoteId : undefined}
+                    onClick={() => void transition('completed')} className="w-full sm:w-auto">
                     Concluir treino
                   </Button>
                   <Button type="button" variant="outline" disabled={!executionAvailable || executionBusy} onClick={() => void transition('partial')} className="w-full sm:w-auto">
@@ -637,6 +674,11 @@ function TodaySession({
                 </>
               )}
             </div>
+            {cyclicCompletionNotice && (
+              <p id={cyclicCompletionNoteId} role="status" className="text-sm text-amber-800">
+                {cyclicCompletionNotice}
+              </p>
+            )}
             {!executionAvailable && (
               <p id={executionNoteId} className="text-xs text-muted-foreground">
                 O registro do treino pelo aplicativo não está disponível neste contexto.

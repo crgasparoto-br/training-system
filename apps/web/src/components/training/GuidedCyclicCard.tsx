@@ -12,6 +12,7 @@ type Props = {
   load: (sessionId: string) => Promise<GuidedCyclicView>;
   act: (sessionId: string, payload: GuidedCyclicActionPayload) => Promise<GuidedCyclicView>;
   onExecutionChanged?: () => Promise<void>;
+  onViewChanged?: (view: GuidedCyclicView | null) => void;
 };
 
 const kindLabel: Record<GuidedCyclicUnit['kind'], string> = {
@@ -58,7 +59,7 @@ function validateNumber(text: string, integer: boolean): number | null {
   return parsed;
 }
 
-export function GuidedCyclicCard({ sessionId, status, version, load, act, onExecutionChanged }: Props) {
+export function GuidedCyclicCard({ sessionId, status, version, load, act, onExecutionChanged, onViewChanged }: Props) {
   const headingId = useId();
   const distanceId = useId();
   const actualTargetId = useId();
@@ -98,8 +99,9 @@ export function GuidedCyclicCard({ sessionId, status, version, load, act, onExec
     }
     setReceivedAt(received);
     setView(saved);
+    onViewChanged?.(saved);
     return true;
-  }, [sessionId]);
+  }, [onViewChanged, sessionId]);
 
   const refresh = useCallback(async (cause: 'normal' | 'conflict' = 'normal') => {
     const current = ++seq.current;
@@ -108,6 +110,7 @@ export function GuidedCyclicCard({ sessionId, status, version, load, act, onExec
       const response = await load(sessionId);
       if (current !== seq.current) return false;
       if (!accept(response, performance.now())) {
+        onViewChanged?.(null);
         setLocked(true);
         setError('A resposta não corresponde à versão atual. Atualize o estado salvo antes de continuar.');
         return false;
@@ -118,6 +121,7 @@ export function GuidedCyclicCard({ sessionId, status, version, load, act, onExec
       return true;
     } catch {
       if (current === seq.current) {
+        onViewChanged?.(null);
         setLocked(true);
         setError('Não foi possível consultar as etapas salvas. Tente atualizar para continuar com segurança.');
       }
@@ -125,7 +129,7 @@ export function GuidedCyclicCard({ sessionId, status, version, load, act, onExec
     } finally {
       if (current === seq.current) setLoading(false);
     }
-  }, [accept, load, sessionId]);
+  }, [accept, load, onViewChanged, sessionId]);
 
   useEffect(() => {
     void refresh();

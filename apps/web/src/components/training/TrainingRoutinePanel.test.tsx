@@ -4,7 +4,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import type { TrainingRoutineSessionDetail, TrainingRoutineView, TrainingSessionComparison } from '@corrida/types';
+import type { TrainingRoutineSessionDetail, TrainingRoutineView, TrainingSessionComparison, GuidedCyclicView } from '@corrida/types';
 import { TrainingRoutinePanel } from './TrainingRoutinePanel';
 
 const session = (overrides: Partial<TrainingRoutineSessionDetail> = {}): TrainingRoutineSessionDetail => ({
@@ -86,6 +86,21 @@ const runningRoutine = (current = runningSession()) => routine({
 const guidedProgress = (completed: number, total: number) => ({
   sessionId: 'day-1', status: 'in_progress' as const, version: 4,
   availability: 'available' as const, completed, total, current: null, next: null,
+});
+const runningCyclicRoutine = () => runningRoutine(session({
+  ...runningSession(), modalities: ['cyclic'], blocks: [],
+}));
+const cyclicProgress = (completed: number, total: number,
+  overrides: Partial<GuidedCyclicView> = {}): GuidedCyclicView => ({
+  sessionId: 'day-1', status: 'in_progress', version: 4,
+  serverNow: '2026-11-04T15:00:00.000Z', availability: 'available', completed, total,
+  current: completed < total ? {
+    plannedStageId: 'warmup', iteration: 1, order: 1, kind: 'warmup',
+    roundNumber: null, roundTotal: null, durationUnit: 'seconds', durationValue: 60,
+    targetKind: null, targetValue: null, targetMin: null, targetMax: null,
+    inclinePercent: null, cadenceSpm: null, notes: null,
+  } : null,
+  next: null, currentStartedAt: null, elapsedMs: null, remainingMs: null, ...overrides,
 });
 
 describe('TrainingRoutinePanel (#387)', () => {
@@ -279,6 +294,96 @@ describe('TrainingRoutinePanel (#387)', () => {
     await waitFor(() => expect(transitionExecution).toHaveBeenCalledWith('day-1', expect.objectContaining({
       targetStatus: 'completed', expectedVersion: 4,
     })));
+  });
+
+  it('REC-489-04: desabilita conclusão antecipadamente, informa o número de etapas e permite parcial', async () => {
+    const transitionExecution = vi.fn();
+    const loadGuidedCyclic = vi.fn().mockResolvedValue(cyclicProgress(1, 3));
+    render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(runningCyclicRoutine())}
+      loadGuidedCyclic={loadGuidedCyclic} actGuidedCyclic={vi.fn()}
+      transitionExecution={transitionExecution} />);
+    const finish = await screen.findByRole('button', { name: 'Concluir treino' });
+    expect(finish).toBeDisabled();
+    const notice = await screen.findByText(/Ainda faltam 2 de 3 etapas cíclicas/);
+    expect(notice).toBeInTheDocument();
+    expect(finish).toHaveAttribute('aria-describedby', notice.id);
+    await userEvent.click(finish);
+    expect(transitionExecution).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Encerrar como parcial' })).toBeEnabled();
+    expect(loadGuidedCyclic).toHaveBeenCalledTimes(1);
+  });
+
+  it('REC-489-04: conclui com todas as etapas confirmadas, mantendo a verificação final', async () => {
+    const loadGuidedCyclic = vi.fn().mockResolvedValue(cyclicProgress(3, 3));
+    const transitionExecution = vi.fn().mockResolvedValue({
+      ...runningSession().execution, status: 'completed', version: 5,
+    });
+    render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(runningCyclicRoutine())}
+      loadGuidedCyclic={loadGuidedCyclic} actGuidedCyclic={vi.fn()}
+      transitionExecution={transitionExecution} />);
+    const finish = await screen.findByRole('button', { name: 'Concluir treino' });
+    await waitFor(() => expect(finish).toBeEnabled());
+    expect(screen.queryByText(/Ainda faltam .* etapas cíclicas/)).not.toBeInTheDocument();
+    await userEvent.click(finish);
+    await waitFor(() => expect(transitionExecution).toHaveBeenCalledWith('day-1', expect.objectContaining({
+      targetStatus: 'completed', expectedVersion: 4,
+    })));
+    expect(loadGuidedCyclic).toHaveBeenCalledTimes(2);
+  });
+
+  it('REC-489-04: não libera conclusão quando a leitura falha e mantém atualização e parcial', async () => {
+    const transitionExecution = vi.fn();
+    render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(runningCyclicRoutine())}
+      loadGuidedCyclic={vi.fn().mockRejectedValue(new Error('offline'))} actGuidedCyclic={vi.fn()}
+      transitionExecution={transitionExecution} />);
+    const finish = await screen.findByRole('button', { name: 'Concluir treino' });
+    expect(finish).toBeDisabled();
+    expect(await screen.findByText(/Não foi possível verificar as etapas/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Atualizar estado salvo' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Encerrar como parcial' })).toBeEnabled();
+    expect(transitionExecution).not.toHaveBeenCalled();
+  });
+
+  it('REC-489-04: não inventa etapas em sessão cíclica legada', async () => {
+    const transitionExecution = vi.fn().mockResolvedValue({
+      ...runningSession().execution, status: 'completed', version: 5,
+    });
+    const loadGuidedCyclic = vi.fn().mockResolvedValue(cyclicProgress(0, 0, {
+      availability: 'legacy_read_only', current: null,
+    }));
+    render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(runningCyclicRoutine())}
+      loadGuidedCyclic={loadGuidedCyclic} actGuidedCyclic={vi.fn()}
+      transitionExecution={transitionExecution} />);
+    const finish = await screen.findByRole('button', { name: 'Concluir treino' });
+    await waitFor(() => expect(finish).toBeEnabled());
+    await userEvent.click(finish);
+    await waitFor(() => expect(transitionExecution).toHaveBeenCalledWith('day-1', expect.objectContaining({
+      targetStatus: 'completed', expectedVersion: 4,
+    })));
+  });
+
+  it.each(['invalid_plan', 'reconciliation_required'] as const)(
+    'REC-489-04: impede conclusão quando a projeção está em %s', async (availability) => {
+      const transitionExecution = vi.fn();
+      render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(runningCyclicRoutine())}
+        loadGuidedCyclic={vi.fn().mockResolvedValue(cyclicProgress(0, 0, { availability, current: null }))}
+        actGuidedCyclic={vi.fn()} transitionExecution={transitionExecution} />);
+      const finish = await screen.findByRole('button', { name: 'Concluir treino' });
+      expect(finish).toBeDisabled();
+      expect(await screen.findByText(/O progresso das etapas exige revisão/)).toBeInTheDocument();
+      expect(transitionExecution).not.toHaveBeenCalled();
+    }
+  );
+
+  it('REC-489-04: rejeita projeção fora da versão canônica', async () => {
+    const transitionExecution = vi.fn();
+    render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(runningCyclicRoutine())}
+      loadGuidedCyclic={vi.fn().mockResolvedValue(cyclicProgress(3, 3, { version: 5 }))}
+      actGuidedCyclic={vi.fn()} transitionExecution={transitionExecution} />);
+    const finish = await screen.findByRole('button', { name: 'Concluir treino' });
+    expect(finish).toBeDisabled();
+    expect(await screen.findByText(/O progresso mudou em outro dispositivo/)).toBeInTheDocument();
+    expect(transitionExecution).not.toHaveBeenCalled();
   });
 
   it('preserva o motivo após falha recuperável e orienta reconciliação em conflito 409', async () => {

@@ -32,6 +32,7 @@ function setup(options: {
   act?: ReturnType<typeof vi.fn>;
   status?: GuidedCyclicView['status'];
   version?: number;
+  onViewChanged?: (view: GuidedCyclicView | null) => void;
 } = {}) {
   const load = options.load ?? vi.fn().mockResolvedValue(projection());
   const act = options.act ?? vi.fn().mockResolvedValue(projection({
@@ -43,6 +44,7 @@ function setup(options: {
     load={load as (id: string) => Promise<GuidedCyclicView>}
     act={act as (id: string, data: GuidedCyclicActionPayload) => Promise<GuidedCyclicView>}
     onExecutionChanged={changed}
+    onViewChanged={options.onViewChanged}
   />;
   const { rerender } = render(component(options.version ?? 1));
   return { load, act, changed, rerender: (version: number) => rerender(component(version)) };
@@ -178,4 +180,20 @@ describe('issue #489: guided cyclic web execution', () => {
     expect(await screen.findByText(/1 de 2 etapas registradas/)).toBeInTheDocument();
     expect(act).toHaveBeenCalledTimes(1);
   });
+  it('shares the saved projection with the parent and clears it when refreshing fails', async () => {
+    const onViewChanged = vi.fn();
+    const load = vi.fn().mockResolvedValueOnce(projection())
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(projection({ completed: 1, current: second }));
+    setup({ load, onViewChanged });
+    expect(await screen.findByText('0 de 2 etapas registradas')).toBeInTheDocument();
+    expect(onViewChanged).toHaveBeenLastCalledWith(expect.objectContaining({ completed: 0, version: 1 }));
+    window.dispatchEvent(new Event('focus'));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Não foi possível consultar/);
+    expect(onViewChanged).toHaveBeenLastCalledWith(null);
+    await userEvent.click(screen.getByRole('button', { name: 'Atualizar estado salvo' }));
+    expect(await screen.findByText('1 de 2 etapas registradas')).toBeInTheDocument();
+    expect(onViewChanged).toHaveBeenLastCalledWith(expect.objectContaining({ completed: 1, version: 1 }));
+  });
+
 });
