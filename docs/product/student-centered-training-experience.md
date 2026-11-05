@@ -640,3 +640,8 @@ O cursor de paginação é vinculado a aluno e contrato. Os grupos legado, clín
 A integração não cria migrations nem altera a escrita dos módulos clínicos. A inclusão de novas fontes exige ampliar os grants, o adaptador da origem e os controles de paginação, permissões e contrato, sem acrescentar JSON clínico à timeline.
 
 A-401017 — Os registros de etapas e agrupamentos são cumulativos por ID do planejamento. Cada salvamento acrescenta ou altera somente as unidades enviadas; omitir um item ou uma medição preserva o dado anterior. `null` limpa a medição informada, `0` é medida real e um array vazio não apaga histórico. A exclusão explícita de registro exige `removeCyclicStages`/`removeResistanceGroups` com operação versionada e chave de idempotência.
+
+
+## Governança dos conflitos do treinamento combinado — #403 (2026-11-05)
+
+O protocolo versionado para a detecção de conflitos por capacidade está documentado em `docs/product/combined-training-clinical-protocol-v1.md`. A proposta funcional foi aprovada para desenvolvimento, mas os sete critérios/limiares clínicos não foram homologados; aprovação profissional em #534 é pré-requisito de ativação. O motor inicial permanece sem regras combinadas ativas, sem alterar automaticamente treinos, e a issue #403 continua aberta até integração, testes e auditoria.
