@@ -28,6 +28,7 @@ import {
   readCapturedWorkoutComparisonPlan,
 } from './workout-session-comparison.domain.js';
 import { projectPostWorkoutFeedback } from '../post-workout-feedback/post-workout-feedback-persistence.service.js';
+import { calculateWeeklyTrainingEvolution } from './training-evolution.domain.js';
 
 /**
  * Leitura da rotina semanal e do Treino de hoje (issue #387).
@@ -74,6 +75,7 @@ const sessionSelect = {
     select: {
       workoutDayId: true,
       status: true,
+      updatedAt: true,
       version: true,
       startedAt: true,
       finishedAt: true,
@@ -538,6 +540,20 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
       // consolidado (por exemplo, liberação manual do Workout Builder) não
       // participa da rotina semanal nem do Treino de hoje.
       const visibleRows = rows.filter((row) => releaseByTemplate.has(row.template.id));
+      // #405 uses the same released, contract-scoped rows as the routine.
+      // A session is prescribed even when it has not yet been executed.
+      const weeklyEvolution = calculateWeeklyTrainingEvolution({
+        period: { startDate: toDateOnly(week.start), endDate: toDateOnly(week.days[6]) },
+        sessions: visibleRows
+          .filter((row) => row.workoutDate >= week.start && row.workoutDate < week.endExclusive)
+          .map((row) => ({
+            sessionId: row.id,
+            status: row.execution?.status ?? 'not_started',
+            sourceUpdatedAt: row.execution?.updatedAt?.toISOString()
+              ?? row.template.releasedAt?.toISOString() ?? null,
+          })),
+        audience: query.audience,
+      });
       const canProjectPreWorkoutCheckIn =
         query.audience === 'student' || query.includePreWorkoutCheckIn === true;
       const canProjectPostWorkoutFeedback = query.audience === 'student' || query.includePostWorkoutFeedback === true;
@@ -603,6 +619,7 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
         timeZone,
         week: { startDate: toDateOnly(week.start), endDate: toDateOnly(week.days[6]) },
         days,
+        weeklyEvolution,
         today: {
           date: today,
           state: todayRows.length > 0 ? 'released' : todayPending > 0 ? 'not_released' : 'none',

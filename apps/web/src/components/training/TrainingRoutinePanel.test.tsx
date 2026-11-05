@@ -104,6 +104,28 @@ const cyclicProgress = (completed: number, total: number,
 });
 
 describe('TrainingRoutinePanel (#387)', () => {
+  it('mostra a aderência da semana sem contar execução parcial como concluída', async () => {
+    render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(routine({
+      weeklyEvolution: {
+        ruleVersion: 'weekly-adherence-v1',
+        source: 'consolidated_release_and_session_execution',
+        period: { startDate: '2026-09-28', endDate: '2026-10-04' },
+        counts: {
+          prescribedSessions: 2, completedSessions: 1, partialSessions: 1,
+          notPerformedSessions: 0, pendingSessions: 0,
+        },
+        adherence: {
+          status: 'available', value: 50, unit: '%',
+          formula: 'completedSessions / prescribedSessions * 100',
+        },
+        lastSourceUpdateAt: '2026-10-02T12:00:00.000Z',
+      },
+    }))} />);
+    expect(await screen.findByText('Aderência semanal')).toBeInTheDocument();
+    expect(screen.getByText('50%')).toBeInTheDocument();
+    expect(screen.getByText(/2 previstas · 1 concluídas · 1 parciais/)).toBeInTheDocument();
+  });
+
   it('apresenta objetivo, duração, ordem, blocos e parâmetros do Treino de hoje', async () => {
     render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(routine())} />);
 

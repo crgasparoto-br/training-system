@@ -115,6 +115,28 @@ describe('training routine service (#387)', () => {
     });
   });
 
+  it('calcula a aderência semanal usando apenas sessões liberadas e o lifecycle canônico', async () => {
+    releasedRows = [
+      makeRow({ id: 'day-completed', execution: { status: 'completed', updatedAt: new Date('2026-10-01T12:00:00.000Z') } }),
+      makeRow({ id: 'day-partial', workoutDate: new Date('2026-10-02T00:00:00.000Z'),
+        execution: { status: 'partial', updatedAt: new Date('2026-10-02T12:00:00.000Z') } }),
+    ];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.weeklyEvolution).toMatchObject({
+      counts: {
+        prescribedSessions: 2, completedSessions: 1, partialSessions: 1,
+        notPerformedSessions: 0, pendingSessions: 0,
+      },
+      adherence: { status: 'available', value: 50, unit: '%' },
+    });
+    expect(result.weeklyEvolution?.technical).toBeUndefined();
+    expect(findMany.mock.calls[0][0].where.template.plan).toMatchObject({
+      alunoId: 'aluno-1', aluno: { contractId: 'contract-1' },
+    });
+  });
+
   it('projeta o próximo treino de outra semana apenas com liberação consolidada e escopo contratual', async () => {
     upcomingRows = [{
       sessionId: 'next-month',
