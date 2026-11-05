@@ -237,9 +237,10 @@ export function evaluateCombinedTrainingConflicts(input: ConflictEvaluationInput
     if (rule.status !== 'active') return assessment(rule, 'inactive');
     requireActiveRule(rule);
     const missing: string[] = [];
-    if (rule.expression.kind === 'single') {
-      for (const row of observations.filter((item) => item.capacity === rule.expression.term.capacity)) {
-        const item = evaluateTerm(row, rule.expression.term);
+    const expression = rule.expression;
+    if (expression.kind === 'single') {
+      for (const row of observations.filter((item) => item.capacity === expression.term.capacity)) {
+        const item = evaluateTerm(row, expression.term);
         if (item.result === 'yes') return assessment(rule, 'triggered', item.evidence);
         if (item.result === 'unknown') missing.push(...item.missing);
       }
