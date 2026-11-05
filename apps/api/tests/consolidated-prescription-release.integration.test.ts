@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import { createCombinedConflictSourceService } from '../src/modules/consolidated-prescriptions/combined-training-conflicts.service.js';
+import { createWorkoutSessionExecutionService } from '../src/modules/workout/workout-session-execution.service.js';
+import { createPostWorkoutFeedbackPersistenceService } from '../src/modules/post-workout-feedback/post-workout-feedback-persistence.service.js';
 import { consolidatedPrescriptionRoutes } from '../src/modules/consolidated-prescriptions/index.js';
 const request = require('supertest');
 import {
@@ -57,6 +59,7 @@ type Fixture = {
   professorUserId: string;
   professorEmail: string;
   alunoId: string;
+  alunoUserId: string;
   planId: string;
   assemblyId: string;
   sourceVersionId: string;
@@ -347,6 +350,7 @@ async function seedFixture(label: string, includeResisted = false): Promise<Fixt
     professorUserId: professorUser.id,
     professorEmail: professorUser.email,
     alunoId: aluno.id,
+    alunoUserId: alunoUser.id,
     planId: plan.id,
     assemblyId: assembly.id,
     sourceVersionId: source.id,
@@ -527,6 +531,79 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
     });
     expect(response.body.data.observations.map((row: { capacity: string }) => row.capacity))
       .toEqual(['balance', 'cyclic', 'flexibility', 'resisted']);
+
+    const lifecycle = createWorkoutSessionExecutionService(prisma);
+    await lifecycle.transition({
+      sessionId: day.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: { operationKey: '403-real-feedback-start', expectedVersion: 0, targetStatus: 'in_progress' },
+    });
+    await lifecycle.transition({
+      sessionId: day.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: '403-real-feedback-partial', expectedVersion: 1,
+        targetStatus: 'partial', reason: 'Treino parcial registrado para validar fontes',
+      },
+    });
+    const feedbackStore = createPostWorkoutFeedbackPersistenceService(prisma);
+    const firstFeedback = await feedbackStore.createForStudent({
+      sessionId: day.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: '403-session-feedback-original',
+        values: {
+          painAfter: 6, dizziness: true, fatigueLevel: 'high', sleepQuality: 'poor',
+          observations: 'Texto livre confidencial jamais deve ser retornado na prévia',
+        },
+      },
+    });
+    const corrected = await feedbackStore.correctForProfessor({
+      sessionId: day.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+      actorUserId: fixture.professorUserId,
+      payload: {
+        operationKey: '403-session-feedback-corrected',
+        baseRevisionId: firstFeedback.id,
+        reason: 'Correção documentada do sinal geral da sessão',
+        values: { painAfter: 8, dizziness: false },
+      },
+    });
+    const afterRevision = await createCombinedConflictSourceService(prisma).getReport({
+      alunoId: fixture.alunoId, contractId: fixture.contractId,
+      start: '2026-08-17T00:00:00.000Z', end: '2026-08-18T00:00:00.000Z',
+    });
+    expect(afterRevision).toMatchObject({
+      releasedSessionCount: 1, observationCount: 4, sessionSignalCount: 2,
+      state: 'no_active_rules', coverage: 'partial', changesWorkoutAutomatically: false,
+    });
+    expect(afterRevision!.sessionSignals.filter((signal) => signal.source.kind === 'feedback'))
+      .toEqual([expect.objectContaining({
+        scopeKey: 'session',
+        source: { kind: 'feedback', recordId: corrected.id, version: '2' },
+        flags: { dizziness: { value: false, source: expect.any(Object) } },
+        numeric: { painLevel: { value: 8, source: expect.any(Object) } },
+        categorical: {
+          fatigueLevel: { value: 'high', source: expect.any(Object) },
+          sleepQuality: { value: 'poor', source: expect.any(Object) },
+        },
+      })]);
+    expect(afterRevision!.observations.find((row) => row.capacity === 'cyclic')!.numeric?.painLevel?.value)
+      .toBe(4);
+    expect(afterRevision!.observations.find((row) => row.capacity === 'resisted')!.flags)
+      .toEqual({});
+    expect(JSON.stringify(afterRevision)).not.toContain(firstFeedback.id);
+    expect(JSON.stringify(afterRevision)).not.toContain('Texto livre confidencial');
+
+    const rereadHttp = await request(app)
+      .get('/consolidated-prescriptions/alunos/' + fixture.alunoId +
+        '/combined-conflicts?start=2026-08-17T00:00:00.000Z&end=2026-08-18T00:00:00.000Z')
+      .set('Authorization', 'Bearer ' + token);
+    expect(rereadHttp.status).toBe(200);
+    expect(rereadHttp.body.data.sessionSignalCount).toBe(2);
+    expect(rereadHttp.body.data.sessionSignals).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: { kind: 'feedback', recordId: corrected.id, version: '2' } }),
+    ]));
+    expect(JSON.stringify(rereadHttp.body)).not.toContain('Texto livre confidencial');
   });
 
   it('serializa duas liberações concorrentes sem duplicar template ou ledger', async () => {
