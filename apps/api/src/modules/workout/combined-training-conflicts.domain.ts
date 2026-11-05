@@ -245,7 +245,6 @@ export function evaluateCombinedTrainingConflicts(input: ConflictEvaluationInput
         if (item.result === 'unknown') missing.push(...item.missing);
       }
     } else {
-      const expression = rule.expression;
       for (const first of observations.filter((item) => item.capacity === expression.first.capacity)) {
         for (const then of observations.filter((item) => item.capacity === expression.then.capacity && item.sessionId !== first.sessionId)) {
           const hours = (Date.parse(then.scheduledAt) - Date.parse(first.scheduledAt)) / 3_600_000;
