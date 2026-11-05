@@ -42,3 +42,14 @@ O catálogo padrão `ACTIVE_COMBINED_CONFLICT_RULES_V1` é **vazio por projeto**
 ## Aceite de homologação / desbloqueio
 
 A [#534](https://github.com/crgasparoto-br/training-system/issues/534) só pode ser encerrada com as sete decisões assinadas e exemplos positivos, negativos e `insufficient_data`, com cenário de falso positivo/falso negativo. Depois, implementar as regras aprovadas e validar `pnpm validate` e a auditoria independente sobre o SHA da PR. Nenhum merge automático.
+
+
+## Etapa 2 — adaptador de fontes canônicas da Montagem Consolidada
+
+A prévia técnica GET `/alunos/:alunoId/combined-conflicts?start=ISO-UTC&end=ISO-UTC` exige professor autenticado, `plans.consolidatedPrescriptions.view`, escopo efetivo do aluno/contrato e **ambas** as permissões `students.details.preWorkoutCheckIn` e `students.details.postWorkoutFeedback`. A rota reutiliza o controle de escopo da Montagem e não recebe regras do usuário.
+
+O adaptador consulta `WorkoutDay` de template liberado com `TrainingPlan/Aluno` autorizado e com `ConsolidatedPrescriptionOperationalRelease` correspondente; os blocos de capacidade são lidos de `WorkoutDayCapacityOperationalBlock`. Check-in e revisão vigente do feedback são lidos somente por IDs de sessão, aluno e contrato. Feedback de outra liberação/execução não gera sinal. Dor estruturada não é generalizada automaticamente a resistido, flexibilidade e equilíbrio. Os objetos retornados não contêm notas textuais ou feedback integral.
+
+O contrato é explicitamente **somente leitura**. `WorkoutDay.workoutDate` armazena dia civil, sem horário efetivo comprovado; por isso `coverage=partial` impede uma conclusão de ausência de conflito por janela temporal. A cada GET, as fontes vigentes são lidas novamente, preservando revisões e proveniência. `ACTIVE_COMBINED_CONFLICT_RULES_V1=[]` mantém `state=no_active_rules`, sem alterar prescrição, sessão, liberação ou regras de bloqueio.
+
+A integração à liberação prévia de rascunhos, a homologação profissional #534, os casos HTTP reais e a auditoria independente são entregáveis separados antes do encerramento integral da #403.

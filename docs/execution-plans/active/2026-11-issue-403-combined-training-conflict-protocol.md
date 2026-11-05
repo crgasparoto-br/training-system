@@ -13,3 +13,13 @@ Data: 2026-11-05. Branch: feat/403-combined-clinical-protocol-v1, base develop. 
 - [ ] Validar testes de API, autorização, cross-tenant, caso real, CI do SHA final e auditoria independente.
 
 **Proibição:** não inferir limiares a partir das propostas, não ativar regra sem assinatura profissional, não automatizar mudanças de treino nem registrar esta issue como fechada.
+
+
+## Etapa 2 — sinais canônicos para avaliação técnica
+
+- [x] Leitura de sessões com vínculo à liberação operacional consolidada e ao aluno/contrato.
+- [x] Leitura estruturada das capacidades, check-in e revisão vigente de feedback.
+- [x] Endpoint técnico somente leitura com verificação das duas permissões clínicas.
+- [x] Dados sem regras clínicas novas ativas, cobertura parcial e fontes versionadas.
+- [ ] Homologação das sete regras (#534), integração à pré-liberação e revisão de segurança em cenário real.
+- [ ] Teste HTTP cross-tenant, validação completa e auditoria independente no SHA final.
