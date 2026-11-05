@@ -23,3 +23,14 @@ Data: 2026-11-05. Branch: feat/403-combined-clinical-protocol-v1, base develop. 
 - [x] Dados sem regras clínicas novas ativas, cobertura parcial e fontes versionadas.
 - [ ] Homologação das sete regras (#534), integração à pré-liberação e revisão de segurança em cenário real.
 - [ ] Teste HTTP cross-tenant, validação completa e auditoria independente no SHA final.
+
+
+## Remediação da auditoria da PR #537
+
+- [x] A-001 — separar a leitura cíclica/resistida do grafo operacional e flexibilidade/equilíbrio de `WorkoutDayCapacityOperationalBlock` (contrato físico real do banco).
+- [x] A-002 — preservar sinais de feedback por sessão sem atribuir a capacidades e reavaliar revisão vigente por escopo.
+- [x] A-003 — vincular cada observação à liberação, versão consolidada, versão de prescrição e registro operacional.
+- [x] Ampliar controles unitários negativos, de revisão, cross-source e de integridade; acrescentar teste HTTP/PostgreSQL de liberação real com as quatro capacidades.
+- [ ] Verificação do CI no SHA desta remediação e auditoria independente externa.
+
+A homologação clínica #534, as regras combinadas e a integração pré-liberação continuam fora desta etapa. Nenhum limiar foi ativado.

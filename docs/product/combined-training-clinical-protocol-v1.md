@@ -53,3 +53,12 @@ O adaptador consulta `WorkoutDay` de template liberado com `TrainingPlan/Aluno` 
 O contrato é explicitamente **somente leitura**. `WorkoutDay.workoutDate` armazena dia civil, sem horário efetivo comprovado; por isso `coverage=partial` impede uma conclusão de ausência de conflito por janela temporal. A cada GET, as fontes vigentes são lidas novamente, preservando revisões e proveniência. `ACTIVE_COMBINED_CONFLICT_RULES_V1=[]` mantém `state=no_active_rules`, sem alterar prescrição, sessão, liberação ou regras de bloqueio.
 
 A integração à liberação prévia de rascunhos, a homologação profissional #534, os casos HTTP reais e a auditoria independente são entregáveis separados antes do encerramento integral da #403.
+
+
+### Remediação de fontes, escopos e versões — PR #537
+
+- A proveniência de cada observação inclui a liberação operacional (`recordId`, `releasedAssemblyVersionId` e versão), a `CapacityPrescriptionVersion` exata (ID e versão) da `ConsolidatedPrescriptionCapacityBlock` liberada e o registro operacional estruturado do dia. A consulta rejeita vínculos discordantes em vez de trocar de versão silenciosamente.
+- O recorte cíclico é identificado por campos planejados estruturados de `WorkoutDay` ou estágios cíclicos; resistido, pelos exercícios/grupos operacionais; flexibilidade e equilíbrio, exclusivamente pelos blocos `WorkoutDayCapacityOperationalBlock`. Essa última tabela **não** admite cíclico/resistido pelo `CHECK` PostgreSQL. Texto livre e notas derivadas nunca criam capacidade.
+- `sessionSignals[]` mantém check-in e feedback de escopo `session` separadamente das observações específicas em `observations[]`, com fonte, revisão e release. Tontura, dor, PSR, fadiga e sono são apenas sinais estruturados; nenhum deles gera classificação combinada não homologada. Feedback de capacidade só alimenta a capacidade correspondente; feedback geral não é atribuído artificialmente a nenhuma capacidade.
+- Feedback só é consumido se sua execução, release, template e plano coincidirem com a sessão publicada. Apenas a revisão corrente de cada `scopeKey` é utilizada; um novo GET realiza nova leitura. As respostas não retornam notas livres, dados integrais ou diagnósticos.
+- `observationCount` conta observações por capacidade; `sessionSignalCount` conta sinais de sessão. `coverage=partial` e `ACTIVE_COMBINED_CONFLICT_RULES_V1=[]` permanecem inalterados; esta integração **não** equivale à homologação #534 nem encerra a issue #403.

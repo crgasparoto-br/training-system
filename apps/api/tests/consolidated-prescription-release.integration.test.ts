@@ -1,4 +1,9 @@
 import { randomUUID } from 'node:crypto';
+import express from 'express';
+import jwt from 'jsonwebtoken';
+import { createCombinedConflictSourceService } from '../src/modules/consolidated-prescriptions/combined-training-conflicts.service.js';
+import { consolidatedPrescriptionRoutes } from '../src/modules/consolidated-prescriptions/index.js';
+const request = require('supertest');
 import {
   ContractType,
   PrismaClient,
@@ -49,6 +54,8 @@ const BALANCE_NOTE =
 type Fixture = {
   contractId: string;
   professorId: string;
+  professorUserId: string;
+  professorEmail: string;
   alunoId: string;
   planId: string;
   assemblyId: string;
@@ -64,7 +71,7 @@ function contextFor(fixture: Fixture) {
   };
 }
 
-function commandFor(fixture: Fixture) {
+function commandFor(fixture: Fixture, includeResisted = false) {
   return {
     expectedCurrentVersion: 1,
     target: {
@@ -88,6 +95,10 @@ function commandFor(fixture: Fixture) {
           dayOfWeek: 1,
           workoutDate: '2026-08-17T00:00:00.000Z',
         },
+        ...(includeResisted ? [{
+          projectionKey: 'resisted:release-test', dayOfWeek: 1,
+          workoutDate: '2026-08-17T00:00:00.000Z', section: 'principal', exerciseOrder: 1,
+        }] : []),
       ],
     },
   };
@@ -106,7 +117,7 @@ function capacityParameters(capacity: (typeof CAPACITIES)[number]) {
   return { type: 'resisted', resisted: {} };
 }
 
-async function seedFixture(label: string): Promise<Fixture> {
+async function seedFixture(label: string, includeResisted = false): Promise<Fixture> {
   const suffix = `${label}-${randomUUID()}`;
   const contractId = `issue-320-${suffix}`;
 
@@ -246,13 +257,20 @@ async function seedFixture(label: string): Promise<Fixture> {
     });
   }
 
+  const resistanceExercise = includeResisted ? await prisma.exerciseLibrary.create({
+    data: { contractId, name: 'Resistido da montagem consolidada' },
+  }) : null;
+
   const projections = [
     {
       key: 'resisted:release-test',
       capacity: 'resisted',
-      target: 'WorkoutTemplate',
-      proposedFields: { WorkoutTemplate: { trainingMethod: 'combined' } },
+      target: includeResisted ? 'WorkoutExercise' : 'WorkoutTemplate',
+      proposedFields: includeResisted
+        ? { WorkoutExercise: { sets: 3, reps: 10 } }
+        : { WorkoutTemplate: { trainingMethod: 'combined' } },
       sourceParameters: {},
+      ...(resistanceExercise ? { effectiveExerciseLibraryId: resistanceExercise.id } : {}),
     },
     {
       key: 'flexibility:release-test',
@@ -315,6 +333,9 @@ async function seedFixture(label: string): Promise<Fixture> {
           unsupportedParameters: [],
           sourceParameters: projection.sourceParameters,
           preparedForAssemblyVersion: 1,
+          ...('effectiveExerciseLibraryId' in projection ? {
+            effectiveExerciseLibraryId: projection.effectiveExerciseLibraryId,
+          } : {}),
         },
       },
     });
@@ -323,6 +344,8 @@ async function seedFixture(label: string): Promise<Fixture> {
   return {
     contractId,
     professorId: professor.id,
+    professorUserId: professorUser.id,
+    professorEmail: professorUser.email,
     alunoId: aluno.id,
     planId: plan.id,
     assemblyId: assembly.id,
@@ -446,6 +469,64 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
     expect(trace.consolidatedPrescription.sourceVersion.id).toBe(fixture.sourceVersionId);
     expect(trace.capacities).toHaveLength(4);
     expect(trace.sourceRefs).toHaveLength(4);
+  });
+
+  it('reproduz HTTP e PostgreSQL com release real, quatro capacidades e proveniência', async () => {
+    const fixture = await seedFixture('combined-conflict-source', true);
+    const released = await service.release(contextFor(fixture), commandFor(fixture, true), RELEASE_NOW);
+    const day = await prisma.workoutDay.findFirstOrThrow({
+      where: { templateId: released.workoutTemplateId },
+    });
+    await prisma.preWorkoutCheckIn.create({
+      data: {
+        workoutDayId: day.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+        painLevel: 4, psr: 6, ruleSetVersion: 'pre-workout-check-in-v1', ruleSnapshot: {},
+      },
+    });
+    const report = await createCombinedConflictSourceService(prisma).getReport({
+      alunoId: fixture.alunoId, contractId: fixture.contractId,
+      start: '2026-08-17T00:00:00.000Z', end: '2026-08-18T00:00:00.000Z',
+    });
+    expect(report).toMatchObject({
+      state: 'no_active_rules', coverage: 'partial',
+      releasedSessionCount: 1, observationCount: 4, changesWorkoutAutomatically: false,
+    });
+    expect(report!.observations.map((row) => row.capacity)).toEqual([
+      'balance', 'cyclic', 'flexibility', 'resisted',
+    ]);
+    for (const row of report!.observations) {
+      expect(row.provenance.release).toMatchObject({
+        recordId: released.releaseId,
+        version: String(released.releasedAssemblyVersion),
+        assemblyVersionId: released.releasedAssemblyVersionId,
+      });
+      expect(row.provenance.capacityPrescription).toMatchObject({
+        recordId: fixture.capacityVersionIds[row.capacity],
+        version: '1',
+      });
+    }
+    expect(report!.observations.find((row) => row.capacity === 'cyclic')?.numeric?.painLevel?.value).toBe(4);
+    expect(report!.observations.find((row) => row.capacity === 'resisted')?.numeric).toEqual({});
+    expect(report!.sessionSignals).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: expect.objectContaining({ kind: 'check_in' }) }),
+    ]));
+
+    const app = express();
+    app.use(express.json());
+    app.use('/consolidated-prescriptions', consolidatedPrescriptionRoutes);
+    const token = jwt.sign({
+      userId: fixture.professorUserId, email: fixture.professorEmail, type: UserType.professor,
+    }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '1h' });
+    const response = await request(app)
+      .get('/consolidated-prescriptions/alunos/' + fixture.alunoId +
+        '/combined-conflicts?start=2026-08-17T00:00:00.000Z&end=2026-08-18T00:00:00.000Z')
+      .set('Authorization', 'Bearer ' + token);
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({
+      releasedSessionCount: 1, observationCount: 4, coverage: 'partial',
+    });
+    expect(response.body.data.observations.map((row: { capacity: string }) => row.capacity))
+      .toEqual(['balance', 'cyclic', 'flexibility', 'resisted']);
   });
 
   it('serializa duas liberações concorrentes sem duplicar template ou ledger', async () => {
