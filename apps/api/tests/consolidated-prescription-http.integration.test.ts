@@ -334,6 +334,34 @@ describeDatabase('consolidated prescription workflow HTTP integration with Postg
     await prisma.$disconnect();
   });
 
+  it('consulta prévia combinada apenas com escopo clínico autorizado, sem presumir ausência de riscos', async () => {
+    const path = '/consolidated-prescriptions/alunos/' + alunoA + '/combined-conflicts';
+    const dates = '?start=2026-11-01T00:00:00.000Z&end=2026-11-10T00:00:00.000Z';
+    const authorized = await request(app).get(path + dates)
+      .set('Authorization', 'Bearer ' + master.token);
+    expect(authorized.status).toBe(200);
+    expect(authorized.body.data).toMatchObject({
+      state: 'no_active_rules', evaluations: [], changesWorkoutAutomatically: false,
+      coverage: 'partial', releasedSessionCount: 0,
+    });
+
+    const clinicalDenied = await request(app).get(path + dates)
+      .set('Authorization', 'Bearer ' + deniedApprover.token);
+    expect(clinicalDenied.status).toBe(403);
+
+    const crossTenant = await request(app).get(path + dates)
+      .set('Authorization', 'Bearer ' + tenantB.token);
+    expect(crossTenant.status).toBe(404);
+
+    const outsideScope = await request(app).get(path + dates)
+      .set('Authorization', 'Bearer ' + selfProfessor.token);
+    expect(outsideScope.status).toBe(404);
+
+    const invalidWindow = await request(app).get(path + '?start=invalid&end=2026-11-10T00:00:00.000Z')
+      .set('Authorization', 'Bearer ' + master.token);
+    expect(invalidWindow.status).toBe(400);
+  });
+
   it('rejeita autoridade forjada, isolamento cross-tenant/dataScope e permissão específica de aprovação', async () => {
     const versions = await createCapacitySet({
       contractId: contractA,
