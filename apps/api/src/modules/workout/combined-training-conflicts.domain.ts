@@ -29,6 +29,8 @@ export interface ConflictObservation {
   sessionId: string;
   capacity: ConflictCapacity;
   scheduledAt: string;
+  /** Date-only planning is not evidence of a precise hour for sequence rules. */
+  timePrecision?: 'date' | 'instant';
   numeric?: Partial<Record<ConflictNumericMetric, ConflictMeasured<number>>>;
   flags?: Partial<Record<ConflictBooleanMetric, ConflictMeasured<boolean>>>;
 }
@@ -247,6 +249,10 @@ export function evaluateCombinedTrainingConflicts(input: ConflictEvaluationInput
     } else {
       for (const first of observations.filter((item) => item.capacity === expression.first.capacity)) {
         for (const then of observations.filter((item) => item.capacity === expression.then.capacity && item.sessionId !== first.sessionId)) {
+          if (first.timePrecision === 'date' || then.timePrecision === 'date') {
+            missing.push(first.sessionId + ':' + then.sessionId + ':exact_time');
+            continue;
+          }
           const hours = (Date.parse(then.scheduledAt) - Date.parse(first.scheduledAt)) / 3_600_000;
           if (hours <= 0 || hours < expression.minHours || hours > expression.maxHours) continue;
           const a = evaluateTerm(first, expression.first);

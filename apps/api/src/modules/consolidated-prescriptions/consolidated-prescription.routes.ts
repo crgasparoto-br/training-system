@@ -16,6 +16,8 @@ import {
   ConsolidatedPrescriptionDomainError,
   consolidatedPrescriptionService,
 } from './consolidated-prescription.service.js';
+import { consolidatedCombinedConflictService } from './consolidated-combined-conflicts.service.js';
+import { TrainingRoutineInputError } from '../workout/training-routine.service.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();
@@ -78,6 +80,7 @@ type ConsolidatedActor = {
   contractId: string;
   professorId: string;
   dataScope: AccessDataScope;
+  collaboratorFunctionId: string | null;
 };
 type ConsolidatedRequest = Request & { consolidatedActor?: ConsolidatedActor };
 
@@ -98,7 +101,10 @@ function requireConsolidatedBlock(blockKey: string) {
       const dataScope = await getEffectiveDataScopeForProfessor(professor, 'plans');
       if (!dataScope) return sendError(res, 'Perfil sem permissão para acessar este recurso', 403);
 
-      req.consolidatedActor = { contractId, professorId, dataScope };
+      req.consolidatedActor = {
+        contractId, professorId, dataScope,
+        collaboratorFunctionId: professor.collaboratorFunctionId,
+      };
       return next();
     } catch (error) {
       console.error('Erro ao validar acesso à montagem consolidada:', error);
@@ -142,6 +148,7 @@ function contextFor(actor: ConsolidatedActor, alunoId: string) {
 
 function handleError(res: Response, error: unknown, fallback: string) {
   if (error instanceof z.ZodError) return sendError(res, 'Dados inválidos', 400, error.errors);
+  if (error instanceof TrainingRoutineInputError) return sendError(res, error.message, 400);
   if (error instanceof ConsolidatedPrescriptionDomainError) {
     if (error.code === 'NOT_FOUND') return sendError(res, 'Recurso não encontrado', 404);
     if (error.code === 'CONFLICT') {
@@ -248,10 +255,42 @@ router.get(
     try {
       const actor = await ensureAlunoScope(req, res);
       if (!actor) return;
-      const report = await consolidatedPrescriptionService.getConflictReport(
-        contextFor(actor, req.params.alunoId)
+      if (req.query.date !== undefined && typeof req.query.date !== 'string') {
+        return sendError(res, 'Data de consulta inválida', 400);
+      }
+      const context = contextFor(actor, req.params.alunoId);
+      const report = await consolidatedPrescriptionService.getConflictReport(context);
+      if (!report) return sendSuccess(res, null, 'Conflitos da montagem consolidados');
+
+      // An existing plans grant never implies access to clinical check-in/feedback.
+      const sensitiveBlocks = actor.collaboratorFunctionId
+        ? await prisma.accessPermission.findMany({
+            where: {
+              collaboratorFunctionId: actor.collaboratorFunctionId,
+              screenKey: 'students.details',
+              blockKey: { in: [
+                'students.details.preWorkoutCheckIn',
+                'students.details.postWorkoutFeedback',
+              ] },
+              canView: true,
+            },
+            select: { blockKey: true },
+          })
+        : [];
+      const granted = new Set(sensitiveBlocks.map((item) => item.blockKey));
+      const combinedReview = await consolidatedCombinedConflictService.getWeeklyReview(
+        context,
+        report.version,
+        {
+          date: req.query.date as string | undefined,
+          includePreWorkoutCheckIn: granted.has('students.details.preWorkoutCheckIn'),
+          includePostWorkoutFeedback: granted.has('students.details.postWorkoutFeedback'),
+        }
       );
-      return sendSuccess(res, report, 'Conflitos da montagem consolidados');
+      return sendSuccess(
+        res, { ...report, combinedReview },
+        'Conflitos da montagem consolidados'
+      );
     } catch (error) {
       return handleError(res, error, 'Erro ao consultar conflitos da montagem');
     }

@@ -334,6 +334,58 @@ describeDatabase('consolidated prescription workflow HTTP integration with Postg
     await prisma.$disconnect();
   });
 
+  it('consulta combinedReview apenas com acesso à Montagem e não confunde ausência de regra com segurança', async () => {
+    const versions = await createCapacitySet({
+      contractId: contractA,
+      alunoId: alunoA,
+      professorId: master.professor.id,
+      goalId: goalA,
+    });
+    await request(app)
+      .post(`/consolidated-prescriptions/alunos/${alunoA}`)
+      .set('Authorization', `Bearer ${master.token}`)
+      .send(compositionPayload(versions))
+      .expect(201);
+
+    const authorized = await request(app)
+      .get(`/consolidated-prescriptions/alunos/${alunoA}/conflicts?date=2026-11-02`)
+      .set('Authorization', `Bearer ${master.token}`)
+      .expect(200);
+    expect(authorized.body.data).toMatchObject({
+      version: 1,
+      conflicts: [],
+      hasCritical: false,
+      combinedReview: {
+        protocolVersion: 'combined-conflict-v1',
+        status: 'no_active_rules',
+        riskConclusion: 'not_cleared',
+        week: { startDate: '2026-11-02', endDate: '2026-11-08' },
+        sourceCounts: { releasedSessions: 0, capacityObservations: 0 },
+        evaluations: [],
+        changesWorkoutAutomatically: false,
+      },
+    });
+    expect(authorized.body.data.combinedReview.unavailableReasons).toContain('no_canonical_release_for_week');
+    expect(authorized.body.data.combinedReview.unavailableReasons).toContain('check_in_access_not_granted');
+    expect(authorized.body.data.combinedReview.unavailableReasons).toContain('feedback_access_not_granted');
+
+    await request(app)
+      .get(`/consolidated-prescriptions/alunos/${alunoA}/conflicts?date=2026-11-02`)
+      .expect(401);
+    await request(app)
+      .get(`/consolidated-prescriptions/alunos/${alunoA}/conflicts?date=2026-11-02`)
+      .set('Authorization', `Bearer ${tenantB.token}`)
+      .expect(404);
+    await request(app)
+      .get(`/consolidated-prescriptions/alunos/${alunoA}/conflicts?date=2026-11-02`)
+      .set('Authorization', `Bearer ${selfProfessor.token}`)
+      .expect(404);
+    await request(app)
+      .get(`/consolidated-prescriptions/alunos/${alunoA}/conflicts?date=2026-02-30`)
+      .set('Authorization', `Bearer ${master.token}`)
+      .expect(400);
+  });
+
   it('rejeita autoridade forjada, isolamento cross-tenant/dataScope e permissão específica de aprovação', async () => {
     const versions = await createCapacitySet({
       contractId: contractA,
