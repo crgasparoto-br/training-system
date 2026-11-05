@@ -24,18 +24,22 @@ type OperationalOrigin = {
     'workout_resistance_group' | 'workout_capacity_block';
   recordId: string;
 };
-type CanonicalObservation = ConflictObservation & {
-  provenance: { release: ReleaseOrigin; capacityPrescription: CapacityOrigin; operational: OperationalOrigin };
+type CategoricalSignals = {
+  fatigueLevel?: { value: 'low' | 'medium' | 'high'; source: ConflictEvidenceSource };
+  sleepQuality?: { value: 'good' | 'medium' | 'poor'; source: ConflictEvidenceSource };
 };
-type SessionSignal = {
-  alunoId: string; contractId: string; sessionId: string; scheduledAt: string;
-  scopeKey: 'session'; source: ConflictEvidenceSource; release: ReleaseOrigin;
+type FeedbackSignals = {
   numeric: NonNullable<ConflictObservation['numeric']>;
   flags: NonNullable<ConflictObservation['flags']>;
-  categorical: {
-    fatigueLevel?: { value: 'low' | 'medium' | 'high'; source: ConflictEvidenceSource };
-    sleepQuality?: { value: 'good' | 'medium' | 'poor'; source: ConflictEvidenceSource };
-  };
+  categorical: CategoricalSignals;
+};
+type CanonicalObservation = ConflictObservation & {
+  provenance: { release: ReleaseOrigin; capacityPrescription: CapacityOrigin; operational: OperationalOrigin };
+  categorical: CategoricalSignals;
+};
+type SessionSignal = FeedbackSignals & {
+  alunoId: string; contractId: string; sessionId: string; scheduledAt: string;
+  scopeKey: 'session'; source: ConflictEvidenceSource; release: ReleaseOrigin;
 };
 export class CombinedConflictSourceError extends Error {}
 
@@ -70,6 +74,19 @@ function addNumeric(
 ) {
   const measured = numeric(value, kind, id, version, metric);
   if (measured) target[metric] = measured;
+}
+
+/** Extract versioned structured feedback without assigning it to another capacity. */
+function addFeedbackSignals(target: FeedbackSignals, values: Record<string, unknown>, id: string, version: string) {
+  const source = { kind: 'feedback' as const, recordId: id, version };
+  addNumeric(target.numeric, 'painLevel', values.painAfter, 'feedback', id, version);
+  addNumeric(target.numeric, 'psr', values.psr, 'feedback', id, version);
+  if (typeof values.dizziness === 'boolean')
+    target.flags.dizziness = { value: values.dizziness, source };
+  if (values.fatigueLevel === 'low' || values.fatigueLevel === 'medium' || values.fatigueLevel === 'high')
+    target.categorical.fatigueLevel = { value: values.fatigueLevel, source };
+  if (values.sleepQuality === 'good' || values.sleepQuality === 'medium' || values.sleepQuality === 'poor')
+    target.categorical.sleepQuality = { value: values.sleepQuality, source };
 }
 
 /**
@@ -205,22 +222,12 @@ export function createCombinedConflictSourceService(client: PrismaClient = prism
             kind: 'feedback' as const, recordId: sessionFeedback.id,
             version: String(sessionFeedback.revisionNumber),
           };
-          const values = object(sessionFeedback.values);
-          const numericSignals: SessionSignal['numeric'] = {};
-          const flags: SessionSignal['flags'] = {};
-          const categorical: SessionSignal['categorical'] = {};
-          addNumeric(numericSignals, 'painLevel', values.painAfter, 'feedback', source.recordId, source.version);
-          addNumeric(numericSignals, 'psr', values.psr, 'feedback', source.recordId, source.version);
-          if (typeof values.dizziness === 'boolean')
-            flags.dizziness = { value: values.dizziness, source };
-          if (values.fatigueLevel === 'low' || values.fatigueLevel === 'medium' || values.fatigueLevel === 'high')
-            categorical.fatigueLevel = { value: values.fatigueLevel, source };
-          if (values.sleepQuality === 'good' || values.sleepQuality === 'medium' || values.sleepQuality === 'poor')
-            categorical.sleepQuality = { value: values.sleepQuality, source };
+          const signals: FeedbackSignals = { numeric: {}, flags: {}, categorical: {} };
+          addFeedbackSignals(signals, object(sessionFeedback.values), source.recordId, source.version);
           sessionSignals.push({
             alunoId: query.alunoId, contractId: query.contractId, sessionId: day.id,
             scheduledAt: day.workoutDate.toISOString(), scopeKey: 'session',
-            release: sourceRelease, source, numeric: numericSignals, flags, categorical,
+            release: sourceRelease, source, ...signals,
           });
         }
         const operational = new Map<ConflictCapacity, OperationalOrigin>();
@@ -251,7 +258,7 @@ export function createCombinedConflictSourceService(client: PrismaClient = prism
           const row: CanonicalObservation = {
             alunoId: query.alunoId, contractId: query.contractId,
             sessionId: day.id, capacity, scheduledAt: day.workoutDate.toISOString(),
-            numeric: {}, flags: {},
+            numeric: {}, flags: {}, categorical: {},
             provenance: {
               release: sourceRelease,
               capacityPrescription: {
@@ -270,14 +277,10 @@ export function createCombinedConflictSourceService(client: PrismaClient = prism
           }
           const fb = currentFeedback('capacity:' + capacity);
           if (fb && fb.capacity === capacity) {
-            const value = object(fb.values), version = String(fb.revisionNumber);
-            if (capacity === 'cyclic') {
-              addNumeric(row.numeric!, 'painLevel', value.painAfter, 'feedback', fb.id, version);
-              addNumeric(row.numeric!, 'psr', value.psr, 'feedback', fb.id, version);
-            }
-            if (typeof value.dizziness === 'boolean') row.flags!.dizziness = {
-              value: value.dizziness, source: { kind: 'feedback', recordId: fb.id, version },
-            };
+            addFeedbackSignals(
+              { numeric: row.numeric!, flags: row.flags!, categorical: row.categorical },
+              object(fb.values), fb.id, String(fb.revisionNumber)
+            );
           }
           observations.push(row);
         }

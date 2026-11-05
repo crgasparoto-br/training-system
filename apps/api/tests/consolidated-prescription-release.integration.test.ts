@@ -568,6 +568,43 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
         values: { painAfter: 8, dizziness: false },
       },
     });
+    const capacityCases = [
+      { capacity: 'cyclic', painAfter: 3, psr: 7 },
+      { capacity: 'resisted', painAfter: 8, psr: 3 },
+      { capacity: 'flexibility', painAfter: 6, psr: 4 },
+      { capacity: 'balance', painAfter: 2, psr: 9 },
+    ] as const;
+    const correctedCapacityIds = new Map<string, string>();
+    const previousCapacityIds: string[] = [];
+    for (const item of capacityCases) {
+      const originalCapacity = await feedbackStore.createForStudent({
+        sessionId: day.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+        actorUserId: fixture.alunoUserId,
+        payload: {
+          operationKey: '403-' + item.capacity + '-feedback-original',
+          capacity: item.capacity,
+          values: {
+            painAfter: 1, psr: 1, dizziness: true, fatigueLevel: 'high', sleepQuality: 'poor',
+            observations: 'Texto livre confidencial da capacidade',
+          },
+        },
+      });
+      const correctedCapacity = await feedbackStore.correctForProfessor({
+        sessionId: day.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+        actorUserId: fixture.professorUserId,
+        payload: {
+          operationKey: '403-' + item.capacity + '-feedback-corrected',
+          baseRevisionId: originalCapacity.id,
+          reason: 'Correção documentada do feedback específico da capacidade',
+          values: {
+            painAfter: item.painAfter, psr: item.psr, dizziness: false,
+            fatigueLevel: 'low', sleepQuality: 'good',
+          },
+        },
+      });
+      previousCapacityIds.push(originalCapacity.id);
+      correctedCapacityIds.set(item.capacity, correctedCapacity.id);
+    }
     const afterRevision = await createCombinedConflictSourceService(prisma).getReport({
       alunoId: fixture.alunoId, contractId: fixture.contractId,
       start: '2026-08-17T00:00:00.000Z', end: '2026-08-18T00:00:00.000Z',
@@ -587,11 +624,20 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
           sleepQuality: { value: 'poor', source: expect.any(Object) },
         },
       })]);
-    expect(afterRevision!.observations.find((row) => row.capacity === 'cyclic')!.numeric?.painLevel?.value)
-      .toBe(4);
-    expect(afterRevision!.observations.find((row) => row.capacity === 'resisted')!.flags)
-      .toEqual({});
+    for (const item of capacityCases) {
+      const row = afterRevision!.observations.find((observation) => observation.capacity === item.capacity)!;
+      const source = {
+        kind: 'feedback', recordId: correctedCapacityIds.get(item.capacity), version: '2',
+      };
+      expect(row.numeric?.painLevel).toEqual({ value: item.painAfter, source });
+      expect(row.numeric?.psr).toEqual({ value: item.psr, source });
+      expect(row.flags?.dizziness).toEqual({ value: false, source });
+      expect(row.categorical.fatigueLevel).toEqual({ value: 'low', source });
+      expect(row.categorical.sleepQuality).toEqual({ value: 'good', source });
+      expect(row.provenance.release.recordId).toBe(released.releaseId);
+    }
     expect(JSON.stringify(afterRevision)).not.toContain(firstFeedback.id);
+    for (const id of previousCapacityIds) expect(JSON.stringify(afterRevision)).not.toContain(id);
     expect(JSON.stringify(afterRevision)).not.toContain('Texto livre confidencial');
 
     const rereadHttp = await request(app)
@@ -603,6 +649,15 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
     expect(rereadHttp.body.data.sessionSignals).toEqual(expect.arrayContaining([
       expect.objectContaining({ source: { kind: 'feedback', recordId: corrected.id, version: '2' } }),
     ]));
+    for (const item of capacityCases) {
+      const row = rereadHttp.body.data.observations.find(
+        (observation: { capacity: string }) => observation.capacity === item.capacity
+      );
+      expect(row.numeric.painLevel).toMatchObject({
+        value: item.painAfter, source: { kind: 'feedback', recordId: correctedCapacityIds.get(item.capacity), version: '2' },
+      });
+      expect(row.categorical.fatigueLevel.value).toBe('low');
+    }
     expect(JSON.stringify(rereadHttp.body)).not.toContain('Texto livre confidencial');
   });
 

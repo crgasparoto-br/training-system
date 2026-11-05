@@ -204,6 +204,93 @@ describe('#403 canonical conflict input remediation A-001..003', () => {
     }));
   });
 
+  it('preserves distinct versioned feedback signals for all four capacities without cross-assignment', async () => {
+    const db = makeDb();
+    const cases = [
+      { capacity: 'cyclic', painAfter: 5, psr: 7, fatigueLevel: 'high', sleepQuality: 'poor', dizziness: true },
+      { capacity: 'resisted', painAfter: 8, psr: 3, fatigueLevel: 'low', sleepQuality: 'good', dizziness: false },
+      { capacity: 'flexibility', painAfter: 6, psr: 4, fatigueLevel: 'medium', sleepQuality: 'medium', dizziness: true },
+      { capacity: 'balance', painAfter: 2, psr: 9, fatigueLevel: 'high', sleepQuality: 'good', dizziness: false },
+    ] as const;
+    db.postWorkoutFeedbackRevision.findMany.mockResolvedValue(cases.map((item) => feedback({
+      id: 'fb-' + item.capacity, scopeKey: 'capacity:' + item.capacity,
+      capacity: item.capacity, revisionNumber: 2,
+      values: { ...item, observations: 'Confidential capacity feedback note' },
+    })));
+    const report = await subject(db).getReport(args);
+    expect(report!.sessionSignalCount).toBe(1);
+    for (const item of cases) {
+      const row = report!.observations.find((observation) => observation.capacity === item.capacity);
+      const source = { kind: 'feedback', recordId: 'fb-' + item.capacity, version: '2' };
+      expect(row!.numeric?.painLevel).toEqual({ value: item.painAfter, source });
+      expect(row!.numeric?.psr).toEqual({ value: item.psr, source });
+      expect(row!.flags?.dizziness).toEqual({ value: item.dizziness, source });
+      expect(row!.categorical.fatigueLevel).toEqual({ value: item.fatigueLevel, source });
+      expect(row!.categorical.sleepQuality).toEqual({ value: item.sleepQuality, source });
+    }
+    expect(JSON.stringify(report)).not.toContain('Confidential capacity feedback note');
+    expect(report!.evaluations).toEqual([]);
+  });
+
+  it.each(['cyclic', 'resisted', 'flexibility', 'balance'] as const)(
+    're-reads corrected %s feedback without leaking past revisions', async (capacity) => {
+      const db = makeDb();
+      const old = feedback({
+        id: 'old-' + capacity, scopeKey: 'capacity:' + capacity, capacity,
+        revisionNumber: 2,
+        values: { painAfter: 8, psr: 3, dizziness: true, fatigueLevel: 'high', sleepQuality: 'poor' },
+      });
+      db.postWorkoutFeedbackRevision.findMany.mockResolvedValue([old]);
+      const before = await subject(db).getReport(args);
+      expect(before!.observations.find((row) => row.capacity === capacity)!.numeric?.painLevel?.value)
+        .toBe(8);
+
+      db.$queryRaw.mockReset().mockResolvedValueOnce([released]).mockResolvedValueOnce([
+        { id: 'flex-block', workoutDayId: 'day', capacity: 'flexibility', capacityPrescriptionVersionId: 'prescription-flexibility' },
+        { id: 'balance-block', workoutDayId: 'day', capacity: 'balance', capacityPrescriptionVersionId: 'prescription-balance' },
+      ]);
+      db.postWorkoutFeedbackRevision.findMany.mockResolvedValue([
+        feedback({
+          id: 'new-' + capacity, scopeKey: 'capacity:' + capacity, capacity,
+          revisionNumber: 3,
+          values: { painAfter: 2, psr: 9, dizziness: false, fatigueLevel: 'low', sleepQuality: 'good' },
+        }),
+        old,
+      ]);
+      const after = await subject(db).getReport(args);
+      const row = after!.observations.find((observation) => observation.capacity === capacity)!;
+      const source = { kind: 'feedback', recordId: 'new-' + capacity, version: '3' };
+      expect(row.numeric?.painLevel).toEqual({ value: 2, source });
+      expect(row.numeric?.psr).toEqual({ value: 9, source });
+      expect(row.flags?.dizziness).toEqual({ value: false, source });
+      expect(row.categorical.fatigueLevel).toEqual({ value: 'low', source });
+      expect(row.categorical.sleepQuality).toEqual({ value: 'good', source });
+      expect(JSON.stringify(after)).not.toContain('old-' + capacity);
+      expect(after!.sessionSignalCount).toBe(1);
+    }
+  );
+
+  it.each(['cyclic', 'resisted', 'flexibility', 'balance'] as const)(
+    'rejects foreign-origin %s feedback without leaking its metrics', async (capacity) => {
+      const db = makeDb();
+      db.postWorkoutFeedbackRevision.findMany.mockResolvedValue([feedback({
+        id: 'foreign-' + capacity, scopeKey: 'capacity:' + capacity, capacity,
+        originReleaseId: 'different-release',
+        values: { painAfter: 8, psr: 3, dizziness: true, fatigueLevel: 'high', sleepQuality: 'poor' },
+      })]);
+      const report = await subject(db).getReport(args);
+      const row = report!.observations.find((observation) => observation.capacity === capacity)!;
+      expect(row.categorical).toEqual({});
+      expect(row.flags).toEqual({});
+      if (capacity === 'cyclic') {
+        expect(row.numeric?.painLevel?.value).toBe(4);
+      } else {
+        expect(row.numeric).toEqual({});
+      }
+      expect(JSON.stringify(report)).not.toContain('foreign-' + capacity);
+    }
+  );
+
   it('retains canonically accepted nonnegative check-in pain without inventing severity', async () => {
     const db = makeDb();
     db.preWorkoutCheckIn.findMany.mockResolvedValue([{ ...check, painLevel: 11 }]);

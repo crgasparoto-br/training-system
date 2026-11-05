@@ -31,6 +31,8 @@ Data: 2026-11-05. Branch: feat/403-combined-clinical-protocol-v1, base develop. 
 - [x] A-002 — preservar sinais de feedback por sessão sem atribuir a capacidades e reavaliar revisão vigente por escopo.
 - [x] A-003 — vincular cada observação à liberação, versão consolidada, versão de prescrição e registro operacional.
 - [x] Ampliar controles unitários negativos, de revisão, cross-source e de integridade; acrescentar teste HTTP/PostgreSQL de liberação real com as quatro capacidades.
-- [ ] Verificação do CI no SHA desta remediação e auditoria independente externa.
+- [x] A-004 — preservar dor pós-treino, PSR, tontura, fadiga e sono da revisão atual de feedback específica de cada capacidade, sem atribuir sinais de sessão a outras capacidades.
+- [x] Ampliar os testes unitários positivos/negativos e o teste HTTP/PostgreSQL para criação, correção e releitura das quatro capacidades, incluindo isolamento de revisão e texto livre.
+- [ ] Verificação terminal do CI no SHA corretivo e auditoria independente em contexto separado.
 
 A homologação clínica #534, as regras combinadas e a integração pré-liberação continuam fora desta etapa. Nenhum limiar foi ativado.
