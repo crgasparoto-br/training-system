@@ -39,6 +39,18 @@ A decisão sobre ativação é de configuração **confiável no backend**, nunc
 
 O catálogo padrão `ACTIVE_COMBINED_CONFLICT_RULES_V1` é **vazio por projeto**. Portanto não há detecção clínica combinada ativa, endpoint novo, persistência ou efeito no treino nesta etapa. Os parâmetros dos testes são fixtures hipotéticas, não aprovação médica. A integração futura à Montagem Consolidada/rotina exigirá consulta completa e autorizada às fontes, escopo de `contractId`, reavaliação após novas revisões, revisão da UX por audiência e testes de integração e segurança. Não classificar a #403 como concluída antes disso.
 
+## Etapa 2 — integração técnica read-only à Montagem Consolidada (PR de implementação)
+
+O endpoint professor já existente `GET /consolidated-prescriptions/alunos/:alunoId/conflicts` mantém `conflicts`, `hasCritical`, `canUnblock` e `unavailableChecks` inalterados e acrescenta `combinedReview` **apenas quando existe montagem**. Parâmetro opcional `date=YYYY-MM-DD` usa a semana civil canônica (segunda a domingo) no fuso de contrato do produto.
+
+O adapter read-only vincula: versão corrente da Montagem; versões das quatro capacidades; releases imutáveis da #320 do **mesmo aluno/contrato/montagem**; sessões do Workout Builder realmente liberadas; blocos operacionais de flexibilidade/equilíbrio; execução canônica #389; e, **somente com permissão explícita adicional**, check-in #388 e a revisão mais recente de feedback #390 para cada capacidade ou sessão.
+
+A resposta técnica contém proveniência e versão de cada fonte, `sourceCounts`, `sourceSnapshots`, `evaluations`, `coverage`, `unavailableReasons` e `riskConclusion: not_cleared`. Não retorna observações clínicas brutas ou comentários livres. Sem grants de `students.details.preWorkoutCheckIn` e/ou `students.details.postWorkoutFeedback`, o adapter nem consulta os registros restritos. O escopo `plans.consolidatedPrescriptions.view` e o `dataScope` continuam obrigatórios antes de ler qualquer evidência.
+
+Para sessões sem horário de início real, `workoutDate` é somente data civil e não serve como prova de intervalo horário: regras de sequência retornam `insufficient_data`. Não transformar `WorkoutTemplate.totalVolumeKm` (volume semanal) em distância de sessão, `loadPercent` sem metodologia em %1RM, nomes textuais em `isLongRun`, ou observações em restrição clínica.
+
+**Nenhuma regra combinada nova está ativa**: `ACTIVE_COMBINED_CONFLICT_RULES_V1 = []`; resposta `no_active_rules` **não significa ausência de risco**. O GET recompõe os dados a cada consulta, incluindo correções de feedback, sem cache, persistência de alertas, alteração de aprovação, revisão, bloqueio ou liberação. Configuração autorizada, UI técnica/visão do aluno e ativação homologada permanecem fases posteriores.
+
 ## Aceite de homologação / desbloqueio
 
 A [#534](https://github.com/crgasparoto-br/training-system/issues/534) só pode ser encerrada com as sete decisões assinadas e exemplos positivos, negativos e `insufficient_data`, com cenário de falso positivo/falso negativo. Depois, implementar as regras aprovadas e validar `pnpm validate` e a auditoria independente sobre o SHA da PR. Nenhum merge automático.

@@ -80,6 +80,59 @@ export interface ConsolidatedPrescriptionConflict {
   sourceRefIds: string[];
 }
 
+/**
+ * #403: read-only, professor-scoped diagnostic attached to the existing conflict
+ * report. No assessment of clinical safety is implied by zero active rules.
+ */
+export interface ConsolidatedCombinedReview {
+  protocolVersion: string;
+  status: 'no_active_rules' | 'evaluated';
+  riskConclusion: 'not_cleared';
+  week: { startDate: string; endDate: string };
+  coverage: 'complete' | 'partial';
+  planningCapacities: Array<{
+    capacity: PhysicalCapacityType;
+    capacityPrescriptionVersionId: string;
+    version: number;
+  }>;
+  sourceCounts: {
+    releasedSessions: number;
+    capacityObservations: number;
+    executions: number;
+    checkIns: number;
+    feedbackRevisions: number;
+  };
+  sourceSnapshots: Array<{
+    sessionId: string;
+    capacity: PhysicalCapacityType;
+    release: { id: string; version: string };
+    capacityVersion: { id: string; version: string } | null;
+    execution: { id: string; version: string } | null;
+    checkIn: { id: string; version: string } | null;
+    feedback: { id: string; version: string } | null;
+  }>;
+  evaluations: Array<{
+    ruleCode: string;
+    ruleVersion: string;
+    ruleSource: string;
+    status: 'triggered' | 'not_triggered' | 'insufficient_data' | 'inactive';
+    severity: 'info' | 'warning' | 'critical' | null;
+    professorGuidance: string | null;
+    evidence: Array<{
+      sessionId: string;
+      capacity: PhysicalCapacityType;
+      scheduledAt: string;
+      metric: string;
+      source: { kind: string; recordId: string; version: string };
+      value: number | boolean;
+    }>;
+    missingOperands: string[];
+    changesWorkoutAutomatically: false;
+  }>;
+  unavailableReasons: string[];
+  changesWorkoutAutomatically: false;
+}
+
 export interface ConsolidatedPrescriptionConflictReport {
   version: number;
   status: ConsolidatedPrescriptionStatus;
@@ -90,6 +143,8 @@ export interface ConsolidatedPrescriptionConflictReport {
     code: string;
     message: string;
   }>;
+  /** Populated only in authorized professor GET; legacy mutation reports retain their shape. */
+  combinedReview?: ConsolidatedCombinedReview;
 }
 
 export interface ConsolidatedPrescriptionTraceability {

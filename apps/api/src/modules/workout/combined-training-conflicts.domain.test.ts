@@ -177,6 +177,19 @@ describe('issue #403: protocol v1 governance and fail-closed domain engine', () 
     }))).toThrow(ConflictProtocolInputError);
   });
 
+  it('never treats midnight of a date-only plan as a precise temporal interval', () => {
+    const items = inputs().observations.map((item, index) =>
+      index === 0 ? { ...item, timePrecision: 'date' as const } : item
+    );
+    const result = evaluateCombinedTrainingConflicts(inputs({ observations: items }));
+    expect(result.evaluations[0]).toMatchObject({
+      status: 'insufficient_data',
+      severity: null,
+      changesWorkoutAutomatically: false,
+    });
+    expect(result.evaluations[0].missingOperands).toContain('run-1:weights-1:exact_time');
+  });
+
   it('rejects duplicates and out-of-period evidence rather than fabricating a negative', () => {
     expect(() => evaluateCombinedTrainingConflicts(inputs({
       observations: [observation(), observation()],

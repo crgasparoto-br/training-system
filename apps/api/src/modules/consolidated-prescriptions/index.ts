@@ -15,6 +15,7 @@ consolidatedPrescriptionRoutes.use(consolidatedPrescriptionRoutesBase);
 export { consolidatedPrescriptionRoutes };
 export * from './consolidated-prescription.service.js';
 export * from './consolidated-prescription-read.service.js';
+export * from './consolidated-combined-conflicts.service.js';
 export * from './consolidated-prescription-operational.service.js';
 export * from './consolidated-prescription-release.service.js';
 export * from './consolidated-prescription-traceability.service.js';

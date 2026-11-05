@@ -6,6 +6,9 @@ Data: 2026-11-05. Branch: feat/403-combined-clinical-protocol-v1, base develop. 
 - [x] Criar #534 para validação por profissional habilitado, separada do aceite do Product Owner.
 - [x] Disponibilizar avaliador de domínio sem efeitos colaterais, fontes versionadas, capacidade e contrato, com regras ativas vazias.
 - [x] Especificar cenários de teste discriminantes para regras de exemplo, jamais tratando a fixture como regra clínica real.
+- [x] Etapa 2: ligar leitura estruturada ao GET canônico de conflitos da Montagem, com versionamento de fontes e estado explícito `no_active_rules`.
+- [x] Etapa 2: impedir que permissão de planos conceda acesso automático a check-in e feedback; preservar escopo de aluno/contrato e datas civis sem hora inventada.
+- [ ] Verificar CI exact-HEAD da Etapa 2 (testes de serviço, API, contrato e regressão).
 - [ ] Obter homologação real das sete definições em #534, incluindo matrizes de severidade e fontes verificáveis.
 - [ ] Carregar regras autorizadas em backend com trilha de configuração/ativação e versionamento de ocorrência.
 - [ ] Integrar leitura protegida por permissões e contrato na Montagem Consolidada, reavaliar em mudança de planejamento, execução e revisão de feedback.
