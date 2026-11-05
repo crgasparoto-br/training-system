@@ -182,6 +182,39 @@ describe('#403 canonical conflict input remediation A-001..003', () => {
     expect(db.workoutDay.findMany).toHaveBeenCalledTimes(2);
   });
 
+  it('uses deterministic, accurately typed operational origins across alternative structures', async () => {
+    const db = makeDb();
+    db.workoutDay.findMany.mockResolvedValue([{
+      id: 'day', templateId: 'template', workoutDate: new Date('2026-11-05T00:00:00.000Z'),
+      method: null, vo2maxPct: null, stimulusDurationMin: null, cyclicTimeMin: null,
+      resistanceTimeMin: null, cyclicStages: [{ id: 'stage' }], exercises: [],
+      resistanceGroups: [{ id: 'group' }], execution: null,
+    }]);
+    const result = await subject(db).getReport(args);
+    expect(result!.observations.find((row) => row.capacity === 'cyclic')!.provenance.operational)
+      .toEqual({ kind: 'workout_cyclic_stage', recordId: 'stage' });
+    expect(result!.observations.find((row) => row.capacity === 'resisted')!.provenance.operational)
+      .toEqual({ kind: 'workout_resistance_group', recordId: 'group' });
+    expect(db.workoutDay.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      select: expect.objectContaining({
+        cyclicStages: expect.objectContaining({ orderBy: expect.any(Array) }),
+        exercises: expect.objectContaining({ orderBy: expect.any(Array) }),
+        resistanceGroups: expect.objectContaining({ orderBy: expect.any(Array) }),
+      }),
+    }));
+  });
+
+  it('retains canonically accepted nonnegative check-in pain without inventing severity', async () => {
+    const db = makeDb();
+    db.preWorkoutCheckIn.findMany.mockResolvedValue([{ ...check, painLevel: 11 }]);
+    const report = await subject(db).getReport(args);
+    expect(report!.sessionSignals.find((row) => row.source.kind === 'check_in')!.numeric.painLevel?.value)
+      .toBe(11);
+    expect(report!.observations.find((row) => row.capacity === 'cyclic')!.numeric?.painLevel?.value)
+      .toBe(5);
+    expect(report!.evaluations).toEqual([]);
+  });
+
   it('fails closed for a mismatched flex/balance version instead of mislabelling evidence', async () => {
     const db = makeDb();
     db.consolidatedPrescriptionCapacityBlock.findMany.mockResolvedValue([

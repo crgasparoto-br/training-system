@@ -20,7 +20,8 @@ type CapacitySnapshot = {
 type ReleaseOrigin = { kind: 'consolidated_release'; recordId: string; version: string; assemblyVersionId: string };
 type CapacityOrigin = { kind: 'prescription'; recordId: string; version: string };
 type OperationalOrigin = {
-  kind: 'workout_day' | 'workout_exercise' | 'workout_capacity_block';
+  kind: 'workout_day' | 'workout_cyclic_stage' | 'workout_exercise' |
+    'workout_resistance_group' | 'workout_capacity_block';
   recordId: string;
 };
 type CanonicalObservation = ConflictObservation & {
@@ -44,8 +45,12 @@ function utc(value: string) {
       date.toISOString() !== value) throw new CombinedConflictSourceError('Período UTC inválido.');
   return date;
 }
-function numeric(value: unknown, kind: 'check_in' | 'feedback', id: string, version: string) {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 10
+function numeric(
+  value: unknown, kind: 'check_in' | 'feedback', id: string, version: string,
+  metric: 'painLevel' | 'psr' | 'fatigue' | 'sleepQuality'
+) {
+  const max = kind === 'check_in' && metric === 'painLevel' ? Infinity : 10;
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= max
     ? { value, source: { kind, recordId: id, version } } : undefined;
 }
 function object(value: unknown): Record<string, unknown> {
@@ -63,7 +68,7 @@ function addNumeric(
   metric: 'painLevel' | 'psr' | 'fatigue' | 'sleepQuality',
   value: unknown, kind: 'check_in' | 'feedback', id: string, version: string
 ) {
-  const measured = numeric(value, kind, id, version);
+  const measured = numeric(value, kind, id, version, metric);
   if (measured) target[metric] = measured;
 }
 
@@ -91,9 +96,11 @@ export function createCombinedConflictSourceService(client: PrismaClient = prism
           id: true, templateId: true, workoutDate: true,
           method: true, vo2maxPct: true, stimulusDurationMin: true, cyclicTimeMin: true,
           resistanceTimeMin: true,
-          cyclicStages: { select: { id: true }, take: 1 },
-          exercises: { select: { id: true }, take: 1 },
-          resistanceGroups: { select: { id: true }, take: 1 },
+          cyclicStages: { select: { id: true }, orderBy: [{ position: 'asc' }, { id: 'asc' }], take: 1 },
+          exercises: {
+            select: { id: true }, orderBy: [{ section: 'asc' }, { exerciseOrder: 'asc' }, { id: 'asc' }], take: 1,
+          },
+          resistanceGroups: { select: { id: true }, orderBy: [{ position: 'asc' }, { id: 'asc' }], take: 1 },
           execution: { select: { id: true, originReleaseId: true } },
         },
       });
@@ -219,15 +226,16 @@ export function createCombinedConflictSourceService(client: PrismaClient = prism
         const operational = new Map<ConflictCapacity, OperationalOrigin>();
         if (day.method !== null || day.vo2maxPct !== null || day.stimulusDurationMin !== null ||
             day.cyclicTimeMin !== null || day.cyclicStages.length > 0) {
-          operational.set('cyclic', {
-            kind: 'workout_day', recordId: day.cyclicStages[0]?.id ?? day.id,
-          });
+          operational.set('cyclic', day.cyclicStages.length ? {
+            kind: 'workout_cyclic_stage', recordId: day.cyclicStages[0].id,
+          } : { kind: 'workout_day', recordId: day.id });
         }
         if (day.exercises.length > 0 || day.resistanceGroups.length > 0 || day.resistanceTimeMin !== null) {
-          operational.set('resisted', {
-            kind: 'workout_exercise',
-            recordId: day.exercises[0]?.id ?? day.resistanceGroups[0]?.id ?? day.id,
-          });
+          operational.set('resisted', day.exercises.length ? {
+            kind: 'workout_exercise', recordId: day.exercises[0].id,
+          } : day.resistanceGroups.length ? {
+            kind: 'workout_resistance_group', recordId: day.resistanceGroups[0].id,
+          } : { kind: 'workout_day', recordId: day.id });
         }
         for (const block of byDay.get(day.id)?.values() ?? []) {
           operational.set(block.capacity as ConflictCapacity, {
