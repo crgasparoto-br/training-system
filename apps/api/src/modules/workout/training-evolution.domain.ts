@@ -36,9 +36,10 @@ export function calculateWeeklyTrainingEvolution(input: {
   const pendingSessions = prescribedSessions - completedSessions - partialSessions - notPerformedSessions;
   const adherencePct = prescribedSessions === 0
     ? null : Math.round((completedSessions / prescribedSessions) * 10000) / 100;
-  const latestSource = sessions.map((row) => row.sourceUpdatedAt).filter(
-    (value): value is string => value !== null,
-  ).sort().at(-1) ?? null;
+  const latestSource = sessions.reduce<string | null>((latest, session) => {
+    const next = session.sourceUpdatedAt;
+    return next !== null && (latest === null || next > latest) ? next : latest;
+  }, null);
 
   return {
     ruleVersion: 'weekly-adherence-v1',

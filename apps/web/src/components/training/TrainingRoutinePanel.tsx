@@ -765,7 +765,8 @@ function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) 
         <p className="mt-1 text-xs text-muted-foreground">
           {weeklyEvolution
             ? weeklyEvolution.counts.prescribedSessions + ' previstas · '
-              + weeklyEvolution.counts.completedSessions + ' concluídas · '
+              + weeklyEvolution.counts.completedSessions
+              + (weeklyEvolution.counts.completedSessions === 1 ? ' concluída · ' : ' concluídas · ')
               + weeklyEvolution.counts.partialSessions + ' parciais · '
               + weeklyEvolution.counts.notPerformedSessions + ' não realizadas'
             : 'Indicador indisponível nesta versão.'}

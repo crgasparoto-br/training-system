@@ -123,7 +123,7 @@ describe('TrainingRoutinePanel (#387)', () => {
     }))} />);
     expect(await screen.findByText('Aderência semanal')).toBeInTheDocument();
     expect(screen.getByText('50%')).toBeInTheDocument();
-    expect(screen.getByText(/2 previstas · 1 concluídas · 1 parciais/)).toBeInTheDocument();
+    expect(screen.getByText(/2 previstas · 1 concluída · 1 parciais/)).toBeInTheDocument();
   });
 
   it('apresenta objetivo, duração, ordem, blocos e parâmetros do Treino de hoje', async () => {

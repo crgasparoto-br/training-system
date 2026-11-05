@@ -116,10 +116,19 @@ describe('training routine service (#387)', () => {
   });
 
   it('calcula a aderência semanal usando apenas sessões liberadas e o lifecycle canônico', async () => {
+    const executed = (dayId: string, status: 'completed' | 'partial', updatedAt: string) => ({
+      workoutDayId: dayId, status, version: 1,
+      updatedAt: new Date(updatedAt), startedAt: new Date('2026-10-01T10:00:00.000Z'),
+      finishedAt: new Date(updatedAt), currentPauseStartedAt: null,
+      pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1', sessionValues: {}, plannedSnapshot: null, items: [],
+    });
     releasedRows = [
-      makeRow({ id: 'day-completed', execution: { status: 'completed', updatedAt: new Date('2026-10-01T12:00:00.000Z') } }),
+      makeRow({ id: 'day-completed',
+        execution: executed('day-completed', 'completed', '2026-10-01T12:00:00.000Z') }),
       makeRow({ id: 'day-partial', workoutDate: new Date('2026-10-02T00:00:00.000Z'),
-        execution: { status: 'partial', updatedAt: new Date('2026-10-02T12:00:00.000Z') } }),
+        execution: executed('day-partial', 'partial', '2026-10-02T12:00:00.000Z') }),
     ];
     const result = await service.getRoutine({
       alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
