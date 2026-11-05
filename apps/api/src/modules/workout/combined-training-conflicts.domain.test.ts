@@ -158,7 +158,7 @@ describe('issue #403: protocol v1 governance and fail-closed domain engine', () 
       { ...candidate, status: 'approved' },
       { ...candidate, status: 'retired' },
     ] })).evaluations.map((entry) => entry.status)).toEqual(['inactive', 'inactive', 'inactive']);
-    expect(evaluateCombinedTrainingConflicts(inputs({ rules: [{ ...candidate, status: 'approved' }] })).toMatchObject({
+    expect(evaluateCombinedTrainingConflicts(inputs({ rules: [{ ...candidate, status: 'approved' }] }))).toMatchObject({
       state: 'no_active_rules',
     });
   });
