@@ -115,6 +115,37 @@ describe('training routine service (#387)', () => {
     });
   });
 
+  it('calcula a aderência semanal usando apenas sessões liberadas e o lifecycle canônico', async () => {
+    const executed = (dayId: string, status: 'completed' | 'partial', updatedAt: string) => ({
+      workoutDayId: dayId, status, version: 1,
+      updatedAt: new Date(updatedAt), startedAt: new Date('2026-10-01T10:00:00.000Z'),
+      finishedAt: new Date(updatedAt), currentPauseStartedAt: null,
+      pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1', sessionValues: {}, plannedSnapshot: null, items: [],
+    });
+    releasedRows = [
+      makeRow({ id: 'day-completed',
+        execution: executed('day-completed', 'completed', '2026-10-01T12:00:00.000Z') }),
+      makeRow({ id: 'day-partial', workoutDate: new Date('2026-10-02T00:00:00.000Z'),
+        execution: executed('day-partial', 'partial', '2026-10-02T12:00:00.000Z') }),
+    ];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.weeklyEvolution).toMatchObject({
+      counts: {
+        prescribedSessions: 2, completedSessions: 1, partialSessions: 1,
+        notPerformedSessions: 0, pendingSessions: 0,
+      },
+      adherence: { status: 'available', value: 50, unit: '%' },
+    });
+    expect(result.weeklyEvolution?.technical).toBeUndefined();
+    expect(findMany.mock.calls[0][0].where.template.plan).toMatchObject({
+      alunoId: 'aluno-1', aluno: { contractId: 'contract-1' },
+    });
+  });
+
   it('projeta o próximo treino de outra semana apenas com liberação consolidada e escopo contratual', async () => {
     upcomingRows = [{
       sessionId: 'next-month',

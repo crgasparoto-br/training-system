@@ -726,9 +726,25 @@ function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) 
       : continuity.registeredCount > 0
         ? 'Feedback registrado'
         : 'Sem pendência confirmada nesta semana';
+  const weeklyEvolution = routine.weeklyEvolution;
+  const weeklyAdherence = weeklyEvolution?.adherence.status === 'available'
+    && weeklyEvolution.adherence.value !== null
+    ? weeklyEvolution.adherence.value.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + '%'
+    : 'Dados insuficientes';
+  const formatWeeklyCount = (count: number, singular: string, plural: string) =>
+    count + ' ' + (count === 1 ? singular : plural);
+  const weeklyCounts = weeklyEvolution
+    ? [
+        formatWeeklyCount(weeklyEvolution.counts.prescribedSessions, 'prevista', 'previstas'),
+        formatWeeklyCount(weeklyEvolution.counts.completedSessions, 'concluída', 'concluídas'),
+        formatWeeklyCount(weeklyEvolution.counts.partialSessions, 'parcial', 'parciais'),
+        formatWeeklyCount(weeklyEvolution.counts.notPerformedSessions, 'não realizada', 'não realizadas'),
+        formatWeeklyCount(weeklyEvolution.counts.pendingSessions, 'pendente', 'pendentes'),
+      ].join(' · ')
+    : 'Indicador indisponível nesta versão.';
 
   return (
-    <section aria-label="Continuidade do treinamento" className="grid gap-3 sm:grid-cols-3">
+    <section aria-label="Continuidade do treinamento" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <div className="rounded-lg border border-border bg-background p-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Próximo treino</p>
         <p className="mt-1 text-sm font-semibold text-foreground">
@@ -751,7 +767,20 @@ function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) 
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Feedback pós-treino</p>
         <p className="mt-1 text-sm font-semibold text-foreground">{feedbackStatus}</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Aderência não é calculada aqui; o indicador canônico será consumido quando a #405 estiver disponível.
+          O feedback é registrado separadamente do indicador de aderência.
+        </p>
+      </div>
+      <div className="rounded-lg border border-border bg-background p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Aderência semanal</p>
+        <p className="mt-1 text-sm font-semibold text-foreground">{weeklyAdherence}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {weeklyCounts}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {weeklyEvolution
+            ? 'Período: ' + formatShortDate(weeklyEvolution.period.startDate) + ' a '
+              + formatShortDate(weeklyEvolution.period.endDate)
+            : 'Sem período calculado.'}
         </p>
       </div>
     </section>

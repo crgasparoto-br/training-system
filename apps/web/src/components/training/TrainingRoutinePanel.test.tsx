@@ -104,6 +104,28 @@ const cyclicProgress = (completed: number, total: number,
 });
 
 describe('TrainingRoutinePanel (#387)', () => {
+  it('mostra a aderência da semana sem contar execução parcial como concluída', async () => {
+    render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(routine({
+      weeklyEvolution: {
+        ruleVersion: 'weekly-adherence-v1',
+        source: 'consolidated_release_and_session_execution',
+        period: { startDate: '2026-09-28', endDate: '2026-10-04' },
+        counts: {
+          prescribedSessions: 2, completedSessions: 1, partialSessions: 1,
+          notPerformedSessions: 0, pendingSessions: 0,
+        },
+        adherence: {
+          status: 'available', value: 50, unit: '%',
+          formula: 'completedSessions / prescribedSessions * 100',
+        },
+        lastSourceUpdateAt: '2026-10-02T12:00:00.000Z',
+      },
+    }))} />);
+    expect(await screen.findByText('Aderência semanal')).toBeInTheDocument();
+    expect(screen.getByText('50%')).toBeInTheDocument();
+    expect(screen.getByText(/2 previstas · 1 concluída · 1 parcial · 0 não realizadas · 0 pendentes/)).toBeInTheDocument();
+  });
+
   it('apresenta objetivo, duração, ordem, blocos e parâmetros do Treino de hoje', async () => {
     render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(routine())} />);
 
@@ -627,7 +649,8 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(within(continuity).getByText('Próximo treino')).toBeInTheDocument();
     expect(within(continuity).getByText('Última execução')).toBeInTheDocument();
     expect(within(continuity).getByText('1 feedback pendente')).toBeInTheDocument();
-    expect(within(continuity).getByText(/indicador canônico será consumido quando a #405/i)).toBeInTheDocument();
+    expect(within(continuity).getByText(/O feedback é registrado separadamente do indicador de aderência/i)).toBeInTheDocument();
+    expect(within(continuity).getByText('Aderência semanal')).toBeInTheDocument();
   });
 
   it('usa próxima sessão canônica de outra semana sem inferir ausência pela semana atual', async () => {
@@ -636,7 +659,7 @@ describe('TrainingRoutinePanel (#387)', () => {
     }));
     render(<TrainingRoutinePanel audience="student" load={load} />);
     const cards = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
-    expect(cards).toHaveClass('grid', 'sm:grid-cols-3');
+    expect(cards).toHaveClass('grid', 'sm:grid-cols-2', 'xl:grid-cols-4');
     expect(within(cards).getByText('Treino programado')).toBeInTheDocument();
     expect(within(cards).getByText('03/11 · Não iniciado')).toBeInTheDocument();
     expect(within(cards).queryByText(/Nenhuma sessão pendente/)).not.toBeInTheDocument();
