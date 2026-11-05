@@ -731,6 +731,17 @@ function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) 
     && weeklyEvolution.adherence.value !== null
     ? weeklyEvolution.adherence.value.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + '%'
     : 'Dados insuficientes';
+  const formatWeeklyCount = (count: number, singular: string, plural: string) =>
+    count + ' ' + (count === 1 ? singular : plural);
+  const weeklyCounts = weeklyEvolution
+    ? [
+        formatWeeklyCount(weeklyEvolution.counts.prescribedSessions, 'prevista', 'previstas'),
+        formatWeeklyCount(weeklyEvolution.counts.completedSessions, 'concluída', 'concluídas'),
+        formatWeeklyCount(weeklyEvolution.counts.partialSessions, 'parcial', 'parciais'),
+        formatWeeklyCount(weeklyEvolution.counts.notPerformedSessions, 'não realizada', 'não realizadas'),
+        formatWeeklyCount(weeklyEvolution.counts.pendingSessions, 'pendente', 'pendentes'),
+      ].join(' · ')
+    : 'Indicador indisponível nesta versão.';
 
   return (
     <section aria-label="Continuidade do treinamento" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -763,13 +774,7 @@ function TrainingContinuityCards({ routine }: { routine: TrainingRoutineView }) 
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Aderência semanal</p>
         <p className="mt-1 text-sm font-semibold text-foreground">{weeklyAdherence}</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {weeklyEvolution
-            ? weeklyEvolution.counts.prescribedSessions + ' previstas · '
-              + weeklyEvolution.counts.completedSessions
-              + (weeklyEvolution.counts.completedSessions === 1 ? ' concluída · ' : ' concluídas · ')
-              + weeklyEvolution.counts.partialSessions + ' parciais · '
-              + weeklyEvolution.counts.notPerformedSessions + ' não realizadas'
-            : 'Indicador indisponível nesta versão.'}
+          {weeklyCounts}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
           {weeklyEvolution

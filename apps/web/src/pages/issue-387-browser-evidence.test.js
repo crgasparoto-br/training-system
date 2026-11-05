@@ -210,7 +210,8 @@ suite('Issue #387 - evidencia browser Treino de hoje', () => {
         });
         expect(studentLayout?.text).toContain('Última execução');
         expect(studentLayout?.text).toContain('Feedback pós-treino');
-        expect(studentLayout?.columns).toBe(viewport.width < 640 ? 1 : 3);
+        expect(studentLayout?.text).toContain('Aderência semanal');
+        expect(studentLayout?.columns).toBe(viewport.width < 640 ? 1 : viewport.width < 1280 ? 2 : 4);
         const disabled = await page.evaluate(() => [...document.querySelectorAll('main button[disabled]')].map((b) => (b.textContent || '').trim()));
         expect(disabled.length).toBeGreaterThan(0);
         const releasedShot = await shot(page, `${viewport.name}-released`);
@@ -262,7 +263,8 @@ suite('Issue #387 - evidencia browser Treino de hoje', () => {
           return { text: section.textContent || '', columns: new Set([...section.children].map((node) => Math.round(node.getBoundingClientRect().left))).size };
         });
         expect(professorLayout?.text).toContain('Feedback indisponível');
-        expect(professorLayout?.columns).toBe(viewport.width < 640 ? 1 : 3);
+        expect(professorLayout?.text).toContain('Aderência semanal');
+        expect(professorLayout?.columns).toBe(viewport.width < 640 ? 1 : viewport.width < 1280 ? 2 : 4);
         await assertNoOverflow(page);
         await shot(page, viewport.name);
         await page.click('#aluno-details-menu-selectedStudent');
