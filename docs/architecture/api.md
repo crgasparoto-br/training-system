@@ -191,9 +191,14 @@ canônico. O início não pode preceder o relógio do servidor em mais de 5 minu
 (tolerância apenas para diferenças de relógio) e o término não pode ultrapassar
 31 dias corridos a partir do mesmo relógio. Janelas curtas em futuro distante
 ou iniciadas no passado fora dessa tolerância são rejeitadas.
-A API retorna somente ID, data,
-horas civis e revisão `updatedAt` dos agendamentos `scheduled`
-do mesmo aluno/contrato, em tamanho limitado.
+O cliente calcula uma janela nova ao solicitar a prévia, mesmo quando o GET
+ocorreu mais de cinco minutos antes; o limite de 31 dias continua sendo
+reavaliado pelo servidor. A API retorna somente ID, data civil canônica
+(`bookingDate: YYYY-MM-DD`) ou `bookingDate: null` para legado não comprovado,
+horas civis e revisão `updatedAt` dos agendamentos `scheduled` do mesmo
+aluno/contrato, em tamanho limitado. O POST continua exigindo versão da
+montagem e `updatedAt` exato das fontes. `bookingDate: null` não autoriza
+reconstruir a data a partir do timestamp local antigo.
 
 O POST recebe `expectedCurrentVersion`, janela,
 `timeZone` IANA, e `bindings[]` com

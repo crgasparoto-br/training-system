@@ -11,6 +11,7 @@ const source = (capacity: typeof capacities[number], i: number) => ({
 });
 const booking = (id: string, date: string, startTime: string, endTime: string) => ({
   id, bookingDate: new Date(date + 'T00:00:00.000Z'),
+  bookingCivilDate: new Date(date + 'T00:00:00.000Z'),
   contractId: 'tenant-a', alunoId: 'student-a',
   startTime, endTime, updatedAt: new Date(bindingVersion), status: 'scheduled',
 });
@@ -110,6 +111,44 @@ describe('#403 future preview strict source binding', () => {
     await expect(create(db).preview(scope, { ...command, bindings: [command.bindings[0]] }, now)).rejects.toMatchObject({ code: 'CONFLICT' });
     await expect(create(db).preview(scope, { ...command, bindings: [command.bindings[0], command.bindings[0]] }, now))
       .rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  });
+
+  it('uses the authoritative civil day even when the legacy host-local booking instant is different', async () => {
+    const db = mockDb();
+    db.agendaBooking.findMany.mockResolvedValueOnce([{
+      ...booking('booking-1', '2026-11-10', '08:00', '09:00'),
+      bookingDate: new Date('2026-11-10T03:00:00.000Z'), // server TZ=America/Sao_Paulo
+    }]);
+    const preview = await create(db).preview(scope, {
+      ...command, timeZone: 'America/Sao_Paulo',
+      bindings: [command.bindings[0]],
+    }, now);
+    expect(preview.mappedSessions[0]).toMatchObject({
+      proof: 'verified', startAtUtc: '2026-11-10T11:00:00.000Z',
+      endAtUtc: '2026-11-10T12:00:00.000Z',
+    });
+    expect(preview.coverage).toBe('partial');
+    expect(preview.mayConcludeNoConflict).toBe(false);
+  });
+
+  it('keeps legacy bookings with no authoritative civil date unverified', async () => {
+    const db = mockDb();
+    const legacy = {
+      ...booking('booking-1', '2026-11-10', '08:00', '09:00'),
+      bookingDate: new Date('2026-11-10T03:00:00.000Z'),
+      bookingCivilDate: null,
+    };
+    db.agendaBooking.findMany.mockResolvedValue([legacy]);
+    const candidates = await create(db).getCandidates(scope, command.windowStart, command.windowEnd, now);
+    expect(candidates[0].bookingDate).toBeNull();
+    const preview = await create(db).preview(scope, {
+      ...command, timeZone: 'America/Sao_Paulo', bindings: [command.bindings[0]],
+    }, now);
+    expect(preview.mappedSessions[0]).toMatchObject({
+      proof: 'invalid_source_date', startAtUtc: null, endAtUtc: null,
+    });
+    expect(preview.temporalEvidenceStatus).toBe('insufficient_data');
+    expect(preview.gaps).toEqual([]);
   });
 
   it('ignores no appointment automatically and never concludes temporal coverage complete', async () => {

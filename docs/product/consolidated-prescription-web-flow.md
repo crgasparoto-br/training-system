@@ -247,6 +247,11 @@ ambíguo ou origem não canônica aparece como "não comprovado", sem inventar
 diferença em horas. Resultado sempre `coverage=partial`,
 nunca libera automaticamente ou substitui revisão profissional.
 Versões, perdas de permissão, troca de aluno e alterações locais ocultam
-resultado anterior; falha/revogação exige consulta renovada. A seleção
+resultado anterior. O clique em avaliar renova a janela UTC, sem reutilizar o
+cutoff do GET que pode ter sido feito muitos minutos antes. Falhas temporárias
+preservam as seleções e permitem nova tentativa; negação comprovada 403/404 ou
+conflito de versões 409 descartam os vínculos e exigem consulta renovada.
+Agendamentos legados sem `bookingCivilDate` autoritativo exibem "Data civil não
+comprovada" e nunca inferem dia do fuso do navegador ou do servidor. A seleção
 não é persistida nem reaproveitada na liberação. O fuso vem da declaração
 do professor para esta prévia, não da configuração do contrato.

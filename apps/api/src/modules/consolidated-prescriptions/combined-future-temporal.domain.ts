@@ -51,7 +51,7 @@ export function canonicalTimeZone(value: string) {
   }
 }
 
-function calendarDate(date: Date) {
+function calendarDate(date: Date | null) {
   if (!(date instanceof Date) || !Number.isFinite(date.getTime()) ||
       date.toISOString().slice(10) !== 'T00:00:00.000Z') return null;
   return date.toISOString().slice(0, 10);
@@ -78,9 +78,9 @@ function utcPossibilities(civilDate: string, time: string, formatter: Intl.DateT
 
 /** Booking supplies the civil date & clock; zone is an explicit preview assumption, never inferred from address. */
 export function resolveAgendaBookingUtc(
-  bookingDate: Date, startTime: string, endTime: string, timeZone: string
+  bookingCivilDate: Date | null, startTime: string, endTime: string, timeZone: string
 ): TemporalResolution {
-  const day = calendarDate(bookingDate);
+  const day = calendarDate(bookingCivilDate);
   if (!day) return { status: 'unverified', reason: 'invalid_source_date' };
   const start = HHMM.exec(startTime), end = HHMM.exec(endTime);
   if (!start || !end || startTime >= endTime) {

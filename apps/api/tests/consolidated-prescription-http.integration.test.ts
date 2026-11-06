@@ -10,6 +10,7 @@ import {
 
 const request = require('supertest');
 const { consolidatedPrescriptionRoutes } = require('../src/modules/consolidated-prescriptions/index');
+const { agendaRoutes } = require('../src/modules/agenda/index');
 
 const runDatabaseIntegrationTests = process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true';
 const describeDatabase = runDatabaseIntegrationTests ? describe : describe.skip;
@@ -269,6 +270,7 @@ describeDatabase('consolidated prescription workflow HTTP integration with Postg
   const app = express();
   app.use(express.json());
   app.use('/consolidated-prescriptions', consolidatedPrescriptionRoutes);
+  app.use('/agenda', agendaRoutes);
 
   let master: Awaited<ReturnType<typeof createProfessor>>;
   let tenantB: Awaited<ReturnType<typeof createProfessor>>;
@@ -432,12 +434,12 @@ describeDatabase('consolidated prescription workflow HTTP integration with Postg
     const date2 = new Date(Date.UTC(clock.getUTCFullYear(), clock.getUTCMonth(), clock.getUTCDate() + 8));
     const first = await prisma.agendaBooking.create({ data: {
       contractId: contractA, alunoId: alunoA, professorId: master.professor.id,
-      bookingDate: date1, startTime: '08:00', endTime: '09:00',
+      bookingDate: date1, bookingCivilDate: date1, startTime: '08:00', endTime: '09:00',
       status: 'scheduled', type: 'free',
     } });
     const second = await prisma.agendaBooking.create({ data: {
       contractId: contractA, alunoId: alunoA, professorId: master.professor.id,
-      bookingDate: date2, startTime: '10:00', endTime: '11:00',
+      bookingDate: date2, bookingCivilDate: date2, startTime: '10:00', endTime: '11:00',
       status: 'scheduled', type: 'free',
     } });
     const root = '/consolidated-prescriptions/alunos/' + alunoA;
@@ -552,6 +554,119 @@ describeDatabase('consolidated prescription workflow HTTP integration with Postg
     expect(await prisma.workoutTemplate.count({
       where: { plan: { alunoId: alunoA } },
     })).toBe(0);
+  });
+
+  it('A-539-002 persists the source civil date through Agenda POST and future GET/preview in three host zones', async () => {
+    const aluno = await prisma.aluno.create({ data: {
+      contractId: contractA, professorId: master.professor.id,
+      status: StudentLifecycleStatus.ACTIVE_STUDENT,
+    } });
+    const record = await prisma.prontuarioRecord.create({ data: {
+      contractId: contractA, alunoId: aluno.id, professorId: master.professor.id,
+      code: 'PRNT-TEMP-CIVIL', summary: 'Comprovação de data civil independente de timezone',
+    } });
+    const goal = await prisma.prontuarioGoal.create({ data: {
+      recordId: record.id, title: 'Comprovar origem temporal', priority: 1,
+    } });
+    const set = await createCapacitySet({
+      contractId: contractA, alunoId: aluno.id, professorId: master.professor.id, goalId: goal.id,
+    });
+    const created = await request(app)
+      .post('/consolidated-prescriptions/alunos/' + aluno.id)
+      .set('Authorization', 'Bearer ' + master.token)
+      .send(compositionPayload(set));
+    expect(created.status).toBe(201);
+
+    const clock = new Date();
+    const day = (offset: number) => new Date(Date.UTC(
+      clock.getUTCFullYear(), clock.getUTCMonth(), clock.getUTCDate() + offset,
+    )).toISOString().slice(0, 10);
+    const createdBookings: Array<{ bookingId: string; bookingDate: string; sourceUpdatedAt: string }> = [];
+    const originalTz = process.env.TZ;
+    try {
+      for (const [index, tz] of ['UTC', 'America/Sao_Paulo', 'Pacific/Auckland'].entries()) {
+        const civilDay = day(index + 7);
+        const weekday = new Date(`${civilDay}T00:00:00.000Z`).getUTCDay() || 7;
+        await prisma.professorAvailability.create({ data: {
+          professorId: master.professor.id, dayOfWeek: weekday,
+          startTime: '07:00', endTime: '12:00',
+        } });
+        process.env.TZ = tz;
+        const booked = await request(app).post('/agenda/bookings')
+          .set('Authorization', 'Bearer ' + master.token).send({
+            alunoId: aluno.id, professorId: master.professor.id,
+            bookingDate: civilDay, startTime: '08:00', endTime: '09:00', bookingType: 'free',
+          });
+        expect(booked.status).toBe(201);
+        expect(booked.body.data.bookingCivilDate).toBe(`${civilDay}T00:00:00.000Z`);
+        expect(booked.body.data.bookingDate).toBe(new Date(`${civilDay}T00:00:00`).toISOString());
+        createdBookings.push({
+          bookingId: booked.body.data.id, bookingDate: civilDay,
+          sourceUpdatedAt: booked.body.data.updatedAt,
+        });
+      }
+    } finally {
+      if (originalTz === undefined) delete process.env.TZ;
+      else process.env.TZ = originalTz;
+    }
+
+    const root = '/consolidated-prescriptions/alunos/' + aluno.id;
+    const windowStart = new Date(clock.getTime() - 60_000).toISOString();
+    const windowEnd = new Date(clock.getTime() + 28 * 86_400_000).toISOString();
+    const candidates = await request(app).get(root + '/combined-future-bookings')
+      .query({ start: windowStart, end: windowEnd })
+      .set('Authorization', 'Bearer ' + master.token);
+    expect(candidates.status).toBe(200);
+    for (const expected of createdBookings) {
+      expect(candidates.body.data).toEqual(expect.arrayContaining([
+        expect.objectContaining({ bookingId: expected.bookingId, bookingDate: expected.bookingDate }),
+      ]));
+    }
+    const bindings = createdBookings.map(({ bookingId, sourceUpdatedAt }) => ({
+      bookingId, expectedBookingUpdatedAt: sourceUpdatedAt,
+      capacityPrescriptionVersionId: set.cyclic.versionId,
+    }));
+    const command = {
+      expectedCurrentVersion: 1, windowStart, windowEnd,
+      timeZone: 'America/Sao_Paulo', bindings,
+    };
+    const preview = await request(app).post(root + '/combined-future-temporal-preview')
+      .set('Authorization', 'Bearer ' + master.token).send(command);
+    expect(preview.status).toBe(200);
+    expect(preview.body.data.mappedSessions).toHaveLength(3);
+    expect(preview.body.data.mappedSessions.every((item: { proof: string }) => item.proof === 'verified')).toBe(true);
+    expect(preview.body.data).toMatchObject({
+      temporalEvidenceStatus: 'verified_bindings_only',
+      state: 'no_active_rules', coverage: 'partial', mayConcludeNoConflict: false,
+    });
+
+    // A pre-migration row cannot be assigned a civil date from server-local midnight alone.
+    const legacy = await prisma.agendaBooking.create({ data: {
+      contractId: contractA, alunoId: aluno.id, professorId: master.professor.id,
+      bookingDate: new Date(`${day(10)}T03:00:00.000Z`),
+      startTime: '08:00', endTime: '09:00', type: 'free', status: 'scheduled',
+    } });
+    const legacyCandidates = await request(app).get(root + '/combined-future-bookings')
+      .query({ start: windowStart, end: windowEnd })
+      .set('Authorization', 'Bearer ' + master.token);
+    expect(legacyCandidates.status).toBe(200);
+    expect(legacyCandidates.body.data).toContainEqual(expect.objectContaining({
+      bookingId: legacy.id, bookingDate: null,
+    }));
+    const legacyPreview = await request(app).post(root + '/combined-future-temporal-preview')
+      .set('Authorization', 'Bearer ' + master.token).send({
+        ...command, bindings: [{
+          bookingId: legacy.id, expectedBookingUpdatedAt: legacy.updatedAt.toISOString(),
+          capacityPrescriptionVersionId: set.cyclic.versionId,
+        }],
+      });
+    expect(legacyPreview.status).toBe(200);
+    expect(legacyPreview.body.data.mappedSessions[0]).toMatchObject({
+      proof: 'invalid_source_date', startAtUtc: null, endAtUtc: null,
+    });
+    expect(legacyPreview.body.data).toMatchObject({
+      temporalEvidenceStatus: 'insufficient_data', coverage: 'partial', mayConcludeNoConflict: false,
+    });
   });
 
   it('rejeita autoridade forjada, isolamento cross-tenant/dataScope e permissão específica de aprovação', async () => {

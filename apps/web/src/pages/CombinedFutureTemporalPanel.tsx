@@ -105,18 +105,28 @@ export function CombinedFutureTemporalPanel({
       }
     }
     try {
+      // The candidate list was fetched earlier; a manual review must not reuse its expired cutoff.
+      // Booking IDs/updatedAt still undergo fresh server-side eligibility checks in the POST.
+      const range = rangeNow();
       const report = await consolidatedPrescriptionService.previewFutureTemporal(alunoId, {
         expectedCurrentVersion: actualSummary.assemblyVersion,
-        windowStart: current.range.start, windowEnd: current.range.end,
+        windowStart: range.start, windowEnd: range.end,
         timeZone, bindings,
       });
       if (id === sequence.current && latestIdentity.current === identity) {
         setPreview({ identity, signature, report });
       }
-    } catch {
+    } catch (failure) {
       if (id === sequence.current && latestIdentity.current === identity) {
-        setError('As fontes, versões ou permissões mudaram. Recarregue a agenda antes de nova avaliação.');
-        setCandidates(null); setChoices([]);
+        const status = (failure as { response?: { status?: number } }).response?.status;
+        if (status === 403 || status === 404 || status === 409) {
+          // A proven access/source/version change requires a fresh list; never reuse stale bindings.
+          setError('As fontes, versões ou permissões mudaram. Recarregue a agenda antes de nova avaliação.');
+          setCandidates(null); setChoices([]);
+        } else {
+          // Temporary failures and validation races must not discard the professor's selection.
+          setError('Não foi possível conferir os horários. Os vínculos foram preservados; tente novamente.');
+        }
       }
     } finally {
       if (id === sequence.current && latestIdentity.current === identity) setLoading(null);
@@ -161,7 +171,7 @@ export function CombinedFutureTemporalPanel({
                       {current.rows.map((booking) => (
                         <fieldset key={booking.bookingId} className="rounded-md border border-border bg-background p-3">
                           <legend className="px-1 text-sm font-medium">
-                            {booking.bookingDate} • {booking.startTime}–{booking.endTime}
+                            {booking.bookingDate ?? 'Data civil não comprovada (registro legado)'} • {booking.startTime}–{booking.endTime}
                           </legend>
                           <p className="mb-2 text-xs text-muted-foreground">Agendamento: {booking.bookingId} • Versão {booking.sourceUpdatedAt}</p>
                           <div className="flex flex-wrap gap-x-4 gap-y-2">

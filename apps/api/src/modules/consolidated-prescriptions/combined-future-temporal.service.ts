@@ -28,8 +28,9 @@ function invalid(message: string): never {
 function stale(): never {
   throw new ConsolidatedPrescriptionDomainError('CONFLICT', 'Agendamento ou versão de prescrição alterado; atualize os dados da agenda e da montagem.');
 }
-function dateOnly(value: Date): string {
-  return value.toISOString().slice(0, 10);
+function canonicalCivilDay(value: Date | null): string | null {
+  return value && value.toISOString().endsWith('T00:00:00.000Z')
+    ? value.toISOString().slice(0, 10) : null;
 }
 function bindingKey(binding: FutureTemporalBinding) {
   return binding.bookingId + ':' + binding.capacityPrescriptionVersionId;
@@ -56,13 +57,13 @@ export function createCombinedFutureTemporalService(client: PrismaClient = prism
           contractId: context.contractId, alunoId: context.alunoId,
           status: 'scheduled', bookingDate: { gte: fromDay, lte: toDay },
         },
-        select: { id: true, bookingDate: true, startTime: true, endTime: true, updatedAt: true },
+        select: { id: true, bookingDate: true, bookingCivilDate: true, startTime: true, endTime: true, updatedAt: true },
         orderBy: [{ bookingDate: 'asc' }, { startTime: 'asc' }, { id: 'asc' }],
         take: MAX_BOOKINGS + 1,
       });
       if (bookings.length > MAX_BOOKINGS) invalid('Muitos agendamentos; selecione um período menor.');
       return bookings.map((b) => ({
-        bookingId: b.id, bookingDate: dateOnly(b.bookingDate),
+        bookingId: b.id, bookingDate: canonicalCivilDay(b.bookingCivilDate),
         startTime: b.startTime, endTime: b.endTime,
         sourceUpdatedAt: b.updatedAt.toISOString(),
       }));
@@ -127,7 +128,7 @@ export function createCombinedFutureTemporalService(client: PrismaClient = prism
       const bookings = bookingIds.length ? await client.agendaBooking.findMany({
         where: { id: { in: bookingIds }, contractId: context.contractId, alunoId: context.alunoId },
         select: {
-          id: true, bookingDate: true, startTime: true, endTime: true,
+          id: true, bookingDate: true, bookingCivilDate: true, startTime: true, endTime: true,
           status: true, updatedAt: true, contractId: true, alunoId: true,
         },
       }) : [];
@@ -144,7 +145,7 @@ export function createCombinedFutureTemporalService(client: PrismaClient = prism
             booking.updatedAt.toISOString() !== binding.expectedBookingUpdatedAt) stale();
         const fromDay = Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate() - 1);
         const toDay = Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate() + 1);
-        const sourceDay = booking.bookingDate.getTime();
+        const sourceDay = (booking.bookingCivilDate ?? booking.bookingDate).getTime();
         if (sourceDay < fromDay || sourceDay > toDay) {
           invalid('O agendamento informado está fora da janela solicitada.');
         }
@@ -153,7 +154,7 @@ export function createCombinedFutureTemporalService(client: PrismaClient = prism
           invalid('Um agendamento passado não pode representar uma sessão futura.');
         }
         const time = resolved.get(booking.id) ?? resolveAgendaBookingUtc(
-          booking.bookingDate, booking.startTime, booking.endTime, zone
+          booking.bookingCivilDate, booking.startTime, booking.endTime, zone
         );
         resolved.set(booking.id, time);
         const verified = time.status === 'verified';

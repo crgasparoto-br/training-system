@@ -93,3 +93,17 @@ O escopo não inclui ativação de regras clínicas nem merge da PR.
   associação e revalidação no mesmo transaction boundary da liberação
   operacional quando houver regra temporal clínica homologada.
 - [ ] Homologação externa #534 e ativação controlada das regras.
+
+## Remediação da auditoria da PR #539 — 06/11/2026
+
+- [x] A-539-001: renovar a janela temporal ao avaliar, sem reiniciar a seleção
+  após espera superior à tolerância de relógio do servidor; preservar mapeamento
+  em falhas temporárias e manter descarte em versão revogada/stale.
+- [x] A-539-002: gravar dia civil canônico da Agenda em `DATE` separado do
+  timestamp legado, sem backfill presumido. Respeitar `unverified` nos registros
+  antigos sem fonte civil, incluindo casos com fuso negativo e positivo.
+- [x] Adicionar testes focados de domínio, UI e integração HTTP/PostgreSQL com
+  fontes discrepantes, origem canônica, legado e mudança de relógio.
+- [ ] Validar as correções no CI oficial do HEAD publicado e obter nova auditoria
+  independente; as demais pendências clínicas/operacionais da #403/#534
+  permanecem separadas e não são autorizadas por esta correção.

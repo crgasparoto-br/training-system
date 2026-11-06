@@ -3,7 +3,8 @@ import type { PhysicalCapacityType } from './capacity-prescription.js';
 
 export interface FutureTemporalBookingCandidate {
   bookingId: string;
-  bookingDate: string;
+  /** Null means a legacy booking without a provable civil-day source. */
+  bookingDate: string | null;
   startTime: string;
   endTime: string;
   sourceUpdatedAt: string;

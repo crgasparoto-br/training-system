@@ -727,6 +727,8 @@ model AgendaBooking {
   spaceId     String?
   fixedSlotId String?
   bookingDate DateTime
+  // Authoritative civil day for new bookings; null means legacy/unverified origin.
+  bookingCivilDate DateTime? @db.Date
   startTime   String
   endTime     String
   type        AgendaBookingType   @default(free) @map("bookingType")

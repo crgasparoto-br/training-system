@@ -63,6 +63,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.useRealTimers();
 });
 
 describe('future temporal review UI binding', () => {
@@ -104,6 +105,71 @@ describe('future temporal review UI binding', () => {
     expect(await screen.findByText(/Regras clínicas ainda não ativas/i)).toBeInTheDocument();
     expect(screen.getByText(/Capacidades sem horário vinculado/i)).toBeInTheDocument();
     expect(screen.getByText(/Não conclua que não há riscos/)).toBeInTheDocument();
+  });
+
+  it('A-539-001 renews the POST horizon after a long manual review without losing mappings', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-06T12:00:00.000Z'));
+    const user = userEvent.setup();
+    render(page());
+    await user.click(screen.getByRole('button', { name: 'Consultar agendamentos futuros' }));
+    expect(await screen.findByText(/Agendamento: booking-1/)).toBeInTheDocument();
+    const get = vi.mocked(consolidatedPrescriptionService.getFutureBookingCandidates);
+    expect(get).toHaveBeenCalledWith('student-a', '2026-11-06T12:00:00.000Z', '2026-12-06T12:00:00.000Z');
+
+    const temporal = screen.getByRole('region', { name: 'Avaliação temporal futura' });
+    const checkboxes = temporal.querySelectorAll('input[type="checkbox"]');
+    await user.click(checkboxes[0]);
+    await user.click(checkboxes[2]);
+    vi.setSystemTime(new Date('2026-11-06T12:06:00.000Z'));
+    await user.click(screen.getByRole('button', { name: 'Conferir intervalos futuros' }));
+
+    await waitFor(() => expect(consolidatedPrescriptionService.previewFutureTemporal).toHaveBeenCalledWith(
+      'student-a', expect.objectContaining({
+        windowStart: '2026-11-06T12:06:00.000Z',
+        windowEnd: '2026-12-06T12:06:00.000Z',
+        timeZone: expect.any(String),
+        bindings: [{
+          bookingId: 'booking-1',
+          capacityPrescriptionVersionId: 'cyclic-v1',
+          expectedBookingUpdatedAt: '2026-11-06T12:00:00.000Z',
+        }],
+      })
+    ));
+    expect(checkboxes[0]).toBeChecked();
+    expect(await screen.findByText(/Regras clínicas ainda não ativas/i)).toBeInTheDocument();
+  });
+
+  it('retains valid bindings on transient preview failure, but drops them on a proven stale source', async () => {
+    const user = userEvent.setup();
+    vi.mocked(consolidatedPrescriptionService.previewFutureTemporal)
+      .mockRejectedValueOnce(new Error('network timeout'))
+      .mockRejectedValueOnce({ response: { status: 409 } });
+    render(page());
+    await user.click(screen.getByRole('button', { name: 'Consultar agendamentos futuros' }));
+    expect(await screen.findByText(/Agendamento: booking-1/)).toBeInTheDocument();
+    const temporal = screen.getByRole('region', { name: 'Avaliação temporal futura' });
+    const checkboxes = temporal.querySelectorAll('input[type="checkbox"]');
+    await user.click(checkboxes[0]);
+    await user.click(checkboxes[2]);
+    const evaluate = screen.getByRole('button', { name: 'Conferir intervalos futuros' });
+    await user.click(evaluate);
+    expect(await screen.findByText(/Os vínculos foram preservados/i)).toBeInTheDocument();
+    expect(screen.getByText(/Agendamento: booking-1/)).toBeInTheDocument();
+    expect(checkboxes[0]).toBeChecked();
+    await user.click(evaluate);
+    expect(await screen.findByText(/As fontes, versões ou permissões mudaram/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Agendamento: booking-1/)).not.toBeInTheDocument();
+  });
+
+  it('labels legacy bookings as unverified rather than assigning the wrong civil day', async () => {
+    vi.mocked(consolidatedPrescriptionService.getFutureBookingCandidates).mockResolvedValueOnce([
+      { ...bookings[0], bookingDate: null },
+    ]);
+    const user = userEvent.setup();
+    render(page());
+    await user.click(screen.getByRole('button', { name: 'Consultar agendamentos futuros' }));
+    expect(await screen.findByText(/Data civil não comprovada \(registro legado\)/i)).toBeInTheDocument();
   });
 
   it('does not display old results after timezone or permission changes', async () => {

@@ -25,6 +25,8 @@ describe('#403 future IANA local time proof', () => {
   });
 
   it('rejects legacy non-midnight date, malformed intervals and timezone', () => {
+    expect(resolveAgendaBookingUtc(null, '08:00', '09:00', 'America/Sao_Paulo'))
+      .toMatchObject({ status: 'unverified', reason: 'invalid_source_date' });
     expect(resolveAgendaBookingUtc(new Date('2026-11-10T03:00:00.000Z'), '08:00', '09:00', 'UTC'))
       .toMatchObject({ status: 'unverified', reason: 'invalid_source_date' });
     expect(resolveAgendaBookingUtc(date('2026-11-10'), '09:00', '09:00', 'UTC'))

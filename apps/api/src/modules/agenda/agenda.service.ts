@@ -1,4 +1,5 @@
 import { prismaRuntimeClient } from '../../common/prisma-runtime-client.js';
+import { parseBookingCivilDate } from './booking-civil-date.js';
 import { type AgendaBookingStatus, type AgendaBookingType } from '@prisma/client';
 import {
   checkFixedScheduleAvailability,
@@ -330,6 +331,7 @@ export const agendaService = {
       alunoId: string;
       professorId: string;
       bookingDate: Date;
+      bookingCivilDate: string;
       startTime: string;
       endTime: string;
       spaceId?: string;
@@ -339,6 +341,7 @@ export const agendaService = {
     }
   ) {
     const bookingDate = toDateOnly(data.bookingDate);
+    const bookingCivilDate = parseBookingCivilDate(data.bookingCivilDate);
     const startTime = normalizeTime(data.startTime);
     const endTime = normalizeTime(data.endTime);
     ensureTimeRange(startTime, endTime);
@@ -447,6 +450,7 @@ export const agendaService = {
         alunoId: data.alunoId,
         professorId: data.professorId,
         bookingDate,
+        bookingCivilDate,
         startTime,
         endTime,
         spaceId: data.spaceId,
