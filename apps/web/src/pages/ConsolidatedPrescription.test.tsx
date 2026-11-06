@@ -219,6 +219,19 @@ describe('ConsolidatedPrescription', () => {
     expect(consolidatedPrescriptionService.getCombinedHistory).not.toHaveBeenCalled();
     rendered.unmount();
 
+    // One clinical permission does not authorize the combined historical read.
+    accessState.allowed = new Set([
+      'plans.consolidatedPrescriptions.view',
+      'plans.consolidatedPrescriptions.manage',
+      'students.details.preWorkoutCheckIn',
+    ]);
+    const partial = renderPage();
+    await screen.findByText('Rascunho');
+    await user.click(screen.getByRole('button', { name: '4. Alertas e conflitos' }));
+    expect(screen.queryByRole('button', { name: 'Consultar evidências históricas' })).not.toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getCombinedHistory).not.toHaveBeenCalled();
+    partial.unmount();
+
     accessState.allowed = new Set([
       'plans.consolidatedPrescriptions.view',
       'plans.consolidatedPrescriptions.manage',

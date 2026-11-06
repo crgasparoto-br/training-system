@@ -387,6 +387,13 @@ describeDatabase('consolidated prescription workflow HTTP integration with Postg
     expect(first.body.data.combinedReview.assemblyVersionId).toBe(created.body.data.latestVersion.id);
     expect(JSON.stringify(first.body.data.combinedReview)).not.toContain('painLevel');
 
+    // A view-only assembly grant must not imply access to clinical signals.
+    const withoutClinicalGrants = await request(app).get(conflictPath)
+      .set('Authorization', 'Bearer ' + deniedApprover.token);
+    expect(withoutClinicalGrants.status).toBe(200);
+    expect(withoutClinicalGrants.body.data.combinedReview).toEqual(first.body.data.combinedReview);
+    expect(JSON.stringify(withoutClinicalGrants.body.data)).not.toContain('"painLevel"');
+
     const sent = await request(app)
       .post('/consolidated-prescriptions/alunos/' + alunoA + '/send-for-review')
       .set('Authorization', 'Bearer ' + master.token)
