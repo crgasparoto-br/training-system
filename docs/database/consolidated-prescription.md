@@ -154,7 +154,8 @@ A cadeia relevante é:
 
 1. `20260808165000_issue_316_consolidated_prescription_persistence` — agregado, versões, blocos, refs, FKs e guards;
 2. `20260808220000_issue_316_capacity_source_authority_guard` — autoridade de `capacity_source`;
-3. `20260812143000_issue_320_consolidated_operational_release` — vínculo relacional de liberação, chaves de idempotência, guards de escopo/imutabilidade e `WorkoutDayCapacityOperationalBlock` estruturado da #339.
+3. `20260812143000_issue_320_consolidated_operational_release` — vínculo relacional de liberação, chaves de idempotência, guards de escopo/imutabilidade e `WorkoutDayCapacityOperationalBlock` estruturado da #339;
+4. `20261106121000_issue_403_cyclic_workout_day_source` — bloco cíclico por sessão com FK, escopo, igualdade JSONB, imutabilidade e proteção contra inserções após a liberação (A-005).
 
 A migration da #320 é aditiva: não remove nem reescreve plano, template, dia, exercício ou execução existente durante a migração. A reconciliação de target planejado é comportamento transacional do comando de release, não efeito da migration.
 
@@ -169,7 +170,8 @@ A migration da #320 é aditiva: não remove nem reescreve plano, template, dia, 
 - release por template operacional (único);
 - release por contrato/aluno/data e por plano;
 - bloco operacional por `(workoutDayId, capacity)` (único);
-- bloco operacional por `capacityPrescriptionVersionId`.
+- bloco operacional por `capacityPrescriptionVersionId`;
+- bloco cíclico por `workoutDayId` (único) e `capacityPrescriptionVersionId`.
 
 ## Validação executável
 
@@ -185,4 +187,7 @@ Os testes existentes da #316/#317 continuam cobrindo versão, composição, conc
 - índices únicos e imutabilidade do ledger/blocos estruturados;
 - ordem de escrita que só marca `WorkoutTemplate.released` depois da persistência do conteúdo, dos blocos e do vínculo.
 
-Os cenários PostgreSQL de corrida, rollback e falha injetada permanecem gate obrigatório para fechamento integral da entrega crítica.
+Para #403/A-005, os testes PostgreSQL e HTTP incluem prescrição cíclica apenas por distância, 
+atribuição correta ao dia, ausência de capacidade cíclica em outro dia, feedback cíclico corrigido,
+rejeição de inserção após a liberação e proveniência da versão. Os cenários PostgreSQL de corrida,
+rollback e falha injetada permanecem gate obrigatório para fechamento integral da entrega crítica.
