@@ -480,6 +480,21 @@ describeDatabase('consolidated prescription workflow HTTP integration with Postg
       .post(root + '/combined-future-temporal-preview')
       .set('Authorization', 'Bearer ' + tenantB.token).send(command);
     expect(otherTenant.status).toBe(404);
+    // A professor has the Agenda screen enabled by the default profile:
+    // explicitly revoke it to prove the independent authorization boundary.
+    await prisma.accessPermission.upsert({
+      where: {
+        collaboratorFunctionId_screenKey_blockKey: {
+          collaboratorFunctionId: deniedApprover.professor.collaboratorFunctionId,
+          screenKey: 'agenda', blockKey: '',
+        },
+      },
+      create: {
+        collaboratorFunctionId: deniedApprover.professor.collaboratorFunctionId,
+        screenKey: 'agenda', blockKey: '', canView: false,
+      },
+      update: { canView: false },
+    });
     const noAgenda = await request(app)
       .get(root + '/combined-future-bookings')
       .query({ start: windowStart, end: windowEnd })
