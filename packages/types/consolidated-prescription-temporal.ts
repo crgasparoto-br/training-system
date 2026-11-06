@@ -1,4 +1,5 @@
-import type { ConflictCapacity, ConflictAssessment } from './consolidated-prescription.js';
+import type { ConsolidatedCombinedHistoryPreview } from './consolidated-prescription.js';
+import type { PhysicalCapacityType } from './capacity-prescription.js';
 
 export interface FutureTemporalBookingCandidate {
   bookingId: string;
@@ -25,7 +26,7 @@ export interface FutureTemporalMappedSession {
   bookingId: string;
   bookingVersion: string;
   assemblyVersionId: string;
-  capacity: ConflictCapacity;
+  capacity: PhysicalCapacityType;
   capacityPrescriptionVersionId: string;
   capacityVersion: number;
   startAtUtc: string | null;
@@ -49,8 +50,8 @@ export interface FutureTemporalPreview {
   temporalEvidenceStatus: 'verified_bindings_only' | 'insufficient_data';
   mappedSessions: FutureTemporalMappedSession[];
   gaps: FutureTemporalGap[];
-  unlinkedCapacities: ConflictCapacity[];
-  evaluations: ConflictAssessment[];
+  unlinkedCapacities: PhysicalCapacityType[];
+  evaluations: ConsolidatedCombinedHistoryPreview['evaluations'];
   mayConcludeNoConflict: false;
   changesWorkoutAutomatically: false;
 }
