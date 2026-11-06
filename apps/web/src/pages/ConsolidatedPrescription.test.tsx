@@ -13,14 +13,21 @@ import type {
 import { consolidatedPrescriptionService } from '../services/consolidated-prescription.service';
 import { ConsolidatedPrescription } from './ConsolidatedPrescription';
 
-const accessState = vi.hoisted(() => ({ allowed: new Set<string>() }));
+const accessState = vi.hoisted(() => ({
+  allowed: new Set<string>(),
+  scope: 'contract' as 'self' | 'managed' | 'contract',
+  actorId: 'professor-user-a',
+}));
 
 vi.mock('../access/access-control', () => ({
   canAccessBlock: (_user: unknown, blockKey: string) => accessState.allowed.has(blockKey),
+  getDataScopeForScreen: () => accessState.scope,
 }));
 
 vi.mock('../stores/useAuthStore', () => ({
-  useAuthStore: (selector: (state: { user: object }) => unknown) => selector({ user: {} }),
+  useAuthStore: (selector: (state: { user: object }) => unknown) => selector({
+    user: { id: accessState.actorId, professor: { id: accessState.actorId, contract: { id: 'contract-1' } } },
+  }),
 }));
 
 vi.mock('../services/consolidated-prescription.service', () => ({
@@ -182,8 +189,8 @@ function renderSwitchablePage() {
   );
 }
 
-function renderPage() {
-  return render(
+function PrescriptionTestRoute() {
+  return (
     <MemoryRouter initialEntries={[{
       pathname: '/central-do-aluno/aluno-1/montagem-consolidada',
       state: { from: 'student-central' },
@@ -195,8 +202,14 @@ function renderPage() {
   );
 }
 
+function renderPage() {
+  return render(<PrescriptionTestRoute />);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  accessState.scope = 'contract';
+  accessState.actorId = 'professor-user-a';
   accessState.allowed = new Set([
     'plans.consolidatedPrescriptions.view',
     'plans.consolidatedPrescriptions.manage',
@@ -391,6 +404,90 @@ describe('ConsolidatedPrescription', () => {
     expect(screen.getByText(/salve a montagem e consulte sua versão atual/i)).toBeInTheDocument();
     expect(screen.queryByText('Cíclico v99')).not.toBeInTheDocument();
     expect(consolidatedPrescriptionService.getCombinedHistory).not.toHaveBeenCalled();
+  });
+
+
+  it('revalida o aluno e oculta todo o workspace quando plans muda de contract para self', async () => {
+    const user = userEvent.setup();
+    accessState.allowed = new Set([
+      'plans.consolidatedPrescriptions.view',
+      'students.details.preWorkoutCheckIn',
+      'students.details.postWorkoutFeedback',
+    ]);
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture());
+    vi.mocked(consolidatedPrescriptionService.getConflicts).mockResolvedValue({
+      ...conflictReport, combinedReview: combinedReviewFixture('assembly-version-3'),
+    });
+    vi.mocked(consolidatedPrescriptionService.getCombinedHistory).mockResolvedValue({
+      protocolVersion: 'combined-conflict-v1', state: 'no_active_rules', coverage: 'partial',
+      coverageReason: 'Sem horarios comprovados.', releasedSessionCount: 7,
+      observationCount: 12, sessionSignalCount: 3, evaluations: [], changesWorkoutAutomatically: false,
+    });
+
+    const view = renderPage();
+    await screen.findByText('Rascunho');
+    await user.click(screen.getByRole('button', { name: /4. Alertas e conflitos/ }));
+    await user.click(screen.getByRole('button', { name: /Consultar evid/ }));
+    expect(await screen.findByText(/7 sess/)).toBeInTheDocument();
+
+    // The server now denies this student for the downgraded scope (all grants remain).
+    accessState.scope = 'self';
+    vi.mocked(consolidatedPrescriptionService.getWorkspaceContext).mockRejectedValueOnce({
+      response: { status: 404, data: { error: 'Recurso nao encontrado' } },
+    });
+    view.rerender(<PrescriptionTestRoute />);
+    expect(screen.queryByText(/7 sess/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Maria Atleta')).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Montagem Consolidada indisponível' })).toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getWorkspaceContext).toHaveBeenCalledTimes(2);
+    expect(consolidatedPrescriptionService.getCombinedHistory).toHaveBeenCalledTimes(1);
+
+    // Re-grant still requires a fresh assembly access decision and explicit clinical click.
+    accessState.scope = 'contract';
+    view.rerender(<PrescriptionTestRoute />);
+    await screen.findByText('Rascunho');
+    expect(screen.queryByText(/7 sess/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /4. Alertas e conflitos/ }));
+    expect(consolidatedPrescriptionService.getCombinedHistory).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: /Consultar evid/ }));
+    expect(await screen.findByText(/7 sess/)).toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getCombinedHistory).toHaveBeenCalledTimes(2);
+  });
+
+  it('isola a montagem ao trocar de ator mantendo o aluno e as permissoes', async () => {
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture());
+    const view = renderPage();
+    await screen.findByText('Rascunho');
+
+    accessState.actorId = 'professor-user-b';
+    vi.mocked(consolidatedPrescriptionService.getWorkspaceContext).mockRejectedValueOnce({
+      response: { status: 404, data: { error: 'Recurso nao encontrado' } },
+    });
+    view.rerender(<PrescriptionTestRoute />);
+    expect(screen.queryByText('Maria Atleta')).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Montagem Consolidada indisponível' })).toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getWorkspaceContext).toHaveBeenCalledTimes(2);
+  });
+
+  it('nao aceita resposta atrasada do workspace apos revogacao de escopo', async () => {
+    let resolveOldWorkspace!: (value: ConsolidatedPrescriptionWorkspaceContext) => void;
+    const oldWorkspace = new Promise<ConsolidatedPrescriptionWorkspaceContext>((resolve) => {
+      resolveOldWorkspace = resolve;
+    });
+    vi.mocked(consolidatedPrescriptionService.getWorkspaceContext)
+      .mockImplementationOnce(() => oldWorkspace)
+      .mockRejectedValueOnce({ response: { status: 404, data: { error: 'Recurso nao encontrado' } } });
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture());
+
+    const view = renderPage();
+    await waitFor(() => expect(consolidatedPrescriptionService.getWorkspaceContext).toHaveBeenCalledTimes(1));
+    accessState.scope = 'self';
+    view.rerender(<PrescriptionTestRoute />);
+    expect(await screen.findByRole('heading', { name: 'Montagem Consolidada indispon\u00edvel' })).toBeInTheDocument();
+
+    await act(async () => { resolveOldWorkspace(workspace); });
+    expect(screen.queryByText('Maria Atleta')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Montagem Consolidada indispon\u00edvel' })).toBeInTheDocument();
   });
 
   it('preserva o aluno selecionado no retorno quando o carregamento falha', async () => {

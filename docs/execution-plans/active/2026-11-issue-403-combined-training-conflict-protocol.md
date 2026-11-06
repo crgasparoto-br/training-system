@@ -62,3 +62,13 @@ Branch: `feat/403-combined-review-integration` a partir da `develop` após merge
 
 A composição em revisão nunca é tratada como "sem risco" só porque as regras
 combinadas permanecem inativas. Sem merge automático.
+
+## Correção de segurança da auditoria da PR #538 (A-002)
+
+- [x] Vincular cache clínico à identidade do ator, contrato, `dataScope` e grants.
+- [x] Invalidar respostas antigas, ocultar montagem na troca de autorização e revalidar pelo backend.
+- [x] Cobrir downgrade `contract` -> `self` com permissões clínicas preservadas,
+  troca de ator, resposta tardia e restauração sem reuso do histórico.
+- [ ] CI do HEAD corretivo e auditoria independente formal em contexto separado.
+
+O escopo não inclui ativação de regras clínicas nem merge da PR.

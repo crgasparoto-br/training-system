@@ -148,6 +148,16 @@ nem homologam sessões futuras da composição em revisão. O painel exibe conta
 versões e estados fornecidos pela API, sem pontuar risco, interpretar texto
 livre ou copiar feedback clínico para a mensagem do aluno. Consultas com erro
 descartam resultado anterior, e troca de aluno/versão revoga a prévia em memória. O Workspace associa cada resposta ao `alunoId` e ao `assemblyVersionId` persistido; uma versão numérica igual não autoriza reaproveitar a revisão de outra montagem. Respostas assíncronas atrasadas de uma navegação ou revisão anterior são descartadas antes de atualizar o estado da tela.
+Na atualização de perfil autenticado durante a mesma sessão (incluindo retorno de foco),
+o workspace vincula todas as respostas ao ator, contrato, escopo efetivo de `plans`
+e concessões. Ao mudar essa identidade de autorização, oculta de imediato
+a montagem e o histórico clínico anteriormente carregados, descarta respostas
+assíncronas antigas e exige nova consulta protegida de workspace/montagem
+antes de renderizar o aluno. Redução `contract` -> `self` sem perda das
+permissões clínicas também invalida o resultado. Se a API negar `401/403/404`,
+o conteúdo anterior não reaparece. Uma reautorização não reutiliza o
+histórico: exige novo clique e nova validação na API.
+
 As mensagens de "nenhum bloqueador" do motor de composição permanecem restritas
 aos conflitos estruturados desse motor, não aos conflitos clínicos combinados.
 

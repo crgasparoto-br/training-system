@@ -143,3 +143,10 @@ blocos, além de `plans.consolidatedPrescriptions.view`, ator professor,
 `contractId` e escopo autorizado. O frontend não transfere
 resultado histórico para o endpoint de Montagem nem para o aluno; ausência de
 concessão não é preenchida com dados de origem alternativa.
+
+O histórico combinado em memória é associado à identidade de usuário/professor,
+contrato, `dataScope` de `plans` e concessões atuais. O refresh de permissões
+não precisa desmontar a rota: a tela invalida imediatamente a apresentação
+anterior e revalida o escopo contra as rotas protegidas de montagem/workspace.
+Uma resposta antiga ou perda de acesso `self` não pode restaurar dados clínicos;
+a consulta histórica exige nova ação explícita depois da revalidação.

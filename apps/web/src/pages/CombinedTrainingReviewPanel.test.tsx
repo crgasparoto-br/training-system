@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { ConsolidatedCombinedReviewSnapshot } from '@corrida/types';
@@ -34,14 +34,14 @@ describe('combined review history subject binding', () => {
     vi.mocked(consolidatedPrescriptionService.getCombinedHistory).mockResolvedValue(history);
     const view = render(<CombinedTrainingReviewPanel
       alunoId="aluno-a" contractId="tenant-a" currentVersion={1} summary={summary(1)}
-      canReadSensitive dirty={false}
+      canReadSensitive authorizationKey="professor-a:contract" dirty={false}
     />);
     await user.click(screen.getByRole('button', { name: 'Consultar evidências históricas' }));
     expect(await screen.findByText(/7 sessões liberadas/)).toBeInTheDocument();
 
     view.rerender(<CombinedTrainingReviewPanel
       alunoId="aluno-b" contractId="tenant-a" currentVersion={1} summary={summary(1)}
-      canReadSensitive dirty={false}
+      canReadSensitive authorizationKey="professor-a:contract" dirty={false}
     />);
     expect(screen.queryByText(/7 sessões liberadas/)).not.toBeInTheDocument();
     expect(consolidatedPrescriptionService.getCombinedHistory).toHaveBeenCalledTimes(1);
@@ -52,20 +52,20 @@ describe('combined review history subject binding', () => {
     vi.mocked(consolidatedPrescriptionService.getCombinedHistory).mockResolvedValue(history);
     const view = render(<CombinedTrainingReviewPanel
       alunoId="aluno-a" contractId="tenant-a" currentVersion={1} summary={summary(1)}
-      canReadSensitive dirty={false}
+      canReadSensitive authorizationKey="professor-a:contract" dirty={false}
     />);
     await user.click(screen.getByRole('button', { name: 'Consultar evidências históricas' }));
     expect(await screen.findByText(/7 sessões liberadas/)).toBeInTheDocument();
     view.rerender(<CombinedTrainingReviewPanel
       alunoId="aluno-a" contractId="tenant-b" currentVersion={1} summary={summary(1)}
-      canReadSensitive dirty={false}
+      canReadSensitive authorizationKey="professor-a:contract" dirty={false}
     />);
     expect(screen.queryByText(/7 sessões liberadas/)).not.toBeInTheDocument();
     // The same civil version number does not identify the same persisted release.
     view.rerender(<CombinedTrainingReviewPanel
       alunoId="aluno-a" contractId="tenant-a" currentVersion={1}
       summary={{ ...summary(1), assemblyVersionId: 'different-assembly-version' }}
-      canReadSensitive dirty={false}
+      canReadSensitive authorizationKey="professor-a:contract" dirty={false}
     />);
     expect(screen.queryByText(/7 sessões liberadas/)).not.toBeInTheDocument();
   });
@@ -90,7 +90,7 @@ describe('combined review history subject binding', () => {
     });
     render(<CombinedTrainingReviewPanel
       alunoId="aluno-a" contractId="tenant-a" currentVersion={1} summary={summary(1)}
-      canReadSensitive dirty={false}
+      canReadSensitive authorizationKey="professor-a:contract" dirty={false}
     />);
     await user.click(screen.getByRole('button', { name: 'Consultar evidências históricas' }));
     expect(await screen.findByText(/HYPOTHETICAL-ONLY vfixture-1/)).toBeInTheDocument();
@@ -104,19 +104,78 @@ describe('combined review history subject binding', () => {
     vi.mocked(consolidatedPrescriptionService.getCombinedHistory).mockResolvedValue(history);
     const view = render(<CombinedTrainingReviewPanel
       alunoId="aluno-a" contractId="tenant-a" currentVersion={1} summary={summary(1)}
-      canReadSensitive dirty={false}
+      canReadSensitive authorizationKey="professor-a:contract" dirty={false}
     />);
     await user.click(screen.getByRole('button', { name: 'Consultar evidências históricas' }));
     expect(await screen.findByText(/7 sessões liberadas/)).toBeInTheDocument();
     view.rerender(<CombinedTrainingReviewPanel
       alunoId="aluno-a" contractId="tenant-a" currentVersion={2} summary={summary(2)}
-      canReadSensitive dirty={false}
+      canReadSensitive authorizationKey="professor-a:contract" dirty={false}
     />);
     expect(screen.queryByText(/7 sessões liberadas/)).not.toBeInTheDocument();
     view.rerender(<CombinedTrainingReviewPanel
       alunoId="aluno-a" contractId="tenant-a" currentVersion={2} summary={summary(2)}
-      canReadSensitive={false} dirty={false}
+      canReadSensitive={false} authorizationKey="professor-a:contract" dirty={false}
     />);
     expect(screen.queryByRole('button', { name: 'Consultar evidências históricas' })).not.toBeInTheDocument();
+  });
+
+  it('invalida evidencia na reducao de dataScope, mesmo com concessoes clinicas mantidas', async () => {
+    const user = userEvent.setup();
+    vi.mocked(consolidatedPrescriptionService.getCombinedHistory).mockResolvedValue(history);
+    const view = render(<CombinedTrainingReviewPanel
+      alunoId="aluno-a" contractId="tenant-a" currentVersion={1} summary={summary(1)}
+      canReadSensitive authorizationKey="professor-a:contract" dirty={false}
+    />);
+    await user.click(screen.getByRole('button', { name: /Consultar evid/ }));
+    expect(await screen.findByText(/7 sess/)).toBeInTheDocument();
+
+    view.rerender(<CombinedTrainingReviewPanel
+      alunoId="aluno-a" contractId="tenant-a" currentVersion={1} summary={summary(1)}
+      canReadSensitive authorizationKey="professor-a:self" dirty={false}
+    />);
+    expect(screen.queryByText(/7 sess/)).not.toBeInTheDocument();
+
+    // Returning to the original scope never resurrects data from the old epoch.
+    view.rerender(<CombinedTrainingReviewPanel
+      alunoId="aluno-a" contractId="tenant-a" currentVersion={1} summary={summary(1)}
+      canReadSensitive authorizationKey="professor-a:contract" dirty={false}
+    />);
+    expect(screen.queryByText(/7 sess/)).not.toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getCombinedHistory).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: /Consultar evid/ }));
+    expect(await screen.findByText(/7 sess/)).toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getCombinedHistory).toHaveBeenCalledTimes(2);
+  });
+
+  it('descarta resposta pendente do ator anterior, mesmo com o mesmo aluno, contrato e grants', async () => {
+    const user = userEvent.setup();
+    let resolvePrevious!: (value: typeof history) => void;
+    vi.mocked(consolidatedPrescriptionService.getCombinedHistory).mockImplementationOnce(
+      () => new Promise<typeof history>((resolve) => { resolvePrevious = resolve; })
+    );
+    const view = render(<CombinedTrainingReviewPanel
+      alunoId="aluno-a" contractId="tenant-a" currentVersion={1} summary={summary(1)}
+      canReadSensitive authorizationKey="professor-a:contract" dirty={false}
+    />);
+    await user.click(screen.getByRole('button', { name: /Consultar evid/ }));
+    expect(consolidatedPrescriptionService.getCombinedHistory).toHaveBeenCalledTimes(1);
+
+    view.rerender(<CombinedTrainingReviewPanel
+      alunoId="aluno-a" contractId="tenant-a" currentVersion={1} summary={summary(1)}
+      canReadSensitive authorizationKey="professor-b:contract" dirty={false}
+    />);
+    await act(async () => { resolvePrevious(history); });
+    expect(screen.queryByText(/7 sess/)).not.toBeInTheDocument();
+
+    view.rerender(<CombinedTrainingReviewPanel
+      alunoId="aluno-a" contractId="tenant-a" currentVersion={1} summary={summary(1)}
+      canReadSensitive authorizationKey="professor-a:contract" dirty={false}
+    />);
+    expect(screen.queryByText(/7 sess/)).not.toBeInTheDocument();
+    vi.mocked(consolidatedPrescriptionService.getCombinedHistory).mockResolvedValueOnce(history);
+    await user.click(screen.getByRole('button', { name: /Consultar evid/ }));
+    expect(await screen.findByText(/7 sess/)).toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getCombinedHistory).toHaveBeenCalledTimes(2);
   });
 });

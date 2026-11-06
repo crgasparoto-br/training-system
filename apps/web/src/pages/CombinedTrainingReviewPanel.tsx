@@ -27,40 +27,45 @@ type Props = {
   currentVersion: number | null;
   summary: ConsolidatedCombinedReviewSnapshot | null;
   canReadSensitive: boolean;
+  authorizationKey: string;
   dirty: boolean;
 };
 
 export function CombinedTrainingReviewPanel({
-  alunoId, contractId, currentVersion, summary, canReadSensitive, dirty,
+  alunoId, contractId, currentVersion, summary, canReadSensitive, authorizationKey, dirty,
 }: Props) {
   const [historyResponse, setHistoryResponse] = useState<{
     alunoId: string;
     contractId: string | null;
     assemblyVersion: number;
     assemblyVersionId: string;
+    authorizationKey: string;
     report: ConsolidatedCombinedHistoryPreview;
   } | null>(null);
   const [historyError, setHistoryError] = useState(false);
   const [loading, setLoading] = useState(false);
   const generation = useRef(0);
+  const activeAuthorizationKey = useRef(authorizationKey);
+  activeAuthorizationKey.current = authorizationKey;
   const currentSummary = summary?.assemblyVersion === currentVersion ? summary : null;
   const history = historyResponse?.alunoId === alunoId &&
     historyResponse.contractId === contractId &&
     historyResponse.assemblyVersion === currentVersion &&
-    historyResponse.assemblyVersionId === currentSummary?.assemblyVersionId && canReadSensitive
+    historyResponse.assemblyVersionId === currentSummary?.assemblyVersionId &&
+    historyResponse.authorizationKey === authorizationKey && canReadSensitive
     ? historyResponse.report : null;
 
-  // A student switch, permission loss or version change invalidates prior evidence.
+  // Any change of actor, permissions, scope or subject invalidates historical evidence.
   useEffect(() => {
     generation.current += 1;
     setHistoryResponse(null);
     setHistoryError(false);
     setLoading(false);
     return () => { generation.current += 1; };
-  }, [alunoId, contractId, currentVersion, currentSummary?.assemblyVersionId, canReadSensitive]);
+  }, [alunoId, contractId, currentVersion, currentSummary?.assemblyVersionId, canReadSensitive, authorizationKey]);
 
   const loadHistory = async () => {
-    if (!canReadSensitive || !currentSummary || dirty || loading) return;
+    if (!canReadSensitive || !authorizationKey || !currentSummary || dirty || loading) return;
     const requestId = ++generation.current;
     setHistoryResponse(null);
     setHistoryError(false);
@@ -71,16 +76,16 @@ export function CombinedTrainingReviewPanel({
       const next = await consolidatedPrescriptionService.getCombinedHistory(
         alunoId, start.toISOString(), end.toISOString()
       );
-      if (requestId === generation.current) {
+      if (requestId === generation.current && activeAuthorizationKey.current === authorizationKey) {
         setHistoryResponse({
           alunoId, contractId, assemblyVersion: currentSummary.assemblyVersion,
-          assemblyVersionId: currentSummary.assemblyVersionId, report: next,
+          assemblyVersionId: currentSummary.assemblyVersionId, authorizationKey, report: next,
         });
       }
     } catch {
-      if (requestId === generation.current) setHistoryError(true);
+      if (requestId === generation.current && activeAuthorizationKey.current === authorizationKey) setHistoryError(true);
     } finally {
-      if (requestId === generation.current) setLoading(false);
+      if (requestId === generation.current && activeAuthorizationKey.current === authorizationKey) setLoading(false);
     }
   };
 
