@@ -147,7 +147,7 @@ As evidências históricas são de **sessões já liberadas**; não representam
 nem homologam sessões futuras da composição em revisão. O painel exibe contagens,
 versões e estados fornecidos pela API, sem pontuar risco, interpretar texto
 livre ou copiar feedback clínico para a mensagem do aluno. Consultas com erro
-descartam resultado anterior, e troca de aluno/versão revoga a prévia em memória.
+descartam resultado anterior, e troca de aluno/versão revoga a prévia em memória. O Workspace associa cada resposta ao `alunoId` e ao `assemblyVersionId` persistido; uma versão numérica igual não autoriza reaproveitar a revisão de outra montagem. Respostas assíncronas atrasadas de uma navegação ou revisão anterior são descartadas antes de atualizar o estado da tela.
 As mensagens de "nenhum bloqueador" do motor de composição permanecem restritas
 aos conflitos estruturados desse motor, não aos conflitos clínicos combinados.
 

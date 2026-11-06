@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import {
   AlertCircle,
@@ -190,8 +190,21 @@ export function ConsolidatedPrescription() {
 
   const [workspace, setWorkspace] = useState<ConsolidatedPrescriptionWorkspaceContext | null>(null);
   const [assembly, setAssembly] = useState<ConsolidatedPrescriptionAssembly | null>(null);
-  const [conflictReport, setConflictReport] = useState<ConsolidatedPrescriptionConflictReport | null>(null);
-  const [history, setHistory] = useState<ConsolidatedPrescriptionHistory | null>(null);
+  // Bind every asynchronous server response to the actual persisted subject.
+  const [conflictReportState, setConflictReportState] = useState<{
+    alunoId: string;
+    assemblyVersionId: string;
+    report: ConsolidatedPrescriptionConflictReport | null;
+  } | null>(null);
+  const [historyState, setHistoryState] = useState<{
+    alunoId: string;
+    assemblyVersionId: string;
+    value: ConsolidatedPrescriptionHistory | null;
+  } | null>(null);
+  const activeAlunoId = useRef(alunoId);
+  activeAlunoId.current = alunoId;
+  const loadRequestId = useRef(0);
+  const relatedRequestId = useRef(0);
   const [selectedCapacityVersionIds, setSelectedCapacityVersionIds] = useState<string[]>([]);
   const [technicalObservation, setTechnicalObservation] = useState('');
   const [professorJustification, setProfessorJustification] = useState('');
@@ -206,6 +219,17 @@ export function ConsolidatedPrescription() {
 
   const currentVersion = assembly?.latestVersion ?? null;
   const currentStatus = currentVersion?.status ?? null;
+  const conflictReport = currentVersion && assembly?.alunoId === alunoId &&
+    conflictReportState?.alunoId === alunoId &&
+    conflictReportState.assemblyVersionId === currentVersion.id &&
+    conflictReportState.report?.version === currentVersion.version &&
+    (!conflictReportState.report.combinedReview ||
+      (conflictReportState.report.combinedReview.assemblyVersionId === currentVersion.id &&
+        conflictReportState.report.combinedReview.assemblyVersion === currentVersion.version))
+    ? conflictReportState.report : null;
+  const history = currentVersion && assembly?.alunoId === alunoId &&
+    historyState?.alunoId === alunoId && historyState.assemblyVersionId === currentVersion.id
+    ? historyState.value : null;
   const candidates = workspace?.capacityCandidates ?? [];
   const originLabel = (location.state as RouteState | null)?.from === 'student-central'
     ? 'Central do Aluno'
@@ -271,47 +295,81 @@ export function ConsolidatedPrescription() {
     setDirty(false);
   };
 
-  const refreshRelatedData = async (studentId: string) => {
+  const refreshRelatedData = async (
+    studentId: string, expectedAssembly: ConsolidatedPrescriptionAssembly
+  ) => {
+    const requestId = ++relatedRequestId.current;
     const [conflictResult, historyResult] = await Promise.allSettled([
       consolidatedPrescriptionService.getConflicts(studentId),
       consolidatedPrescriptionService.getHistory(studentId),
     ]);
-    setConflictReport(conflictResult.status === 'fulfilled' ? conflictResult.value : null);
-    setHistory(historyResult.status === 'fulfilled' ? historyResult.value : null);
+    if (requestId !== relatedRequestId.current || activeAlunoId.current !== studentId) return;
+
+    const report = conflictResult.status === 'fulfilled' ? conflictResult.value : null;
+    // A matching version number alone is not a matching persisted assembly.
+    const matchingReport = report?.version === expectedAssembly.currentVersion &&
+      (!report.combinedReview ||
+        (report.combinedReview.assemblyVersionId === expectedAssembly.latestVersion.id &&
+          report.combinedReview.assemblyVersion === expectedAssembly.currentVersion))
+      ? report : null;
+    setConflictReportState({
+      alunoId: studentId, assemblyVersionId: expectedAssembly.latestVersion.id, report: matchingReport,
+    });
+    setHistoryState({
+      alunoId: studentId, assemblyVersionId: expectedAssembly.latestVersion.id,
+      value: historyResult.status === 'fulfilled' ? historyResult.value : null,
+    });
   };
 
   const loadWorkspace = async (replaceLocalEdits = true) => {
     if (!alunoId) return;
+    const studentId = alunoId;
+    const requestId = ++loadRequestId.current;
+    ++relatedRequestId.current;
+    setConflictReportState(null);
+    setHistoryState(null);
     setLoading(true);
     setLoadError(null);
     setMutationError(null);
     setSuccessMessage(null);
+    const isCurrentRequest = () =>
+      requestId === loadRequestId.current && activeAlunoId.current === studentId;
     try {
       const [nextWorkspace, current] = await Promise.all([
-        consolidatedPrescriptionService.getWorkspaceContext(alunoId),
-        consolidatedPrescriptionService.getCurrent(alunoId),
+        consolidatedPrescriptionService.getWorkspaceContext(studentId),
+        consolidatedPrescriptionService.getCurrent(studentId),
       ]);
+      if (!isCurrentRequest()) return;
+      if (nextWorkspace.aluno.id !== studentId || (current &&
+        (current.alunoId !== studentId || current.latestVersion.alunoId !== studentId))) {
+        throw new Error('A resposta da montagem não corresponde ao aluno solicitado.');
+      }
       setWorkspace(nextWorkspace);
       setAssembly(current);
       if (replaceLocalEdits) hydrateForm(current, nextWorkspace);
-      if (current) await refreshRelatedData(alunoId);
+      if (current) await refreshRelatedData(studentId, current);
       else {
-        setConflictReport(null);
-        setHistory(null);
+        setConflictReportState(null);
+        setHistoryState(null);
       }
-      setConcurrencyConflict(null);
+      if (isCurrentRequest()) setConcurrencyConflict(null);
     } catch (error) {
+      if (!isCurrentRequest()) return;
       const status = (error as ApiErrorLike).response?.status;
       setLoadError(status === 403 || status === 404
         ? 'Este aluno ou esta montagem não está disponível para o seu escopo de planejamento atual.'
         : getErrorMessage(error, 'Não foi possível carregar a Montagem Consolidada.'));
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   };
 
   useEffect(() => {
     void loadWorkspace(true);
+    return () => {
+      loadRequestId.current += 1;
+      relatedRequestId.current += 1;
+    };
   }, [alunoId]);
 
   const markDirty = () => {
@@ -341,18 +399,21 @@ export function ConsolidatedPrescription() {
   };
 
   const applyServerAssembly = async (nextAssembly: ConsolidatedPrescriptionAssembly, message: string) => {
+    if (!alunoId || activeAlunoId.current !== alunoId || nextAssembly.alunoId !== alunoId) return;
+    ++relatedRequestId.current;
+    setConflictReportState(null);
+    setHistoryState(null);
     setAssembly(nextAssembly);
     hydrateForm(nextAssembly, workspace);
     setConcurrencyConflict(null);
     setMutationError(null);
     setSuccessMessage(message);
-    if (alunoId) {
-      const [workspaceResult] = await Promise.allSettled([
-        consolidatedPrescriptionService.getWorkspaceContext(alunoId),
-        refreshRelatedData(alunoId),
-      ]);
-      if (workspaceResult.status === 'fulfilled') setWorkspace(workspaceResult.value);
-    }
+    const [workspaceResult] = await Promise.allSettled([
+      consolidatedPrescriptionService.getWorkspaceContext(alunoId),
+      refreshRelatedData(alunoId, nextAssembly),
+    ]);
+    if (activeAlunoId.current === alunoId && workspaceResult.status === 'fulfilled' &&
+      workspaceResult.value.aluno.id === alunoId) setWorkspace(workspaceResult.value);
   };
 
   const handleMutationFailure = (error: unknown, fallback: string) => {
@@ -436,7 +497,6 @@ export function ConsolidatedPrescription() {
     setMutationAction('recalculate'); setMutationError(null); setSuccessMessage(null);
     try {
       const result = await consolidatedPrescriptionService.recalculateConflicts(alunoId, { expectedCurrentVersion: assembly.currentVersion });
-      setConflictReport(result.report);
       await applyServerAssembly(result.assembly, 'Conflitos reavaliados pelo servidor.');
     } catch (error) { handleMutationFailure(error, 'Não foi possível reavaliar os conflitos.'); }
     finally { setMutationAction(null); }
@@ -474,7 +534,7 @@ export function ConsolidatedPrescription() {
     if (shouldReplace) await loadWorkspace(true);
   };
 
-  if (loading) {
+  if (loading || (!loadError && workspace?.aluno.id !== alunoId)) {
     return <div className="py-16 text-center" role="status" aria-live="polite"><div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-primary border-t-transparent" /><p className="mt-4 text-sm text-muted-foreground">Carregando Montagem Consolidada...</p></div>;
   }
 

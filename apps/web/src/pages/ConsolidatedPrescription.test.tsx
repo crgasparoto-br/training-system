@@ -1,9 +1,10 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   ConsolidatedPrescriptionAssembly,
+  ConsolidatedCombinedReviewSnapshot,
   ConsolidatedPrescriptionCapacityCandidate,
   ConsolidatedPrescriptionConflictReport,
   ConsolidatedPrescriptionWorkspaceContext,
@@ -140,6 +141,46 @@ const conflictReport: ConsolidatedPrescriptionConflictReport = {
   canUnblock: false,
   unavailableChecks: [],
 };
+
+function combinedReviewFixture(
+  assemblyVersionId: string, capacityVersion = 2
+): ConsolidatedCombinedReviewSnapshot {
+  return {
+    protocolVersion: 'combined-conflict-v1',
+    assemblyVersionId,
+    assemblyVersion: 3,
+    source: 'persisted_assembly',
+    state: 'no_active_rules',
+    coverage: 'partial',
+    activeRuleCount: 0,
+    capacitySources: [{
+      capacity: 'cyclic', capacityPrescriptionVersionId: 'cyclic-version-' + assemblyVersionId,
+      capacityVersion,
+    }],
+    mayConcludeNoConflict: false,
+    changesWorkoutAutomatically: false,
+  };
+}
+
+function StudentSwitchButton() {
+  const navigate = useNavigate();
+  return (
+    <button type="button" onClick={() => navigate('/central-do-aluno/aluno-2/montagem-consolidada')}>
+      Abrir outro aluno
+    </button>
+  );
+}
+
+function renderSwitchablePage() {
+  return render(
+    <MemoryRouter initialEntries={['/central-do-aluno/aluno-1/montagem-consolidada']}>
+      <StudentSwitchButton />
+      <Routes>
+        <Route path="/central-do-aluno/:alunoId/montagem-consolidada" element={<ConsolidatedPrescription />} />
+      </Routes>
+    </MemoryRouter>
+  );
+}
 
 function renderPage() {
   return render(
@@ -289,6 +330,67 @@ describe('ConsolidatedPrescription', () => {
     await user.click(screen.getByRole('button', { name: 'Atualizar evidências históricas' }));
     expect(await screen.findByText(/não foi possível consultar as evidências históricas/i)).toBeInTheDocument();
     expect(screen.queryByText('Sem regras combinadas ativas — avaliação histórica não realizada')).not.toBeInTheDocument();
+  });
+
+  it('descarta resposta atrasada de outro aluno mesmo com o mesmo número de versão', async () => {
+    const user = userEvent.setup();
+    const otherWorkspace: ConsolidatedPrescriptionWorkspaceContext = {
+      ...workspace, aluno: { id: 'aluno-2', name: 'Aluno B' },
+    };
+    const original = assemblyFixture();
+    const otherAssembly: ConsolidatedPrescriptionAssembly = {
+      ...original,
+      id: 'assembly-b', alunoId: 'aluno-2',
+      latestVersion: {
+        ...original.latestVersion,
+        id: 'assembly-version-b', assemblyId: 'assembly-b', alunoId: 'aluno-2',
+      },
+    };
+    let resolveOldReport!: (value: ConsolidatedPrescriptionConflictReport | null) => void;
+    const oldReport = new Promise<ConsolidatedPrescriptionConflictReport | null>((resolve) => {
+      resolveOldReport = resolve;
+    });
+    vi.mocked(consolidatedPrescriptionService.getWorkspaceContext).mockImplementation(async (id) =>
+      id === 'aluno-2' ? otherWorkspace : workspace
+    );
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockImplementation(async (id) =>
+      id === 'aluno-2' ? otherAssembly : original
+    );
+    vi.mocked(consolidatedPrescriptionService.getConflicts).mockImplementation((id) =>
+      id === 'aluno-2'
+        ? Promise.resolve({ ...conflictReport, combinedReview: combinedReviewFixture('assembly-version-b', 7) })
+        : oldReport
+    );
+
+    renderSwitchablePage();
+    await waitFor(() => expect(consolidatedPrescriptionService.getConflicts).toHaveBeenCalledWith('aluno-1'));
+    await user.click(screen.getByRole('button', { name: 'Abrir outro aluno' }));
+    await screen.findByText('Aluno B');
+    await user.click(screen.getByRole('button', { name: '4. Alertas e conflitos' }));
+    expect(await screen.findByText('Cíclico v7')).toBeInTheDocument();
+
+    await act(async () => {
+      resolveOldReport({ ...conflictReport, combinedReview: combinedReviewFixture('assembly-version-3', 99) });
+    });
+    expect(screen.getByText('Aluno B')).toBeInTheDocument();
+    expect(screen.getByText('Cíclico v7')).toBeInTheDocument();
+    expect(screen.queryByText('Cíclico v99')).not.toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getCombinedHistory).not.toHaveBeenCalled();
+  });
+
+  it('rejeita pré-revisão de outra montagem mesmo com versão numérica igual', async () => {
+    const user = userEvent.setup();
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture());
+    vi.mocked(consolidatedPrescriptionService.getConflicts).mockResolvedValue({
+      ...conflictReport,
+      combinedReview: combinedReviewFixture('assembly-version-foreign', 99),
+    });
+    renderPage();
+    await screen.findByText('Rascunho');
+    await user.click(screen.getByRole('button', { name: '4. Alertas e conflitos' }));
+    expect(screen.getByText(/salve a montagem e consulte sua versão atual/i)).toBeInTheDocument();
+    expect(screen.queryByText('Cíclico v99')).not.toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getCombinedHistory).not.toHaveBeenCalled();
   });
 
   it('preserva o aluno selecionado no retorno quando o carregamento falha', async () => {
