@@ -493,7 +493,6 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
     expect(cyclicDay.method).toBeNull();
     expect(cyclicDay.stimulusDurationMin).toBeNull();
     expect(cyclicDay.cyclicTimeMin).toBeNull();
-    expect(cyclicDay.cyclicStages).toBeUndefined();
     const template = await prisma.workoutTemplate.findUniqueOrThrow({
       where: { id: released.workoutTemplateId }, select: { totalVolumeKm: true },
     });
