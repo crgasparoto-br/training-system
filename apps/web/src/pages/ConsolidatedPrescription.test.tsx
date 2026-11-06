@@ -21,6 +21,7 @@ const accessState = vi.hoisted(() => ({
 
 vi.mock('../access/access-control', () => ({
   canAccessBlock: (_user: unknown, blockKey: string) => accessState.allowed.has(blockKey),
+  canAccessScreen: (_user: unknown, screenKey: string) => accessState.allowed.has(screenKey),
   getDataScopeForScreen: () => accessState.scope,
 }));
 
@@ -36,6 +37,8 @@ vi.mock('../services/consolidated-prescription.service', () => ({
     getCurrent: vi.fn(),
     getConflicts: vi.fn(),
     getCombinedHistory: vi.fn(),
+    getFutureBookingCandidates: vi.fn(),
+    previewFutureTemporal: vi.fn(),
     getHistory: vi.fn(),
     createDraft: vi.fn(),
     updateComposition: vi.fn(),

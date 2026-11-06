@@ -115,3 +115,73 @@ impedimentos críticos estruturados já existentes; a prévia combinada
 A homologação profissional #534, a avaliação temporal de prescrições futuras
 e a futura ativação controlada são etapas distintas. O merge desta etapa não
 conclui a #403.
+
+
+## Etapa 4 — evidência temporal futura vinculada à Agenda (#403)
+
+A Agenda mantém `AgendaBooking.bookingDate` como timestamp legado dependente
+do fuso do servidor para disponibilidade, mas novos agendamentos também gravam
+`bookingCivilDate` como `DATE` originado do campo `YYYY-MM-DD` recebido.
+`startTime/endTime` continuam horários locais e `updatedAt` versiona a fonte;
+não há fuso autoritativo do contrato nem uma relação
+automática entre agendamento e prescrição. Por isso **não é correto**
+deduzir um horário UTC de `WorkoutDay.workoutDate`, nem atribuir qualquer
+agendamento de mesmo dia a uma capacidade sem vínculo explícito.
+
+O professor com `plans.consolidatedPrescriptions.view` + acesso à tela
+`agenda` pode consultar um horizonte futuro de até 31 dias e
+selecionar quais agendamentos correspondem a cada
+`ConsolidatedPrescriptionCapacityBlock` da **versão corrente**.
+A prévia exige: identidade do aluno e do contrato derivadas da autenticação,
+versão exata da montagem, capacidade ativa/current canônica, ID do agendamento,
+`AgendaBooking.updatedAt` esperado (controle de concorrência),
+status `scheduled` e fuso IANA explicitamente confirmado pelo professor.
+Nada disso é inferido de nomes, notas livres, disponibilidade geral ou mero
+dia da semana.
+
+A conversão de data+hora local para UTC enumera todos os instantes com
+offset IANA compatível. Se o horário não existir por mudança de relógio ou
+ocorrer duas vezes, ele é marcado `unverified`, **sem hora fictícia**.
+Reservas antigas sem `bookingCivilDate`, mesmo que o timestamp legado pareça
+meia-noite, permanecem `unverified/invalid_source_date`: o fuso da criação não
+está comprovado. A lista de candidatos mostra data civil ausente como não
+comprovada (`bookingDate=null`) em vez de apresentar o dia UTC possivelmente
+errado. Horários inválidos também não produzem observações. A prévia compara o fim de um agendamento comprovado
+com o início do próximo (horas cronológicas, inclusive sobreposição), sem
+classificar a distância como alerta médico ou impedimento.
+
+A API retorna `coverage=partial`,
+`mayConcludeNoConflict=false`, estado clínico
+`no_active_rules` enquanto #534 estiver aberta e
+`temporalEvidenceStatus` independente, com os IDs, versões e
+horas UTC apenas dos agendamentos explicitamente associados. Capacidades sem
+horário são destacadas. Um vínculo cancelado, de outro contrato/aluno, com
+versão incorreta ou prescrição defasada falha fechado (400/404/409). Nova
+consulta revalida as fontes; **não há cache confiável, persistência do vínculo,
+efeito no fluxo de liberação #320 ou mutação de treino**.
+
+Limitação deliberada: o fuso informado pelo professor é uma **hipótese
+explícita de prévia**, não configuração autoritativa do contrato, e não se
+comprova completude da agenda ou da semana. A avaliação transacional de
+horários de sessões **no ato definitivo da liberação**, um cadastro
+canônico de fuso e a persistência versionada dos vínculos serão necessários
+antes de qualquer regra temporal clínica bloqueante. Nenhuma janela 24/48h
+ou limiar novo foi ativado.
+
+### Remediação A-539-001/A-539-002 — duração de revisão e fonte civil autoritativa
+
+O intervalo do GET é somente o recorte de seleção. A ação POST renova
+`windowStart/windowEnd` em relação ao instante corrente, sem alterar os IDs ou
+`updatedAt` previamente selecionados: o servidor revalida a janela, a versão da
+montagem, o status e a fonte de cada agendamento. Uma espera acima de cinco
+minutos não provoca falha artificial nem apaga vínculos; falhas transitórias
+preservam a seleção para nova tentativa. Negação de acesso, ausência do aluno
+ou conflito de versão (403/404/409) exigem nova consulta e descartam vínculos
+antigos. Sessões realmente passadas continuam rejeitadas.
+
+`bookingCivilDate DATE NULL` preserva o `YYYY-MM-DD` informado no fluxo de
+criação real da Agenda sem depender de `TZ` do servidor; o timestamp legado
+`bookingDate` permanece para as regras existentes de agenda. O campo ausente
+não é completado com o fuso informado na prévia: não existe proveniência
+retroativa segura. Testes cobrem a escrita/consulta/preview em UTC, São Paulo e
+fuso positivo, o legado sem origem e a seleção demorada.

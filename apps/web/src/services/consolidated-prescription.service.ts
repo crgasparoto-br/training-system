@@ -2,6 +2,9 @@ import type {
   CapacityPrescriptionView,
   ConsolidatedPrescriptionAssembly,
   ConsolidatedPrescriptionConflictReport,
+  FutureTemporalBookingCandidate,
+  FutureTemporalPreview,
+  FutureTemporalPreviewCommand,
   ConsolidatedCombinedHistoryPreview,
   ConsolidatedPrescriptionHistory,
   ConsolidatedPrescriptionVersionCommand,
@@ -81,6 +84,27 @@ export const consolidatedPrescriptionService = {
     const search = new URLSearchParams({ start, end });
     const response = await api.get<ApiEnvelope<ConsolidatedCombinedHistoryPreview>>(
       '/consolidated-prescriptions/alunos/' + alunoId + '/combined-conflicts?' + search.toString()
+    );
+    return response.data.data;
+  },
+
+  /** Future booking association is explicit, versioned and read-only. */
+  async getFutureBookingCandidates(
+    alunoId: string, start: string, end: string
+  ): Promise<FutureTemporalBookingCandidate[]> {
+    const search = new URLSearchParams({ start, end });
+    const response = await api.get<ApiEnvelope<FutureTemporalBookingCandidate[]>>(
+      '/consolidated-prescriptions/alunos/' + alunoId + '/combined-future-bookings?' + search.toString()
+    );
+    return response.data.data;
+  },
+
+  async previewFutureTemporal(
+    alunoId: string, command: FutureTemporalPreviewCommand
+  ): Promise<FutureTemporalPreview> {
+    const response = await api.post<ApiEnvelope<FutureTemporalPreview>>(
+      '/consolidated-prescriptions/alunos/' + alunoId + '/combined-future-temporal-preview',
+      command
     );
     return response.data.data;
   },
