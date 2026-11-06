@@ -226,3 +226,27 @@ A cor de fundo de controles preenchidos usa o token `--primary` mais escuro. Tex
 ## Fora de escopo
 
 Esta interface não implementa cálculo de conflito no frontend, publicação direta do Treino de hoje, feedback pós-treino, decisão automática, editor completo de exercícios, WhatsApp ou aplicação em massa.
+
+
+## Etapa 4 — horários futuros com vínculo explícito à agenda
+
+A seção "Alertas e conflitos" inclui a prévia **Avaliação temporal das
+sessões futuras**, separada da leitura clínica histórica. Apenas perfis com
+`plans.consolidatedPrescriptions.view`, escopo do aluno/contrato
+e acesso à tela `agenda` conseguem consultar a lista mínima
+de agendamentos futuros. O professor escolhe as capacidades associadas a
+cada agendamento e confirma o fuso IANA. A API valida os vínculos contra
+os blocos canônicos da versão persistida, a revisão de cada agendamento e
+as fontes das prescrições. Os agendamentos da mesma data **não** são
+atribuídos automaticamente a exercícios/capacidades. Nenhum sinal de saúde
+é carregado por essas rotas de agenda.
+
+O cálculo de intervalos usa instantes UTC somente quando a conversão de
+tempo civil + fuso resulta em um único instante. Horário inexistente,
+ambíguo ou origem não canônica aparece como "não comprovado", sem inventar
+diferença em horas. Resultado sempre `coverage=partial`,
+nunca libera automaticamente ou substitui revisão profissional.
+Versões, perdas de permissão, troca de aluno e alterações locais ocultam
+resultado anterior; falha/revogação exige consulta renovada. A seleção
+não é persistida nem reaproveitada na liberação. O fuso vem da declaração
+do professor para esta prévia, não da configuração do contrato.

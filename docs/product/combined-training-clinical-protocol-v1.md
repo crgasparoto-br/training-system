@@ -115,3 +115,49 @@ impedimentos críticos estruturados já existentes; a prévia combinada
 A homologação profissional #534, a avaliação temporal de prescrições futuras
 e a futura ativação controlada são etapas distintas. O merge desta etapa não
 conclui a #403.
+
+
+## Etapa 4 — evidência temporal futura vinculada à Agenda (#403)
+
+A Agenda armazena `AgendaBooking.bookingDate` (dia civil), `startTime/endTime`
+(locais) e `updatedAt`; não tem fuso do contrato nem uma relação
+automática entre agendamento e prescrição. Por isso **não é correto**
+deduzir um horário UTC de `WorkoutDay.workoutDate`, nem atribuir qualquer
+agendamento de mesmo dia a uma capacidade sem vínculo explícito.
+
+O professor com `plans.consolidatedPrescriptions.view` + acesso à tela
+`agenda` pode consultar um horizonte futuro de até 31 dias e
+selecionar quais agendamentos correspondem a cada
+`ConsolidatedPrescriptionCapacityBlock` da **versão corrente**.
+A prévia exige: identidade do aluno e do contrato derivadas da autenticação,
+versão exata da montagem, capacidade ativa/current canônica, ID do agendamento,
+`AgendaBooking.updatedAt` esperado (controle de concorrência),
+status `scheduled` e fuso IANA explicitamente confirmado pelo professor.
+Nada disso é inferido de nomes, notas livres, disponibilidade geral ou mero
+dia da semana.
+
+A conversão de data+hora local para UTC enumera todos os instantes com
+offset IANA compatível. Se o horário não existir por mudança de relógio ou
+ocorrer duas vezes, ele é marcado `unverified`, **sem hora fictícia**.
+Datas legadas que não estejam em dia civil canônico e horários inválidos também
+não produzem observações. A prévia compara o fim de um agendamento comprovado
+com o início do próximo (horas cronológicas, inclusive sobreposição), sem
+classificar a distância como alerta médico ou impedimento.
+
+A API retorna `coverage=partial`,
+`mayConcludeNoConflict=false`, estado clínico
+`no_active_rules` enquanto #534 estiver aberta e
+`temporalEvidenceStatus` independente, com os IDs, versões e
+horas UTC apenas dos agendamentos explicitamente associados. Capacidades sem
+horário são destacadas. Um vínculo cancelado, de outro contrato/aluno, com
+versão incorreta ou prescrição defasada falha fechado (400/404/409). Nova
+consulta revalida as fontes; **não há cache confiável, persistência do vínculo,
+efeito no fluxo de liberação #320 ou mutação de treino**.
+
+Limitação deliberada: o fuso informado pelo professor é uma **hipótese
+explícita de prévia**, não configuração autoritativa do contrato, e não se
+comprova completude da agenda ou da semana. A avaliação transacional de
+horários de sessões **no ato definitivo da liberação**, um cadastro
+canônico de fuso e a persistência versionada dos vínculos serão necessários
+antes de qualquer regra temporal clínica bloqueante. Nenhuma janela 24/48h
+ou limiar novo foi ativado.

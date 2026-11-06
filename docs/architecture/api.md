@@ -178,3 +178,28 @@ O PUT /api/v1/student/me/training-sessions/:sessionId/execution/values usa a mes
 ### Limites e segurança do executor cíclico (#489, remediação)
 
 A validação de sequência usa os IDs históricos da #398 e o cursor da própria execução #389. A transição pública `completed` consulta o plano e o progresso persistido na **mesma transação serializável** que grava o lifecycle/ledger; `invalid_plan`, `reconciliation_required` ou etapas pendentes retornam 409 e preservam o estado. `partial` e o fallback legado continuam pelo #389. O teto de `sessionValues.cyclicStages` é de 80.040 registros: 80.000 folhas autorizadas pela #398 e até 40 agregados opcionais dos pais `repeat` da #401; o limite é compartilhado por Zod HTTP, normalização e merge persistido. O relógio dos estados terminais é projetado pelo `finishedAt`; pausas efetivamente registradas são deduzidas de `pausedDurationMs`.
+
+
+## Prévia temporal futura da Montagem Consolidada (#403)
+
+As rotas `GET /api/v1/consolidated-prescriptions/alunos/:alunoId/combined-future-bookings`
+e `POST /api/v1/consolidated-prescriptions/alunos/:alunoId/combined-future-temporal-preview`
+exigem professor autenticado, bloco
+`plans.consolidatedPrescriptions.view`, escopo de `plans`
+e acesso à tela `agenda`. O GET recebe `start/end` em ISO UTC
+canônico, horizonte futuro máximo de 31 dias, e retorna somente ID, data,
+horas civis e revisão `updatedAt` dos agendamentos `scheduled`
+do mesmo aluno/contrato, em tamanho limitado.
+
+O POST recebe `expectedCurrentVersion`, janela,
+`timeZone` IANA, e `bindings[]` com
+`bookingId`, `capacityPrescriptionVersionId` e
+`expectedBookingUpdatedAt`. A API rejeita regras clínicas e
+severidades no body, IDs desconhecidos, duplicidade, versão stale, fonte
+inativa e agendamento cancelado. A origem versionada é consultada novamente.
+A resolução de horário possui estados verificado, ambíguo, inexistente e
+inconsistente, e nunca usa uma data civil como se fosse timestamp UTC.
+A diferença entre o fim de uma sessão e o início da seguinte é apenas
+informação cronológica — sem decisão clínica, alteração de estado, escrita
+ou efeito sobre a liberação operacional. `coverage=partial`
+e `mayConcludeNoConflict=false` são invariantes.

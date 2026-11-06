@@ -72,3 +72,24 @@ combinadas permanecem inativas. Sem merge automático.
 - [ ] CI do HEAD corretivo e auditoria independente formal em contexto separado.
 
 O escopo não inclui ativação de regras clínicas nem merge da PR.
+
+
+## Etapa 4 — agenda futura, prova temporal e revisão (#403)
+
+- [x] Consumir agendamentos `scheduled` de `AgendaBooking`
+  por aluno/contrato, com janela futura limitada e autorização da Agenda.
+- [x] Exigir associação explícita por capacidade e por versão canônica da
+  montagem; revalidar `updatedAt` da reserva, status e
+  versão atual da prescrição.
+- [x] Converter data/hora local usando fuso IANA explicitamente confirmado;
+  identificar horários ambíguos/inexistentes (DST) sem inventar instantes.
+- [x] Projetar sequência e intervalo entre fim/início de agendamentos
+  comprovados, sempre com `coverage=partial`,
+  sem severidade ou limite clínico.
+- [x] Expor endpoints de prévia e interface de seleção no fluxo do professor,
+  incluindo testes de horário e concorrência, isolamento e autorização.
+- [ ] CI terminal verde no SHA final e auditoria independente formal.
+- [ ] Formalizar fuso autoritativo do contrato, persistência/versão da
+  associação e revalidação no mesmo transaction boundary da liberação
+  operacional quando houver regra temporal clínica homologada.
+- [ ] Homologação externa #534 e ativação controlada das regras.
