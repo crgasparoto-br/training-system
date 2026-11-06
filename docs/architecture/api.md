@@ -187,7 +187,11 @@ e `POST /api/v1/consolidated-prescriptions/alunos/:alunoId/combined-future-tempo
 exigem professor autenticado, bloco
 `plans.consolidatedPrescriptions.view`, escopo de `plans`
 e acesso à tela `agenda`. O GET recebe `start/end` em ISO UTC
-canônico, horizonte futuro máximo de 31 dias, e retorna somente ID, data,
+canônico. O início não pode preceder o relógio do servidor em mais de 5 minutos
+(tolerância apenas para diferenças de relógio) e o término não pode ultrapassar
+31 dias corridos a partir do mesmo relógio. Janelas curtas em futuro distante
+ou iniciadas no passado fora dessa tolerância são rejeitadas.
+A API retorna somente ID, data,
 horas civis e revisão `updatedAt` dos agendamentos `scheduled`
 do mesmo aluno/contrato, em tamanho limitado.
 

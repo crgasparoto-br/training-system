@@ -39,4 +39,30 @@ describe('#403 future IANA local time proof', () => {
     expect(assertFutureWindow('2026-11-10T00:00:00.000Z', '2026-11-11T00:00:00.000Z', today).to.toISOString())
       .toBe('2026-11-11T00:00:00.000Z');
   });
+
+  it('TEMP-DEST-001 blocks a short window located beyond the rolling 31-day horizon', () => {
+    expect(() => assertFutureWindow('2027-11-10T00:00:00.000Z', '2027-11-11T00:00:00.000Z', today))
+      .toThrow(FutureTemporalInputError);
+    expect(() => assertFutureWindow('2026-12-08T12:00:00.000Z', '2026-12-09T12:00:00.000Z', today))
+      .toThrow(FutureTemporalInputError);
+  });
+
+  it('TEMP-DEST-001 blocks a stale start even when its end is in the future', () => {
+    expect(() => assertFutureWindow('2026-11-06T11:54:59.999Z', '2026-11-07T12:00:00.000Z', today))
+      .toThrow(FutureTemporalInputError);
+    expect(() => assertFutureWindow('2026-11-05T12:00:00.000Z', '2026-11-07T12:00:00.000Z', today))
+      .toThrow(FutureTemporalInputError);
+  });
+
+  it('accepts the exact 31-day end boundary and five-minute start skew, but not a millisecond more', () => {
+    const horizon = '2026-12-07T12:00:00.000Z';
+    expect(assertFutureWindow('2026-11-06T12:00:00.000Z', horizon, today).to.toISOString())
+      .toBe(horizon);
+    expect(assertFutureWindow('2026-11-06T11:59:00.000Z', '2026-11-07T12:00:00.000Z', today).from.toISOString())
+      .toBe('2026-11-06T11:59:00.000Z');
+    expect(assertFutureWindow('2026-11-06T11:55:00.000Z', '2026-11-07T12:00:00.000Z', today).from.toISOString())
+      .toBe('2026-11-06T11:55:00.000Z');
+    expect(() => assertFutureWindow('2026-11-06T12:00:00.000Z', '2026-12-07T12:00:00.001Z', today))
+      .toThrow(FutureTemporalInputError);
+  });
 });

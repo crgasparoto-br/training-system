@@ -98,6 +98,15 @@ Snapshots de desconforto corporal ficam em `ProntuarioDiscomfortSnapshot` e `Pro
 
 A imutabilidade depois do início não depende de flag paralela no check-in: ela deriva do lifecycle canônico de `WorkoutDay`. A escrita bloqueia a linha da sessão e revalida `planned` dentro da mesma transação que grava check-in, operação e evento da timeline.
 
+## Compatibilidade física da Agenda (#403)
+
+A migration histórica `20260220150000_add_agenda_management` criou a coluna
+PostgreSQL `AgendaBooking."bookingType"`. A propriedade Prisma `type` usa
+`@map("bookingType")` para preservar a coluna e os valores existentes, sem
+renomeação física e sem modificar o contrato público `bookingType` da Agenda.
+O teste HTTP/PostgreSQL da prévia temporal deve inserir reservas reais pelo Prisma
+para detectar deriva entre schema e migrations.
+
 ## Cuidados para agentes
 
 - Nao criar `PrismaClient` em arquivos aleatorios sem necessidade.

@@ -729,7 +729,7 @@ model AgendaBooking {
   bookingDate DateTime
   startTime   String
   endTime     String
-  type        AgendaBookingType   @default(free)
+  type        AgendaBookingType   @default(free) @map("bookingType")
   status      AgendaBookingStatus @default(scheduled)
   notes       String?
   createdAt   DateTime            @default(now())

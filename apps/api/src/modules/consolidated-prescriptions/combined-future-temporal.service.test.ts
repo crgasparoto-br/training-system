@@ -1,4 +1,5 @@
 import { createCombinedFutureTemporalService } from './combined-future-temporal.service.js';
+import { FutureTemporalInputError } from './combined-future-temporal.domain.js';
 
 const now = new Date('2026-11-06T12:00:00.000Z');
 const bindingVersion = '2026-11-06T13:00:00.000Z';
@@ -41,6 +42,21 @@ const command = {
 };
 const create = (db: ReturnType<typeof mockDb>) => createCombinedFutureTemporalService(db as never);
 describe('#403 future preview strict source binding', () => {
+  it('rejects past-start and far-future windows before loading tenant or booking data', async () => {
+    const db = mockDb();
+    const service = create(db);
+    const windows = [
+      ['2027-11-10T00:00:00.000Z', '2027-11-11T00:00:00.000Z'],
+      ['2026-11-06T11:54:59.999Z', command.windowEnd],
+    ] as const;
+    for (const [start, end] of windows) {
+      await expect(service.getCandidates(scope, start, end, now)).rejects.toBeInstanceOf(FutureTemporalInputError);
+      await expect(service.preview(scope, { ...command, windowStart: start, windowEnd: end }, now))
+        .rejects.toBeInstanceOf(FutureTemporalInputError);
+    }
+    expect(db.aluno.findFirst).not.toHaveBeenCalled();
+    expect(db.agendaBooking.findMany).not.toHaveBeenCalled();
+  });
   it('uses only explicit scheduled bookings, exact assembly capacity IDs and UTC gaps after session end', async () => {
     const db = mockDb();
     const preview = await create(db).preview(scope, command, now);

@@ -476,6 +476,38 @@ describeDatabase('consolidated prescription workflow HTTP integration with Postg
     expect(preview.body.data.gaps[0].hoursFromEndToStart).toBe(25);
     expect(preview.body.data.unlinkedCapacities).toEqual(expect.arrayContaining(['flexibility', 'balance']));
 
+    // Both API boundaries must reject a short distant-future window and stale start.
+    const invalidWindows = [
+      { start: new Date(clock.getTime() + 400 * 86_400_000).toISOString(),
+        end: new Date(clock.getTime() + 401 * 86_400_000).toISOString() },
+      { start: new Date(clock.getTime() - 10 * 60_000).toISOString(), end: windowEnd },
+      { start: windowStart, end: new Date(clock.getTime() + 32 * 86_400_000).toISOString() },
+    ];
+    for (const invalidWindow of invalidWindows) {
+      const deniedList = await request(app)
+        .get(root + '/combined-future-bookings').query(invalidWindow)
+        .set('Authorization', 'Bearer ' + master.token);
+      expect(deniedList.status).toBe(400);
+      const deniedPreview = await request(app)
+        .post(root + '/combined-future-temporal-preview')
+        .set('Authorization', 'Bearer ' + master.token)
+        .send({ ...command, windowStart: invalidWindow.start, windowEnd: invalidWindow.end });
+      expect(deniedPreview.status).toBe(400);
+    }
+    const boundaryWindow = {
+      start: new Date(clock.getTime() + 60_000).toISOString(),
+      end: new Date(clock.getTime() + 31 * 86_400_000).toISOString(),
+    };
+    const boundaryList = await request(app)
+      .get(root + '/combined-future-bookings').query(boundaryWindow)
+      .set('Authorization', 'Bearer ' + master.token);
+    expect(boundaryList.status).toBe(200);
+    const boundaryPreview = await request(app)
+      .post(root + '/combined-future-temporal-preview')
+      .set('Authorization', 'Bearer ' + master.token)
+      .send({ ...command, windowStart: boundaryWindow.start, windowEnd: boundaryWindow.end });
+    expect(boundaryPreview.status).toBe(200);
+
     const otherTenant = await request(app)
       .post(root + '/combined-future-temporal-preview')
       .set('Authorization', 'Bearer ' + tenantB.token).send(command);

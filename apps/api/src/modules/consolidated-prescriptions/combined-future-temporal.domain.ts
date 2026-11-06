@@ -14,6 +14,9 @@ export class FutureTemporalInputError extends Error {
 }
 
 const DAY_MS = 86_400_000;
+const FUTURE_HORIZON_MS = 31 * DAY_MS;
+// Client/server clock skew affects only the start, never the horizon end.
+const START_CLOCK_SKEW_MS = 5 * 60_000;
 const UTC_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/u;
 
@@ -28,7 +31,10 @@ export function parseCanonicalUtc(value: string): Date {
 export function assertFutureWindow(start: string, end: string, now: Date) {
   const from = parseCanonicalUtc(start);
   const to = parseCanonicalUtc(end);
-  if (to <= from || to.getTime() - from.getTime() > 31 * DAY_MS || to <= now) {
+  if (to <= from || to <= now ||
+      from.getTime() < now.getTime() - START_CLOCK_SKEW_MS ||
+      to.getTime() > now.getTime() + FUTURE_HORIZON_MS ||
+      to.getTime() - from.getTime() > FUTURE_HORIZON_MS) {
     throw new FutureTemporalInputError('A janela deve conter um período futuro de até 31 dias.');
   }
   return { from, to };
