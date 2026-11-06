@@ -27,6 +27,7 @@ vi.mock('../services/consolidated-prescription.service', () => ({
     getWorkspaceContext: vi.fn(),
     getCurrent: vi.fn(),
     getConflicts: vi.fn(),
+    getCombinedHistory: vi.fn(),
     getHistory: vi.fn(),
     createDraft: vi.fn(),
     updateComposition: vi.fn(),
@@ -188,6 +189,93 @@ describe('ConsolidatedPrescription', () => {
     ]) {
       expect(screen.getByRole('button', { name: section })).toBeInTheDocument();
     }
+  });
+
+  it('exibe pré-revisão sem inferir risco zero e restringe evidências clínicas aos grants', async () => {
+    const user = userEvent.setup();
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture());
+    vi.mocked(consolidatedPrescriptionService.getConflicts).mockResolvedValue({
+      ...conflictReport,
+      combinedReview: {
+        protocolVersion: 'combined-conflict-v1',
+        assemblyVersionId: 'assembly-version-3',
+        assemblyVersion: 3,
+        source: 'persisted_assembly',
+        state: 'no_active_rules', coverage: 'partial', activeRuleCount: 0,
+        capacitySources: candidates.map((candidate) => ({
+          capacity: candidate.capacity,
+          capacityPrescriptionVersionId: candidate.capacityPrescriptionVersionId!,
+          capacityVersion: candidate.version!,
+        })),
+        mayConcludeNoConflict: false, changesWorkoutAutomatically: false,
+      },
+    });
+
+    const rendered = renderPage();
+    await screen.findByText('Rascunho');
+    await user.click(screen.getByRole('button', { name: '4. Alertas e conflitos' }));
+    expect(screen.getByText(/não é possível afirmar ausência de conflitos/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Consultar evidências históricas' })).not.toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getCombinedHistory).not.toHaveBeenCalled();
+    rendered.unmount();
+
+    accessState.allowed = new Set([
+      'plans.consolidatedPrescriptions.view',
+      'plans.consolidatedPrescriptions.manage',
+      'plans.consolidatedPrescriptions.approve',
+      'students.details.preWorkoutCheckIn',
+      'students.details.postWorkoutFeedback',
+    ]);
+    vi.mocked(consolidatedPrescriptionService.getCombinedHistory).mockResolvedValue({
+      protocolVersion: 'combined-conflict-v1', state: 'no_active_rules',
+      coverage: 'partial', coverageReason: 'Horário não comprovado.',
+      releasedSessionCount: 2, observationCount: 4, sessionSignalCount: 1,
+      evaluations: [], changesWorkoutAutomatically: false,
+    });
+    renderPage();
+    await screen.findByText('Rascunho');
+    await user.click(screen.getByRole('button', { name: '4. Alertas e conflitos' }));
+    expect(consolidatedPrescriptionService.getCombinedHistory).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Consultar evidências históricas' }));
+    expect(await screen.findByText('Sem regras combinadas ativas — avaliação histórica não realizada')).toBeInTheDocument();
+    expect(screen.getByText(/2 sessões liberadas/)).toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getCombinedHistory).toHaveBeenCalledWith(
+      'aluno-1', expect.any(String), expect.any(String)
+    );
+  });
+
+  it('não apresenta resultado histórico anterior após falha de atualização', async () => {
+    const user = userEvent.setup();
+    accessState.allowed = new Set([
+      'plans.consolidatedPrescriptions.view',
+      'students.details.preWorkoutCheckIn',
+      'students.details.postWorkoutFeedback',
+    ]);
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture());
+    vi.mocked(consolidatedPrescriptionService.getConflicts).mockResolvedValue({
+      ...conflictReport,
+      combinedReview: {
+        protocolVersion: 'combined-conflict-v1', assemblyVersionId: 'assembly-version-3',
+        assemblyVersion: 3, source: 'persisted_assembly', state: 'no_active_rules',
+        coverage: 'partial', activeRuleCount: 0, capacitySources: [],
+        mayConcludeNoConflict: false, changesWorkoutAutomatically: false,
+      },
+    });
+    vi.mocked(consolidatedPrescriptionService.getCombinedHistory)
+      .mockResolvedValueOnce({
+        protocolVersion: 'combined-conflict-v1', state: 'no_active_rules',
+        coverage: 'partial', coverageReason: 'Sem horários.', releasedSessionCount: 2,
+        observationCount: 4, sessionSignalCount: 1, evaluations: [], changesWorkoutAutomatically: false,
+      })
+      .mockRejectedValueOnce(new Error('Revoked access'));
+    renderPage();
+    await screen.findByText('Rascunho');
+    await user.click(screen.getByRole('button', { name: '4. Alertas e conflitos' }));
+    await user.click(screen.getByRole('button', { name: 'Consultar evidências históricas' }));
+    expect(await screen.findByText('Sem regras combinadas ativas — avaliação histórica não realizada')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Atualizar evidências históricas' }));
+    expect(await screen.findByText(/não foi possível consultar as evidências históricas/i)).toBeInTheDocument();
+    expect(screen.queryByText('Sem regras combinadas ativas — avaliação histórica não realizada')).not.toBeInTheDocument();
   });
 
   it('preserva o aluno selecionado no retorno quando o carregamento falha', async () => {

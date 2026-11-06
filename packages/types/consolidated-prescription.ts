@@ -102,6 +102,27 @@ export interface ConsolidatedCombinedReviewSnapshot {
   changesWorkoutAutomatically: false;
 }
 
+/** Aggregated server verdict for permission-gated, released historical sessions only. */
+export interface ConsolidatedCombinedHistoryPreview {
+  protocolVersion: string;
+  state: 'evaluated' | 'no_active_rules';
+  coverage: 'partial';
+  coverageReason: string;
+  releasedSessionCount: number;
+  observationCount: number;
+  sessionSignalCount: number;
+  changesWorkoutAutomatically: false;
+  evaluations: Array<{
+    ruleCode: string;
+    ruleVersion: string;
+    ruleSource: string;
+    status: 'triggered' | 'not_triggered' | 'insufficient_data' | 'inactive';
+    severity: 'info' | 'warning' | 'critical' | null;
+    professorGuidance: string | null;
+    missingOperands: string[];
+  }>;
+}
+
 export interface ConsolidatedPrescriptionConflictReport {
   version: number;
   status: ConsolidatedPrescriptionStatus;

@@ -2,6 +2,7 @@ import type {
   CapacityPrescriptionView,
   ConsolidatedPrescriptionAssembly,
   ConsolidatedPrescriptionConflictReport,
+  ConsolidatedCombinedHistoryPreview,
   ConsolidatedPrescriptionHistory,
   ConsolidatedPrescriptionVersionCommand,
   ConsolidatedPrescriptionWorkspaceContext,
@@ -69,6 +70,17 @@ export const consolidatedPrescriptionService = {
     const response = await api.patch<ApiEnvelope<ConsolidatedPrescriptionAssembly>>(
       `/consolidated-prescriptions/alunos/${alunoId}/composition`,
       payload
+    );
+    return response.data.data;
+  },
+
+  /** Evidence remains read-only and requires the two clinical block grants in the API. */
+  async getCombinedHistory(
+    alunoId: string, start: string, end: string
+  ): Promise<ConsolidatedCombinedHistoryPreview> {
+    const search = new URLSearchParams({ start, end });
+    const response = await api.get<ApiEnvelope<ConsolidatedCombinedHistoryPreview>>(
+      '/consolidated-prescriptions/alunos/' + alunoId + '/combined-conflicts?' + search.toString()
     );
     return response.data.data;
   },
