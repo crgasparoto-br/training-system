@@ -17,6 +17,7 @@ const labels: Record<PhysicalCapacityType, string> = {
 
 type Props = {
   alunoId: string;
+  contractId: string | null;
   currentVersion: number | null;
   summary: ConsolidatedCombinedReviewSnapshot | null;
   canReadSensitive: boolean;
@@ -24,11 +25,13 @@ type Props = {
 };
 
 export function CombinedTrainingReviewPanel({
-  alunoId, currentVersion, summary, canReadSensitive, dirty,
+  alunoId, contractId, currentVersion, summary, canReadSensitive, dirty,
 }: Props) {
   const [historyResponse, setHistoryResponse] = useState<{
     alunoId: string;
+    contractId: string | null;
     assemblyVersion: number;
+    assemblyVersionId: string;
     report: ConsolidatedCombinedHistoryPreview;
   } | null>(null);
   const [historyError, setHistoryError] = useState(false);
@@ -36,7 +39,9 @@ export function CombinedTrainingReviewPanel({
   const generation = useRef(0);
   const currentSummary = summary?.assemblyVersion === currentVersion ? summary : null;
   const history = historyResponse?.alunoId === alunoId &&
-    historyResponse.assemblyVersion === currentVersion && canReadSensitive
+    historyResponse.contractId === contractId &&
+    historyResponse.assemblyVersion === currentVersion &&
+    historyResponse.assemblyVersionId === currentSummary?.assemblyVersionId && canReadSensitive
     ? historyResponse.report : null;
 
   // A student switch, permission loss or version change invalidates prior evidence.
@@ -46,7 +51,7 @@ export function CombinedTrainingReviewPanel({
     setHistoryError(false);
     setLoading(false);
     return () => { generation.current += 1; };
-  }, [alunoId, currentVersion, canReadSensitive]);
+  }, [alunoId, contractId, currentVersion, currentSummary?.assemblyVersionId, canReadSensitive]);
 
   const loadHistory = async () => {
     if (!canReadSensitive || !currentSummary || dirty || loading) return;
@@ -61,7 +66,10 @@ export function CombinedTrainingReviewPanel({
         alunoId, start.toISOString(), end.toISOString()
       );
       if (requestId === generation.current) {
-        setHistoryResponse({ alunoId, assemblyVersion: currentSummary.assemblyVersion, report: next });
+        setHistoryResponse({
+          alunoId, contractId, assemblyVersion: currentSummary.assemblyVersion,
+          assemblyVersionId: currentSummary.assemblyVersionId, report: next,
+        });
       }
     } catch {
       if (requestId === generation.current) setHistoryError(true);
