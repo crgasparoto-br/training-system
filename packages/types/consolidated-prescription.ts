@@ -80,12 +80,65 @@ export interface ConsolidatedPrescriptionConflict {
   sourceRefIds: string[];
 }
 
+/**
+ * Safe, assembly-scoped preparation for combined-capacity review (#403).
+ * This is not a clearance or an assessment of actual timed sessions.
+ * Clinical signals remain confined to the separate permission-gated endpoint.
+ */
+export interface ConsolidatedCombinedReviewSnapshot {
+  protocolVersion: 'combined-conflict-v1';
+  assemblyVersionId: string;
+  assemblyVersion: number;
+  source: 'persisted_assembly';
+  state: 'no_active_rules' | 'insufficient_data';
+  coverage: 'partial';
+  activeRuleCount: number;
+  capacitySources: Array<{
+    capacity: PhysicalCapacityType;
+    capacityPrescriptionVersionId: string;
+    capacityVersion: number;
+  }>;
+  mayConcludeNoConflict: false;
+  changesWorkoutAutomatically: false;
+}
+
+/** Aggregated server verdict for permission-gated, released historical sessions only. */
+export interface ConsolidatedCombinedHistoryPreview {
+  protocolVersion: string;
+  state: 'evaluated' | 'no_active_rules';
+  coverage: 'partial';
+  coverageReason: string;
+  releasedSessionCount: number;
+  observationCount: number;
+  sessionSignalCount: number;
+  changesWorkoutAutomatically: false;
+  evaluations: Array<{
+    ruleCode: string;
+    ruleVersion: string;
+    ruleSource: string;
+    status: 'triggered' | 'not_triggered' | 'insufficient_data' | 'inactive';
+    severity: 'info' | 'warning' | 'critical' | null;
+    professorGuidance: string | null;
+    missingOperands: string[];
+    evidence: Array<{
+      sessionId: string;
+      capacity: PhysicalCapacityType;
+      scheduledAt: string;
+      metric: string;
+      source: { kind: string; recordId: string; version: string };
+      value: number | boolean;
+    }>;
+  }>;
+}
+
 export interface ConsolidatedPrescriptionConflictReport {
   version: number;
   status: ConsolidatedPrescriptionStatus;
   conflicts: ConsolidatedPrescriptionConflict[];
   hasCritical: boolean;
   canUnblock: boolean;
+  /** Review projection without check-in/feedback; optional for backwards compatibility. */
+  combinedReview?: ConsolidatedCombinedReviewSnapshot;
   unavailableChecks: Array<{
     code: string;
     message: string;

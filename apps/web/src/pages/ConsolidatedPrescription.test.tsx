@@ -1,9 +1,10 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   ConsolidatedPrescriptionAssembly,
+  ConsolidatedCombinedReviewSnapshot,
   ConsolidatedPrescriptionCapacityCandidate,
   ConsolidatedPrescriptionConflictReport,
   ConsolidatedPrescriptionWorkspaceContext,
@@ -12,14 +13,21 @@ import type {
 import { consolidatedPrescriptionService } from '../services/consolidated-prescription.service';
 import { ConsolidatedPrescription } from './ConsolidatedPrescription';
 
-const accessState = vi.hoisted(() => ({ allowed: new Set<string>() }));
+const accessState = vi.hoisted(() => ({
+  allowed: new Set<string>(),
+  scope: 'contract' as 'self' | 'managed' | 'contract',
+  actorId: 'professor-user-a',
+}));
 
 vi.mock('../access/access-control', () => ({
   canAccessBlock: (_user: unknown, blockKey: string) => accessState.allowed.has(blockKey),
+  getDataScopeForScreen: () => accessState.scope,
 }));
 
 vi.mock('../stores/useAuthStore', () => ({
-  useAuthStore: (selector: (state: { user: object }) => unknown) => selector({ user: {} }),
+  useAuthStore: (selector: (state: { user: object }) => unknown) => selector({
+    user: { id: accessState.actorId, professor: { id: accessState.actorId, contract: { id: 'contract-1' } } },
+  }),
 }));
 
 vi.mock('../services/consolidated-prescription.service', () => ({
@@ -27,6 +35,7 @@ vi.mock('../services/consolidated-prescription.service', () => ({
     getWorkspaceContext: vi.fn(),
     getCurrent: vi.fn(),
     getConflicts: vi.fn(),
+    getCombinedHistory: vi.fn(),
     getHistory: vi.fn(),
     createDraft: vi.fn(),
     updateComposition: vi.fn(),
@@ -140,8 +149,48 @@ const conflictReport: ConsolidatedPrescriptionConflictReport = {
   unavailableChecks: [],
 };
 
-function renderPage() {
+function combinedReviewFixture(
+  assemblyVersionId: string, capacityVersion = 2
+): ConsolidatedCombinedReviewSnapshot {
+  return {
+    protocolVersion: 'combined-conflict-v1',
+    assemblyVersionId,
+    assemblyVersion: 3,
+    source: 'persisted_assembly',
+    state: 'no_active_rules',
+    coverage: 'partial',
+    activeRuleCount: 0,
+    capacitySources: [{
+      capacity: 'cyclic', capacityPrescriptionVersionId: 'cyclic-version-' + assemblyVersionId,
+      capacityVersion,
+    }],
+    mayConcludeNoConflict: false,
+    changesWorkoutAutomatically: false,
+  };
+}
+
+function StudentSwitchButton() {
+  const navigate = useNavigate();
+  return (
+    <button type="button" onClick={() => navigate('/central-do-aluno/aluno-2/montagem-consolidada')}>
+      Abrir outro aluno
+    </button>
+  );
+}
+
+function renderSwitchablePage() {
   return render(
+    <MemoryRouter initialEntries={['/central-do-aluno/aluno-1/montagem-consolidada']}>
+      <StudentSwitchButton />
+      <Routes>
+        <Route path="/central-do-aluno/:alunoId/montagem-consolidada" element={<ConsolidatedPrescription />} />
+      </Routes>
+    </MemoryRouter>
+  );
+}
+
+function PrescriptionTestRoute() {
+  return (
     <MemoryRouter initialEntries={[{
       pathname: '/central-do-aluno/aluno-1/montagem-consolidada',
       state: { from: 'student-central' },
@@ -153,8 +202,14 @@ function renderPage() {
   );
 }
 
+function renderPage() {
+  return render(<PrescriptionTestRoute />);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  accessState.scope = 'contract';
+  accessState.actorId = 'professor-user-a';
   accessState.allowed = new Set([
     'plans.consolidatedPrescriptions.view',
     'plans.consolidatedPrescriptions.manage',
@@ -188,6 +243,251 @@ describe('ConsolidatedPrescription', () => {
     ]) {
       expect(screen.getByRole('button', { name: section })).toBeInTheDocument();
     }
+  });
+
+  it('exibe pré-revisão sem inferir risco zero e restringe evidências clínicas aos grants', async () => {
+    const user = userEvent.setup();
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture());
+    vi.mocked(consolidatedPrescriptionService.getConflicts).mockResolvedValue({
+      ...conflictReport,
+      combinedReview: {
+        protocolVersion: 'combined-conflict-v1',
+        assemblyVersionId: 'assembly-version-3',
+        assemblyVersion: 3,
+        source: 'persisted_assembly',
+        state: 'no_active_rules', coverage: 'partial', activeRuleCount: 0,
+        capacitySources: candidates.map((candidate) => ({
+          capacity: candidate.capacity,
+          capacityPrescriptionVersionId: candidate.capacityPrescriptionVersionId!,
+          capacityVersion: candidate.version!,
+        })),
+        mayConcludeNoConflict: false, changesWorkoutAutomatically: false,
+      },
+    });
+
+    const rendered = renderPage();
+    await screen.findByText('Rascunho');
+    await user.click(screen.getByRole('button', { name: '4. Alertas e conflitos' }));
+    expect(screen.getByText(/não é possível afirmar ausência de conflitos/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Consultar evidências históricas' })).not.toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getCombinedHistory).not.toHaveBeenCalled();
+    rendered.unmount();
+
+    // One clinical permission does not authorize the combined historical read.
+    accessState.allowed = new Set([
+      'plans.consolidatedPrescriptions.view',
+      'plans.consolidatedPrescriptions.manage',
+      'students.details.preWorkoutCheckIn',
+    ]);
+    const partial = renderPage();
+    await screen.findByText('Rascunho');
+    await user.click(screen.getByRole('button', { name: '4. Alertas e conflitos' }));
+    expect(screen.queryByRole('button', { name: 'Consultar evidências históricas' })).not.toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getCombinedHistory).not.toHaveBeenCalled();
+    partial.unmount();
+
+    accessState.allowed = new Set([
+      'plans.consolidatedPrescriptions.view',
+      'plans.consolidatedPrescriptions.manage',
+      'plans.consolidatedPrescriptions.approve',
+      'students.details.preWorkoutCheckIn',
+      'students.details.postWorkoutFeedback',
+    ]);
+    vi.mocked(consolidatedPrescriptionService.getCombinedHistory).mockResolvedValue({
+      protocolVersion: 'combined-conflict-v1', state: 'no_active_rules',
+      coverage: 'partial', coverageReason: 'Horário não comprovado.',
+      releasedSessionCount: 2, observationCount: 4, sessionSignalCount: 1,
+      evaluations: [], changesWorkoutAutomatically: false,
+    });
+    renderPage();
+    await screen.findByText('Rascunho');
+    await user.click(screen.getByRole('button', { name: '4. Alertas e conflitos' }));
+    expect(consolidatedPrescriptionService.getCombinedHistory).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Consultar evidências históricas' }));
+    expect(await screen.findByText('Sem regras combinadas ativas — avaliação histórica não realizada')).toBeInTheDocument();
+    expect(screen.getByText(/2 sessões liberadas/)).toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getCombinedHistory).toHaveBeenCalledWith(
+      'aluno-1', expect.any(String), expect.any(String)
+    );
+  });
+
+  it('não apresenta resultado histórico anterior após falha de atualização', async () => {
+    const user = userEvent.setup();
+    accessState.allowed = new Set([
+      'plans.consolidatedPrescriptions.view',
+      'students.details.preWorkoutCheckIn',
+      'students.details.postWorkoutFeedback',
+    ]);
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture());
+    vi.mocked(consolidatedPrescriptionService.getConflicts).mockResolvedValue({
+      ...conflictReport,
+      combinedReview: {
+        protocolVersion: 'combined-conflict-v1', assemblyVersionId: 'assembly-version-3',
+        assemblyVersion: 3, source: 'persisted_assembly', state: 'no_active_rules',
+        coverage: 'partial', activeRuleCount: 0, capacitySources: [],
+        mayConcludeNoConflict: false, changesWorkoutAutomatically: false,
+      },
+    });
+    vi.mocked(consolidatedPrescriptionService.getCombinedHistory)
+      .mockResolvedValueOnce({
+        protocolVersion: 'combined-conflict-v1', state: 'no_active_rules',
+        coverage: 'partial', coverageReason: 'Sem horários.', releasedSessionCount: 2,
+        observationCount: 4, sessionSignalCount: 1, evaluations: [], changesWorkoutAutomatically: false,
+      })
+      .mockRejectedValueOnce(new Error('Revoked access'));
+    renderPage();
+    await screen.findByText('Rascunho');
+    await user.click(screen.getByRole('button', { name: '4. Alertas e conflitos' }));
+    await user.click(screen.getByRole('button', { name: 'Consultar evidências históricas' }));
+    expect(await screen.findByText('Sem regras combinadas ativas — avaliação histórica não realizada')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Atualizar evidências históricas' }));
+    expect(await screen.findByText(/não foi possível consultar as evidências históricas/i)).toBeInTheDocument();
+    expect(screen.queryByText('Sem regras combinadas ativas — avaliação histórica não realizada')).not.toBeInTheDocument();
+  });
+
+  it('descarta resposta atrasada de outro aluno mesmo com o mesmo número de versão', async () => {
+    const user = userEvent.setup();
+    const otherWorkspace: ConsolidatedPrescriptionWorkspaceContext = {
+      ...workspace, aluno: { id: 'aluno-2', name: 'Aluno B' },
+    };
+    const original = assemblyFixture();
+    const otherAssembly: ConsolidatedPrescriptionAssembly = {
+      ...original,
+      id: 'assembly-b', alunoId: 'aluno-2',
+      latestVersion: {
+        ...original.latestVersion,
+        id: 'assembly-version-b', assemblyId: 'assembly-b', alunoId: 'aluno-2',
+      },
+    };
+    let resolveOldReport!: (value: ConsolidatedPrescriptionConflictReport | null) => void;
+    const oldReport = new Promise<ConsolidatedPrescriptionConflictReport | null>((resolve) => {
+      resolveOldReport = resolve;
+    });
+    vi.mocked(consolidatedPrescriptionService.getWorkspaceContext).mockImplementation(async (id) =>
+      id === 'aluno-2' ? otherWorkspace : workspace
+    );
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockImplementation(async (id) =>
+      id === 'aluno-2' ? otherAssembly : original
+    );
+    vi.mocked(consolidatedPrescriptionService.getConflicts).mockImplementation((id) =>
+      id === 'aluno-2'
+        ? Promise.resolve({ ...conflictReport, combinedReview: combinedReviewFixture('assembly-version-b', 7) })
+        : oldReport
+    );
+
+    renderSwitchablePage();
+    await waitFor(() => expect(consolidatedPrescriptionService.getConflicts).toHaveBeenCalledWith('aluno-1'));
+    await user.click(screen.getByRole('button', { name: 'Abrir outro aluno' }));
+    expect((await screen.findAllByText('Aluno B')).length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('button', { name: '4. Alertas e conflitos' }));
+    expect(await screen.findByText('Cíclico v7')).toBeInTheDocument();
+
+    await act(async () => {
+      resolveOldReport({ ...conflictReport, combinedReview: combinedReviewFixture('assembly-version-3', 99) });
+    });
+    expect(screen.getAllByText('Aluno B')[0]).toBeInTheDocument();
+    expect(screen.getByText('Cíclico v7')).toBeInTheDocument();
+    expect(screen.queryByText('Cíclico v99')).not.toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getCombinedHistory).not.toHaveBeenCalled();
+  });
+
+  it('rejeita pré-revisão de outra montagem mesmo com versão numérica igual', async () => {
+    const user = userEvent.setup();
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture());
+    vi.mocked(consolidatedPrescriptionService.getConflicts).mockResolvedValue({
+      ...conflictReport,
+      combinedReview: combinedReviewFixture('assembly-version-foreign', 99),
+    });
+    renderPage();
+    await screen.findByText('Rascunho');
+    await user.click(screen.getByRole('button', { name: '4. Alertas e conflitos' }));
+    expect(screen.getByText(/salve a montagem e consulte sua versão atual/i)).toBeInTheDocument();
+    expect(screen.queryByText('Cíclico v99')).not.toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getCombinedHistory).not.toHaveBeenCalled();
+  });
+
+
+  it('revalida o aluno e oculta todo o workspace quando plans muda de contract para self', async () => {
+    const user = userEvent.setup();
+    accessState.allowed = new Set([
+      'plans.consolidatedPrescriptions.view',
+      'students.details.preWorkoutCheckIn',
+      'students.details.postWorkoutFeedback',
+    ]);
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture());
+    vi.mocked(consolidatedPrescriptionService.getConflicts).mockResolvedValue({
+      ...conflictReport, combinedReview: combinedReviewFixture('assembly-version-3'),
+    });
+    vi.mocked(consolidatedPrescriptionService.getCombinedHistory).mockResolvedValue({
+      protocolVersion: 'combined-conflict-v1', state: 'no_active_rules', coverage: 'partial',
+      coverageReason: 'Sem horarios comprovados.', releasedSessionCount: 7,
+      observationCount: 12, sessionSignalCount: 3, evaluations: [], changesWorkoutAutomatically: false,
+    });
+
+    const view = renderPage();
+    await screen.findByText('Rascunho');
+    await user.click(screen.getByRole('button', { name: /4. Alertas e conflitos/ }));
+    await user.click(screen.getByRole('button', { name: /Consultar evid/ }));
+    expect(await screen.findByText(/7 sess/)).toBeInTheDocument();
+
+    // The server now denies this student for the downgraded scope (all grants remain).
+    accessState.scope = 'self';
+    vi.mocked(consolidatedPrescriptionService.getWorkspaceContext).mockRejectedValueOnce({
+      response: { status: 404, data: { error: 'Recurso nao encontrado' } },
+    });
+    view.rerender(<PrescriptionTestRoute />);
+    expect(screen.queryByText(/7 sess/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Maria Atleta')).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Montagem Consolidada indisponível' })).toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getWorkspaceContext).toHaveBeenCalledTimes(2);
+    expect(consolidatedPrescriptionService.getCombinedHistory).toHaveBeenCalledTimes(1);
+
+    // Re-grant still requires a fresh assembly access decision and explicit clinical click.
+    accessState.scope = 'contract';
+    view.rerender(<PrescriptionTestRoute />);
+    await screen.findByText('Rascunho');
+    expect(screen.queryByText(/7 sess/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /4. Alertas e conflitos/ }));
+    expect(consolidatedPrescriptionService.getCombinedHistory).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: /Consultar evid/ }));
+    expect(await screen.findByText(/7 sess/)).toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getCombinedHistory).toHaveBeenCalledTimes(2);
+  });
+
+  it('isola a montagem ao trocar de ator mantendo o aluno e as permissoes', async () => {
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture());
+    const view = renderPage();
+    await screen.findByText('Rascunho');
+
+    accessState.actorId = 'professor-user-b';
+    vi.mocked(consolidatedPrescriptionService.getWorkspaceContext).mockRejectedValueOnce({
+      response: { status: 404, data: { error: 'Recurso nao encontrado' } },
+    });
+    view.rerender(<PrescriptionTestRoute />);
+    expect(screen.queryByText('Maria Atleta')).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Montagem Consolidada indisponível' })).toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getWorkspaceContext).toHaveBeenCalledTimes(2);
+  });
+
+  it('nao aceita resposta atrasada do workspace apos revogacao de escopo', async () => {
+    let resolveOldWorkspace!: (value: ConsolidatedPrescriptionWorkspaceContext) => void;
+    const oldWorkspace = new Promise<ConsolidatedPrescriptionWorkspaceContext>((resolve) => {
+      resolveOldWorkspace = resolve;
+    });
+    vi.mocked(consolidatedPrescriptionService.getWorkspaceContext)
+      .mockImplementationOnce(() => oldWorkspace)
+      .mockRejectedValueOnce({ response: { status: 404, data: { error: 'Recurso nao encontrado' } } });
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture());
+
+    const view = renderPage();
+    await waitFor(() => expect(consolidatedPrescriptionService.getWorkspaceContext).toHaveBeenCalledTimes(1));
+    accessState.scope = 'self';
+    view.rerender(<PrescriptionTestRoute />);
+    expect(await screen.findByRole('heading', { name: 'Montagem Consolidada indispon\u00edvel' })).toBeInTheDocument();
+
+    await act(async () => { resolveOldWorkspace(workspace); });
+    expect(screen.queryByText('Maria Atleta')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Montagem Consolidada indispon\u00edvel' })).toBeInTheDocument();
   });
 
   it('preserva o aluno selecionado no retorno quando o carregamento falha', async () => {

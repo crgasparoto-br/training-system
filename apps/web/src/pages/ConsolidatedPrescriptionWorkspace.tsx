@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import {
   AlertCircle,
@@ -28,11 +28,12 @@ import type {
   ConsolidatedPrescriptionWorkspaceContext,
   PhysicalCapacityType,
 } from '@corrida/types';
-import { canAccessBlock } from '../access/access-control';
+import { canAccessBlock, getDataScopeForScreen } from '../access/access-control';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/Accordion';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { consolidatedPrescriptionService } from '../services/consolidated-prescription.service';
+import { CombinedTrainingReviewPanel } from './CombinedTrainingReviewPanel';
 import { useAuthStore } from '../stores/useAuthStore';
 import '../styles/accessibility-contrast.css';
 
@@ -181,13 +182,40 @@ export function ConsolidatedPrescription() {
   const { alunoId } = useParams<{ alunoId: string }>();
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
+  const canViewAssembly = canAccessBlock(user, 'plans.consolidatedPrescriptions.view');
+  const plansDataScope = getDataScopeForScreen(user, 'plans');
   const canManage = canAccessBlock(user, 'plans.consolidatedPrescriptions.manage');
   const canApprove = canAccessBlock(user, 'plans.consolidatedPrescriptions.approve');
+  const canReadCombinedSignals = canViewAssembly && Boolean(plansDataScope) &&
+    canAccessBlock(user, 'students.details.preWorkoutCheckIn') &&
+    canAccessBlock(user, 'students.details.postWorkoutFeedback');
+  // Bind all cached data to the authenticated actor and effective permissions.
+  // A scope downgrade needs a fresh server-side check even if the grants remain.
+  const authorizationKey = JSON.stringify([
+    user?.id ?? null, user?.professor?.id ?? null, user?.professor?.contract?.id ?? null,
+    plansDataScope, canViewAssembly, canManage, canApprove, canReadCombinedSignals,
+  ]);
 
   const [workspace, setWorkspace] = useState<ConsolidatedPrescriptionWorkspaceContext | null>(null);
   const [assembly, setAssembly] = useState<ConsolidatedPrescriptionAssembly | null>(null);
-  const [conflictReport, setConflictReport] = useState<ConsolidatedPrescriptionConflictReport | null>(null);
-  const [history, setHistory] = useState<ConsolidatedPrescriptionHistory | null>(null);
+  // Bind every asynchronous server response to the actual persisted subject.
+  const [conflictReportState, setConflictReportState] = useState<{
+    alunoId: string;
+    assemblyVersionId: string;
+    report: ConsolidatedPrescriptionConflictReport | null;
+  } | null>(null);
+  const [historyState, setHistoryState] = useState<{
+    alunoId: string;
+    assemblyVersionId: string;
+    value: ConsolidatedPrescriptionHistory | null;
+  } | null>(null);
+  const activeAlunoId = useRef(alunoId);
+  activeAlunoId.current = alunoId;
+  const activeAuthorizationKey = useRef(authorizationKey);
+  activeAuthorizationKey.current = authorizationKey;
+  const [validatedAuthorizationKey, setValidatedAuthorizationKey] = useState<string | null>(null);
+  const loadRequestId = useRef(0);
+  const relatedRequestId = useRef(0);
   const [selectedCapacityVersionIds, setSelectedCapacityVersionIds] = useState<string[]>([]);
   const [technicalObservation, setTechnicalObservation] = useState('');
   const [professorJustification, setProfessorJustification] = useState('');
@@ -202,6 +230,17 @@ export function ConsolidatedPrescription() {
 
   const currentVersion = assembly?.latestVersion ?? null;
   const currentStatus = currentVersion?.status ?? null;
+  const conflictReport = currentVersion && assembly?.alunoId === alunoId &&
+    conflictReportState && conflictReportState.alunoId === alunoId &&
+    conflictReportState.assemblyVersionId === currentVersion.id &&
+    conflictReportState.report?.version === currentVersion.version &&
+    (!conflictReportState.report.combinedReview ||
+      (conflictReportState.report.combinedReview.assemblyVersionId === currentVersion.id &&
+        conflictReportState.report.combinedReview.assemblyVersion === currentVersion.version))
+    ? conflictReportState.report : null;
+  const history = currentVersion && assembly?.alunoId === alunoId &&
+    historyState && historyState.alunoId === alunoId && historyState.assemblyVersionId === currentVersion.id
+    ? historyState.value : null;
   const candidates = workspace?.capacityCandidates ?? [];
   const originLabel = (location.state as RouteState | null)?.from === 'student-central'
     ? 'Central do Aluno'
@@ -267,48 +306,100 @@ export function ConsolidatedPrescription() {
     setDirty(false);
   };
 
-  const refreshRelatedData = async (studentId: string) => {
+  const refreshRelatedData = async (
+    studentId: string, expectedAssembly: ConsolidatedPrescriptionAssembly, expectedAuthorizationKey: string
+  ) => {
+    const requestId = ++relatedRequestId.current;
     const [conflictResult, historyResult] = await Promise.allSettled([
       consolidatedPrescriptionService.getConflicts(studentId),
       consolidatedPrescriptionService.getHistory(studentId),
     ]);
-    setConflictReport(conflictResult.status === 'fulfilled' ? conflictResult.value : null);
-    setHistory(historyResult.status === 'fulfilled' ? historyResult.value : null);
+    if (requestId !== relatedRequestId.current || activeAlunoId.current !== studentId ||
+      activeAuthorizationKey.current !== expectedAuthorizationKey) return;
+
+    const report = conflictResult.status === 'fulfilled' ? conflictResult.value : null;
+    // A matching version number alone is not a matching persisted assembly.
+    const matchingReport = report?.version === expectedAssembly.currentVersion &&
+      (!report.combinedReview ||
+        (report.combinedReview.assemblyVersionId === expectedAssembly.latestVersion.id &&
+          report.combinedReview.assemblyVersion === expectedAssembly.currentVersion))
+      ? report : null;
+    setConflictReportState({
+      alunoId: studentId, assemblyVersionId: expectedAssembly.latestVersion.id, report: matchingReport,
+    });
+    setHistoryState({
+      alunoId: studentId, assemblyVersionId: expectedAssembly.latestVersion.id,
+      value: historyResult.status === 'fulfilled' ? historyResult.value : null,
+    });
   };
 
   const loadWorkspace = async (replaceLocalEdits = true) => {
-    if (!alunoId) return;
+    if (!alunoId || !canViewAssembly || !plansDataScope) {
+      ++loadRequestId.current;
+      ++relatedRequestId.current;
+      setWorkspace(null);
+      setAssembly(null);
+      setConflictReportState(null);
+      setHistoryState(null);
+      setValidatedAuthorizationKey(null);
+      setLoading(false);
+      setLoadError('Esta montagem não está disponível para seu acesso atual.');
+      return;
+    }
+    const studentId = alunoId;
+    const expectedAuthorizationKey = authorizationKey;
+    const requestId = ++loadRequestId.current;
+    ++relatedRequestId.current;
+    setWorkspace(null);
+    setAssembly(null);
+    setConflictReportState(null);
+    setHistoryState(null);
+    setValidatedAuthorizationKey(null);
     setLoading(true);
     setLoadError(null);
     setMutationError(null);
     setSuccessMessage(null);
+    const isCurrentRequest = () =>
+      requestId === loadRequestId.current && activeAlunoId.current === studentId &&
+      activeAuthorizationKey.current === expectedAuthorizationKey;
     try {
       const [nextWorkspace, current] = await Promise.all([
-        consolidatedPrescriptionService.getWorkspaceContext(alunoId),
-        consolidatedPrescriptionService.getCurrent(alunoId),
+        consolidatedPrescriptionService.getWorkspaceContext(studentId),
+        consolidatedPrescriptionService.getCurrent(studentId),
       ]);
+      if (!isCurrentRequest()) return;
+      if (nextWorkspace.aluno.id !== studentId || (current &&
+        (current.alunoId !== studentId || current.latestVersion.alunoId !== studentId))) {
+        throw new Error('A resposta da montagem não corresponde ao aluno solicitado.');
+      }
       setWorkspace(nextWorkspace);
       setAssembly(current);
+      setValidatedAuthorizationKey(expectedAuthorizationKey);
       if (replaceLocalEdits) hydrateForm(current, nextWorkspace);
-      if (current) await refreshRelatedData(alunoId);
+      if (current) await refreshRelatedData(studentId, current, expectedAuthorizationKey);
       else {
-        setConflictReport(null);
-        setHistory(null);
+        setConflictReportState(null);
+        setHistoryState(null);
       }
-      setConcurrencyConflict(null);
+      if (isCurrentRequest()) setConcurrencyConflict(null);
     } catch (error) {
+      if (!isCurrentRequest()) return;
       const status = (error as ApiErrorLike).response?.status;
-      setLoadError(status === 403 || status === 404
+      setLoadError(status === 401 || status === 403 || status === 404
         ? 'Este aluno ou esta montagem não está disponível para o seu escopo de planejamento atual.'
         : getErrorMessage(error, 'Não foi possível carregar a Montagem Consolidada.'));
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   };
 
   useEffect(() => {
     void loadWorkspace(true);
-  }, [alunoId]);
+    return () => {
+      loadRequestId.current += 1;
+      relatedRequestId.current += 1;
+    };
+  }, [alunoId, authorizationKey]);
 
   const markDirty = () => {
     setDirty(true);
@@ -337,18 +428,23 @@ export function ConsolidatedPrescription() {
   };
 
   const applyServerAssembly = async (nextAssembly: ConsolidatedPrescriptionAssembly, message: string) => {
+    if (!alunoId || activeAlunoId.current !== alunoId ||
+      activeAuthorizationKey.current !== authorizationKey || nextAssembly.alunoId !== alunoId) return;
+    ++relatedRequestId.current;
+    setConflictReportState(null);
+    setHistoryState(null);
     setAssembly(nextAssembly);
     hydrateForm(nextAssembly, workspace);
     setConcurrencyConflict(null);
     setMutationError(null);
     setSuccessMessage(message);
-    if (alunoId) {
-      const [workspaceResult] = await Promise.allSettled([
-        consolidatedPrescriptionService.getWorkspaceContext(alunoId),
-        refreshRelatedData(alunoId),
-      ]);
-      if (workspaceResult.status === 'fulfilled') setWorkspace(workspaceResult.value);
-    }
+    const [workspaceResult] = await Promise.allSettled([
+      consolidatedPrescriptionService.getWorkspaceContext(alunoId),
+      refreshRelatedData(alunoId, nextAssembly, authorizationKey),
+    ]);
+    if (activeAlunoId.current === alunoId && activeAuthorizationKey.current === authorizationKey &&
+      workspaceResult.status === 'fulfilled' &&
+      workspaceResult.value.aluno.id === alunoId) setWorkspace(workspaceResult.value);
   };
 
   const handleMutationFailure = (error: unknown, fallback: string) => {
@@ -432,7 +528,6 @@ export function ConsolidatedPrescription() {
     setMutationAction('recalculate'); setMutationError(null); setSuccessMessage(null);
     try {
       const result = await consolidatedPrescriptionService.recalculateConflicts(alunoId, { expectedCurrentVersion: assembly.currentVersion });
-      setConflictReport(result.report);
       await applyServerAssembly(result.assembly, 'Conflitos reavaliados pelo servidor.');
     } catch (error) { handleMutationFailure(error, 'Não foi possível reavaliar os conflitos.'); }
     finally { setMutationAction(null); }
@@ -470,11 +565,11 @@ export function ConsolidatedPrescription() {
     if (shouldReplace) await loadWorkspace(true);
   };
 
-  if (loading) {
+  if (loading || (!loadError && (validatedAuthorizationKey !== authorizationKey || workspace?.aluno.id !== alunoId))) {
     return <div className="py-16 text-center" role="status" aria-live="polite"><div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-primary border-t-transparent" /><p className="mt-4 text-sm text-muted-foreground">Carregando Montagem Consolidada...</p></div>;
   }
 
-  if (loadError || !workspace || !alunoId) {
+  if (loadError || !workspace || !alunoId || !canViewAssembly || !plansDataScope) {
     return <Card><CardHeader><CardTitle>Montagem Consolidada indisponível</CardTitle><CardDescription>{loadError || 'Não foi possível identificar o aluno desta montagem.'}</CardDescription></CardHeader><CardContent><Link to={alunoId ? `/central-do-aluno/${alunoId}` : '/central-do-aluno'}><Button variant="outline"><ArrowLeft size={16} />Voltar à Central do Aluno</Button></Link></CardContent></Card>;
   }
 
@@ -546,7 +641,7 @@ export function ConsolidatedPrescription() {
 
           <AccordionItem value="sources"><AccordionTrigger>3. Dados-base e origem</AccordionTrigger><AccordionContent>{!currentVersion || currentVersion.dataRefs.length === 0 ? <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">As origens adicionais aparecerão aqui após o rascunho ser persistido. As origens das capacidades são derivadas pelo backend.</div> : <div className="space-y-3">{currentVersion.dataRefs.map((source) => <div key={source.id} className="rounded-lg border border-border bg-muted/20 p-4"><div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm font-semibold text-foreground">{source.label || source.sourceType}</p><span className="text-xs text-muted-foreground">{source.role}</span></div><p className="mt-2 text-xs text-muted-foreground">{source.sourceType} • {source.sourceId}{source.assessedAt ? ` • ${formatDateTime(source.assessedAt)}` : ''}{source.sourceVersion != null ? ` • versão ${source.sourceVersion}` : ''}</p></div>)}</div>}</AccordionContent></AccordionItem>
 
-          <AccordionItem value="conflicts"><AccordionTrigger>4. Alertas e conflitos</AccordionTrigger><AccordionContent><div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-foreground">{hasCriticalConflict ? 'Existe impedimento crítico' : 'Sem bloqueador crítico carregado'}</p><p className="mt-1 text-xs text-muted-foreground">A severidade vem do motor estruturado da API; texto livre desta tela não recalcula nem altera severidade.</p></div>{assembly && canManage && <Button type="button" variant="outline" size="sm" onClick={handleRecalculate} disabled={dirty} isLoading={mutationAction === 'recalculate'} loadingText="Reavaliando..." className="w-full sm:w-auto"><RefreshCcw size={15} />Reavaliar conflitos</Button>}</div>{dirty && assembly && canManage && <p className="mb-4 text-xs text-amber-700">Salve as alterações locais antes de pedir nova reavaliação ao servidor.</p>}{currentStatus === 'blocked' && canManage && !dirty && canUnblock && <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50/70 p-4 text-sm text-emerald-900" role="status"><p className="font-semibold">Remediação validada pelo servidor</p><p className="mt-1">A reavaliação não encontrou conflito crítico. O desbloqueio continua explícito.</p></div>}<ConflictList conflicts={conflicts} />{conflictReport?.unavailableChecks.length ? <div className="mt-4 space-y-2"><p className="text-sm font-semibold text-foreground">Checagens indisponíveis nesta fase</p>{conflictReport.unavailableChecks.map((check) => <div key={check.code} className="rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground"><span className="font-medium text-foreground">{check.code}:</span> {check.message}</div>)}</div> : null}</AccordionContent></AccordionItem>
+          <AccordionItem value="conflicts"><AccordionTrigger>4. Alertas e conflitos</AccordionTrigger><AccordionContent><div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-foreground">{hasCriticalConflict ? 'Existe impedimento crítico' : 'Sem bloqueador crítico carregado'}</p><p className="mt-1 text-xs text-muted-foreground">A severidade vem do motor estruturado da API; texto livre desta tela não recalcula nem altera severidade.</p></div>{assembly && canManage && <Button type="button" variant="outline" size="sm" onClick={handleRecalculate} disabled={dirty} isLoading={mutationAction === 'recalculate'} loadingText="Reavaliando..." className="w-full sm:w-auto"><RefreshCcw size={15} />Reavaliar conflitos</Button>}</div>{dirty && assembly && canManage && <p className="mb-4 text-xs text-amber-700">Salve as alterações locais antes de pedir nova reavaliação ao servidor.</p>}{currentStatus === 'blocked' && canManage && !dirty && canUnblock && <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50/70 p-4 text-sm text-emerald-900" role="status"><p className="font-semibold">Remediação validada pelo servidor</p><p className="mt-1">A reavaliação não encontrou conflito crítico. O desbloqueio continua explícito.</p></div>}<ConflictList conflicts={conflicts} /><CombinedTrainingReviewPanel alunoId={alunoId} contractId={assembly?.contractId ?? null} currentVersion={assembly?.currentVersion ?? null} summary={conflictReport?.version === assembly?.currentVersion ? conflictReport?.combinedReview ?? null : null} canReadSensitive={canReadCombinedSignals} authorizationKey={authorizationKey} dirty={dirty} />{conflictReport?.unavailableChecks.length ? <div className="mt-4 space-y-2"><p className="text-sm font-semibold text-foreground">Checagens indisponíveis nesta fase</p>{conflictReport.unavailableChecks.map((check) => <div key={check.code} className="rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground"><span className="font-medium text-foreground">{check.code}:</span> {check.message}</div>)}</div> : null}</AccordionContent></AccordionItem>
 
           <AccordionItem value="composition"><AccordionTrigger>5. Composição e ordem técnica</AccordionTrigger><AccordionContent><div className="rounded-lg border border-blue-200 bg-blue-50/60 p-4 text-sm text-blue-950"><p className="font-semibold">Limite do contrato atual</p><p className="mt-1 text-xs">A Montagem Consolidada recebe blocos de capacidade, observação, justificativa e orientação. Exercícios permanecem dentro das prescrições por capacidade; esta tela não duplica o Workout Builder.</p></div><div className="mt-4 space-y-3">{selectedCapacityVersionIds.length === 0 ? <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">Nenhuma versão de capacidade foi autorizada para a composição.</div> : selectedCapacityVersionIds.map((versionId, index) => { const capacity = versionIdToCapacity.get(versionId); return <div key={versionId} className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-foreground">{index + 1}. {capacity ? capacityLabels[capacity] : 'Capacidade não identificada'}</p><p className="mt-1 break-all text-xs text-muted-foreground">Versão técnica: {versionId}</p></div>{canEditComposition && <div className="flex gap-2"><Button type="button" variant="outline" size="icon" aria-label={`Mover ${capacity ? capacityLabels[capacity] : 'capacidade'} para cima`} disabled={index === 0} onClick={() => moveSelectedCapacity(index, -1)}><ArrowUp size={16} /></Button><Button type="button" variant="outline" size="icon" aria-label={`Mover ${capacity ? capacityLabels[capacity] : 'capacidade'} para baixo`} disabled={index === selectedCapacityVersionIds.length - 1} onClick={() => moveSelectedCapacity(index, 1)}><ArrowDown size={16} /></Button></div>}</div>; })}</div><div className="mt-5"><label htmlFor="technical-observation" className="mb-2 block text-sm font-medium text-foreground">Observação técnica interna</label><textarea id="technical-observation" className="ts-textarea min-h-28" value={technicalObservation} readOnly={!canEditComposition} onChange={(event) => { setTechnicalObservation(event.target.value); markDirty(); }} placeholder="Registre contexto técnico útil. Este texto não cria conflitos automaticamente." /></div><div className="mt-4"><label htmlFor="professor-justification" className="mb-2 block text-sm font-medium text-foreground">Justificativa profissional <span aria-hidden="true">*</span></label><textarea id="professor-justification" className="ts-textarea min-h-32" value={professorJustification} readOnly={!canEditComposition} onChange={(event) => { setProfessorJustification(event.target.value); markDirty(); }} aria-required="true" placeholder="Explique por que esta combinação de capacidades foi escolhida." /></div></AccordionContent></AccordionItem>
 

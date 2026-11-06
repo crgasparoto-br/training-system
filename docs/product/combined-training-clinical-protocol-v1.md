@@ -88,3 +88,30 @@ marcador utilizam as provas operacionais existentes; permanece `coverage=partial
 A integração PostgreSQL comprova um dia cíclico com distância isolada e outro dia
 resistido sem propagação entre sessões, com origem e versão corretas. O contrato
 continua somente leitura, `no_active_rules` até #534 e sem mutações de treino.
+
+## Etapa 3 — revisão da Montagem Consolidada (06/11/2026)
+
+Antes de liberar sessões, a Montagem tem fontes canônicas de prescrições por
+capacidade, mas **não tem cronograma de sessões comprovado** no contrato da
+composição. O endpoint de conflitos estruturados agrega a projeção segura
+`combinedReview` com a versão exata de Montagem, IDs e versões das
+quatro capacidades, `state=no_active_rules` e `coverage=partial`. Essa
+projeção não obtém check-in/feedback e não autoriza concluir ausência de risco.
+É recalculada quando o professor carrega/reavalia a Montagem, inclusive após
+enviar para revisão, aprovar ou criar nova versão.
+
+O professor com as duas permissões clínicas disponíveis poderá consultar,
+por solicitação explícita, as evidências **históricas** das sessões liberadas
+pela Montagem Consolidada nos últimos 30 dias. O resultado separado inclui
+versões/origens, avaliação de regras ativas (quando existirem), ausência de
+dados e contagens da leitura por capacidades; nunca é agregado à resposta
+básica de consulta da Montagem nem à visão do aluno. A consulta nunca altera
+as transições de estado e falha sem reciclar dados antigos em caso de erro.
+As telas não estimam severidade a partir de notas livres.
+
+`send-for-review` e `approve` permanecem sujeitos aos
+impedimentos críticos estruturados já existentes; a prévia combinada
+**não** promove, bloqueia, substitui ou libera treino automaticamente.
+A homologação profissional #534, a avaliação temporal de prescrições futuras
+e a futura ativação controlada são etapas distintas. O merge desta etapa não
+conclui a #403.
