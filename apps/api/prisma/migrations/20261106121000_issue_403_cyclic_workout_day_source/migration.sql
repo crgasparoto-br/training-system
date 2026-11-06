@@ -34,6 +34,6 @@ CREATE TRIGGER "WorkoutDayCyclicOperationalBlock_immutable_guard"
 BEFORE UPDATE OR DELETE ON "WorkoutDayCyclicOperationalBlock"
 FOR EACH ROW EXECUTE FUNCTION "prevent_workout_day_capacity_operational_block_mutation"();
 
-CREATE TRIGGER "WorkoutDayCyclicOperationalBlock_consolidated_release_insert_guard"
+CREATE TRIGGER "WorkoutDayCyclicOperationalBlock_release_insert_guard"
 BEFORE INSERT ON "WorkoutDayCyclicOperationalBlock"
 FOR EACH ROW EXECUTE FUNCTION "guard_consolidated_released_workout_capacity_block_insert"();

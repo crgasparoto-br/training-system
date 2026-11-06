@@ -529,6 +529,21 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
       kind: 'workout_capacity_block', recordId: markers[0].id,
     });
     expect(cyclic.provenance.capacityPrescription.recordId).toBe(fixture.capacityVersionIds.cyclic);
+
+    // An after-release insert cannot fabricate a cyclic capacity on the resisted-only day.
+    await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutDayCyclicOperationalBlock" (
+        "id", "workoutDayId", "capacityPrescriptionVersionId", "capacity",
+        "contractVersion", "parameters", "createdAt"
+      ) VALUES (
+        ${randomUUID()}, ${resistedDay.id}, ${fixture.capacityVersionIds.cyclic}, 'cyclic',
+        1, CAST(${JSON.stringify(CYCLIC_DISTANCE_ONLY_PARAMETERS)} AS jsonb), CURRENT_TIMESTAMP
+      )
+    `).rejects.toThrow();
+    const unauthorizedPlacements = await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "WorkoutDayCyclicOperationalBlock" WHERE "workoutDayId" = ${resistedDay.id}
+    `;
+    expect(unauthorizedPlacements).toEqual([]);
   });
 
   it('reproduz HTTP e PostgreSQL com release real, quatro capacidades e proveniência', async () => {
