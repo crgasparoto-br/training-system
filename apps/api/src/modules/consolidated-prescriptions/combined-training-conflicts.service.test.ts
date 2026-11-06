@@ -132,7 +132,7 @@ describe('#403 canonical conflict input remediation A-001..003', () => {
       { sessionId: 'balance-day', capacity: 'balance' },
     ]);
     expect(report!.observations[0].provenance.operational).toEqual({
-      kind: 'workout_capacity_block', recordId: 'cyclic-placement',
+      kind: 'workout_cyclic_block', recordId: 'cyclic-placement',
     });
     expect(report!.observations[1].provenance.operational).toEqual({
       kind: 'workout_capacity_block', recordId: 'balance-placement',

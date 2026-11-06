@@ -526,7 +526,7 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
     expect(resistedCapacities).toEqual(['resisted']);
     const cyclic = report!.observations.find((row) => row.capacity === 'cyclic')!;
     expect(cyclic.provenance.operational).toEqual({
-      kind: 'workout_capacity_block', recordId: markers[0].id,
+      kind: 'workout_cyclic_block', recordId: markers[0].id,
     });
     expect(cyclic.provenance.capacityPrescription.recordId).toBe(fixture.capacityVersionIds.cyclic);
 
@@ -615,7 +615,7 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
     expect(httpCyclic).toHaveLength(1);
     expect(httpCyclic[0]).toMatchObject({
       sessionId: cyclicDay.id,
-      provenance: { operational: { kind: 'workout_capacity_block', recordId: markers[0].id } },
+      provenance: { operational: { kind: 'workout_cyclic_block', recordId: markers[0].id } },
       numeric: { painLevel: { value: 2, source: { recordId: correctedFeedback.id, version: '2' } } },
     });
     expect(httpResponse.body.data.observations.find(

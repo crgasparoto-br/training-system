@@ -80,7 +80,8 @@ apenas `WorkoutTemplate.totalVolumeKm`, sem preencher `WorkoutDay.method`,
 `CapacityPrescriptionVersion` exato e protegido por triggers de tenant, conteúdo,
 imutabilidade e publicação. A consulta reúne esse marcador com os blocos
 flexibilidade/equilíbrio sem ampliar os limites físicos desses últimos e rejeita versão
-diferente do snapshot consolidado. A distância do template jamais é aplicada
+diferente do snapshot consolidado. A proveniência distingue `workout_cyclic_block` de
+`workout_capacity_block`, para resolver a fonte física correta sem ambiguidade. A distância do template jamais é aplicada
 automaticamente a outros dias com somente treino resistido. Releases anteriores sem
 marcador utilizam as provas operacionais existentes; permanece `coverage=partial`.
 

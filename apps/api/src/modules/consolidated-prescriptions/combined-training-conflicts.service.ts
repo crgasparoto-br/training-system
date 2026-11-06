@@ -21,7 +21,7 @@ type ReleaseOrigin = { kind: 'consolidated_release'; recordId: string; version: 
 type CapacityOrigin = { kind: 'prescription'; recordId: string; version: string };
 type OperationalOrigin = {
   kind: 'workout_day' | 'workout_cyclic_stage' | 'workout_exercise' |
-    'workout_resistance_group' | 'workout_capacity_block';
+    'workout_resistance_group' | 'workout_capacity_block' | 'workout_cyclic_block';
   recordId: string;
 };
 type CategoricalSignals = {
@@ -251,7 +251,8 @@ export function createCombinedConflictSourceService(client: PrismaClient = prism
         }
         for (const block of byDay.get(day.id)?.values() ?? []) {
           operational.set(block.capacity as ConflictCapacity, {
-            kind: 'workout_capacity_block', recordId: block.id,
+            kind: block.capacity === 'cyclic' ? 'workout_cyclic_block' : 'workout_capacity_block',
+            recordId: block.id,
           });
         }
         for (const capacity of [...operational.keys()].sort()) {
