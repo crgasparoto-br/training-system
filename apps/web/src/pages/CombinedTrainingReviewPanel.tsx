@@ -26,16 +26,23 @@ type Props = {
 export function CombinedTrainingReviewPanel({
   alunoId, currentVersion, summary, canReadSensitive, dirty,
 }: Props) {
-  const [history, setHistory] = useState<ConsolidatedCombinedHistoryPreview | null>(null);
+  const [historyResponse, setHistoryResponse] = useState<{
+    alunoId: string;
+    assemblyVersion: number;
+    report: ConsolidatedCombinedHistoryPreview;
+  } | null>(null);
   const [historyError, setHistoryError] = useState(false);
   const [loading, setLoading] = useState(false);
   const generation = useRef(0);
   const currentSummary = summary?.assemblyVersion === currentVersion ? summary : null;
+  const history = historyResponse?.alunoId === alunoId &&
+    historyResponse.assemblyVersion === currentVersion && canReadSensitive
+    ? historyResponse.report : null;
 
   // A student switch, permission loss or version change invalidates prior evidence.
   useEffect(() => {
     generation.current += 1;
-    setHistory(null);
+    setHistoryResponse(null);
     setHistoryError(false);
     setLoading(false);
     return () => { generation.current += 1; };
@@ -44,7 +51,7 @@ export function CombinedTrainingReviewPanel({
   const loadHistory = async () => {
     if (!canReadSensitive || !currentSummary || dirty || loading) return;
     const requestId = ++generation.current;
-    setHistory(null);
+    setHistoryResponse(null);
     setHistoryError(false);
     setLoading(true);
     const end = new Date();
@@ -53,7 +60,9 @@ export function CombinedTrainingReviewPanel({
       const next = await consolidatedPrescriptionService.getCombinedHistory(
         alunoId, start.toISOString(), end.toISOString()
       );
-      if (requestId === generation.current) setHistory(next);
+      if (requestId === generation.current) {
+        setHistoryResponse({ alunoId, assemblyVersion: currentSummary.assemblyVersion, report: next });
+      }
     } catch {
       if (requestId === generation.current) setHistoryError(true);
     } finally {
