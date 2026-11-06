@@ -119,19 +119,23 @@ describe('#403 canonical conflict input remediation A-001..003', () => {
     };
     db.workoutDay.findMany.mockResolvedValue([
       bareDay,
-      { ...bareDay, id: 'resisted-day', workoutDate: new Date('2026-11-06T00:00:00.000Z'), exercises: [{ id: 'exercise' }] },
+      { ...bareDay, id: 'balance-day', workoutDate: new Date('2026-11-06T00:00:00.000Z') },
     ]);
     db.$queryRaw.mockReset().mockResolvedValueOnce([released]).mockResolvedValueOnce([
       { id: 'cyclic-placement', workoutDayId: 'day', capacity: 'cyclic', capacityPrescriptionVersionId: 'prescription-cyclic' },
+      { id: 'balance-placement', workoutDayId: 'balance-day', capacity: 'balance', capacityPrescriptionVersionId: 'prescription-balance' },
     ]);
     const report = await subject(db).getReport(args);
     expect(report!.releasedSessionCount).toBe(2);
     expect(report!.observations.map(({ sessionId, capacity }) => ({ sessionId, capacity }))).toEqual([
       { sessionId: 'day', capacity: 'cyclic' },
-      { sessionId: 'resisted-day', capacity: 'resisted' },
+      { sessionId: 'balance-day', capacity: 'balance' },
     ]);
     expect(report!.observations[0].provenance.operational).toEqual({
       kind: 'workout_capacity_block', recordId: 'cyclic-placement',
+    });
+    expect(report!.observations[1].provenance.operational).toEqual({
+      kind: 'workout_capacity_block', recordId: 'balance-placement',
     });
     expect(report!.coverage).toBe('partial');
     expect(report!.evaluations).toEqual([]);

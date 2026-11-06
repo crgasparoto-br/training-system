@@ -544,6 +544,58 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
       SELECT "id" FROM "WorkoutDayCyclicOperationalBlock" WHERE "workoutDayId" = ${resistedDay.id}
     `;
     expect(unauthorizedPlacements).toEqual([]);
+
+    // Feedback corrected on the distance-only cyclic day must remain attached to that capacity.
+    const lifecycle = createWorkoutSessionExecutionService(prisma);
+    await lifecycle.transition({
+      sessionId: cyclicDay.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: { operationKey: '403-distance-cyclic-start', expectedVersion: 0, targetStatus: 'in_progress' },
+    });
+    await lifecycle.transition({
+      sessionId: cyclicDay.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: '403-distance-cyclic-partial', expectedVersion: 1,
+        targetStatus: 'partial', reason: 'Execução parcial da sessão cíclica de distância',
+      },
+    });
+    const feedbackStore = createPostWorkoutFeedbackPersistenceService(prisma);
+    const initialFeedback = await feedbackStore.createForStudent({
+      sessionId: cyclicDay.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: '403-distance-cyclic-feedback', capacity: 'cyclic',
+        values: { painAfter: 8, psr: 3, observations: 'Nota de distância confidencial' },
+      },
+    });
+    const correctedFeedback = await feedbackStore.correctForProfessor({
+      sessionId: cyclicDay.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+      actorUserId: fixture.professorUserId,
+      payload: {
+        operationKey: '403-distance-cyclic-corrected',
+        baseRevisionId: initialFeedback.id,
+        reason: 'Correção do feedback cíclico com distância isolada',
+        values: { painAfter: 2, psr: 9 },
+      },
+    });
+    const refreshed = await createCombinedConflictSourceService(prisma).getReport({
+      alunoId: fixture.alunoId, contractId: fixture.contractId,
+      start: '2026-08-17T00:00:00.000Z', end: '2026-08-19T00:00:00.000Z',
+    });
+    const cyclicFeedback = refreshed!.observations.find((row) =>
+      row.sessionId === cyclicDay.id && row.capacity === 'cyclic'
+    )!;
+    expect(cyclicFeedback.numeric?.painLevel).toEqual({
+      value: 2, source: { kind: 'feedback', recordId: correctedFeedback.id, version: '2' },
+    });
+    expect(cyclicFeedback.numeric?.psr).toEqual({
+      value: 9, source: { kind: 'feedback', recordId: correctedFeedback.id, version: '2' },
+    });
+    expect(refreshed!.observations.find((row) => row.sessionId === resistedDay.id)!.numeric).toEqual({});
+    expect(refreshed!.observationCount).toBe(4);
+    expect(JSON.stringify(refreshed)).not.toContain(initialFeedback.id);
+    expect(JSON.stringify(refreshed)).not.toContain('Nota de distância confidencial');
   });
 
   it('reproduz HTTP e PostgreSQL com release real, quatro capacidades e proveniência', async () => {
