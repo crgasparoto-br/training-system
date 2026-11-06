@@ -968,7 +968,11 @@ async function evaluatePersistedComposition(
  * This projection deliberately contains no check-in/feedback or free-text data.
  */
 export function buildCombinedReviewSnapshot(
-  detail: Pick<ConsolidatedPrescriptionVersionDetail, 'id' | 'version' | 'capacityBlocks'>,
+  detail: Pick<ConsolidatedPrescriptionVersionDetail, 'id' | 'version'> & {
+    capacityBlocks: readonly Pick<
+      ConsolidatedCapacityBlock, 'capacity' | 'capacityPrescriptionVersionId' | 'capacityVersion' | 'position'
+    >[];
+  },
   trustedRules: readonly ConflictRule[] = ACTIVE_COMBINED_CONFLICT_RULES_V1
 ): ConsolidatedCombinedReviewSnapshot {
   const activeRuleCount = trustedRules.filter((rule) => rule.status === 'active').length;
