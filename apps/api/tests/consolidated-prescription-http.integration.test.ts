@@ -362,6 +362,54 @@ describeDatabase('consolidated prescription workflow HTTP integration with Postg
     expect(invalidWindow.status).toBe(400);
   });
 
+  it('expõe estado combinado ainda não avaliado na revisão da montagem, sem liberar risco por ausência de regras', async () => {
+    const versions = await createCapacitySet({
+      contractId: contractA,
+      alunoId: alunoA,
+      professorId: master.professor.id,
+      goalId: goalA,
+    });
+    const created = await request(app)
+      .post('/consolidated-prescriptions/alunos/' + alunoA)
+      .set('Authorization', 'Bearer ' + master.token)
+      .send(compositionPayload(versions));
+    expect(created.status).toBe(201);
+    const conflictPath = '/consolidated-prescriptions/alunos/' + alunoA + '/conflicts';
+    const first = await request(app).get(conflictPath)
+      .set('Authorization', 'Bearer ' + master.token);
+    expect(first.status).toBe(200);
+    expect(first.body.data.combinedReview).toMatchObject({
+      source: 'persisted_assembly', assemblyVersion: 1,
+      state: 'no_active_rules', coverage: 'partial', activeRuleCount: 0,
+      mayConcludeNoConflict: false, changesWorkoutAutomatically: false,
+    });
+    expect(first.body.data.combinedReview.capacitySources).toHaveLength(4);
+    expect(first.body.data.combinedReview.assemblyVersionId).toBe(created.body.data.latestVersion.id);
+    expect(JSON.stringify(first.body.data.combinedReview)).not.toContain('painLevel');
+
+    const sent = await request(app)
+      .post('/consolidated-prescriptions/alunos/' + alunoA + '/send-for-review')
+      .set('Authorization', 'Bearer ' + master.token)
+      .send({ expectedCurrentVersion: 1 });
+    expect(sent.status).toBe(200);
+    expect(sent.body.data.currentStatus).toBe('ready_for_review');
+
+    const reviewed = await request(app).get(conflictPath)
+      .set('Authorization', 'Bearer ' + master.token);
+    expect(reviewed.status).toBe(200);
+    expect(reviewed.body.data.combinedReview).toMatchObject({
+      assemblyVersion: 2, state: 'no_active_rules', mayConcludeNoConflict: false,
+    });
+    expect(reviewed.body.data.combinedReview.assemblyVersionId).toBe(sent.body.data.latestVersion.id);
+
+    const crossTenant = await request(app).get(conflictPath)
+      .set('Authorization', 'Bearer ' + tenantB.token);
+    expect(crossTenant.status).toBe(404);
+    const outsideScope = await request(app).get(conflictPath)
+      .set('Authorization', 'Bearer ' + selfProfessor.token);
+    expect(outsideScope.status).toBe(404);
+  });
+
   it('rejeita autoridade forjada, isolamento cross-tenant/dataScope e permissão específica de aprovação', async () => {
     const versions = await createCapacitySet({
       contractId: contractA,
