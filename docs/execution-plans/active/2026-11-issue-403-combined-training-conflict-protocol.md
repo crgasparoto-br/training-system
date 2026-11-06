@@ -22,7 +22,8 @@ Data: 2026-11-05. Branch: feat/403-combined-clinical-protocol-v1, base develop. 
 - [x] Endpoint técnico somente leitura com verificação das duas permissões clínicas.
 - [x] Dados sem regras clínicas novas ativas, cobertura parcial e fontes versionadas.
 - [ ] Homologação das sete regras (#534), integração à pré-liberação e revisão de segurança em cenário real.
-- [ ] Teste HTTP cross-tenant, validação completa e auditoria independente no SHA final.
+- [x] Teste HTTP cross-tenant e validação completa na PR #537 ([run #42219868297](https://github.com/crgasparoto-br/training-system/actions/runs/42219868297), SHA `b3c31beb168987d9be1c1ef19eee9c663a01a820`).
+- [ ] Auditoria independente da etapa 2 em contexto separado, sem presumir aprovação apenas pelo merge.
 
 
 ## Remediação da auditoria da PR #537
@@ -35,7 +36,8 @@ Data: 2026-11-05. Branch: feat/403-combined-clinical-protocol-v1, base develop. 
 - [x] A-005 — persistir a capacidade cíclica por dia, mesmo com distância somente no template; manter o CHECK de flexibilidade/equilíbrio e bloquear origem/versão incompatível.
 - [x] Casos discriminantes: cíclico só por distância em dia distinto de resistido, proveniência de versão, ausência de vazamento entre dias e rejeição de versão divergente.
 - [x] Ampliar os testes unitários positivos/negativos e o teste HTTP/PostgreSQL para criação, correção e releitura das quatro capacidades, incluindo isolamento de revisão e texto livre.
-- [ ] Verificação terminal do CI no SHA corretivo e auditoria independente em contexto separado.
+- [x] CI terminal da PR #537 no SHA corretivo `b3c31beb168987d9be1c1ef19eee9c663a01a820` ([run #42219868297](https://github.com/crgasparoto-br/training-system/actions/runs/42219868297)).
+- [ ] Auditoria independente em contexto separado, sem aceitar comentários de aprovação como parecer formal.
 
 A homologação clínica #534, as regras combinadas e a integração pré-liberação continuam fora desta etapa. Nenhum limiar foi ativado.
 
