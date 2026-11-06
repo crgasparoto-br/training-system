@@ -145,7 +145,7 @@ describe('#403 canonical conflict input remediation A-001..003', () => {
     await expect(subject(db).getReport(args)).rejects.toThrow('Versão do bloco operacional diverge');
   });
 
-  it('does not infer cyclic or resisted from text, or fabricate missing operational capacity', async () {
+  it('does not infer cyclic or resisted from text, or fabricate missing operational capacity', async () => {
     const db = makeDb();
     db.workoutDay.findMany.mockResolvedValue([{
       id: 'day', templateId: 'template', workoutDate: new Date('2026-11-05T00:00:00.000Z'),
