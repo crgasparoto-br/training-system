@@ -417,6 +417,96 @@ describeDatabase('consolidated prescription workflow HTTP integration with Postg
     expect(outsideScope.status).toBe(404);
   });
 
+  it('TEMP-FUTURE: vincula agendamentos futuros explicitamente à versão correta e nunca conclui ausência de risco', async () => {
+    const set = await createCapacitySet({
+      contractId: contractA, alunoId: alunoA, professorId: master.professor.id, goalId: goalA,
+    });
+    const created = await request(app)
+      .post('/consolidated-prescriptions/alunos/' + alunoA)
+      .set('Authorization', 'Bearer ' + master.token)
+      .send(compositionPayload(set));
+    expect(created.status).toBe(201);
+
+    const clock = new Date();
+    const date1 = new Date(Date.UTC(clock.getUTCFullYear(), clock.getUTCMonth(), clock.getUTCDate() + 7));
+    const date2 = new Date(Date.UTC(clock.getUTCFullYear(), clock.getUTCMonth(), clock.getUTCDate() + 8));
+    const first = await prisma.agendaBooking.create({ data: {
+      contractId: contractA, alunoId: alunoA, professorId: master.professor.id,
+      bookingDate: date1, startTime: '08:00', endTime: '09:00',
+      status: 'scheduled', type: 'free',
+    } });
+    const second = await prisma.agendaBooking.create({ data: {
+      contractId: contractA, alunoId: alunoA, professorId: master.professor.id,
+      bookingDate: date2, startTime: '10:00', endTime: '11:00',
+      status: 'scheduled', type: 'free',
+    } });
+    const root = '/consolidated-prescriptions/alunos/' + alunoA;
+    const windowStart = new Date(clock.getTime() - 60_000).toISOString();
+    const windowEnd = new Date(clock.getTime() + 28 * 86_400_000).toISOString();
+    const candidates = await request(app)
+      .get(root + '/combined-future-bookings')
+      .query({ start: windowStart, end: windowEnd })
+      .set('Authorization', 'Bearer ' + master.token);
+    expect(candidates.status).toBe(200);
+    expect(candidates.body.data.map((item: { bookingId: string }) => item.bookingId))
+      .toEqual(expect.arrayContaining([first.id, second.id]));
+
+    const command = {
+      expectedCurrentVersion: 1, windowStart, windowEnd, timeZone: 'UTC',
+      bindings: [{
+        bookingId: first.id, capacityPrescriptionVersionId: set.resisted.versionId,
+        expectedBookingUpdatedAt: first.updatedAt.toISOString(),
+      }, {
+        bookingId: second.id, capacityPrescriptionVersionId: set.cyclic.versionId,
+        expectedBookingUpdatedAt: second.updatedAt.toISOString(),
+      }],
+    };
+    const preview = await request(app)
+      .post(root + '/combined-future-temporal-preview')
+      .set('Authorization', 'Bearer ' + master.token).send(command);
+    expect(preview.status).toBe(200);
+    expect(preview.body.data).toMatchObject({
+      state: 'no_active_rules', coverage: 'partial', mayConcludeNoConflict: false,
+      changesWorkoutAutomatically: false, timeZone: 'UTC',
+      assemblyVersionId: created.body.data.latestVersion.id,
+      temporalEvidenceStatus: 'verified_bindings_only',
+    });
+    expect(preview.body.data.mappedSessions).toHaveLength(2);
+    expect(preview.body.data.mappedSessions.every((item: { proof: string }) => item.proof === 'verified')).toBe(true);
+    expect(preview.body.data.gaps[0].hoursFromEndToStart).toBe(25);
+    expect(preview.body.data.unlinkedCapacities).toEqual(expect.arrayContaining(['flexibility', 'balance']));
+
+    const otherTenant = await request(app)
+      .post(root + '/combined-future-temporal-preview')
+      .set('Authorization', 'Bearer ' + tenantB.token).send(command);
+    expect(otherTenant.status).toBe(404);
+    const noAgenda = await request(app)
+      .get(root + '/combined-future-bookings')
+      .query({ start: windowStart, end: windowEnd })
+      .set('Authorization', 'Bearer ' + deniedApprover.token);
+    expect(noAgenda.status).toBe(403);
+
+    const forged = await request(app)
+      .post(root + '/combined-future-temporal-preview')
+      .set('Authorization', 'Bearer ' + master.token)
+      .send({ ...command, bindings: [{ ...command.bindings[0], capacityPrescriptionVersionId: 'other-tenant-capacity' }] });
+    expect(forged.status).toBe(409);
+    const outdated = await request(app)
+      .post(root + '/combined-future-temporal-preview')
+      .set('Authorization', 'Bearer ' + master.token)
+      .send({ ...command, expectedCurrentVersion: 0 });
+    expect(outdated.status).toBe(400);
+
+    await prisma.agendaBooking.update({ where: { id: first.id }, data: { status: 'canceled' } });
+    const canceled = await request(app)
+      .post(root + '/combined-future-temporal-preview')
+      .set('Authorization', 'Bearer ' + master.token).send(command);
+    expect(canceled.status).toBe(409);
+    expect(await prisma.workoutTemplate.count({
+      where: { plan: { alunoId: alunoA } },
+    })).toBe(0);
+  });
+
   it('rejeita autoridade forjada, isolamento cross-tenant/dataScope e permissão específica de aprovação', async () => {
     const versions = await createCapacitySet({
       contractId: contractA,
