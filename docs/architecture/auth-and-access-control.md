@@ -127,3 +127,19 @@ Esses blocos exigem tambem acesso de tela em `collaborators.registration` e deve
 - A troca autenticada exige a senha atual, uma nova senha com pelo menos 8 caracteres e uma senha diferente da atual. Em sucesso, atualiza o hash e limpa `mustChangePassword`.
 - A recuperacao publica continua usando `POST /api/v1/auth/forgot-password` e `POST /api/v1/auth/reset-password`. O token e assinado com segredo derivado do hash atual; por isso, qualquer troca de senha invalida tokens anteriores. A redefinicao bem-sucedida tambem limpa `mustChangePassword`.
 - A solicitacao publica de recuperacao mantem resposta generica para evitar enumeracao de contas.
+
+## Revisão combinada da Montagem (#403)
+
+`GET /consolidated-prescriptions/alunos/:alunoId/conflicts` acrescenta
+apenas metadados de versão das quatro prescrições e o estado conservador
+`no_active_rules` / `insufficient_data`. A resposta desse bloco
+de Montagem não carrega check-in, feedback ou métricas sensíveis.
+
+A UI do professor oferece a consulta histórica somente após verificar ambos
+`students.details.preWorkoutCheckIn` e
+`students.details.postWorkoutFeedback`. O endpoint clínico existente
+`GET .../combined-conflicts` permanece separado e exige os dois
+blocos, além de `plans.consolidatedPrescriptions.view`, ator professor,
+`contractId` e escopo autorizado. O frontend não transfere
+resultado histórico para o endpoint de Montagem nem para o aluno; ausência de
+concessão não é preenchida com dados de origem alternativa.

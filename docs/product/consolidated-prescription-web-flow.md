@@ -119,6 +119,38 @@ Checagens ainda indisponíveis aparecem em `unavailableChecks`. Texto livre de o
 
 Quando o motor retorna `capacity-version-ineligible:<capacidade>`, a UI pode apresentar o rótulo `Dado desatualizado` porque a própria mensagem canônica do conflito declara que a versão selecionada não é mais a versão vigente e ativa. O rótulo não altera severidade, não muda automaticamente a composição e não substitui a reavaliação no servidor.
 
+### Revisão combinada por capacidade (#403, etapa 3)
+
+O endpoint existente GET /consolidated-prescriptions/alunos/:alunoId/conflicts também devolve
+`combinedReview` **apenas com dados não sensíveis** da versão persistida da Montagem:
+`protocolVersion`, `assemblyVersionId`, `assemblyVersion`, `capacitySources`
+com ID/versão da prescrição por capacidade, `state`, cobertura `partial` e
+`mayConcludeNoConflict=false`. O estado `no_active_rules` não significa
+"sem conflito"; significa que nenhuma regra combinada homologada está ativa.
+Se regras forem ativadas no futuro sem evidência temporal, o estado será
+`insufficient_data` até existir fonte de horário/observações comprováveis.
+A projeção é reconstruída a cada consulta e não altera o fluxo transacional
+`send-for-review` / `approve` / `release`.
+
+O acordeão "Alertas e conflitos" mostra essa limitação, as quatro origens versionadas
+e, **somente quando houver concessão efetiva de ambos os blocos sensíveis**,
+um botão explícito de consulta de evidências históricas. O frontend chama a
+rota já existente `GET /alunos/:alunoId/combined-conflicts` apenas após clique,
+com intervalo UTC limitado aos últimos 30 dias e sem receber regra/severidade
+do cliente. A API revalida `plans.consolidatedPrescriptions.view`, escopo
+do aluno/contrato, `students.details.preWorkoutCheckIn` e
+`students.details.postWorkoutFeedback` antes de consultar as fontes.
+Perfis sem os dois grants não fazem essa requisição, nem veem o payload
+de check-in/feedback; esse limite de UI não substitui a barreira do backend.
+
+As evidências históricas são de **sessões já liberadas**; não representam
+nem homologam sessões futuras da composição em revisão. O painel exibe contagens,
+versões e estados fornecidos pela API, sem pontuar risco, interpretar texto
+livre ou copiar feedback clínico para a mensagem do aluno. Consultas com erro
+descartam resultado anterior, e troca de aluno/versão revoga a prévia em memória.
+As mensagens de "nenhum bloqueador" do motor de composição permanecem restritas
+aos conflitos estruturados desse motor, não aos conflitos clínicos combinados.
+
 ## Workflow
 
 ### Sem montagem

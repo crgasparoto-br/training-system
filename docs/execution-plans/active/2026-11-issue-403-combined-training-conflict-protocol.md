@@ -38,3 +38,25 @@ Data: 2026-11-05. Branch: feat/403-combined-clinical-protocol-v1, base develop. 
 - [ ] Verificação terminal do CI no SHA corretivo e auditoria independente em contexto separado.
 
 A homologação clínica #534, as regras combinadas e a integração pré-liberação continuam fora desta etapa. Nenhum limiar foi ativado.
+
+## Etapa 3 — revisão segura na Montagem Consolidada (06/11/2026)
+
+Branch: `feat/403-combined-review-integration` a partir da `develop` após merge da PR #537.
+
+- [x] Vincular ao relatório estruturado da Montagem um snapshot combinado
+  exclusivamente de fontes de versão persistidas, sem dados sensíveis,
+  `coverage=partial`, `mayConcludeNoConflict=false`.
+- [x] Projetar a pré-revisão no acordeão de conflitos e conservar o estado
+  de revisão após envio, reavaliação, aprovação e troca de versão.
+- [x] Consulta clínica histórica por clique, somente com as duas permissões
+  de dados sensíveis, sem enviar regras no request ou aplicar mudanças no treino.
+- [x] Testes da projeção segura, caso hipotético com dados insuficientes,
+  autorização HTTP cross-tenant e transição draft → revisão; testes web de
+  ausência de concessão, clique autorizado e descarte após falha.
+- [ ] CI terminal no SHA final desta etapa e auditoria independente em contexto
+  separado; homologação profissional #534 continua bloqueando ativação.
+- [ ] Avaliação de agenda/temporalidade de sessões **futuras** antes da liberação,
+  integração da decisão profissional da #406 e conclusão integral de #403.
+
+A composição em revisão nunca é tratada como "sem risco" só porque as regras
+combinadas permanecem inativas. Sem merge automático.
