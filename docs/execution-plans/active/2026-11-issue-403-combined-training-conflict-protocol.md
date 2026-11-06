@@ -13,3 +13,28 @@ Data: 2026-11-05. Branch: feat/403-combined-clinical-protocol-v1, base develop. 
 - [ ] Validar testes de API, autorização, cross-tenant, caso real, CI do SHA final e auditoria independente.
 
 **Proibição:** não inferir limiares a partir das propostas, não ativar regra sem assinatura profissional, não automatizar mudanças de treino nem registrar esta issue como fechada.
+
+
+## Etapa 2 — sinais canônicos para avaliação técnica
+
+- [x] Leitura de sessões com vínculo à liberação operacional consolidada e ao aluno/contrato.
+- [x] Leitura estruturada das capacidades, check-in e revisão vigente de feedback.
+- [x] Endpoint técnico somente leitura com verificação das duas permissões clínicas.
+- [x] Dados sem regras clínicas novas ativas, cobertura parcial e fontes versionadas.
+- [ ] Homologação das sete regras (#534), integração à pré-liberação e revisão de segurança em cenário real.
+- [ ] Teste HTTP cross-tenant, validação completa e auditoria independente no SHA final.
+
+
+## Remediação da auditoria da PR #537
+
+- [x] A-001 — separar a leitura cíclica/resistida do grafo operacional e flexibilidade/equilíbrio de `WorkoutDayCapacityOperationalBlock` (contrato físico real do banco).
+- [x] A-002 — preservar sinais de feedback por sessão sem atribuir a capacidades e reavaliar revisão vigente por escopo.
+- [x] A-003 — vincular cada observação à liberação, versão consolidada, versão de prescrição e registro operacional.
+- [x] Ampliar controles unitários negativos, de revisão, cross-source e de integridade; acrescentar teste HTTP/PostgreSQL de liberação real com as quatro capacidades.
+- [x] A-004 — preservar dor pós-treino, PSR, tontura, fadiga e sono da revisão atual de feedback específica de cada capacidade, sem atribuir sinais de sessão a outras capacidades.
+- [x] A-005 — persistir a capacidade cíclica por dia, mesmo com distância somente no template; manter o CHECK de flexibilidade/equilíbrio e bloquear origem/versão incompatível.
+- [x] Casos discriminantes: cíclico só por distância em dia distinto de resistido, proveniência de versão, ausência de vazamento entre dias e rejeição de versão divergente.
+- [x] Ampliar os testes unitários positivos/negativos e o teste HTTP/PostgreSQL para criação, correção e releitura das quatro capacidades, incluindo isolamento de revisão e texto livre.
+- [ ] Verificação terminal do CI no SHA corretivo e auditoria independente em contexto separado.
+
+A homologação clínica #534, as regras combinadas e a integração pré-liberação continuam fora desta etapa. Nenhum limiar foi ativado.

@@ -114,6 +114,14 @@ type PreparedProjectionItem = ConsolidatedOperationalProjectionItem & {
   preparedForAssemblyVersion?: number;
 };
 
+/** The cyclic source has a distinct table; the flex/balance CHECK must remain unchanged. */
+type ReleasedCapacityBlock = WorkoutDayCapacityOperationalBlock | {
+  contractVersion: 1;
+  capacity: 'cyclic';
+  capacityPrescriptionVersionId: string;
+  parameters: Record<string, unknown>;
+};
+
 function fail(code: ConsolidatedReleaseErrorCode, message: string, details?: Record<string, unknown>): never {
   throw new ConsolidatedReleaseDomainError(code, message, details);
 }
@@ -553,7 +561,7 @@ async function applyOperationalProjection(
 
   const templateFields: Record<string, unknown> = {};
   const dayFields = new Map<number, Record<string, unknown>>();
-  const capacityBlocksByDay = new Map<number, WorkoutDayCapacityOperationalBlock[]>();
+  const capacityBlocksByDay = new Map<number, ReleasedCapacityBlock[]>();
   const placementByKey = new Map(command.target.placements.map((placement) => [placement.projectionKey.trim(), placement]));
   const placementsByDay = new Map<number, ConsolidatedReleasePlacement[]>();
   for (const placement of command.target.placements) {
@@ -582,8 +590,18 @@ async function applyOperationalProjection(
           ['method', 'vo2maxPct', 'stimulusDurationMin', 'detailNotes', 'complementNotes']
         );
         dayFields.set(placement.dayOfWeek, target);
-        const operationalBlock = preparedWorkoutDayCapacityBlock(item);
+        const operationalBlock: ReleasedCapacityBlock | null = item.capacity === 'cyclic'
+          ? {
+              contractVersion: 1,
+              capacity: 'cyclic',
+              capacityPrescriptionVersionId: item.capacityPrescriptionVersionId,
+              parameters: record(item.sourceParameters),
+            }
+          : preparedWorkoutDayCapacityBlock(item);
         if (operationalBlock) {
+          if (!Object.keys(operationalBlock.parameters).length) {
+            fail('CONFLICT', 'Capacidade sem parâmetros estruturados para a sessão liberada');
+          }
           const blocks = capacityBlocksByDay.get(placement.dayOfWeek) ?? [];
           if (blocks.some((block) => block.capacity === operationalBlock.capacity)) {
             fail('CONFLICT', `A capacidade ${operationalBlock.capacity} foi posicionada mais de uma vez no mesmo dia`);
@@ -716,6 +734,18 @@ async function applyOperationalProjection(
     dayIds.set(dayOfWeek, day.id);
 
     for (const block of capacityBlocksByDay.get(dayOfWeek) ?? []) {
+      if (block.capacity === 'cyclic') {
+        await tx.$executeRaw`
+          INSERT INTO "WorkoutDayCyclicOperationalBlock" (
+            "id", "workoutDayId", "capacityPrescriptionVersionId", "capacity",
+            "contractVersion", "parameters", "createdAt"
+          ) VALUES (
+            ${randomUUID()}, ${day.id}, ${block.capacityPrescriptionVersionId}, ${block.capacity},
+            ${block.contractVersion}, CAST(${JSON.stringify(block.parameters)} AS jsonb), CURRENT_TIMESTAMP
+          )
+        `;
+        continue;
+      }
       await tx.$executeRaw`
         INSERT INTO "WorkoutDayCapacityOperationalBlock" (
           "id", "workoutDayId", "capacityPrescriptionVersionId", "capacity",

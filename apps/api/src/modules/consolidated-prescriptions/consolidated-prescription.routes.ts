@@ -12,6 +12,7 @@ import {
   getEffectiveDataScopeForProfessor,
 } from '../access-control/access-control.service.js';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
+import { combinedConflictSourceService, CombinedConflictSourceError } from './combined-training-conflicts.service.js';
 import {
   ConsolidatedPrescriptionDomainError,
   consolidatedPrescriptionService,
@@ -237,6 +238,41 @@ router.patch(
       return sendSuccess(res, updated, 'Montagem consolidada versionada');
     } catch (error) {
       return handleError(res, error, 'Erro ao atualizar montagem consolidada');
+    }
+  }
+);
+
+
+/** #403: read-only technical preview; both clinical evidence grants are mandatory. */
+router.get(
+  '/alunos/:alunoId/combined-conflicts',
+  requireConsolidatedBlock('plans.consolidatedPrescriptions.view'),
+  async (req: ConsolidatedRequest, res: Response) => {
+    try {
+      const actor = await ensureAlunoScope(req, res);
+      if (!actor) return;
+      const professor = await prisma.professor.findFirst({
+        where: { id: actor.professorId, contractId: actor.contractId },
+        include: { collaboratorFunction: true },
+      });
+      if (!professor ||
+          !(await canProfessorAccessBlock(professor, 'students.details.preWorkoutCheckIn')) ||
+          !(await canProfessorAccessBlock(professor, 'students.details.postWorkoutFeedback'))) {
+        return sendError(res, 'Sem permissão para os sinais sensíveis do treino', 403);
+      }
+      const period = z.object({
+        start: z.string().datetime(),
+        end: z.string().datetime(),
+      }).strict().parse(req.query);
+      const result = await combinedConflictSourceService.getReport({
+        alunoId: req.params.alunoId, contractId: actor.contractId,
+        start: period.start, end: period.end,
+      });
+      if (!result) return sendError(res, 'Recurso não encontrado', 404);
+      return sendSuccess(res, result, 'Prévia técnica dos conflitos combinados carregada');
+    } catch (error) {
+      if (error instanceof CombinedConflictSourceError) return sendError(res, error.message, 400);
+      return handleError(res, error, 'Erro ao consultar conflitos combinados');
     }
   }
 );
