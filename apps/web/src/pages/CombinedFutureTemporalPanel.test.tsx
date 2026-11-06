@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import type { ComponentProps } from 'react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConsolidatedCombinedReviewSnapshot } from '@corrida/types';
@@ -45,7 +46,7 @@ const response = {
   changesWorkoutAutomatically: false as const,
 };
 
-function page(overrides: Partial<React.ComponentProps<typeof CombinedFutureTemporalPanel>> = {}) {
+function page(overrides: Partial<ComponentProps<typeof CombinedFutureTemporalPanel>> = {}) {
   return <CombinedFutureTemporalPanel
     alunoId="student-a" contractId="tenant-a"
     currentVersion={4} summary={summary}

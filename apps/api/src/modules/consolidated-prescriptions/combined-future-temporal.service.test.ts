@@ -113,14 +113,32 @@ describe('#403 future preview strict source binding', () => {
     ]);
     const preview = await create(db).preview(scope, {
       ...command, timeZone: 'America/New_York',
+      windowStart: '2026-10-30T00:00:00.000Z',
+      windowEnd: '2026-11-04T00:00:00.000Z',
       bindings: [command.bindings[0]],
-    }, now);
+    }, new Date('2026-10-30T12:00:00.000Z'));
     expect(preview.temporalEvidenceStatus).toBe('insufficient_data');
     expect(preview.mappedSessions[0]).toMatchObject({
       proof: 'ambiguous_local_time', startAtUtc: null, endAtUtc: null,
     });
     expect(preview.gaps).toEqual([]);
     expect(preview.mayConcludeNoConflict).toBe(false);
+  });
+
+  it('rejects deliberately conflicting booking tenant and a date outside the window', async () => {
+    const db = mockDb();
+    db.agendaBooking.findMany.mockResolvedValueOnce([{
+      ...booking('booking-1', '2026-11-10', '08:00', '09:00'),
+      contractId: 'other-tenant',
+    }]);
+    await expect(create(db).preview(scope, { ...command, bindings: [command.bindings[0]] }, now))
+      .rejects.toMatchObject({ code: 'CONFLICT' });
+
+    db.agendaBooking.findMany.mockResolvedValueOnce([
+      booking('booking-1', '2026-12-02', '08:00', '09:00'),
+    ]);
+    await expect(create(db).preview(scope, { ...command, bindings: [command.bindings[0]] }, now))
+      .rejects.toMatchObject({ code: 'INVALID_INPUT' });
   });
 
   it('rejects past session starts even if the booking is still scheduled', async () => {

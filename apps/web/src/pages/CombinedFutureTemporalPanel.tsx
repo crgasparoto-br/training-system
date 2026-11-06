@@ -44,14 +44,16 @@ export function CombinedFutureTemporalPanel({
   latestIdentity.current = identity;
   const sequence = useRef(0);
   const [candidates, setCandidates] = useState<{ identity: string; range: { start: string; end: string }; rows: FutureTemporalBookingCandidate[] } | null>(null);
-  const [preview, setPreview] = useState<{ identity: string; report: FutureTemporalPreview } | null>(null);
+  const [preview, setPreview] = useState<{ identity: string; signature: string; report: FutureTemporalPreview } | null>(null);
   const [choices, setChoices] = useState<string[]>([]);
   const [timeZone, setTimeZone] = useState(defaultTimeZone);
   const [timeZoneConfirmed, setTimeZoneConfirmed] = useState(false);
   const [loading, setLoading] = useState<'list' | 'preview' | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const current = candidates?.identity === identity && canReadAgenda ? candidates : null;
-  const result = preview?.identity === identity && canReadAgenda ? preview.report : null;
+  const current = candidates?.identity === identity && canReadAgenda && !dirty ? candidates : null;
+  const signature = JSON.stringify([identity, timeZone, timeZoneConfirmed, [...choices].sort()]);
+  const result = preview?.identity === identity && preview.signature === signature && canReadAgenda && !dirty
+    ? preview.report : null;
 
   useEffect(() => {
     sequence.current += 1;
@@ -108,7 +110,9 @@ export function CombinedFutureTemporalPanel({
         windowStart: current.range.start, windowEnd: current.range.end,
         timeZone, bindings,
       });
-      if (id === sequence.current && latestIdentity.current === identity) setPreview({ identity, report });
+      if (id === sequence.current && latestIdentity.current === identity) {
+        setPreview({ identity, signature, report });
+      }
     } catch {
       if (id === sequence.current && latestIdentity.current === identity) {
         setError('As fontes, versões ou permissões mudaram. Recarregue a agenda antes de nova avaliação.');

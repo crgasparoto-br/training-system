@@ -128,7 +128,7 @@ export function createCombinedFutureTemporalService(client: PrismaClient = prism
         where: { id: { in: bookingIds }, contractId: context.contractId, alunoId: context.alunoId },
         select: {
           id: true, bookingDate: true, startTime: true, endTime: true,
-          status: true, updatedAt: true,
+          status: true, updatedAt: true, contractId: true, alunoId: true,
         },
       }) : [];
       if (bookings.length !== bookingIds.length) stale();
@@ -140,7 +140,18 @@ export function createCombinedFutureTemporalService(client: PrismaClient = prism
         const block = bySource.get(binding.capacityPrescriptionVersionId);
         const booking = byBooking.get(binding.bookingId);
         if (!block || !booking || booking.status !== 'scheduled' ||
+            booking.contractId !== context.contractId || booking.alunoId !== context.alunoId ||
             booking.updatedAt.toISOString() !== binding.expectedBookingUpdatedAt) stale();
+        const fromDay = Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate() - 1);
+        const toDay = Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate() + 1);
+        const sourceDay = booking.bookingDate.getTime();
+        if (sourceDay < fromDay || sourceDay > toDay) {
+          invalid('O agendamento informado está fora da janela solicitada.');
+        }
+        const earliestCivilDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1);
+        if (sourceDay < earliestCivilDay) {
+          invalid('Um agendamento passado não pode representar uma sessão futura.');
+        }
         const time = resolved.get(booking.id) ?? resolveAgendaBookingUtc(
           booking.bookingDate, booking.startTime, booking.endTime, zone
         );
@@ -148,7 +159,7 @@ export function createCombinedFutureTemporalService(client: PrismaClient = prism
         const verified = time.status === 'verified';
         const startAtUtc = verified ? time.startAtUtc : null;
         const endAtUtc = verified ? time.endAtUtc : null;
-        if (verified && (startAtUtc <= now.toISOString() ||
+        if (startAtUtc !== null && (startAtUtc <= now.toISOString() ||
             startAtUtc < command.windowStart || startAtUtc >= command.windowEnd)) {
           invalid('O agendamento selecionado deve começar no futuro e pertencer ao período solicitado.');
         }
@@ -161,7 +172,7 @@ export function createCombinedFutureTemporalService(client: PrismaClient = prism
           startAtUtc, endAtUtc,
           proof: verified ? 'verified' : time.reason,
         });
-        if (verified) {
+        if (startAtUtc !== null) {
           observations.push({
             alunoId: context.alunoId, contractId: context.contractId,
             sessionId: booking.id, capacity: block.capacity as ConflictCapacity,
