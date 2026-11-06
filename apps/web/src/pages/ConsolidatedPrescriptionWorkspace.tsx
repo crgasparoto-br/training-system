@@ -220,7 +220,7 @@ export function ConsolidatedPrescription() {
   const currentVersion = assembly?.latestVersion ?? null;
   const currentStatus = currentVersion?.status ?? null;
   const conflictReport = currentVersion && assembly?.alunoId === alunoId &&
-    conflictReportState?.alunoId === alunoId &&
+    conflictReportState && conflictReportState.alunoId === alunoId &&
     conflictReportState.assemblyVersionId === currentVersion.id &&
     conflictReportState.report?.version === currentVersion.version &&
     (!conflictReportState.report.combinedReview ||
@@ -228,7 +228,7 @@ export function ConsolidatedPrescription() {
         conflictReportState.report.combinedReview.assemblyVersion === currentVersion.version))
     ? conflictReportState.report : null;
   const history = currentVersion && assembly?.alunoId === alunoId &&
-    historyState?.alunoId === alunoId && historyState.assemblyVersionId === currentVersion.id
+    historyState && historyState.alunoId === alunoId && historyState.assemblyVersionId === currentVersion.id
     ? historyState.value : null;
   const candidates = workspace?.capacityCandidates ?? [];
   const originLabel = (location.state as RouteState | null)?.from === 'student-central'
