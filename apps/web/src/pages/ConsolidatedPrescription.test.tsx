@@ -365,14 +365,14 @@ describe('ConsolidatedPrescription', () => {
     renderSwitchablePage();
     await waitFor(() => expect(consolidatedPrescriptionService.getConflicts).toHaveBeenCalledWith('aluno-1'));
     await user.click(screen.getByRole('button', { name: 'Abrir outro aluno' }));
-    await screen.findByText('Aluno B');
+    expect((await screen.findAllByText('Aluno B')).length).toBeGreaterThan(0);
     await user.click(screen.getByRole('button', { name: '4. Alertas e conflitos' }));
     expect(await screen.findByText('Cíclico v7')).toBeInTheDocument();
 
     await act(async () => {
       resolveOldReport({ ...conflictReport, combinedReview: combinedReviewFixture('assembly-version-3', 99) });
     });
-    expect(screen.getByText('Aluno B')).toBeInTheDocument();
+    expect(screen.getAllByText('Aluno B')[0]).toBeInTheDocument();
     expect(screen.getByText('Cíclico v7')).toBeInTheDocument();
     expect(screen.queryByText('Cíclico v99')).not.toBeInTheDocument();
     expect(consolidatedPrescriptionService.getCombinedHistory).not.toHaveBeenCalled();
