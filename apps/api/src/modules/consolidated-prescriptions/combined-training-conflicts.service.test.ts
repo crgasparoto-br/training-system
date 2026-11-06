@@ -109,7 +109,43 @@ describe('#403 canonical conflict input remediation A-001..003', () => {
     ]));
   });
 
-  it('does not infer cyclic or resisted from text, or fabricate missing operational capacity', async () => {
+  it('recognizes a versioned cyclic placement without WorkoutDay stimulus fields, without leaking into another day', async () => {
+    const db = makeDb();
+    const date = new Date('2026-11-05T00:00:00.000Z');
+    const bareDay = {
+      id: 'day', templateId: 'template', workoutDate: date,
+      method: null, vo2maxPct: null, stimulusDurationMin: null, cyclicTimeMin: null,
+      resistanceTimeMin: null, cyclicStages: [], exercises: [], resistanceGroups: [], execution: null,
+    };
+    db.workoutDay.findMany.mockResolvedValue([
+      bareDay,
+      { ...bareDay, id: 'resisted-day', workoutDate: new Date('2026-11-06T00:00:00.000Z'), exercises: [{ id: 'exercise' }] },
+    ]);
+    db.$queryRaw.mockReset().mockResolvedValueOnce([released]).mockResolvedValueOnce([
+      { id: 'cyclic-placement', workoutDayId: 'day', capacity: 'cyclic', capacityPrescriptionVersionId: 'prescription-cyclic' },
+    ]);
+    const report = await subject(db).getReport(args);
+    expect(report!.releasedSessionCount).toBe(2);
+    expect(report!.observations.map(({ sessionId, capacity }) => ({ sessionId, capacity }))).toEqual([
+      { sessionId: 'day', capacity: 'cyclic' },
+      { sessionId: 'resisted-day', capacity: 'resisted' },
+    ]);
+    expect(report!.observations[0].provenance.operational).toEqual({
+      kind: 'workout_capacity_block', recordId: 'cyclic-placement',
+    });
+    expect(report!.coverage).toBe('partial');
+    expect(report!.evaluations).toEqual([]);
+  });
+
+  it('fails closed if a persisted cyclic placement disagrees with the released prescription snapshot', async () => {
+    const db = makeDb();
+    db.$queryRaw.mockReset().mockResolvedValueOnce([released]).mockResolvedValueOnce([
+      { id: 'foreign-cyclic', workoutDayId: 'day', capacity: 'cyclic', capacityPrescriptionVersionId: 'other-version' },
+    ]);
+    await expect(subject(db).getReport(args)).rejects.toThrow('Versão do bloco operacional diverge');
+  });
+
+  it('does not infer cyclic or resisted from text, or fabricate missing operational capacity', async () {
     const db = makeDb();
     db.workoutDay.findMany.mockResolvedValue([{
       id: 'day', templateId: 'template', workoutDate: new Date('2026-11-05T00:00:00.000Z'),

@@ -91,8 +91,9 @@ function addFeedbackSignals(target: FeedbackSignals, values: Record<string, unkn
 
 /**
  * Read-only source adapter. Clinical activation remains separately gated by #534.
- * Day fields/exercises represent cyclic/resisted activity; the operational block table
- * stores ONLY flexibility/balance (enforced by its database CHECK constraint).
+ * Cyclic/resisted legacy fields still identify structured activity. New cyclic releases
+ * also persist a day-specific versioned source even when only template distance is mapped.
+ * The existing flex/balance table keeps its restrictive PostgreSQL CHECK.
  */
 export function createCombinedConflictSourceService(client: PrismaClient = prisma) {
   return {
@@ -139,6 +140,10 @@ export function createCombinedConflictSourceService(client: PrismaClient = prism
           SELECT "id", "workoutDayId", "capacity", "capacityPrescriptionVersionId"
           FROM "WorkoutDayCapacityOperationalBlock"
           WHERE "workoutDayId" IN (${Prisma.join(ids)})
+          UNION ALL
+          SELECT "id", "workoutDayId", "capacity", "capacityPrescriptionVersionId"
+          FROM "WorkoutDayCyclicOperationalBlock"
+          WHERE "workoutDayId" IN (${Prisma.join(ids)})
         `) : Promise.resolve([] as OperationalBlock[]),
         assemblyVersions.length ? client.consolidatedPrescriptionCapacityBlock.findMany({
           where: {
@@ -169,7 +174,7 @@ export function createCombinedConflictSourceService(client: PrismaClient = prism
       ]);
       const byDay = new Map<string, Map<ConflictCapacity, OperationalBlock>>();
       for (const block of blocks) {
-        if (block.capacity !== 'flexibility' && block.capacity !== 'balance')
+        if (block.capacity !== 'flexibility' && block.capacity !== 'balance' && block.capacity !== 'cyclic')
           throw new Error('Bloco operacional de capacidade fora do contrato canônico.');
         const set = byDay.get(block.workoutDayId) ?? new Map<ConflictCapacity, OperationalBlock>();
         set.set(block.capacity, block); byDay.set(block.workoutDayId, set);

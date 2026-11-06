@@ -73,6 +73,21 @@ O mesmo trigger compara `parameters` por igualdade JSONB com o ramo canônico da
 
 Outro trigger proíbe `UPDATE`/`DELETE`. As notas de `WorkoutDay` são somente apresentação derivada; a relação estruturada é a fonte operacional versionada e sem perda.
 
+### `WorkoutDayCyclicOperationalBlock` (issue #403, A-005)
+
+Vínculo estrutural **por dia** para a capacidade cíclica, inclusive quando a projeção somente preenche
+`WorkoutTemplate.totalVolumeKm` e nenhum campo de estímulo em `WorkoutDay`. Uma linha contém
+`workoutDayId`, `capacityPrescriptionVersionId`, `capacity='cyclic'`, `contractVersion=1`,
+`parameters JSONB` idênticos à versão canônica e `createdAt`. A chave única por dia evita atribuições
+ambíguas, e as FKs preservam o vínculo à sessão e à versão da prescrição.
+
+A migration reutiliza os **mesmos triggers de escopo, igualdade JSONB, imutabilidade e bloqueio de
+inserção após liberação** do bloco estruturado da #320, mas mantém uma tabela separada: o
+`CHECK` de `WorkoutDayCapacityOperationalBlock` continua limitado a flexibilidade/equilíbrio.
+A transação de liberação grava o marcador antes do ledger, sem qualquer inferência por texto
+ou atribuição de quilômetros do template a todos os dias. Releases legados sem esse marcador
+continuam usando apenas o grafo operacional comprovável, preservando `coverage=partial`.
+
 ## Auditoria sem duplicação de persistência
 
 A auditoria funcional da montagem continua reconstruída deterministicamente de `ConsolidatedPrescriptionVersion`:
@@ -89,7 +104,7 @@ A auditoria funcional da montagem continua reconstruída deterministicamente de 
 
 O evento derivado usa `createdByProfessorId` da versão como ator da ação, `createdAt` como timestamp, `previousVersionId` para localizar versão/estado anterior e os campos específicos de revisão/aprovação/bloqueio para rastreabilidade adicional.
 
-A tabela `ConsolidatedPrescriptionOperationalRelease` não substitui essa auditoria de estado: ela prova a relação material entre a transição `released` e os IDs operacionais que receberam a publicação. `WorkoutDayCapacityOperationalBlock` complementa essa cadeia com o vínculo direto sessão -> versão da capacidade para Flexibilidade/Equilíbrio.
+A tabela `ConsolidatedPrescriptionOperationalRelease` não substitui essa auditoria de estado: ela prova a relação material entre a transição `released` e os IDs operacionais que receberam a publicação. `WorkoutDayCapacityOperationalBlock` complementa essa cadeia com o vínculo direto sessão -> versão da capacidade para Flexibilidade/Equilíbrio; `WorkoutDayCyclicOperationalBlock` registra a capacidade cíclica por sessão independentemente dos campos efetivamente projetados no dia.
 
 Essa estratégia satisfaz atomicidade por construção: estado, conteúdo operacional, blocos estruturados, vínculo e flag de liberação são escritos na mesma transação. Se qualquer etapa falha, nenhuma alteração parcial permanece.
 

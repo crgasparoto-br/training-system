@@ -58,7 +58,7 @@ A integração à liberação prévia de rascunhos, a homologação profissional
 ### Remediação de fontes, escopos e versões — PR #537
 
 - A proveniência de cada observação inclui a liberação operacional (`recordId`, `releasedAssemblyVersionId` e versão), a `CapacityPrescriptionVersion` exata (ID e versão) da `ConsolidatedPrescriptionCapacityBlock` liberada e o registro operacional estruturado do dia. A consulta rejeita vínculos discordantes em vez de trocar de versão silenciosamente.
-- O recorte cíclico é identificado por campos planejados estruturados de `WorkoutDay` ou estágios cíclicos; resistido, pelos exercícios/grupos operacionais; flexibilidade e equilíbrio, exclusivamente pelos blocos `WorkoutDayCapacityOperationalBlock`. Essa última tabela **não** admite cíclico/resistido pelo `CHECK` PostgreSQL. Texto livre e notas derivadas nunca criam capacidade.
+- O recorte cíclico usa campos planejados estruturados de `WorkoutDay` ou estágios cíclicos e, nos novos releases, também o vínculo de dia `WorkoutDayCyclicOperationalBlock` (necessário para distância armazenada somente no template); resistido usa exercícios/grupos operacionais; flexibilidade e equilíbrio usam exclusivamente `WorkoutDayCapacityOperationalBlock`. Esta última tabela **continua proibindo** cíclico/resistido pelo `CHECK` PostgreSQL. Texto livre e notas derivadas nunca criam capacidade.
 - `sessionSignals[]` mantém check-in e feedback de escopo `session` separadamente das observações específicas em `observations[]`, com fonte, revisão e release. Tontura, dor, PSR, fadiga e sono são apenas sinais estruturados; nenhum deles gera classificação combinada não homologada. Feedback de capacidade só alimenta a capacidade correspondente; feedback geral não é atribuído artificialmente a nenhuma capacidade.
 - Feedback só é consumido se sua execução, release, template e plano coincidirem com a sessão publicada. Apenas a revisão corrente de cada `scopeKey` é utilizada; um novo GET realiza nova leitura. As respostas não retornam notas livres, dados integrais ou diagnósticos.
 - `observationCount` conta observações por capacidade; `sessionSignalCount` conta sinais de sessão. `coverage=partial` e `ACTIVE_COMBINED_CONFLICT_RULES_V1=[]` permanecem inalterados; esta integração **não** equivale à homologação #534 nem encerra a issue #403.
@@ -70,3 +70,20 @@ A seleção de registro estrutural usa ordenação estável de estágios, exerc�
 Cada observação das quatro capacidades (`cyclic`, `resisted`, `flexibility`, `balance`) conserva os sinais estruturados da revisão vigente de seu próprio `scopeKey`: `painAfter` em `numeric.painLevel`, `psr` em `numeric.psr`, tontura em `flags.dizziness` e fadiga/sono em `categorical.fatigueLevel` e `categorical.sleepQuality`. Cada medida traz `kind=feedback`, ID e número da revisão; nenhum valor é copiado para outra capacidade ou deduzido de texto livre. `sessionSignals[]` permanece reservado ao check-in e ao feedback geral da sessão.
 
 A mesma extração tipada é usada para feedback geral e específico; somente registros associados à execução e à liberação consolidadas são considerados. Correções são refletidas por nova consulta sem expor revisões anteriores ou campos textuais. Os valores permanecem apenas **evidências**: não se aplica a triagem de dor cíclica às demais capacidades, não se ativa a interpretação clínica sem #534 e não se altera o treino automaticamente. Os testes unitários abrangem quatro capacidades, separação de escopo, revisões corrigidas e origem estrangeira; o teste HTTP/PostgreSQL cobre criação, correção e releitura das quatro capacidades com liberação operacional real.
+
+### Remediação A-005 — corrida somente por distância
+
+Uma prescrição cíclica cujo único parâmetro operacional seja `distance` pode projetar
+apenas `WorkoutTemplate.totalVolumeKm`, sem preencher `WorkoutDay.method`,
+`stimulusDurationMin` ou estágio cíclico. O produtor da liberação persiste um
+`WorkoutDayCyclicOperationalBlock` na data da colocação aprovada, vinculado ao
+`CapacityPrescriptionVersion` exato e protegido por triggers de tenant, conteúdo,
+imutabilidade e publicação. A consulta reúne esse marcador com os blocos
+flexibilidade/equilíbrio sem ampliar os limites físicos desses últimos e rejeita versão
+diferente do snapshot consolidado. A distância do template jamais é aplicada
+automaticamente a outros dias com somente treino resistido. Releases anteriores sem
+marcador utilizam as provas operacionais existentes; permanece `coverage=partial`.
+
+A integração PostgreSQL comprova um dia cíclico com distância isolada e outro dia
+resistido sem propagação entre sessões, com origem e versão corretas. O contrato
+continua somente leitura, `no_active_rules` até #534 e sem mutações de treino.

@@ -48,6 +48,7 @@ const BALANCE_PARAMETERS = {
   expectedPse: 2,
 } as const;
 const CYCLIC_PARAMETERS = { category: 'continuous', time: '30 min' } as const;
+const CYCLIC_DISTANCE_ONLY_PARAMETERS = { distance: '5 km' } as const;
 const FLEXIBILITY_NOTE =
   'Flexibilidade — Ombro (prescrição: 3 x 30 s, ângulo: 120°, déficit: 10°, prioridade: alta). PSE esperada: 3.';
 const BALANCE_NOTE =
@@ -74,7 +75,7 @@ function contextFor(fixture: Fixture) {
   };
 }
 
-function commandFor(fixture: Fixture, includeResisted = false) {
+function commandFor(fixture: Fixture, includeResisted = false, resistedOnNextDay = false) {
   return {
     expectedCurrentVersion: 1,
     target: {
@@ -99,8 +100,9 @@ function commandFor(fixture: Fixture, includeResisted = false) {
           workoutDate: '2026-08-17T00:00:00.000Z',
         },
         ...(includeResisted ? [{
-          projectionKey: 'resisted:release-test', dayOfWeek: 1,
-          workoutDate: '2026-08-17T00:00:00.000Z', section: 'principal', exerciseOrder: 1,
+          projectionKey: 'resisted:release-test', dayOfWeek: resistedOnNextDay ? 2 : 1,
+          workoutDate: resistedOnNextDay ? '2026-08-18T00:00:00.000Z' : '2026-08-17T00:00:00.000Z',
+          section: 'principal', exerciseOrder: 1,
         }] : []),
       ],
     },
@@ -120,7 +122,7 @@ function capacityParameters(capacity: (typeof CAPACITIES)[number]) {
   return { type: 'resisted', resisted: {} };
 }
 
-async function seedFixture(label: string, includeResisted = false): Promise<Fixture> {
+async function seedFixture(label: string, includeResisted = false, cyclicDistanceOnly = false): Promise<Fixture> {
   const suffix = `${label}-${randomUUID()}`;
   const contractId = `issue-320-${suffix}`;
 
@@ -212,7 +214,9 @@ async function seedFixture(label: string, includeResisted = false): Promise<Fixt
         technicalJustification: `Justificativa ${capacity}`,
         professorSummary: `Resumo ${capacity}`,
         studentMessage: `Orientação ${capacity}`,
-        parameters: capacityParameters(capacity),
+        parameters: capacity === 'cyclic' && cyclicDistanceOnly
+          ? { type: 'cyclic', cyclic: CYCLIC_DISTANCE_ONLY_PARAMETERS }
+          : capacityParameters(capacity),
       },
     });
     capacityVersionIds[capacity] = version.id;
@@ -294,8 +298,10 @@ async function seedFixture(label: string, includeResisted = false): Promise<Fixt
       key: 'cyclic:release-test',
       capacity: 'cyclic',
       target: 'WorkoutDay',
-      proposedFields: { WorkoutDay: { method: 'continuous', stimulusDurationMin: 30 } },
-      sourceParameters: CYCLIC_PARAMETERS,
+      proposedFields: cyclicDistanceOnly
+        ? { WorkoutTemplate: { totalVolumeKm: 5 } }
+        : { WorkoutDay: { method: 'continuous', stimulusDurationMin: 30 } },
+      sourceParameters: cyclicDistanceOnly ? CYCLIC_DISTANCE_ONLY_PARAMETERS : CYCLIC_PARAMETERS,
     },
     {
       key: 'balance:release-test',
@@ -473,6 +479,57 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
     expect(trace.consolidatedPrescription.sourceVersion.id).toBe(fixture.sourceVersionId);
     expect(trace.capacities).toHaveLength(4);
     expect(trace.sourceRefs).toHaveLength(4);
+  });
+
+  it('preserva capacidade cíclica de distância isolada na sessão correta com PostgreSQL real', async () => {
+    const fixture = await seedFixture('cyclic-distance-only', true, true);
+    const released = await service.release(contextFor(fixture), commandFor(fixture, true, true), RELEASE_NOW);
+    const days = await prisma.workoutDay.findMany({
+      where: { templateId: released.workoutTemplateId },
+      orderBy: { dayOfWeek: 'asc' },
+    });
+    expect(days).toHaveLength(2);
+    const [cyclicDay, resistedDay] = days;
+    expect(cyclicDay.method).toBeNull();
+    expect(cyclicDay.stimulusDurationMin).toBeNull();
+    expect(cyclicDay.cyclicTimeMin).toBeNull();
+    expect(cyclicDay.cyclicStages).toBeUndefined();
+    const template = await prisma.workoutTemplate.findUniqueOrThrow({
+      where: { id: released.workoutTemplateId }, select: { totalVolumeKm: true },
+    });
+    expect(template.totalVolumeKm).toBe(5);
+    const markers = await prisma.$queryRaw<Array<{
+      id: string; workoutDayId: string; capacityPrescriptionVersionId: string; parameters: unknown;
+    }>>`
+      SELECT "id", "workoutDayId", "capacityPrescriptionVersionId", "parameters"
+      FROM "WorkoutDayCyclicOperationalBlock"
+      WHERE "workoutDayId" = ${cyclicDay.id}
+    `;
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toMatchObject({
+      workoutDayId: cyclicDay.id,
+      capacityPrescriptionVersionId: fixture.capacityVersionIds.cyclic,
+      parameters: CYCLIC_DISTANCE_ONLY_PARAMETERS,
+    });
+    const report = await createCombinedConflictSourceService(prisma).getReport({
+      alunoId: fixture.alunoId, contractId: fixture.contractId,
+      start: '2026-08-17T00:00:00.000Z', end: '2026-08-19T00:00:00.000Z',
+    });
+    expect(report).toMatchObject({
+      state: 'no_active_rules', coverage: 'partial', changesWorkoutAutomatically: false,
+      releasedSessionCount: 2, observationCount: 4,
+    });
+    const cyclicCapacities = report!.observations
+      .filter((row) => row.sessionId === cyclicDay.id).map((row) => row.capacity).sort();
+    const resistedCapacities = report!.observations
+      .filter((row) => row.sessionId === resistedDay.id).map((row) => row.capacity).sort();
+    expect(cyclicCapacities).toEqual(['balance', 'cyclic', 'flexibility']);
+    expect(resistedCapacities).toEqual(['resisted']);
+    const cyclic = report!.observations.find((row) => row.capacity === 'cyclic')!;
+    expect(cyclic.provenance.operational).toEqual({
+      kind: 'workout_capacity_block', recordId: markers[0].id,
+    });
+    expect(cyclic.provenance.capacityPrescription.recordId).toBe(fixture.capacityVersionIds.cyclic);
   });
 
   it('reproduz HTTP e PostgreSQL com release real, quatro capacidades e proveniência', async () => {
