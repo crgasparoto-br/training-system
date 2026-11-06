@@ -129,7 +129,7 @@ describe('#403 future preview strict source binding', () => {
     ]);
     const preview = await create(db).preview(scope, {
       ...command, timeZone: 'America/New_York',
-      windowStart: '2026-10-30T00:00:00.000Z',
+      windowStart: '2026-10-30T12:00:00.000Z',
       windowEnd: '2026-11-04T00:00:00.000Z',
       bindings: [command.bindings[0]],
     }, new Date('2026-10-30T12:00:00.000Z'));
@@ -163,7 +163,7 @@ describe('#403 future preview strict source binding', () => {
       booking('booking-1', '2026-11-05', '08:00', '09:00'),
     ]);
     await expect(create(db).preview(scope, {
-      ...command, windowStart: '2026-11-01T00:00:00.000Z',
+      ...command, windowStart: '2026-11-06T11:59:00.000Z',
       bindings: [command.bindings[0]],
     }, now)).rejects.toMatchObject({ code: 'INVALID_INPUT' });
   });
