@@ -596,6 +596,32 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
     expect(refreshed!.observationCount).toBe(4);
     expect(JSON.stringify(refreshed)).not.toContain(initialFeedback.id);
     expect(JSON.stringify(refreshed)).not.toContain('Nota de distância confidencial');
+
+    // Verify the same distance-only provenance and current feedback at the actual HTTP boundary.
+    const app = express();
+    app.use(express.json());
+    app.use('/consolidated-prescriptions', consolidatedPrescriptionRoutes);
+    const token = jwt.sign({
+      userId: fixture.professorUserId, email: fixture.professorEmail, type: UserType.professor,
+    }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '1h' });
+    const httpResponse = await request(app)
+      .get('/consolidated-prescriptions/alunos/' + fixture.alunoId +
+        '/combined-conflicts?start=2026-08-17T00:00:00.000Z&end=2026-08-19T00:00:00.000Z')
+      .set('Authorization', 'Bearer ' + token);
+    expect(httpResponse.status).toBe(200);
+    const httpCyclic = httpResponse.body.data.observations.filter(
+      (row: { capacity: string }) => row.capacity === 'cyclic'
+    );
+    expect(httpCyclic).toHaveLength(1);
+    expect(httpCyclic[0]).toMatchObject({
+      sessionId: cyclicDay.id,
+      provenance: { operational: { kind: 'workout_capacity_block', recordId: markers[0].id } },
+      numeric: { painLevel: { value: 2, source: { recordId: correctedFeedback.id, version: '2' } } },
+    });
+    expect(httpResponse.body.data.observations.find(
+      (row: { sessionId: string }) => row.sessionId === resistedDay.id
+    )).toMatchObject({ capacity: 'resisted' });
+    expect(JSON.stringify(httpResponse.body)).not.toContain('Nota de distância confidencial');
   });
 
   it('reproduz HTTP e PostgreSQL com release real, quatro capacidades e proveniência', async () => {
