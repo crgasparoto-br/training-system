@@ -8,6 +8,12 @@ import type {
 import { Button } from '../components/ui/Button';
 import { consolidatedPrescriptionService } from '../services/consolidated-prescription.service';
 
+const severities = {
+  info: 'Informativo',
+  warning: 'Atenção',
+  critical: 'Crítico — revisão profissional',
+} as const;
+
 const labels: Record<PhysicalCapacityType, string> = {
   cyclic: 'Cíclico',
   resisted: 'Resistido',
@@ -149,7 +155,27 @@ export function CombinedTrainingReviewPanel({
                                 ? 'Dados insuficientes' : item.status === 'not_triggered'
                                   ? 'Não acionada nas evidências disponíveis' : 'Regra inativa'}
                           </p>
+                          {item.severity && (
+                            <p className="mt-1 font-medium">Severidade: {severities[item.severity]}</p>
+                          )}
+                          <p className="mt-1 text-muted-foreground">Fonte da regra: {item.ruleSource}</p>
                           {item.professorGuidance && <p className="mt-1">{item.professorGuidance}</p>}
+                          {item.evidence.length > 0 && (
+                            <ul className="mt-2 space-y-1">
+                              {item.evidence.map((evidence) => (
+                                <li key={evidence.sessionId + ':' + evidence.metric + ':' + evidence.source.recordId}
+                                  className="break-all text-muted-foreground">
+                                  {labels[evidence.capacity]} • {evidence.metric} •
+                                  {' '}{evidence.source.kind}/{evidence.source.recordId} v{evidence.source.version}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {item.missingOperands.length > 0 && (
+                            <p className="mt-1 text-amber-900">
+                              Dados necessários não disponíveis: {item.missingOperands.join(', ')}
+                            </p>
+                          )}
                         </div>
                       ))}
                       <p className="text-xs font-medium text-amber-900">

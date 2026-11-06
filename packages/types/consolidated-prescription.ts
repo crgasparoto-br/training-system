@@ -120,6 +120,14 @@ export interface ConsolidatedCombinedHistoryPreview {
     severity: 'info' | 'warning' | 'critical' | null;
     professorGuidance: string | null;
     missingOperands: string[];
+    evidence: Array<{
+      sessionId: string;
+      capacity: PhysicalCapacityType;
+      scheduledAt: string;
+      metric: string;
+      source: { kind: string; recordId: string; version: string };
+      value: number | boolean;
+    }>;
   }>;
 }
 

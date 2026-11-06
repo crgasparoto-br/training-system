@@ -70,6 +70,35 @@ describe('combined review history subject binding', () => {
     expect(screen.queryByText(/7 sessões liberadas/)).not.toBeInTheDocument();
   });
 
+  it('exibe regra, severidade, orientação e proveniência apenas no histórico autorizado', async () => {
+    const user = userEvent.setup();
+    vi.mocked(consolidatedPrescriptionService.getCombinedHistory).mockResolvedValue({
+      ...history,
+      state: 'evaluated',
+      evaluations: [{
+        ruleCode: 'HYPOTHETICAL-ONLY', ruleVersion: 'fixture-1',
+        ruleSource: 'hypothetical-test-source',
+        status: 'triggered', severity: 'warning',
+        professorGuidance: 'Revisar com o profissional.',
+        missingOperands: [],
+        evidence: [{
+          sessionId: 'session-1', capacity: 'cyclic', scheduledAt: '2026-11-05T00:00:00.000Z',
+          metric: 'psr', value: 5,
+          source: { kind: 'feedback', recordId: 'feedback-1', version: '4' },
+        }],
+      }],
+    });
+    render(<CombinedTrainingReviewPanel
+      alunoId="aluno-a" contractId="tenant-a" currentVersion={1} summary={summary(1)}
+      canReadSensitive dirty={false}
+    />);
+    await user.click(screen.getByRole('button', { name: 'Consultar evidências históricas' }));
+    expect(await screen.findByText(/HYPOTHETICAL-ONLY vfixture-1/)).toBeInTheDocument();
+    expect(screen.getByText(/Severidade: Atenção/)).toBeInTheDocument();
+    expect(screen.getByText('Revisar com o profissional.')).toBeInTheDocument();
+    expect(screen.getByText(/feedback\/feedback-1 v4/)).toBeInTheDocument();
+  });
+
   it('não reutiliza evidência ao mudar a versão ou perder concessão clínica', async () => {
     const user = userEvent.setup();
     vi.mocked(consolidatedPrescriptionService.getCombinedHistory).mockResolvedValue(history);
