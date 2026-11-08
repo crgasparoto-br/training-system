@@ -197,7 +197,7 @@ describe('future temporal review UI binding', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/até 80 agendamentos distintos/i);
     expect(bookingCheckbox('booking-81')).not.toBeChecked();
     await user.click(screen.getByRole('button', { name: 'Página anterior' }));
-    await screen.findByText(/Agendamento: booking-1/);
+    await screen.findByText('Página 1 da consulta');
     await user.click(bookingCheckbox('booking-2'));
     expect(screen.getByText('79 de 80 agendamentos selecionados nesta consulta')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Próxima página' }));
@@ -261,7 +261,7 @@ describe('future temporal review UI binding', () => {
     await screen.findByText(/Agendamento: booking-81/);
     expect(screen.getByText('1 de 80 agendamentos selecionados nesta consulta')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Recarregar agendamentos futuros' }));
-    await screen.findByText(/Agendamento: booking-1/);
+    await screen.findByText('Página 1 da consulta');
     expect(bookingCheckbox('booking-1')).not.toBeChecked();
     expect(screen.getByText('0 de 80 agendamentos selecionados nesta consulta')).toBeInTheDocument();
   });
