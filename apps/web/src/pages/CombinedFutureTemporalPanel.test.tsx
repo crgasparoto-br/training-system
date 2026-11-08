@@ -179,9 +179,9 @@ describe('future temporal review UI binding', () => {
   it('R-539-01 enforces 80 distinct bookings but allows multiple capacities for the same booking', async () => {
     const user = userEvent.setup();
     vi.mocked(consolidatedPrescriptionService.getFutureBookingCandidates)
-      .mockResolvedValueOnce(bookingPage(1, 80))
-      .mockResolvedValueOnce(bookingPage(81, 1))
-      .mockResolvedValueOnce(bookingPage(1, 80));
+      .mockImplementation((_studentId, _start, _end, pageNumber) => Promise.resolve(
+        pageNumber === 2 ? bookingPage(81, 1) : bookingPage(1, 80)
+      ));
     render(page());
     await user.click(screen.getByRole('button', { name: 'Consultar agendamentos futuros' }));
     await screen.findByText(/Agendamento: booking-80/);
