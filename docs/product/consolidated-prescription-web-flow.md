@@ -226,3 +226,55 @@ A cor de fundo de controles preenchidos usa o token `--primary` mais escuro. Tex
 ## Fora de escopo
 
 Esta interface não implementa cálculo de conflito no frontend, publicação direta do Treino de hoje, feedback pós-treino, decisão automática, editor completo de exercícios, WhatsApp ou aplicação em massa.
+
+
+## Etapa 4 — horários futuros com vínculo explícito à agenda
+
+A seção "Alertas e conflitos" inclui a prévia **Avaliação temporal das
+sessões futuras**, separada da leitura clínica histórica. Apenas perfis com
+`plans.consolidatedPrescriptions.view`, escopo do aluno/contrato
+e acesso à tela `agenda` conseguem consultar a lista mínima
+de agendamentos futuros. O professor escolhe as capacidades associadas a
+cada agendamento e confirma o fuso IANA. A API valida os vínculos contra
+os blocos canônicos da versão persistida, a revisão de cada agendamento e
+as fontes das prescrições. Os agendamentos da mesma data **não** são
+atribuídos automaticamente a exercícios/capacidades. Nenhum sinal de saúde
+é carregado por essas rotas de agenda.
+
+O cálculo de intervalos usa instantes UTC somente quando a conversão de
+tempo civil + fuso resulta em um único instante. Horário inexistente,
+ambíguo ou origem não canônica aparece como "não comprovado", sem inventar
+diferença em horas. Resultado sempre `coverage=partial`,
+nunca libera automaticamente ou substitui revisão profissional.
+Versões, perdas de permissão, troca de aluno e alterações locais ocultam
+resultado anterior. O clique em avaliar renova a janela UTC, sem reutilizar o
+cutoff do GET que pode ter sido feito muitos minutos antes. Falhas temporárias
+preservam as seleções e permitem nova tentativa; negação comprovada 403/404 ou
+conflito de versões 409 descartam os vínculos e exigem consulta renovada.
+Agendamentos legados sem `bookingCivilDate` autoritativo exibem "Data civil não
+comprovada" e nunca inferem dia do fuso do navegador ou do servidor. A seleção
+não é persistida nem reaproveitada na liberação. O fuso vem da declaração
+do professor para esta prévia, não da configuração do contrato.
+
+**Consulta de agenda densa (A-539-003/004):** a lista permite avançar e
+retroceder em páginas de até 80 agendamentos, sem carregar ou vincular todos
+automaticamente; a seleção explícita de cada capacidade é preservada ao
+navegar entre páginas da **mesma consulta**, incluindo o `updatedAt` original
+de cada booking, mas nunca ultrapassa 80 agendamentos distintos por prévia.
+O contador de selecionados e a ação **Limpar seleção** permitem controlar o
+limite mesmo em páginas diferentes. A API continua revalidando, no POST,
+todos os agendamentos selecionados e suas versões; se um agendamento reaparecer
+com versão diferente ao navegar, somente seus vínculos são desmarcados, com aviso.
+Falhas transitórias ao trocar de página preservam escolhas e a página atual;
+403/404/409 descartam as escolhas. Uma nova consulta, recorte alterado, mudança
+de aluno/contrato, versão da montagem, permissão ou edição local reinicia a seleção.
+Um recorte opcional com início e fim explícitos em **UTC** permite restringir a
+consulta até algumas horas, independentemente do fuso civil da Agenda, que
+continua exigindo confirmação profissional separada. Alterar o recorte
+descarta resultados anteriores e respostas assíncronas tardias. A navegação
+entre páginas mantém a mesma janela exata; caso o corte inicial expire,
+orienta recarregar a primeira página, sem mascarar falha de autorização.
+O GET exclui horários comprovadamente passados mesmo quando ainda estão
+marcados `scheduled`; sem fuso confirmado, mantém candidatos ambíguos e
+legados como não verificados para impedir falsas certezas. A prévia POST
+revalida novamente todos os vínculos, status, permissões e horários.

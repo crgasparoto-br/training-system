@@ -150,3 +150,16 @@ não precisa desmontar a rota: a tela invalida imediatamente a apresentação
 anterior e revalida o escopo contra as rotas protegidas de montagem/workspace.
 Uma resposta antiga ou perda de acesso `self` não pode restaurar dados clínicos;
 a consulta histórica exige nova ação explícita depois da revalidação.
+
+
+## Limite de autorização — prévia temporal futura (#403)
+
+O relatório comum da Montagem não incorpora agendamentos. A nova
+listagem mínima e a prévia temporal exigem **cumulativamente** acesso à
+Montagem Consolidada e à tela `agenda`; o `dataScope`
+de `plans` é revalidado contra o aluno antes da leitura.
+A API nunca confia no `contractId` enviado pelo cliente:
+consulta `AgendaBooking` e versões de prescrição filtradas por
+`contractId` e `alunoId` do token. A permissão de
+agenda não dá acesso aos dados clínicos de check-in/feedback, que
+continuam atrás de dois grants próprios em endpoint independente.

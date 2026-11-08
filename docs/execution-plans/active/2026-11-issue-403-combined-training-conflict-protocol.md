@@ -72,3 +72,53 @@ combinadas permanecem inativas. Sem merge automático.
 - [ ] CI do HEAD corretivo e auditoria independente formal em contexto separado.
 
 O escopo não inclui ativação de regras clínicas nem merge da PR.
+
+
+## Etapa 4 — agenda futura, prova temporal e revisão (#403)
+
+- [x] Consumir agendamentos `scheduled` de `AgendaBooking`
+  por aluno/contrato, com janela futura limitada e autorização da Agenda.
+- [x] Exigir associação explícita por capacidade e por versão canônica da
+  montagem; revalidar `updatedAt` da reserva, status e
+  versão atual da prescrição.
+- [x] Converter data/hora local usando fuso IANA explicitamente confirmado;
+  identificar horários ambíguos/inexistentes (DST) sem inventar instantes.
+- [x] Projetar sequência e intervalo entre fim/início de agendamentos
+  comprovados, sempre com `coverage=partial`,
+  sem severidade ou limite clínico.
+- [x] Expor endpoints de prévia e interface de seleção no fluxo do professor,
+  incluindo testes de horário e concorrência, isolamento e autorização.
+- [ ] CI terminal verde no SHA final e auditoria independente formal.
+- [ ] Formalizar fuso autoritativo do contrato, persistência/versão da
+  associação e revalidação no mesmo transaction boundary da liberação
+  operacional quando houver regra temporal clínica homologada.
+- [ ] Homologação externa #534 e ativação controlada das regras.
+
+## Remediação da auditoria da PR #539 — 06/11/2026
+
+- [x] A-539-001: renovar a janela temporal ao avaliar, sem reiniciar a seleção
+  após espera superior à tolerância de relógio do servidor; preservar mapeamento
+  em falhas temporárias e manter descarte em versão revogada/stale.
+- [x] A-539-002: gravar dia civil canônico da Agenda em `DATE` separado do
+  timestamp legado, sem backfill presumido. Respeitar `unverified` nos registros
+  antigos sem fonte civil, incluindo casos com fuso negativo e positivo.
+- [x] Adicionar testes focados de domínio, UI e integração HTTP/PostgreSQL com
+  fontes discrepantes, origem canônica, legado e mudança de relógio.
+- [ ] Validar as correções no CI oficial do HEAD publicado e obter nova auditoria
+  independente; as demais pendências clínicas/operacionais da #403/#534
+  permanecem separadas e não são autorizadas por esta correção.
+
+## Remediação da auditoria subsequente da PR #539 — A-003/A-004
+
+- [x] A-003: consultar agendamentos por páginas de até 80 candidatos elegíveis,
+  inclusive quando há mais de 80 no mesmo dia. Expor navegação e recorte UTC
+  mais curto na interface, mantendo o POST limitado a 80 vínculos únicos.
+- [x] A-004: descartar agendamentos com início comprovadamente passado antes
+  da paginação e varrer páginas internas do banco quando registros antigos
+  precederem os elegíveis, sem atribuir timezone a datas legadas.
+- [x] Adicionar controles de 80/81, 81 passados + 81 futuros, limites de janela,
+  navegação UI, isolamento do contrato e integração HTTP/PostgreSQL.
+- [ ] Verificar CI final do novo HEAD exato e obter auditoria independente.
+
+Nenhuma mudança nas regras clínicas combinadas (`ACTIVE_COMBINED_CONFLICT_RULES_V1=[]`),
+na aprovação ou na liberação da Montagem Consolidada.
