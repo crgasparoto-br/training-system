@@ -255,3 +255,17 @@ Agendamentos legados sem `bookingCivilDate` autoritativo exibem "Data civil não
 comprovada" e nunca inferem dia do fuso do navegador ou do servidor. A seleção
 não é persistida nem reaproveitada na liberação. O fuso vem da declaração
 do professor para esta prévia, não da configuração do contrato.
+
+**Consulta de agenda densa (A-539-003/004):** a lista permite avançar e
+retroceder em páginas de até 80 agendamentos, sem carregar ou vincular todos
+automaticamente; a troca de página apaga a seleção da página anterior. Um
+recorte opcional com início e fim explícitos em **UTC** permite restringir a
+consulta até algumas horas, independentemente do fuso civil da Agenda, que
+continua exigindo confirmação profissional separada. Alterar o recorte
+descarta resultados anteriores e respostas assíncronas tardias. A navegação
+entre páginas mantém a mesma janela exata; caso o corte inicial expire,
+orienta recarregar a primeira página, sem mascarar falha de autorização.
+O GET exclui horários comprovadamente passados mesmo quando ainda estão
+marcados `scheduled`; sem fuso confirmado, mantém candidatos ambíguos e
+legados como não verificados para impedir falsas certezas. A prévia POST
+revalida novamente todos os vínculos, status, permissões e horários.

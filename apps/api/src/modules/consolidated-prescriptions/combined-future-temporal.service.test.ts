@@ -43,6 +43,60 @@ const command = {
 };
 const create = (db: ReturnType<typeof mockDb>) => createCombinedFutureTemporalService(db as never);
 describe('#403 future preview strict source binding', () => {
+  it('A-539-003 pages 81 eligible bookings without exceeding 80 candidates per response', async () => {
+    const rows = Array.from({ length: 81 }, (_, i) => booking(
+      `booking-${String(i).padStart(3, '0')}`, '2026-11-10', '08:00', '09:00'
+    ));
+    const db = mockDb();
+    db.agendaBooking.findMany.mockImplementation(async (query: { cursor?: { id: string } }) =>
+      query.cursor ? [] : rows);
+    const service = create(db);
+    const first = await service.getCandidates(scope, command.windowStart, command.windowEnd, now);
+    const second = await service.getCandidates(scope, command.windowStart, command.windowEnd, now, 2);
+    const third = await service.getCandidates(scope, command.windowStart, command.windowEnd, now, 3);
+    expect(first).toHaveLength(80);
+    expect(first[0].bookingId).toBe('booking-000');
+    expect(first[79].bookingId).toBe('booking-079');
+    expect(second.map((item) => item.bookingId)).toEqual(['booking-080']);
+    expect(third).toEqual([]);
+    await expect(service.getCandidates(scope, command.windowStart, command.windowEnd, now, 101))
+      .rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  });
+
+  it('A-539-004 removes definitely past appointments before the limit and scans later pages', async () => {
+    const db = mockDb();
+    const past = Array.from({ length: 81 }, (_, i) => booking(
+      `past-${String(i).padStart(3, '0')}`, '2026-11-05', '08:00', '09:00'
+    ));
+    const future = booking('future', '2026-11-10', '10:00', '11:00');
+    db.agendaBooking.findMany.mockImplementation(async (query: { cursor?: { id: string } }) =>
+      query.cursor ? [future] : past);
+    const candidates = await create(db).getCandidates(scope,
+      '2026-11-06T12:00:00.000Z', '2026-11-15T00:00:00.000Z', now);
+    expect(candidates.map((b) => b.bookingId)).toEqual(['future']);
+    expect(db.agendaBooking.findMany).toHaveBeenCalledTimes(2);
+    expect(db.agendaBooking.findMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      cursor: { id: 'past-080' }, skip: 1, take: 81,
+    }));
+  });
+
+  it('A-539-004 retains uncertain edge/legacy bookings but excludes provably past civil starts', async () => {
+    const db = mockDb();
+    db.agendaBooking.findMany.mockResolvedValueOnce([
+      booking('expired', '2026-11-05', '08:00', '09:00'),
+      booking('possible-across-zones', '2026-11-05', '23:30', '23:45'),
+      { ...booking('legacy', '2026-11-05', '08:00', '09:00'), bookingCivilDate: null },
+      booking('today', '2026-11-06', '08:00', '09:00'),
+      booking('after-window', '2026-11-17', '08:00', '09:00'),
+    ]);
+    const candidates = await create(db).getCandidates(scope,
+      '2026-11-06T12:00:00.000Z', '2026-11-15T00:00:00.000Z', now);
+    expect(candidates.map((b) => b.bookingId)).toEqual([
+      'possible-across-zones', 'legacy', 'today',
+    ]);
+    expect(candidates.find((b) => b.bookingId === 'legacy')?.bookingDate).toBeNull();
+  });
+
   it('rejects past-start and far-future windows before loading tenant or booking data', async () => {
     const db = mockDb();
     const service = create(db);

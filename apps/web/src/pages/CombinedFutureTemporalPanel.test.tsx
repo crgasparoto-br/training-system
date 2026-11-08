@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ComponentProps } from 'react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -67,6 +67,76 @@ afterEach(() => {
 });
 
 describe('future temporal review UI binding', () => {
+  it('A-539-003 navigates a second page after 80 bookings and allows a narrower UTC range', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-06T12:00:00.000Z'));
+    const user = userEvent.setup();
+    const eighty = Array.from({ length: 80 }, (_, i) => ({
+      ...bookings[0], bookingId: `booking-${i + 1}`,
+    }));
+    vi.mocked(consolidatedPrescriptionService.getFutureBookingCandidates)
+      .mockResolvedValueOnce(eighty)
+      .mockResolvedValueOnce(bookings)
+      .mockResolvedValueOnce(bookings);
+    render(page());
+    await user.click(screen.getByRole('button', { name: 'Consultar agendamentos futuros' }));
+    expect(await screen.findByText('Página 1 da consulta')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Próxima página' }));
+    expect(await screen.findByText('Página 2 da consulta')).toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getFutureBookingCandidates).toHaveBeenNthCalledWith(
+      2, 'student-a', '2026-11-06T12:00:00.000Z', '2026-12-06T12:00:00.000Z', 2
+    );
+
+    await user.selectOptions(screen.getByLabelText('Período da consulta à agenda'), 'custom');
+    fireEvent.change(screen.getByLabelText('Início do recorte (UTC)'), {
+      target: { value: '2026-11-13T08:00' },
+    });
+    fireEvent.change(screen.getByLabelText('Fim do recorte (UTC)'), {
+      target: { value: '2026-11-13T10:00' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Consultar agendamentos futuros' }));
+    expect(await screen.findByText(/Agendamento: booking-1/)).toBeInTheDocument();
+    expect(consolidatedPrescriptionService.getFutureBookingCandidates).toHaveBeenLastCalledWith(
+      'student-a', '2026-11-13T08:00:00.000Z', '2026-11-13T10:00:00.000Z', 1
+    );
+
+    const temporal = screen.getByRole('region', { name: 'Avaliação temporal futura' });
+    const checkboxes = temporal.querySelectorAll('input[type="checkbox"]');
+    await user.click(checkboxes[0]);
+    await user.click(checkboxes[2]);
+    await user.click(screen.getByRole('button', { name: 'Conferir intervalos futuros' }));
+    await waitFor(() => expect(consolidatedPrescriptionService.previewFutureTemporal).toHaveBeenCalledWith(
+      'student-a', expect.objectContaining({
+        windowStart: '2026-11-13T08:00:00.000Z', windowEnd: '2026-11-13T10:00:00.000Z',
+        bindings: [{ bookingId: 'booking-1', capacityPrescriptionVersionId: 'cyclic-v1',
+          expectedBookingUpdatedAt: '2026-11-06T12:00:00.000Z' }],
+      })
+    ));
+  });
+
+  it('refuses an expired or more-than-31-day custom interval before calling the API', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-06T12:00:00.000Z'));
+    const user = userEvent.setup();
+    render(page());
+    await user.selectOptions(screen.getByLabelText('Período da consulta à agenda'), 'custom');
+    fireEvent.change(screen.getByLabelText('Início do recorte (UTC)'), {
+      target: { value: '2026-11-13T11:00' },
+    });
+    fireEvent.change(screen.getByLabelText('Fim do recorte (UTC)'), {
+      target: { value: '2026-11-13T10:00' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Consultar agendamentos futuros' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/período UTC válido/i);
+    expect(consolidatedPrescriptionService.getFutureBookingCandidates).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('Fim do recorte (UTC)'), {
+      target: { value: '2026-12-15T10:00' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Consultar agendamentos futuros' }));
+    expect(consolidatedPrescriptionService.getFutureBookingCandidates).not.toHaveBeenCalled();
+  });
+
   it('never fetches agenda when the actor does not have its permission', async () => {
     render(page({ canReadAgenda: false }));
     expect(screen.getByText(/exige acesso à Montagem e à Agenda/i)).toBeInTheDocument();
@@ -115,7 +185,7 @@ describe('future temporal review UI binding', () => {
     await user.click(screen.getByRole('button', { name: 'Consultar agendamentos futuros' }));
     expect(await screen.findByText(/Agendamento: booking-1/)).toBeInTheDocument();
     const get = vi.mocked(consolidatedPrescriptionService.getFutureBookingCandidates);
-    expect(get).toHaveBeenCalledWith('student-a', '2026-11-06T12:00:00.000Z', '2026-12-06T12:00:00.000Z');
+    expect(get).toHaveBeenCalledWith('student-a', '2026-11-06T12:00:00.000Z', '2026-12-06T12:00:00.000Z', 1);
 
     const temporal = screen.getByRole('region', { name: 'Avaliação temporal futura' });
     const checkboxes = temporal.querySelectorAll('input[type="checkbox"]');

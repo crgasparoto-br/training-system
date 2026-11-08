@@ -90,9 +90,9 @@ export const consolidatedPrescriptionService = {
 
   /** Future booking association is explicit, versioned and read-only. */
   async getFutureBookingCandidates(
-    alunoId: string, start: string, end: string
+    alunoId: string, start: string, end: string, page = 1
   ): Promise<FutureTemporalBookingCandidate[]> {
-    const search = new URLSearchParams({ start, end });
+    const search = new URLSearchParams({ start, end, page: String(page) });
     const response = await api.get<ApiEnvelope<FutureTemporalBookingCandidate[]>>(
       '/consolidated-prescriptions/alunos/' + alunoId + '/combined-future-bookings?' + search.toString()
     );

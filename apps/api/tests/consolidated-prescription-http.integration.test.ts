@@ -556,6 +556,45 @@ describeDatabase('consolidated prescription workflow HTTP integration with Postg
     })).toBe(0);
   });
 
+  it('A-539-003/004 pagina 81 futuros após eliminar 81 agendamentos definitivamente passados', async () => {
+    const now = new Date();
+    const pastDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1));
+    const futureDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 7));
+    const makeBookings = (day: Date, prefix: string) => Array.from({ length: 81 }, (_, i) => ({
+      id: `${prefix}-${i}`,
+      contractId: contractA, alunoId: alunoA, professorId: master.professor.id,
+      bookingDate: day, bookingCivilDate: day, startTime: '08:00', endTime: '09:00',
+      status: 'scheduled' as const, type: 'free' as const,
+    }));
+    await prisma.agendaBooking.createMany({ data: [
+      ...makeBookings(pastDay, 'a539-expired'), ...makeBookings(futureDay, 'a539-future'),
+    ] });
+    const root = '/consolidated-prescriptions/alunos/' + alunoA + '/combined-future-bookings';
+    const query = {
+      start: new Date(now.getTime() - 60_000).toISOString(),
+      end: new Date(now.getTime() + 28 * 86_400_000).toISOString(),
+    };
+    const loadPage = (page: number) => request(app).get(root)
+      .query({ ...query, page }).set('Authorization', 'Bearer ' + master.token);
+    const first = await loadPage(1);
+    const second = await loadPage(2);
+    const third = await loadPage(3);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(third.status).toBe(200);
+    expect(first.body.data).toHaveLength(80);
+    expect(second.body.data).toHaveLength(1);
+    expect(third.body.data).toHaveLength(0);
+    const all = [...first.body.data, ...second.body.data] as Array<{ bookingId: string }>;
+    expect(new Set(all.map((item) => item.bookingId)).size).toBe(81);
+    expect(all.every((item) => item.bookingId.startsWith('a539-future'))).toBe(true);
+    const invalidPage = await loadPage(101);
+    expect(invalidPage.status).toBe(400);
+    const crossTenant = await request(app).get(root).query(query)
+      .set('Authorization', 'Bearer ' + tenantB.token);
+    expect(crossTenant.status).toBe(404);
+  });
+
   it('A-539-002 persists the source civil date through Agenda POST and future GET/preview in three host zones', async () => {
     const aluno = await prisma.aluno.create({ data: {
       contractId: contractA, professorId: master.professor.id,

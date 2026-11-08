@@ -30,6 +30,26 @@ function rangeNow() {
   const end = new Date(start.getTime() + 30 * 86_400_000);
   return { start: start.toISOString(), end: end.toISOString() };
 }
+type WindowMode = 'rolling' | 'custom';
+const DAY_MS = 86_400_000;
+const UTC_MINUTE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/u;
+function utcMinute(date: Date) {
+  return date.toISOString().slice(0, 16);
+}
+/** Date/time-local fields are explicitly UTC search boundaries, not inferred agenda timezones. */
+function selectedWindow(mode: WindowMode, startUtc: string, endUtc: string) {
+  if (mode === 'rolling') return rangeNow();
+  if (!UTC_MINUTE.test(startUtc) || !UTC_MINUTE.test(endUtc)) return null;
+  const from = new Date(`${startUtc}:00.000Z`);
+  const to = new Date(`${endUtc}:00.000Z`);
+  if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) ||
+      utcMinute(from) !== startUtc || utcMinute(to) !== endUtc) return null;
+  const now = new Date();
+  // The review may last longer than the API's five-minute clock tolerance.
+  const currentStart = new Date(Math.max(from.getTime(), now.getTime()));
+  if (to <= currentStart || to.getTime() > now.getTime() + 31 * DAY_MS) return null;
+  return { start: currentStart.toISOString(), end: to.toISOString() };
+}
 function defaultTimeZone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 }
@@ -43,15 +63,22 @@ export function CombinedFutureTemporalPanel({
   const latestIdentity = useRef(identity);
   latestIdentity.current = identity;
   const sequence = useRef(0);
-  const [candidates, setCandidates] = useState<{ identity: string; range: { start: string; end: string }; rows: FutureTemporalBookingCandidate[] } | null>(null);
+  const [candidates, setCandidates] = useState<{
+    identity: string; range: { start: string; end: string }; page: number;
+    rows: FutureTemporalBookingCandidate[];
+  } | null>(null);
   const [preview, setPreview] = useState<{ identity: string; signature: string; report: FutureTemporalPreview } | null>(null);
   const [choices, setChoices] = useState<string[]>([]);
+  const [windowMode, setWindowMode] = useState<WindowMode>('rolling');
+  const [customStartUtc, setCustomStartUtc] = useState(() => utcMinute(new Date()));
+  const [customEndUtc, setCustomEndUtc] = useState(() => utcMinute(new Date(Date.now() + DAY_MS)));
   const [timeZone, setTimeZone] = useState(defaultTimeZone);
   const [timeZoneConfirmed, setTimeZoneConfirmed] = useState(false);
   const [loading, setLoading] = useState<'list' | 'preview' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const current = candidates?.identity === identity && canReadAgenda && !dirty ? candidates : null;
-  const signature = JSON.stringify([identity, timeZone, timeZoneConfirmed, [...choices].sort()]);
+  const signature = JSON.stringify([identity, windowMode, customStartUtc, customEndUtc,
+    timeZone, timeZoneConfirmed, [...choices].sort()]);
   const result = preview?.identity === identity && preview.signature === signature && canReadAgenda && !dirty
     ? preview.report : null;
 
@@ -66,19 +93,37 @@ export function CombinedFutureTemporalPanel({
     return () => { sequence.current += 1; };
   }, [identity]);
 
-  const load = async () => {
+  const invalidateSelection = () => {
+    sequence.current += 1;
+    setCandidates(null); setChoices([]); setPreview(null); setError(null);
+  };
+
+  const load = async (page = 1) => {
     if (!canReadAgenda || !actualSummary || dirty || loading) return;
+    const range = page === 1 ? selectedWindow(windowMode, customStartUtc, customEndUtc) : current?.range;
+    if (page > 1 && range && Date.parse(range.start) < Date.now() - 5 * 60_000) {
+      setError('A janela de consulta expirou. Recarregue a primeira página para atualizar o período.');
+      return;
+    }
     const id = ++sequence.current;
-    const range = rangeNow();
     setCandidates(null); setChoices([]); setPreview(null); setError(null); setLoading('list');
+    if (!range) {
+      setError('Informe um período UTC válido dentro dos próximos 31 dias, com início anterior ao término.');
+      setLoading(null);
+      return;
+    }
     try {
-      const rows = await consolidatedPrescriptionService.getFutureBookingCandidates(alunoId, range.start, range.end);
+      const rows = await consolidatedPrescriptionService.getFutureBookingCandidates(alunoId, range.start, range.end, page);
       if (id === sequence.current && latestIdentity.current === identity) {
-        setCandidates({ identity, range, rows });
+        setCandidates({ identity, range, page, rows });
       }
-    } catch {
+    } catch (failure) {
       if (id === sequence.current && latestIdentity.current === identity) {
-        setError('Não foi possível consultar a agenda. Revise o acesso e tente novamente.');
+        const response = (failure as { response?: { status?: number; data?: { message?: string; error?: string } } }).response;
+        const reason = response?.data?.message ?? response?.data?.error;
+        setError(response?.status === 400 && typeof reason === 'string' && reason.includes('Página')
+          ? 'Página indisponível. Volte à primeira página e refaça a consulta.'
+          : 'Não foi possível consultar a agenda. Revise o período e o acesso, depois tente novamente.');
       }
     } finally {
       if (id === sequence.current && latestIdentity.current === identity) setLoading(null);
@@ -90,6 +135,12 @@ export function CombinedFutureTemporalPanel({
   };
   const evaluate = async () => {
     if (!current || !actualSummary || !canReadAgenda || !timeZoneConfirmed || dirty || loading) return;
+    const range = selectedWindow(windowMode, customStartUtc, customEndUtc);
+    if (!range) {
+      setPreview(null);
+      setError('O período UTC expirou ou ultrapassa 31 dias. Ajuste-o e consulte a agenda novamente.');
+      return;
+    }
     const id = ++sequence.current;
     setError(null); setPreview(null); setLoading('preview');
     const bindings: FutureTemporalPreviewCommand['bindings'] = [];
@@ -107,7 +158,6 @@ export function CombinedFutureTemporalPanel({
     try {
       // The candidate list was fetched earlier; a manual review must not reuse its expired cutoff.
       // Booking IDs/updatedAt still undergo fresh server-side eligibility checks in the POST.
-      const range = rangeNow();
       const report = await consolidatedPrescriptionService.previewFutureTemporal(alunoId, {
         expectedCurrentVersion: actualSummary.assemblyVersion,
         windowStart: range.start, windowEnd: range.end,
@@ -152,6 +202,44 @@ export function CombinedFutureTemporalPanel({
             </p>
           ) : (
             <>
+              <div className="space-y-2">
+                <label htmlFor="future-temporal-window-mode" className="block text-sm font-medium">
+                  Período da consulta à agenda
+                </label>
+                <select id="future-temporal-window-mode" className="ts-input w-full max-w-xs"
+                  value={windowMode} disabled={loading !== null} onChange={(event) => {
+                    const next = event.target.value as WindowMode;
+                    if (next === 'custom') {
+                      setCustomStartUtc(utcMinute(new Date()));
+                      setCustomEndUtc(utcMinute(new Date(Date.now() + DAY_MS)));
+                    }
+                    setWindowMode(next);
+                    invalidateSelection();
+                  }}>
+                  <option value="rolling">Próximos 30 dias</option>
+                  <option value="custom">Período personalizado (UTC)</option>
+                </select>
+                {windowMode === 'custom' && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="text-xs font-medium">
+                      Início do recorte (UTC)
+                      <input type="datetime-local" className="ts-input mt-1 w-full"
+                        value={customStartUtc} disabled={loading !== null}
+                        onChange={(event) => { setCustomStartUtc(event.target.value); invalidateSelection(); }} />
+                    </label>
+                    <label className="text-xs font-medium">
+                      Fim do recorte (UTC)
+                      <input type="datetime-local" className="ts-input mt-1 w-full"
+                        value={customEndUtc} disabled={loading !== null}
+                        onChange={(event) => { setCustomEndUtc(event.target.value); invalidateSelection(); }} />
+                    </label>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  O recorte usa UTC apenas para pesquisar a agenda. O fuso IANA dos horários será confirmado separadamente na prévia.
+                  A lista mostra até 80 agendamentos por página. Para recortes mais precisos, reduza o intervalo (inclusive para algumas horas).
+                </p>
+              </div>
               <Button type="button" variant="outline" size="sm"
                 disabled={dirty || loading !== null} isLoading={loading === 'list'}
                 loadingText="Consultando agenda..." onClick={() => { void load(); }}>
@@ -162,9 +250,21 @@ export function CombinedFutureTemporalPanel({
               {error && <p role="alert" className="text-xs text-red-800">{error}</p>}
               {current && (
                 <div className="space-y-3 border-t border-border pt-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="font-medium">Página {current.page} da consulta</span>
+                    {current.page > 1 && <Button type="button" size="sm" variant="outline"
+                      disabled={dirty || loading !== null} onClick={() => { void load(current.page - 1); }}>
+                      Página anterior
+                    </Button>}
+                    {current.rows.length === 80 && current.page < 100 &&
+                      <Button type="button" size="sm" variant="outline"
+                        disabled={dirty || loading !== null} onClick={() => { void load(current.page + 1); }}>
+                        Próxima página
+                      </Button>}
+                  </div>
                   {current.rows.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                      Nenhum agendamento futuro está registrado no período. Não é possível avaliar intervalos.
+                      Nenhum agendamento elegível nesta página. Volte à página anterior ou ajuste o período.
                     </p>
                   ) : (
                     <div className="space-y-3">

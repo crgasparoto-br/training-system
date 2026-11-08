@@ -196,7 +196,16 @@ ocorreu mais de cinco minutos antes; o limite de 31 dias continua sendo
 reavaliado pelo servidor. A API retorna somente ID, data civil canônica
 (`bookingDate: YYYY-MM-DD`) ou `bookingDate: null` para legado não comprovado,
 horas civis e revisão `updatedAt` dos agendamentos `scheduled` do mesmo
-aluno/contrato, em tamanho limitado. O POST continua exigindo versão da
+aluno/contrato, em **páginas de até 80 candidatos** (`page=1..100`,
+padrão 1). Todas as páginas de uma consulta reutilizam o mesmo `start/end`;
+a paginação ocorre **depois** do descarte de datas comprovadamente passadas,
+de modo que registros antigos não consumam as 80 posições. Como o GET não
+recebe fuso confirmado, ele só remove um início civil quando está fora do
+período futuro sob **todos** os deslocamentos UTC possíveis (envelope
+conservador de ±14 horas); datas legadas sem fonte civil continuam não
+verificadas, nunca convertidas usando timezone do host. Cada página mantém
+isolamento de aluno/contrato e verifica o horizonte de 31 dias. O POST
+continua limitado a 80 bookings distintos, exigindo versão da
 montagem e `updatedAt` exato das fontes. `bookingDate: null` não autoriza
 reconstruir a data a partir do timestamp local antigo.
 

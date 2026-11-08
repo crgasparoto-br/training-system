@@ -20,7 +20,11 @@ import {
 const prisma = new PrismaClient();
 type Context = { contractId: string; alunoId: string };
 const MAX_BOOKINGS = 80;
+const MAX_PAGES = 100;
+const MAX_SCANNED_BOOKINGS = MAX_BOOKINGS * MAX_PAGES * 2;
 const MINUTE = 60_000;
+const MAX_IANA_OFFSET_MS = 14 * 60 * MINUTE;
+const CIVIL_TIME = /^([01]\d|2[0-3]):[0-5]\d$/u;
 
 function invalid(message: string): never {
   throw new ConsolidatedPrescriptionDomainError('INVALID_INPUT', message);
@@ -31,6 +35,24 @@ function stale(): never {
 function canonicalCivilDay(value: Date | null): string | null {
   return value && value.toISOString().endsWith('T00:00:00.000Z')
     ? value.toISOString().slice(0, 10) : null;
+}
+/**
+ * The GET has no confirmed IANA zone. Exclude a booking only when its canonical
+ * civil start is outside the requested future window in *every* possible zone.
+ * Legacy/malformed sources remain unverified candidates, never guessed from
+ * the server's timezone or the professor's address.
+ */
+function mayStartInWindow(
+  booking: { bookingCivilDate: Date | null; startTime: string },
+  from: Date, to: Date, now: Date
+): boolean {
+  const day = canonicalCivilDay(booking.bookingCivilDate);
+  if (!day || !CIVIL_TIME.test(booking.startTime)) return true;
+  const localStart = Date.parse(`${day}T${booking.startTime}:00.000Z`);
+  if (!Number.isFinite(localStart)) return true;
+  const earliestUtc = localStart - MAX_IANA_OFFSET_MS;
+  const latestUtc = localStart + MAX_IANA_OFFSET_MS;
+  return latestUtc > Math.max(from.getTime(), now.getTime()) && earliestUtc < to.getTime();
 }
 function bindingKey(binding: FutureTemporalBinding) {
   return binding.bookingId + ':' + binding.capacityPrescriptionVersionId;
@@ -45,28 +67,53 @@ export function createCombinedFutureTemporalService(client: PrismaClient = prism
   }
 
   return {
-    async getCandidates(context: Context, start: string, end: string, now = new Date()):
+    async getCandidates(context: Context, start: string, end: string, now = new Date(), page = 1):
       Promise<FutureTemporalBookingCandidate[]> {
       const { from, to } = assertFutureWindow(start, end, now);
+      if (!Number.isInteger(page) || page < 1 || page > MAX_PAGES) {
+        invalid('Página de agendamentos inválida.');
+      }
       await assertStudent(context);
       // Calendar-day envelope is widened by one day to avoid silently discarding UTC crossings.
       const fromDay = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate() - 1));
       const toDay = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate() + 1));
-      const bookings = await client.agendaBooking.findMany({
-        where: {
-          contractId: context.contractId, alunoId: context.alunoId,
-          status: 'scheduled', bookingDate: { gte: fromDay, lte: toDay },
-        },
-        select: { id: true, bookingDate: true, bookingCivilDate: true, startTime: true, endTime: true, updatedAt: true },
-        orderBy: [{ bookingDate: 'asc' }, { startTime: 'asc' }, { id: 'asc' }],
-        take: MAX_BOOKINGS + 1,
-      });
-      if (bookings.length > MAX_BOOKINGS) invalid('Muitos agendamentos; selecione um período menor.');
-      return bookings.map((b) => ({
-        bookingId: b.id, bookingDate: canonicalCivilDay(b.bookingCivilDate),
-        startTime: b.startTime, endTime: b.endTime,
-        sourceUpdatedAt: b.updatedAt.toISOString(),
-      }));
+      const candidates: FutureTemporalBookingCandidate[] = [];
+      const beforePage = (page - 1) * MAX_BOOKINGS;
+      let eligibleSeen = 0;
+      let scanned = 0;
+      let cursor: string | undefined;
+      // Scan bounded DB pages, not an unbounded tenant list. Filtering only the
+      // first 81 rows could let past bookings hide eligible future bookings.
+      do {
+        const bookings = await client.agendaBooking.findMany({
+          where: {
+            contractId: context.contractId, alunoId: context.alunoId,
+            status: 'scheduled', bookingDate: { gte: fromDay, lte: toDay },
+          },
+          select: { id: true, bookingDate: true, bookingCivilDate: true, startTime: true, endTime: true, updatedAt: true },
+          orderBy: [{ bookingDate: 'asc' }, { startTime: 'asc' }, { id: 'asc' }],
+          take: MAX_BOOKINGS + 1,
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        });
+        scanned += bookings.length;
+        if (scanned > MAX_SCANNED_BOOKINGS) {
+          invalid('Consulta muito extensa; selecione um período menor.');
+        }
+        for (const booking of bookings) {
+          if (!mayStartInWindow(booking, from, to, now)) continue;
+          eligibleSeen += 1;
+          if (eligibleSeen <= beforePage) continue;
+          if (candidates.length === MAX_BOOKINGS) return candidates;
+          candidates.push({
+            bookingId: booking.id, bookingDate: canonicalCivilDay(booking.bookingCivilDate),
+            startTime: booking.startTime, endTime: booking.endTime,
+            sourceUpdatedAt: booking.updatedAt.toISOString(),
+          });
+        }
+        if (bookings.length < MAX_BOOKINGS + 1) break;
+        cursor = bookings[bookings.length - 1].id;
+      } while (true);
+      return candidates;
     },
 
     async preview(context: Context, command: FutureTemporalPreviewCommand, now = new Date()):

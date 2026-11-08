@@ -81,6 +81,7 @@ const revisionSchema = versionCommandSchema
 const futureWindowSchema = z.object({
   start: z.string().datetime(),
   end: z.string().datetime(),
+  page: z.coerce.number().int().min(1).max(100).optional(),
 }).strict();
 const futureTemporalPreviewSchema = z.object({
   expectedCurrentVersion: z.number().int().positive(),
@@ -287,7 +288,7 @@ router.get(
       const range = futureWindowSchema.parse(req.query);
       const bookings = await combinedFutureTemporalService.getCandidates(
         { alunoId: req.params.alunoId, contractId: actor.contractId },
-        range.start, range.end
+        range.start, range.end, undefined, range.page ?? 1
       );
       return sendSuccess(res, bookings, 'Agendamentos futuros elegíveis para vínculo explícito');
     } catch (error) {

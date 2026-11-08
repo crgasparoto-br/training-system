@@ -107,3 +107,18 @@ O escopo não inclui ativação de regras clínicas nem merge da PR.
 - [ ] Validar as correções no CI oficial do HEAD publicado e obter nova auditoria
   independente; as demais pendências clínicas/operacionais da #403/#534
   permanecem separadas e não são autorizadas por esta correção.
+
+## Remediação da auditoria subsequente da PR #539 — A-003/A-004
+
+- [x] A-003: consultar agendamentos por páginas de até 80 candidatos elegíveis,
+  inclusive quando há mais de 80 no mesmo dia. Expor navegação e recorte UTC
+  mais curto na interface, mantendo o POST limitado a 80 vínculos únicos.
+- [x] A-004: descartar agendamentos com início comprovadamente passado antes
+  da paginação e varrer páginas internas do banco quando registros antigos
+  precederem os elegíveis, sem atribuir timezone a datas legadas.
+- [x] Adicionar controles de 80/81, 81 passados + 81 futuros, limites de janela,
+  navegação UI, isolamento do contrato e integração HTTP/PostgreSQL.
+- [ ] Verificar CI final do novo HEAD exato e obter auditoria independente.
+
+Nenhuma mudança nas regras clínicas combinadas (`ACTIVE_COMBINED_CONFLICT_RULES_V1=[]`),
+na aprovação ou na liberação da Montagem Consolidada.
