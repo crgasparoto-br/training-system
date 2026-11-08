@@ -46,6 +46,19 @@ const response = {
   changesWorkoutAutomatically: false as const,
 };
 
+function bookingCheckbox(bookingId: string, capacityIndex = 0) {
+  const description = screen.getByText(new RegExp(`^Agendamento: ${bookingId} • Versão`));
+  const box = description.closest('fieldset')?.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[capacityIndex];
+  if (!box) throw new Error(`Checkbox for booking ${bookingId} not found`);
+  return box;
+}
+
+function bookingPage(start: number, count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    ...bookings[0], bookingId: `booking-${start + index}`,
+  }));
+}
+
 function page(overrides: Partial<ComponentProps<typeof CombinedFutureTemporalPanel>> = {}) {
   return <CombinedFutureTemporalPanel
     alunoId="student-a" contractId="tenant-a"
@@ -112,6 +125,173 @@ describe('future temporal review UI binding', () => {
           expectedBookingUpdatedAt: '2026-11-06T12:00:00.000Z' }],
       })
     ));
+  });
+
+  it('R-539-01 preserves bookings and their source revisions across pages 1 and 2 in one preview', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-06T12:00:00.000Z'));
+    const user = userEvent.setup();
+    vi.mocked(consolidatedPrescriptionService.getFutureBookingCandidates)
+      .mockResolvedValueOnce(bookingPage(1, 80))
+      .mockResolvedValueOnce([{ ...bookings[0], bookingId: 'booking-81',
+        sourceUpdatedAt: '2026-11-07T12:00:00.000Z' }])
+      .mockResolvedValueOnce(bookingPage(1, 80));
+
+    render(page());
+    await user.click(screen.getByRole('button', { name: 'Consultar agendamentos futuros' }));
+    await screen.findByText(/Agendamento: booking-80/);
+    await user.click(bookingCheckbox('booking-1'));
+    await user.click(bookingCheckbox('booking-2', 1));
+    expect(screen.getByText('2 de 80 agendamentos selecionados nesta consulta')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Próxima página' }));
+    expect(await screen.findByText('Página 2 da consulta')).toBeInTheDocument();
+    expect(screen.getByText('2 de 80 agendamentos selecionados nesta consulta')).toBeInTheDocument();
+    await user.click(bookingCheckbox('booking-81'));
+    await user.click(bookingCheckbox('booking-81', 1));
+    expect(screen.getByText('3 de 80 agendamentos selecionados nesta consulta')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Página anterior' }));
+    expect(await screen.findByText('Página 1 da consulta')).toBeInTheDocument();
+    expect(bookingCheckbox('booking-1')).toBeChecked();
+    expect(bookingCheckbox('booking-2', 1)).toBeChecked();
+    await user.click(screen.getByLabelText(/Confirmei que o fuso IANA informado/i));
+    await user.click(screen.getByRole('button', { name: 'Conferir intervalos futuros' }));
+    await waitFor(() => expect(consolidatedPrescriptionService.previewFutureTemporal).toHaveBeenCalledWith(
+      'student-a', expect.objectContaining({
+        bindings: [
+          { bookingId: 'booking-1', capacityPrescriptionVersionId: 'cyclic-v1',
+            expectedBookingUpdatedAt: '2026-11-06T12:00:00.000Z' },
+          { bookingId: 'booking-2', capacityPrescriptionVersionId: 'resisted-v2',
+            expectedBookingUpdatedAt: '2026-11-06T12:00:00.000Z' },
+          { bookingId: 'booking-81', capacityPrescriptionVersionId: 'cyclic-v1',
+            expectedBookingUpdatedAt: '2026-11-07T12:00:00.000Z' },
+          { bookingId: 'booking-81', capacityPrescriptionVersionId: 'resisted-v2',
+            expectedBookingUpdatedAt: '2026-11-07T12:00:00.000Z' },
+        ],
+      })
+    ));
+    expect(consolidatedPrescriptionService.getFutureBookingCandidates).toHaveBeenNthCalledWith(
+      3, 'student-a', '2026-11-06T12:00:00.000Z', '2026-12-06T12:00:00.000Z', 1
+    );
+  });
+
+  it('R-539-01 enforces 80 distinct bookings but allows multiple capacities for the same booking', async () => {
+    const user = userEvent.setup();
+    vi.mocked(consolidatedPrescriptionService.getFutureBookingCandidates)
+      .mockResolvedValueOnce(bookingPage(1, 80))
+      .mockResolvedValueOnce(bookingPage(81, 1))
+      .mockResolvedValueOnce(bookingPage(1, 80));
+    render(page());
+    await user.click(screen.getByRole('button', { name: 'Consultar agendamentos futuros' }));
+    await screen.findByText(/Agendamento: booking-80/);
+    for (let number = 1; number <= 80; number += 1) {
+      fireEvent.click(bookingCheckbox(`booking-${number}`));
+    }
+    expect(screen.getByText('80 de 80 agendamentos selecionados nesta consulta')).toBeInTheDocument();
+    await user.click(bookingCheckbox('booking-1', 1));
+    expect(screen.getByText('80 de 80 agendamentos selecionados nesta consulta')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Próxima página' }));
+    await screen.findByText(/Agendamento: booking-81/);
+    await user.click(bookingCheckbox('booking-81'));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/até 80 agendamentos distintos/i);
+    expect(bookingCheckbox('booking-81')).not.toBeChecked();
+    await user.click(screen.getByRole('button', { name: 'Página anterior' }));
+    await screen.findByText(/Agendamento: booking-1/);
+    await user.click(bookingCheckbox('booking-2'));
+    expect(screen.getByText('79 de 80 agendamentos selecionados nesta consulta')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Próxima página' }));
+    await screen.findByText(/Agendamento: booking-81/);
+    await user.click(bookingCheckbox('booking-81'));
+    expect(bookingCheckbox('booking-81')).toBeChecked();
+    expect(screen.getByText('80 de 80 agendamentos selecionados nesta consulta')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Limpar seleção' }));
+    expect(screen.getByText('0 de 80 agendamentos selecionados nesta consulta')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Conferir intervalos futuros' })).toBeDisabled();
+  });
+
+  it('R-539-01 discards only changed source revisions when revisiting an earlier page', async () => {
+    const user = userEvent.setup();
+    vi.mocked(consolidatedPrescriptionService.getFutureBookingCandidates)
+      .mockResolvedValueOnce(bookingPage(1, 80))
+      .mockResolvedValueOnce(bookingPage(81, 1))
+      .mockResolvedValueOnce(bookingPage(1, 80).map((booking) => booking.bookingId === 'booking-1'
+        ? { ...booking, sourceUpdatedAt: '2026-11-08T12:00:00.000Z' } : booking));
+    render(page());
+    await user.click(screen.getByRole('button', { name: 'Consultar agendamentos futuros' }));
+    await screen.findByText(/Agendamento: booking-80/);
+    await user.click(bookingCheckbox('booking-1'));
+    await user.click(bookingCheckbox('booking-2', 1));
+    await user.click(screen.getByRole('button', { name: 'Próxima página' }));
+    await screen.findByText(/Agendamento: booking-81/);
+    await user.click(bookingCheckbox('booking-81'));
+    await user.click(screen.getByRole('button', { name: 'Página anterior' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/agendamentos alterados/i);
+    expect(bookingCheckbox('booking-1')).not.toBeChecked();
+    expect(bookingCheckbox('booking-2', 1)).toBeChecked();
+    expect(screen.getByText('2 de 80 agendamentos selecionados nesta consulta')).toBeInTheDocument();
+    await user.click(screen.getByLabelText(/Confirmei que o fuso IANA informado/i));
+    await user.click(screen.getByRole('button', { name: 'Conferir intervalos futuros' }));
+    await waitFor(() => expect(consolidatedPrescriptionService.previewFutureTemporal).toHaveBeenCalledWith(
+      'student-a', expect.objectContaining({ bindings: [
+        { bookingId: 'booking-2', capacityPrescriptionVersionId: 'resisted-v2',
+          expectedBookingUpdatedAt: '2026-11-06T12:00:00.000Z' },
+        { bookingId: 'booking-81', capacityPrescriptionVersionId: 'cyclic-v1',
+          expectedBookingUpdatedAt: '2026-11-06T12:00:00.000Z' },
+      ] })
+    ));
+  });
+
+  it('R-539-01 retains selections after a transient page load failure and resets on a new query', async () => {
+    const user = userEvent.setup();
+    vi.mocked(consolidatedPrescriptionService.getFutureBookingCandidates)
+      .mockResolvedValueOnce(bookingPage(1, 80))
+      .mockRejectedValueOnce(new Error('network timeout'))
+      .mockResolvedValueOnce(bookingPage(81, 1))
+      .mockResolvedValueOnce(bookingPage(1, 80));
+    render(page());
+    await user.click(screen.getByRole('button', { name: 'Consultar agendamentos futuros' }));
+    await screen.findByText(/Agendamento: booking-80/);
+    await user.click(bookingCheckbox('booking-1'));
+    await user.click(screen.getByRole('button', { name: 'Próxima página' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/seleção foi preservada/i);
+    expect(screen.getByText('Página 1 da consulta')).toBeInTheDocument();
+    expect(bookingCheckbox('booking-1')).toBeChecked();
+    await user.click(screen.getByRole('button', { name: 'Próxima página' }));
+    await screen.findByText(/Agendamento: booking-81/);
+    expect(screen.getByText('1 de 80 agendamentos selecionados nesta consulta')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Recarregar agendamentos futuros' }));
+    await screen.findByText(/Agendamento: booking-1/);
+    expect(bookingCheckbox('booking-1')).not.toBeChecked();
+    expect(screen.getByText('0 de 80 agendamentos selecionados nesta consulta')).toBeInTheDocument();
+  });
+
+  it('R-539-01 revokes all paginated selections on proven authorization failure', async () => {
+    const user = userEvent.setup();
+    vi.mocked(consolidatedPrescriptionService.getFutureBookingCandidates)
+      .mockResolvedValueOnce(bookingPage(1, 80))
+      .mockRejectedValueOnce({ response: { status: 403 } });
+    render(page());
+    await user.click(screen.getByRole('button', { name: 'Consultar agendamentos futuros' }));
+    await screen.findByText(/Agendamento: booking-80/);
+    await user.click(bookingCheckbox('booking-1'));
+    await user.click(screen.getByRole('button', { name: 'Próxima página' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/O acesso ou as fontes da agenda mudaram/i);
+    expect(screen.queryByText(/Agendamento: booking-1 • Versão/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Conferir intervalos futuros' })).not.toBeInTheDocument();
+  });
+
+  it('R-539-01 drops paginated selection after local edits even when the draft is later reverted', async () => {
+    const user = userEvent.setup();
+    const view = render(page());
+    await user.click(screen.getByRole('button', { name: 'Consultar agendamentos futuros' }));
+    await screen.findByText(/Agendamento: booking-1/);
+    await user.click(bookingCheckbox('booking-1'));
+    view.rerender(page({ dirty: true }));
+    expect(screen.queryByText(/Agendamento: booking-1 • Versão/i)).not.toBeInTheDocument();
+    view.rerender(page({ dirty: false }));
+    expect(screen.queryByText(/Agendamento: booking-1 • Versão/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Conferir intervalos futuros' })).not.toBeInTheDocument();
   });
 
   it('refuses an expired or more-than-31-day custom interval before calling the API', async () => {

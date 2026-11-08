@@ -258,8 +258,17 @@ do professor para esta prévia, não da configuração do contrato.
 
 **Consulta de agenda densa (A-539-003/004):** a lista permite avançar e
 retroceder em páginas de até 80 agendamentos, sem carregar ou vincular todos
-automaticamente; a troca de página apaga a seleção da página anterior. Um
-recorte opcional com início e fim explícitos em **UTC** permite restringir a
+automaticamente; a seleção explícita de cada capacidade é preservada ao
+navegar entre páginas da **mesma consulta**, incluindo o `updatedAt` original
+de cada booking, mas nunca ultrapassa 80 agendamentos distintos por prévia.
+O contador de selecionados e a ação **Limpar seleção** permitem controlar o
+limite mesmo em páginas diferentes. A API continua revalidando, no POST,
+todos os agendamentos selecionados e suas versões; se um agendamento reaparecer
+com versão diferente ao navegar, somente seus vínculos são desmarcados, com aviso.
+Falhas transitórias ao trocar de página preservam escolhas e a página atual;
+403/404/409 descartam as escolhas. Uma nova consulta, recorte alterado, mudança
+de aluno/contrato, versão da montagem, permissão ou edição local reinicia a seleção.
+Um recorte opcional com início e fim explícitos em **UTC** permite restringir a
 consulta até algumas horas, independentemente do fuso civil da Agenda, que
 continua exigindo confirmação profissional separada. Alterar o recorte
 descarta resultados anteriores e respostas assíncronas tardias. A navegação

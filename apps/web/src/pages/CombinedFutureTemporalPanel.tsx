@@ -32,6 +32,7 @@ function rangeNow() {
 }
 type WindowMode = 'rolling' | 'custom';
 const DAY_MS = 86_400_000;
+const MAX_PREVIEW_BOOKINGS = 80;
 const UTC_MINUTE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/u;
 function utcMinute(date: Date) {
   return date.toISOString().slice(0, 16);
@@ -58,7 +59,7 @@ export function CombinedFutureTemporalPanel({
 }: Props) {
   const actualSummary = summary?.assemblyVersion === currentVersion ? summary : null;
   const identity = JSON.stringify([
-    alunoId, contractId, actualSummary?.assemblyVersionId, currentVersion, authorizationKey, canReadAgenda,
+    alunoId, contractId, actualSummary?.assemblyVersionId, currentVersion, authorizationKey, canReadAgenda, dirty,
   ]);
   const latestIdentity = useRef(identity);
   latestIdentity.current = identity;
@@ -68,7 +69,7 @@ export function CombinedFutureTemporalPanel({
     rows: FutureTemporalBookingCandidate[];
   } | null>(null);
   const [preview, setPreview] = useState<{ identity: string; signature: string; report: FutureTemporalPreview } | null>(null);
-  const [choices, setChoices] = useState<string[]>([]);
+  const [bindings, setBindings] = useState<FutureTemporalPreviewCommand['bindings']>([]);
   const [windowMode, setWindowMode] = useState<WindowMode>('rolling');
   const [customStartUtc, setCustomStartUtc] = useState(() => utcMinute(new Date()));
   const [customEndUtc, setCustomEndUtc] = useState(() => utcMinute(new Date(Date.now() + DAY_MS)));
@@ -77,8 +78,11 @@ export function CombinedFutureTemporalPanel({
   const [loading, setLoading] = useState<'list' | 'preview' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const current = candidates?.identity === identity && canReadAgenda && !dirty ? candidates : null;
+  const selectedBookingCount = new Set(bindings.map((binding) => binding.bookingId)).size;
   const signature = JSON.stringify([identity, windowMode, customStartUtc, customEndUtc,
-    timeZone, timeZoneConfirmed, [...choices].sort()]);
+    timeZone, timeZoneConfirmed, [...bindings].sort((a, b) =>
+      a.bookingId.localeCompare(b.bookingId) ||
+      a.capacityPrescriptionVersionId.localeCompare(b.capacityPrescriptionVersionId))]);
   const result = preview?.identity === identity && preview.signature === signature && canReadAgenda && !dirty
     ? preview.report : null;
 
@@ -86,7 +90,7 @@ export function CombinedFutureTemporalPanel({
     sequence.current += 1;
     setCandidates(null);
     setPreview(null);
-    setChoices([]);
+    setBindings([]);
     setTimeZoneConfirmed(false);
     setError(null);
     setLoading(null);
@@ -95,18 +99,24 @@ export function CombinedFutureTemporalPanel({
 
   const invalidateSelection = () => {
     sequence.current += 1;
-    setCandidates(null); setChoices([]); setPreview(null); setError(null);
+    setCandidates(null); setBindings([]); setPreview(null); setError(null);
   };
 
-  const load = async (page = 1) => {
-    if (!canReadAgenda || !actualSummary || dirty || loading) return;
-    const range = page === 1 ? selectedWindow(windowMode, customStartUtc, customEndUtc) : current?.range;
-    if (page > 1 && range && Date.parse(range.start) < Date.now() - 5 * 60_000) {
+  const load = async (page = 1, navigate = false) => {
+    if (!canReadAgenda || !actualSummary || dirty || loading || (navigate && !current)) return;
+    // Navigation reuses the same query and selections, including when returning to page 1.
+    const range = navigate ? current?.range : selectedWindow(windowMode, customStartUtc, customEndUtc);
+    if (navigate && range && Date.parse(range.start) < Date.now() - 5 * 60_000) {
       setError('A janela de consulta expirou. Recarregue a primeira página para atualizar o período.');
       return;
     }
     const id = ++sequence.current;
-    setCandidates(null); setChoices([]); setPreview(null); setError(null); setLoading('list');
+    if (!navigate) {
+      setCandidates(null);
+      setBindings([]);
+      setTimeZoneConfirmed(false);
+    }
+    setPreview(null); setError(null); setLoading('list');
     if (!range) {
       setError('Informe um período UTC válido dentro dos próximos 31 dias, com início anterior ao término.');
       setLoading(null);
@@ -115,23 +125,49 @@ export function CombinedFutureTemporalPanel({
     try {
       const rows = await consolidatedPrescriptionService.getFutureBookingCandidates(alunoId, range.start, range.end, page);
       if (id === sequence.current && latestIdentity.current === identity) {
+        // Never silently adopt a new source revision for a previously confirmed binding.
+        const revisions = new Map(rows.map((row) => [row.bookingId, row.sourceUpdatedAt]));
+        const changed = new Set(bindings.filter((binding) =>
+          revisions.has(binding.bookingId) && revisions.get(binding.bookingId) !== binding.expectedBookingUpdatedAt
+        ).map((binding) => binding.bookingId));
+        if (changed.size > 0) {
+          setBindings((prior) => prior.filter((binding) => !changed.has(binding.bookingId)));
+          setError('Agendamentos alterados desde a seleção foram desmarcados. Confira as versões antes de selecionar novamente.');
+        }
         setCandidates({ identity, range, page, rows });
       }
     } catch (failure) {
       if (id === sequence.current && latestIdentity.current === identity) {
         const response = (failure as { response?: { status?: number; data?: { message?: string; error?: string } } }).response;
         const reason = response?.data?.message ?? response?.data?.error;
-        setError(response?.status === 400 && typeof reason === 'string' && reason.includes('Página')
-          ? 'Página indisponível. Volte à primeira página e refaça a consulta.'
-          : 'Não foi possível consultar a agenda. Revise o período e o acesso, depois tente novamente.');
+        if (response?.status === 401 || response?.status === 403 || response?.status === 404 || response?.status === 409) {
+          setCandidates(null); setBindings([]); setTimeZoneConfirmed(false);
+          setError('O acesso ou as fontes da agenda mudaram. Refaça a consulta para selecionar agendamentos.');
+        } else {
+          setError(response?.status === 400 && typeof reason === 'string' && reason.includes('Página')
+            ? 'Página indisponível. Volte à primeira página e refaça a consulta.'
+            : navigate
+              ? 'Não foi possível consultar a agenda. A seleção foi preservada; tente novamente.'
+              : 'Não foi possível consultar a agenda. Revise o período e o acesso, depois tente novamente.');
+        }
       }
     } finally {
       if (id === sequence.current && latestIdentity.current === identity) setLoading(null);
     }
   };
-  const toggle = (key: string, checked: boolean) => {
-    setChoices((prior) => checked ? [...prior.filter((item) => item !== key), key] : prior.filter((item) => item !== key));
-    setPreview(null);
+  const toggle = (booking: FutureTemporalBookingCandidate, capacityPrescriptionVersionId: string, checked: boolean) => {
+    if (checked && !bindings.some((binding) => binding.bookingId === booking.bookingId) &&
+        selectedBookingCount >= MAX_PREVIEW_BOOKINGS) {
+      setError('A prévia aceita até 80 agendamentos distintos. Desmarque um agendamento ou limpe a seleção.');
+      return;
+    }
+    setBindings((prior) => checked ? [
+      ...prior.filter((item) => item.bookingId !== booking.bookingId ||
+        item.capacityPrescriptionVersionId !== capacityPrescriptionVersionId),
+      { bookingId: booking.bookingId, capacityPrescriptionVersionId, expectedBookingUpdatedAt: booking.sourceUpdatedAt },
+    ] : prior.filter((item) => item.bookingId !== booking.bookingId ||
+      item.capacityPrescriptionVersionId !== capacityPrescriptionVersionId));
+    setError(null); setPreview(null);
   };
   const evaluate = async () => {
     if (!current || !actualSummary || !canReadAgenda || !timeZoneConfirmed || dirty || loading) return;
@@ -143,18 +179,6 @@ export function CombinedFutureTemporalPanel({
     }
     const id = ++sequence.current;
     setError(null); setPreview(null); setLoading('preview');
-    const bindings: FutureTemporalPreviewCommand['bindings'] = [];
-    for (const item of current.rows) {
-      for (const source of actualSummary.capacitySources) {
-        if (choices.includes(item.bookingId + ':' + source.capacityPrescriptionVersionId)) {
-          bindings.push({
-            bookingId: item.bookingId,
-            capacityPrescriptionVersionId: source.capacityPrescriptionVersionId,
-            expectedBookingUpdatedAt: item.sourceUpdatedAt,
-          });
-        }
-      }
-    }
     try {
       // The candidate list was fetched earlier; a manual review must not reuse its expired cutoff.
       // Booking IDs/updatedAt still undergo fresh server-side eligibility checks in the POST.
@@ -169,10 +193,10 @@ export function CombinedFutureTemporalPanel({
     } catch (failure) {
       if (id === sequence.current && latestIdentity.current === identity) {
         const status = (failure as { response?: { status?: number } }).response?.status;
-        if (status === 403 || status === 404 || status === 409) {
+        if (status === 401 || status === 403 || status === 404 || status === 409) {
           // A proven access/source/version change requires a fresh list; never reuse stale bindings.
           setError('As fontes, versões ou permissões mudaram. Recarregue a agenda antes de nova avaliação.');
-          setCandidates(null); setChoices([]);
+          setCandidates(null); setBindings([]); setTimeZoneConfirmed(false);
         } else {
           // Temporary failures and validation races must not discard the professor's selection.
           setError('Não foi possível conferir os horários. Os vínculos foram preservados; tente novamente.');
@@ -237,7 +261,8 @@ export function CombinedFutureTemporalPanel({
                 )}
                 <p className="text-xs text-muted-foreground">
                   O recorte usa UTC apenas para pesquisar a agenda. O fuso IANA dos horários será confirmado separadamente na prévia.
-                  A lista mostra até 80 agendamentos por página. Para recortes mais precisos, reduza o intervalo (inclusive para algumas horas).
+                  A lista mostra até 80 agendamentos por página. A seleção é mantida entre páginas da mesma consulta,
+                  até 80 agendamentos distintos por prévia. Para recortes mais precisos, reduza o intervalo (inclusive para algumas horas).
                 </p>
               </div>
               <Button type="button" variant="outline" size="sm"
@@ -253,14 +278,25 @@ export function CombinedFutureTemporalPanel({
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="font-medium">Página {current.page} da consulta</span>
                     {current.page > 1 && <Button type="button" size="sm" variant="outline"
-                      disabled={dirty || loading !== null} onClick={() => { void load(current.page - 1); }}>
+                      disabled={dirty || loading !== null} onClick={() => { void load(current.page - 1, true); }}>
                       Página anterior
                     </Button>}
                     {current.rows.length === 80 && current.page < 100 &&
                       <Button type="button" size="sm" variant="outline"
-                        disabled={dirty || loading !== null} onClick={() => { void load(current.page + 1); }}>
+                        disabled={dirty || loading !== null} onClick={() => { void load(current.page + 1, true); }}>
                         Próxima página
                       </Button>}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 text-xs">
+                    <span role="status" aria-live="polite">
+                      {selectedBookingCount} de {MAX_PREVIEW_BOOKINGS} agendamentos selecionados nesta consulta
+                    </span>
+                    {selectedBookingCount > 0 && <Button type="button" size="sm" variant="outline"
+                      disabled={dirty || loading !== null} onClick={() => {
+                        setBindings([]); setPreview(null); setError(null);
+                      }}>
+                      Limpar seleção
+                    </Button>}
                   </div>
                   {current.rows.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
@@ -279,8 +315,12 @@ export function CombinedFutureTemporalPanel({
                               const key = booking.bookingId + ':' + source.capacityPrescriptionVersionId;
                               return (
                                 <label key={key} className="flex items-center gap-2 text-xs">
-                                  <input type="checkbox" checked={choices.includes(key)}
-                                    onChange={(e) => toggle(key, e.target.checked)} disabled={dirty || loading !== null}
+                                  <input type="checkbox" checked={bindings.some((item) =>
+                                    item.bookingId === booking.bookingId &&
+                                    item.capacityPrescriptionVersionId === source.capacityPrescriptionVersionId &&
+                                    item.expectedBookingUpdatedAt === booking.sourceUpdatedAt)}
+                                    onChange={(e) => toggle(booking, source.capacityPrescriptionVersionId, e.target.checked)}
+                                    disabled={dirty || loading !== null}
                                   />
                                   {source.capacity} v{source.capacityVersion}
                                 </label>
@@ -306,7 +346,7 @@ export function CombinedFutureTemporalPanel({
                     Confirmei que o fuso IANA informado corresponde à agenda destes agendamentos.
                   </label>
                   <Button type="button" size="sm" variant="outline"
-                    disabled={dirty || loading !== null || !timeZoneConfirmed}
+                    disabled={dirty || loading !== null || !timeZoneConfirmed || bindings.length === 0}
                     isLoading={loading === 'preview'} loadingText="Conferindo..."
                     onClick={() => { void evaluate(); }}>
                     <CalendarClock size={15} aria-hidden="true" /> Conferir intervalos futuros
