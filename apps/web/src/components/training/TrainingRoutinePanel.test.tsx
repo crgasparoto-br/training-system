@@ -104,6 +104,83 @@ const cyclicProgress = (completed: number, total: number,
 });
 
 describe('TrainingRoutinePanel (#387)', () => {
+  it('mostra a aderência da semana sem contar execução parcial como concluída', async () => {
+    render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(routine({
+      weeklyEvolution: {
+        sourceLabel: 'Montagem Consolidada e execução das sessões',
+        period: { startDate: '2026-09-28', endDate: '2026-10-04' },
+        counts: {
+          prescribedSessions: 2, completedSessions: 1, partialSessions: 1,
+          notPerformedSessions: 0, pendingSessions: 0,
+        },
+        adherence: { status: 'available', value: 50, unit: '%' },
+        lastSourceUpdateAt: '2026-10-02T12:00:00.000Z',
+      },
+    }))} />);
+    expect(await screen.findByText('Aderência semanal')).toBeInTheDocument();
+    expect(screen.getByText('50%')).toBeInTheDocument();
+    expect(screen.getByText(/2 previstas · 1 concluída · 1 parcial · 0 não realizadas · 0 pendentes/)).toBeInTheDocument();
+    expect(screen.getByText('Unidade: %')).toBeInTheDocument();
+    expect(screen.getByText('Fonte: Montagem Consolidada e execução das sessões')).toBeInTheDocument();
+    expect(screen.getByText(/Última atualização: 02\/10\/2026/)).toBeInTheDocument();
+    expect(screen.queryByText('Detalhes técnicos do indicador')).not.toBeInTheDocument();
+  });
+
+  it('restringe fonte técnica, fórmula e IDs ao professor autorizado, mesmo que o payload de aluno os contenha', async () => {
+    const weeklyEvolution = {
+      sourceLabel: 'Montagem Consolidada e execução das sessões',
+      period: { startDate: '2026-09-28', endDate: '2026-10-04' },
+      counts: { prescribedSessions: 1, completedSessions: 1, partialSessions: 0, notPerformedSessions: 0, pendingSessions: 0 },
+      adherence: { status: 'available' as const, value: 100, unit: '%' as const },
+      lastSourceUpdateAt: null,
+      technical: {
+        ruleVersion: 'weekly-adherence-v1' as const,
+        source: 'consolidated_release_and_session_execution' as const,
+        formula: 'completedSessions / prescribedSessions * 100' as const,
+        sessions: [{ sessionId: 'professor-private-session', status: 'completed' as const }],
+      },
+    };
+    const studentView = routine({ weeklyEvolution });
+    const { unmount } = render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(studentView)} />);
+    expect(await screen.findByText('Aderência semanal')).toBeInTheDocument();
+    expect(screen.getByText('Última atualização: Não informada')).toBeInTheDocument();
+    expect(screen.queryByText('professor-private-session')).not.toBeInTheDocument();
+    expect(screen.queryByText('weekly-adherence-v1')).not.toBeInTheDocument();
+    unmount();
+
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue(routine({
+      audience: 'professor', weeklyEvolution,
+    }))} />);
+    await userEvent.click(await screen.findByText('Detalhes técnicos do indicador'));
+    expect(screen.getByText('professor-private-session')).toBeInTheDocument();
+    expect(screen.getByText('weekly-adherence-v1')).toBeInTheDocument();
+    expect(screen.getByText(weeklyEvolution.technical.formula)).toBeInTheDocument();
+    expect(screen.getByText(weeklyEvolution.technical.source)).toBeInTheDocument();
+  });
+
+  it('exibe a aderência para semanas históricas, sem mostrar continuidade da semana atual', async () => {
+    const historical = routine({
+      referenceDate: '2026-09-21',
+      week: { startDate: '2026-09-21', endDate: '2026-09-27' },
+      days: ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24',
+        '2026-09-25', '2026-09-26', '2026-09-27'].map((date) => ({
+        date, isToday: false, sessions: [], pendingReleaseCount: 0,
+      })),
+      weeklyEvolution: {
+        sourceLabel: 'Montagem Consolidada e execução das sessões',
+        period: { startDate: '2026-09-21', endDate: '2026-09-27' },
+        counts: { prescribedSessions: 0, completedSessions: 0, partialSessions: 0, notPerformedSessions: 0, pendingSessions: 0 },
+        adherence: { status: 'insufficient_data', value: null, unit: '%' },
+        lastSourceUpdateAt: null,
+      },
+    });
+    render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(historical)} />);
+    const historicalIndicator = await screen.findByRole('region', { name: 'Aderência da semana selecionada' });
+    expect(within(historicalIndicator).getByText('Dados insuficientes')).toBeInTheDocument();
+    expect(within(historicalIndicator).getByText('Última atualização: Não informada')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Continuidade do treinamento' })).not.toBeInTheDocument();
+  });
+
   it('apresenta objetivo, duração, ordem, blocos e parâmetros do Treino de hoje', async () => {
     render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(routine())} />);
 
@@ -627,7 +704,8 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(within(continuity).getByText('Próximo treino')).toBeInTheDocument();
     expect(within(continuity).getByText('Última execução')).toBeInTheDocument();
     expect(within(continuity).getByText('1 feedback pendente')).toBeInTheDocument();
-    expect(within(continuity).getByText(/indicador canônico será consumido quando a #405/i)).toBeInTheDocument();
+    expect(within(continuity).getByText(/O feedback é registrado separadamente do indicador de aderência/i)).toBeInTheDocument();
+    expect(within(continuity).getByText('Aderência semanal')).toBeInTheDocument();
   });
 
   it('usa próxima sessão canônica de outra semana sem inferir ausência pela semana atual', async () => {
@@ -636,7 +714,7 @@ describe('TrainingRoutinePanel (#387)', () => {
     }));
     render(<TrainingRoutinePanel audience="student" load={load} />);
     const cards = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
-    expect(cards).toHaveClass('grid', 'sm:grid-cols-3');
+    expect(cards).toHaveClass('grid', 'sm:grid-cols-2', 'xl:grid-cols-4');
     expect(within(cards).getByText('Treino programado')).toBeInTheDocument();
     expect(within(cards).getByText('03/11 · Não iniciado')).toBeInTheDocument();
     expect(within(cards).queryByText(/Nenhuma sessão pendente/)).not.toBeInTheDocument();

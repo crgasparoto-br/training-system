@@ -438,6 +438,33 @@ export interface TrainingRoutineExecutionAvailability {
   reason: 'execution_contract_pending' | null;
 }
 
+/** #405: read-only weekly projection from released sessions and canonical execution. */
+export interface TrainingRoutineWeeklyEvolution {
+  period: { startDate: string; endDate: string };
+  /** Readable source for both audiences, not the internal source code. */
+  sourceLabel: string;
+  counts: {
+    prescribedSessions: number;
+    completedSessions: number;
+    partialSessions: number;
+    notPerformedSessions: number;
+    pendingSessions: number;
+  };
+  adherence: {
+    status: 'available' | 'insufficient_data';
+    value: number | null;
+    unit: '%';
+  };
+  lastSourceUpdateAt: string | null;
+  /** Present only in the professor API response, never in the student payload. */
+  technical?: {
+    ruleVersion: 'weekly-adherence-v1';
+    source: 'consolidated_release_and_session_execution';
+    formula: 'completedSessions / prescribedSessions * 100';
+    sessions: Array<{ sessionId: string; status: TrainingRoutineExecutionProjectionStatus }>;
+  };
+}
+
 export interface TrainingRoutineView {
   alunoId: string;
   audience: TrainingRoutineAudience;
@@ -445,6 +472,7 @@ export interface TrainingRoutineView {
   timeZone: string;
   week: { startDate: string; endDate: string };
   days: TrainingRoutineDay[];
+  weeklyEvolution?: TrainingRoutineWeeklyEvolution;
   today: {
     date: string;
     state: TrainingRoutineTodayState;

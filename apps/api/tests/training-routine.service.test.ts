@@ -115,6 +115,128 @@ describe('training routine service (#387)', () => {
     });
   });
 
+  it('calcula a aderência semanal usando apenas sessões liberadas e o lifecycle canônico', async () => {
+    const executed = (dayId: string, status: 'completed' | 'partial', updatedAt: string) => ({
+      workoutDayId: dayId, status, version: 1,
+      updatedAt: new Date(updatedAt), startedAt: new Date('2026-10-01T10:00:00.000Z'),
+      finishedAt: new Date(updatedAt), currentPauseStartedAt: null,
+      pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1', sessionValues: {}, plannedSnapshot: null, items: [],
+    });
+    releasedRows = [
+      makeRow({ id: 'day-completed',
+        execution: executed('day-completed', 'completed', '2026-10-01T12:00:00.000Z') }),
+      makeRow({ id: 'day-partial', workoutDate: new Date('2026-10-02T00:00:00.000Z'),
+        execution: executed('day-partial', 'partial', '2026-10-02T12:00:00.000Z') }),
+    ];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.weeklyEvolution).toMatchObject({
+      counts: {
+        prescribedSessions: 2, completedSessions: 1, partialSessions: 1,
+        notPerformedSessions: 0, pendingSessions: 0,
+      },
+      adherence: { status: 'available', value: 50, unit: '%' },
+    });
+    expect(result.weeklyEvolution?.technical).toBeUndefined();
+    expect(result.weeklyEvolution).not.toHaveProperty('ruleVersion');
+    expect(result.weeklyEvolution).not.toHaveProperty('source');
+    expect(result.weeklyEvolution?.adherence).not.toHaveProperty('formula');
+    expect(result.weeklyEvolution?.sourceLabel).toBe('Montagem Consolidada e execução das sessões');
+    const professor = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'professor', now,
+    });
+    expect(professor.weeklyEvolution?.adherence).toEqual(result.weeklyEvolution?.adherence);
+    expect(professor.weeklyEvolution?.technical).toMatchObject({
+      ruleVersion: 'weekly-adherence-v1',
+      source: 'consolidated_release_and_session_execution',
+      formula: 'completedSessions / prescribedSessions * 100',
+      sessions: [{ sessionId: 'day-completed', status: 'completed' }, { sessionId: 'day-partial', status: 'partial' }],
+    });
+    expect(findMany.mock.calls[0][0].where.template.plan).toMatchObject({
+      alunoId: 'aluno-1', aluno: { contractId: 'contract-1' },
+    });
+  });
+
+  it('A-004: alinha conclusão legada, estados pendentes e aderência da semana histórica', async () => {
+    releasedRows = [
+      makeRow({ id: 'legacy-completed', status: 'completed',
+        updatedAt: new Date('2026-10-01T16:00:00.000Z') }),
+      makeRow({ id: 'legacy-in-progress', status: 'in_progress', dayOfWeek: 4,
+        workoutDate: new Date('2026-10-02T00:00:00.000Z'),
+        updatedAt: new Date('2026-10-02T12:00:00.000Z') }),
+      makeRow({ id: 'legacy-planned', status: 'planned', dayOfWeek: 5,
+        workoutDate: new Date('2026-10-03T00:00:00.000Z'),
+        updatedAt: new Date('2026-09-29T12:00:00.000Z') }),
+    ];
+    const query = {
+      alunoId: 'aluno-1', contractId: 'contract-1',
+      audience: 'student' as const, date: '2026-10-01',
+      now: new Date('2026-10-06T15:00:00.000Z'),
+    };
+    const student = await service.getRoutine(query);
+    expect(student.days.flatMap((day) => day.sessions.map((session) => ({
+      sessionId: session.sessionId, status: session.status,
+    })))).toEqual([
+      { sessionId: 'legacy-completed', status: 'completed' },
+      { sessionId: 'legacy-in-progress', status: 'in_progress' },
+      { sessionId: 'legacy-planned', status: 'not_started' },
+    ]);
+    expect(student.weeklyEvolution?.counts).toEqual({
+      prescribedSessions: 3, completedSessions: 1, partialSessions: 0,
+      notPerformedSessions: 0, pendingSessions: 2,
+    });
+    expect(student.weeklyEvolution?.adherence).toEqual({
+      status: 'available', value: 33.33, unit: '%',
+    });
+    expect(student.weeklyEvolution?.lastSourceUpdateAt).toBe('2026-10-02T12:00:00.000Z');
+    expect(student.weeklyEvolution?.technical).toBeUndefined();
+
+    const professor = await service.getRoutine({ ...query, audience: 'professor' });
+    expect(professor.weeklyEvolution?.adherence).toEqual(student.weeklyEvolution?.adherence);
+    expect(professor.weeklyEvolution?.technical?.sessions).toEqual([
+      { sessionId: 'legacy-completed', status: 'completed' },
+      { sessionId: 'legacy-in-progress', status: 'in_progress' },
+      { sessionId: 'legacy-planned', status: 'not_started' },
+    ]);
+
+    releaseRows = [];
+    const withoutConsolidatedRelease = await service.getRoutine(query);
+    expect(withoutConsolidatedRelease.weeklyEvolution?.adherence).toEqual({
+      status: 'insufficient_data', value: null, unit: '%',
+    });
+    expect(withoutConsolidatedRelease.weeklyEvolution?.counts.prescribedSessions).toBe(0);
+  });
+
+  it('A-004: execução canônica prevalece sobre status legado e horário da origem antiga', async () => {
+    releasedRows = [makeRow({
+      status: 'completed',
+      updatedAt: new Date('2026-10-03T15:00:00.000Z'),
+      execution: {
+        workoutDayId: 'day-1', status: 'not_performed', version: 1,
+        updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+        startedAt: null,
+        finishedAt: new Date('2026-10-01T12:00:00.000Z'),
+        currentPauseStartedAt: null, pausedDurationMs: BigInt(0),
+        interruptionReason: 'Impossibilidade informada', originReleaseId: 'release-1',
+        originWorkoutTemplateId: 'template-1', originTrainingPlanId: 'plan-1',
+        sessionValues: {}, plannedSnapshot: null, items: [],
+      },
+    })];
+    const student = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(student.today.sessions[0].status).toBe('not_performed');
+    expect(student.weeklyEvolution?.counts).toEqual({
+      prescribedSessions: 1, completedSessions: 0, partialSessions: 0,
+      notPerformedSessions: 1, pendingSessions: 0,
+    });
+    expect(student.weeklyEvolution?.adherence).toEqual({ status: 'available', value: 0, unit: '%' });
+    expect(student.weeklyEvolution?.lastSourceUpdateAt).toBe('2026-10-01T12:00:00.000Z');
+  });
+
   it('projeta o próximo treino de outra semana apenas com liberação consolidada e escopo contratual', async () => {
     upcomingRows = [{
       sessionId: 'next-month',
