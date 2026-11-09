@@ -126,6 +126,21 @@ describe('issue #394: persistence and tenant-aware curation', () => {
     expect(db.exerciseLibrary.updateMany).not.toHaveBeenCalled();
   });
 
+  it('rechecks workout linkage in the atomic edit predicate', async () => {
+    db.exerciseLibrary.findFirst.mockResolvedValue({ ...sample, curationStatus: 'draft' });
+    db.workoutExercise.count.mockResolvedValue(0);
+    db.exerciseLibrary.updateMany.mockResolvedValue({ count: 0 });
+    await expect(libraryService.updateExercise(
+      'contract-1', sample.id, { name: 'Nome revisado' }, 2, 'actor-1',
+    )).rejects.toMatchObject({ kind: 'conflict' });
+    expect(db.exerciseLibrary.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        id: sample.id, contractId: 'contract-1', version: 2,
+        workoutExercises: { none: {} },
+      },
+    }));
+  });
+
   it('does not physically delete an exercise when deactivating it', async () => {
     db.exerciseLibrary.findFirst.mockResolvedValue({ ...sample, curationStatus: 'approved' });
     db.exerciseLibrary.updateMany.mockResolvedValue({ count: 1 });

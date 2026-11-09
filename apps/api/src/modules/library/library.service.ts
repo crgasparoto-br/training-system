@@ -147,7 +147,9 @@ export const libraryService = {
         );
       }
       const updated = await tx.exerciseLibrary.updateMany({
-        where: { id, contractId, version: expectedVersion },
+        // Check the historical-use invariant at the definitive compare-and-swap write,
+        // not only at the preflight count, to reject a newly linked workout.
+        where: { id, contractId, version: expectedVersion, workoutExercises: { none: {} } },
         data: {
           ...data, version: { increment: 1 },
           curationStatus: ExerciseCurationStatus.draft,

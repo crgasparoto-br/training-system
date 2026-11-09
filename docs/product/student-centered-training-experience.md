@@ -706,7 +706,8 @@ A aprovação exige nome, categoria, capacidade e instruções; não é homologa
 
 Toda alteração recebe versão monotônica e snapshot imutável, com ator, ação e data.
 Mudança concorrente com `expectedVersion` responde 409. Editar conteúdo de exercício
-referenciado por `WorkoutExercise` é rejeitado para preservar significado histórico;
+referenciado por `WorkoutExercise` é rejeitado tanto na pré-checagem quanto no
+predicado definitivo da escrita para preservar o significado histórico;
 desativação mantém referência. Edição de aprovado fora do treino retorna a `draft`.
 `GET /api/v1/library/exercises` retorna apenas aprovados por padrão; `scope=all`
 e histórico de revisões exigem acesso administrativo.
