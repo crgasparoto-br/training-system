@@ -234,6 +234,12 @@ retorna a rascunho e responde 409 para concorrência ou item já usado em treino
 `POST /exercises/:id/curation` recebe `{action,expectedVersion}` com `submit`,
 `approve`, `request_changes`, `deactivate` ou `reopen`.
 `GET /exercises/:id/revisions` devolve versões ao administrador do contrato.
+No Workout Builder, `save-week`, `PUT /days/:id/resistance-exercises` e
+`POST /exercises` verificam exercícios novos `approved` na transação, no mesmo
+contrato do aluno. Linhas já vinculadas não são removidas nem exigem nova
+aprovação em um replay de identidade estável. Cópia de dia, semana e resistência
+faz nova aplicação e rejeita atomicamente referências desativadas/em revisão;
+cópia apenas cíclica permanece independente da biblioteca resistida.
 `DELETE /exercises/:id` é compatibilidade de desativação lógica com versão,
 sem exclusão física. Seleções em Workout Builder, vinculação técnica,
 substituição e Montagem Consolidada verificam `approved` e `contractId`.

@@ -61,6 +61,27 @@ export class WorkoutPlanningLockedError extends Error {
 }
 
 
+/**
+ * New applications must reference an approved exercise in the student's own
+ * contract. Existing WorkoutExercise rows remain readable after deactivation.
+ * Call only from the definitive planning transaction, after matching stable
+ * identities, so a replay cannot silently create an uncurated exercise.
+ */
+export async function assertApprovedWorkoutExerciseIds(
+  tx: Prisma.TransactionClient,
+  exerciseIds: readonly string[],
+  contractId: string,
+) {
+  const uniqueIds = [...new Set(exerciseIds)];
+  if (!uniqueIds.length) return;
+  const approved = await tx.exerciseLibrary.count({
+    where: { id: { in: uniqueIds }, contractId, curationStatus: 'approved' },
+  });
+  if (approved !== uniqueIds.length) {
+    throw new ResistanceStructureValidationError('Exercício indisponível para aplicação.');
+  }
+}
+
 export async function assertDayContract(
   tx: Prisma.TransactionClient,
   workoutDayId: string,

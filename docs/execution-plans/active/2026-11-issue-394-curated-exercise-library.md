@@ -14,7 +14,10 @@ estados de revisão, histórico por versão e testes de regressão.
 - Administrador `master` publica após `in_review`; mídia exige licença/origem.
 - `expectedVersion` evita concorrência e revisões append-only preservam a trilha.
 - Desativação é lógica; histórico de treino permanece.
-- Seleção nova exige exercício aprovado e `contractId` correto.
+- Seleção nova exige exercício aprovado e `contractId` correto, inclusive em
+  `save-week`, substituição diária e todas as cópias que materializem novos exercícios.
+- Referências existentes podem permanecer após desativação, sem reaprovação
+  artificial, mas não podem ser reaplicadas por cópia a outra semana/dia.
 - Defaults históricos são preservados com origem `legacy_baseline`.
 
 ## Validação e aceite

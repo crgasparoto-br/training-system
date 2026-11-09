@@ -693,8 +693,14 @@ O protocolo versionado para a detecção de conflitos por capacidade está docum
 A biblioteca administrativa permite criar registros em `draft`, submeter para `in_review`,
 aprovar explicitamente para `approved`, devolver à edição ou desativar em `inactive`.
 A seleção oficial e o vínculo operacional aceitam apenas exercícios `approved` do
-mesmo `contractId`, enquanto consultas históricas continuam resolvendo exercícios
-desativados; nenhuma dessas ações aplica exercício automaticamente ao aluno.
+mesmo `contractId`. A validação definitiva na transação também alcança a montagem
+semanal/diária, adição direta, cópia de dia/semana e cópia de seções resistidas,
+inclusive quando a requisição contém IDs manualmente. Cópias com exercícios
+não aprovados são rejeitadas atomicamente; a modalidade cíclica isolada não
+precisa de curadoria resistida. Exercícios já vinculados podem permanecer em
+salvamentos que preservem a mesma identidade, e consultas históricas continuam
+resolvendo exercícios desativados; nenhuma ação de curadoria aplica exercício
+automaticamente ao aluno.
 Criação e transições de curadoria exigem professor administrador (`master`) com
 permissão da tela `library`. Professores comuns visualizam apenas o catálogo aprovado.
 

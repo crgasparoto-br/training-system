@@ -2,7 +2,7 @@ import { cyclicStageInclude, nestedCyclicStages, snapshotCyclicStages } from './
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { copyResistanceGroups, resistanceGroupInclude } from './resistance-groups.domain.js';
 import { ResistanceStructureNotFoundError, ResistanceStructureValidationError } from './resistance-structure.domain.js';
-import { lockWorkoutTemplatePlanningMutable, nestedResistanceBlocks, resistanceBlockInclude, serializeWorkoutTemplate, withTemplateCopyRetry, workoutDateInTargetWeek } from './workout-planning.helpers.js';
+import { assertApprovedWorkoutExerciseIds, lockWorkoutTemplatePlanningMutable, nestedResistanceBlocks, resistanceBlockInclude, serializeWorkoutTemplate, withTemplateCopyRetry, workoutDateInTargetWeek } from './workout-planning.helpers.js';
 
 export async function copyTemplateSections(
   prisma: PrismaClient,
@@ -21,6 +21,7 @@ export async function copyTemplateSections(
     const source = await tx.workoutTemplate.findUnique({
       where: { id },
       include: {
+        plan: { select: { aluno: { select: { contractId: true } } } },
         workoutDays: {
           include: { cyclicStages: cyclicStageInclude, resistanceGroups: resistanceGroupInclude, exercises: { include: { resistanceBlocks: resistanceBlockInclude } } },
         },
@@ -29,6 +30,14 @@ export async function copyTemplateSections(
     if (!source) throw new ResistanceStructureNotFoundError();
     if (source.weekNumber === targetWeekNumber) {
       throw new ResistanceStructureValidationError('A semana de destino deve ser diferente da origem.');
+    }
+
+    // Copying resistance exercises creates new applications even when the
+    // source row is historical and its catalog entry is now inactive.
+    if (mode === 'resistance') {
+      await assertApprovedWorkoutExerciseIds(tx,
+        source.workoutDays.flatMap((day) => day.exercises.map((exercise) => exercise.exerciseId)),
+        source.plan.aluno.contractId);
     }
 
     const existingTarget = await tx.workoutTemplate.findUnique({
@@ -222,6 +231,7 @@ export async function copyTemplate(
     const source = await tx.workoutTemplate.findUnique({
     where: { id },
     include: {
+      plan: { select: { aluno: { select: { contractId: true } } } },
       workoutDays: {
         include: {
           cyclicStages: cyclicStageInclude,
@@ -239,6 +249,10 @@ export async function copyTemplate(
   if (source.weekNumber === targetWeekNumber) {
     throw new Error('Target week must be different from source week');
   }
+
+  await assertApprovedWorkoutExerciseIds(tx,
+    source.workoutDays.flatMap((day) => day.exercises.map((exercise) => exercise.exerciseId)),
+    source.plan.aluno.contractId);
 
   const existingTarget = await tx.workoutTemplate.findUnique({
     where: {
