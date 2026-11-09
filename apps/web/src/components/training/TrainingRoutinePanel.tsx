@@ -734,7 +734,8 @@ function WeeklyAdherenceCard({ routine, audience }: { routine: TrainingRoutineVi
       ].join(' · ')
     : 'Indicador indisponível nesta versão.';
 
-  const showTechnical = audience === 'professor' && routine.audience === 'professor' && weeklyEvolution?.technical;
+  const technical = audience === 'professor' && routine.audience === 'professor'
+    ? weeklyEvolution?.technical : undefined;
 
   return (
     <div className="min-w-0 rounded-lg border border-border bg-background p-3">
@@ -759,7 +760,7 @@ function WeeklyAdherenceCard({ routine, audience }: { routine: TrainingRoutineVi
           )}
         </>
       )}
-      {showTechnical && (
+      {technical && (
         <details className="mt-2 min-w-0 rounded-md border border-border bg-muted/20 p-2">
           <summary className="cursor-pointer text-xs font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
             Detalhes técnicos do indicador
@@ -769,10 +770,10 @@ function WeeklyAdherenceCard({ routine, audience }: { routine: TrainingRoutineVi
             <div><dt className="inline font-medium">Fórmula: </dt><dd className="inline break-words">{weeklyEvolution.adherence.formula}</dd></div>
             <div><dt className="inline font-medium">Código da fonte: </dt><dd className="inline break-all">{weeklyEvolution.source}</dd></div>
           </dl>
-          <p className="mt-2 text-xs font-medium text-foreground">Sessões de origem ({weeklyEvolution.technical.sessions.length})</p>
-          {weeklyEvolution.technical.sessions.length ? (
+          <p className="mt-2 text-xs font-medium text-foreground">Sessões de origem ({technical.sessions.length})</p>
+          {technical.sessions.length ? (
             <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
-              {weeklyEvolution.technical.sessions.map((item) => (
+              {technical.sessions.map((item) => (
                 <li key={item.sessionId} className="break-all">
                   <code>{item.sessionId}</code> · {sessionStatusLabels[item.status]}
                 </li>
