@@ -717,6 +717,8 @@ sem fabricar revisor ou assinatura. Padrões existentes permanecem aprovados com
 revisor ou licença. Novas instalações de padrões, API, importações e cópias
 entre contratos entram em rascunho até revisão. O saneamento automático ignora
 exercícios vinculados a treinos e registra `system_defaults_repair` com ator
-nulo. A busca por aliases é parcial, sem distinção de caixa e isolada por
+nulo. O saneamento não injeta URL de vídeo em exercícios existentes:
+o catálogo padrão não comprova direito de uso e uma nova mídia depende de
+curadoria explícita com origem e licença; mídias legadas já presentes não são removidas. A busca por aliases é parcial, sem distinção de caixa e isolada por
 contrato na biblioteca e na montagem consolidada. Cópias entre contratos
 preservam metadados técnicos, mas não transferem direitos de mídia.

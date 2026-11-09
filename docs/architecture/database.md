@@ -266,6 +266,9 @@ Uma comparação de `version` dentro da transação evita concorrência silencio
 Legado recebe `legacy_baseline`, sem presumir homologação profissional.
 Importações, novas instalações de padrões e cópias entram como rascunho.
 O saneamento automático ignora exercícios relacionados a `WorkoutExercise`
-e marca revisões com `system_defaults_repair` e ator nulo. UPDATE/DELETE
+e marca revisões com `system_defaults_repair` e ator nulo. Repares set-based ou Prisma não
+preenchem `videoUrl` em registros já existentes: URLs do catálogo
+não atestam licença para a empresa. A inclusão de mídia requer
+curadoria com origem e autorização; links legados permanecem intactos. UPDATE/DELETE
 explícitos de `ExerciseLibraryRevision` são bloqueados enquanto o exercício
 existir; exclusões em cascata de todo o contrato permanecem permitidas.

@@ -79,4 +79,39 @@ describeDatabase('installContractDefaults database integration', () => {
     expect(await libraryService.listExercises('unknown-foreign-contract', { search: 'xyZZy' }))
       .toEqual([]);
   });
+
+  it('does not backfill media without provenance into a legacy approved record', async () => {
+    const canonical = loadProductExerciseDefaults().find(
+      (item) => item.name === 'Abdominal Bicicleta'
+    );
+    expect(canonical?.videoUrl).toBeTruthy();
+    const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const target = await prisma.companyContract.create({
+      data: { type: 'academy', document: `defaults-media-${suffix}`, name: 'Defaults media boundary' },
+    });
+    targetContractId = target.id;
+    const exercise = await prisma.exerciseLibrary.create({
+      data: {
+        contractId: target.id,
+        name: canonical!.name,
+        videoUrl: null,
+        loadType: null,
+        curationStatus: 'approved',
+        legacyGrandfathered: true,
+      },
+    });
+
+    await installContractDefaults(target.id, prisma);
+
+    const after = await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: exercise.id } });
+    expect(after.curationStatus).toBe('approved');
+    expect(after.videoUrl).toBeNull();
+    expect(after.mediaLicense).toBeNull();
+    expect(after.mediaOrigin).toBeNull();
+    expect(after.loadType).toBe(canonical!.loadType);
+    const revision = await prisma.exerciseLibraryRevision.findFirstOrThrow({
+      where: { exerciseId: exercise.id, action: 'system_defaults_repair' },
+    });
+    expect(revision.actorUserId).toBeNull();
+  });
 });

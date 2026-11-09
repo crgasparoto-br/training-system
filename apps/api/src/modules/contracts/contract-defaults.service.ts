@@ -402,7 +402,8 @@ function missingExerciseFields(
 ) {
   const data: Partial<Omit<ExistingExerciseDefault, 'name'>> = {};
 
-  if (!existing.videoUrl?.trim() && canonical.videoUrl) data.videoUrl = canonical.videoUrl;
+  // A catalog URL alone does not prove media rights for an existing exercise.
+  // Preserve existing media; any new URL must be reviewed by the curator.
   if (!existing.loadType && canonical.loadType) data.loadType = canonical.loadType;
   if (!existing.movementType && canonical.movementType) data.movementType = canonical.movementType;
   if (!existing.countingType && canonical.countingType) data.countingType = canonical.countingType;
@@ -426,7 +427,6 @@ async function applyExerciseBackfills(
     const rows = backfills.map(({ canonical }) =>
       Prisma.sql`(
         ${canonical.name},
-        ${canonical.videoUrl ?? null},
         ${canonical.loadType ?? null},
         ${canonical.movementType ?? null},
         ${canonical.countingType ?? null},
@@ -441,11 +441,6 @@ async function applyExerciseBackfills(
       SET
         "lastModifiedByUserId" = NULL,
         "lastCurationAction" = 'system_defaults_repair',
-        "videoUrl" = CASE
-          WHEN NULLIF(BTRIM(exercise."videoUrl"), '') IS NULL AND defaults."videoUrl" IS NOT NULL
-            THEN defaults."videoUrl"
-          ELSE exercise."videoUrl"
-        END,
         "loadType" = CASE
           WHEN exercise."loadType" IS NULL AND defaults."loadType" IS NOT NULL
             THEN defaults."loadType"::"LoadType"
@@ -478,7 +473,6 @@ async function applyExerciseBackfills(
         END
       FROM (VALUES ${Prisma.join(rows)}) AS defaults(
         "name",
-        "videoUrl",
         "loadType",
         "movementType",
         "countingType",
@@ -493,7 +487,6 @@ async function applyExerciseBackfills(
           WHERE workout."exerciseId" = exercise."id"
         )
         AND (
-          (NULLIF(BTRIM(exercise."videoUrl"), '') IS NULL AND defaults."videoUrl" IS NOT NULL) OR
           (exercise."loadType" IS NULL AND defaults."loadType" IS NOT NULL) OR
           (exercise."movementType" IS NULL AND defaults."movementType" IS NOT NULL) OR
           (exercise."countingType" IS NULL AND defaults."countingType" IS NOT NULL) OR

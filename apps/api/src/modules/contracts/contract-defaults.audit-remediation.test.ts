@@ -147,5 +147,6 @@ describe('contract defaults audit remediation', () => {
     expect(query.strings.join('')).toContain('"WorkoutExercise"');
     expect(query.strings.join('')).toContain('NOT EXISTS');
     expect(query.strings.join('')).toContain("'system_defaults_repair'");
+    expect(query.strings.join('')).not.toContain('"videoUrl"');
   });
 });

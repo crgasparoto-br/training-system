@@ -361,6 +361,31 @@ describe('installContractDefaults', () => {
     expect(fake.writes.exerciseUpdateMany.mock.calls.at(-1)?.[0].data).not.toHaveProperty('muscleGroup');
   });
 
+  it('never adds unlicensed default media to an approved legacy exercise', async () => {
+    const canonical = exerciseDefaults.find((item) => item.name === 'Abdominal Bicicleta');
+    expect(canonical?.videoUrl).toBeTruthy();
+    expect(canonical?.loadType).toBeTruthy();
+    const fake = createFakeDb({ exercises: [{
+      contractId,
+      name: canonical!.name,
+      curationStatus: 'approved',
+      legacyGrandfathered: true,
+      videoUrl: null,
+      loadType: null,
+    }] });
+
+    await installContractDefaults(contractId, fake.db);
+
+    expect(fake.state.exercises.find((item) => item.name === canonical!.name)).toMatchObject({
+      videoUrl: null,
+      curationStatus: 'approved',
+      loadType: canonical!.loadType,
+    });
+    const updates = fake.writes.exerciseUpdateMany.mock.calls.map(([args]) => args.data);
+    expect(updates).not.toHaveLength(0);
+    expect(updates.every((data) => !Object.prototype.hasOwnProperty.call(data, 'videoUrl'))).toBe(true);
+  });
+
   it('completa lacunas de nomes duplicados sem sobrescrever o primeiro valor preenchido', () => {
     const pulley = exerciseDefaults.find((item) => item.name === 'Pulley com pegada Supinada');
     expect(pulley).toMatchObject({
