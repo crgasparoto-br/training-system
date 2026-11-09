@@ -127,3 +127,39 @@ Esses blocos exigem tambem acesso de tela em `collaborators.registration` e deve
 - A troca autenticada exige a senha atual, uma nova senha com pelo menos 8 caracteres e uma senha diferente da atual. Em sucesso, atualiza o hash e limpa `mustChangePassword`.
 - A recuperacao publica continua usando `POST /api/v1/auth/forgot-password` e `POST /api/v1/auth/reset-password`. O token e assinado com segredo derivado do hash atual; por isso, qualquer troca de senha invalida tokens anteriores. A redefinicao bem-sucedida tambem limpa `mustChangePassword`.
 - A solicitacao publica de recuperacao mantem resposta generica para evitar enumeracao de contas.
+
+## Revisão combinada da Montagem (#403)
+
+`GET /consolidated-prescriptions/alunos/:alunoId/conflicts` acrescenta
+apenas metadados de versão das quatro prescrições e o estado conservador
+`no_active_rules` / `insufficient_data`. A resposta desse bloco
+de Montagem não carrega check-in, feedback ou métricas sensíveis.
+
+A UI do professor oferece a consulta histórica somente após verificar ambos
+`students.details.preWorkoutCheckIn` e
+`students.details.postWorkoutFeedback`. O endpoint clínico existente
+`GET .../combined-conflicts` permanece separado e exige os dois
+blocos, além de `plans.consolidatedPrescriptions.view`, ator professor,
+`contractId` e escopo autorizado. O frontend não transfere
+resultado histórico para o endpoint de Montagem nem para o aluno; ausência de
+concessão não é preenchida com dados de origem alternativa.
+
+O histórico combinado em memória é associado à identidade de usuário/professor,
+contrato, `dataScope` de `plans` e concessões atuais. O refresh de permissões
+não precisa desmontar a rota: a tela invalida imediatamente a apresentação
+anterior e revalida o escopo contra as rotas protegidas de montagem/workspace.
+Uma resposta antiga ou perda de acesso `self` não pode restaurar dados clínicos;
+a consulta histórica exige nova ação explícita depois da revalidação.
+
+
+## Limite de autorização — prévia temporal futura (#403)
+
+O relatório comum da Montagem não incorpora agendamentos. A nova
+listagem mínima e a prévia temporal exigem **cumulativamente** acesso à
+Montagem Consolidada e à tela `agenda`; o `dataScope`
+de `plans` é revalidado contra o aluno antes da leitura.
+A API nunca confia no `contractId` enviado pelo cliente:
+consulta `AgendaBooking` e versões de prescrição filtradas por
+`contractId` e `alunoId` do token. A permissão de
+agenda não dá acesso aos dados clínicos de check-in/feedback, que
+continuam atrás de dois grants próprios em endpoint independente.

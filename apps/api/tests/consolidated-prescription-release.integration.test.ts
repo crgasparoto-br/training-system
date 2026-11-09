@@ -1,4 +1,11 @@
 import { randomUUID } from 'node:crypto';
+import express from 'express';
+import jwt from 'jsonwebtoken';
+import { createCombinedConflictSourceService } from '../src/modules/consolidated-prescriptions/combined-training-conflicts.service.js';
+import { createWorkoutSessionExecutionService } from '../src/modules/workout/workout-session-execution.service.js';
+import { createPostWorkoutFeedbackPersistenceService } from '../src/modules/post-workout-feedback/post-workout-feedback-persistence.service.js';
+import { consolidatedPrescriptionRoutes } from '../src/modules/consolidated-prescriptions/index.js';
+const request = require('supertest');
 import {
   ContractType,
   PrismaClient,
@@ -41,6 +48,7 @@ const BALANCE_PARAMETERS = {
   expectedPse: 2,
 } as const;
 const CYCLIC_PARAMETERS = { category: 'continuous', time: '30 min' } as const;
+const CYCLIC_DISTANCE_ONLY_PARAMETERS = { distance: '5 km' } as const;
 const FLEXIBILITY_NOTE =
   'Flexibilidade — Ombro (prescrição: 3 x 30 s, ângulo: 120°, déficit: 10°, prioridade: alta). PSE esperada: 3.';
 const BALANCE_NOTE =
@@ -49,7 +57,10 @@ const BALANCE_NOTE =
 type Fixture = {
   contractId: string;
   professorId: string;
+  professorUserId: string;
+  professorEmail: string;
   alunoId: string;
+  alunoUserId: string;
   planId: string;
   assemblyId: string;
   sourceVersionId: string;
@@ -64,7 +75,7 @@ function contextFor(fixture: Fixture) {
   };
 }
 
-function commandFor(fixture: Fixture) {
+function commandFor(fixture: Fixture, includeResisted = false, resistedOnNextDay = false) {
   return {
     expectedCurrentVersion: 1,
     target: {
@@ -88,6 +99,11 @@ function commandFor(fixture: Fixture) {
           dayOfWeek: 1,
           workoutDate: '2026-08-17T00:00:00.000Z',
         },
+        ...(includeResisted ? [{
+          projectionKey: 'resisted:release-test', dayOfWeek: resistedOnNextDay ? 2 : 1,
+          workoutDate: resistedOnNextDay ? '2026-08-18T00:00:00.000Z' : '2026-08-17T00:00:00.000Z',
+          section: 'principal', exerciseOrder: 1,
+        }] : []),
       ],
     },
   };
@@ -106,7 +122,7 @@ function capacityParameters(capacity: (typeof CAPACITIES)[number]) {
   return { type: 'resisted', resisted: {} };
 }
 
-async function seedFixture(label: string): Promise<Fixture> {
+async function seedFixture(label: string, includeResisted = false, cyclicDistanceOnly = false): Promise<Fixture> {
   const suffix = `${label}-${randomUUID()}`;
   const contractId = `issue-320-${suffix}`;
 
@@ -198,7 +214,9 @@ async function seedFixture(label: string): Promise<Fixture> {
         technicalJustification: `Justificativa ${capacity}`,
         professorSummary: `Resumo ${capacity}`,
         studentMessage: `Orientação ${capacity}`,
-        parameters: capacityParameters(capacity),
+        parameters: capacity === 'cyclic' && cyclicDistanceOnly
+          ? { type: 'cyclic', cyclic: CYCLIC_DISTANCE_ONLY_PARAMETERS }
+          : capacityParameters(capacity),
       },
     });
     capacityVersionIds[capacity] = version.id;
@@ -246,13 +264,20 @@ async function seedFixture(label: string): Promise<Fixture> {
     });
   }
 
+  const resistanceExercise = includeResisted ? await prisma.exerciseLibrary.create({
+    data: { contractId, name: 'Resistido da montagem consolidada' },
+  }) : null;
+
   const projections = [
     {
       key: 'resisted:release-test',
       capacity: 'resisted',
-      target: 'WorkoutTemplate',
-      proposedFields: { WorkoutTemplate: { trainingMethod: 'combined' } },
+      target: includeResisted ? 'WorkoutExercise' : 'WorkoutTemplate',
+      proposedFields: includeResisted
+        ? { WorkoutExercise: { sets: 3, reps: 10 } }
+        : { WorkoutTemplate: { trainingMethod: 'combined' } },
       sourceParameters: {},
+      ...(resistanceExercise ? { effectiveExerciseLibraryId: resistanceExercise.id } : {}),
     },
     {
       key: 'flexibility:release-test',
@@ -273,8 +298,10 @@ async function seedFixture(label: string): Promise<Fixture> {
       key: 'cyclic:release-test',
       capacity: 'cyclic',
       target: 'WorkoutDay',
-      proposedFields: { WorkoutDay: { method: 'continuous', stimulusDurationMin: 30 } },
-      sourceParameters: CYCLIC_PARAMETERS,
+      proposedFields: cyclicDistanceOnly
+        ? { WorkoutTemplate: { totalVolumeKm: 5 } }
+        : { WorkoutDay: { method: 'continuous', stimulusDurationMin: 30 } },
+      sourceParameters: cyclicDistanceOnly ? CYCLIC_DISTANCE_ONLY_PARAMETERS : CYCLIC_PARAMETERS,
     },
     {
       key: 'balance:release-test',
@@ -315,6 +342,9 @@ async function seedFixture(label: string): Promise<Fixture> {
           unsupportedParameters: [],
           sourceParameters: projection.sourceParameters,
           preparedForAssemblyVersion: 1,
+          ...('effectiveExerciseLibraryId' in projection ? {
+            effectiveExerciseLibraryId: projection.effectiveExerciseLibraryId,
+          } : {}),
         },
       },
     });
@@ -323,7 +353,10 @@ async function seedFixture(label: string): Promise<Fixture> {
   return {
     contractId,
     professorId: professor.id,
+    professorUserId: professorUser.id,
+    professorEmail: professorUser.email,
     alunoId: aluno.id,
+    alunoUserId: alunoUser.id,
     planId: plan.id,
     assemblyId: assembly.id,
     sourceVersionId: source.id,
@@ -446,6 +479,335 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
     expect(trace.consolidatedPrescription.sourceVersion.id).toBe(fixture.sourceVersionId);
     expect(trace.capacities).toHaveLength(4);
     expect(trace.sourceRefs).toHaveLength(4);
+  });
+
+  it('preserva capacidade cíclica de distância isolada na sessão correta com PostgreSQL real', async () => {
+    const fixture = await seedFixture('cyclic-distance-only', true, true);
+    const released = await service.release(contextFor(fixture), commandFor(fixture, true, true), RELEASE_NOW);
+    const days = await prisma.workoutDay.findMany({
+      where: { templateId: released.workoutTemplateId },
+      orderBy: { dayOfWeek: 'asc' },
+    });
+    expect(days).toHaveLength(2);
+    const [cyclicDay, resistedDay] = days;
+    expect(cyclicDay.method).toBeNull();
+    expect(cyclicDay.stimulusDurationMin).toBeNull();
+    expect(cyclicDay.cyclicTimeMin).toBeNull();
+    const template = await prisma.workoutTemplate.findUniqueOrThrow({
+      where: { id: released.workoutTemplateId }, select: { totalVolumeKm: true },
+    });
+    expect(template.totalVolumeKm).toBe(5);
+    const markers = await prisma.$queryRaw<Array<{
+      id: string; workoutDayId: string; capacityPrescriptionVersionId: string; parameters: unknown;
+    }>>`
+      SELECT "id", "workoutDayId", "capacityPrescriptionVersionId", "parameters"
+      FROM "WorkoutDayCyclicOperationalBlock"
+      WHERE "workoutDayId" = ${cyclicDay.id}
+    `;
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toMatchObject({
+      workoutDayId: cyclicDay.id,
+      capacityPrescriptionVersionId: fixture.capacityVersionIds.cyclic,
+      parameters: CYCLIC_DISTANCE_ONLY_PARAMETERS,
+    });
+    const report = await createCombinedConflictSourceService(prisma).getReport({
+      alunoId: fixture.alunoId, contractId: fixture.contractId,
+      start: '2026-08-17T00:00:00.000Z', end: '2026-08-19T00:00:00.000Z',
+    });
+    expect(report).toMatchObject({
+      state: 'no_active_rules', coverage: 'partial', changesWorkoutAutomatically: false,
+      releasedSessionCount: 2, observationCount: 4,
+    });
+    const cyclicCapacities = report!.observations
+      .filter((row) => row.sessionId === cyclicDay.id).map((row) => row.capacity).sort();
+    const resistedCapacities = report!.observations
+      .filter((row) => row.sessionId === resistedDay.id).map((row) => row.capacity).sort();
+    expect(cyclicCapacities).toEqual(['balance', 'cyclic', 'flexibility']);
+    expect(resistedCapacities).toEqual(['resisted']);
+    const cyclic = report!.observations.find((row) => row.capacity === 'cyclic')!;
+    expect(cyclic.provenance.operational).toEqual({
+      kind: 'workout_cyclic_block', recordId: markers[0].id,
+    });
+    expect(cyclic.provenance.capacityPrescription.recordId).toBe(fixture.capacityVersionIds.cyclic);
+
+    // An after-release insert cannot fabricate a cyclic capacity on the resisted-only day.
+    await expect(prisma.$executeRaw`
+      INSERT INTO "WorkoutDayCyclicOperationalBlock" (
+        "id", "workoutDayId", "capacityPrescriptionVersionId", "capacity",
+        "contractVersion", "parameters", "createdAt"
+      ) VALUES (
+        ${randomUUID()}, ${resistedDay.id}, ${fixture.capacityVersionIds.cyclic}, 'cyclic',
+        1, CAST(${JSON.stringify(CYCLIC_DISTANCE_ONLY_PARAMETERS)} AS jsonb), CURRENT_TIMESTAMP
+      )
+    `).rejects.toThrow();
+    const unauthorizedPlacements = await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "WorkoutDayCyclicOperationalBlock" WHERE "workoutDayId" = ${resistedDay.id}
+    `;
+    expect(unauthorizedPlacements).toEqual([]);
+
+    // Feedback corrected on the distance-only cyclic day must remain attached to that capacity.
+    const lifecycle = createWorkoutSessionExecutionService(prisma);
+    await lifecycle.transition({
+      sessionId: cyclicDay.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: { operationKey: '403-distance-cyclic-start', expectedVersion: 0, targetStatus: 'in_progress' },
+    });
+    await lifecycle.transition({
+      sessionId: cyclicDay.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: '403-distance-cyclic-partial', expectedVersion: 1,
+        targetStatus: 'partial', reason: 'Execução parcial da sessão cíclica de distância',
+      },
+    });
+    const feedbackStore = createPostWorkoutFeedbackPersistenceService(prisma);
+    const initialFeedback = await feedbackStore.createForStudent({
+      sessionId: cyclicDay.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: '403-distance-cyclic-feedback', capacity: 'cyclic',
+        values: { painAfter: 8, psr: 3, observations: 'Nota de distância confidencial' },
+      },
+    });
+    const correctedFeedback = await feedbackStore.correctForProfessor({
+      sessionId: cyclicDay.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+      actorUserId: fixture.professorUserId,
+      payload: {
+        operationKey: '403-distance-cyclic-corrected',
+        baseRevisionId: initialFeedback.id,
+        reason: 'Correção do feedback cíclico com distância isolada',
+        values: { painAfter: 2, psr: 9 },
+      },
+    });
+    const refreshed = await createCombinedConflictSourceService(prisma).getReport({
+      alunoId: fixture.alunoId, contractId: fixture.contractId,
+      start: '2026-08-17T00:00:00.000Z', end: '2026-08-19T00:00:00.000Z',
+    });
+    const cyclicFeedback = refreshed!.observations.find((row) =>
+      row.sessionId === cyclicDay.id && row.capacity === 'cyclic'
+    )!;
+    expect(cyclicFeedback.numeric?.painLevel).toEqual({
+      value: 2, source: { kind: 'feedback', recordId: correctedFeedback.id, version: '2' },
+    });
+    expect(cyclicFeedback.numeric?.psr).toEqual({
+      value: 9, source: { kind: 'feedback', recordId: correctedFeedback.id, version: '2' },
+    });
+    expect(refreshed!.observations.find((row) => row.sessionId === resistedDay.id)!.numeric).toEqual({});
+    expect(refreshed!.observationCount).toBe(4);
+    expect(JSON.stringify(refreshed)).not.toContain(initialFeedback.id);
+    expect(JSON.stringify(refreshed)).not.toContain('Nota de distância confidencial');
+
+    // Verify the same distance-only provenance and current feedback at the actual HTTP boundary.
+    const app = express();
+    app.use(express.json());
+    app.use('/consolidated-prescriptions', consolidatedPrescriptionRoutes);
+    const token = jwt.sign({
+      userId: fixture.professorUserId, email: fixture.professorEmail, type: UserType.professor,
+    }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '1h' });
+    const httpResponse = await request(app)
+      .get('/consolidated-prescriptions/alunos/' + fixture.alunoId +
+        '/combined-conflicts?start=2026-08-17T00:00:00.000Z&end=2026-08-19T00:00:00.000Z')
+      .set('Authorization', 'Bearer ' + token);
+    expect(httpResponse.status).toBe(200);
+    const httpCyclic = httpResponse.body.data.observations.filter(
+      (row: { capacity: string }) => row.capacity === 'cyclic'
+    );
+    expect(httpCyclic).toHaveLength(1);
+    expect(httpCyclic[0]).toMatchObject({
+      sessionId: cyclicDay.id,
+      provenance: { operational: { kind: 'workout_cyclic_block', recordId: markers[0].id } },
+      numeric: { painLevel: { value: 2, source: { recordId: correctedFeedback.id, version: '2' } } },
+    });
+    expect(httpResponse.body.data.observations.find(
+      (row: { sessionId: string }) => row.sessionId === resistedDay.id
+    )).toMatchObject({ capacity: 'resisted' });
+    expect(JSON.stringify(httpResponse.body)).not.toContain('Nota de distância confidencial');
+  });
+
+  it('reproduz HTTP e PostgreSQL com release real, quatro capacidades e proveniência', async () => {
+    const fixture = await seedFixture('combined-conflict-source', true);
+    const released = await service.release(contextFor(fixture), commandFor(fixture, true), RELEASE_NOW);
+    const day = await prisma.workoutDay.findFirstOrThrow({
+      where: { templateId: released.workoutTemplateId },
+    });
+    await prisma.preWorkoutCheckIn.create({
+      data: {
+        workoutDayId: day.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+        painLevel: 4, psr: 6, ruleSetVersion: 'pre-workout-check-in-v1', ruleSnapshot: {},
+      },
+    });
+    const report = await createCombinedConflictSourceService(prisma).getReport({
+      alunoId: fixture.alunoId, contractId: fixture.contractId,
+      start: '2026-08-17T00:00:00.000Z', end: '2026-08-18T00:00:00.000Z',
+    });
+    expect(report).toMatchObject({
+      state: 'no_active_rules', coverage: 'partial',
+      releasedSessionCount: 1, observationCount: 4, changesWorkoutAutomatically: false,
+    });
+    expect(report!.observations.map((row) => row.capacity)).toEqual([
+      'balance', 'cyclic', 'flexibility', 'resisted',
+    ]);
+    for (const row of report!.observations) {
+      expect(row.provenance.release).toMatchObject({
+        recordId: released.releaseId,
+        version: String(released.releasedAssemblyVersion),
+        assemblyVersionId: released.releasedAssemblyVersionId,
+      });
+      expect(row.provenance.capacityPrescription).toMatchObject({
+        recordId: fixture.capacityVersionIds[row.capacity],
+        version: '1',
+      });
+    }
+    expect(report!.observations.find((row) => row.capacity === 'cyclic')?.numeric?.painLevel?.value).toBe(4);
+    expect(report!.observations.find((row) => row.capacity === 'resisted')?.numeric).toEqual({});
+    expect(report!.sessionSignals).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: expect.objectContaining({ kind: 'check_in' }) }),
+    ]));
+
+    const app = express();
+    app.use(express.json());
+    app.use('/consolidated-prescriptions', consolidatedPrescriptionRoutes);
+    const token = jwt.sign({
+      userId: fixture.professorUserId, email: fixture.professorEmail, type: UserType.professor,
+    }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '1h' });
+    const response = await request(app)
+      .get('/consolidated-prescriptions/alunos/' + fixture.alunoId +
+        '/combined-conflicts?start=2026-08-17T00:00:00.000Z&end=2026-08-18T00:00:00.000Z')
+      .set('Authorization', 'Bearer ' + token);
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({
+      releasedSessionCount: 1, observationCount: 4, coverage: 'partial',
+    });
+    expect(response.body.data.observations.map((row: { capacity: string }) => row.capacity))
+      .toEqual(['balance', 'cyclic', 'flexibility', 'resisted']);
+
+    const lifecycle = createWorkoutSessionExecutionService(prisma);
+    await lifecycle.transition({
+      sessionId: day.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: { operationKey: '403-real-feedback-start', expectedVersion: 0, targetStatus: 'in_progress' },
+    });
+    await lifecycle.transition({
+      sessionId: day.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: '403-real-feedback-partial', expectedVersion: 1,
+        targetStatus: 'partial', reason: 'Treino parcial registrado para validar fontes',
+      },
+    });
+    const feedbackStore = createPostWorkoutFeedbackPersistenceService(prisma);
+    const firstFeedback = await feedbackStore.createForStudent({
+      sessionId: day.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+      actorUserId: fixture.alunoUserId,
+      payload: {
+        operationKey: '403-session-feedback-original',
+        values: {
+          painAfter: 6, dizziness: true, fatigueLevel: 'high', sleepQuality: 'poor',
+          observations: 'Texto livre confidencial jamais deve ser retornado na prévia',
+        },
+      },
+    });
+    const corrected = await feedbackStore.correctForProfessor({
+      sessionId: day.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+      actorUserId: fixture.professorUserId,
+      payload: {
+        operationKey: '403-session-feedback-corrected',
+        baseRevisionId: firstFeedback.id,
+        reason: 'Correção documentada do sinal geral da sessão',
+        values: { painAfter: 8, dizziness: false },
+      },
+    });
+    const capacityCases = [
+      { capacity: 'cyclic', painAfter: 3, psr: 7 },
+      { capacity: 'resisted', painAfter: 8, psr: 3 },
+      { capacity: 'flexibility', painAfter: 6, psr: 4 },
+      { capacity: 'balance', painAfter: 2, psr: 9 },
+    ] as const;
+    const correctedCapacityIds = new Map<string, string>();
+    const previousCapacityIds: string[] = [];
+    for (const item of capacityCases) {
+      const originalCapacity = await feedbackStore.createForStudent({
+        sessionId: day.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+        actorUserId: fixture.alunoUserId,
+        payload: {
+          operationKey: '403-' + item.capacity + '-feedback-original',
+          capacity: item.capacity,
+          values: {
+            painAfter: 1, psr: 1, dizziness: true, fatigueLevel: 'high', sleepQuality: 'poor',
+            observations: 'Texto livre confidencial da capacidade',
+          },
+        },
+      });
+      const correctedCapacity = await feedbackStore.correctForProfessor({
+        sessionId: day.id, alunoId: fixture.alunoId, contractId: fixture.contractId,
+        actorUserId: fixture.professorUserId,
+        payload: {
+          operationKey: '403-' + item.capacity + '-feedback-corrected',
+          baseRevisionId: originalCapacity.id,
+          reason: 'Correção documentada do feedback específico da capacidade',
+          values: {
+            painAfter: item.painAfter, psr: item.psr, dizziness: false,
+            fatigueLevel: 'low', sleepQuality: 'good',
+          },
+        },
+      });
+      previousCapacityIds.push(originalCapacity.id);
+      correctedCapacityIds.set(item.capacity, correctedCapacity.id);
+    }
+    const afterRevision = await createCombinedConflictSourceService(prisma).getReport({
+      alunoId: fixture.alunoId, contractId: fixture.contractId,
+      start: '2026-08-17T00:00:00.000Z', end: '2026-08-18T00:00:00.000Z',
+    });
+    expect(afterRevision).toMatchObject({
+      releasedSessionCount: 1, observationCount: 4, sessionSignalCount: 2,
+      state: 'no_active_rules', coverage: 'partial', changesWorkoutAutomatically: false,
+    });
+    expect(afterRevision!.sessionSignals.filter((signal) => signal.source.kind === 'feedback'))
+      .toEqual([expect.objectContaining({
+        scopeKey: 'session',
+        source: { kind: 'feedback', recordId: corrected.id, version: '2' },
+        flags: { dizziness: { value: false, source: expect.any(Object) } },
+        numeric: { painLevel: { value: 8, source: expect.any(Object) } },
+        categorical: {
+          fatigueLevel: { value: 'high', source: expect.any(Object) },
+          sleepQuality: { value: 'poor', source: expect.any(Object) },
+        },
+      })]);
+    for (const item of capacityCases) {
+      const row = afterRevision!.observations.find((observation) => observation.capacity === item.capacity)!;
+      const source = {
+        kind: 'feedback', recordId: correctedCapacityIds.get(item.capacity), version: '2',
+      };
+      expect(row.numeric?.painLevel).toEqual({ value: item.painAfter, source });
+      expect(row.numeric?.psr).toEqual({ value: item.psr, source });
+      expect(row.flags?.dizziness).toEqual({ value: false, source });
+      expect(row.categorical.fatigueLevel).toEqual({ value: 'low', source });
+      expect(row.categorical.sleepQuality).toEqual({ value: 'good', source });
+      expect(row.provenance.release.recordId).toBe(released.releaseId);
+    }
+    expect(JSON.stringify(afterRevision)).not.toContain(firstFeedback.id);
+    for (const id of previousCapacityIds) expect(JSON.stringify(afterRevision)).not.toContain(id);
+    expect(JSON.stringify(afterRevision)).not.toContain('Texto livre confidencial');
+
+    const rereadHttp = await request(app)
+      .get('/consolidated-prescriptions/alunos/' + fixture.alunoId +
+        '/combined-conflicts?start=2026-08-17T00:00:00.000Z&end=2026-08-18T00:00:00.000Z')
+      .set('Authorization', 'Bearer ' + token);
+    expect(rereadHttp.status).toBe(200);
+    expect(rereadHttp.body.data.sessionSignalCount).toBe(2);
+    expect(rereadHttp.body.data.sessionSignals).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: { kind: 'feedback', recordId: corrected.id, version: '2' } }),
+    ]));
+    for (const item of capacityCases) {
+      const row = rereadHttp.body.data.observations.find(
+        (observation: { capacity: string }) => observation.capacity === item.capacity
+      );
+      expect(row.numeric.painLevel).toMatchObject({
+        value: item.painAfter, source: { kind: 'feedback', recordId: correctedCapacityIds.get(item.capacity), version: '2' },
+      });
+      expect(row.categorical.fatigueLevel.value).toBe('low');
+    }
+    expect(JSON.stringify(rereadHttp.body)).not.toContain('Texto livre confidencial');
   });
 
   it('serializa duas liberações concorrentes sem duplicar template ou ledger', async () => {

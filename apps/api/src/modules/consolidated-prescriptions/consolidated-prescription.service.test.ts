@@ -1,6 +1,7 @@
 import {
   createConsolidatedPrescriptionService,
   deriveStructuredConflicts,
+  buildCombinedReviewSnapshot,
 } from './consolidated-prescription.service.js';
 
 const now = new Date('2026-08-09T14:30:00.000Z');
@@ -145,6 +146,50 @@ function harness(rawResponses: unknown[][], capacityVersions = allCapacityVersio
     service: createConsolidatedPrescriptionService(client as never),
   };
 }
+
+describe('#403 combined-capacity review snapshot', () => {
+  const detail = {
+    id: 'assembly-version-8',
+    version: 8,
+    capacityBlocks: [
+      persistedBlock(2, { position: 2 }),
+      persistedBlock(0, { position: 0 }),
+      persistedBlock(3, { position: 3 }),
+      persistedBlock(1, { position: 1 }),
+    ],
+  };
+
+  it('does not mistake empty approved rule catalog for a safe combined week', () => {
+    const snapshot = buildCombinedReviewSnapshot(detail);
+    expect(snapshot).toMatchObject({
+      protocolVersion: 'combined-conflict-v1',
+      source: 'persisted_assembly',
+      assemblyVersionId: 'assembly-version-8', assemblyVersion: 8,
+      state: 'no_active_rules', coverage: 'partial', activeRuleCount: 0,
+      mayConcludeNoConflict: false, changesWorkoutAutomatically: false,
+    });
+    expect(snapshot.capacitySources.map((item) => item.capacity))
+      .toEqual(['resisted', 'flexibility', 'cyclic', 'balance']);
+    expect(snapshot.capacitySources.every((item) => Boolean(item.capacityPrescriptionVersionId))).toBe(true);
+  });
+
+  it('fails closed for hypothetical active rules without verified session times', () => {
+    const snapshot = buildCombinedReviewSnapshot(detail, [{ status: 'active' }] as never);
+    expect(snapshot).toMatchObject({
+      state: 'insufficient_data', activeRuleCount: 1, coverage: 'partial',
+      mayConcludeNoConflict: false, changesWorkoutAutomatically: false,
+    });
+  });
+
+  it('does not mutate persisted capacity order or leak untrusted clinical notes', () => {
+    const before = detail.capacityBlocks.map((item) => item.position);
+    const projection = buildCombinedReviewSnapshot(detail);
+    expect(detail.capacityBlocks.map((item) => item.position)).toEqual(before);
+    expect(JSON.stringify(projection)).not.toContain('technicalObservation');
+    expect(JSON.stringify(projection)).not.toContain('professorJustification');
+    expect(JSON.stringify(projection)).not.toContain('painLevel');
+  });
+});
 
 describe('deriveStructuredConflicts', () => {
   it('não cria conflito a partir de texto livre mesmo quando o texto parece clínico', () => {

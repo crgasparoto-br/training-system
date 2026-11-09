@@ -178,3 +178,46 @@ O PUT /api/v1/student/me/training-sessions/:sessionId/execution/values usa a mes
 ### Limites e segurança do executor cíclico (#489, remediação)
 
 A validação de sequência usa os IDs históricos da #398 e o cursor da própria execução #389. A transição pública `completed` consulta o plano e o progresso persistido na **mesma transação serializável** que grava o lifecycle/ledger; `invalid_plan`, `reconciliation_required` ou etapas pendentes retornam 409 e preservam o estado. `partial` e o fallback legado continuam pelo #389. O teto de `sessionValues.cyclicStages` é de 80.040 registros: 80.000 folhas autorizadas pela #398 e até 40 agregados opcionais dos pais `repeat` da #401; o limite é compartilhado por Zod HTTP, normalização e merge persistido. O relógio dos estados terminais é projetado pelo `finishedAt`; pausas efetivamente registradas são deduzidas de `pausedDurationMs`.
+
+
+## Prévia temporal futura da Montagem Consolidada (#403)
+
+As rotas `GET /api/v1/consolidated-prescriptions/alunos/:alunoId/combined-future-bookings`
+e `POST /api/v1/consolidated-prescriptions/alunos/:alunoId/combined-future-temporal-preview`
+exigem professor autenticado, bloco
+`plans.consolidatedPrescriptions.view`, escopo de `plans`
+e acesso à tela `agenda`. O GET recebe `start/end` em ISO UTC
+canônico. O início não pode preceder o relógio do servidor em mais de 5 minutos
+(tolerância apenas para diferenças de relógio) e o término não pode ultrapassar
+31 dias corridos a partir do mesmo relógio. Janelas curtas em futuro distante
+ou iniciadas no passado fora dessa tolerância são rejeitadas.
+O cliente calcula uma janela nova ao solicitar a prévia, mesmo quando o GET
+ocorreu mais de cinco minutos antes; o limite de 31 dias continua sendo
+reavaliado pelo servidor. A API retorna somente ID, data civil canônica
+(`bookingDate: YYYY-MM-DD`) ou `bookingDate: null` para legado não comprovado,
+horas civis e revisão `updatedAt` dos agendamentos `scheduled` do mesmo
+aluno/contrato, em **páginas de até 80 candidatos** (`page=1..100`,
+padrão 1). Todas as páginas de uma consulta reutilizam o mesmo `start/end`;
+a paginação ocorre **depois** do descarte de datas comprovadamente passadas,
+de modo que registros antigos não consumam as 80 posições. Como o GET não
+recebe fuso confirmado, ele só remove um início civil quando está fora do
+período futuro sob **todos** os deslocamentos UTC possíveis (envelope
+conservador de ±14 horas); datas legadas sem fonte civil continuam não
+verificadas, nunca convertidas usando timezone do host. Cada página mantém
+isolamento de aluno/contrato e verifica o horizonte de 31 dias. O POST
+continua limitado a 80 bookings distintos, exigindo versão da
+montagem e `updatedAt` exato das fontes. `bookingDate: null` não autoriza
+reconstruir a data a partir do timestamp local antigo.
+
+O POST recebe `expectedCurrentVersion`, janela,
+`timeZone` IANA, e `bindings[]` com
+`bookingId`, `capacityPrescriptionVersionId` e
+`expectedBookingUpdatedAt`. A API rejeita regras clínicas e
+severidades no body, IDs desconhecidos, duplicidade, versão stale, fonte
+inativa e agendamento cancelado. A origem versionada é consultada novamente.
+A resolução de horário possui estados verificado, ambíguo, inexistente e
+inconsistente, e nunca usa uma data civil como se fosse timestamp UTC.
+A diferença entre o fim de uma sessão e o início da seguinte é apenas
+informação cronológica — sem decisão clínica, alteração de estado, escrita
+ou efeito sobre a liberação operacional. `coverage=partial`
+e `mayConcludeNoConflict=false` são invariantes.

@@ -13,6 +13,7 @@ import {
   type ConsolidatedPrescriptionAuditEvent,
   type ConsolidatedPrescriptionConflict,
   type ConsolidatedPrescriptionConflictReport,
+  type ConsolidatedCombinedReviewSnapshot,
   type ConsolidatedPrescriptionDataRef,
   type ConsolidatedPrescriptionDataRefInput,
   type ConsolidatedPrescriptionHistory,
@@ -25,6 +26,12 @@ import {
   type UnblockConsolidatedPrescriptionCommand,
   type UpdateConsolidatedPrescriptionCompositionPayload,
 } from '@corrida/types';
+
+import {
+  ACTIVE_COMBINED_CONFLICT_RULES_V1,
+  COMBINED_CONFLICT_PROTOCOL_VERSION,
+  type ConflictRule,
+} from '../workout/combined-training-conflicts.domain.js';
 
 const prisma = new PrismaClient();
 const statusSet = new Set<string>(CONSOLIDATED_PRESCRIPTION_STATUSES);
@@ -954,6 +961,41 @@ async function evaluatePersistedComposition(
   return deriveStructuredConflicts(states, detail.professorJustification);
 }
 
+/**
+ * The current assembly has versioned capacity prescriptions but no verified
+ * session-level scheduling. The combined engine must not infer risk clearance
+ * from an empty rule catalog or from missing future training observations.
+ * This projection deliberately contains no check-in/feedback or free-text data.
+ */
+export function buildCombinedReviewSnapshot(
+  detail: Pick<ConsolidatedPrescriptionVersionDetail, 'id' | 'version'> & {
+    capacityBlocks: readonly Pick<
+      ConsolidatedCapacityBlock, 'capacity' | 'capacityPrescriptionVersionId' | 'capacityVersion' | 'position'
+    >[];
+  },
+  trustedRules: readonly ConflictRule[] = ACTIVE_COMBINED_CONFLICT_RULES_V1
+): ConsolidatedCombinedReviewSnapshot {
+  const activeRuleCount = trustedRules.filter((rule) => rule.status === 'active').length;
+  return {
+    protocolVersion: COMBINED_CONFLICT_PROTOCOL_VERSION,
+    assemblyVersionId: detail.id,
+    assemblyVersion: detail.version,
+    source: 'persisted_assembly',
+    state: activeRuleCount === 0 ? 'no_active_rules' : 'insufficient_data',
+    coverage: 'partial',
+    activeRuleCount,
+    capacitySources: [...detail.capacityBlocks]
+      .sort((a, b) => a.position - b.position || a.capacity.localeCompare(b.capacity))
+      .map((block) => ({
+        capacity: block.capacity,
+        capacityPrescriptionVersionId: block.capacityPrescriptionVersionId,
+        capacityVersion: block.capacityVersion,
+      })),
+    mayConcludeNoConflict: false,
+    changesWorkoutAutomatically: false,
+  };
+}
+
 function buildConflictReport(
   detail: ConsolidatedPrescriptionVersionDetail,
   conflicts: ConsolidatedPrescriptionConflict[]
@@ -965,6 +1007,7 @@ function buildConflictReport(
     conflicts,
     hasCritical,
     canUnblock: detail.status === 'blocked' && !hasCritical,
+    combinedReview: buildCombinedReviewSnapshot(detail),
     unavailableChecks: unavailableChecks.map((check) => ({ ...check })),
   };
 }

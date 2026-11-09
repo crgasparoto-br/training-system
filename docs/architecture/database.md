@@ -98,6 +98,15 @@ Snapshots de desconforto corporal ficam em `ProntuarioDiscomfortSnapshot` e `Pro
 
 A imutabilidade depois do início não depende de flag paralela no check-in: ela deriva do lifecycle canônico de `WorkoutDay`. A escrita bloqueia a linha da sessão e revalida `planned` dentro da mesma transação que grava check-in, operação e evento da timeline.
 
+## Compatibilidade física da Agenda (#403)
+
+A migration histórica `20260220150000_add_agenda_management` criou a coluna
+PostgreSQL `AgendaBooking."bookingType"`. A propriedade Prisma `type` usa
+`@map("bookingType")` para preservar a coluna e os valores existentes, sem
+renomeação física e sem modificar o contrato público `bookingType` da Agenda.
+O teste HTTP/PostgreSQL da prévia temporal deve inserir reservas reais pelo Prisma
+para detectar deriva entre schema e migrations.
+
 ## Cuidados para agentes
 
 - Nao criar `PrismaClient` em arquivos aleatorios sem necessidade.
@@ -225,3 +234,22 @@ A migration adicional `20261029210000_issue_487_completed_operation_guard` fecha
 A migration 20261030120000_issue_487_set_event_integrity exige que WorkoutSessionExecutionItem.setNumber corresponda ao ranking persistido das séries, ordenado por bloco.position e série.position. Novas gravações SQL com IDs ou ordinais inconsistentes são rejeitadas. A migration não inventa backfill e não altera silenciosamente histórico; rascunhos anteriores são recuperados por serviço apenas quando há destino livre.
 
 A operação de conclusão passa a ter FK entre WorkoutSessionExecutionOperation.lifecycleEventId e StudentLifecycleEvent.id, validando os valores preexistentes e falhando caso haja referências órfãs. O trigger de ledger diferido garante o mesmo aluno, contrato, treino, operação, domínio, ação e versões do lifecycle. O evento vinculado a uma série concluída fica imutável. O fluxo canônico #389 cria, vincula e confirma tudo em uma transação serializável; a aprovação exige regressões PostgreSQL de casos falsos e replay verdadeiro.
+
+## Data civil autoritativa da Agenda (#403, A-539-002)
+
+A migration `20261106210000_issue_403_booking_civil_date` adiciona
+`AgendaBooking.bookingCivilDate DATE NULL` (Prisma `DateTime? @db.Date`). O POST
+`/api/v1/agenda/bookings` grava o dia `YYYY-MM-DD` recebido como
+`bookingCivilDate`, sem consultar o fuso do servidor. Esse campo é a única
+fonte de dia civil comprovado para a prévia temporal do treinamento combinado;
+`AgendaBooking.bookingDate` é mantido intacto para compatibilidade com o
+agendamento/checagens de disponibilidade existentes e **não** serve como
+prova da data civil nesse consumidor.
+
+A migração é aditiva, não reescreve/agrega registros antigos e não infere o
+fuso de dados históricos: `bookingCivilDate=NULL` mantém o legado
+`unverified/invalid_source_date`. Os novos registros têm o dia explicitamente
+persistido como PostgreSQL `DATE`; a API de seleção retorna `bookingDate=null`
+quando a origem canônica é ausente, sem expor um dia possivelmente errado em
+servidores UTC positivos. A prévia permanece read-only, não grava associação,
+não altera liberação e não ativa regra clínica antes de #534.
