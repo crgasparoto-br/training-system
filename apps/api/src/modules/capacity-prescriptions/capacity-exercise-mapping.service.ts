@@ -235,7 +235,7 @@ export function createCapacityExerciseMappingService(client: PrismaClient = pris
         mappingRevision: mapping?.mappingRevision ?? 0,
         mappedAt: mapping?.mappedAt ?? null,
         mappedByProfessorId: mapping?.mappedByProfessorId ?? null,
-        currentExerciseAvailable: Boolean(liveExercise),
+        currentExerciseAvailable: liveExercise?.curationStatus === 'approved',
         currentExerciseUpdatedAt: liveExercise?.updatedAt.toISOString() ?? null,
         curationStatus: liveExercise?.curationStatus ?? 'not_modeled',
       };

@@ -25,7 +25,7 @@ const COUNTING_TYPES = [
   { value: 'R', label: 'Repetições' },
 ];
 
-const CATEGORIES = ['MOBILIDADE', 'RESISTIDO', 'CICLICO'];
+const CATEGORIES = ['MOBILIDADE', 'RESISTIDO', 'CICLICO', 'FLEXIBILIDADE', 'EQUILIBRIO'];
 
 const LIST_FIELDS = [
   { key: 'aliases', label: 'Outros nomes e aliases' },
