@@ -490,6 +490,7 @@ export default function Library() {
           mode={modalMode}
           exercise={selectedExercise}
           onClose={handleModalClose}
+          showHistory={Boolean(canManage)}
         />
       )}
     </div>

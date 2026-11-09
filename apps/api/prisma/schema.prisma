@@ -1855,6 +1855,34 @@ model ExerciseLibrary {
   category         String?
   muscleGroup      String?
   notes            String?
+  aliases          String[]                @default([])
+  capacity         String?
+  equipment        String[]                @default([])
+  primaryMuscleGroups String[]             @default([])
+  secondaryMuscleGroups String[]           @default([])
+  movementPattern  String?
+  joints           String[]                @default([])
+  laterality       String?
+  difficulty       String?
+  instructions     String[]                @default([])
+  commonErrors     String[]                @default([])
+  regressions      String[]                @default([])
+  progressions     String[]                @default([])
+  alternatives     String[]                @default([])
+  restrictions     String[]                @default([])
+  alerts           String[]                @default([])
+  mediaOrigin      String?
+  mediaLicense     String?
+  mediaAuthor      String?
+  curationStatus   ExerciseCurationStatus  @default(approved)
+  version          Int                     @default(1)
+  createdByUserId  String?
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  lastModifiedByUserId String?
+  lastCurationAction String?
+  legacyGrandfathered Boolean             @default(true)
+  revisions        ExerciseLibraryRevision[]
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
   contractId       String

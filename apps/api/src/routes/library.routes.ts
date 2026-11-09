@@ -110,6 +110,11 @@ function parseExerciseFilters(req: Request):
     movementType: req.query.movementType,
     countingType: req.query.countingType,
     muscleGroup: req.query.muscleGroup,
+    scope: req.query.scope,
+    curationStatus: req.query.curationStatus,
+    equipment: req.query.equipment,
+    movementPattern: req.query.movementPattern,
+    difficulty: req.query.difficulty,
   });
 
   if (!parsed.success) {
