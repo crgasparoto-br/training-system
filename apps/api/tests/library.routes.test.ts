@@ -153,4 +153,15 @@ describe('library routes input validation', () => {
     expect(libraryService.listExerciseRevisions).toHaveBeenCalledWith('contract-1', 'exercise-1');
   });
 
+  it('keeps historical records available to the administrator but hides inactive entries from other professors', async () => {
+    (libraryService.getExerciseById as jest.Mock).mockResolvedValue({ id: 'exercise-1' });
+    const publicRead = await request(app).get('/library/exercises/exercise-1')
+      .set('x-test-role', 'professor');
+    expect(publicRead.status).toBe(200);
+    expect(libraryService.getExerciseById).toHaveBeenCalledWith('contract-1', 'exercise-1', true);
+    const adminRead = await request(app).get('/library/exercises/exercise-1');
+    expect(adminRead.status).toBe(200);
+    expect(libraryService.getExerciseById).toHaveBeenCalledWith('contract-1', 'exercise-1', false);
+  });
+
 });

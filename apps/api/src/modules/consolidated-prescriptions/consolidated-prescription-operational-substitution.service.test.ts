@@ -365,7 +365,7 @@ describe('consolidated operational exercise substitution persistence', () => {
       message: 'Exercício substituto inexistente ou fora do contrato',
     });
     expect(client.exerciseLibrary.findFirst).toHaveBeenCalledWith({
-      where: { id: 'library-from-contract-b', contractId: 'contract-a' },
+      where: { id: 'library-from-contract-b', contractId: 'contract-a', curationStatus: 'approved' },
     });
     expect(updateComposition).not.toHaveBeenCalled();
   });

@@ -58,6 +58,7 @@ describe('capacity exercise operational mapping metadata', () => {
     });
     const exerciseFindFirst = jest.fn().mockResolvedValue({
       id: 'library-1',
+      curationStatus: 'approved',
       updatedAt: new Date('2026-08-11T15:30:00.000Z'),
     });
     const service = createCapacityExerciseMappingService({
@@ -117,8 +118,31 @@ describe('capacity exercise operational mapping metadata', () => {
       message: 'Exercício operacional inexistente ou fora do contrato',
     });
     expect(exerciseFindFirst).toHaveBeenCalledWith({
-      where: { id: 'library-from-contract-b', contractId: 'contract-a' },
+      where: { id: 'library-from-contract-b', contractId: 'contract-a', curationStatus: 'approved' },
     });
     expect(update).not.toHaveBeenCalled();
   });
+  it('preserves a deactivated mapping snapshot but blocks new operational availability', async () => {
+    const technical = jest.fn().mockResolvedValue({
+      id: 'technical-1', code: 'SQUAT', name: 'Agachamento técnico',
+      version: 4, metadata: { operationalExerciseMapping: persisted },
+    });
+    const exercise = jest.fn().mockResolvedValue({
+      id: 'library-1', curationStatus: 'inactive',
+      updatedAt: new Date('2026-08-11T15:30:00.000Z'),
+    });
+    const service = createCapacityExerciseMappingService({
+      capacityTechnicalCatalogItem: { findFirst: technical },
+      exerciseLibrary: { findFirst: exercise },
+    } as never);
+    const result = await service.resolveMapping('contract-a', 'technical-1');
+    expect(result).toMatchObject({
+      exerciseLibraryId: 'library-1',
+      curationStatus: 'inactive',
+      currentExerciseAvailable: false,
+      operationalExerciseSnapshot: { id: 'library-1' },
+    });
+  });
+
+
 });
