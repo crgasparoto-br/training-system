@@ -193,6 +193,17 @@ describe('cloneContractData idempotency', () => {
     expect(state.cloneLogs[1]).toEqual(expect.objectContaining(second));
   });
 
+  it('#394: skips pre-existing canonical names with case or whitespace variants during cloning', async () => {
+    state.exercises.push({ contractId: 'target-contract', name: '  AGACHAMENTO   ' });
+    const result = await cloneContractData(cloneOptions);
+    expect(result.exercisesCreated).toBe(1);
+    expect(result.exercisesSkipped).toBe(1);
+    expect(state.exercises.filter((item) => item.contractId === 'target-contract'))
+      .toHaveLength(2);
+    expect(state.exercises.filter((item) => item.contractId === 'target-contract'
+      && String(item.name).trim().toLowerCase() === 'agachamento')).toHaveLength(1);
+  });
+
   it('copies technical metadata as draft without transferring original media license', async () => {
     await cloneContractData(cloneOptions);
     const copied = state.exercises.find((row) =>

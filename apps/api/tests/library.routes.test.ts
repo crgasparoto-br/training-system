@@ -62,6 +62,12 @@ describe('library routes input validation', () => {
     expect(libraryService.createExercise).not.toHaveBeenCalled();
   });
 
+  it('#394: rejects whitespace-only canonical names before the PostgreSQL guard', async () => {
+    const response = await request(app).post('/library/exercises').send({ name: '   ' });
+    expect(response.status).toBe(400);
+    expect(libraryService.createExercise).not.toHaveBeenCalled();
+  });
+
   it('rejects unknown exercise update fields with 400', async () => {
     const response = await request(app)
       .put('/library/exercises/exercise-1')

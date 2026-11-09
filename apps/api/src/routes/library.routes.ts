@@ -48,7 +48,7 @@ const progressParamsSchema = z.object({
 const listOfStrings = z.array(z.string().trim().min(1).max(250)).max(50);
 const createExerciseSchema = z
   .object({
-    name: z.string().min(1),
+    name: z.string().trim().min(1),
     videoUrl: z.string().optional(),
     loadType: z.nativeEnum(LoadType).optional(),
     movementType: z.nativeEnum(MovementType).optional(),

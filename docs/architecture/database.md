@@ -273,7 +273,9 @@ renomeações por `contractId` e chave canônica (caixa e espaços normalizados)
 Um advisory lock transacional pelo par contrato/nome serializa cadastros
 concorrentes; colisões retornam SQLSTATE `23505`, traduzido para HTTP 409
 nos serviços da biblioteca. O índice funcional acelera a verificação,
-sem impor uma constraint retroativa sobre duplicidades históricas.
+sem impor uma constraint retroativa sobre duplicidades históricas. A cópia entre
+contratos também compara a chave normalizada antes de criar, contabilizando
+identidades já presentes como ignoradas em vez de falhar a clonagem.
 
 Uma comparação de `version` dentro da transação evita concorrência silenciosa.
 Legado recebe `legacy_baseline`, sem presumir homologação profissional.

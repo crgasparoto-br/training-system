@@ -28,6 +28,9 @@ export interface CloneResult {
 
 const normalizeExerciseName = (value: string) =>
   repairPtBrMojibake(value).trim().replace(/\s+/g, ' ');
+// Match the PostgreSQL guard's case/whitespace identity while preserving
+// the preferred spelling in the copied exercise's display name.
+const canonicalExerciseName = (value: string) => normalizeExerciseName(value).toLowerCase();
 
 const normalizeOptionalExerciseText = (value: string | null) => {
   if (value === null) return null;
@@ -122,16 +125,17 @@ export async function cloneContractData(
             where: { contractId: targetContractId },
             select: { name: true },
           })
-        ).map((item) => normalizeExerciseName(item.name))
+        ).map((item) => canonicalExerciseName(item.name))
       );
 
       const toCreate = exercises.reduce<typeof exercises>((items, exercise) => {
         const normalizedName = normalizeExerciseName(exercise.name);
-        if (!normalizedName || existingNames.has(normalizedName)) {
+        const canonicalName = canonicalExerciseName(normalizedName);
+        if (!canonicalName || existingNames.has(canonicalName)) {
           return items;
         }
 
-        existingNames.add(normalizedName);
+        existingNames.add(canonicalName);
         items.push({
           ...exercise,
           name: normalizedName,
