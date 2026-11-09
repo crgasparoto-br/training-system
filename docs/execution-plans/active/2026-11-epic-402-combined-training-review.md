@@ -42,7 +42,7 @@ e heurísticas clínicas sem regra versionada e aprovada.
 
 - [x] Inventariar dependências e estados reais da epic.
 - [x] Implementar primeiro indicador de aderência semanal v1 como projeção
-      canônica, com visão do aluno/professor, testes e documentação.
+      canônica, com visão do aluno/professor, rastreabilidade visível, testes e documentação.
 - [ ] #403: detector de conflitos com critérios clínicos versionados. Os sete
       parâmetros ainda não definidos na issue impedem ativar suas regras.
 - [ ] #404: substituição rastreável vinculada a catálogo elegível e versionado,
@@ -58,6 +58,12 @@ e heurísticas clínicas sem regra versionada e aprovada.
 - [ ] Os sete critérios globais da epic estão comprovados por testes e CI.
 - [ ] `pnpm validate` passa no HEAD exato e as validações funcionais são registradas.
 - [ ] Os bloqueios externos são tratados sem regras inventadas.
+
+## Remediação da auditoria da PR #533
+
+- [x] A-002: mostrar origem, unidade, data/hora de atualização e detalhe técnico do professor na interface, sem expor IDs ao aluno; manter indicador na semana histórica.
+- [x] A-001: remover o conflito de adições no final da documentação canônica, reposicionando a seção #405 para próximo da evolução do aluno, sem descartar as atualizações da `develop` e sem merge da PR.
+- [ ] Revalidar CI no HEAD reconciliado e submeter à auditoria independente.
 
 ## Validação manual
 

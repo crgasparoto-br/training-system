@@ -532,6 +532,38 @@ Decisoes sugeridas:
 
 Toda decisao sugerida deve possuir justificativa, origem e status: sugerida, aprovada, rejeitada ou aplicada.
 
+## Indicadores de evolução — recorte canônico semanal (#402 / #405)
+
+A rotina semanal expõe `weeklyEvolution` como projeção somente leitura das sessões
+efetivamente liberadas pela Montagem Consolidada para o aluno e contrato autorizados.
+A versão inicial `weekly-adherence-v1` usa o período civil de segunda a domingo
+selecionado na rotina e a execução canônica da #389, sem tabela de contadores.
+
+- `prescribedSessions`: todas as sessões liberadas no período, inclusive as
+  que ainda não foram executadas; sessões não liberadas não entram no denominador.
+- `completedSessions`: apenas sessões em `completed`; `partial` e
+  `not_performed` aparecem em contagens independentes.
+- `adherence.value`: `completedSessions / prescribedSessions * 100`,
+  expressa em `%` com duas casas decimais, ou `insufficient_data` e
+  `null` quando nenhuma sessão foi liberada.
+- `pendingSessions`: sessões ainda não terminais, sem presumir falta do aluno.
+- `period`, `ruleVersion`, `source` e `lastSourceUpdateAt` informam
+  contexto, origem e versão da regra; o professor recebe IDs técnicos das
+  sessões e o aluno recebe somente a síntese prática.
+
+O indicador considera toda a semana consultada, inclusive sessões futuras já
+liberadas; não deve ser interpretado como resultado definitivo antes do término
+do período. Nenhuma métrica muda planejamento, liberação ou execução. Métricas
+de consistência, pace, carga, tonelagem e tendência ainda não integram este
+recorte; dependem da comparabilidade e das fontes canônicas previstas na #405.
+
+Na interface, o cartão de aderência aparece para toda semana selecionada, inclusive histórica. Exibe período,
+percentual (unidade `%`), contagens, origem legível e data/hora da última atualização no fuso do contrato;
+`null` permanece "Não informada". Sem sessões, o resultado é "Dados insuficientes", não `0%`.
+O aluno recebe somente indicadores práticos; somente o professor autorizado pode expandir o detalhe
+com versão da regra, fórmula, código da fonte e IDs/status das sessões. A interface não concede
+permissões adicionais: a API mantém o isolamento de `contractId` e a separação por audiência.
+
 ## Linguagem para o aluno
 
 A interface deve:
@@ -640,28 +672,3 @@ O cursor de paginação é vinculado a aluno e contrato. Os grupos legado, clín
 A integração não cria migrations nem altera a escrita dos módulos clínicos. A inclusão de novas fontes exige ampliar os grants, o adaptador da origem e os controles de paginação, permissões e contrato, sem acrescentar JSON clínico à timeline.
 
 A-401017 — Os registros de etapas e agrupamentos são cumulativos por ID do planejamento. Cada salvamento acrescenta ou altera somente as unidades enviadas; omitir um item ou uma medição preserva o dado anterior. `null` limpa a medição informada, `0` é medida real e um array vazio não apaga histórico. A exclusão explícita de registro exige `removeCyclicStages`/`removeResistanceGroups` com operação versionada e chave de idempotência.
-
-## Indicadores de evolução — recorte canônico semanal (#402 / #405)
-
-A rotina semanal expõe `weeklyEvolution` como projeção somente leitura das sessões
-efetivamente liberadas pela Montagem Consolidada para o aluno e contrato autorizados.
-A versão inicial `weekly-adherence-v1` usa o período civil de segunda a domingo
-selecionado na rotina e a execução canônica da #389, sem tabela de contadores.
-
-- `prescribedSessions`: todas as sessões liberadas no período, inclusive as
-  que ainda não foram executadas; sessões não liberadas não entram no denominador.
-- `completedSessions`: apenas sessões em `completed`; `partial` e
-  `not_performed` aparecem em contagens independentes.
-- `adherence.value`: `completedSessions / prescribedSessions * 100`,
-  expressa em `%` com duas casas decimais, ou `insufficient_data` e
-  `null` quando nenhuma sessão foi liberada.
-- `pendingSessions`: sessões ainda não terminais, sem presumir falta do aluno.
-- `period`, `ruleVersion`, `source` e `lastSourceUpdateAt` informam
-  contexto, origem e versão da regra; o professor recebe IDs técnicos das
-  sessões e o aluno recebe somente a síntese prática.
-
-O indicador considera toda a semana consultada, inclusive sessões futuras já
-liberadas; não deve ser interpretado como resultado definitivo antes do término
-do período. Nenhuma métrica muda planejamento, liberação ou execução. Métricas
-de consistência, pace, carga, tonelagem e tendência ainda não integram este
-recorte; dependem da comparabilidade e das fontes canônicas previstas na #405.
