@@ -215,12 +215,12 @@ describe('training routine service (#387)', () => {
       status: 'completed',
       updatedAt: new Date('2026-10-03T15:00:00.000Z'),
       execution: {
-        workoutDayId: 'day-1', status: 'partial', version: 1,
+        workoutDayId: 'day-1', status: 'not_performed', version: 1,
         updatedAt: new Date('2026-10-01T12:00:00.000Z'),
-        startedAt: new Date('2026-10-01T10:00:00.000Z'),
+        startedAt: null,
         finishedAt: new Date('2026-10-01T12:00:00.000Z'),
         currentPauseStartedAt: null, pausedDurationMs: BigInt(0),
-        interruptionReason: null, originReleaseId: 'release-1',
+        interruptionReason: 'Impossibilidade informada', originReleaseId: 'release-1',
         originWorkoutTemplateId: 'template-1', originTrainingPlanId: 'plan-1',
         sessionValues: {}, plannedSnapshot: null, items: [],
       },
@@ -228,10 +228,10 @@ describe('training routine service (#387)', () => {
     const student = await service.getRoutine({
       alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
     });
-    expect(student.today.sessions[0].status).toBe('partial');
+    expect(student.today.sessions[0].status).toBe('not_performed');
     expect(student.weeklyEvolution?.counts).toEqual({
-      prescribedSessions: 1, completedSessions: 0, partialSessions: 1,
-      notPerformedSessions: 0, pendingSessions: 0,
+      prescribedSessions: 1, completedSessions: 0, partialSessions: 0,
+      notPerformedSessions: 1, pendingSessions: 0,
     });
     expect(student.weeklyEvolution?.adherence).toEqual({ status: 'available', value: 0, unit: '%' });
     expect(student.weeklyEvolution?.lastSourceUpdateAt).toBe('2026-10-01T12:00:00.000Z');
