@@ -219,4 +219,9 @@ O `screenKey=library` permanece obrigatório. Consulta oficial requer professor
 ativo e `contractId` do vínculo autenticado. Criar/editar, listar todos os estados,
 aprovar, devolver, desativar/reabrir e consultar versões exigem ainda papel
 `professorRole=master`, conferido pelo backend. O frontend apenas oculta ações.
-Não há concessão de escopo cruzado entre contratos.
+Não há concessão de escopo cruzado entre contratos. Uma verificação HTTP
+prévia não autoriza escrita após revogação: na mesma transação de curadoria,
+o backend revalida o usuário ativo e o vínculo `master` do contrato com
+bloqueio `FOR UPDATE` sobre `Professor` e `User`. A revogação de papel,
+a situação inativa, o desligamento ou a desativação do usuário impedem a
+escrita e o registro de revisão, retornando HTTP 403.

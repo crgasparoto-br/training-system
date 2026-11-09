@@ -1846,14 +1846,14 @@ model ExerciseLibrary {
   mediaOrigin      String?
   mediaLicense     String?
   mediaAuthor      String?
-  curationStatus   ExerciseCurationStatus  @default(approved)
+  curationStatus   ExerciseCurationStatus  @default(draft)
   version          Int                     @default(1)
   createdByUserId  String?
   reviewedByUserId String?
   reviewedAt       DateTime?
   lastModifiedByUserId String?
   lastCurationAction String?
-  legacyGrandfathered Boolean             @default(true)
+  legacyGrandfathered Boolean             @default(false)
   revisions        ExerciseLibraryRevision[]
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt

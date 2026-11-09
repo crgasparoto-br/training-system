@@ -7,6 +7,7 @@ import {
   type CurationAction,
 } from './library-curation.domain.js';
 import { findExerciseIdsByAlias } from './exercise-alias-search.js';
+import { canProfessorAccessScreen } from '../access-control/access-control.service.js';
 
 const prisma = prismaRuntimeClient;
 
@@ -59,6 +60,58 @@ export interface ExerciseFilters {
 
 type ExerciseLibraryListWhere = Prisma.ExerciseLibraryWhereInput;
 
+type LockedCatalogManager = {
+  role: 'master' | 'professor';
+  isActive: boolean;
+  currentStatus: string | null;
+  dismissalDate: Date | null;
+  collaboratorFunctionId: string;
+  functionCode: string;
+};
+
+const INACTIVE_PROFESSOR_STATUSES = new Set([
+  'inactive', 'inativo', 'dismissed', 'desligado', 'terminated', 'encerrado',
+]);
+
+/**
+ * Recheck the live actor in the definitive write transaction. Row locks on
+ * professor and user keep concurrent role, dismissal and active-status
+ * revocations from racing the catalog change after HTTP middleware ran.
+ */
+async function assertCatalogManagerInTransaction(
+  tx: Prisma.TransactionClient, contractId: string, actorUserId: string,
+) {
+  const [actor] = await tx.$queryRaw<LockedCatalogManager[]>`
+    SELECT p."role"::text AS "role", p."currentStatus", p."dismissalDate",
+           p."collaboratorFunctionId", cf."code" AS "functionCode",
+           u."isActive"
+    FROM "Professor" AS p
+    JOIN "User" AS u ON u."id" = p."userId"
+    JOIN "CollaboratorFunctionOption" AS cf
+      ON cf."id" = p."collaboratorFunctionId"
+    WHERE p."userId" = ${actorUserId} AND p."contractId" = ${contractId}
+    FOR UPDATE OF p, u
+  `;
+  if (!actor || !actor.isActive || actor.role !== 'master'
+    || INACTIVE_PROFESSOR_STATUSES.has(actor.currentStatus?.trim().toLowerCase() ?? 'active')
+    || (actor.dismissalDate && actor.dismissalDate.getTime() <= Date.now())
+    || !(await canProfessorAccessScreen({
+      role: actor.role,
+      collaboratorFunction: { id: actor.collaboratorFunctionId, code: actor.functionCode },
+    }, 'library', tx))) {
+    throw new LibraryCurationError('forbidden', 'Acesso administrativo à biblioteca não está mais autorizado.');
+  }
+}
+
+/** The database trigger handles concurrent names; only translate its conflict. */
+function throwCanonicalNameError(error: unknown): never {
+  const failure = error as { code?: string; meta?: { code?: string } } | null;
+  if (failure?.code === 'P2002' || (failure?.code === 'P2010' && failure.meta?.code === '23505')) {
+    throw new LibraryCurationError('conflict', 'Já existe exercício com este nome neste contrato.');
+  }
+  throw error;
+}
+
 function notFound(): never {
   throw new LibraryCurationError('not_found', 'Exercício não encontrado neste contrato.');
 }
@@ -77,14 +130,21 @@ async function readVersion(
 }
 
 export const libraryService = {
-  /** Every user-created exercise starts in draft even if the legacy database default is approved. */
+  /** New exercises start unpublished, including direct database inserts. */
   async createExercise(contractId: string, data: CreateExerciseDTO, actorUserId: string) {
-    return prisma.exerciseLibrary.create({
-      data: {
-        ...data, contractId, curationStatus: ExerciseCurationStatus.draft, version: 1,
-        legacyGrandfathered: false, createdByUserId: actorUserId,
-        lastModifiedByUserId: actorUserId, lastCurationAction: 'create',
-      },
+    return prisma.$transaction(async (tx) => {
+      await assertCatalogManagerInTransaction(tx, contractId, actorUserId);
+      try {
+        return await tx.exerciseLibrary.create({
+          data: {
+            ...data, contractId, curationStatus: ExerciseCurationStatus.draft, version: 1,
+            legacyGrandfathered: false, createdByUserId: actorUserId,
+            lastModifiedByUserId: actorUserId, lastCurationAction: 'create',
+          },
+        });
+      } catch (error) {
+        return throwCanonicalNameError(error);
+      }
     });
   },
 
@@ -137,6 +197,7 @@ export const libraryService = {
     expectedVersion: number, actorUserId: string,
   ) {
     return prisma.$transaction(async (tx) => {
+      await assertCatalogManagerInTransaction(tx, contractId, actorUserId);
       const existing = await readVersion(tx, contractId, id, expectedVersion);
       if (existing.curationStatus === ExerciseCurationStatus.inactive) {
         throw new LibraryCurationError('conflict', 'Reabra o exercício antes de editar.');
@@ -146,17 +207,21 @@ export const libraryService = {
           'conflict', 'Exercício já aplicado a treinos: desative e crie nova versão separada para não alterar o histórico.',
         );
       }
-      const updated = await tx.exerciseLibrary.updateMany({
-        // Check the historical-use invariant at the definitive compare-and-swap write,
-        // not only at the preflight count, to reject a newly linked workout.
-        where: { id, contractId, version: expectedVersion, workoutExercises: { none: {} } },
-        data: {
-          ...data, version: { increment: 1 },
-          curationStatus: ExerciseCurationStatus.draft,
-          reviewedByUserId: null, reviewedAt: null,
-          lastModifiedByUserId: actorUserId, lastCurationAction: 'edit',
-        },
-      });
+      let updated: { count: number };
+      try {
+        updated = await tx.exerciseLibrary.updateMany({
+          // Recheck historical references at the definitive compare-and-swap.
+          where: { id, contractId, version: expectedVersion, workoutExercises: { none: {} } },
+          data: {
+            ...data, version: { increment: 1 },
+            curationStatus: ExerciseCurationStatus.draft,
+            reviewedByUserId: null, reviewedAt: null,
+            lastModifiedByUserId: actorUserId, lastCurationAction: 'edit',
+          },
+        });
+      } catch (error) {
+        return throwCanonicalNameError(error);
+      }
       if (updated.count !== 1) conflict();
       return tx.exerciseLibrary.findFirstOrThrow({ where: { id, contractId } });
     });
@@ -167,21 +232,27 @@ export const libraryService = {
     action: CurationAction, actorUserId: string,
   ) {
     return prisma.$transaction(async (tx) => {
+      await assertCatalogManagerInTransaction(tx, contractId, actorUserId);
       const existing = await readVersion(tx, contractId, id, expectedVersion);
       const status = nextExerciseStatus(existing.curationStatus, action);
       if (action === 'approve') assertExerciseCanBeApproved(existing);
-      const updated = await tx.exerciseLibrary.updateMany({
-        where: { id, contractId, version: expectedVersion },
-        data: {
-          curationStatus: status, version: { increment: 1 },
-          lastModifiedByUserId: actorUserId, lastCurationAction: action,
-          ...(action === 'approve'
-            ? { reviewedByUserId: actorUserId, reviewedAt: new Date(), legacyGrandfathered: false }
-            : action === 'reopen' || action === 'request_changes'
-              ? { reviewedByUserId: null, reviewedAt: null }
-              : {}),
-        },
-      });
+      let updated: { count: number };
+      try {
+        updated = await tx.exerciseLibrary.updateMany({
+          where: { id, contractId, version: expectedVersion },
+          data: {
+            curationStatus: status, version: { increment: 1 },
+            lastModifiedByUserId: actorUserId, lastCurationAction: action,
+            ...(action === 'approve'
+              ? { reviewedByUserId: actorUserId, reviewedAt: new Date(), legacyGrandfathered: false }
+              : action === 'reopen' || action === 'request_changes'
+                ? { reviewedByUserId: null, reviewedAt: null }
+                : {}),
+          },
+        });
+      } catch (error) {
+        return throwCanonicalNameError(error);
+      }
       if (updated.count !== 1) conflict();
       return tx.exerciseLibrary.findFirstOrThrow({ where: { id, contractId } });
     });

@@ -4,7 +4,7 @@ export type CurationAction = 'submit' | 'approve' | 'request_changes' | 'deactiv
 
 export class LibraryCurationError extends Error {
   constructor(
-    readonly kind: 'not_found' | 'conflict' | 'invalid',
+    readonly kind: 'not_found' | 'conflict' | 'invalid' | 'forbidden',
     message: string,
   ) {
     super(message);

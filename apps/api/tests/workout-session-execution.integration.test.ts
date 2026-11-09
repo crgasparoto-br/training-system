@@ -179,10 +179,10 @@ async function seedReleasedWorkout(
   });
 
   const exerciseLibraryA = await prisma.exerciseLibrary.create({
-    data: { contractId, name: `Agachamento ${label}` },
+    data: { contractId, name: `Agachamento ${label}`, curationStatus: 'approved', legacyGrandfathered: true },
   });
   const exerciseLibraryB = await prisma.exerciseLibrary.create({
-    data: { contractId, name: `Remada ${label}` },
+    data: { contractId, name: `Remada ${label}`, curationStatus: 'approved', legacyGrandfathered: true },
   });
   const exerciseA = await prisma.workoutExercise.create({
     data: {
@@ -243,7 +243,7 @@ async function seedReleasedWorkout(
           durationUnit: 'seconds', durationValue: 120 },
       });
       const exerciseC = await prisma.exerciseLibrary.create({
-        data: { contractId, name: `Mobilidade ${label}` },
+        data: { contractId, name: `Mobilidade ${label}`, curationStatus: 'approved', legacyGrandfathered: true },
       });
       const workoutExerciseC = await prisma.workoutExercise.create({
         data: { workoutDayId: day.id, exerciseId: exerciseC.id, section: 'principal',

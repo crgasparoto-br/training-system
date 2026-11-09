@@ -19,6 +19,14 @@ estados de revisão, histórico por versão e testes de regressão.
 - Referências existentes podem permanecer após desativação, sem reaprovação
   artificial, mas não podem ser reaplicadas por cópia a outra semana/dia.
 - Defaults históricos são preservados com origem `legacy_baseline`.
+- Remediação A-394-01: novos registros em `draft`/`legacyGrandfathered=false`
+  inclusive nos defaults do PostgreSQL; fixtures legadas aprovadas são explícitas.
+- Remediação A-394-02: escrita administrativa revalida papel `master`, usuário
+  ativo e contrato sob row locks na transação definitiva, incluindo revogação.
+- Remediação A-394-03: trigger com lock por chave normalizada de nome/contrato
+  rejeita duplicidade nova e concorrente sem alterar duplicatas legadas.
+- Testes negativos: SQL direto, Prisma sem status, nomes com caixa/espaçamento,
+  concorrência, tenant cruzado e revogação de acesso; HTTP 403/409.
 
 ## Validação e aceite
 - [ ] Tests de domínio e API, segurança e isolamento.

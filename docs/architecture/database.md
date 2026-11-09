@@ -261,6 +261,19 @@ versão e metadados estruturados. `ExerciseLibraryRevision` registra snapshots
 por `(exerciseId,version)`; triggers transacionais PostgreSQL de INSERT/UPDATE
 gravam revisões inclusive para importadores e rotinas legadas via Prisma.
 A migração preserva IDs e realiza backfill sem desvincular progresso ou treinos.
+A migração inicial #394 identifica somente o catálogo já existente como
+`approved`/`legacyGrandfathered=true`, sem inventar revisor. A migração
+`20261109205000_issue_394_curated_catalog_guards` altera o default do banco
+para `draft`/`legacyGrandfathered=false`; isso vale inclusive para `INSERT`
+SQL direto e para `Prisma.create` que omita o status, sem reclassificar os
+registros históricos. Registros antigos com nome repetido permanecem intactos.
+
+O trigger `issue394_exercise_canonical_name_guard` protege novos nomes e
+renomeações por `contractId` e chave canônica (caixa e espaços normalizados).
+Um advisory lock transacional pelo par contrato/nome serializa cadastros
+concorrentes; colisões retornam SQLSTATE `23505`, traduzido para HTTP 409
+nos serviços da biblioteca. O índice funcional acelera a verificação,
+sem impor uma constraint retroativa sobre duplicidades históricas.
 
 Uma comparação de `version` dentro da transação evita concorrência silenciosa.
 Legado recebe `legacy_baseline`, sem presumir homologação profissional.

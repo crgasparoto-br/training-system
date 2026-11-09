@@ -228,6 +228,12 @@ e `mayConcludeNoConflict=false` são invariantes.
 `screenKey=library`, e retorna apenas `approved` por padrão.
 `scope=all`, escrita, transições de curadoria e histórico exigem `master`.
 O backend revalida identidade e contrato independentemente da interface.
+Nas mutações de curadoria, inclusive criação, edição, aprovação, reabertura e
+desativação, a transação definitiva bloqueia as linhas de `Professor` e `User`
+e revalida `master`, situação ativa, contrato e acesso `library`, antes de
+gravar; uma revogação posterior ao middleware retorna HTTP 403 sem revisão
+nova. A tentativa de criar/renomear exercício com nome canônico já presente
+no contrato retorna HTTP 409, inclusive sob concorrência.
 
 `POST /exercises` cria rascunho. `PUT /exercises/:id` exige `expectedVersion`,
 retorna a rascunho e responde 409 para concorrência ou item já usado em treino.

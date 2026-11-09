@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { libraryService } from '../library/library.service.js';
 import {
@@ -13,9 +14,11 @@ const describeDatabase =
   process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true' ? describe : describe.skip;
 
 const prisma = new PrismaClient();
+const concurrentPrisma = new PrismaClient();
 
 describeDatabase('installContractDefaults database integration', () => {
   let targetContractId: string | null = null;
+  let actorUserId: string | null = null;
   const originalDefaultContractId = process.env.DEFAULT_CONTRACT_ID;
 
   afterEach(async () => {
@@ -23,12 +26,17 @@ describeDatabase('installContractDefaults database integration', () => {
       await prisma.companyContract.deleteMany({ where: { id: targetContractId } });
       targetContractId = null;
     }
+    if (actorUserId) {
+      await prisma.user.delete({ where: { id: actorUserId } });
+      actorUserId = null;
+    }
     if (originalDefaultContractId === undefined) delete process.env.DEFAULT_CONTRACT_ID;
     else process.env.DEFAULT_CONTRACT_ID = originalDefaultContractId;
   });
 
   afterAll(async () => {
     await prisma.$disconnect();
+    await concurrentPrisma.$disconnect();
   });
 
   it('persiste os padrões criando somente o contrato alvo da fixture e ignora DEFAULT_CONTRACT_ID inválido', async () => {
@@ -78,6 +86,133 @@ describeDatabase('installContractDefaults database integration', () => {
       .map((entry) => entry.id)).toContain(first.id);
     expect(await libraryService.listExercises('unknown-foreign-contract', { search: 'xyZZy' }))
       .toEqual([]);
+  });
+
+  it('#394 A-394-01: defaults of Prisma and raw SQL inserts are drafts, never approved legacy', async () => {
+    const target = await prisma.companyContract.create({
+      data: { type: 'academy', document: `issue394-defaults-${randomUUID()}`, name: 'Curadoria default' },
+    });
+    targetContractId = target.id;
+    const viaPrisma = await prisma.exerciseLibrary.create({
+      data: { contractId: target.id, name: 'Flexão de braço sem revisão' },
+    });
+    const rawId = `issue394-raw-${randomUUID()}`;
+    await prisma.$executeRaw`
+      INSERT INTO "ExerciseLibrary" ("id", "contractId", "name", "createdAt", "updatedAt")
+      VALUES (${rawId}, ${target.id}, 'Remada unilateral sem revisão', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `;
+    const viaRaw = await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: rawId } });
+    for (const exercise of [viaPrisma, viaRaw]) {
+      expect(exercise.curationStatus).toBe('draft');
+      expect(exercise.legacyGrandfathered).toBe(false);
+      expect(exercise.reviewedByUserId).toBeNull();
+    }
+    expect(await libraryService.listExercises(target.id)).toEqual([]);
+    expect(await prisma.exerciseLibraryRevision.count({
+      where: { contractId: target.id, action: 'bootstrap' },
+    })).toBe(2);
+  });
+
+  it('#394 A-394-03: disallows canonical duplicates across API/SQL and simultaneous inserts', async () => {
+    const target = await prisma.companyContract.create({
+      data: { type: 'academy', document: `issue394-dup-${randomUUID()}`, name: 'Curadoria nomes' },
+    });
+    targetContractId = target.id;
+    const first = await prisma.exerciseLibrary.create({
+      data: { contractId: target.id, name: 'Agachamento Livre', curationStatus: 'approved', legacyGrandfathered: true },
+    });
+    await expect(prisma.exerciseLibrary.create({
+      data: { contractId: target.id, name: '  AGACHAMENTO   LIVRE  ' },
+    })).rejects.toThrow();
+    const other = await prisma.exerciseLibrary.create({
+      data: { contractId: target.id, name: 'Supino Reto' },
+    });
+    await expect(prisma.exerciseLibrary.update({
+      where: { id: other.id }, data: { name: ' agachamento \t livre ' },
+    })).rejects.toThrow();
+    expect((await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: other.id } })).name)
+      .toBe('Supino Reto');
+    expect((await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: first.id } })).curationStatus)
+      .toBe('approved');
+
+    const competing = await Promise.allSettled([
+      prisma.exerciseLibrary.create({ data: { contractId: target.id, name: 'Remada Fechada' } }),
+      concurrentPrisma.exerciseLibrary.create({ data: { contractId: target.id, name: '  REMADA   FECHADA ' } }),
+    ]);
+    expect(competing.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
+    expect(competing.filter((outcome) => outcome.status === 'rejected')).toHaveLength(1);
+    const normalized = await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "ExerciseLibrary"
+      WHERE "contractId" = ${target.id}
+        AND issue394_exercise_canonical_name("name") = 'remada fechada'
+    `;
+    expect(normalized).toHaveLength(1);
+
+    const anotherContract = await prisma.companyContract.create({
+      data: { type: 'academy', document: `issue394-other-${randomUUID()}`, name: 'Contrato distinto' },
+    });
+    try {
+      await expect(prisma.exerciseLibrary.create({
+        data: { contractId: anotherContract.id, name: ' AGACHAMENTO  LIVRE ' },
+      })).resolves.toMatchObject({ curationStatus: 'draft' });
+    } finally {
+      await prisma.companyContract.delete({ where: { id: anotherContract.id } });
+    }
+  });
+
+  it('#394 A-394-02: validates master role and active user within the definitive transaction', async () => {
+    const target = await prisma.companyContract.create({
+      data: { type: 'academy', document: `issue394-actor-${randomUUID()}`, name: 'Curadoria administrativa' },
+    });
+    targetContractId = target.id;
+    const functionOption = await prisma.collaboratorFunctionOption.create({
+      data: { contractId: target.id, name: 'Administrativo', code: `admin-${randomUUID()}` },
+    });
+    const user = await prisma.user.create({
+      data: { email: `issue394-${randomUUID()}@example.com`, type: 'professor', passwordHash: 'test-only' },
+    });
+    actorUserId = user.id;
+    const professor = await prisma.professor.create({
+      data: { contractId: target.id, userId: user.id, collaboratorFunctionId: functionOption.id, role: 'master' },
+    });
+    const approved = await prisma.exerciseLibrary.create({
+      data: { contractId: target.id, name: 'Agachamento revisado', category: 'RESISTIDO',
+        capacity: 'resistance', instructions: ['Posicionar os pés'] },
+    });
+    const inReview = await prisma.exerciseLibrary.update({
+      where: { id: approved.id }, data: { curationStatus: 'in_review' },
+    });
+    await expect(libraryService.reviewExercise(
+      target.id, approved.id, inReview.version, 'approve', user.id,
+    )).resolves.toMatchObject({ curationStatus: 'approved', reviewedByUserId: user.id });
+
+    const draft = await prisma.exerciseLibrary.create({
+      data: { contractId: target.id, name: 'Remada aguardando revisão', category: 'RESISTIDO',
+        capacity: 'resistance', instructions: ['Ajustar escápulas'] },
+    });
+    const pending = await prisma.exerciseLibrary.update({
+      where: { id: draft.id }, data: { curationStatus: 'in_review' },
+    });
+    const originalRevisions = await prisma.exerciseLibraryRevision.count({ where: { exerciseId: draft.id } });
+    await prisma.professor.update({ where: { id: professor.id }, data: { role: 'professor' } });
+    await expect(libraryService.reviewExercise(
+      target.id, draft.id, pending.version, 'approve', user.id,
+    )).rejects.toMatchObject({ kind: 'forbidden' });
+    expect(await prisma.exerciseLibraryRevision.count({ where: { exerciseId: draft.id } }))
+      .toBe(originalRevisions);
+    expect((await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: draft.id } })).curationStatus)
+      .toBe('in_review');
+
+    await prisma.professor.update({ where: { id: professor.id }, data: { role: 'master' } });
+    await prisma.user.update({ where: { id: user.id }, data: { isActive: false } });
+    await expect(libraryService.reviewExercise(
+      target.id, draft.id, pending.version, 'approve', user.id,
+    )).rejects.toMatchObject({ kind: 'forbidden' });
+    await expect(libraryService.createExercise(
+      target.id, { name: 'Sem acesso' }, user.id,
+    )).rejects.toMatchObject({ kind: 'forbidden' });
+    expect(await prisma.exerciseLibraryRevision.count({ where: { exerciseId: draft.id } }))
+      .toBe(originalRevisions);
   });
 
   it('does not backfill media without provenance into a legacy approved record', async () => {

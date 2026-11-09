@@ -8,10 +8,11 @@ jest.mock('../src/common/prisma-runtime-client', () => {
   };
   const exerciseLibraryRevision = { findMany: jest.fn() };
   const workoutExercise = { count: jest.fn() };
+  const $queryRaw = jest.fn();
   return {
     prismaRuntimeClient: {
-      exerciseLibrary, exerciseLibraryRevision, workoutExercise, $queryRaw: jest.fn(),
-      $transaction: jest.fn(async (callback) => callback({ exerciseLibrary, exerciseLibraryRevision, workoutExercise })),
+      exerciseLibrary, exerciseLibraryRevision, workoutExercise, $queryRaw,
+      $transaction: jest.fn(async (callback) => callback({ exerciseLibrary, exerciseLibraryRevision, workoutExercise, $queryRaw })),
     },
   };
 });
@@ -33,7 +34,10 @@ describe('issue #394: persistence and tenant-aware curation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     db.workoutExercise.count.mockResolvedValue(0);
-    db.$queryRaw.mockResolvedValue([]);
+    db.$queryRaw.mockResolvedValue([{
+      role: 'master', isActive: true, currentStatus: 'active', dismissalDate: null,
+      collaboratorFunctionId: 'function-1', functionCode: 'administrador',
+    }]);
   });
 
   it('creates API exercises as unpublished drafts with an explicit author', async () => {
@@ -149,6 +153,47 @@ describe('issue #394: persistence and tenant-aware curation', () => {
     expect(db.exerciseLibrary.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ curationStatus: 'inactive' }),
     }));
+  });
+
+  it('rejects a role revocation after HTTP preflight and before the definitive transaction', async () => {
+    db.$queryRaw.mockResolvedValueOnce([{
+      role: 'professor', isActive: true, currentStatus: 'active', dismissalDate: null,
+      collaboratorFunctionId: 'function-1', functionCode: 'professor',
+    }]);
+    await expect(libraryService.reviewExercise(
+      'contract-1', sample.id, 2, 'approve', 'actor-1',
+    )).rejects.toMatchObject({ kind: 'forbidden' });
+    expect(db.exerciseLibrary.findFirst).not.toHaveBeenCalled();
+    expect(db.exerciseLibrary.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { isActive: false, currentStatus: 'active', dismissalDate: null },
+    { isActive: true, currentStatus: 'inactive', dismissalDate: null },
+    { isActive: true, currentStatus: 'active', dismissalDate: new Date('2025-01-01') },
+  ])('rejects a deactivated manager within the write transaction: %o', async (revoked) => {
+    db.$queryRaw.mockResolvedValueOnce([{
+      role: 'master', collaboratorFunctionId: 'function-1', functionCode: 'admin', ...revoked,
+    }]);
+    await expect(libraryService.reviewExercise(
+      'contract-1', sample.id, 2, 'deactivate', 'actor-1',
+    )).rejects.toMatchObject({ kind: 'forbidden' });
+    expect(db.exerciseLibrary.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects exercise creation when the administrator has moved to another tenant', async () => {
+    db.$queryRaw.mockResolvedValueOnce([]);
+    await expect(libraryService.createExercise(
+      'contract-1', { name: 'Novo agachamento' }, 'actor-1',
+    )).rejects.toMatchObject({ kind: 'forbidden' });
+    expect(db.exerciseLibrary.create).not.toHaveBeenCalled();
+  });
+
+  it('maps a concurrent canonical-name conflict to an actionable 409 domain error', async () => {
+    db.exerciseLibrary.create.mockRejectedValueOnce({ code: 'P2002' });
+    await expect(libraryService.createExercise(
+      'contract-1', { name: '  AGACHAMENTO  ' }, 'actor-1',
+    )).rejects.toMatchObject({ kind: 'conflict', message: expect.stringContaining('Já existe') });
   });
 
   it('resolves revision history only after validating the exercise tenant', async () => {

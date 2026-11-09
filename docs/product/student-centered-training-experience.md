@@ -719,7 +719,16 @@ desativação mantém referência. Edição de aprovado fora do treino retorna a
 e histórico de revisões exigem acesso administrativo.
 
 A migração mantém catálogo existente como `approved` e anota snapshot `legacy_baseline`,
-sem fabricar revisor ou assinatura. Padrões existentes permanecem aprovados como legado identificado, sem inventar
+sem fabricar revisor ou assinatura. Apenas os registros anteriores à migração
+recebem esse estado: novas inserções sem `curationStatus` explícito passam a
+ser `draft` também no banco, inclusive via SQL e importadores. O padrão de
+`legacyGrandfathered` para inserções novas é `false`. A identidade canônica
+de um nome usa caixa e espaços normalizados por contrato, sem fundir aliases
+ou registros históricos: nomes duplicados preexistentes permanecem legíveis,
+mas novas criações e renomeações colidentes são recusadas com HTTP 409 mesmo
+quando simultâneas. As ações administrativas revalidam `master`, acesso
+`library` e usuário ativo na transação definitiva, protegendo contra revogação
+entre a entrada HTTP e a gravação. Padrões existentes permanecem aprovados como legado identificado, sem inventar
 revisor ou licença. Novas instalações de padrões, API, importações e cópias
 entre contratos entram em rascunho até revisão. O saneamento automático ignora
 exercícios vinculados a treinos e registra `system_defaults_repair` com ator

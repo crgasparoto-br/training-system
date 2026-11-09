@@ -227,7 +227,7 @@ function requireCatalogManager(req: Request, res: Response) {
 }
 function sendLibraryError(res: Response, error: unknown, message: string) {
   if (error instanceof LibraryCurationError) {
-    const status = error.kind === 'not_found' ? 404 : error.kind === 'conflict' ? 409 : 422;
+    const status = error.kind === 'not_found' ? 404 : error.kind === 'forbidden' ? 403 : error.kind === 'conflict' ? 409 : 422;
     return res.status(status).json({ message: error.message });
   }
   console.error('Library operation failed:', error);

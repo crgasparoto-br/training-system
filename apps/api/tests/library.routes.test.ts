@@ -126,6 +126,18 @@ describe('library routes input validation', () => {
     );
   });
 
+  it('returns 403 when the administrator is revoked during the service transaction', async () => {
+    // The real domain error must remain typed so that the HTTP boundary returns 403.
+    const { LibraryCurationError } = require('../src/modules/library/library-curation.domain');
+    (libraryService.reviewExercise as jest.Mock).mockRejectedValueOnce(
+      new LibraryCurationError('forbidden', 'Acesso administrativo à biblioteca não está mais autorizado.'),
+    );
+    const response = await request(app).post('/library/exercises/exercise-1/curation')
+      .send({ action: 'approve', expectedVersion: 2 });
+    expect(response.status).toBe(403);
+    expect(libraryService.reviewExercise).toHaveBeenCalledTimes(1);
+  });
+
   it('enforces version on updates and rejects curation fields injected by clients', async () => {
     const omitted = await request(app).put('/library/exercises/exercise-1')
       .send({ name: 'Alteração sem versão' });

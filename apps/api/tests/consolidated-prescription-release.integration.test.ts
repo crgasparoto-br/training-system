@@ -265,7 +265,7 @@ async function seedFixture(label: string, includeResisted = false, cyclicDistanc
   }
 
   const resistanceExercise = includeResisted ? await prisma.exerciseLibrary.create({
-    data: { contractId, name: 'Resistido da montagem consolidada' },
+    data: { contractId, name: 'Resistido da montagem consolidada', curationStatus: 'approved', legacyGrandfathered: true },
   }) : null;
 
   const projections = [
@@ -838,6 +838,7 @@ describeDatabase('consolidated prescription operational release - issue 320', ()
       data: {
         contractId: fixture.contractId,
         name: `Exercício residual ${randomUUID()}`,
+        curationStatus: 'approved', legacyGrandfathered: true,
       },
     });
     const template = await prisma.workoutTemplate.create({
