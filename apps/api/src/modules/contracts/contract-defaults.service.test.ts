@@ -347,8 +347,10 @@ describe('installContractDefaults', () => {
       muscleGroup: customMuscleGroup,
     });
     expect(fake.writes.exerciseUpdateMany).toHaveBeenCalledWith({
-      where: { contractId, name: canonical!.name },
+      where: { contractId, name: canonical!.name, workoutExercises: { none: {} } },
       data: expect.objectContaining({
+        lastModifiedByUserId: null,
+        lastCurationAction: 'system_defaults_repair',
         loadType: canonical!.loadType,
         movementType: canonical!.movementType,
         countingType: canonical!.countingType,
@@ -396,8 +398,12 @@ describe('installContractDefaults', () => {
     await installContractDefaults(contractId, fake.db);
 
     expect(fake.writes.exerciseUpdateMany).toHaveBeenCalledWith({
-      where: { contractId, name: corruptedName },
-      data: { name: correctName },
+      where: { contractId, name: corruptedName, workoutExercises: { none: {} } },
+      data: {
+        name: correctName,
+        lastModifiedByUserId: null,
+        lastCurationAction: 'system_defaults_repair',
+      },
     });
     expect(fake.state.exercises.filter((item) => item.name === correctName)).toHaveLength(1);
     expect(fake.state.exercises.some((item) => item.name === corruptedName)).toBe(false);
