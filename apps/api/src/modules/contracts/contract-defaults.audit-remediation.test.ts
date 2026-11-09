@@ -143,9 +143,9 @@ describe('contract defaults audit remediation', () => {
     // One raw statement acquires the advisory lock and one updates every
     // eligible exercise, regardless of catalog size.
     expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
-    const [sql] = tx.$executeRaw.mock.calls[1] as unknown as [TemplateStringsArray];
-    expect(sql.join('')).toContain('"WorkoutExercise"');
-    expect(sql.join('')).toContain('NOT EXISTS');
-    expect(sql.join('')).toContain("'system_defaults_repair'");
+    const [query] = tx.$executeRaw.mock.calls[1] as unknown as [{ strings: string[] }];
+    expect(query.strings.join('')).toContain('"WorkoutExercise"');
+    expect(query.strings.join('')).toContain('NOT EXISTS');
+    expect(query.strings.join('')).toContain("'system_defaults_repair'");
   });
 });
