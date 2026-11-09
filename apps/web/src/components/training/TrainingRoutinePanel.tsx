@@ -760,7 +760,7 @@ function WeeklyAdherenceCard({ routine, audience }: { routine: TrainingRoutineVi
           )}
         </>
       )}
-      {technical && (
+      {weeklyEvolution && technical && (
         <details className="mt-2 min-w-0 rounded-md border border-border bg-muted/20 p-2">
           <summary className="cursor-pointer text-xs font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
             Detalhes técnicos do indicador
