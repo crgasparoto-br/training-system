@@ -42,7 +42,7 @@ export interface TechnicalExerciseOperationalMapping {
   mappedByProfessorId: string | null;
   currentExerciseAvailable: boolean;
   currentExerciseUpdatedAt: string | null;
-  curationStatus: 'not_modeled';
+  curationStatus: 'not_modeled' | 'draft' | 'in_review' | 'approved' | 'inactive';
 }
 
 export interface SetTechnicalExerciseOperationalMappingCommand {

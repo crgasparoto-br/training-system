@@ -194,7 +194,7 @@ export function createCapacityExerciseMappingService(client: PrismaClient = pris
               mappedByProfessorId: context.actorProfessorId,
               currentExerciseAvailable: true,
               currentExerciseUpdatedAt: nextMapping.exerciseSnapshot.updatedAt,
-              curationStatus: 'not_modeled',
+              curationStatus: 'approved',
             };
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
@@ -237,7 +237,7 @@ export function createCapacityExerciseMappingService(client: PrismaClient = pris
         mappedByProfessorId: mapping?.mappedByProfessorId ?? null,
         currentExerciseAvailable: Boolean(liveExercise),
         currentExerciseUpdatedAt: liveExercise?.updatedAt.toISOString() ?? null,
-        curationStatus: 'not_modeled',
+        curationStatus: liveExercise?.curationStatus ?? 'not_modeled',
       };
     },
   };
