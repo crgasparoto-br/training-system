@@ -71,6 +71,7 @@ const sessionSelect = {
   location: true,
   method: true,
   status: true,
+  updatedAt: true,
   execution: {
     select: {
       workoutDayId: true,
@@ -548,8 +549,10 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
           .filter((row) => row.workoutDate >= week.start && row.workoutDate < week.endExclusive)
           .map((row) => ({
             sessionId: row.id,
-            status: row.execution?.status ?? 'not_started',
+            // Use the same canonical-first legacy fallback as toSummary/buildExecution.
+            status: row.execution?.status ?? projectLegacyExecutionStatus(row.status),
             sourceUpdatedAt: row.execution?.updatedAt?.toISOString()
+              ?? row.updatedAt?.toISOString()
               ?? row.template.releasedAt?.toISOString() ?? null,
           })),
         audience: query.audience,

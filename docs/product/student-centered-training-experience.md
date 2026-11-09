@@ -539,6 +539,14 @@ efetivamente liberadas pela Montagem Consolidada para o aluno e contrato autoriz
 A versão inicial `weekly-adherence-v1` usa o período civil de segunda a domingo
 selecionado na rotina e a execução canônica da #389, sem tabela de contadores.
 
+O status vem de `WorkoutSessionExecution` sempre que a execução canônica existir.
+Para sessões históricas sem essa execução, aplica-se a mesma compatibilidade da
+rotina: `WorkoutDay.status` `planned` → `not_started`, `in_progress` →
+`in_progress` e `completed` → `completed`. O estado legado jamais sobrepõe uma
+execução canônica. A data de atualização usa a execução canônica quando existe;
+para histórico legado, usa `WorkoutDay.updatedAt`, com a data de liberação do
+template como último fallback. Isso não cria contadores nem reescreve histórico.
+
 - `prescribedSessions`: todas as sessões liberadas no período, inclusive as
   que ainda não foram executadas; sessões não liberadas não entram no denominador.
 - `completedSessions`: apenas sessões em `completed`; `partial` e

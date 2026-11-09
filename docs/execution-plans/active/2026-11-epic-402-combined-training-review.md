@@ -66,7 +66,11 @@ e heurísticas clínicas sem regra versionada e aprovada.
 - [x] Revalidar CI no HEAD reconciliado anterior (`0a50e482`): execução #42609345271 aprovada.
 - [x] A-003: segregar `ruleVersion`, `source`, `formula` e IDs no campo `technical` só do professor,
       mantendo fonte legível e contagens na resposta do aluno; adicionar testes de serviço e HTTP.
-- [ ] Validar o HEAD da remediação A-003 e obter nova auditoria independente.
+- [x] Validar o HEAD da remediação A-003 (`5a266789`, CI #42619866441); auditoria independente identificou A-004.
+- [x] A-004: preservar o status de sessões legadas concluídas na aderência,
+      dar precedência à execução canônica, recuperar data de atualização legada
+      e cobrir perfil aluno/professor, histórico e ausência de liberação em testes.
+- [ ] Confirmar CI no HEAD da remediação A-004 e obter nova auditoria independente.
 
 ## Validação manual
 
