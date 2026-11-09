@@ -141,6 +141,20 @@ describe('training routine service (#387)', () => {
       adherence: { status: 'available', value: 50, unit: '%' },
     });
     expect(result.weeklyEvolution?.technical).toBeUndefined();
+    expect(result.weeklyEvolution).not.toHaveProperty('ruleVersion');
+    expect(result.weeklyEvolution).not.toHaveProperty('source');
+    expect(result.weeklyEvolution?.adherence).not.toHaveProperty('formula');
+    expect(result.weeklyEvolution?.sourceLabel).toBe('Montagem Consolidada e execução das sessões');
+    const professor = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'professor', now,
+    });
+    expect(professor.weeklyEvolution?.adherence).toEqual(result.weeklyEvolution?.adherence);
+    expect(professor.weeklyEvolution?.technical).toMatchObject({
+      ruleVersion: 'weekly-adherence-v1',
+      source: 'consolidated_release_and_session_execution',
+      formula: 'completedSessions / prescribedSessions * 100',
+      sessions: [{ sessionId: 'day-completed', status: 'completed' }, { sessionId: 'day-partial', status: 'partial' }],
+    });
     expect(findMany.mock.calls[0][0].where.template.plan).toMatchObject({
       alunoId: 'aluno-1', aluno: { contractId: 'contract-1' },
     });

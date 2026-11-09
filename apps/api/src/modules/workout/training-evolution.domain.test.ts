@@ -24,8 +24,10 @@ describe('evolução semanal canônica (#405)', () => {
       prescribedSessions: 4, completedSessions: 1, partialSessions: 1,
       notPerformedSessions: 1, pendingSessions: 1,
     });
-    expect(output.adherence).toEqual({
-      status: 'available', value: 25, unit: '%',
+    expect(output.adherence).toEqual({ status: 'available', value: 25, unit: '%' });
+    expect(output.technical).toMatchObject({
+      ruleVersion: 'weekly-adherence-v1',
+      source: 'consolidated_release_and_session_execution',
       formula: 'completedSessions / prescribedSessions * 100',
     });
     expect(output.technical?.sessions.map((row) => row.sessionId)).toEqual(['a', 'b', 'c', 'd']);
@@ -36,19 +38,37 @@ describe('evolução semanal canônica (#405)', () => {
     const student = calculateWeeklyTrainingEvolution({ period, sessions, audience: 'student' });
     const professor = calculateWeeklyTrainingEvolution({ period, sessions, audience: 'professor' });
     expect(student.adherence).toEqual(professor.adherence);
+    expect(student.sourceLabel).toBe(professor.sourceLabel);
+    expect(student.sourceLabel).toBe('Montagem Consolidada e execução das sessões');
     expect(student.technical).toBeUndefined();
+    expect(student).not.toHaveProperty('ruleVersion');
+    expect(student).not.toHaveProperty('source');
+    expect(student.adherence).not.toHaveProperty('formula');
+    expect(JSON.stringify(student)).not.toMatch(/weekly-adherence-v1|completedSessions \/ prescribedSessions|consolidated_release_and_session_execution|"sessionId"/);
     expect(professor.technical?.sessions).toHaveLength(2);
     expect(student.period).toEqual(period);
   });
 
-  it('preserva ausência de timestamp e a versão da fórmula sem inventar fonte', () => {
+  it('preserva ausência de timestamp, cálculo zero e fonte legível sem metadados técnicos', () => {
     const result = calculateWeeklyTrainingEvolution({
       period, audience: 'student',
       sessions: [{ sessionId: 'x', status: 'not_started', sourceUpdatedAt: null }],
     });
     expect(result.lastSourceUpdateAt).toBeNull();
-    expect(result.ruleVersion).toBe('weekly-adherence-v1');
-    expect(result.adherence).toMatchObject({ status: 'available', value: 0 });
+    expect(result.sourceLabel).toBe('Montagem Consolidada e execução das sessões');
+    expect(result.technical).toBeUndefined();
+    expect(result.adherence).toEqual({ status: 'available', value: 0, unit: '%' });
+  });
+
+  it('não devolve metadados técnicos nem para período sem sessões', () => {
+    const student = calculateWeeklyTrainingEvolution({ period, sessions: [], audience: 'student' });
+    const professor = calculateWeeklyTrainingEvolution({ period, sessions: [], audience: 'professor' });
+    expect(Object.keys(student).sort()).toEqual([
+      'adherence', 'counts', 'lastSourceUpdateAt', 'period', 'sourceLabel',
+    ]);
+    expect(student.adherence.status).toBe('insufficient_data');
+    expect(professor.technical?.ruleVersion).toBe('weekly-adherence-v1');
+    expect(professor.technical?.sessions).toEqual([]);
   });
 
   it('rejeita fonte duplicada, evitando distorcer o denominador', () => {

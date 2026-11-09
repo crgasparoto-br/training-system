@@ -547,9 +547,10 @@ selecionado na rotina e a execução canônica da #389, sem tabela de contadores
   expressa em `%` com duas casas decimais, ou `insufficient_data` e
   `null` quando nenhuma sessão foi liberada.
 - `pendingSessions`: sessões ainda não terminais, sem presumir falta do aluno.
-- `period`, `ruleVersion`, `source` e `lastSourceUpdateAt` informam
-  contexto, origem e versão da regra; o professor recebe IDs técnicos das
-  sessões e o aluno recebe somente a síntese prática.
+- `period`, `sourceLabel` e `lastSourceUpdateAt` informam período, origem legível
+  e atualização para aluno e professor. Somente a resposta autorizada do professor
+  contém `technical` com `ruleVersion`, `source`, `formula` e IDs/status das sessões;
+  a resposta do aluno nunca transmite esses metadados internos.
 
 O indicador considera toda a semana consultada, inclusive sessões futuras já
 liberadas; não deve ser interpretado como resultado definitivo antes do término
@@ -561,8 +562,9 @@ Na interface, o cartão de aderência aparece para toda semana selecionada, incl
 percentual (unidade `%`), contagens, origem legível e data/hora da última atualização no fuso do contrato;
 `null` permanece "Não informada". Sem sessões, o resultado é "Dados insuficientes", não `0%`.
 O aluno recebe somente indicadores práticos; somente o professor autorizado pode expandir o detalhe
-com versão da regra, fórmula, código da fonte e IDs/status das sessões. A interface não concede
-permissões adicionais: a API mantém o isolamento de `contractId` e a separação por audiência.
+com versão da regra, fórmula, código da fonte e IDs/status das sessões. A separação é feita na
+projeção da API por audiência, não apenas na interface, mantendo a mesma semântica e os mesmos
+valores numéricos. A API mantém o isolamento de `contractId` e a separação por audiência.
 
 ## Linguagem para o aluno
 

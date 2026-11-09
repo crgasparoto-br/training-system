@@ -418,6 +418,39 @@ describe('training routine HTTP boundaries (#387)', () => {
       });
     });
 
+    it('A-003: o HTTP entrega apenas síntese e fonte legível ao aluno, sem campos técnicos', async () => {
+      const { calculateWeeklyTrainingEvolution } = require('../src/modules/workout/training-evolution.domain');
+      mockGetRoutine.mockImplementation(async ({ audience }: { audience: 'student' | 'professor' }) => ({
+        ...routine, audience,
+        weeklyEvolution: calculateWeeklyTrainingEvolution({
+          period: { startDate: '2026-09-28', endDate: '2026-10-04' }, audience,
+          sessions: [
+            { sessionId: 'private-day-completed', status: 'completed', sourceUpdatedAt: '2026-10-01T12:00:00.000Z' },
+            { sessionId: 'private-day-partial', status: 'partial', sourceUpdatedAt: null },
+          ],
+        }),
+      }));
+      const response = await request(app).get('/student/me/training-routine').set('x-contract-id', 'contract-1');
+      expect(response.status).toBe(200);
+      const indicator = response.body.data.weeklyEvolution;
+      expect(indicator).toMatchObject({
+        period: { startDate: '2026-09-28', endDate: '2026-10-04' },
+        sourceLabel: 'Montagem Consolidada e execução das sessões',
+        counts: { prescribedSessions: 2, completedSessions: 1, partialSessions: 1 },
+        adherence: { status: 'available', value: 50, unit: '%' },
+      });
+      expect(Object.keys(indicator).sort()).toEqual([
+        'adherence', 'counts', 'lastSourceUpdateAt', 'period', 'sourceLabel',
+      ]);
+      expect(indicator.adherence).not.toHaveProperty('formula');
+      expect(JSON.stringify(response.body)).not.toMatch(
+        /private-day|weekly-adherence-v1|consolidated_release_and_session_execution|completedSessions \/ prescribedSessions/
+      );
+      expect(mockGetRoutine).toHaveBeenCalledWith(expect.objectContaining({
+        alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student',
+      }));
+    });
+
     it('exige contexto contratual quando a conta possui mais de um vínculo', async () => {
       mockResolveActiveStudentMembership.mockRejectedValue(
         new StudentAccountContextError('Selecione o contrato', 'STUDENT_CONTRACT_CONTEXT_REQUIRED')
@@ -755,6 +788,35 @@ describe('training routine HTTP boundaries (#387)', () => {
         includePreWorkoutCheckIn: false,
         includePostWorkoutFeedback: false,
       });
+    });
+
+    it('A-003: o HTTP mantém a rastreabilidade técnica completa para professor autorizado', async () => {
+      const { calculateWeeklyTrainingEvolution } = require('../src/modules/workout/training-evolution.domain');
+      mockGetRoutine.mockImplementation(async ({ audience }: { audience: 'student' | 'professor' }) => ({
+        ...routine, audience,
+        weeklyEvolution: calculateWeeklyTrainingEvolution({
+          period: { startDate: '2026-09-28', endDate: '2026-10-04' }, audience,
+          sessions: [{ sessionId: 'private-day-completed', status: 'completed', sourceUpdatedAt: null }],
+        }),
+      }));
+      const response = await request(app).get('/alunos/aluno-1/training-routine');
+      expect(response.status).toBe(200);
+      expect(response.body.data.weeklyEvolution).toMatchObject({
+        sourceLabel: 'Montagem Consolidada e execução das sessões',
+        counts: { prescribedSessions: 1, completedSessions: 1 },
+        adherence: { status: 'available', value: 100, unit: '%' },
+        technical: {
+          ruleVersion: 'weekly-adherence-v1',
+          source: 'consolidated_release_and_session_execution',
+          formula: 'completedSessions / prescribedSessions * 100',
+          sessions: [{ sessionId: 'private-day-completed', status: 'completed' }],
+        },
+      });
+      expect(response.body.data.weeklyEvolution).not.toHaveProperty('ruleVersion');
+      expect(response.body.data.weeklyEvolution.adherence).not.toHaveProperty('formula');
+      expect(mockGetRoutine).toHaveBeenCalledWith(expect.objectContaining({
+        alunoId: 'aluno-1', contractId: 'contract-1', audience: 'professor',
+      }));
     });
 
     it('inclui o check-in sensível somente com concessão explícita', async () => {

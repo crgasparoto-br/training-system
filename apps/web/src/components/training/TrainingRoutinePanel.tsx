@@ -751,7 +751,7 @@ function WeeklyAdherenceCard({ routine, audience }: { routine: TrainingRoutineVi
       {weeklyEvolution && (
         <>
           <p className="mt-1 text-xs text-muted-foreground">Unidade: {weeklyEvolution.adherence.unit}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Fonte: Montagem Consolidada e execução das sessões</p>
+          <p className="mt-1 text-xs text-muted-foreground">Fonte: {weeklyEvolution.sourceLabel}</p>
           <p className="mt-1 text-xs text-muted-foreground">
             Última atualização: {formatWeeklySourceUpdate(weeklyEvolution.lastSourceUpdateAt, routine.timeZone)}
           </p>
@@ -766,9 +766,9 @@ function WeeklyAdherenceCard({ routine, audience }: { routine: TrainingRoutineVi
             Detalhes técnicos do indicador
           </summary>
           <dl className="mt-2 space-y-1 text-xs text-muted-foreground">
-            <div><dt className="inline font-medium">Versão da regra: </dt><dd className="inline">{weeklyEvolution.ruleVersion}</dd></div>
-            <div><dt className="inline font-medium">Fórmula: </dt><dd className="inline break-words">{weeklyEvolution.adherence.formula}</dd></div>
-            <div><dt className="inline font-medium">Código da fonte: </dt><dd className="inline break-all">{weeklyEvolution.source}</dd></div>
+            <div><dt className="inline font-medium">Versão da regra: </dt><dd className="inline">{technical.ruleVersion}</dd></div>
+            <div><dt className="inline font-medium">Fórmula: </dt><dd className="inline break-words">{technical.formula}</dd></div>
+            <div><dt className="inline font-medium">Código da fonte: </dt><dd className="inline break-all">{technical.source}</dd></div>
           </dl>
           <p className="mt-2 text-xs font-medium text-foreground">Sessões de origem ({technical.sessions.length})</p>
           {technical.sessions.length ? (

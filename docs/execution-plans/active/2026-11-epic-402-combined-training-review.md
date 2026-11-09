@@ -63,7 +63,10 @@ e heurísticas clínicas sem regra versionada e aprovada.
 
 - [x] A-002: mostrar origem, unidade, data/hora de atualização e detalhe técnico do professor na interface, sem expor IDs ao aluno; manter indicador na semana histórica.
 - [x] A-001: remover o conflito de adições no final da documentação canônica, reposicionando a seção #405 para próximo da evolução do aluno, sem descartar as atualizações da `develop` e sem merge da PR.
-- [ ] Revalidar CI no HEAD reconciliado e submeter à auditoria independente.
+- [x] Revalidar CI no HEAD reconciliado anterior (`0a50e482`): execução #42609345271 aprovada.
+- [x] A-003: segregar `ruleVersion`, `source`, `formula` e IDs no campo `technical` só do professor,
+      mantendo fonte legível e contagens na resposta do aluno; adicionar testes de serviço e HTTP.
+- [ ] Validar o HEAD da remediação A-003 e obter nova auditoria independente.
 
 ## Validação manual
 

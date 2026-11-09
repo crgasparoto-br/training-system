@@ -107,17 +107,13 @@ describe('TrainingRoutinePanel (#387)', () => {
   it('mostra a aderência da semana sem contar execução parcial como concluída', async () => {
     render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(routine({
       weeklyEvolution: {
-        ruleVersion: 'weekly-adherence-v1',
-        source: 'consolidated_release_and_session_execution',
+        sourceLabel: 'Montagem Consolidada e execução das sessões',
         period: { startDate: '2026-09-28', endDate: '2026-10-04' },
         counts: {
           prescribedSessions: 2, completedSessions: 1, partialSessions: 1,
           notPerformedSessions: 0, pendingSessions: 0,
         },
-        adherence: {
-          status: 'available', value: 50, unit: '%',
-          formula: 'completedSessions / prescribedSessions * 100',
-        },
+        adherence: { status: 'available', value: 50, unit: '%' },
         lastSourceUpdateAt: '2026-10-02T12:00:00.000Z',
       },
     }))} />);
@@ -132,14 +128,17 @@ describe('TrainingRoutinePanel (#387)', () => {
 
   it('restringe fonte técnica, fórmula e IDs ao professor autorizado, mesmo que o payload de aluno os contenha', async () => {
     const weeklyEvolution = {
-      ruleVersion: 'weekly-adherence-v1' as const,
-      source: 'consolidated_release_and_session_execution' as const,
+      sourceLabel: 'Montagem Consolidada e execução das sessões',
       period: { startDate: '2026-09-28', endDate: '2026-10-04' },
       counts: { prescribedSessions: 1, completedSessions: 1, partialSessions: 0, notPerformedSessions: 0, pendingSessions: 0 },
-      adherence: { status: 'available' as const, value: 100, unit: '%' as const,
-        formula: 'completedSessions / prescribedSessions * 100' as const },
+      adherence: { status: 'available' as const, value: 100, unit: '%' as const },
       lastSourceUpdateAt: null,
-      technical: { sessions: [{ sessionId: 'professor-private-session', status: 'completed' as const }] },
+      technical: {
+        ruleVersion: 'weekly-adherence-v1' as const,
+        source: 'consolidated_release_and_session_execution' as const,
+        formula: 'completedSessions / prescribedSessions * 100' as const,
+        sessions: [{ sessionId: 'professor-private-session', status: 'completed' as const }],
+      },
     };
     const studentView = routine({ weeklyEvolution });
     const { unmount } = render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(studentView)} />);
@@ -155,8 +154,8 @@ describe('TrainingRoutinePanel (#387)', () => {
     await userEvent.click(await screen.findByText('Detalhes técnicos do indicador'));
     expect(screen.getByText('professor-private-session')).toBeInTheDocument();
     expect(screen.getByText('weekly-adherence-v1')).toBeInTheDocument();
-    expect(screen.getByText(weeklyEvolution.adherence.formula)).toBeInTheDocument();
-    expect(screen.getByText(weeklyEvolution.source)).toBeInTheDocument();
+    expect(screen.getByText(weeklyEvolution.technical.formula)).toBeInTheDocument();
+    expect(screen.getByText(weeklyEvolution.technical.source)).toBeInTheDocument();
   });
 
   it('exibe a aderência para semanas históricas, sem mostrar continuidade da semana atual', async () => {
@@ -168,11 +167,10 @@ describe('TrainingRoutinePanel (#387)', () => {
         date, isToday: false, sessions: [], pendingReleaseCount: 0,
       })),
       weeklyEvolution: {
-        ruleVersion: 'weekly-adherence-v1', source: 'consolidated_release_and_session_execution',
+        sourceLabel: 'Montagem Consolidada e execução das sessões',
         period: { startDate: '2026-09-21', endDate: '2026-09-27' },
         counts: { prescribedSessions: 0, completedSessions: 0, partialSessions: 0, notPerformedSessions: 0, pendingSessions: 0 },
-        adherence: { status: 'insufficient_data', value: null, unit: '%',
-          formula: 'completedSessions / prescribedSessions * 100' },
+        adherence: { status: 'insufficient_data', value: null, unit: '%' },
         lastSourceUpdateAt: null,
       },
     });

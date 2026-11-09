@@ -14,6 +14,8 @@ export type WeeklyEvolutionSessionSource = {
  * #405 first canonical indicator: no stored counter or parallel lifecycle.
  * Callers MUST pass only sessions released by the consolidated prescription
  * for the authenticated student and contract inside the requested week.
+ * Metadata about the formula, its version and source IDs must be returned only
+ * in the professor's technical projection, never in the student API payload.
  */
 export function calculateWeeklyTrainingEvolution(input: {
   period: { startDate: string; endDate: string };
@@ -42,19 +44,22 @@ export function calculateWeeklyTrainingEvolution(input: {
   }, null);
 
   return {
-    ruleVersion: 'weekly-adherence-v1',
-    source: 'consolidated_release_and_session_execution',
     period: { ...input.period },
+    sourceLabel: 'Montagem Consolidada e execução das sessões',
     counts: { prescribedSessions, completedSessions, partialSessions, notPerformedSessions, pendingSessions },
     adherence: {
       status: adherencePct === null ? 'insufficient_data' : 'available',
       value: adherencePct,
       unit: '%',
-      formula: 'completedSessions / prescribedSessions * 100',
     },
     lastSourceUpdateAt: latestSource,
     ...(input.audience === 'professor'
-      ? { technical: { sessions: sessions.map(({ sessionId, status }) => ({ sessionId, status })) } }
+      ? { technical: {
+          ruleVersion: 'weekly-adherence-v1' as const,
+          source: 'consolidated_release_and_session_execution' as const,
+          formula: 'completedSessions / prescribedSessions * 100' as const,
+          sessions: sessions.map(({ sessionId, status }) => ({ sessionId, status })),
+        } }
       : {}),
   };
 }
