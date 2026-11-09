@@ -31,6 +31,7 @@ type ExistingExerciseDefault = {
   category: string | null;
   muscleGroup: string | null;
   notes: string | null;
+  workoutExercises?: Array<{ id: string }>;
 };
 
 type ExerciseNameRepair = {
@@ -330,6 +331,7 @@ function collectExerciseNameRepairs(
   const repairs: ExerciseNameRepair[] = [];
 
   for (const item of existingExercises) {
+    if (item.workoutExercises?.length) continue;
     const repairedName = normalizeExerciseName(item.name);
     if (
       repairedName === item.name ||
@@ -361,10 +363,16 @@ async function applyExerciseNameRepairs(
     );
     await db.$executeRaw(Prisma.sql`
       UPDATE "ExerciseLibrary" AS exercise
-      SET "name" = repair."repairedName"
+      SET "name" = repair."repairedName",
+          "lastModifiedByUserId" = NULL,
+          "lastCurationAction" = 'system_defaults_repair'
       FROM (VALUES ${Prisma.join(rows)}) AS repair("currentName", "repairedName")
       WHERE exercise."contractId" = ${contractId}
         AND exercise."name" = repair."currentName"
+        AND NOT EXISTS (
+          SELECT 1 FROM "WorkoutExercise" AS workout
+          WHERE workout."exerciseId" = exercise."id"
+        )
         AND NOT EXISTS (
           SELECT 1
           FROM "ExerciseLibrary" AS conflict
@@ -375,8 +383,8 @@ async function applyExerciseNameRepairs(
   } else {
     for (const repair of repairs) {
       await db.exerciseLibrary.updateMany({
-        where: { contractId, name: repair.currentName },
-        data: { name: repair.repairedName },
+        where: { contractId, name: repair.currentName, workoutExercises: { none: {} } },
+        data: { name: repair.repairedName, lastModifiedByUserId: null, lastCurationAction: 'system_defaults_repair' },
       });
     }
   }
@@ -431,6 +439,8 @@ async function applyExerciseBackfills(
     await db.$executeRaw(Prisma.sql`
       UPDATE "ExerciseLibrary" AS exercise
       SET
+        "lastModifiedByUserId" = NULL,
+        "lastCurationAction" = 'system_defaults_repair',
         "videoUrl" = CASE
           WHEN NULLIF(BTRIM(exercise."videoUrl"), '') IS NULL AND defaults."videoUrl" IS NOT NULL
             THEN defaults."videoUrl"
@@ -478,6 +488,10 @@ async function applyExerciseBackfills(
       )
       WHERE exercise."contractId" = ${contractId}
         AND exercise."name" = defaults."name"
+        AND NOT EXISTS (
+          SELECT 1 FROM "WorkoutExercise" AS workout
+          WHERE workout."exerciseId" = exercise."id"
+        )
         AND (
           (NULLIF(BTRIM(exercise."videoUrl"), '') IS NULL AND defaults."videoUrl" IS NOT NULL) OR
           (exercise."loadType" IS NULL AND defaults."loadType" IS NOT NULL) OR
@@ -495,8 +509,8 @@ async function applyExerciseBackfills(
 
   for (const { current, canonical, data } of backfills) {
     await db.exerciseLibrary.updateMany({
-      where: { contractId, name: canonical.name },
-      data,
+      where: { contractId, name: canonical.name, workoutExercises: { none: {} } },
+      data: { ...data, lastModifiedByUserId: null, lastCurationAction: 'system_defaults_repair' },
     });
     Object.assign(current, data);
   }
@@ -515,13 +529,19 @@ async function installExercises(contractId: string, db: DefaultsDb) {
       category: true,
       muscleGroup: true,
       notes: true,
+      workoutExercises: { select: { id: true }, take: 1 },
     },
   })) as ExistingExerciseDefault[];
 
   const repairs = collectExerciseNameRepairs(defaults, existing);
   await applyExerciseNameRepairs(contractId, repairs, existing, db);
 
-  const existingByName = new Map(existing.map((item) => [item.name, item]));
+  const existingByName = new Map<string, ExistingExerciseDefault>();
+  for (const item of existing) {
+    existingByName.set(item.name, item);
+    const normalizedName = normalizeExerciseName(item.name);
+    if (!existingByName.has(normalizedName)) existingByName.set(normalizedName, item);
+  }
   const missing: NormalizedExerciseDefault[] = [];
   const backfills: ExerciseBackfill[] = [];
 
@@ -533,7 +553,7 @@ async function installExercises(contractId: string, db: DefaultsDb) {
     }
 
     const data = missingExerciseFields(current, canonical);
-    if (Object.keys(data).length > 0) {
+    if (!current.workoutExercises?.length && Object.keys(data).length > 0) {
       backfills.push({ current, canonical, data });
     }
   }
@@ -545,6 +565,9 @@ async function installExercises(contractId: string, db: DefaultsDb) {
         data: missing.map((item) => ({
           contractId,
           name: item.name,
+          curationStatus: 'draft',
+          legacyGrandfathered: false,
+          lastCurationAction: 'system_defaults_install',
           videoUrl: item.videoUrl,
           loadType: item.loadType,
           movementType: item.movementType,

@@ -712,6 +712,10 @@ desativação mantém referência. Edição de aprovado fora do treino retorna a
 e histórico de revisões exigem acesso administrativo.
 
 A migração mantém catálogo existente como `approved` e anota snapshot `legacy_baseline`,
-sem fabricar revisor ou assinatura. Defaults instalados pela plataforma continuam
-compatíveis com legado; criações por API, importações e cópia de contratos entram
-como rascunho e exigem revisão antes da aplicação.
+sem fabricar revisor ou assinatura. Padrões existentes permanecem aprovados como legado identificado, sem inventar
+revisor ou licença. Novas instalações de padrões, API, importações e cópias
+entre contratos entram em rascunho até revisão. O saneamento automático ignora
+exercícios vinculados a treinos e registra `system_defaults_repair` com ator
+nulo. A busca por aliases é parcial, sem distinção de caixa e isolada por
+contrato na biblioteca e na montagem consolidada. Cópias entre contratos
+preservam metadados técnicos, mas não transferem direitos de mídia.

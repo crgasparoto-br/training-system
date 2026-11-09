@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { libraryService } from '../library/library.service.js';
 import {
   PRODUCT_ASSESSMENT_TYPES,
   PRODUCT_TRAINING_PARAMETERS,
@@ -56,5 +57,26 @@ describeDatabase('installContractDefaults database integration', () => {
     expect(await prisma.exerciseLibrary.count({ where: { contractId: target.id } })).toBe(
       loadProductExerciseDefaults().length
     );
+    expect(await prisma.exerciseLibrary.count({
+      where: { contractId: target.id, curationStatus: 'draft', legacyGrandfathered: false },
+    })).toBe(loadProductExerciseDefaults().length);
+    expect(await libraryService.listExercises(target.id)).toEqual([]);
+    const first = await prisma.exerciseLibrary.findFirstOrThrow({ where: { contractId: target.id } });
+    const revision = await prisma.exerciseLibraryRevision.findFirstOrThrow({
+      where: { exerciseId: first.id, version: 1, action: 'system_defaults_install' },
+    });
+    await expect(prisma.exerciseLibraryRevision.update({
+      where: { id: revision.id }, data: { action: 'tampered' },
+    })).rejects.toThrow();
+    await expect(prisma.exerciseLibraryRevision.delete({ where: { id: revision.id } }))
+      .rejects.toThrow();
+    await prisma.exerciseLibrary.update({
+      where: { id: first.id },
+      data: { aliases: ['Alternativa exclusiva XyZzY'], curationStatus: 'approved' },
+    });
+    expect((await libraryService.listExercises(target.id, { search: 'xyZZy' }))
+      .map((entry) => entry.id)).toContain(first.id);
+    expect(await libraryService.listExercises('unknown-foreign-contract', { search: 'xyZZy' }))
+      .toEqual([]);
   });
 });

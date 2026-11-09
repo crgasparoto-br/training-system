@@ -14,6 +14,7 @@ import type {
   TechnicalExerciseOperationalMapping,
 } from '@corrida/types';
 import { capacityExerciseMappingService } from '../capacity-prescriptions/capacity-exercise-mapping.service.js';
+import { findExerciseIdsByAlias } from '../library/exercise-alias-search.js';
 import {
   ConsolidatedPrescriptionDomainError,
   consolidatedPrescriptionService,
@@ -576,6 +577,7 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
       });
       if (!aluno) notFound();
       const search = filters.search?.trim();
+      const aliasIds = search ? await findExerciseIdsByAlias(client, context.contractId, search) : [];
       return client.exerciseLibrary.findMany({
         where: {
           contractId: context.contractId,
@@ -587,6 +589,7 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
                 OR: [
                   { name: { contains: search, mode: 'insensitive' } },
                   { muscleGroup: { contains: search, mode: 'insensitive' } },
+                  { id: { in: aliasIds } },
                 ],
               }
             : {}),

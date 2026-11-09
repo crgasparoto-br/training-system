@@ -6,6 +6,7 @@ import {
   assertExerciseCanBeApproved, LibraryCurationError, nextExerciseStatus,
   type CurationAction,
 } from './library-curation.domain.js';
+import { findExerciseIdsByAlias } from './exercise-alias-search.js';
 
 const prisma = prismaRuntimeClient;
 
@@ -94,10 +95,12 @@ export const libraryService = {
       ? filters.curationStatus
       : ExerciseCurationStatus.approved;
     if (filters.search?.trim()) {
+      const search = filters.search.trim();
+      const aliasIds = await findExerciseIdsByAlias(prisma, contractId, search);
       where.OR = [
-        { name: { contains: filters.search.trim(), mode: 'insensitive' } },
-        { muscleGroup: { contains: filters.search.trim(), mode: 'insensitive' } },
-        { aliases: { has: filters.search.trim() } },
+        { name: { contains: search, mode: 'insensitive' } },
+        { muscleGroup: { contains: search, mode: 'insensitive' } },
+        { id: { in: aliasIds } },
       ];
     }
     if (filters.category) where.category = filters.category;

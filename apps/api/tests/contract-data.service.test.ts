@@ -119,7 +119,11 @@ describe('cloneContractData idempotency', () => {
       {
         contractId: 'source-contract',
         name: 'Agachamento',
-        videoUrl: null,
+        videoUrl: 'https://example.com/source-only',
+        mediaOrigin: 'Third party', mediaLicense: 'Source tenant only',
+        aliases: ['Squat'], equipment: ['Barra'],
+        instructions: ['Pés alinhados'], alerts: ['Dor no joelho'],
+        capacity: 'resisted',
         loadType: 'bodyweight',
         movementType: 'strength',
         countingType: 'repetitions',
@@ -187,6 +191,18 @@ describe('cloneContractData idempotency', () => {
     ).toHaveLength(1);
     expect(state.cloneLogs).toHaveLength(2);
     expect(state.cloneLogs[1]).toEqual(expect.objectContaining(second));
+  });
+
+  it('copies technical metadata as draft without transferring original media license', async () => {
+    await cloneContractData(cloneOptions);
+    const copied = state.exercises.find((row) =>
+      row.contractId === 'target-contract' && row.name === 'Agachamento');
+    expect(copied).toMatchObject({
+      curationStatus: 'draft', legacyGrandfathered: false,
+      aliases: ['Squat'], equipment: ['Barra'], capacity: 'resisted',
+      instructions: ['Pés alinhados'], alerts: ['Dor no joelho'],
+      videoUrl: null, mediaOrigin: null, mediaLicense: null,
+    });
   });
 
   it('retry idempotente nao reexecuta writes de exercicio ou tipo de avaliacao', async () => {

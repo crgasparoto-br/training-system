@@ -38,6 +38,10 @@ type ExerciseRow = {
   category?: string | null;
   muscleGroup?: string | null;
   notes?: string | null;
+  workoutExercises?: Array<{ id: string }>;
+  curationStatus?: string;
+  legacyGrandfathered?: boolean;
+  lastCurationAction?: string;
 };
 
 function createFakeDb(initial?: {
@@ -77,14 +81,15 @@ function createFakeDb(initial?: {
     return { count: args.data.length };
   });
   const exerciseUpdateMany = jest.fn(async (args: {
-    where: { contractId: string; name: string };
+    where: { contractId: string; name: string; workoutExercises?: { none: Record<string, never> } };
     data: Partial<Omit<ExerciseRow, 'contractId'>>;
   }) => {
     let count = 0;
     for (const exercise of exercises) {
       if (
         exercise.contractId === args.where.contractId &&
-        exercise.name === args.where.name
+        exercise.name === args.where.name &&
+        (!args.where.workoutExercises || !exercise.workoutExercises?.length)
       ) {
         Object.assign(exercise, args.data);
         count++;
@@ -163,8 +168,30 @@ describe('installContractDefaults', () => {
         category: true,
         muscleGroup: true,
         notes: true,
+        workoutExercises: { select: { id: true }, take: 1 },
       },
     });
+  });
+
+  it('installs brand-new defaults as drafts without a presumed review', async () => {
+    const fake = createFakeDb();
+    await installContractDefaults(contractId, fake.db);
+    const created = fake.state.exercises.filter((row) => row.contractId === contractId);
+    expect(created).toHaveLength(exerciseDefaults.length);
+    expect(created.every((row) => row.curationStatus === 'draft' &&
+      row.legacyGrandfathered === false && row.lastCurationAction === 'system_defaults_install')).toBe(true);
+  });
+
+  it('does not mutate or duplicate workout-linked exercises', async () => {
+    const canonical = exerciseDefaults[0];
+    const fake = createFakeDb({ exercises: [{
+      contractId, name: canonical.name, category: null, videoUrl: null,
+      workoutExercises: [{ id: 'linked-workout' }],
+    }] });
+    await installContractDefaults(contractId, fake.db);
+    expect(fake.state.exercises.filter((row) => row.name === canonical.name)).toHaveLength(1);
+    expect(fake.state.exercises.find((row) => row.name === canonical.name))
+      .toMatchObject({ category: null, videoUrl: null });
   });
 
   it.each([

@@ -237,3 +237,6 @@ retorna a rascunho e responde 409 para concorrência ou item já usado em treino
 `DELETE /exercises/:id` é compatibilidade de desativação lógica com versão,
 sem exclusão física. Seleções em Workout Builder, vinculação técnica,
 substituição e Montagem Consolidada verificam `approved` e `contractId`.
+A busca por aliases é parcial, insensível à caixa e parametrizada pelo
+contrato; novas instalações de padrões geram rascunhos. Cópias entre
+contratos não transferem automaticamente URLs/licenças de mídia.

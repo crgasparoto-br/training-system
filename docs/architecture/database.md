@@ -264,4 +264,8 @@ A migração preserva IDs e realiza backfill sem desvincular progresso ou treino
 
 Uma comparação de `version` dentro da transação evita concorrência silenciosa.
 Legado recebe `legacy_baseline`, sem presumir homologação profissional.
-Importações e cópias para outro contrato entram como rascunho.
+Importações, novas instalações de padrões e cópias entram como rascunho.
+O saneamento automático ignora exercícios relacionados a `WorkoutExercise`
+e marca revisões com `system_defaults_repair` e ator nulo. UPDATE/DELETE
+explícitos de `ExerciseLibraryRevision` são bloqueados enquanto o exercício
+existir; exclusões em cascata de todo o contrato permanecem permitidas.

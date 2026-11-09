@@ -7,10 +7,11 @@ jest.mock('../src/common/prisma-runtime-client', () => {
     findFirstOrThrow: jest.fn(), updateMany: jest.fn(), count: jest.fn(),
   };
   const exerciseLibraryRevision = { findMany: jest.fn() };
+  const workoutExercise = { count: jest.fn() };
   return {
     prismaRuntimeClient: {
-      exerciseLibrary, exerciseLibraryRevision,
-      $transaction: jest.fn(async (callback) => callback({ exerciseLibrary, exerciseLibraryRevision })),
+      exerciseLibrary, exerciseLibraryRevision, workoutExercise, $queryRaw: jest.fn(),
+      $transaction: jest.fn(async (callback) => callback({ exerciseLibrary, exerciseLibraryRevision, workoutExercise })),
     },
   };
 });
@@ -18,6 +19,8 @@ jest.mock('../src/common/prisma-runtime-client', () => {
 const db = prismaRuntimeClient as unknown as {
   exerciseLibrary: Record<string, jest.Mock>;
   exerciseLibraryRevision: Record<string, jest.Mock>;
+  workoutExercise: Record<string, jest.Mock>;
+  $queryRaw: jest.Mock;
 };
 const sample = {
   id: 'exercise-1', contractId: 'contract-1', name: 'Agachamento',
@@ -27,7 +30,11 @@ const sample = {
 };
 
 describe('issue #394: persistence and tenant-aware curation', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    db.workoutExercise.count.mockResolvedValue(0);
+    db.$queryRaw.mockResolvedValue([]);
+  });
 
   it('creates API exercises as unpublished drafts with an explicit author', async () => {
     db.exerciseLibrary.create.mockResolvedValue({ id: 'exercise-1' });
@@ -45,6 +52,22 @@ describe('issue #394: persistence and tenant-aware curation', () => {
     await libraryService.listExercises('contract-1', { search: 'Agachamento' });
     expect(db.exerciseLibrary.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ contractId: 'contract-1', curationStatus: 'approved' }),
+    }));
+  });
+
+  it('searches aliases with tenant and approved-only filters', async () => {
+    db.exerciseLibrary.findMany.mockResolvedValue([]);
+    db.$queryRaw.mockResolvedValue([{ id: 'alias-match' }]);
+    await libraryService.listExercises('contract-1', { search: 'RotAÇÃO' });
+    const args = db.$queryRaw.mock.calls[0];
+    expect(args[0].join('')).toContain('strpos(lower(a.value), lower(');
+    expect(args).toContain('contract-1');
+    expect(args).toContain('RotAÇÃO');
+    expect(db.exerciseLibrary.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        contractId: 'contract-1', curationStatus: 'approved',
+        OR: expect.arrayContaining([{ id: { in: ['alias-match'] } }]),
+      }),
     }));
   });
 
@@ -96,7 +119,7 @@ describe('issue #394: persistence and tenant-aware curation', () => {
 
   it('never mutates an exercise linked to historical sessions', async () => {
     db.exerciseLibrary.findFirst.mockResolvedValue({ ...sample, curationStatus: 'approved' });
-    db.exerciseLibrary.count.mockResolvedValue(1);
+    db.workoutExercise.count.mockResolvedValue(1);
     await expect(libraryService.updateExercise(
       'contract-1', sample.id, { name: 'Novo nome' }, 2, 'actor-1',
     )).rejects.toMatchObject({ kind: 'conflict' });

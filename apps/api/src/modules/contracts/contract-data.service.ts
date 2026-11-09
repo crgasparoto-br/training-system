@@ -107,6 +107,11 @@ export async function cloneContractData(
         category: true,
         muscleGroup: true,
         notes: true,
+        aliases: true, capacity: true, equipment: true,
+        primaryMuscleGroups: true, secondaryMuscleGroups: true,
+        movementPattern: true, joints: true, laterality: true, difficulty: true,
+        instructions: true, commonErrors: true, regressions: true, progressions: true,
+        alternatives: true, restrictions: true, alerts: true, mediaAuthor: true,
       },
     });
 
@@ -144,13 +149,23 @@ export async function cloneContractData(
             curationStatus: 'draft',
             legacyGrandfathered: false,
             lastCurationAction: 'tenant_copy',
-            videoUrl: exercise.videoUrl,
             loadType: exercise.loadType,
             movementType: exercise.movementType,
             countingType: exercise.countingType,
             category: exercise.category,
             muscleGroup: exercise.muscleGroup,
             notes: exercise.notes,
+            aliases: exercise.aliases, capacity: exercise.capacity, equipment: exercise.equipment,
+            primaryMuscleGroups: exercise.primaryMuscleGroups,
+            secondaryMuscleGroups: exercise.secondaryMuscleGroups,
+            movementPattern: exercise.movementPattern, joints: exercise.joints,
+            laterality: exercise.laterality, difficulty: exercise.difficulty,
+            instructions: exercise.instructions, commonErrors: exercise.commonErrors,
+            regressions: exercise.regressions, progressions: exercise.progressions,
+            alternatives: exercise.alternatives, restrictions: exercise.restrictions,
+            alerts: exercise.alerts, mediaAuthor: exercise.mediaAuthor,
+            // Media authorization is tenant-specific and must be revalidated before use.
+            videoUrl: null, mediaOrigin: null, mediaLicense: null,
           })),
         });
 
