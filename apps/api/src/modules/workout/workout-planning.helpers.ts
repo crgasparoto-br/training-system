@@ -74,7 +74,7 @@ export async function assertDayContract(
   if (!day) throw new ResistanceStructureNotFoundError();
   if (exerciseId !== undefined) {
     const libraryExercise = await tx.exerciseLibrary.findFirst({
-      where: { id: exerciseId, contractId }, select: { id: true },
+      where: { id: exerciseId, contractId, curationStatus: 'approved' }, select: { id: true },
     });
     if (!libraryExercise) throw new ResistanceStructureValidationError('Exercício fora do contrato.');
   }

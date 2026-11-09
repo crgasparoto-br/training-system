@@ -150,7 +150,7 @@ export function createCapacityExerciseMappingService(client: PrismaClient = pris
             if (!technical) invalid('Item técnico de exercício inexistente, histórico ou fora do contrato');
 
             const exercise = await tx.exerciseLibrary.findFirst({
-              where: { id: exerciseLibraryId, contractId: context.contractId },
+              where: { id: exerciseLibraryId, contractId: context.contractId, curationStatus: 'approved' },
             });
             if (!exercise) invalid('Exercício operacional inexistente ou fora do contrato');
 

@@ -11,6 +11,7 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
       email: 'professor@example.com',
       type: 'professor',
       contractId: 'contract-1',
+      professorRole: req.headers['x-test-role'] === 'professor' ? 'professor' : 'master',
     };
     next();
   },
@@ -21,9 +22,18 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
   ) => next(),
 }));
 
+jest.mock('../src/modules/access-control/access-control.middleware', () => ({
+  screenAccessMiddleware: () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
+}));
+
 jest.mock('../src/modules/library/library.service', () => ({
   libraryService: {
     createExercise: jest.fn(),
+    listExercises: jest.fn(),
+    getExerciseById: jest.fn(),
+    reviewExercise: jest.fn(),
+    deleteExercise: jest.fn(),
+    listExerciseRevisions: jest.fn(),
     updateExercise: jest.fn(),
     updateAlunoProgress: jest.fn(),
   },
@@ -75,4 +85,72 @@ describe('library routes input validation', () => {
     expect(response.body).toEqual({ message: 'Payload inválido' });
     expect(libraryService.updateAlunoProgress).not.toHaveBeenCalled();
   });
+  it('defaults the public exercise picker to approved-only records', async () => {
+    (libraryService.listExercises as jest.Mock).mockResolvedValue([]);
+    const response = await request(app).get('/library/exercises');
+    expect(response.status).toBe(200);
+    expect(libraryService.listExercises).toHaveBeenCalledWith(
+      'contract-1', expect.objectContaining({ scope: undefined }),
+    );
+  });
+
+  it('does not allow non-manager professors to list drafts', async () => {
+    const response = await request(app)
+      .get('/library/exercises?scope=all').set('x-test-role', 'professor');
+    expect(response.status).toBe(403);
+    expect(libraryService.listExercises).not.toHaveBeenCalled();
+  });
+
+  it('does not allow non-managers to create or approve an exercise', async () => {
+    const created = await request(app).post('/library/exercises')
+      .set('x-test-role', 'professor').send({ name: 'Rascunho' });
+    expect(created.status).toBe(403);
+    const approved = await request(app).post('/library/exercises/exercise-1/curation')
+      .set('x-test-role', 'professor').send({ action: 'approve', expectedVersion: 1 });
+    expect(approved.status).toBe(403);
+    expect(libraryService.createExercise).not.toHaveBeenCalled();
+    expect(libraryService.reviewExercise).not.toHaveBeenCalled();
+  });
+
+  it('records explicit master approval with actor and required expected version', async () => {
+    (libraryService.reviewExercise as jest.Mock).mockResolvedValue({ id: 'exercise-1', curationStatus: 'approved' });
+    const invalid = await request(app).post('/library/exercises/exercise-1/curation')
+      .send({ action: 'approve' });
+    expect(invalid.status).toBe(400);
+    const valid = await request(app).post('/library/exercises/exercise-1/curation')
+      .send({ action: 'approve', expectedVersion: 2 });
+    expect(valid.status).toBe(200);
+    expect(libraryService.reviewExercise).toHaveBeenCalledTimes(1);
+    expect(libraryService.reviewExercise).toHaveBeenCalledWith(
+      'contract-1', 'exercise-1', 2, 'approve', 'user-1',
+    );
+  });
+
+  it('enforces version on updates and rejects curation fields injected by clients', async () => {
+    const omitted = await request(app).put('/library/exercises/exercise-1')
+      .send({ name: 'Alteração sem versão' });
+    expect(omitted.status).toBe(400);
+    const injected = await request(app).put('/library/exercises/exercise-1')
+      .send({ curationStatus: 'approved', expectedVersion: 1 });
+    expect(injected.status).toBe(400);
+    expect(libraryService.updateExercise).not.toHaveBeenCalled();
+  });
+
+  it('soft deactivation requires an explicit version and manager access', async () => {
+    const noVersion = await request(app).delete('/library/exercises/exercise-1');
+    expect(noVersion.status).toBe(400);
+    const proper = await request(app).delete('/library/exercises/exercise-1?expectedVersion=4');
+    expect(proper.status).toBe(204);
+    expect(libraryService.deleteExercise).toHaveBeenCalledWith('contract-1', 'exercise-1', 4, 'user-1');
+  });
+
+  it('restricts revision history to the administrative role', async () => {
+    const denied = await request(app).get('/library/exercises/exercise-1/revisions').set('x-test-role', 'professor');
+    expect(denied.status).toBe(403);
+    (libraryService.listExerciseRevisions as jest.Mock).mockResolvedValue([]);
+    const allowed = await request(app).get('/library/exercises/exercise-1/revisions');
+    expect(allowed.status).toBe(200);
+    expect(libraryService.listExerciseRevisions).toHaveBeenCalledWith('contract-1', 'exercise-1');
+  });
+
 });

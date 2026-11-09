@@ -66,7 +66,7 @@ export async function workoutContractScopeMiddleware(req: Request, res: Response
       if (allowed && (req.method === 'POST' || req.method === 'PUT') && id !== 'reorder'
         && req.body?.exerciseId !== undefined) {
         allowed = typeof req.body.exerciseId === 'string' && Boolean(await prismaRuntimeClient.exerciseLibrary.findFirst({
-          where: { id: req.body.exerciseId, contractId }, select: { id: true },
+          where: { id: req.body.exerciseId, contractId, curationStatus: 'approved' }, select: { id: true },
         }));
       }
     }

@@ -141,6 +141,9 @@ export async function cloneContractData(
           data: toCreate.map((exercise) => ({
             contractId: targetContractId,
             name: exercise.name,
+            curationStatus: 'draft',
+            legacyGrandfathered: false,
+            lastCurationAction: 'tenant_copy',
             videoUrl: exercise.videoUrl,
             loadType: exercise.loadType,
             movementType: exercise.movementType,

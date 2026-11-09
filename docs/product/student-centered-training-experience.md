@@ -687,3 +687,31 @@ A-401017 — Os registros de etapas e agrupamentos são cumulativos por ID do pl
 ## Governança dos conflitos do treinamento combinado — #403 (2026-11-05)
 
 O protocolo versionado para a detecção de conflitos por capacidade está documentado em `docs/product/combined-training-clinical-protocol-v1.md`. A proposta funcional foi aprovada para desenvolvimento, mas os sete critérios/limiares clínicos não foram homologados; aprovação profissional em #534 é pré-requisito de ativação. O motor inicial permanece sem regras combinadas ativas, sem alterar automaticamente treinos, e a issue #403 continua aberta até integração, testes e auditoria.
+
+### Curadoria operacional da biblioteca (#394)
+
+A biblioteca administrativa permite criar registros em `draft`, submeter para `in_review`,
+aprovar explicitamente para `approved`, devolver à edição ou desativar em `inactive`.
+A seleção oficial e o vínculo operacional aceitam apenas exercícios `approved` do
+mesmo `contractId`, enquanto consultas históricas continuam resolvendo exercícios
+desativados; nenhuma dessas ações aplica exercício automaticamente ao aluno.
+Criação e transições de curadoria exigem professor administrador (`master`) com
+permissão da tela `library`. Professores comuns visualizam apenas o catálogo aprovado.
+
+Cada exercício possui aliases, capacidade, equipamento, grupos musculares principais e
+secundários, padrão de movimento, articulações, lateralidade, dificuldade, etapas de
+instrução, erros comuns, regressões, progressões, alternativas, restrições e alertas.
+Vídeo referenciado exige origem e licença explícitas antes da aprovação.
+A aprovação exige nome, categoria, capacidade e instruções; não é homologação clínica.
+
+Toda alteração recebe versão monotônica e snapshot imutável, com ator, ação e data.
+Mudança concorrente com `expectedVersion` responde 409. Editar conteúdo de exercício
+referenciado por `WorkoutExercise` é rejeitado para preservar significado histórico;
+desativação mantém referência. Edição de aprovado fora do treino retorna a `draft`.
+`GET /api/v1/library/exercises` retorna apenas aprovados por padrão; `scope=all`
+e histórico de revisões exigem acesso administrativo.
+
+A migração mantém catálogo existente como `approved` e anota snapshot `legacy_baseline`,
+sem fabricar revisor ou assinatura. Defaults instalados pela plataforma continuam
+compatíveis com legado; criações por API, importações e cópia de contratos entram
+como rascunho e exigem revisão antes da aplicação.

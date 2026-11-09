@@ -253,3 +253,15 @@ persistido como PostgreSQL `DATE`; a API de seleção retorna `bookingDate=null`
 quando a origem canônica é ausente, sem expor um dia possivelmente errado em
 servidores UTC positivos. A prévia permanece read-only, não grava associação,
 não altera liberação e não ativa regra clínica antes de #534.
+
+## Curadoria e histórico do catálogo (#394)
+
+O schema `apps/api/prisma/schema.prisma` define `ExerciseLibrary.curationStatus`,
+versão e metadados estruturados. `ExerciseLibraryRevision` registra snapshots
+por `(exerciseId,version)`; triggers transacionais PostgreSQL de INSERT/UPDATE
+gravam revisões inclusive para importadores e rotinas legadas via Prisma.
+A migração preserva IDs e realiza backfill sem desvincular progresso ou treinos.
+
+Uma comparação de `version` dentro da transação evita concorrência silenciosa.
+Legado recebe `legacy_baseline`, sem presumir homologação profissional.
+Importações e cópias para outro contrato entram como rascunho.

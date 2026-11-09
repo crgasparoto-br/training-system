@@ -212,3 +212,11 @@ Para `students.preRegistration`, quando a interface estiver habilitada, a posiç
 - Frontend oculta menu, tela, aba ou ação sem permissão quando a interface correspondente existir.
 - Testes cobrem pelo menos um caso permitido e um negado.
 - `pnpm access:check` passa.
+
+### Biblioteca de exercícios (#394)
+
+O `screenKey=library` permanece obrigatório. Consulta oficial requer professor
+ativo e `contractId` do vínculo autenticado. Criar/editar, listar todos os estados,
+aprovar, devolver, desativar/reabrir e consultar versões exigem ainda papel
+`professorRole=master`, conferido pelo backend. O frontend apenas oculta ações.
+Não há concessão de escopo cruzado entre contratos.

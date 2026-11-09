@@ -221,3 +221,19 @@ A diferença entre o fim de uma sessão e o início da seguinte é apenas
 informação cronológica — sem decisão clínica, alteração de estado, escrita
 ou efeito sobre a liberação operacional. `coverage=partial`
 e `mayConcludeNoConflict=false` são invariantes.
+
+## Biblioteca oficial de exercícios (#394)
+
+`/api/v1/library/exercises` exige autenticação de professor e permissão
+`screenKey=library`, e retorna apenas `approved` por padrão.
+`scope=all`, escrita, transições de curadoria e histórico exigem `master`.
+O backend revalida identidade e contrato independentemente da interface.
+
+`POST /exercises` cria rascunho. `PUT /exercises/:id` exige `expectedVersion`,
+retorna a rascunho e responde 409 para concorrência ou item já usado em treino.
+`POST /exercises/:id/curation` recebe `{action,expectedVersion}` com `submit`,
+`approve`, `request_changes`, `deactivate` ou `reopen`.
+`GET /exercises/:id/revisions` devolve versões ao administrador do contrato.
+`DELETE /exercises/:id` é compatibilidade de desativação lógica com versão,
+sem exclusão física. Seleções em Workout Builder, vinculação técnica,
+substituição e Montagem Consolidada verificam `approved` e `contractId`.

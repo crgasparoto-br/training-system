@@ -213,6 +213,9 @@ async function importExercises(filePath: string, dryRun: boolean) {
       const data = {
         contractId,
         name: normalizedName,
+        curationStatus: 'draft' as const,
+        legacyGrandfathered: false,
+        lastCurationAction: 'import',
         videoUrl: row.videoUrl?.trim() || undefined,
         loadType: normalizeLoadType(row.loadType),
         movementType: normalizeMovementType(row.movementType),

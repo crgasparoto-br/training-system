@@ -521,7 +521,7 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
     );
     if (substituteIds.length) {
       const liveSubstitutes = await client.exerciseLibrary.findMany({
-        where: { id: { in: substituteIds }, contractId: context.contractId },
+        where: { id: { in: substituteIds }, contractId: context.contractId, curationStatus: 'approved' },
         select: { id: true, updatedAt: true },
       });
       const currentById = new Map(
@@ -579,6 +579,7 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
       return client.exerciseLibrary.findMany({
         where: {
           contractId: context.contractId,
+          curationStatus: 'approved',
           ...(filters.category ? { category: filters.category } : {}),
           ...(filters.muscleGroup ? { muscleGroup: filters.muscleGroup } : {}),
           ...(search
@@ -768,7 +769,7 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
       }
 
       const substitute = await client.exerciseLibrary.findFirst({
-        where: { id: command.substituteExerciseLibraryId, contractId: context.contractId },
+        where: { id: command.substituteExerciseLibraryId, contractId: context.contractId, curationStatus: 'approved' },
       });
       if (!substitute) invalid('Exercício substituto inexistente ou fora do contrato');
       const compatibilityIssue = getOperationalSubstitutionCompatibilityIssue(
