@@ -182,6 +182,32 @@ describe('installContractDefaults', () => {
       row.legacyGrandfathered === false && row.lastCurationAction === 'system_defaults_install')).toBe(true);
   });
 
+  it('reuses an existing case/whitespace variant without a second row or lost historical link', async () => {
+    const canonical = exerciseDefaults.find((entry) => entry.name === 'Abdominal Canoa');
+    expect(canonical).toBeDefined();
+    const legacyName = '  ABDOMINAL   CANOA  ';
+    const fake = createFakeDb({ exercises: [{
+      contractId, name: legacyName, category: null, videoUrl: null,
+      workoutExercises: [{ id: 'historical-workout' }],
+    }] });
+
+    const first = await installContractDefaults(contractId, fake.db);
+    const second = await installContractDefaults(contractId, fake.db);
+    const matches = fake.state.exercises.filter((entry) =>
+      entry.contractId === contractId &&
+      entry.name.trim().replace(/\\s+/g, ' ').toLowerCase() === 'abdominal canoa'
+    );
+
+    expect(first.exercises.installed).toBe(exerciseDefaults.length - 1);
+    expect(second.exercises.installed).toBe(0);
+    expect(second.exercises.skipped).toBe(exerciseDefaults.length);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({
+      name: legacyName, category: null, videoUrl: null,
+      workoutExercises: [{ id: 'historical-workout' }],
+    });
+  });
+
   it('does not mutate or duplicate workout-linked exercises', async () => {
     const canonical = exerciseDefaults[0];
     const fake = createFakeDb({ exercises: [{
@@ -497,19 +523,25 @@ describe('installContractDefaults', () => {
       nome?: string;
       name?: string;
     }>;
-    const canonicalNames = [
-      ...new Set(
-        canonicalRows
-          .map((row) =>
-            repairPtBrMojibake(row.name || row.nome || '')
-              .trim()
-              .replace(/\s+/g, ' ')
-          )
-          .filter(Boolean)
-      ),
-    ];
+    const canonicalNamesByIdentity = new Map<string, string>();
+    for (const row of canonicalRows) {
+      const preferredName = repairPtBrMojibake(row.name || row.nome || '')
+        .trim()
+        .replace(/\s+/g, ' ');
+      if (preferredName) {
+        const key = preferredName.toLowerCase();
+        if (!canonicalNamesByIdentity.has(key)) {
+          canonicalNamesByIdentity.set(key, preferredName);
+        }
+      }
+    }
 
-    expect(loadProductExerciseDefaults().map((item) => item.name)).toEqual(canonicalNames);
+    const actual = loadProductExerciseDefaults();
+    expect(actual.map((item) => item.name)).toEqual([...canonicalNamesByIdentity.values()]);
+    expect(actual.filter((item) => item.name.toLowerCase() === 'abdominal canoa'))
+      .toHaveLength(1);
+    expect(actual.find((item) => item.name.toLowerCase() === 'abdominal canoa')?.name)
+      .toBe('Abdominal Canoa');
   });
 
   it('mantém o catálogo canônico em UTF-8 pt-BR sem marcadores CP850', () => {
