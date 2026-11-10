@@ -33,6 +33,24 @@ describe('#394 A-007: exercise media provenance at historical response boundarie
     }).videoUrl).toBe('https://example.org/licensed');
   });
 
+  it('#394 A-394-019: freezes the original legacy status and license with the released URL', () => {
+    const original = { name: 'Movimento', videoUrl: 'https://example.org/licensed',
+      mediaOrigin: 'Origem atual', mediaLicense: 'Licenca atual', legacyGrandfathered: true };
+    const licensedAtRelease = projectReleasedExerciseCatalog(original, {
+      catalog: { name: 'Capturado na liberacao', videoUrl: 'https://example.org/licensed',
+        mediaOrigin: 'Arquivo da equipe', mediaLicense: 'Direito registrado', legacyGrandfathered: false },
+    });
+    expect(licensedAtRelease).toMatchObject({ name: 'Capturado na liberacao',
+      videoUrl: 'https://example.org/licensed', mediaOrigin: 'Arquivo da equipe',
+      mediaLicense: 'Direito registrado', legacyGrandfathered: false });
+    const grandfatheredAtRelease = projectReleasedExerciseCatalog({ ...original, legacyGrandfathered: false }, {
+      catalog: { name: 'Historico', videoUrl: 'https://example.org/legacy',
+        mediaOrigin: 'Origem', mediaLicense: 'Licenca', legacyGrandfathered: true },
+    });
+    expect(grandfatheredAtRelease.videoUrl).toBeNull();
+    expect(original.legacyGrandfathered).toBe(true);
+  });
+
   it('allows licensed curator-approved media but never infers provenance from a URL', () => {
     expect(projectReleasedExerciseCatalog(approved, null).videoUrl)
       .toBe('https://example.org/third-party');

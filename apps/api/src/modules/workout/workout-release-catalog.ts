@@ -37,6 +37,10 @@ export function projectReleasedExerciseCatalog<T extends { name: string }>(
     const value = snapshot[field];
     if (typeof value === 'string' || value === null) projected[field] = value;
   }
+  // Preserve the approval/legacy state from release, not a later live catalog edit.
+  if (typeof snapshot.legacyGrandfathered === 'boolean') {
+    projected.legacyGrandfathered = snapshot.legacyGrandfathered;
+  }
   // A released video must carry provenance in its own historical snapshot.
   // Never pair an older URL with a new license stored on the live catalog.
   if (typeof snapshot.videoUrl === 'string' && snapshot.videoUrl.trim() &&

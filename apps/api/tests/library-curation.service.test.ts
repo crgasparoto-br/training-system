@@ -131,6 +131,23 @@ describe('issue #394: persistence and tenant-aware curation', () => {
     }));
   });
 
+  it('#394 A-394-020: selects only exercise metadata, never student loads or plans', async () => {
+    db.exerciseLibrary.findFirst.mockResolvedValue({ ...sample, curationStatus: 'approved' });
+    const result = await libraryService.getExerciseById('contract-1', 'exercise-1');
+    expect(result).toMatchObject({ id: 'exercise-1', name: 'Agachamento' });
+    const query = db.exerciseLibrary.findFirst.mock.calls[0][0];
+    expect(query.where).toEqual({ id: 'exercise-1', contractId: 'contract-1' });
+    expect(query.include).toBeUndefined();
+    expect(query.select).toEqual(expect.objectContaining({
+      id: true, name: true, instructions: true, mediaOrigin: true,
+      mediaLicense: true, curationStatus: true, legacyGrandfathered: true,
+    }));
+    for (const forbidden of ['alunoProgress', 'workoutExercises', 'workoutDay',
+      'template', 'plan', 'aluno', 'revisions', 'contract']) {
+      expect(query.select).not.toHaveProperty(forbidden);
+    }
+  });
+
   it('allows an explicitly requested administrative list across curation statuses in one tenant', async () => {
     db.exerciseLibrary.findMany.mockResolvedValue([]);
     await libraryService.listExercises('contract-1', { scope: 'all', curationStatus: 'draft' as never });

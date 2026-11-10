@@ -17,6 +17,7 @@ const mockReviewExercise = jest.fn();
 const mockListExerciseRevisions = jest.fn();
 const mockUpdateExercise = jest.fn();
 const mockDeleteExercise = jest.fn();
+const mockExerciseFindFirst = jest.fn();
 
 // Preserve the real middleware and access-control service: only the DB and
 // endpoint domain service are mocked. The HTTP tests exercise the real grant
@@ -26,6 +27,7 @@ jest.mock('@prisma/client', () => ({
   PrismaClient: jest.fn(() => ({
     professor: { findUnique: mockProfessorFindUnique, findFirst: mockProfessorFindFirst },
     aluno: { findFirst: mockAlunoFindFirst },
+    exerciseLibrary: { findFirst: mockExerciseFindFirst },
     accessPermission: {
       findMany: mockAccessPermissionFindMany,
       createMany: mockAccessPermissionCreateMany,
@@ -105,6 +107,7 @@ describe('#394 A-394-012: operational exercise access preserves plans-only roles
     mockListAlunoProgress.mockResolvedValue([]);
     mockUpdateAlunoProgress.mockResolvedValue({ alunoId: 'aluno-1', exerciseId: 'approved-1', lastLoad: 26 });
     mockListExerciseRevisions.mockResolvedValue([]);
+    mockExerciseFindFirst.mockResolvedValue(null);
     grantScreens('plans');
   });
 
@@ -171,6 +174,62 @@ describe('#394 A-394-012: operational exercise access preserves plans-only roles
     const denied = await request(app).get('/library/exercises?scope=all');
     expect(denied.status).toBe(403);
     expect(denied.body.message).toContain('administradores');
+  });
+
+  it('#394 A-394-020: library-only GET details cannot serialize student progress or workout templates', async () => {
+    grantScreens('library');
+    const rawExercise = {
+      id: 'approved-1', contractId: 'contract-394', name: 'Agachamento',
+      curationStatus: 'approved', legacyGrandfathered: false,
+      workoutExercises: [{ workoutDay: { template: {
+        planId: 'private-plan', studentGoal: 'Objetivo confidencial', coachGoal: 'Nota de acompanhamento',
+      } } }],
+      alunoProgress: [{ alunoId: 'private-student', lastLoad: 75, maxLoad: 95 }],
+    };
+    mockExerciseFindFirst.mockImplementation(async ({ where, select, include }: {
+      where: { id: string; contractId: string }; select?: Record<string, boolean>;
+      include?: unknown;
+    }) => {
+      if (where.contractId !== 'contract-394' || where.id !== 'approved-1') return null;
+      if (select) return Object.fromEntries(Object.entries(rawExercise)
+        .filter(([key]) => select[key] === true));
+      if (include || !select) return rawExercise;
+      return null;
+    });
+    const realService = jest.requireActual('../src/modules/library/library.service').libraryService;
+    mockGetExerciseById.mockImplementation((contractId: string, id: string, officialOnly: boolean) =>
+      realService.getExerciseById(contractId, id, officialOnly));
+
+    const result = await request(app).get('/library/exercises/approved-1');
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({ id: 'approved-1', name: 'Agachamento' });
+    expect(result.body).not.toHaveProperty('workoutExercises');
+    expect(result.body).not.toHaveProperty('alunoProgress');
+    expect(JSON.stringify(result.body)).not.toMatch(/private-student|private-plan|Objetivo confidencial|75|95/);
+    const query = mockExerciseFindFirst.mock.calls[0][0];
+    expect(query).toMatchObject({ where: {
+      id: 'approved-1', contractId: 'contract-394',
+      curationStatus: 'approved', legacyGrandfathered: false,
+    } });
+    expect(query.include).toBeUndefined();
+    expect(query.select).toHaveProperty('name', true);
+    expect(query.select).not.toHaveProperty('alunoProgress');
+    expect(query.select).not.toHaveProperty('workoutExercises');
+    expect(mockGetExerciseById).toHaveBeenCalledWith('contract-394', 'approved-1', true);
+
+    const forbidden = await request(app).get('/library/exercises/approved-1?contractId=other-contract');
+    expect(forbidden.status).toBe(200);
+    expect(mockExerciseFindFirst).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ contractId: 'contract-394' }),
+    }));
+    grantScreens('plans');
+    expect((await request(app).get('/library/exercises/approved-1')).status).toBe(403);
+    mockProfessorFindUnique.mockResolvedValue({ ...actor, role: 'master' });
+    grantScreens('library');
+    expect((await request(app).get('/library/exercises/approved-1')).status).toBe(200);
+    expect(mockExerciseFindFirst).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: { id: 'approved-1', contractId: 'contract-394' },
+    }));
   });
 
   it('denies the operational routes when both Plans and Library are revoked', async () => {

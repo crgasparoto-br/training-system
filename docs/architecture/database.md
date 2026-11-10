@@ -284,6 +284,16 @@ novas aprovações por Prisma/SQL não contornam os requisitos obrigatórios com
 `NULL`. A constraint permanece `NOT VALID` para preservar dados históricos.
 
 
+A migration `20261110215000_issue_394_release_media_provenance` substitui
+apenas a função SQL `issue400_capture_released_exercise_catalog`, usada pelo
+trigger de liberação de treinos. Novos `WorkoutReleasedExerciseSnapshot.catalog`
+congelam, além da URL, os campos `mediaOrigin`, `mediaLicense` e
+`legacyGrandfathered` da liberação. O projetor da API usa a procedência e o
+estado legado registrados no snapshot, não os valores mutáveis do catálogo.
+Não há backfill dos snapshots históricos: vídeos sem prova própria de origem e
+licença ficam ocultos nas respostas, mas a linha histórica permanece íntegra.
+A migração #400 já aplicada e seus checksums não são alterados.
+
 O trigger `issue394_exercise_canonical_name_guard` protege novos nomes e
 renomeações por `contractId` e chave canônica (caixa e espaços normalizados).
 Um advisory lock transacional pelo par contrato/nome serializa cadastros

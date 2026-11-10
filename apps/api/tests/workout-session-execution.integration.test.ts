@@ -46,7 +46,8 @@ async function seedReleasedWorkout(
   label: string,
   options: { publish?: boolean; seedResistance?: boolean; seedGuidedResistance?: boolean; seedGuidedGroup?: boolean;
     seedComparison?: boolean; seedIncrementalComparison?: boolean; seedRepeatedCyclic?: boolean; seedLargeCyclic?: boolean;
-    weeklyVolumeKm?: number; legacySpeedRange?: { min: string; max: string } } = {},
+    weeklyVolumeKm?: number; legacySpeedRange?: { min: string; max: string };
+    licensedMedia?: boolean } = {},
 ): Promise<Fixture> {
   const suffix = `${label}-${randomUUID()}`;
   const contractId = `issue-389-${suffix}`;
@@ -181,7 +182,12 @@ async function seedReleasedWorkout(
   const exerciseLibraryA = await prisma.exerciseLibrary.create({
     data: { contractId, name: `Agachamento ${label}`, category: 'RESISTIDO', capacity: 'resisted',
       instructions: ['Preparar posição'], curationStatus: 'approved', legacyGrandfathered: false,
-      reviewedByUserId: 'fixture-reviewer', reviewedAt: new Date(), lastCurationAction: 'approve' },
+      reviewedByUserId: 'fixture-reviewer', reviewedAt: new Date(), lastCurationAction: 'approve',
+      ...(options.licensedMedia ? {
+        videoUrl: 'https://example.org/issue394/original-licensed-video',
+        mediaOrigin: 'Produção original do catálogo', mediaLicense: 'Licença própria registrada',
+      } : {}),
+    },
   });
   const exerciseLibraryB = await prisma.exerciseLibrary.create({
     data: { contractId, name: `Remada ${label}`, category: 'RESISTIDO', capacity: 'resisted',
@@ -3253,6 +3259,68 @@ describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
     expect((await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
       where: { workoutExerciseId: exercise.id },
     })).catalog).toMatchObject({ name: originalName });
+  });
+
+  it('#394 A-394-019: new releases freeze licensed video provenance and protect historical views', async () => {
+    const fixture = await seedReleasedWorkout('issue394-release-media-license', { licensedMedia: true });
+    const exercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] }, select: { exerciseId: true, workoutDay: { select: { templateId: true } } },
+    });
+    const snapshot = await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
+      where: { workoutExerciseId: fixture.exerciseIds[0] },
+    });
+    expect(snapshot.catalog).toMatchObject({
+      videoUrl: 'https://example.org/issue394/original-licensed-video',
+      mediaOrigin: 'Produção original do catálogo', mediaLicense: 'Licença própria registrada',
+      legacyGrandfathered: false,
+    });
+    const before = await workoutService.getTemplateById(exercise.workoutDay.templateId);
+    const original = before!.workoutDays.flatMap((day) => day.exercises)
+      .find((item) => item.id === fixture.exerciseIds[0]);
+    expect(original?.exercise).toMatchObject({
+      videoUrl: 'https://example.org/issue394/original-licensed-video',
+      mediaOrigin: 'Produção original do catálogo', mediaLicense: 'Licença própria registrada',
+    });
+
+    // A later licensed catalog revision must not change the originally released rights or URL.
+    await prisma.exerciseLibrary.update({ where: { id: exercise.exerciseId }, data: {
+      videoUrl: 'https://example.org/issue394/new-video',
+      mediaOrigin: 'Outra produção', mediaLicense: 'Outra licença',
+    } });
+    const after = await workoutService.getTemplateById(exercise.workoutDay.templateId);
+    const released = after!.workoutDays.flatMap((day) => day.exercises)
+      .find((item) => item.id === fixture.exerciseIds[0]);
+    expect(released?.exercise).toMatchObject({
+      videoUrl: 'https://example.org/issue394/original-licensed-video',
+      mediaOrigin: 'Produção original do catálogo', mediaLicense: 'Licença própria registrada',
+    });
+    const persisted = await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
+      where: { workoutExerciseId: fixture.exerciseIds[0] },
+    });
+    expect(persisted.catalog).toEqual(snapshot.catalog);
+  });
+
+  it('#394 A-394-019: pre-existing snapshots without provenance stay unmodified and suppress the URL', async () => {
+    const fixture = await seedReleasedWorkout('issue394-preexisting-no-license', {
+      publish: false, licensedMedia: true,
+    });
+    const exercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] }, select: { workoutDay: { select: { templateId: true } } },
+    });
+    const original = { name: 'Snapshot anterior à migração',
+      videoUrl: 'https://example.org/issue394/old-video-without-proof' };
+    await prisma.workoutReleasedExerciseSnapshot.create({
+      data: { workoutExerciseId: fixture.exerciseIds[0], catalog: original },
+    });
+    await workoutService.releaseTemplate(exercise.workoutDay.templateId, fixture.contractId);
+    const snapshot = await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
+      where: { workoutExerciseId: fixture.exerciseIds[0] },
+    });
+    expect(snapshot.catalog).toEqual(original);
+    const template = await workoutService.getTemplateById(exercise.workoutDay.templateId);
+    const released = template!.workoutDays.flatMap((day) => day.exercises)
+      .find((item) => item.id === fixture.exerciseIds[0]);
+    expect(released?.exercise).toMatchObject({ name: original.name, videoUrl: null });
   });
 
   it('A-004: consolidated release also captures the immutable catalog', async () => {

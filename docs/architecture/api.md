@@ -245,7 +245,11 @@ a permissão de nova aplicação, mesmo que o status ainda seja `approved`.
 Consultas de progresso usadas no Workout Builder aceitam `plans` ou `library`;
 com acesso apenas a `plans` também respeitam o `dataScope` da tela para o
 aluno solicitado. O detalhe do exercício e a escrita de progresso mantêm
-acesso pela tela `library`. Todas as leituras são delimitadas pelo
+acesso pela tela `library`. `GET /api/library/exercises/:id` aplica projeção
+restrita aos campos do catálogo: não consulta nem serializa relações
+`workoutExercises`, `alunoProgress`, objetivos de plano ou cargas de alunos.
+Essas informações pertencem a rotas próprias com escopo de estudante.
+Todas as leituras são delimitadas pelo
 `contractId` autenticado. `scope=all`, filtros de estado, escrita administrativa,
 transições de curadoria e revisões exigem **ambos** `library` e papel `master`.
 O backend revalida identidade e contrato independentemente da interface.

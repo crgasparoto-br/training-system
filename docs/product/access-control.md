@@ -225,6 +225,12 @@ retorna 404 para aluno fora do escopo. A consulta exige professor ativo e
 `contractId` do vínculo autenticado; não transfere acesso a outro contrato.
 O detalhe administrativo do exercício e a atualização de progresso conservam
 o requisito anterior de `screenKey=library`.
+O `GET /api/library/exercises/:id` retorna apenas metadados do catálogo,
+sem `workoutExercises`, `alunoProgress`, fichas, objetivos ou cargas de alunos.
+Ter `screenKey=library` não concede acesso aos dados de Planos ou ao progresso
+de estudantes fora do `dataScope`; essas leituras usam rotas próprias e escopo
+apropriado.
+
 `scope=all`, filtros de estado, criar/editar, aprovar, devolver,
 desativar/reabrir e consultar revisões exigem `screenKey=library` e ainda papel
 `professorRole=master`, conferidos pelo backend. O frontend apenas oculta ações.

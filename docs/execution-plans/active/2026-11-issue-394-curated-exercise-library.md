@@ -110,3 +110,21 @@ Checklist aberto até verificação de CI exact-SHA e auditoria independente.
 - Guardar `mediaOrigin`, `mediaLicense` e `legacyGrandfathered` em novos snapshots técnicos e de substituição, mantendo opcionais para registros antigos.
 - Redigir `videoUrl` não comprovado nas prévias, nos mapeamentos e em toda resposta pública da montagem consolidada (inclusive histórico e referências de substituição), sem modificar o JSON armazenado.
 - Validar via regressão negativa (URL antiga sem licença), positiva (snapshot licenciado), substituição, prévia operacional HTTP e leitura histórica HTTP; executar CI exact-SHA antes de solicitar nova auditoria independente.
+
+## Remediação da auditoria independente — A-394-019 / A-394-020 (10/11/2026)
+- **A-394-019:** migration incremental substitui apenas a função de captura
+  da liberação, preservando o trigger #400 e todos os snapshots anteriores;
+  novas capturas incluem `videoUrl`, `mediaOrigin`, `mediaLicense` e
+  `legacyGrandfathered`. A projeção usa o estado legado do snapshot e não
+  transfere procedência de versões posteriores. Testes de integração cobrem
+  licença positiva, alteração posterior do catálogo e snapshot antigo sem
+  prova de origem (vídeo oculto, histórico intacto).
+- **A-394-020:** detalhe do catálogo usa `select` explícito de escalares
+  da biblioteca, sem carregar ou serializar `alunoProgress`,
+  `workoutExercises` e respectivos planos. Acesso de Biblioteca continua
+  separado de Planos e não vaza cargas, objetivos ou vínculos de alunos.
+  Testes HTTP com middleware real cobrem `library` isolado, `plans` isolado,
+  papel administrativo, escopo por contrato e payload sem dados de alunos.
+- Validações obrigatórias: Prisma migrations no PostgreSQL real,
+  testes API/HTTP, `pnpm validate`, CI exact-SHA e reauditoria independente.
+  A PR deve permanecer Draft e a issue aberta até o parecer externo.

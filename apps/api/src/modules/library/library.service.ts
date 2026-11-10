@@ -63,6 +63,24 @@ export interface ExerciseFilters {
 
 type ExerciseLibraryListWhere = Prisma.ExerciseLibraryWhereInput;
 
+/** Exercise details are catalog metadata, never student progress or workout plans. */
+const exerciseCatalogDetailSelect = {
+  id: true, contractId: true, name: true, videoUrl: true,
+  loadType: true, movementType: true, countingType: true,
+  category: true, muscleGroup: true, notes: true,
+  aliases: true, capacity: true, equipment: true,
+  primaryMuscleGroups: true, secondaryMuscleGroups: true,
+  movementPattern: true, joints: true, laterality: true, difficulty: true,
+  instructions: true, commonErrors: true, regressions: true,
+  progressions: true, alternatives: true, restrictions: true, alerts: true,
+  mediaOrigin: true, mediaLicense: true, mediaAuthor: true,
+  curationStatus: true, version: true, createdByUserId: true,
+  reviewedByUserId: true, reviewedAt: true, lastModifiedByUserId: true,
+  lastCurationAction: true, legacyGrandfathered: true,
+  createdAt: true, updatedAt: true,
+} satisfies Prisma.ExerciseLibrarySelect;
+
+
 type LockedCatalogManager = {
   role: 'master' | 'professor';
   isActive: boolean;
@@ -194,10 +212,7 @@ export const libraryService = {
         id, contractId,
         ...(officialOnly ? approvedOperationalExerciseWhere : {}),
       },
-      include: {
-        workoutExercises: { include: { workoutDay: { include: { template: true } } } },
-        alunoProgress: true,
-      },
+      select: exerciseCatalogDetailSelect,
     });
   },
 
