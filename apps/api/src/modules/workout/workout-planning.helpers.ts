@@ -89,6 +89,37 @@ export async function assertApprovedWorkoutExerciseIds(
   }
 }
 
+/**
+ * A legacy template release publishes existing workout links as a new
+ * prescription. Recheck every referenced catalog row under the same write
+ * transaction, even when the row was valid when first added.
+ * Historical releases are handled separately and remain readable.
+ */
+export async function assertTemplateReleaseCatalogEligibility(
+  tx: Prisma.TransactionClient,
+  templateId: string,
+  authenticatedContractId?: string,
+) {
+  const template = await tx.workoutTemplate.findFirst({
+    where: {
+      id: templateId,
+      ...(authenticatedContractId
+        ? { plan: { aluno: { contractId: authenticatedContractId } } }
+        : {}),
+    },
+    select: { plan: { select: { aluno: { select: { contractId: true } } } } },
+  });
+  if (!template) throw new ResistanceStructureNotFoundError();
+
+  const linked = await tx.workoutExercise.findMany({
+    where: { workoutDay: { templateId } },
+    select: { exerciseId: true },
+  });
+  await assertApprovedWorkoutExerciseIds(
+    tx, linked.map(({ exerciseId }) => exerciseId), template.plan.aluno.contractId,
+  );
+}
+
 export async function assertDayContract(
   tx: Prisma.TransactionClient,
   workoutDayId: string,

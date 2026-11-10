@@ -8,10 +8,13 @@ jest.mock('../src/common/prisma-runtime-client', () => {
   };
   const exerciseLibraryRevision = { findMany: jest.fn() };
   const workoutExercise = { count: jest.fn() };
+  const aluno = { findFirst: jest.fn() };
+  const alunoExerciseProgress = { findUnique: jest.fn(), findMany: jest.fn() };
   const $queryRaw = jest.fn();
   return {
     prismaRuntimeClient: {
-      exerciseLibrary, exerciseLibraryRevision, workoutExercise, $queryRaw,
+      exerciseLibrary, exerciseLibraryRevision, workoutExercise,
+      aluno, alunoExerciseProgress, $queryRaw,
       $transaction: jest.fn(async (callback) => callback({ exerciseLibrary, exerciseLibraryRevision, workoutExercise, $queryRaw })),
     },
   };
@@ -21,6 +24,8 @@ const db = prismaRuntimeClient as unknown as {
   exerciseLibrary: Record<string, jest.Mock>;
   exerciseLibraryRevision: Record<string, jest.Mock>;
   workoutExercise: Record<string, jest.Mock>;
+  aluno: Record<string, jest.Mock>;
+  alunoExerciseProgress: Record<string, jest.Mock>;
   $queryRaw: jest.Mock;
 };
 const sample = {
@@ -255,5 +260,66 @@ describe('issue #394: persistence and tenant-aware curation', () => {
       where: { contractId: 'contract-1', exerciseId: sample.id },
       orderBy: { version: 'desc' },
     });
+  });
+});
+
+describe('#394 A-394-017: operational progress never publishes unverified media', () => {
+  const historicalExercise = {
+    id: 'legacy-394', name: 'Movimento histórico', contractId: 'tenant-394',
+    videoUrl: 'https://third-party.invalid/legacy-video', mediaOrigin: null,
+    mediaLicense: null, legacyGrandfathered: true,
+  };
+  const licensedExercise = {
+    ...historicalExercise, id: 'licensed-394', name: 'Movimento curado',
+    videoUrl: 'https://own.invalid/licensed-video', mediaOrigin: 'Produção própria',
+    mediaLicense: 'Licença verificada', legacyGrandfathered: false,
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    db.aluno.findFirst.mockResolvedValue({ id: 'student-394' });
+    db.exerciseLibrary.findFirst.mockResolvedValue({ id: 'legacy-394' });
+  });
+
+  it('strips unlicensed legacy video in a single progress response without mutating storage', async () => {
+    const stored = {
+      id: 'progress-394', alunoId: 'student-394', exerciseId: 'legacy-394',
+      lastLoad: 30, exercise: historicalExercise,
+    };
+    db.alunoExerciseProgress.findUnique.mockResolvedValue(stored);
+    const result = await libraryService.getAlunoProgress('tenant-394', 'student-394', 'legacy-394');
+    expect(result).toMatchObject({ lastLoad: 30, exercise: { videoUrl: null, name: 'Movimento histórico' } });
+    expect(stored.exercise.videoUrl).toBe('https://third-party.invalid/legacy-video');
+    expect(db.exerciseLibrary.findFirst).toHaveBeenCalledWith({
+      where: { id: 'legacy-394', contractId: 'tenant-394' },
+    });
+    expect(db.alunoExerciseProgress.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+      include: { exercise: true },
+    }));
+  });
+
+  it('filters unlicensed, licensed and legacy-licensed progress consistently and by tenant', async () => {
+    db.alunoExerciseProgress.findMany.mockResolvedValue([
+      { id: 'p-unsafe', exercise: { ...licensedExercise, mediaLicense: null } },
+      { id: 'p-licensed', exercise: licensedExercise },
+      { id: 'p-legacy', exercise: { ...licensedExercise, legacyGrandfathered: true } },
+    ]);
+    const result = await libraryService.listAlunoProgress('tenant-394', 'student-394');
+    expect(result.map(row => row.exercise.videoUrl)).toEqual([
+      null, 'https://own.invalid/licensed-video', null,
+    ]);
+    expect(db.alunoExerciseProgress.findMany).toHaveBeenCalledWith({
+      where: { alunoId: 'student-394', exercise: { contractId: 'tenant-394' } },
+      include: { exercise: true },
+      orderBy: { lastUpdated: 'desc' },
+    });
+  });
+
+  it('does not load progress for an absent or foreign student', async () => {
+    db.aluno.findFirst.mockResolvedValue(null);
+    expect(await libraryService.listAlunoProgress('tenant-394', 'foreign-student')).toEqual([]);
+    expect(await libraryService.getAlunoProgress('tenant-394', 'foreign-student', 'legacy-394')).toBeNull();
+    expect(db.alunoExerciseProgress.findMany).not.toHaveBeenCalled();
+    expect(db.alunoExerciseProgress.findUnique).not.toHaveBeenCalled();
   });
 });

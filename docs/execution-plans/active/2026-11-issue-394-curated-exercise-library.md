@@ -77,6 +77,21 @@ estados de revisão, histórico por versão e testes de regressão.
   mesmo com pool de uma conexão por cliente; exige que a atualização chegue
   à transação e observe o lock SQL, sem aceitar timeout ao abrir transação.
 
+## Remediação da auditoria independente — A-394-016 e A-394-017 (10/11/2026)
+- A-394-016: a rota legada de liberação passa o contrato autenticado ao serviço,
+  que revalida o template e todos os exercícios vinculados dentro da mesma
+  transação de publicação. O catálogo é bloqueado com `FOR SHARE` até o
+  commit; referência desativada, legada ou não aprovada impede a liberação
+  integral, sem modificar snapshots. Liberações antigas continuam idempotentes.
+- A-394-017: progresso individual e agregado projetam mídia histórica pelo
+  mesmo guard de procedência usado nos treinos. Links sem licença/origem ou
+  registros legados não são expostos nas respostas, permanecendo no banco para
+  auditoria. A listagem também exige exercício do contrato consultado.
+- Evidências requeridas: testes HTTP de vínculo por contrato, unitários de
+  consultas de progresso e elegibilidade, integração PostgreSQL de liberação
+  negada/aprovada/histórica, `pnpm validate` e CI exact-SHA. Auditoria externa
+  permanece obrigatória depois do CI verde.
+
 ## Validação e aceite
 - [ ] Tests de domínio e API, segurança e isolamento.
 - [ ] Migration e triggers em PostgreSQL.

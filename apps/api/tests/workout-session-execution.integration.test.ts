@@ -1612,6 +1612,43 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     },
   );
 
+  it('#394 A-394-016: legacy release rechecks all linked exercises at publication', async () => {
+    const { fixture } = await editableFixture('issue394-legacy-release-denied');
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, select: { templateId: true },
+    });
+    const linked = await prisma.workoutExercise.findFirstOrThrow({
+      where: { workoutDayId: fixture.dayId }, select: { exerciseId: true },
+    });
+    await prisma.exerciseLibrary.update({
+      where: { id: linked.exerciseId }, data: { curationStatus: 'inactive' },
+    });
+
+    await expect(workoutService.releaseTemplate(day.templateId, fixture.contractId))
+      .rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    expect(await prisma.workoutTemplate.findUniqueOrThrow({
+      where: { id: day.templateId }, select: { released: true, releasedAt: true },
+    })).toMatchObject({ released: false, releasedAt: null });
+    expect(await prisma.workoutReleasedExerciseSnapshot.count({
+      where: { workoutExerciseId: { in: fixture.exerciseIds } },
+    })).toBe(0);
+    await expect(workoutService.releaseTemplate(day.templateId, 'foreign-tenant'))
+      .rejects.toMatchObject({ code: 'RESISTANCE_DAY_NOT_FOUND' });
+
+    const eligible = await editableFixture('issue394-legacy-release-approved');
+    const validDay = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: eligible.fixture.dayId }, select: { templateId: true },
+    });
+    await expect(workoutService.releaseTemplate(validDay.templateId, eligible.fixture.contractId))
+      .resolves.toMatchObject({ released: true });
+    await prisma.exerciseLibrary.update({
+      where: { id: eligible.input[0].exerciseId }, data: { curationStatus: 'inactive' },
+    });
+    // A previously published prescription remains available/idempotent.
+    await expect(workoutService.releaseTemplate(validDay.templateId, eligible.fixture.contractId))
+      .resolves.toMatchObject({ released: true });
+  });
+
   it('#394: preserva linhas existentes desativadas, mas rejeita copia como nova aplicacao', async () => {
     const { fixture, input } = await editableFixture('issue394-copy-inactive');
     await workoutService.replaceDayResistanceExercises(fixture.dayId, input, fixture.contractId);

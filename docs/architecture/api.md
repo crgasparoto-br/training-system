@@ -227,7 +227,12 @@ e `mayConcludeNoConflict=false` são invariantes.
 A seleção de um exercício para aplicação nova usa SELECT ... FOR SHARE na
 transação que grava o treino, segurando o estado aprovado até a confirmação.
 Uma alteração de curadoria simultânea espera o lock; uma aplicação posterior
-a desativação é rejeitada. O filtro continua exigindo contractId, approved e
+a desativação é rejeitada. A rota legada `POST /workout/templates/:id/release`
+também revalida todas as referências existentes ao publicar um template ainda
+não liberado, dentro da transação de liberação e do contrato do professor autenticado.
+Exercícios desativados, pendentes ou legados impedem a nova liberação integral,
+sem criar snapshots parciais; templates já liberados permanecem historicamente
+consultáveis mesmo após desativação posterior do catálogo. O filtro continua exigindo contractId, approved e
 legacyGrandfathered=false. A interface preserva listas durante a digitação
 e permite criar um novo draft sem alterar o exercício histórico ou transferir
 licenças de mídia.
@@ -273,8 +278,11 @@ para valores arbitrários); a aprovação também confere o enum canônico.
 Registros legados continuam consultáveis na visão administrativa e no histórico
 dos treinos, mas são excluídos da seleção, cópia, substituição e liberação
 operacional até a aprovação profissional explícita. Vídeos sem origem/licença
-comprovadas não são reproduzidos pelas projeções históricas; os links originais
-continuam persistidos.
+comprovadas não são reproduzidos pelas projeções históricas nem retornados nos
+campos de mídia dos endpoints de progresso do aluno. A projeção dos registros
+de progresso remove apenas o link operacional não verificado e preserva os
+valores e o catálogo originais no banco; a listagem restringe também a relação
+do exercício ao mesmo contrato. Os links originais continuam persistidos.
 Novas instalações de padrões geram rascunhos;
  novas instalações de padrões geram rascunhos. Cópias entre
 contratos não transferem automaticamente URLs/licenças de mídia.

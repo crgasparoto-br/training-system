@@ -101,7 +101,7 @@ router.delete('/templates/:id', async (req, res) => {
 // Release template
 router.post('/templates/:id/release', async (req, res) => {
   try {
-    const template = await workoutService.releaseTemplate(req.params.id);
+    const template = await workoutService.releaseTemplate(req.params.id, req.user!.contractId);
     res.json(template);
   } catch (error: any) {
     console.error('Error releasing template:', error);

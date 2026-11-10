@@ -722,3 +722,28 @@ describe('Issue #400 - rota de agrupamentos resistidos', () => {
     expect(JSON.stringify(res.body)).not.toMatch(/SQL|password|secret/);
   });
 });
+
+describe('#394 A-394-016: HTTP legacy release binds current tenant', () => {
+  const app = express();
+  app.use(express.json());
+  app.use('/workout', workoutRouter);
+
+  beforeEach(() => { jest.clearAllMocks(); });
+
+  it('passes the authenticated contract to the definitive release guard', async () => {
+    (workoutService.releaseTemplate as jest.Mock).mockResolvedValue({
+      id: 'template-1', released: true,
+    });
+    const response = await request(app).post('/workout/templates/template-1/release');
+    expect(response.status).toBe(200);
+    expect(workoutService.releaseTemplate).toHaveBeenCalledWith('template-1', 'contract-test');
+  });
+
+  it('does not invoke release for a student or a template outside the contract', async () => {
+    expect((await request(app).post('/workout/templates/template-1/release')
+      .set('x-test-student', '1')).status).toBe(403);
+    (prismaRuntimeClient.workoutTemplate.findFirst as jest.Mock).mockResolvedValueOnce(null);
+    expect((await request(app).post('/workout/templates/template-1/release')).status).toBe(404);
+    expect(workoutService.releaseTemplate).not.toHaveBeenCalled();
+  });
+});

@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { projectWorkoutDayExerciseCatalog } from './workout-release-catalog.js';
 import { assertWorkoutParentIsImmutable, normalizeResistanceBlocks, sanitizeWorkoutMutation, ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput } from './resistance-structure.domain.js';
-import { assertApprovedWorkoutExerciseIds, assertDayContract, isWorkoutTemplateUniqueConflict, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
+import { assertApprovedWorkoutExerciseIds, assertDayContract, assertTemplateReleaseCatalogEligibility, isWorkoutTemplateUniqueConflict, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
 import { copyTemplate as copyTemplateStructured, copyTemplateSections as copyTemplateSectionsStructured } from './workout-copy.service.js';
 import { replaceDayResistanceExercises as replaceDayResistanceExercisesStructured, saveTemplateWeek as saveTemplateWeekStructured } from './workout-week-structure.service.js';
 import { cyclicStageInclude, nestedCyclicStages, normalizeCyclicStages, replaceCyclicStagesInTransaction, snapshotCyclicStages } from './cyclic-stages.domain.js';
@@ -448,18 +448,27 @@ export const workoutService = {
   /**
    * Liberar template para o aluno
    */
-  async releaseTemplate(id: string) {
-    const previous = await prisma.workoutTemplate.findUnique({ where: { id } });
-    if (previous?.released) return serializeWorkoutTemplate(previous);
-    const template = await withWorkoutTemplatePlanningMutation(prisma, id, (tx) =>
-      tx.workoutTemplate.update({
+  async releaseTemplate(id: string, contractId?: string) {
+    const previous = await prisma.workoutTemplate.findFirst({
+      where: {
+        id,
+        ...(contractId ? { plan: { aluno: { contractId } } } : {}),
+      },
+    });
+    if (!previous) throw new ResistanceStructureNotFoundError();
+    // An already released prescription is historical: do not revoke it just
+    // because a curator deactivated a linked exercise later.
+    if (previous.released) return serializeWorkoutTemplate(previous);
+    const template = await withWorkoutTemplatePlanningMutation(prisma, id, async (tx) => {
+      await assertTemplateReleaseCatalogEligibility(tx, id, contractId);
+      return tx.workoutTemplate.update({
         where: { id },
         data: {
           released: true,
           releasedAt: new Date(),
         },
-      })
-    );
+      });
+    });
 
     return serializeWorkoutTemplate(template);
   },

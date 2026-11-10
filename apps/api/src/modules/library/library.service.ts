@@ -8,6 +8,7 @@ import {
 } from './library-curation.domain.js';
 import { findExerciseIdsByAlias, findExerciseIdsByMuscleGroup } from './exercise-alias-search.js';
 import { approvedOperationalExerciseWhere } from './library-curation.domain.js';
+import { hideUnverifiedExerciseVideo } from '../workout/workout-release-catalog.js';
 import type { PhysicalCapacityType } from '@corrida/types';
 import { canProfessorAccessScreen } from '../access-control/access-control.service.js';
 
@@ -300,7 +301,7 @@ export const libraryService = {
       return null;
     }
 
-    return await prisma.alunoExerciseProgress.findUnique({
+    const progress = await prisma.alunoExerciseProgress.findUnique({
       where: {
         alunoId_exerciseId: {
           alunoId,
@@ -311,6 +312,10 @@ export const libraryService = {
         exercise: true,
       },
     });
+    return progress ? {
+      ...progress,
+      exercise: hideUnverifiedExerciseVideo(progress.exercise),
+    } : null;
   },
 
   /**
@@ -366,12 +371,16 @@ export const libraryService = {
       return [];
     }
 
-    return await prisma.alunoExerciseProgress.findMany({
-      where: { alunoId },
+    const progress = await prisma.alunoExerciseProgress.findMany({
+      where: { alunoId, exercise: { contractId } },
       include: {
         exercise: true,
       },
       orderBy: { lastUpdated: 'desc' },
     });
+    return progress.map((row) => ({
+      ...row,
+      exercise: hideUnverifiedExerciseVideo(row.exercise),
+    }));
   },
 };

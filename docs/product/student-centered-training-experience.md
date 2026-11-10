@@ -727,6 +727,11 @@ automaticamente URL ou licença de mídia. A ficha original e os seus vínculos
 históricos não são modificados e a nova precisa de revisão explícita.
 A aplicação de novos vínculos bloqueia a linha aprovada durante a transação,
 serializando a operação com eventual desativação ou alteração de curadoria.
+A liberação legada de template ainda não publicado revalida, sob os mesmos
+locks, todos os exercícios previamente vinculados: qualquer `draft`,
+`in_review`, `inactive` ou legado não aprovado operacionalmente impede a
+publicação integral. Templates já publicados continuam legíveis sem nova
+aprovação retroativa.
 
 Toda alteração recebe versão monotônica e snapshot imutável, com ator, ação e data.
 Mudança concorrente com `expectedVersion` responde 409. Editar conteúdo de exercício
@@ -772,7 +777,10 @@ Registros aprovados anteriores à migração continuam com
 `legacyGrandfathered=true` e acesso histórico, mas são bloqueados para novos
 planos, cópias, mapeamentos, substituições e liberações até curadoria explícita.
 Vídeos legados sem origem/licença permanecem armazenados para auditoria, sem
-prévia pública ou reprodução na execução. Um exercício já vinculado a treino
+prévia pública ou reprodução na execução. As respostas operacionais individuais
+e agregadas de progresso também ocultam esses links de mídia sem alterar os
+registros persistidos; o progresso retornado permanece vinculado a aluno e
+exercício do mesmo contrato. Um exercício já vinculado a treino
 não é editado: o professor cria versão separada para novas aplicações.
 A busca inclui nomes, aliases e grupos musculares primários e secundários,
 sem distinção de caixa no texto digitado, e mantém o `contractId` do usuário.
