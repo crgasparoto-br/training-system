@@ -737,3 +737,13 @@ o catálogo padrão não comprova direito de uso e uma nova mídia depende de
 curadoria explícita com origem e licença; mídias legadas já presentes não são removidas. A busca por aliases é parcial, sem distinção de caixa e isolada por
 contrato na biblioteca e na montagem consolidada. Cópias entre contratos
 preservam metadados técnicos, mas não transferem direitos de mídia.
+
+Na instalação dos padrões e na importação JSON, variações apenas de caixa ou
+espaçamento compartilham uma única identidade canônica por contrato. O catálogo
+padrão consolida os campos complementares sem substituir o primeiro nome
+preferencial; uma instalação repetida não cria uma segunda linha. Registros
+históricos com grafias equivalentes permanecem com o nome e os vínculos
+originais. O saneamento só complementa campos vazios quando não há vínculo
+com treino, e nunca acrescenta automaticamente mídia sem procedência.
+A importação considera variantes já existentes no contrato e duplicatas no
+mesmo arquivo, inclusive na simulação (`--dry-run`), como itens ignorados.
