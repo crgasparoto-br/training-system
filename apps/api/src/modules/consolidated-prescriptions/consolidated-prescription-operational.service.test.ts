@@ -93,6 +93,80 @@ describe('buildOperationalProjectionItems', () => {
     expect(items[0].operationalExerciseSnapshot?.name).toBe('Agachamento operacional antigo');
   });
 
+
+  it('#394 A-394-018: an unavailable legacy mapping stays identifiable but its video is not exposed', () => {
+    const legacyUrl = 'https://example.org/legacy-unlicensed-video';
+    const mapped = mapping({
+      currentExerciseAvailable: false,
+      operationalExerciseSnapshot: {
+        ...mapping().operationalExerciseSnapshot!,
+        videoUrl: legacyUrl,
+      },
+    });
+    const [item] = buildOperationalProjectionItems(
+      [{
+        id: 'capacity-resisted-v1',
+        capacity: 'resisted',
+        parameters: { type: 'resisted', resisted: { exerciseTechnicalCatalogItemIds: ['technical-squat'] } },
+      }],
+      new Map([['technical-squat', mapped]])
+    );
+    expect(item).toMatchObject({
+      compatibility: 'incompatible',
+      incompatibilityCode: 'operational_exercise_unavailable',
+      mappedExerciseLibraryId: 'library-squat',
+      operationalExerciseSnapshot: { id: 'library-squat', videoUrl: null },
+    });
+    expect(mapped.operationalExerciseSnapshot?.videoUrl).toBe(legacyUrl);
+  });
+
+  it('#394 A-394-018: a licensed current mapping keeps its own snapshot rights', () => {
+    const url = 'https://example.org/licensed-video';
+    const [item] = buildOperationalProjectionItems(
+      [{
+        id: 'capacity-resisted-v1',
+        capacity: 'resisted',
+        parameters: { type: 'resisted', resisted: { exerciseTechnicalCatalogItemIds: ['technical-squat'] } },
+      }],
+      new Map([['technical-squat', mapping({
+        curationStatus: 'approved',
+        operationalExerciseSnapshot: {
+          ...mapping().operationalExerciseSnapshot!,
+          videoUrl: url,
+          mediaOrigin: 'production_owned',
+          mediaLicense: 'company_owned',
+          legacyGrandfathered: false,
+        },
+      })]])
+    );
+    expect(item.compatibility).toBe('mapped');
+    expect(item.operationalExerciseSnapshot?.videoUrl).toBe(url);
+  });
+
+  it('#394 A-394-018: substitute snapshots cannot borrow rights from other catalog revisions', () => {
+    const oldUrl = 'https://example.org/old-unlicensed-substitution';
+    const original = substitution(true);
+    const recorded = {
+      ...original,
+      substituteExerciseSnapshot: { ...original.substituteExerciseSnapshot, videoUrl: oldUrl },
+    };
+    const [item] = buildOperationalProjectionItems(
+      [{
+        id: 'capacity-resisted-v1',
+        capacity: 'resisted',
+        parameters: { type: 'resisted', resisted: { exerciseTechnicalCatalogItemIds: ['technical-squat'] } },
+      }],
+      new Map([['technical-squat', mapping()]]),
+      new Map([['technical-squat', recorded]]) as never
+    );
+    expect(item).toMatchObject({
+      compatibility: 'mapped',
+      substituted: true,
+      operationalExerciseSnapshot: { id: 'library-leg-press', videoUrl: null },
+    });
+    expect(recorded.substituteExerciseSnapshot.videoUrl).toBe(oldUrl);
+  });
+
   it('does not associate same-name exercises without an id mapping', () => {
     const items = buildOperationalProjectionItems(
       [

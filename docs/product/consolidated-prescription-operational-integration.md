@@ -216,3 +216,8 @@ Continuam fora do fluxo integrado:
 - aprovação automática de exercícios ou presunção de curadoria a partir do vínculo técnico;
 - criação de uma árvore paralela de `Treino de hoje`;
 - escolha automática de outra semana/período para contornar conflito.
+
+
+## Proteção da mídia nos snapshots operacionais (#394, A-394-018)
+
+O vínculo técnico-operacional e a substituição registram, nos novos snapshots, a origem e a licença da mídia, além do indicador de legado. Snapshots anteriores continuam legíveis e imutáveis, mas um `videoUrl` histórico sem `mediaOrigin` e `mediaLicense` próprios não é devolvido nas prévias operacionais, nas respostas de mapeamento ou na montagem consolidada e seu histórico. A licença do exercício atual não autoriza reutilizar links de versões anteriores. A projeção mascara apenas o link de vídeo (valor `null`), preservando ID, nome, revisão, incompatibilidade e demais atributos técnicos. A proteção é aplicada na leitura/serialização, sem modificar os registros persistidos.

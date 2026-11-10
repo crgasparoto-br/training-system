@@ -105,3 +105,8 @@ automática (#404) ou presumir aprovação clínica.
 
 ## Situação
 Checklist aberto até verificação de CI exact-SHA e auditoria independente.
+
+## Remediação A-394-018 — sanitização da mídia operacional
+- Guardar `mediaOrigin`, `mediaLicense` e `legacyGrandfathered` em novos snapshots técnicos e de substituição, mantendo opcionais para registros antigos.
+- Redigir `videoUrl` não comprovado nas prévias, nos mapeamentos e em toda resposta pública da montagem consolidada (inclusive histórico e referências de substituição), sem modificar o JSON armazenado.
+- Validar via regressão negativa (URL antiga sem licença), positiva (snapshot licenciado), substituição, prévia operacional HTTP e leitura histórica HTTP; executar CI exact-SHA antes de solicitar nova auditoria independente.

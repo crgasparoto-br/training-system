@@ -16,6 +16,10 @@ export interface OperationalExerciseSnapshot {
   id: string;
   name: string;
   videoUrl: string | null;
+  /** Optional on older snapshots: never infer historical media rights from live catalog fields. */
+  mediaOrigin?: string | null;
+  mediaLicense?: string | null;
+  legacyGrandfathered?: boolean;
   loadType: string | null;
   movementType: string | null;
   countingType: string | null;

@@ -1,4 +1,5 @@
 import { approvedOperationalExerciseWhere } from '../library/library-curation.domain.js';
+import { hideUnverifiedExerciseVideo } from '../workout/workout-release-catalog.js';
 import { PrismaClient } from '@prisma/client';
 import type {
   CapacityPrescriptionParameters,
@@ -117,6 +118,9 @@ function exerciseSnapshot(exercise: {
   id: string;
   name: string;
   videoUrl: string | null;
+  mediaOrigin: string | null;
+  mediaLicense: string | null;
+  legacyGrandfathered: boolean;
   loadType: string | null;
   movementType: string | null;
   countingType: string | null;
@@ -129,6 +133,9 @@ function exerciseSnapshot(exercise: {
     id: exercise.id,
     name: exercise.name,
     videoUrl: exercise.videoUrl,
+    mediaOrigin: exercise.mediaOrigin ?? null,
+    mediaLicense: exercise.mediaLicense ?? null,
+    legacyGrandfathered: exercise.legacyGrandfathered !== false,
     loadType: exercise.loadType,
     movementType: exercise.movementType,
     countingType: exercise.countingType,
@@ -335,7 +342,10 @@ export function buildOperationalProjectionItems(
           effectiveExerciseLibraryId: effectiveExerciseId,
           substituted: Boolean(substitution),
           technicalSnapshot: mapping?.technicalSnapshot ?? null,
-          operationalExerciseSnapshot: operationalSnapshot,
+          // Do not inherit today's media license for a historical snapshot.
+          operationalExerciseSnapshot: operationalSnapshot
+            ? hideUnverifiedExerciseVideo(operationalSnapshot)
+            : null,
           operationalExerciseUpdatedAt,
           proposedFields: {
             ...(Object.keys(workoutTemplate).length ? { WorkoutTemplate: workoutTemplate } : {}),
