@@ -81,7 +81,11 @@ function createFakeDb(initial?: {
     return { count: args.data.length };
   });
   const exerciseUpdateMany = jest.fn(async (args: {
-    where: { contractId: string; name: string; workoutExercises?: { none: Record<string, never> } };
+    where: {
+      contractId: string; name: string;
+      workoutExercises?: { none: Record<string, never> };
+      NOT?: { curationStatus: string; legacyGrandfathered: boolean };
+    };
     data: Partial<Omit<ExerciseRow, 'contractId'>>;
   }) => {
     let count = 0;
@@ -89,7 +93,9 @@ function createFakeDb(initial?: {
       if (
         exercise.contractId === args.where.contractId &&
         exercise.name === args.where.name &&
-        (!args.where.workoutExercises || !exercise.workoutExercises?.length)
+        (!args.where.workoutExercises || !exercise.workoutExercises?.length) &&
+        (!args.where.NOT || !(exercise.curationStatus === args.where.NOT.curationStatus &&
+          exercise.legacyGrandfathered === args.where.NOT.legacyGrandfathered))
       ) {
         Object.assign(exercise, args.data);
         count++;
@@ -161,6 +167,8 @@ describe('installContractDefaults', () => {
       where: { contractId },
       select: {
         name: true,
+        curationStatus: true,
+        legacyGrandfathered: true,
         videoUrl: true,
         loadType: true,
         movementType: true,
@@ -389,7 +397,10 @@ describe('installContractDefaults', () => {
       muscleGroup: customMuscleGroup,
     });
     expect(fake.writes.exerciseUpdateMany).toHaveBeenCalledWith({
-      where: { contractId, name: canonical!.name, workoutExercises: { none: {} } },
+      where: {
+        contractId, name: canonical!.name, workoutExercises: { none: {} },
+        NOT: { curationStatus: 'approved', legacyGrandfathered: false },
+      },
       data: expect.objectContaining({
         lastModifiedByUserId: null,
         lastCurationAction: 'system_defaults_repair',
@@ -465,7 +476,10 @@ describe('installContractDefaults', () => {
     await installContractDefaults(contractId, fake.db);
 
     expect(fake.writes.exerciseUpdateMany).toHaveBeenCalledWith({
-      where: { contractId, name: corruptedName, workoutExercises: { none: {} } },
+      where: {
+        contractId, name: corruptedName, workoutExercises: { none: {} },
+        NOT: { curationStatus: 'approved', legacyGrandfathered: false },
+      },
       data: {
         name: correctName,
         lastModifiedByUserId: null,
