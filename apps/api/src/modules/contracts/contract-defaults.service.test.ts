@@ -195,7 +195,7 @@ describe('installContractDefaults', () => {
     const second = await installContractDefaults(contractId, fake.db);
     const matches = fake.state.exercises.filter((entry) =>
       entry.contractId === contractId &&
-      entry.name.trim().replace(/\\s+/g, ' ').toLowerCase() === 'abdominal canoa'
+      entry.name.trim().replace(/\s+/g, ' ').toLowerCase() === 'abdominal canoa'
     );
 
     expect(first.exercises.installed).toBe(exerciseDefaults.length - 1);
