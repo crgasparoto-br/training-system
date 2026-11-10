@@ -208,6 +208,22 @@ describe('installContractDefaults', () => {
     });
   });
 
+  it('keeps historical canonical duplicates intact rather than renaming or deleting them', async () => {
+    const fake = createFakeDb({ exercises: [
+      { contractId, name: ' Abdominal   Canoa ', category: 'RESISTIDO', videoUrl: null },
+      { contractId, name: 'ABDOMINAL CANOA', category: 'RESISTIDO', videoUrl: null },
+    ] });
+    const before = fake.state.exercises.map((item) => item.name);
+    const first = await installContractDefaults(contractId, fake.db);
+    const second = await installContractDefaults(contractId, fake.db);
+    expect(first.exercises.installed).toBe(exerciseDefaults.length - 1);
+    expect(second.exercises.installed).toBe(0);
+    expect(fake.state.exercises.slice(0, 2).map((item) => item.name)).toEqual(before);
+    expect(fake.state.exercises.filter((item) =>
+      item.name.trim().replace(/\s+/g, ' ').toLowerCase() === 'abdominal canoa'
+    )).toHaveLength(2);
+  });
+
   it('does not mutate or duplicate workout-linked exercises', async () => {
     const canonical = exerciseDefaults[0];
     const fake = createFakeDb({ exercises: [{
