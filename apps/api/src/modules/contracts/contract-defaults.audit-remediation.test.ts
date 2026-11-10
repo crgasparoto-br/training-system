@@ -22,11 +22,15 @@ describe('contract defaults audit remediation', () => {
     );
   });
 
-  it('consolida nomes canônicos duplicados após normalização sem instalar duplicatas', () => {
+  it('consolida variantes de caixa e espaços, sem perder metadados ou a grafia preferencial', () => {
     jest.spyOn(fs, 'readFileSync').mockReturnValueOnce(
       JSON.stringify([
-        { name: 'Agachamento Livre', muscleGroup: 'Quadríceps' },
-        { name: '  Agachamento   Livre  ', muscleGroup: 'Quadríceps' },
+        { name: 'Agachamento Livre', notes: 'Instrução principal' },
+        {
+          name: '  agachamento   LIVRE  ', muscleGroup: 'Quadríceps',
+          videoUrl: 'https://example.org/video', notes: 'Instrução secundária',
+        },
+        { name: 'Agachamento lateral', muscleGroup: 'Glúteos' },
       ])
     );
 
@@ -34,6 +38,12 @@ describe('contract defaults audit remediation', () => {
       expect.objectContaining({
         name: 'Agachamento Livre',
         muscleGroup: 'Quadríceps',
+        notes: 'Instrução principal',
+        videoUrl: 'https://example.org/video',
+      }),
+      expect.objectContaining({
+        name: 'Agachamento lateral',
+        muscleGroup: 'Glúteos',
       }),
     ]);
   });
