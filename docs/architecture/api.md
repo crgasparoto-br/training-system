@@ -224,11 +224,16 @@ e `mayConcludeNoConflict=false` são invariantes.
 
 ## Biblioteca oficial de exercícios (#394)
 
-`/api/v1/library/exercises` exige autenticação de professor e permissão
-`screenKey=library`, e retorna somente exercícios `approved` com
+`/api/v1/library/exercises` exige autenticação de professor ativo e permissão
+`screenKey=plans` **ou** `screenKey=library` para consulta operacional, e retorna somente exercícios `approved` com
 `legacyGrandfathered=false` por padrão. Aprovação histórica legada não equivale
 a permissão de nova aplicação, mesmo que o status ainda seja `approved`.
-`scope=all`, escrita, transições de curadoria e histórico exigem `master`.
+Consultas de progresso usadas no Workout Builder aceitam `plans` ou `library`;
+com acesso apenas a `plans` também respeitam o `dataScope` da tela para o
+aluno solicitado. O detalhe do exercício e a escrita de progresso mantêm
+acesso pela tela `library`. Todas as leituras são delimitadas pelo
+`contractId` autenticado. `scope=all`, filtros de estado, escrita administrativa,
+transições de curadoria e revisões exigem **ambos** `library` e papel `master`.
 O backend revalida identidade e contrato independentemente da interface.
 Nas mutações de curadoria, inclusive criação, edição, aprovação, reabertura e
 desativação, a transação definitiva bloqueia as linhas de `Professor` e `User`

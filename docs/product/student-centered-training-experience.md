@@ -703,12 +703,21 @@ resolvendo exercícios desativados; nenhuma ação de curadoria aplica exercíci
 automaticamente ao aluno.
 Criação e transições de curadoria exigem professor administrador (`master`) com
 permissão da tela `library`. Professores comuns visualizam apenas o catálogo aprovado.
+Para montagem de treinos, consulta do catálogo oficial e leitura de progresso
+exigem acesso à tela `plans` **ou** `library`, sempre dentro do contrato
+autenticado; acesso exclusivamente por `plans` respeita seu `dataScope` na
+consulta de progresso. A tela `library` continua necessária para detalhe do
+exercício, atualização de progresso, `scope=all`, filtros por status,
+revisões e ações administrativas; acesso a `plans` não permite curadoria.
 
 Cada exercício possui aliases, capacidade, equipamento, grupos musculares principais e
 secundários, padrão de movimento, articulações, lateralidade, dificuldade, etapas de
 instrução, erros comuns, regressões, progressões, alternativas, restrições e alertas.
 Vídeo referenciado exige origem e licença explícitas antes da aprovação.
 A aprovação exige nome, categoria, capacidade e instruções; não é homologação clínica.
+O guard PostgreSQL impede que valores `NULL` de capacidade ou de ação da última
+revisão permitam aprovação direta sem os metadados obrigatórios; o histórico
+anterior à migração não é reclassificado.
 
 Toda alteração recebe versão monotônica e snapshot imutável, com ator, ação e data.
 Mudança concorrente com `expectedVersion` responde 409. Editar conteúdo de exercício

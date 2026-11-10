@@ -276,6 +276,12 @@ e origem/licença da mídia e marca `legacyGrandfathered=false`. A constraint
 `ExerciseLibrary_approved_curated_guard` é `NOT VALID` para não reprovar dados
 existentes; protege inserções/atualizações futuras de registros `approved`
 não legados, inclusive caminhos SQL, sem backfill fabricado de licença ou revisor.
+A migração posterior `20261110124500_issue_394_guard_null_safe` substitui o
+`CHECK` sem reescrever uma migração aplicada. Como PostgreSQL aceita `UNKNOWN`
+em `CHECK`, capacidade nula é explicitamente convertida para `false` e a ação
+de revisão usa comparação nula-segura. Dados legados permanecem intocados e
+novas aprovações por Prisma/SQL não contornam os requisitos obrigatórios com
+`NULL`. A constraint permanece `NOT VALID` para preservar dados históricos.
 
 
 O trigger `issue394_exercise_canonical_name_guard` protege novos nomes e

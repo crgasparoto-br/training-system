@@ -44,6 +44,15 @@ estados de revisão, histórico por versão e testes de regressão.
   domínio e combobox web. Não reclassificar automaticamente valores antigos.
 - R-394-001: busca e filtro muscular contemplam primários e secundários,
   com pesquisa case-insensitive e escopo por contrato.
+- A-394-011: migração incremental reconstrói a constraint de aprovação com
+  predicados SQL nula-seguros para `capacity` e `lastCurationAction`, sem
+  validar retroativamente registros legados; testes PostgreSQL negativos para
+  SQL direto e Prisma e controle positivo do catálogo histórico.
+- A-394-012: catálogo oficial e leitura de progresso autorizados por `plans`
+  ou `library`; consultas de aluno por `plans` seguem seu `dataScope`.
+  Detalhes administrativos, listagem de rascunhos e mutações preservam `library`
+  (e `master` onde exigido). Testes HTTP com middleware real abrangem perfis
+  sem biblioteca, negação, revogação, self-scope e escopo por contrato.
 
 ## Validação e aceite
 - [ ] Tests de domínio e API, segurança e isolamento.

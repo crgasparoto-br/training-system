@@ -215,10 +215,19 @@ Para `students.preRegistration`, quando a interface estiver habilitada, a posiç
 
 ### Biblioteca de exercícios (#394)
 
-O `screenKey=library` permanece obrigatório. Consulta oficial requer professor
-ativo e `contractId` do vínculo autenticado. Criar/editar, listar todos os estados,
-aprovar, devolver, desativar/reabrir e consultar versões exigem ainda papel
-`professorRole=master`, conferido pelo backend. O frontend apenas oculta ações.
+O `screenKey=library` permanece obrigatório para administrar a biblioteca.
+As consultas **operacionais** da lista oficial (`GET /exercises` sem `scope=all`)
+e a leitura de progresso do aluno (`GET /progress/:alunoId[/:exerciseId]`)
+aceitam `screenKey=plans` **ou** `screenKey=library`, permitindo ao professor
+montar treinos sem permissão para administrar o catálogo. Em acesso somente por
+`plans`, o progresso respeita `dataScope` (`self`, `managed` ou `contract`) e
+retorna 404 para aluno fora do escopo. A consulta exige professor ativo e
+`contractId` do vínculo autenticado; não transfere acesso a outro contrato.
+O detalhe administrativo do exercício e a atualização de progresso conservam
+o requisito anterior de `screenKey=library`.
+`scope=all`, filtros de estado, criar/editar, aprovar, devolver,
+desativar/reabrir e consultar revisões exigem `screenKey=library` e ainda papel
+`professorRole=master`, conferidos pelo backend. O frontend apenas oculta ações.
 Não há concessão de escopo cruzado entre contratos. Uma verificação HTTP
 prévia não autoriza escrita após revogação: na mesma transação de curadoria,
 o backend revalida o usuário ativo e o vínculo `master` do contrato com

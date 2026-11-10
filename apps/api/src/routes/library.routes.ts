@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import { PHYSICAL_CAPACITY_TYPES, type AuthenticatedUserPayload } from '@corrida/types';
 import { CountingType, ExerciseCurationStatus, LoadType, MovementType } from '@prisma/client';
 import { z } from 'zod';
@@ -10,6 +10,9 @@ import {
 } from '../modules/library/library.service.js';
 import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
 import { screenAccessMiddleware } from '../modules/access-control/access-control.middleware.js';
+import { canProfessorAccessScreen, getEffectiveDataScopeForProfessor,
+  buildProfessorDataScopeWhere } from '../modules/access-control/access-control.service.js';
+import { prismaRuntimeClient } from '../common/prisma-runtime-client.js';
 import { LibraryCurationError, type CurationAction } from '../modules/library/library-curation.domain.js';
 
 type LibraryProfessorRequest = Request & {
@@ -215,7 +218,45 @@ const router: Router = Router();
 
 router.use(authMiddleware);
 router.use(professorMiddleware);
-router.use(screenAccessMiddleware('library'));
+
+// The workout builder consumes the approved catalog and exercise progress under
+// the Plans screen. Only catalog administration requires the Library screen.
+const operationalReadAccess = screenAccessMiddleware(['library', 'plans']);
+const catalogAdministrationAccess = screenAccessMiddleware('library');
+
+function exerciseListAccess(req: Request, res: Response, next: NextFunction) {
+  const administrativeQuery = req.query.scope === 'all' || req.query.curationStatus !== undefined;
+  return (administrativeQuery ? catalogAdministrationAccess : operationalReadAccess)(req, res, next);
+}
+
+/** Plans-only access to progress must respect the professor's Plans dataScope. */
+async function progressStudentScopeAccess(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { professorId, contractId } = req.user ?? {};
+    if (!professorId || !contractId) return res.status(403).json({ message: 'Acesso negado.' });
+    const professor = await prismaRuntimeClient.professor.findFirst({
+      where: { id: professorId, contractId },
+      include: { collaboratorFunction: true },
+    });
+    if (!professor) return res.status(404).json({ message: 'Aluno não encontrado.' });
+    // Library permission retains the pre-existing contract-level progress read.
+    if (await canProfessorAccessScreen(professor, 'library')) return next();
+    const scope = await getEffectiveDataScopeForProfessor(professor, 'plans');
+    if (!scope) return res.status(403).json({ message: 'Acesso negado.' });
+    const aluno = await prismaRuntimeClient.aluno.findFirst({
+      where: {
+        id: req.params.alunoId, contractId,
+        professor: buildProfessorDataScopeWhere(contractId, professorId, scope),
+      },
+      select: { id: true },
+    });
+    if (!aluno) return res.status(404).json({ message: 'Aluno não encontrado.' });
+    return next();
+  } catch (error) {
+    console.error('Error checking exercise progress scope:', error);
+    return res.status(500).json({ message: 'Erro ao verificar acesso ao progresso.' });
+  }
+}
 
 function isCatalogManager(req: Request) {
   return req.user?.professorRole === 'master';
@@ -238,7 +279,7 @@ function sendLibraryError(res: Response, error: unknown, message: string) {
  * GET /api/library/exercises
  * Listar exercícios com filtros
  */
-router.get('/exercises', async (req, res) => {
+router.get('/exercises', exerciseListAccess, async (req, res) => {
   try {
     assertLibraryProfessorRequest(req);
     const contractId = req.user.contractId;
@@ -264,7 +305,7 @@ router.get('/exercises', async (req, res) => {
  * GET /api/library/exercises/:id
  * Obter exercício por ID
  */
-router.get('/exercises/:id', async (req, res) => {
+router.get('/exercises/:id', catalogAdministrationAccess, async (req, res) => {
   try {
     assertLibraryProfessorRequest(req);
     const contractId = req.user.contractId;
@@ -291,7 +332,7 @@ router.get('/exercises/:id', async (req, res) => {
  * POST /api/library/exercises
  * Criar novo exercício
  */
-router.post('/exercises', async (req, res) => {
+router.post('/exercises', catalogAdministrationAccess, async (req, res) => {
   try {
     assertLibraryProfessorRequest(req);
     const contractId = req.user.contractId;
@@ -314,7 +355,7 @@ router.post('/exercises', async (req, res) => {
  * PUT /api/library/exercises/:id
  * Atualizar exercício
  */
-router.put('/exercises/:id', async (req, res) => {
+router.put('/exercises/:id', catalogAdministrationAccess, async (req, res) => {
   try {
     assertLibraryProfessorRequest(req);
     const contractId = req.user.contractId;
@@ -345,7 +386,7 @@ router.put('/exercises/:id', async (req, res) => {
  * DELETE /api/library/exercises/:id
  * Excluir exercício
  */
-router.delete('/exercises/:id', async (req, res) => {
+router.delete('/exercises/:id', catalogAdministrationAccess, async (req, res) => {
   try {
     assertLibraryProfessorRequest(req);
     const contractId = req.user.contractId;
@@ -370,7 +411,7 @@ router.delete('/exercises/:id', async (req, res) => {
  * POST /api/library/exercises/:id/curation
  * Explicit professional decision; no automatic changes to operational workouts.
  */
-router.post('/exercises/:id/curation', async (req, res) => {
+router.post('/exercises/:id/curation', catalogAdministrationAccess, async (req, res) => {
   try {
     assertLibraryProfessorRequest(req);
     if (!requireCatalogManager(req, res)) return;
@@ -390,7 +431,7 @@ router.post('/exercises/:id/curation', async (req, res) => {
 });
 
 /** GET /api/library/exercises/:id/revisions: immutable tenant-scoped revision history. */
-router.get('/exercises/:id/revisions', async (req, res) => {
+router.get('/exercises/:id/revisions', catalogAdministrationAccess, async (req, res) => {
   try {
     assertLibraryProfessorRequest(req);
     if (!requireCatalogManager(req, res)) return;
@@ -407,7 +448,7 @@ router.get('/exercises/:id/revisions', async (req, res) => {
  * GET /api/library/progress/:alunoId/:exerciseId
  * Obter progresso do aluno em um exercício
  */
-router.get('/progress/:alunoId/:exerciseId', async (req, res) => {
+router.get('/progress/:alunoId/:exerciseId', operationalReadAccess, progressStudentScopeAccess, async (req, res) => {
   try {
     assertLibraryProfessorRequest(req);
     const contractId = req.user.contractId;
@@ -433,7 +474,7 @@ router.get('/progress/:alunoId/:exerciseId', async (req, res) => {
  * PUT /api/library/progress/:alunoId/:exerciseId
  * Atualizar progresso do aluno
  */
-router.put('/progress/:alunoId/:exerciseId', async (req, res) => {
+router.put('/progress/:alunoId/:exerciseId', catalogAdministrationAccess, async (req, res) => {
   try {
     assertLibraryProfessorRequest(req);
     const contractId = req.user.contractId;
@@ -465,7 +506,7 @@ router.put('/progress/:alunoId/:exerciseId', async (req, res) => {
  * GET /api/library/progress/:alunoId
  * Listar todo o progresso de um aluno
  */
-router.get('/progress/:alunoId', async (req, res) => {
+router.get('/progress/:alunoId', operationalReadAccess, progressStudentScopeAccess, async (req, res) => {
   try {
     assertLibraryProfessorRequest(req);
     const contractId = req.user.contractId;
