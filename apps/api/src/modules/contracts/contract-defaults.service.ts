@@ -92,6 +92,11 @@ const COUNTING_TYPES = new Set<string>(['I', 'T', 'R']);
 const normalizeExerciseName = (value: string) =>
   repairPtBrMojibake(value).trim().replace(/\s+/g, ' ');
 
+// Keep the in-memory catalog aligned with issue394_exercise_canonical_name
+// in PostgreSQL: case and whitespace variants are a single tenant identity.
+const canonicalExerciseName = (value: string) =>
+  normalizeExerciseName(value).toLowerCase();
+
 const normalizeOptionalCatalogText = (value: string | undefined) =>
   value ? repairPtBrMojibake(value).trim() || undefined : undefined;
 
@@ -193,7 +198,7 @@ export function loadProductExerciseDefaults(): NormalizedExerciseDefault[] {
   const rows = parseExerciseCatalog(
     fs.readFileSync(resolveExerciseDefaultsPath(), 'utf-8')
   );
-  const defaultsByName = new Map<string, NormalizedExerciseDefault>();
+  const defaultsByCanonicalName = new Map<string, NormalizedExerciseDefault>();
 
   for (const [index, row] of rows.entries()) {
     const rawName =
@@ -243,15 +248,18 @@ export function loadProductExerciseDefaults(): NormalizedExerciseDefault[] {
       notes,
     };
 
-    const existing = defaultsByName.get(name);
+    const key = canonicalExerciseName(name);
+    const existing = defaultsByCanonicalName.get(key);
     if (existing) {
+      // Preserve the first (preferred) display name and complement missing
+      // metadata from later case/whitespace variants.
       mergeMissingExerciseDefaultFields(existing, candidate);
     } else {
-      defaultsByName.set(name, candidate);
+      defaultsByCanonicalName.set(key, candidate);
     }
   }
 
-  return [...defaultsByName.values()];
+  return [...defaultsByCanonicalName.values()];
 }
 
 const supportsBulkSql = (db: DefaultsDb): db is BulkDefaultsDb =>
@@ -481,7 +489,8 @@ async function applyExerciseBackfills(
         "notes"
       )
       WHERE exercise."contractId" = ${contractId}
-        AND exercise."name" = defaults."name"
+        AND issue394_exercise_canonical_name(exercise."name")
+          = issue394_exercise_canonical_name(defaults."name")
         AND NOT EXISTS (
           SELECT 1 FROM "WorkoutExercise" AS workout
           WHERE workout."exerciseId" = exercise."id"
@@ -502,7 +511,7 @@ async function applyExerciseBackfills(
 
   for (const { current, canonical, data } of backfills) {
     await db.exerciseLibrary.updateMany({
-      where: { contractId, name: canonical.name, workoutExercises: { none: {} } },
+      where: { contractId, name: current.name, workoutExercises: { none: {} } },
       data: { ...data, lastModifiedByUserId: null, lastCurationAction: 'system_defaults_repair' },
     });
     Object.assign(current, data);
@@ -529,17 +538,21 @@ async function installExercises(contractId: string, db: DefaultsDb) {
   const repairs = collectExerciseNameRepairs(defaults, existing);
   await applyExerciseNameRepairs(contractId, repairs, existing, db);
 
-  const existingByName = new Map<string, ExistingExerciseDefault>();
+  const existingByCanonicalName = new Map<string, ExistingExerciseDefault>();
   for (const item of existing) {
-    existingByName.set(item.name, item);
-    const normalizedName = normalizeExerciseName(item.name);
-    if (!existingByName.has(normalizedName)) existingByName.set(normalizedName, item);
+    const key = canonicalExerciseName(item.name);
+    const selected = existingByCanonicalName.get(key);
+    // Keep legacy duplicate rows untouched; a workout-linked record is the
+    // conservative representative when historical duplicates already exist.
+    if (!selected || (!selected.workoutExercises?.length && item.workoutExercises?.length)) {
+      existingByCanonicalName.set(key, item);
+    }
   }
   const missing: NormalizedExerciseDefault[] = [];
   const backfills: ExerciseBackfill[] = [];
 
   for (const canonical of defaults) {
-    const current = existingByName.get(canonical.name);
+    const current = existingByCanonicalName.get(canonicalExerciseName(canonical.name));
     if (!current) {
       missing.push(canonical);
       continue;
