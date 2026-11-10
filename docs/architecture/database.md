@@ -267,6 +267,16 @@ A migração inicial #394 identifica somente o catálogo já existente como
 para `draft`/`legacyGrandfathered=false`; isso vale inclusive para `INSERT`
 SQL direto e para `Prisma.create` que omita o status, sem reclassificar os
 registros históricos. Registros antigos com nome repetido permanecem intactos.
+A migração `20261110025500_issue_394_operational_eligibility` não altera nenhuma
+linha legada: `approved/legacyGrandfathered=true` conserva status, vídeo e
+referências para leitura histórica, mas não é selecionável para novas aplicações.
+A transição de volta ao catálogo exige curadoria profissional explícita, que
+valida capacidade da taxonomia `PHYSICAL_CAPACITY_TYPES`, categoria, instruções,
+e origem/licença da mídia e marca `legacyGrandfathered=false`. A constraint
+`ExerciseLibrary_approved_curated_guard` é `NOT VALID` para não reprovar dados
+existentes; protege inserções/atualizações futuras de registros `approved`
+não legados, inclusive caminhos SQL, sem backfill fabricado de licença ou revisor.
+
 
 O trigger `issue394_exercise_canonical_name_guard` protege novos nomes e
 renomeações por `contractId` e chave canônica (caixa e espaços normalizados).

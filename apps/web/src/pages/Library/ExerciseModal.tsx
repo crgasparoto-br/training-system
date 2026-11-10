@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Video } from 'lucide-react';
 import { libraryService, type Exercise, type CreateExerciseDTO, type ExerciseRevision } from '../../services/library.service';
 import YouTubeEmbed from './YouTubeEmbed';
+import { PHYSICAL_CAPACITY_TYPES, type PhysicalCapacityType } from '@corrida/types';
 
 const LOAD_TYPES = [
   { value: 'H', label: 'Halteres' },
@@ -42,7 +43,6 @@ const LIST_FIELDS = [
   { key: 'alerts', label: 'Alertas' },
 ] as const;
 const TEXT_FIELDS = [
-  { key: 'capacity', label: 'Capacidade (ex.: resistance, cyclic)' },
   { key: 'movementPattern', label: 'Padrão de movimento' },
   { key: 'laterality', label: 'Lateralidade' },
   { key: 'difficulty', label: 'Nível de dificuldade' },
@@ -89,7 +89,7 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
         muscleGroup: exercise.muscleGroup || '',
         notes: exercise.notes || '',
         aliases: exercise.aliases,
-        capacity: exercise.capacity || '',
+        capacity: PHYSICAL_CAPACITY_TYPES.find((type) => type === exercise.capacity),
         equipment: exercise.equipment,
         primaryMuscleGroups: exercise.primaryMuscleGroups,
         secondaryMuscleGroups: exercise.secondaryMuscleGroups,
@@ -248,12 +248,18 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
             />
             
             {/* Preview do Vídeo */}
-            {formData.videoUrl && (
+            {formData.videoUrl && !exercise?.legacyGrandfathered &&
+              Boolean(formData.mediaOrigin?.trim() && formData.mediaLicense?.trim()) && (
               <div className="mt-4">
                 <YouTubeEmbed url={formData.videoUrl} />
               </div>
             )}
             
+            {formData.videoUrl && exercise?.legacyGrandfathered && (
+              <p role="status" className="mt-2 text-sm text-amber-800">
+                Mídia legada preservada para o histórico. A prévia será habilitada após curadoria com origem e licença verificadas.
+              </p>
+            )}
             {!formData.videoUrl && (
               <p className="mt-2 text-sm text-gray-500">
                 Adicione um link do YouTube para visualizar o vídeo de demonstração
@@ -380,6 +386,24 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
               <p className="text-sm text-gray-500">Campos estruturados para pesquisa e avaliação profissional.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Capacidade física
+                <select disabled={isViewMode} value={formData.capacity ?? ''}
+                  onChange={e => setFormData(previous => ({ ...previous, capacity: e.target.value
+                    ? e.target.value as PhysicalCapacityType : undefined }))}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 disabled:bg-gray-100">
+                  <option value="">Selecione uma capacidade...</option>
+                  {PHYSICAL_CAPACITY_TYPES.map((type) => <option key={type} value={type}>{({
+                    resisted: 'Resistido', flexibility: 'Flexibilidade',
+                    cyclic: 'Cíclico', balance: 'Equilíbrio',
+                  } satisfies Record<PhysicalCapacityType, string>)[type]}</option>)}
+                </select>
+                {exercise?.capacity && !PHYSICAL_CAPACITY_TYPES.some(value => value === exercise.capacity) && (
+                  <span role="status" className="block mt-1 text-amber-800 text-xs">
+                    Classificação legada: {exercise.capacity}. Selecione uma capacidade oficial antes da aprovação.
+                  </span>
+                )}
+              </label>
               {TEXT_FIELDS.map(({ key, label }) => (
                 <label key={key} className="block text-sm font-medium text-gray-700">
                   {label}

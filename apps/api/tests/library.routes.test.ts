@@ -68,6 +68,25 @@ describe('library routes input validation', () => {
     expect(libraryService.createExercise).not.toHaveBeenCalled();
   });
 
+  it('#394 A-008: rejects noncanonical capacity on create and edit; accepts the four official codes', async () => {
+    for (const capacity of ['resistance', 'custom', 'RESISTED', '']) {
+      const create = await request(app).post('/library/exercises').send({ name: 'Teste', capacity });
+      expect(create.status).toBe(400);
+      const edit = await request(app).put('/library/exercises/e1')
+        .send({ capacity, expectedVersion: 1 });
+      expect(edit.status).toBe(400);
+    }
+    expect(libraryService.createExercise).not.toHaveBeenCalled();
+    expect(libraryService.updateExercise).not.toHaveBeenCalled();
+    (libraryService.createExercise as jest.Mock).mockResolvedValue({ id: 'new-1' });
+    for (const capacity of ['resisted', 'flexibility', 'cyclic', 'balance']) {
+      const created = await request(app).post('/library/exercises')
+        .send({ name: 'Teste', capacity });
+      expect(created.status).toBe(201);
+    }
+    expect(libraryService.createExercise).toHaveBeenCalledTimes(4);
+  });
+
   it('rejects unknown exercise update fields with 400', async () => {
     const response = await request(app)
       .put('/library/exercises/exercise-1')

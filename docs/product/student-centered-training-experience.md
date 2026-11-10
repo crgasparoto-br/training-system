@@ -745,5 +745,19 @@ preferencial; uma instalação repetida não cria uma segunda linha. Registros
 históricos com grafias equivalentes permanecem com o nome e os vínculos
 originais. O saneamento só complementa campos vazios quando não há vínculo
 com treino, e nunca acrescenta automaticamente mídia sem procedência.
+A classificação `capacity` da biblioteca utiliza exclusivamente a taxonomia
+`resisted` (resistido), `flexibility` (flexibilidade), `cyclic` (cíclico) e
+`balance` (equilíbrio), com seletor na interface e rejeição HTTP de nomes
+arbitrários, inclusive `resistance`. Valores de capacidade já presentes não são
+substituídos em massa: devem ser corrigidos durante revisão profissional.
+Registros aprovados anteriores à migração continuam com
+`legacyGrandfathered=true` e acesso histórico, mas são bloqueados para novos
+planos, cópias, mapeamentos, substituições e liberações até curadoria explícita.
+Vídeos legados sem origem/licença permanecem armazenados para auditoria, sem
+prévia pública ou reprodução na execução. Um exercício já vinculado a treino
+não é editado: o professor cria versão separada para novas aplicações.
+A busca inclui nomes, aliases e grupos musculares primários e secundários,
+sem distinção de caixa no texto digitado, e mantém o `contractId` do usuário.
+
 A importação considera variantes já existentes no contrato e duplicatas no
 mesmo arquivo, inclusive na simulação (`--dry-run`), como itens ignorados.

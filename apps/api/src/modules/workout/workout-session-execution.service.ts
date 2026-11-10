@@ -39,7 +39,8 @@ async function loadGuidedResistancePlan(tx: Prisma.TransactionClient, sessionId:
     select: {
       id: true, section: true, exerciseOrder: true, system: true, groupBreakBefore: true,
       exerciseNotes: true,
-      exercise: { select: { name: true, videoUrl: true, notes: true } },
+      exercise: { select: { name: true, videoUrl: true, notes: true,
+        mediaOrigin: true, mediaLicense: true, legacyGrandfathered: true } },
       releasedCatalog: { select: { catalog: true } },
       resistanceBlocks: {
         orderBy: { position: 'asc' },

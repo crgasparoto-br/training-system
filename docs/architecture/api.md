@@ -225,7 +225,9 @@ e `mayConcludeNoConflict=false` são invariantes.
 ## Biblioteca oficial de exercícios (#394)
 
 `/api/v1/library/exercises` exige autenticação de professor e permissão
-`screenKey=library`, e retorna apenas `approved` por padrão.
+`screenKey=library`, e retorna somente exercícios `approved` com
+`legacyGrandfathered=false` por padrão. Aprovação histórica legada não equivale
+a permissão de nova aplicação, mesmo que o status ainda seja `approved`.
 `scope=all`, escrita, transições de curadoria e histórico exigem `master`.
 O backend revalida identidade e contrato independentemente da interface.
 Nas mutações de curadoria, inclusive criação, edição, aprovação, reabertura e
@@ -241,7 +243,7 @@ retorna a rascunho e responde 409 para concorrência ou item já usado em treino
 `approve`, `request_changes`, `deactivate` ou `reopen`.
 `GET /exercises/:id/revisions` devolve versões ao administrador do contrato.
 No Workout Builder, `save-week`, `PUT /days/:id/resistance-exercises` e
-`POST /exercises` verificam exercícios novos `approved` na transação, no mesmo
+`POST /exercises` verificam exercícios novos `approved` e curados (não legados) na transação, no mesmo
 contrato do aluno. Linhas já vinculadas não são removidas nem exigem nova
 aprovação em um replay de identidade estável. Cópia de dia, semana e resistência
 faz nova aplicação e rejeita atomicamente referências desativadas/em revisão;
@@ -249,6 +251,16 @@ cópia apenas cíclica permanece independente da biblioteca resistida.
 `DELETE /exercises/:id` é compatibilidade de desativação lógica com versão,
 sem exclusão física. Seleções em Workout Builder, vinculação técnica,
 substituição e Montagem Consolidada verificam `approved` e `contractId`.
-A busca por aliases é parcial, insensível à caixa e parametrizada pelo
-contrato; novas instalações de padrões geram rascunhos. Cópias entre
+A busca por aliases e grupos musculares primários/secundários é parcial,
+insensível à caixa e parametrizada pelo contrato; o filtro muscular também
+considera grupos secundários sem diferenças de caixa. `capacity` na criação
+e edição aceita apenas `resisted`, `flexibility`, `cyclic` ou `balance` (HTTP 400
+para valores arbitrários); a aprovação também confere o enum canônico.
+Registros legados continuam consultáveis na visão administrativa e no histórico
+dos treinos, mas são excluídos da seleção, cópia, substituição e liberação
+operacional até a aprovação profissional explícita. Vídeos sem origem/licença
+comprovadas não são reproduzidos pelas projeções históricas; os links originais
+continuam persistidos.
+Novas instalações de padrões geram rascunhos;
+ novas instalações de padrões geram rascunhos. Cópias entre
 contratos não transferem automaticamente URLs/licenças de mídia.

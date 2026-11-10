@@ -1,3 +1,4 @@
+import { approvedOperationalExerciseWhere } from '../library/library-curation.domain.js';
 import { PrismaClient } from '@prisma/client';
 import type {
   CapacityPrescriptionParameters,
@@ -522,7 +523,7 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
     );
     if (substituteIds.length) {
       const liveSubstitutes = await client.exerciseLibrary.findMany({
-        where: { id: { in: substituteIds }, contractId: context.contractId, curationStatus: 'approved' },
+        where: { id: { in: substituteIds }, contractId: context.contractId, ...approvedOperationalExerciseWhere },
         select: { id: true, updatedAt: true },
       });
       const currentById = new Map(
@@ -581,7 +582,7 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
       return client.exerciseLibrary.findMany({
         where: {
           contractId: context.contractId,
-          curationStatus: 'approved',
+          ...approvedOperationalExerciseWhere,
           ...(filters.category ? { category: filters.category } : {}),
           ...(filters.muscleGroup ? { muscleGroup: filters.muscleGroup } : {}),
           ...(search
@@ -772,7 +773,7 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
       }
 
       const substitute = await client.exerciseLibrary.findFirst({
-        where: { id: command.substituteExerciseLibraryId, contractId: context.contractId, curationStatus: 'approved' },
+        where: { id: command.substituteExerciseLibraryId, contractId: context.contractId, ...approvedOperationalExerciseWhere },
       });
       if (!substitute) invalid('Exercício substituto inexistente ou fora do contrato');
       const compatibilityIssue = getOperationalSubstitutionCompatibilityIssue(

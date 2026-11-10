@@ -8,15 +8,28 @@ export type ReleasedCatalogRecord = { catalog: unknown } | null | undefined;
 const CATALOG_FIELDS = [
   'name', 'videoUrl', 'category', 'muscleGroup',
   'loadType', 'movementType', 'countingType', 'notes',
+  'mediaOrigin', 'mediaLicense',
 ] as const;
+
+/** Historical exercise links remain intact; never expose unverifiable third-party videos. */
+export function hideUnverifiedExerciseVideo<T extends { name: string }>(exercise: T): T {
+  const row = exercise as Record<string, unknown>;
+  if (typeof row.videoUrl !== 'string' || !row.videoUrl.trim()) return exercise;
+  if (row.legacyGrandfathered === true ||
+      typeof row.mediaOrigin !== 'string' || !row.mediaOrigin.trim() ||
+      typeof row.mediaLicense !== 'string' || !row.mediaLicense.trim()) {
+    return { ...exercise, videoUrl: null } as T;
+  }
+  return exercise;
+}
 
 export function projectReleasedExerciseCatalog<T extends { name: string }>(
   live: T, captured: ReleasedCatalogRecord,
 ): T {
   const raw = captured?.catalog;
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return live;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return hideUnverifiedExerciseVideo(live);
   const snapshot = raw as Record<string, unknown>;
-  if (typeof snapshot.name !== 'string') return live;
+  if (typeof snapshot.name !== 'string') return hideUnverifiedExerciseVideo(live);
 
   const projected: Record<string, unknown> = { ...live };
   for (const field of CATALOG_FIELDS) {
@@ -24,7 +37,14 @@ export function projectReleasedExerciseCatalog<T extends { name: string }>(
     const value = snapshot[field];
     if (typeof value === 'string' || value === null) projected[field] = value;
   }
-  return projected as T;
+  // A released video must carry provenance in its own historical snapshot.
+  // Never pair an older URL with a new license stored on the live catalog.
+  if (typeof snapshot.videoUrl === 'string' && snapshot.videoUrl.trim() &&
+      (typeof snapshot.mediaOrigin !== 'string' || !snapshot.mediaOrigin.trim() ||
+       typeof snapshot.mediaLicense !== 'string' || !snapshot.mediaLicense.trim())) {
+    projected.videoUrl = null;
+  }
+  return hideUnverifiedExerciseVideo(projected as T);
 }
 
 export function projectWorkoutDayExerciseCatalog<T>(day: T, released: boolean): T {
@@ -33,8 +53,9 @@ export function projectWorkoutDayExerciseCatalog<T>(day: T, released: boolean): 
   const exercises = day.exercises.map((item: unknown) => {
     if (!item || typeof item !== 'object') return item;
     const { releasedCatalog, ...rest } = item as Record<string, unknown>;
-    if (!released || !rest.exercise || typeof rest.exercise !== 'object' ||
+    if (!rest.exercise || typeof rest.exercise !== 'object' ||
       !('name' in rest.exercise) || typeof rest.exercise.name !== 'string') return rest;
+    if (!released) return { ...rest, exercise: hideUnverifiedExerciseVideo(rest.exercise as { name: string }) };
     return { ...rest, exercise: projectReleasedExerciseCatalog(
       rest.exercise as { name: string }, releasedCatalog as ReleasedCatalogRecord,
     ) };

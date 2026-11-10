@@ -33,6 +33,18 @@ estados de revisão, histórico por versão e testes de regressão.
   em contrato vazio, registro legado com grafia diferente, idempotência e
   ausência de herança de mídia sem licença, inclusive com PostgreSQL real.
 
+## Remediação da auditoria de 10/11/2026
+- A-394-007: `legacyGrandfathered=true` preserva status e histórico, mas nunca
+  habilita novas aplicações. Migração adiciona guard para futuras aprovações,
+  com ator, capacidade canônica, instruções e mídia rastreável; sem reescrita
+  dos dados anteriores. Busca oficial, treino, cópia, mapeamento, substituição
+  e liberação usam a mesma elegibilidade. Mídia legada sem proveniência não é
+  reproduzida nos detalhes de treino. Testes SQL positivos/negativos.
+- A-394-008: reusar `PHYSICAL_CAPACITY_TYPES` no backend, validação Zod,
+  domínio e combobox web. Não reclassificar automaticamente valores antigos.
+- R-394-001: busca e filtro muscular contemplam primários e secundários,
+  com pesquisa case-insensitive e escopo por contrato.
+
 ## Validação e aceite
 - [ ] Tests de domínio e API, segurança e isolamento.
 - [ ] Migration e triggers em PostgreSQL.

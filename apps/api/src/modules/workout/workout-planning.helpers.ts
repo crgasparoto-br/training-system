@@ -1,5 +1,6 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { projectWorkoutDayExerciseCatalog } from './workout-release-catalog.js';
+import { approvedOperationalExerciseWhere } from '../library/library-curation.domain.js';
 
 import { ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput, type ResistancePlannedSetInput } from './resistance-structure.domain.js';
 
@@ -75,7 +76,7 @@ export async function assertApprovedWorkoutExerciseIds(
   const uniqueIds = [...new Set(exerciseIds)];
   if (!uniqueIds.length) return;
   const approved = await tx.exerciseLibrary.count({
-    where: { id: { in: uniqueIds }, contractId, curationStatus: 'approved' },
+    where: { id: { in: uniqueIds }, contractId, ...approvedOperationalExerciseWhere },
   });
   if (approved !== uniqueIds.length) {
     throw new ResistanceStructureValidationError('Exercício indisponível para aplicação.');
@@ -95,7 +96,7 @@ export async function assertDayContract(
   if (!day) throw new ResistanceStructureNotFoundError();
   if (exerciseId !== undefined) {
     const libraryExercise = await tx.exerciseLibrary.findFirst({
-      where: { id: exerciseId, contractId, curationStatus: 'approved' }, select: { id: true },
+      where: { id: exerciseId, contractId, ...approvedOperationalExerciseWhere }, select: { id: true },
     });
     if (!libraryExercise) throw new ResistanceStructureValidationError('Exercício fora do contrato.');
   }

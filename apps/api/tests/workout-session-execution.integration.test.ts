@@ -179,10 +179,14 @@ async function seedReleasedWorkout(
   });
 
   const exerciseLibraryA = await prisma.exerciseLibrary.create({
-    data: { contractId, name: `Agachamento ${label}`, curationStatus: 'approved', legacyGrandfathered: true },
+    data: { contractId, name: `Agachamento ${label}`, category: 'RESISTIDO', capacity: 'resisted',
+      instructions: ['Preparar posição'], curationStatus: 'approved', legacyGrandfathered: false,
+      reviewedByUserId: 'fixture-reviewer', reviewedAt: new Date(), lastCurationAction: 'approve' },
   });
   const exerciseLibraryB = await prisma.exerciseLibrary.create({
-    data: { contractId, name: `Remada ${label}`, curationStatus: 'approved', legacyGrandfathered: true },
+    data: { contractId, name: `Remada ${label}`, category: 'RESISTIDO', capacity: 'resisted',
+      instructions: ['Preparar posição'], curationStatus: 'approved', legacyGrandfathered: false,
+      reviewedByUserId: 'fixture-reviewer', reviewedAt: new Date(), lastCurationAction: 'approve' },
   });
   const exerciseA = await prisma.workoutExercise.create({
     data: {
@@ -243,7 +247,9 @@ async function seedReleasedWorkout(
           durationUnit: 'seconds', durationValue: 120 },
       });
       const exerciseC = await prisma.exerciseLibrary.create({
-        data: { contractId, name: `Mobilidade ${label}`, curationStatus: 'approved', legacyGrandfathered: true },
+        data: { contractId, name: `Mobilidade ${label}`, category: 'RESISTIDO', capacity: 'resisted',
+      instructions: ['Preparar posição'], curationStatus: 'approved', legacyGrandfathered: false,
+      reviewedByUserId: 'fixture-reviewer', reviewedAt: new Date(), lastCurationAction: 'approve' },
       });
       const workoutExerciseC = await prisma.workoutExercise.create({
         data: { workoutDayId: day.id, exerciseId: exerciseC.id, section: 'principal',
@@ -1571,7 +1577,8 @@ describeDatabase('resistance blocks - historical identity and transactional pers
         where: { id: fixture.dayId }, select: { templateId: true },
       });
       const candidate = await prisma.exerciseLibrary.create({
-        data: { contractId: fixture.contractId, name: `Exercicio ${curationStatus}`, curationStatus },
+        data: { contractId: fixture.contractId, name: `Exercicio ${curationStatus}`, curationStatus,
+          category: 'RESISTIDO', capacity: 'resisted', instructions: ['Iniciar movimento'] },
       });
       const newInput = {
         workoutDayId: fixture.dayId, exerciseId: candidate.id,
@@ -1590,7 +1597,8 @@ describeDatabase('resistance blocks - historical identity and transactional pers
         .toBe(before);
 
       await prisma.exerciseLibrary.update({
-        where: { id: candidate.id }, data: { curationStatus: 'approved' },
+        where: { id: candidate.id }, data: { curationStatus: 'approved',
+          reviewedByUserId: 'fixture-reviewer', reviewedAt: new Date(), lastCurationAction: 'approve' },
       });
       await expect(workoutService.addExerciseToDay(newInput, fixture.contractId))
         .resolves.toMatchObject({ exerciseId: candidate.id });

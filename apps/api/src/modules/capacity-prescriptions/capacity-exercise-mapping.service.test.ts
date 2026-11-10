@@ -58,7 +58,7 @@ describe('capacity exercise operational mapping metadata', () => {
     });
     const exerciseFindFirst = jest.fn().mockResolvedValue({
       id: 'library-1',
-      curationStatus: 'approved',
+      curationStatus: 'approved', legacyGrandfathered: false,
       updatedAt: new Date('2026-08-11T15:30:00.000Z'),
     });
     const service = createCapacityExerciseMappingService({
@@ -80,6 +80,27 @@ describe('capacity exercise operational mapping metadata', () => {
         name: 'Agachamento operacional',
         updatedAt: '2026-08-11T10:00:00.000Z',
       },
+    });
+  });
+
+  it('#394 A-007: historical approved mapping remains inspectable but is not currently reusable', async () => {
+    const technicalFindFirst = jest.fn().mockResolvedValue({
+      id: 'technical-1', code: 'SQUAT', name: 'Agachamento técnico', version: 4,
+      metadata: { operationalExerciseMapping: persisted },
+    });
+    const exerciseFindFirst = jest.fn().mockResolvedValue({
+      id: 'library-1', curationStatus: 'approved', legacyGrandfathered: true,
+      updatedAt: new Date('2026-08-11T15:30:00.000Z'),
+    });
+    const service = createCapacityExerciseMappingService({
+      capacityTechnicalCatalogItem: { findFirst: technicalFindFirst },
+      exerciseLibrary: { findFirst: exerciseFindFirst },
+    } as never);
+    const result = await service.resolveMapping('contract-a', 'technical-1');
+    expect(result).toMatchObject({ exerciseLibraryId: 'library-1', currentExerciseAvailable: false,
+      curationStatus: 'approved' });
+    expect(exerciseFindFirst).toHaveBeenCalledWith({
+      where: { id: 'library-1', contractId: 'contract-a' },
     });
   });
 
@@ -118,7 +139,7 @@ describe('capacity exercise operational mapping metadata', () => {
       message: 'Exercício operacional inexistente ou fora do contrato',
     });
     expect(exerciseFindFirst).toHaveBeenCalledWith({
-      where: { id: 'library-from-contract-b', contractId: 'contract-a', curationStatus: 'approved' },
+      where: { id: 'library-from-contract-b', contractId: 'contract-a', curationStatus: 'approved', legacyGrandfathered: false },
     });
     expect(update).not.toHaveBeenCalled();
   });

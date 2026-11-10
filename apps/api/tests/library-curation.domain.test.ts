@@ -6,7 +6,7 @@ import {
 const exercise = {
   name: 'Agachamento',
   category: 'RESISTIDO',
-  capacity: 'resistance',
+  capacity: 'resisted',
   instructions: ['Posicionar os pés', 'Controlar o movimento'],
   videoUrl: null as string | null,
   mediaOrigin: null as string | null,
@@ -34,6 +34,11 @@ describe('issue #394: curation domain', () => {
   it('rejects empty technical instructions or missing capacity', () => {
     expect(() => assertExerciseCanBeApproved({ ...exercise, capacity: null })).toThrow();
     expect(() => assertExerciseCanBeApproved({ ...exercise, instructions: [] })).toThrow();
+    expect(() => assertExerciseCanBeApproved({ ...exercise, capacity: 'resistance' })).toThrow();
+    expect(() => assertExerciseCanBeApproved({ ...exercise, capacity: 'custom' })).toThrow();
+    for (const capacity of ['resisted', 'flexibility', 'cyclic', 'balance']) {
+      expect(() => assertExerciseCanBeApproved({ ...exercise, capacity })).not.toThrow();
+    }
   });
 
   it('requires source and license for externally linked media, never infers either', () => {

@@ -1,3 +1,4 @@
+import { approvedOperationalExerciseWhere } from '../library/library-curation.domain.js';
 import { Prisma, PrismaClient } from '@prisma/client';
 import type {
   CapacityPrescriptionParameters,
@@ -150,7 +151,7 @@ export function createCapacityExerciseMappingService(client: PrismaClient = pris
             if (!technical) invalid('Item técnico de exercício inexistente, histórico ou fora do contrato');
 
             const exercise = await tx.exerciseLibrary.findFirst({
-              where: { id: exerciseLibraryId, contractId: context.contractId, curationStatus: 'approved' },
+              where: { id: exerciseLibraryId, contractId: context.contractId, ...approvedOperationalExerciseWhere },
             });
             if (!exercise) invalid('Exercício operacional inexistente ou fora do contrato');
 
@@ -235,7 +236,8 @@ export function createCapacityExerciseMappingService(client: PrismaClient = pris
         mappingRevision: mapping?.mappingRevision ?? 0,
         mappedAt: mapping?.mappedAt ?? null,
         mappedByProfessorId: mapping?.mappedByProfessorId ?? null,
-        currentExerciseAvailable: liveExercise?.curationStatus === 'approved',
+        currentExerciseAvailable: liveExercise?.curationStatus === 'approved'
+          && liveExercise.legacyGrandfathered === false,
         currentExerciseUpdatedAt: liveExercise?.updatedAt.toISOString() ?? null,
         curationStatus: liveExercise?.curationStatus ?? 'not_modeled',
       };

@@ -26,7 +26,7 @@ const db = prismaRuntimeClient as unknown as {
 const sample = {
   id: 'exercise-1', contractId: 'contract-1', name: 'Agachamento',
   version: 2, curationStatus: 'in_review', category: 'RESISTIDO',
-  capacity: 'resistance', instructions: ['Ajustar postura'],
+  capacity: 'resisted', instructions: ['Ajustar postura'],
   videoUrl: null, mediaOrigin: null, mediaLicense: null,
 };
 
@@ -61,7 +61,8 @@ describe('issue #394: persistence and tenant-aware curation', () => {
 
   it('searches aliases with tenant and approved-only filters', async () => {
     db.exerciseLibrary.findMany.mockResolvedValue([]);
-    db.$queryRaw.mockResolvedValue([{ id: 'alias-match' }]);
+    db.$queryRaw.mockResolvedValueOnce([{ id: 'alias-match' }])
+      .mockResolvedValueOnce([{ id: 'secondary-match' }]);
     await libraryService.listExercises('contract-1', { search: 'RotAÇÃO' });
     const args = db.$queryRaw.mock.calls[0];
     expect(args[0].join('')).toContain('strpos(lower(a.value), lower(');
@@ -70,8 +71,58 @@ describe('issue #394: persistence and tenant-aware curation', () => {
     expect(db.exerciseLibrary.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         contractId: 'contract-1', curationStatus: 'approved',
-        OR: expect.arrayContaining([{ id: { in: ['alias-match'] } }]),
+        OR: expect.arrayContaining([{ id: { in: ['alias-match', 'secondary-match'] } }]),
       }),
+    }));
+  });
+
+  it('#394 R-001: searches secondary muscles with SQL tenant isolation and no ILIKE wildcard expansion', async () => {
+    db.exerciseLibrary.findMany.mockResolvedValue([]);
+    db.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'secondary-only' }]);
+    await libraryService.listExercises('contract-1', { search: 'bÍceps' });
+    const args = db.$queryRaw.mock.calls[1];
+    expect(args[0].join('')).toContain('e."secondaryMuscleGroups"');
+    expect(args[0].join('')).toContain('strpos(lower(m.value), lower(');
+    expect(args).toContain('contract-1');
+    expect(args).toContain('bÍceps');
+    expect(db.exerciseLibrary.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        contractId: 'contract-1', curationStatus: 'approved', legacyGrandfathered: false,
+        OR: expect.arrayContaining([{ id: { in: ['secondary-only'] } }]),
+      }),
+    }));
+  });
+
+  it('#394 R-001: filters secondary muscles case-insensitively without leaking to other contracts', async () => {
+    db.exerciseLibrary.findMany.mockResolvedValue([]);
+    db.$queryRaw.mockResolvedValueOnce([{ id: 'secondary-only' }]);
+    await libraryService.listExercises('contract-1', { muscleGroup: 'deltÓide' });
+    const args = db.$queryRaw.mock.calls[0];
+    expect(args[0].join('')).toContain('lower(btrim(m.value)) = lower(');
+    expect(args).toContain('contract-1');
+    expect(args).toContain(true);
+    expect(db.exerciseLibrary.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        contractId: 'contract-1', legacyGrandfathered: false,
+        AND: [{ OR: expect.arrayContaining([{ id: { in: ['secondary-only'] } }]) }],
+      }),
+    }));
+  });
+
+  it('#394 A-007: the official picker never grants new-use rights to grandfathered approvals', async () => {
+    db.exerciseLibrary.findMany.mockResolvedValue([]);
+    await libraryService.listExercises('contract-1');
+    expect(db.exerciseLibrary.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { contractId: 'contract-1', curationStatus: 'approved', legacyGrandfathered: false },
+    }));
+    db.exerciseLibrary.findFirst.mockResolvedValue(null);
+    await libraryService.getExerciseById('contract-1', 'legacy-1', true);
+    expect(db.exerciseLibrary.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'legacy-1', contractId: 'contract-1', curationStatus: 'approved', legacyGrandfathered: false },
+    }));
+    await libraryService.getExerciseById('contract-1', 'legacy-1', false);
+    expect(db.exerciseLibrary.findFirst).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: { id: 'legacy-1', contractId: 'contract-1' },
     }));
   });
 

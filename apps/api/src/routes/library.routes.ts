@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from 'express';
-import type { AuthenticatedUserPayload } from '@corrida/types';
+import { PHYSICAL_CAPACITY_TYPES, type AuthenticatedUserPayload } from '@corrida/types';
 import { CountingType, ExerciseCurationStatus, LoadType, MovementType } from '@prisma/client';
 import { z } from 'zod';
 import {
@@ -57,7 +57,7 @@ const createExerciseSchema = z
     muscleGroup: z.string().optional(),
     notes: z.string().optional(),
     aliases: listOfStrings.optional(),
-    capacity: z.string().max(100).optional(),
+    capacity: z.enum(PHYSICAL_CAPACITY_TYPES).optional(),
     equipment: listOfStrings.optional(),
     primaryMuscleGroups: listOfStrings.optional(),
     secondaryMuscleGroups: listOfStrings.optional(),

@@ -6,7 +6,9 @@ import {
   assertExerciseCanBeApproved, LibraryCurationError, nextExerciseStatus,
   type CurationAction,
 } from './library-curation.domain.js';
-import { findExerciseIdsByAlias } from './exercise-alias-search.js';
+import { findExerciseIdsByAlias, findExerciseIdsByMuscleGroup } from './exercise-alias-search.js';
+import { approvedOperationalExerciseWhere } from './library-curation.domain.js';
+import type { PhysicalCapacityType } from '@corrida/types';
 import { canProfessorAccessScreen } from '../access-control/access-control.service.js';
 
 const prisma = prismaRuntimeClient;
@@ -22,7 +24,7 @@ export interface CreateExerciseDTO {
   muscleGroup?: string | null;
   notes?: string | null;
   aliases?: string[];
-  capacity?: string | null;
+  capacity?: PhysicalCapacityType | null;
   equipment?: string[];
   primaryMuscleGroups?: string[];
   secondaryMuscleGroups?: string[];
@@ -151,16 +153,19 @@ export const libraryService = {
   async listExercises(contractId: string, filters: ExerciseFilters = {}) {
     const where: ExerciseLibraryListWhere = { contractId };
     // The official list is the only default. A privileged admin must request "all".
-    where.curationStatus = filters.scope === 'all'
-      ? filters.curationStatus
-      : ExerciseCurationStatus.approved;
+    if (filters.scope === 'all') {
+      where.curationStatus = filters.curationStatus;
+    } else {
+      Object.assign(where, approvedOperationalExerciseWhere);
+    }
     if (filters.search?.trim()) {
       const search = filters.search.trim();
       const aliasIds = await findExerciseIdsByAlias(prisma, contractId, search);
+      const muscleIds = await findExerciseIdsByMuscleGroup(prisma, contractId, search);
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { muscleGroup: { contains: search, mode: 'insensitive' } },
-        { id: { in: aliasIds } },
+        { id: { in: [...new Set([...aliasIds, ...muscleIds])] } },
       ];
     }
     if (filters.category) where.category = filters.category;
@@ -168,8 +173,12 @@ export const libraryService = {
     if (filters.movementType) where.movementType = filters.movementType;
     if (filters.countingType) where.countingType = filters.countingType;
     if (filters.muscleGroup) {
+      const muscleIds = await findExerciseIdsByMuscleGroup(prisma, contractId, filters.muscleGroup, true);
       where.AND = [{
-        OR: [{ muscleGroup: filters.muscleGroup }, { primaryMuscleGroups: { has: filters.muscleGroup } }],
+        OR: [
+          { muscleGroup: { equals: filters.muscleGroup, mode: 'insensitive' } },
+          { id: { in: muscleIds } },
+        ],
       }];
     }
     if (filters.equipment) where.equipment = { has: filters.equipment };
@@ -182,7 +191,7 @@ export const libraryService = {
     return prisma.exerciseLibrary.findFirst({
       where: {
         id, contractId,
-        ...(officialOnly ? { curationStatus: ExerciseCurationStatus.approved } : {}),
+        ...(officialOnly ? approvedOperationalExerciseWhere : {}),
       },
       include: {
         workoutExercises: { include: { workoutDay: { include: { template: true } } } },

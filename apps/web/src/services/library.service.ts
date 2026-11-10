@@ -1,4 +1,5 @@
-﻿import api from './api';
+import api from './api';
+import type { PhysicalCapacityType } from '@corrida/types';
 
 export interface Exercise {
   id: string;
@@ -75,7 +76,7 @@ export interface CreateExerciseDTO {
   muscleGroup?: string;
   notes?: string;
   aliases?: string[];
-  capacity?: string;
+  capacity?: PhysicalCapacityType;
   equipment?: string[];
   primaryMuscleGroups?: string[];
   secondaryMuscleGroups?: string[];

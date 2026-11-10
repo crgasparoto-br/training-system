@@ -1,3 +1,4 @@
+import { approvedOperationalExerciseWhere } from '../library/library-curation.domain.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { Prisma, PrismaClient } from '@prisma/client';
 import type {
@@ -396,7 +397,7 @@ async function revalidatePreparedProjection(
       fail('CONFLICT', 'O vínculo técnico-operacional foi alterado após a preparação');
     }
     const originalExercise = await tx.exerciseLibrary.findFirst({
-      where: { id: mapping.exerciseLibraryId, contractId: context.contractId, curationStatus: 'approved' },
+      where: { id: mapping.exerciseLibraryId, contractId: context.contractId, ...approvedOperationalExerciseWhere },
       select: { id: true, updatedAt: true },
     });
     if (
@@ -418,7 +419,7 @@ async function revalidatePreparedProjection(
       if (!substitution) fail('CONFLICT', 'A substituição operacional preparada não pertence à versão aprovada');
     }
     const exercise = await tx.exerciseLibrary.findFirst({
-      where: { id: effectiveId, contractId: context.contractId, curationStatus: 'approved' },
+      where: { id: effectiveId, contractId: context.contractId, ...approvedOperationalExerciseWhere },
       select: { id: true, updatedAt: true },
     });
     if (!exercise || exercise.updatedAt.toISOString() !== item.operationalExerciseUpdatedAt) {

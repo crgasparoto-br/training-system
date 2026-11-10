@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import { libraryService } from '../library/library.service.js';
+import { assertApprovedWorkoutExerciseIds } from '../workout/workout-planning.helpers.js';
 import {
   PRODUCT_ASSESSMENT_TYPES,
   PRODUCT_TRAINING_PARAMETERS,
@@ -84,7 +85,10 @@ describeDatabase('installContractDefaults database integration', () => {
       .rejects.toThrow();
     await prisma.exerciseLibrary.update({
       where: { id: first.id },
-      data: { aliases: ['Alternativa exclusiva XyZzY'], curationStatus: 'approved' },
+      data: { aliases: ['Alternativa exclusiva XyZzY'], curationStatus: 'approved',
+        capacity: 'resisted', category: 'RESISTIDO', instructions: ['Posicionar o corpo'],
+        videoUrl: null, reviewedByUserId: 'fixture-reviewer', reviewedAt: new Date(),
+        lastCurationAction: 'approve' },
     });
     expect((await libraryService.listExercises(target.id, { search: 'xyZZy' }))
       .map((entry) => entry.id)).toContain(first.id);
@@ -273,7 +277,7 @@ describeDatabase('installContractDefaults database integration', () => {
     });
     const approved = await prisma.exerciseLibrary.create({
       data: { contractId: target.id, name: 'Agachamento revisado', category: 'RESISTIDO',
-        capacity: 'resistance', instructions: ['Posicionar os pés'] },
+        capacity: 'resisted', instructions: ['Posicionar os pés'] },
     });
     const inReview = await prisma.exerciseLibrary.update({
       where: { id: approved.id }, data: { curationStatus: 'in_review' },
@@ -284,7 +288,7 @@ describeDatabase('installContractDefaults database integration', () => {
 
     const draft = await prisma.exerciseLibrary.create({
       data: { contractId: target.id, name: 'Remada aguardando revisão', category: 'RESISTIDO',
-        capacity: 'resistance', instructions: ['Ajustar escápulas'] },
+        capacity: 'resisted', instructions: ['Ajustar escápulas'] },
     });
     const pending = await prisma.exerciseLibrary.update({
       where: { id: draft.id }, data: { curationStatus: 'in_review' },
@@ -309,6 +313,48 @@ describeDatabase('installContractDefaults database integration', () => {
     )).rejects.toMatchObject({ kind: 'forbidden' });
     expect(await prisma.exerciseLibraryRevision.count({ where: { exerciseId: draft.id } }))
       .toBe(originalRevisions);
+  });
+
+  it('#394 A-007/A-008: separates legacy history, canonical validation and operational eligibility in PostgreSQL', async () => {
+    const target = await prisma.companyContract.create({
+      data: { type: 'academy', document: `issue394-legacy-${randomUUID()}`,
+        name: 'Curadoria legado operacional' },
+    });
+    targetContractId = target.id;
+    const historical = await prisma.exerciseLibrary.create({
+      data: { contractId: target.id, name: 'Vídeo legado sem licença',
+        videoUrl: 'https://example.org/third-party',
+        curationStatus: 'approved', legacyGrandfathered: true },
+    });
+    expect(await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: historical.id } }))
+      .toMatchObject({ videoUrl: 'https://example.org/third-party', curationStatus: 'approved' });
+    expect((await libraryService.getExerciseById(target.id, historical.id, false))?.id).toBe(historical.id);
+    expect(await libraryService.getExerciseById(target.id, historical.id, true)).toBeNull();
+    expect(await libraryService.listExercises(target.id)).toEqual([]);
+    await expect(assertApprovedWorkoutExerciseIds(prisma as never, [historical.id], target.id))
+      .rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+
+    const draft = await prisma.exerciseLibrary.create({
+      data: { contractId: target.id, name: 'Nova versão regularizada',
+        category: 'RESISTIDO', capacity: 'resistance', instructions: ['Preparar'],
+      },
+    });
+    const approvalMetadata = { curationStatus: 'approved' as const,
+      reviewedByUserId: 'fixture-reviewer', reviewedAt: new Date(),
+      lastCurationAction: 'approve' };
+    await expect(prisma.exerciseLibrary.update({ where: { id: draft.id },
+      data: approvalMetadata })).rejects.toThrow();
+    await prisma.exerciseLibrary.update({ where: { id: draft.id },
+      data: { capacity: 'resisted' } });
+    await expect(prisma.exerciseLibrary.update({ where: { id: draft.id },
+      data: { ...approvalMetadata, videoUrl: 'https://example.org/no-license' } }))
+      .rejects.toThrow();
+    await expect(prisma.exerciseLibrary.update({ where: { id: draft.id },
+      data: approvalMetadata })).resolves.toMatchObject({ curationStatus: 'approved',
+        legacyGrandfathered: false });
+    expect((await libraryService.listExercises(target.id)).map(({ id }) => id)).toEqual([draft.id]);
+    expect((await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: historical.id } }))
+      .videoUrl).toBe('https://example.org/third-party');
   });
 
   it('does not backfill media without provenance into a legacy approved record', async () => {

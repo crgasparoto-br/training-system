@@ -1,4 +1,11 @@
 import { ExerciseCurationStatus } from '@prisma/client';
+import { PHYSICAL_CAPACITY_TYPES } from '@corrida/types';
+
+/** A legacy approval is historical, never a new operational authorization. */
+export const approvedOperationalExerciseWhere = {
+  curationStatus: ExerciseCurationStatus.approved,
+  legacyGrandfathered: false,
+} as const;
 
 export type CurationAction = 'submit' | 'approve' | 'request_changes' | 'deactivate' | 'reopen';
 
@@ -41,10 +48,10 @@ export function assertExerciseCanBeApproved(exercise: {
   mediaLicense: string | null;
 }) {
   if (!exercise.name.trim() || !exercise.category?.trim() ||
-      !exercise.capacity?.trim() || exercise.instructions.length === 0) {
+      !PHYSICAL_CAPACITY_TYPES.some((capacity) => capacity === exercise.capacity) || exercise.instructions.length === 0) {
     throw new LibraryCurationError(
       'invalid',
-      'Informe nome, categoria, capacidade e instruções antes de aprovar.',
+      'Informe nome, categoria, capacidade canônica e instruções antes de aprovar.',
     );
   }
   if (exercise.videoUrl?.trim() &&
