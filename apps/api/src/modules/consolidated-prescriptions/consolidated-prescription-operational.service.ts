@@ -15,7 +15,7 @@ import type {
   TechnicalExerciseOperationalMapping,
 } from '@corrida/types';
 import { capacityExerciseMappingService } from '../capacity-prescriptions/capacity-exercise-mapping.service.js';
-import { findExerciseIdsByAlias } from '../library/exercise-alias-search.js';
+import { findExerciseIdsByAlias, findExerciseIdsByMuscleGroup } from '../library/exercise-alias-search.js';
 import {
   ConsolidatedPrescriptionDomainError,
   consolidatedPrescriptionService,
@@ -578,19 +578,34 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
       });
       if (!aluno) notFound();
       const search = filters.search?.trim();
+      const muscleGroup = filters.muscleGroup?.trim();
+      // Share the catalog's primary/secondary muscle finder with operational selection.
       const aliasIds = search ? await findExerciseIdsByAlias(client, context.contractId, search) : [];
+      const muscleSearchIds = search ? await findExerciseIdsByMuscleGroup(client, context.contractId, search) : [];
+      const muscleFilterIds = muscleGroup
+        ? await findExerciseIdsByMuscleGroup(client, context.contractId, muscleGroup, true)
+        : [];
       return client.exerciseLibrary.findMany({
         where: {
           contractId: context.contractId,
           ...approvedOperationalExerciseWhere,
           ...(filters.category ? { category: filters.category } : {}),
-          ...(filters.muscleGroup ? { muscleGroup: filters.muscleGroup } : {}),
+          ...(muscleGroup
+            ? {
+                AND: [{
+                  OR: [
+                    { muscleGroup: { equals: muscleGroup, mode: 'insensitive' } },
+                    { id: { in: muscleFilterIds } },
+                  ],
+                }],
+              }
+            : {}),
           ...(search
             ? {
                 OR: [
                   { name: { contains: search, mode: 'insensitive' } },
                   { muscleGroup: { contains: search, mode: 'insensitive' } },
-                  { id: { in: aliasIds } },
+                  { id: { in: [...new Set([...aliasIds, ...muscleSearchIds])] } },
                 ],
               }
             : {}),

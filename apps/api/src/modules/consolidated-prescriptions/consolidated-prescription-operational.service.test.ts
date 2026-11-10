@@ -1,6 +1,7 @@
 import type { TechnicalExerciseOperationalMapping } from '@corrida/types';
 import {
   buildOperationalProjectionItems,
+  createConsolidatedPrescriptionOperationalService,
   isPreparedOperationalSnapshotItemStale,
 } from './consolidated-prescription-operational.service.js';
 
@@ -347,5 +348,117 @@ describe('buildOperationalProjectionItems', () => {
       substituted: true,
       effectiveExerciseLibraryId: 'library-leg-press',
     });
+  });
+});
+
+
+describe('issue #394: operational catalog search and exact muscle filters', () => {
+  const context = {
+    contractId: 'contract-a',
+    alunoId: 'aluno-1',
+    actorProfessorId: 'professor-1',
+  };
+
+  function searchClient() {
+    return {
+      aluno: { findFirst: jest.fn().mockResolvedValue({ id: context.alunoId }) },
+      exerciseLibrary: { findMany: jest.fn().mockResolvedValue([{ id: 'secondary-match' }]) },
+      $queryRaw: jest.fn(),
+    };
+  }
+
+  it('reuses tenant-scoped secondary muscles in partial search and exact case-insensitive filter', async () => {
+    const client = searchClient();
+    client.$queryRaw
+      .mockResolvedValueOnce([{ id: 'alias-match' }])
+      .mockResolvedValueOnce([{ id: 'secondary-match' }])
+      .mockResolvedValueOnce([{ id: 'secondary-match' }]);
+    const service = createConsolidatedPrescriptionOperationalService(client as never);
+
+    const results = await service.listOperationalExercises(context, {
+      search: 'GLÚTEOS',
+      muscleGroup: 'glúteos',
+      category: 'resisted',
+    });
+
+    expect(results).toEqual([{ id: 'secondary-match' }]);
+    expect(client.aluno.findFirst).toHaveBeenCalledWith({
+      where: { id: 'aluno-1', contractId: 'contract-a' },
+      select: { id: true },
+    });
+    expect(client.$queryRaw).toHaveBeenCalledTimes(3);
+    const aliasQuery = client.$queryRaw.mock.calls[0];
+    const muscleQuery = client.$queryRaw.mock.calls[1];
+    const filterQuery = client.$queryRaw.mock.calls[2];
+    expect(aliasQuery[0].join('')).toContain('unnest(e."aliases")');
+    expect(muscleQuery[0].join('')).toContain('e."primaryMuscleGroups" || e."secondaryMuscleGroups"');
+    expect(muscleQuery[0].join('')).toContain('strpos(lower(m.value), lower(');
+    expect(filterQuery[0].join('')).toContain('lower(btrim(m.value)) = lower(');
+    for (const query of [aliasQuery, muscleQuery, filterQuery]) {
+      expect(query).toContain('contract-a');
+    }
+    expect(muscleQuery).toContain(false);
+    expect(filterQuery).toContain(true);
+    expect(muscleQuery).toContain('GLÚTEOS');
+    expect(filterQuery).toContain('glúteos');
+
+    expect(client.exerciseLibrary.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        contractId: 'contract-a',
+        curationStatus: 'approved',
+        legacyGrandfathered: false,
+        category: 'resisted',
+        AND: [{
+          OR: [
+            { muscleGroup: { equals: 'glúteos', mode: 'insensitive' } },
+            { id: { in: ['secondary-match'] } },
+          ],
+        }],
+        OR: expect.arrayContaining([
+          { id: { in: ['alias-match', 'secondary-match'] } },
+        ]),
+      }),
+      take: 50,
+    }));
+  });
+
+  it('filters by secondary muscle without search, preserving approved-only and tenant boundaries', async () => {
+    const client = searchClient();
+    client.$queryRaw.mockResolvedValueOnce([{ id: 'secondary-match' }]);
+    const service = createConsolidatedPrescriptionOperationalService(client as never);
+
+    await service.listOperationalExercises(context, { muscleGroup: ' DELTOIDE ' });
+
+    expect(client.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(client.$queryRaw.mock.calls[0]).toContain('DELTOIDE');
+    expect(client.$queryRaw.mock.calls[0]).toContain(true);
+    expect(client.$queryRaw.mock.calls[0]).toContain('contract-a');
+    expect(client.exerciseLibrary.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        contractId: 'contract-a',
+        curationStatus: 'approved',
+        legacyGrandfathered: false,
+        AND: [{
+          OR: [
+            { muscleGroup: { equals: 'DELTOIDE', mode: 'insensitive' } },
+            { id: { in: ['secondary-match'] } },
+          ],
+        }],
+      },
+    }));
+  });
+
+  it('does not query catalog or cross-tenant muscle IDs when student is not in this contract', async () => {
+    const client = searchClient();
+    client.aluno.findFirst.mockResolvedValueOnce(null);
+    const service = createConsolidatedPrescriptionOperationalService(client as never);
+
+    await expect(service.listOperationalExercises(context, {
+      search: 'glúteos',
+      muscleGroup: 'glúteos',
+    })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+
+    expect(client.$queryRaw).not.toHaveBeenCalled();
+    expect(client.exerciseLibrary.findMany).not.toHaveBeenCalled();
   });
 });
