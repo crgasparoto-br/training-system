@@ -1,9 +1,9 @@
-import { ExerciseCurationStatus } from '@prisma/client';
+import type { ExerciseCurationStatus } from '@prisma/client';
 import { PHYSICAL_CAPACITY_TYPES } from '@corrida/types';
 
 /** A legacy approval is historical, never a new operational authorization. */
 export const approvedOperationalExerciseWhere = {
-  curationStatus: ExerciseCurationStatus.approved,
+  curationStatus: 'approved',
   legacyGrandfathered: false,
 } as const;
 

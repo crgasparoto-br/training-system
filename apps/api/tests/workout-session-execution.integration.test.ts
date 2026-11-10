@@ -1096,11 +1096,18 @@ describeDatabase('workout session execution persistence - issue 389', () => {
       where: { workoutExerciseId: fixture.exerciseIds[0] },
     });
     expect(snapshot.catalog).toMatchObject({ name: before.current?.exerciseName });
+    // An approved catalog cannot gain third-party media without source and license.
+    await expect(prisma.exerciseLibrary.update({
+      where: { id: exercise.exerciseId },
+      data: { videoUrl: 'https://example.org/video-sem-licenca' },
+    })).rejects.toThrow();
     await prisma.exerciseLibrary.update({
       where: { id: exercise.exerciseId },
       data: {
         name: 'Nome alterado depois da liberação',
         videoUrl: 'https://example.org/video-alterado',
+        mediaOrigin: 'video de teste criado pela equipe',
+        mediaLicense: 'conteudo proprio de teste',
         notes: 'Orientação editada depois da liberação',
       },
     });
