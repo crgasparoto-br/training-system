@@ -54,6 +54,13 @@ estados de revisão, histórico por versão e testes de regressão.
   (e `master` onde exigido). Testes HTTP com middleware real abrangem perfis
   sem biblioteca, negação, revogação, self-scope e escopo por contrato.
 
+- A-394-013: a instalação/reinstalação de padrões não pode alterar exercícios
+  aprovados e não legados, ainda que campos opcionais estejam vazios ou o nome
+  precise de normalização. Revalidar o estado na gravação definitiva nos
+  caminhos SQL e Prisma; regressão PostgreSQL real deve preservar versão,
+  revisor, ação de curadoria, nome e revisões, sem impedir backfill de rascunhos
+  e legado.
+
 ## Validação e aceite
 - [ ] Tests de domínio e API, segurança e isolamento.
 - [ ] Migration e triggers em PostgreSQL.

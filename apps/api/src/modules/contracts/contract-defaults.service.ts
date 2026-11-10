@@ -5,6 +5,7 @@ import {
   Prisma,
   PrismaClient,
   type CountingType,
+  type ExerciseCurationStatus,
   type LoadType,
 } from '@prisma/client';
 import {
@@ -24,6 +25,8 @@ type ExerciseCatalogRow = Record<string, unknown>;
 
 type ExistingExerciseDefault = {
   name: string;
+  curationStatus: ExerciseCurationStatus;
+  legacyGrandfathered: boolean;
   videoUrl: string | null;
   loadType: LoadType | null;
   movementType: MovementType | null;
@@ -32,6 +35,16 @@ type ExistingExerciseDefault = {
   muscleGroup: string | null;
   notes: string | null;
   workoutExercises?: Array<{ id: string }>;
+};
+
+// A professionally approved record is immutable to automatic defaults repair.
+function isProfessionallyApprovedExercise(exercise: ExistingExerciseDefault) {
+  return exercise.curationStatus === 'approved' && !exercise.legacyGrandfathered;
+}
+
+// Recheck at the definitive Prisma UPDATE to survive a concurrent approval.
+const defaultsWritableWhere: Prisma.ExerciseLibraryWhereInput = {
+  NOT: { curationStatus: 'approved', legacyGrandfathered: false },
 };
 
 type ExerciseNameRepair = {
@@ -345,7 +358,7 @@ function collectExerciseNameRepairs(
   const repairs: ExerciseNameRepair[] = [];
 
   for (const item of existingExercises) {
-    if (item.workoutExercises?.length) continue;
+    if (item.workoutExercises?.length || isProfessionallyApprovedExercise(item)) continue;
     const repairedName = normalizeExerciseName(item.name);
     const key = canonicalExerciseName(repairedName);
     if (
@@ -386,6 +399,7 @@ async function applyExerciseNameRepairs(
       FROM (VALUES ${Prisma.join(rows)}) AS repair("currentName", "repairedName")
       WHERE exercise."contractId" = ${contractId}
         AND exercise."name" = repair."currentName"
+        AND (exercise."curationStatus" <> 'approved' OR exercise."legacyGrandfathered" = TRUE)
         AND NOT EXISTS (
           SELECT 1 FROM "WorkoutExercise" AS workout
           WHERE workout."exerciseId" = exercise."id"
@@ -402,7 +416,10 @@ async function applyExerciseNameRepairs(
   } else {
     for (const repair of repairs) {
       await db.exerciseLibrary.updateMany({
-        where: { contractId, name: repair.currentName, workoutExercises: { none: {} } },
+        where: {
+          contractId, name: repair.currentName,
+          workoutExercises: { none: {} }, ...defaultsWritableWhere,
+        },
         data: { name: repair.repairedName, lastModifiedByUserId: null, lastCurationAction: 'system_defaults_repair' },
       });
     }
@@ -502,6 +519,7 @@ async function applyExerciseBackfills(
       WHERE exercise."contractId" = ${contractId}
         AND issue394_exercise_canonical_name(exercise."name")
           = issue394_exercise_canonical_name(defaults."name")
+        AND (exercise."curationStatus" <> 'approved' OR exercise."legacyGrandfathered" = TRUE)
         AND NOT EXISTS (
           SELECT 1 FROM "WorkoutExercise" AS workout
           WHERE workout."exerciseId" = exercise."id"
@@ -522,7 +540,10 @@ async function applyExerciseBackfills(
 
   for (const { current, canonical, data } of backfills) {
     await db.exerciseLibrary.updateMany({
-      where: { contractId, name: current.name, workoutExercises: { none: {} } },
+      where: {
+        contractId, name: current.name,
+        workoutExercises: { none: {} }, ...defaultsWritableWhere,
+      },
       data: { ...data, lastModifiedByUserId: null, lastCurationAction: 'system_defaults_repair' },
     });
     Object.assign(current, data);
@@ -535,6 +556,8 @@ async function installExercises(contractId: string, db: DefaultsDb) {
     where: { contractId },
     select: {
       name: true,
+      curationStatus: true,
+      legacyGrandfathered: true,
       videoUrl: true,
       loadType: true,
       movementType: true,
@@ -570,7 +593,8 @@ async function installExercises(contractId: string, db: DefaultsDb) {
     }
 
     const data = missingExerciseFields(current, canonical);
-    if (!current.workoutExercises?.length && Object.keys(data).length > 0) {
+    if (!current.workoutExercises?.length && !isProfessionallyApprovedExercise(current)
+        && Object.keys(data).length > 0) {
       backfills.push({ current, canonical, data });
     }
   }

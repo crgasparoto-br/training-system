@@ -391,4 +391,89 @@ describeDatabase('installContractDefaults database integration', () => {
     });
     expect(revision.actorUserId).toBeNull();
   });
+  it('#394 A-394-013: preserves approved curated exercises across repeat defaults installs', async () => {
+    const defaults = loadProductExerciseDefaults();
+    const renamed = defaults.find((item) => item.name === 'Abdominal Canoa');
+    const exact = defaults.find((item) => item.name === 'Abdominal Bicicleta');
+    const draftDefault = defaults.find((item) =>
+      item.name !== renamed?.name && item.name !== exact?.name && item.loadType != null
+    );
+    expect(renamed).toBeDefined();
+    expect(exact).toBeDefined();
+    expect(draftDefault).toBeDefined();
+
+    const target = await prisma.companyContract.create({
+      data: {
+        type: 'academy', document: `issue394-approved-defaults-${randomUUID()}`,
+        name: 'Immutable curated defaults regression',
+      },
+    });
+    targetContractId = target.id;
+    const reviewedAt = new Date('2026-11-10T12:00:00.000Z');
+    const approvedData = {
+      contractId: target.id,
+      category: 'RESISTIDO',
+      capacity: 'resisted',
+      instructions: ['Preparar o movimento'],
+      curationStatus: 'approved' as const,
+      legacyGrandfathered: false,
+      reviewedByUserId: 'reviewer-394',
+      reviewedAt,
+      lastCurationAction: 'approve',
+      loadType: null,
+    };
+    // The first row would be renamed; the second would receive a missing
+    // loadType from defaults. Neither operation may edit a curated approval.
+    const curated = await Promise.all([
+      prisma.exerciseLibrary.create({
+        data: { ...approvedData, name: '  Abdominal   Canoa  ' },
+      }),
+      prisma.exerciseLibrary.create({
+        data: { ...approvedData, name: exact!.name },
+      }),
+    ]);
+    const draft = await prisma.exerciseLibrary.create({
+      data: { contractId: target.id, name: draftDefault!.name, loadType: null },
+    });
+    const initialRevisionCounts = await Promise.all(curated.map((row) =>
+      prisma.exerciseLibraryRevision.count({ where: { exerciseId: row.id } })
+    ));
+
+    const first = await installContractDefaults(target.id, prisma);
+    const second = await installContractDefaults(target.id, prisma);
+    expect(first.exercises.installed).toBe(defaults.length - 3);
+    expect(second.exercises.installed).toBe(0);
+
+    for (const [index, before] of curated.entries()) {
+      const after = await prisma.exerciseLibrary.findUniqueOrThrow({
+        where: { id: before.id },
+      });
+      expect(after).toMatchObject({
+        name: before.name,
+        category: 'RESISTIDO',
+        loadType: null,
+        curationStatus: 'approved',
+        legacyGrandfathered: false,
+        reviewedByUserId: 'reviewer-394',
+        reviewedAt,
+        lastCurationAction: 'approve',
+        version: before.version,
+      });
+      expect(await prisma.exerciseLibraryRevision.count({
+        where: { exerciseId: before.id },
+      })).toBe(initialRevisionCounts[index]);
+    }
+    const afterDraft = await prisma.exerciseLibrary.findUniqueOrThrow({
+      where: { id: draft.id },
+    });
+    expect(afterDraft).toMatchObject({
+      curationStatus: 'draft',
+      legacyGrandfathered: false,
+      loadType: draftDefault!.loadType,
+    });
+    expect(await prisma.exerciseLibraryRevision.findFirst({
+      where: { exerciseId: draft.id, action: 'system_defaults_repair' },
+    })).not.toBeNull();
+  });
+
 });
