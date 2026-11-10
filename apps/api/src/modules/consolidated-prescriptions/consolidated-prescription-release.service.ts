@@ -1,4 +1,6 @@
 import { approvedOperationalExerciseWhere } from '../library/library-curation.domain.js';
+import { assertApprovedWorkoutExerciseIds } from '../workout/workout-planning.helpers.js';
+import { ResistanceStructureValidationError } from '../workout/resistance-structure.domain.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { Prisma, PrismaClient } from '@prisma/client';
 import type {
@@ -368,6 +370,21 @@ async function revalidatePreparedProjection(
       projectionKey: incompatible.key,
       incompatibilityCode: incompatible.incompatibilityCode ?? null,
     });
+  }
+
+  // The release actually materializes WorkoutExercise links. Lock every
+  // effective and original catalog row until this serializable transaction
+  // commits; version/read-only checks below cannot close a deactivation race.
+  const catalogIds = items.filter(item => Boolean(item.technicalCatalogItemId))
+    .flatMap(item => [item.mappedExerciseLibraryId, item.effectiveExerciseLibraryId])
+    .filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+  try {
+    await assertApprovedWorkoutExerciseIds(tx, catalogIds, context.contractId);
+  } catch (error) {
+    if (error instanceof ResistanceStructureValidationError) {
+      fail('CONFLICT', 'Um exercício operacional foi desativado ou deixou de estar aprovado');
+    }
+    throw error;
   }
 
   const substitutions = refs

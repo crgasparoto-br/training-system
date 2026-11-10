@@ -65,6 +65,12 @@ A seleção operacional usa:
 
 `GET /api/v1/consolidated-prescriptions/alunos/:alunoId/operational-exercises`
 
+Na liberação definitiva de uma montagem, as linhas de `ExerciseLibrary`
+dos exercícios de origem e efetivos recebem `SELECT ... FOR SHARE` na mesma
+transação que grava os vínculos de `WorkoutExercise`. Isso serializa a
+materialização com desativação administrativa concorrente sem alterar
+automaticamente prescrições ou reescrever históricos.
+
 A consulta valida o aluno no mesmo `contractId` e apresenta somente exercícios operacionais `approved` e `legacyGrandfathered=false`; rascunhos, itens em revisão, inativos e aprovações legadas não são selecionáveis. Os parâmetros `search`, `category` e `muscleGroup` servem somente à busca humana, nunca à associação técnica (feita por ID explícito).
 
 `search` pesquisa parcialmente, sem diferenciar maiúsculas/minúsculas, nome, aliases, `muscleGroup` legado e os grupos musculares primários e secundários. O filtro `muscleGroup` usa correspondência exata sem diferenciar caixa sobre o campo legado e ambos os arrays musculares; `category` permanece filtro de categoria. A consulta reutiliza o buscador canônico da biblioteca, parametrizado por contrato. A resposta projeta o subconjunto operacional já contratado: ID, nome, vídeo, tipos de carga/movimento/contagem, categoria, grupo muscular legado, notas e `updatedAt`; metadados adicionais da biblioteca não são automaticamente transformados em prescrições ou critérios de elegibilidade clínica.
