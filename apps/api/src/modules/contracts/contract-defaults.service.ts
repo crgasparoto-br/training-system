@@ -334,24 +334,29 @@ function collectExerciseNameRepairs(
   defaults: NormalizedExerciseDefault[],
   existingExercises: ExistingExerciseDefault[]
 ): ExerciseNameRepair[] {
-  const defaultNames = new Set(defaults.map((item) => item.name));
-  const existingNames = new Set(existingExercises.map((item) => item.name));
+  const defaultCanonicalNames = new Set(defaults.map((item) => canonicalExerciseName(item.name)));
+  const existingCanonicalCounts = new Map<string, number>();
+  for (const item of existingExercises) {
+    const key = canonicalExerciseName(item.name);
+    existingCanonicalCounts.set(key, (existingCanonicalCounts.get(key) ?? 0) + 1);
+  }
   const repairs: ExerciseNameRepair[] = [];
 
   for (const item of existingExercises) {
     if (item.workoutExercises?.length) continue;
     const repairedName = normalizeExerciseName(item.name);
+    const key = canonicalExerciseName(repairedName);
     if (
       repairedName === item.name ||
-      !defaultNames.has(repairedName) ||
-      existingNames.has(repairedName)
+      !defaultCanonicalNames.has(key) ||
+      // Preserve already-existing legacy duplicates: a rename cannot select
+      // a new preferred identity when more than one row owns this key.
+      existingCanonicalCounts.get(key) !== 1
     ) {
       continue;
     }
 
     repairs.push({ currentName: item.name, repairedName });
-    existingNames.delete(item.name);
-    existingNames.add(repairedName);
   }
 
   return repairs;
@@ -385,7 +390,9 @@ async function applyExerciseNameRepairs(
           SELECT 1
           FROM "ExerciseLibrary" AS conflict
           WHERE conflict."contractId" = exercise."contractId"
-            AND conflict."name" = repair."repairedName"
+            AND conflict."id" <> exercise."id"
+            AND issue394_exercise_canonical_name(conflict."name")
+              = issue394_exercise_canonical_name(repair."repairedName")
         )
     `);
   } else {
