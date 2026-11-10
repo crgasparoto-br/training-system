@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { classifyResistanceWriteError } from '../modules/workout/resistance-structure.domain.js';
 import { prismaRuntimeClient } from '../common/prisma-runtime-client.js';
+import { approvedOperationalExerciseWhere } from '../modules/library/library-curation.domain.js';
 
 /** Keep raw Prisma/SQL errors in server logs, never in legacy HTTP responses. */
 export function sendSafeWorkoutError(res: Response, error: unknown) {
@@ -25,6 +26,7 @@ export async function workoutContractScopeMiddleware(req: Request, res: Response
     if (!contractId) return res.status(403).json({ code: 'FORBIDDEN', error: 'Acesso negado.' });
     const [resource, id] = req.path.split('/').filter(Boolean);
     let allowed = false;
+    let historicalExerciseId: string | null = null;
     if (resource === 'templates') {
       if (id === 'get-or-create' && req.method === 'POST') {
         allowed = typeof req.body?.planId === 'string' && Boolean(await prismaRuntimeClient.trainingPlan.findFirst({
@@ -52,10 +54,12 @@ export async function workoutContractScopeMiddleware(req: Request, res: Response
           where: { id: dayId, template: { plan: { aluno: { contractId } } } }, select: { id: true },
         }));
       } else {
-        allowed = Boolean(await prismaRuntimeClient.workoutExercise.findFirst({
+        const current = await prismaRuntimeClient.workoutExercise.findFirst({
           where: { id, workoutDay: { template: { plan: { aluno: { contractId } } } } },
-          select: { id: true },
-        }));
+          select: { id: true, exerciseId: true },
+        });
+        allowed = Boolean(current);
+        historicalExerciseId = current?.exerciseId ?? null;
         if (allowed && req.body?.workoutDayId !== undefined) {
           allowed = typeof req.body.workoutDayId === 'string' && Boolean(await prismaRuntimeClient.workoutDay.findFirst({
             where: { id: req.body.workoutDayId, template: { plan: { aluno: { contractId } } } },
@@ -63,10 +67,13 @@ export async function workoutContractScopeMiddleware(req: Request, res: Response
           }));
         }
       }
+      // A metadata edit that keeps the same already-linked exercise is not a
+      // new application. A new or substituted ID requires curated eligibility.
       if (allowed && (req.method === 'POST' || req.method === 'PUT') && id !== 'reorder'
-        && req.body?.exerciseId !== undefined) {
+        && req.body?.exerciseId !== undefined &&
+        !(req.method === 'PUT' && req.body.exerciseId === historicalExerciseId)) {
         allowed = typeof req.body.exerciseId === 'string' && Boolean(await prismaRuntimeClient.exerciseLibrary.findFirst({
-          where: { id: req.body.exerciseId, contractId, curationStatus: 'approved' }, select: { id: true },
+          where: { id: req.body.exerciseId, contractId, ...approvedOperationalExerciseWhere }, select: { id: true },
         }));
       }
     }

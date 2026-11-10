@@ -260,6 +260,28 @@ describe('Issue #399 - route protection and contract isolation', () => {
     expect(workoutService.reorderExercises).not.toHaveBeenCalled();
   });
 
+  it('#394 A-007: does not treat an existing historical link as a new operational approval', async () => {
+    (prismaRuntimeClient.workoutExercise.findFirst as jest.Mock)
+      .mockResolvedValue({ id: 'row-1', exerciseId: 'legacy-id' });
+    (workoutService.updateExercise as jest.Mock).mockResolvedValueOnce({ id: 'row-1' });
+    const update = await request(app).put('/workout/exercises/row-1').send({
+      exerciseId: 'legacy-id', exerciseNotes: 'Observação clínica',
+    });
+    expect(update.status).toBe(200);
+    expect(prismaRuntimeClient.exerciseLibrary.findFirst).not.toHaveBeenCalled();
+
+    (prismaRuntimeClient.exerciseLibrary.findFirst as jest.Mock).mockResolvedValueOnce(null);
+    const substitute = await request(app).put('/workout/exercises/row-1').send({
+      exerciseId: 'historical-other-id', exerciseNotes: 'Substituição',
+    });
+    expect(prismaRuntimeClient.exerciseLibrary.findFirst).toHaveBeenCalledWith({
+      where: { id: 'historical-other-id', contractId: 'contract-test',
+        curationStatus: 'approved', legacyGrandfathered: false }, select: { id: true },
+    });
+    expect(substitute.status).toBe(404);
+    expect(workoutService.updateExercise).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects library exercises from a different contract', async () => {
     (prismaRuntimeClient.exerciseLibrary.findFirst as jest.Mock).mockResolvedValueOnce(null);
     const response = await request(app).post('/workout/exercises').send({

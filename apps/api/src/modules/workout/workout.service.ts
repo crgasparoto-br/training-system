@@ -795,7 +795,11 @@ export const workoutService = {
     const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
     return withWorkoutDayPlanningMutation(prisma, current.workoutDayId, async (tx) => {
       if (contractId) {
-        await assertDayContract(tx, current.workoutDayId, contractId, data.exerciseId ?? current.exerciseId);
+        // Do not reinterpret a persisted historical link as a new application
+        // when a professor only changes row metadata or reuses the same ID.
+        await assertDayContract(tx, current.workoutDayId, contractId,
+          data.exerciseId !== undefined && data.exerciseId !== current.exerciseId
+            ? data.exerciseId : undefined);
       }
       return tx.workoutExercise.update({
         where: { id },
