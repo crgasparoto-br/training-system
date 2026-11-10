@@ -63,7 +63,7 @@ describeDatabase('#394 RISK-394-001: curator updates versus new application on P
         });
       }, { maxWait: 10_000, timeout: 10_000 })).rejects.toThrow(/lock timeout/i);
       expect(reachedCuratorUpdate).toBe(true);
-      expect((await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: exercise.id } })).curationStatus)
+      expect((await curator.exerciseLibrary.findUniqueOrThrow({ where: { id: exercise.id } })).curationStatus)
         .toBe('approved');
     } finally {
       release();
