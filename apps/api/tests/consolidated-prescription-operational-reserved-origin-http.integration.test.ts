@@ -35,6 +35,7 @@ function tokenFor(user: { id: string; email: string; type: UserType }) {
 async function cleanupFixtures() {
   await prisma.consolidatedPrescription.deleteMany({ where: { contractId } });
   await prisma.capacityPrescription.deleteMany({ where: { contractId } });
+  await prisma.capacityTechnicalCatalogItem.deleteMany({ where: { contractId } });
   await prisma.aluno.deleteMany({ where: { contractId } });
   await prisma.professor.deleteMany({ where: { contractId } });
   await prisma.collaboratorFunctionOption.deleteMany({ where: { contractId } });
