@@ -224,6 +224,15 @@ e `mayConcludeNoConflict=false` são invariantes.
 
 ## Biblioteca oficial de exercícios (#394)
 
+A seleção de um exercício para aplicação nova usa SELECT ... FOR SHARE na
+transação que grava o treino, segurando o estado aprovado até a confirmação.
+Uma alteração de curadoria simultânea espera o lock; uma aplicação posterior
+a desativação é rejeitada. O filtro continua exigindo contractId, approved e
+legacyGrandfathered=false. A interface preserva listas durante a digitação
+e permite criar um novo draft sem alterar o exercício histórico ou transferir
+licenças de mídia.
+
+
 `/api/v1/library/exercises` exige autenticação de professor ativo e permissão
 `screenKey=plans` **ou** `screenKey=library` para consulta operacional, e retorna somente exercícios `approved` com
 `legacyGrandfathered=false` por padrão. Aprovação histórica legada não equivale

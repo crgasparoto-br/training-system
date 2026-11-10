@@ -1,6 +1,5 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { projectWorkoutDayExerciseCatalog } from './workout-release-catalog.js';
-import { approvedOperationalExerciseWhere } from '../library/library-curation.domain.js';
 
 import { ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput, type ResistancePlannedSetInput } from './resistance-structure.domain.js';
 
@@ -75,10 +74,17 @@ export async function assertApprovedWorkoutExerciseIds(
 ) {
   const uniqueIds = [...new Set(exerciseIds)];
   if (!uniqueIds.length) return;
-  const approved = await tx.exerciseLibrary.count({
-    where: { id: { in: uniqueIds }, contractId, ...approvedOperationalExerciseWhere },
-  });
-  if (approved !== uniqueIds.length) {
+  // Hold the approved catalog rows through the definitive workout write.
+  // A concurrent curator UPDATE conflicts with FOR SHARE and must serialize.
+  const approved = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT "id" FROM "ExerciseLibrary"
+    WHERE "id" IN (${Prisma.join(uniqueIds)})
+      AND "contractId" = ${contractId}
+      AND "curationStatus" = 'approved'
+      AND "legacyGrandfathered" = FALSE
+    ORDER BY "id" FOR SHARE
+  `);
+  if (approved.length !== uniqueIds.length) {
     throw new ResistanceStructureValidationError('Exercício indisponível para aplicação.');
   }
 }
@@ -95,10 +101,7 @@ export async function assertDayContract(
   });
   if (!day) throw new ResistanceStructureNotFoundError();
   if (exerciseId !== undefined) {
-    const libraryExercise = await tx.exerciseLibrary.findFirst({
-      where: { id: exerciseId, contractId, ...approvedOperationalExerciseWhere }, select: { id: true },
-    });
-    if (!libraryExercise) throw new ResistanceStructureValidationError('Exercício fora do contrato.');
+    await assertApprovedWorkoutExerciseIds(tx, [exerciseId], contractId);
   }
 }
 

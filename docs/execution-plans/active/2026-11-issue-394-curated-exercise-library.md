@@ -61,6 +61,16 @@ estados de revisão, histórico por versão e testes de regressão.
   revisor, ação de curadoria, nome e revisões, sem impedir backfill de rascunhos
   e legado.
 
+## Remediação da auditoria independente (A-394-014 / RISK-394-001 / RISK-394-002)
+- A-394-014: campos técnicos multilinha preservam espaços e quebras durante a
+  digitação; normalizam os itens somente na gravação. Testes cobrem cada lista.
+- RISK-394-001: operações novas bloqueiam as linhas do catálogo com SELECT
+  FOR SHARE na transação de escrita; desativação concorrente aguarda o lock,
+  e uma aplicação posterior à desativação é negada.
+- RISK-394-002: nova ficha para curadoria cria um draft com outro ID e nome,
+  copiando metadados técnicos sem transferir direitos de mídia ou vínculos
+  históricos. O registro antigo e suas referências não são alterados.
+
 ## Validação e aceite
 - [ ] Tests de domínio e API, segurança e isolamento.
 - [ ] Migration e triggers em PostgreSQL.

@@ -719,6 +719,15 @@ O guard PostgreSQL impede que valores `NULL` de capacidade ou de ação da últi
 revisão permitam aprovação direta sem os metadados obrigatórios; o histórico
 anterior à migração não é reclassificado.
 
+Na edição da Biblioteca, campos multilinha preservam espaços e quebras até o
+envio; somente o salvamento normaliza itens vazios e espaços excedentes.
+A partir de um registro histórico legado, o administrador pode criar nova
+ficha em rascunho com identificador e nome diferentes, sem reutilizar
+automaticamente URL ou licença de mídia. A ficha original e os seus vínculos
+históricos não são modificados e a nova precisa de revisão explícita.
+A aplicação de novos vínculos bloqueia a linha aprovada durante a transação,
+serializando a operação com eventual desativação ou alteração de curadoria.
+
 Toda alteração recebe versão monotônica e snapshot imutável, com ator, ação e data.
 Mudança concorrente com `expectedVersion` responde 409. Editar conteúdo de exercício
 referenciado por `WorkoutExercise` é rejeitado tanto na pré-checagem quanto no
