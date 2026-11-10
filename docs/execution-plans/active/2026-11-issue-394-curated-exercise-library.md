@@ -27,6 +27,11 @@ estados de revisão, histórico por versão e testes de regressão.
   rejeita duplicidade nova e concorrente sem alterar duplicatas legadas.
 - Testes negativos: SQL direto, Prisma sem status, nomes com caixa/espaçamento,
   concorrência, tenant cruzado e revogação de acesso; HTTP 403/409.
+- Remediação A-394-006: o carregador e o importador devem aplicar a mesma
+  identidade canônica de caixa/espaços que o PostgreSQL, preservar a primeira
+  grafia e complementar metadados de fontes equivalentes. Validar instalação
+  em contrato vazio, registro legado com grafia diferente, idempotência e
+  ausência de herança de mídia sem licença, inclusive com PostgreSQL real.
 
 ## Validação e aceite
 - [ ] Tests de domínio e API, segurança e isolamento.
