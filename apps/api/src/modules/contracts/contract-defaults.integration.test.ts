@@ -1,4 +1,8 @@
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import { libraryService } from '../library/library.service.js';
 import {
@@ -127,6 +131,57 @@ describeDatabase('installContractDefaults database integration', () => {
     expect(await prisma.exerciseLibraryRevision.findFirst({
       where: { exerciseId: historical.id, action: 'system_defaults_repair' },
     })).not.toBeNull();
+  });
+
+  it('#394 A-394-006: JSON import is canonical and idempotent, including dry runs', async () => {
+    const target = await prisma.companyContract.create({
+      data: {
+        type: 'academy', document: `issue394-import-${randomUUID()}`,
+        name: 'Canonical import regression',
+      },
+    });
+    targetContractId = target.id;
+    await prisma.exerciseLibrary.create({
+      data: { contractId: target.id, name: '  REMADA   BAIXA  ' },
+    });
+    const directory = mkdtempSync(path.join(tmpdir(), 'issue394-import-'));
+    const file = path.join(directory, 'exercise-input.json');
+    writeFileSync(file, JSON.stringify([
+      { name: 'remada baixa' },
+      { name: 'Flexão lateral' },
+      { name: '  FLEXÃO     LATERAL ' },
+    ]), 'utf8');
+
+    // Exercise the real CLI against the same PostgreSQL used by this suite.
+    const executable = path.resolve(process.cwd(), 'node_modules/.bin/tsx');
+    const run = (dryRun: boolean) => execFileSync(
+      executable, [
+        'src/scripts/import-exercises.ts',
+        ...(dryRun ? ['--dry-run'] : []),
+        file,
+      ], {
+        cwd: process.cwd(),
+        env: { ...process.env, CONTRACT_ID: target.id },
+        encoding: 'utf8',
+      },
+    );
+
+    try {
+      expect(run(true)).toContain('Importáveis: 1');
+      expect(await prisma.exerciseLibrary.count({ where: { contractId: target.id } })).toBe(1);
+      expect(run(false)).toContain('Importados: 1');
+      expect(run(false)).toContain('Importados: 0');
+      const rows = await prisma.exerciseLibrary.findMany({
+        where: { contractId: target.id }, orderBy: { name: 'asc' },
+      });
+      expect(rows).toHaveLength(2);
+      expect(rows.find((entry) => entry.name === 'Flexão Lateral')).toMatchObject({
+        curationStatus: 'draft', legacyGrandfathered: false,
+      });
+      expect(rows.some((entry) => entry.name === '  REMADA   BAIXA  ')).toBe(true);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it('#394 A-394-01: defaults of Prisma and raw SQL inserts are drafts, never approved legacy', async () => {
