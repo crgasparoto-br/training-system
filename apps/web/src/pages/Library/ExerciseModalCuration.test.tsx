@@ -52,4 +52,54 @@ describe('#394 capacity taxonomy and historical media in the exercise editor', (
     render(<ExerciseModal mode="view" exercise={verified} onClose={vi.fn()} />);
     expect(screen.getByTestId('video-preview')).toHaveTextContent('https://example.org/unknown-rights');
   });
+
+  it.each([
+    ['Instruções em etapas', 'instructions'],
+    ['Erros comuns', 'commonErrors'],
+    ['Regressões', 'regressions'],
+    ['Progressões', 'progressions'],
+    ['Alternativas sugeridas', 'alternatives'],
+    ['Restrições', 'restrictions'],
+    ['Alertas', 'alerts'],
+    ['Outros nomes e aliases', 'aliases'],
+    ['Equipamentos', 'equipment'],
+    ['Grupos musculares principais', 'primaryMuscleGroups'],
+    ['Grupos musculares secundários', 'secondaryMuscleGroups'],
+    ['Articulações envolvidas', 'joints'],
+  ] as const)('preserves spaces and newlines in %s until save', async (label, field) => {
+    const user = userEvent.setup();
+    vi.mocked(libraryService.createExercise).mockResolvedValue(legacy);
+    render(<ExerciseModal mode="create" exercise={null} onClose={vi.fn()} />);
+    await user.type(screen.getByRole('textbox', { name: /nome do exercício/i }), 'Novo exercício');
+    const input = screen.getByRole('textbox', { name: new RegExp(label, 'i') });
+    await user.type(input, 'Primeira etapa ');
+    expect(input).toHaveValue('Primeira etapa ');
+    await user.type(input, 'com detalhe{enter}Segunda etapa');
+    expect(input).toHaveValue('Primeira etapa com detalhe\nSegunda etapa');
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(libraryService.createExercise).toHaveBeenCalledWith(
+      expect.objectContaining({ [field]: ['Primeira etapa com detalhe', 'Segunda etapa'] }),
+    ));
+  });
+
+  it('clones historical technical metadata into a new draft without inherited media or review', async () => {
+    const user = userEvent.setup();
+    vi.mocked(libraryService.createExercise).mockResolvedValue({ ...legacy, id: 'new-draft', curationStatus: 'draft' });
+    render(<ExerciseModal mode="create" exercise={legacy} onClose={vi.fn()} showHistory />);
+    expect(screen.getByDisplayValue('Exercício antigo (nova versão)')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /link vídeo youtube/i })).toHaveValue('');
+    expect(screen.getByText(/exercício original e seus treinos permanecem intactos/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Estado da curadoria/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(libraryService.createExercise).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Exercício antigo (nova versão)', videoUrl: '',
+        mediaOrigin: '', mediaLicense: '', mediaAuthor: '',
+        instructions: ['Posicionar-se'],
+      }),
+    ));
+    expect(libraryService.updateExercise).not.toHaveBeenCalled();
+  });
+
+
 });

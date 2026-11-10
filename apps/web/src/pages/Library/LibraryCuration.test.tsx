@@ -10,6 +10,8 @@ vi.mock('../../services/library.service', () => ({
     listExercises: vi.fn(),
     reviewExercise: vi.fn(),
     deleteExercise: vi.fn(),
+    createExercise: vi.fn(),
+    updateExercise: vi.fn(),
   },
 }));
 vi.mock('../../stores/useAuthStore', () => ({ useAuthStore: vi.fn() }));
@@ -65,4 +67,27 @@ describe('library administrative curation (#394)', () => {
     await waitFor(() => expect(libraryService.reviewExercise).toHaveBeenCalledWith('exercise-1', 'submit', 1));
     expect(libraryService.reviewExercise).not.toHaveBeenCalledWith('exercise-1', 'approve', expect.anything());
   });
+
+  it('offers a new draft for a grandfathered exercise without rewriting its historical record', async () => {
+    const actor = userEvent.setup();
+    const historical = { ...draft, id: 'historical-1', legacyGrandfathered: true, curationStatus: 'approved' as const };
+    vi.mocked(libraryService.listExercises).mockResolvedValue([historical]);
+    vi.mocked(libraryService.createExercise).mockResolvedValue({ ...historical, id: 'new-1', curationStatus: 'draft' });
+    render(<Library />);
+    const clone = await screen.findByRole('button', { name: /criar nova versão para curadoria de agachamento/i });
+    await actor.click(clone);
+    expect(screen.getByRole('heading', { name: /nova versão para curadoria/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /nome do exercício/i }))
+      .toHaveValue('Agachamento (nova versão)');
+    await actor.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(libraryService.createExercise).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Agachamento (nova versão)' }),
+    ));
+    expect(libraryService.updateExercise).not.toHaveBeenCalled();
+    expect(libraryService.reviewExercise).not.toHaveBeenCalledWith(
+      'historical-1', 'approve', expect.anything(),
+    );
+  });
+
+
 });

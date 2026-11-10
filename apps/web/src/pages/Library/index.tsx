@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Edit, Archive, Eye, X, Check, Send, RotateCcw, Video as VideoIcon, BookOpen } from 'lucide-react';
+import { Plus, Search, Filter, Edit, Archive, Eye, X, Check, Send, RotateCcw, Copy, Video as VideoIcon, BookOpen } from 'lucide-react';
 import { libraryService, type Exercise, type ExerciseFilters, type ExerciseCurationAction } from '../../services/library.service';
 import { useAuthStore } from '../../stores/useAuthStore';
 import ExerciseModal from './ExerciseModal';
@@ -89,6 +89,12 @@ export default function Library() {
   const handleEdit = (exercise: Exercise) => {
     setSelectedExercise(exercise);
     setModalMode('edit');
+    setModalOpen(true);
+  };
+
+  const handleCloneForCuration = (exercise: Exercise) => {
+    setSelectedExercise(exercise);
+    setModalMode('create');
     setModalOpen(true);
   };
 
@@ -447,6 +453,14 @@ export default function Library() {
                             title="Editar"
                           >
                             <Edit className="w-5 h-5" />
+                          </button>}
+                          {canManage && exercise.legacyGrandfathered && <button
+                            onClick={() => handleCloneForCuration(exercise)}
+                            title="Criar nova versão para curadoria sem alterar o histórico"
+                            aria-label={`Criar nova versão para curadoria de ${exercise.name}`}
+                            className="text-indigo-700 hover:text-indigo-900"
+                          >
+                            <Copy className="w-5 h-5" />
                           </button>}
                           {canManage && exercise.curationStatus === 'draft' && <button
                             onClick={() => handleCuration(exercise, 'submit')} title="Enviar para revisão"

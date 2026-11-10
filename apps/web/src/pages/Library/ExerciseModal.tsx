@@ -42,6 +42,8 @@ const LIST_FIELDS = [
   { key: 'restrictions', label: 'Restrições' },
   { key: 'alerts', label: 'Alertas' },
 ] as const;
+type ListFieldKey = typeof LIST_FIELDS[number]['key'];
+
 const TEXT_FIELDS = [
   { key: 'movementPattern', label: 'Padrão de movimento' },
   { key: 'laterality', label: 'Lateralidade' },
@@ -73,15 +75,21 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
   const [error, setError] = useState('');
   const [revisions, setRevisions] = useState<ExerciseRevision[]>([]);
   const [historyError, setHistoryError] = useState('');
+  const [listDrafts, setListDrafts] = useState<Partial<Record<ListFieldKey, string>>>({});
+  const isCloneForCuration = mode === 'create' && exercise !== null;
 
   const isViewMode = mode === 'view';
   const isEditMode = mode === 'edit';
 
   useEffect(() => {
+    // Never trim controlled textarea values while the user is typing.
+    setListDrafts(Object.fromEntries(
+      LIST_FIELDS.map(({ key }) => [key, (exercise?.[key] ?? []).join('\n')]),
+    ) as Record<ListFieldKey, string>);
     if (exercise) {
       setFormData({
-        name: exercise.name,
-        videoUrl: exercise.videoUrl || '',
+        name: isCloneForCuration ? `${exercise.name} (nova versão)` : exercise.name,
+        videoUrl: isCloneForCuration ? '' : exercise.videoUrl || '',
         loadType: exercise.loadType,
         movementType: exercise.movementType,
         countingType: exercise.countingType,
@@ -104,27 +112,24 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
         alternatives: exercise.alternatives,
         restrictions: exercise.restrictions,
         alerts: exercise.alerts,
-        mediaOrigin: exercise.mediaOrigin || '',
-        mediaLicense: exercise.mediaLicense || '',
-        mediaAuthor: exercise.mediaAuthor || '',
+        mediaOrigin: isCloneForCuration ? '' : exercise.mediaOrigin || '',
+        mediaLicense: isCloneForCuration ? '' : exercise.mediaLicense || '',
+        mediaAuthor: isCloneForCuration ? '' : exercise.mediaAuthor || '',
       });
     }
-  }, [exercise]);
+  }, [exercise, mode]);
 
   useEffect(() => {
-    if (!exercise || !showHistory) return;
+    if (!exercise || !showHistory || mode === 'create') return;
     setRevisions([]);
     setHistoryError('');
     libraryService.listExerciseRevisions(exercise.id)
       .then(setRevisions)
       .catch(() => setHistoryError('Não foi possível consultar o histórico.'));
-  }, [exercise?.id, showHistory]);
+  }, [exercise?.id, showHistory, mode]);
 
-  const onListChange = (key: typeof LIST_FIELDS[number]['key'], text: string) => {
-    setFormData(previous => ({
-      ...previous,
-      [key]: text.split('\n').map(item => item.trim()).filter(Boolean),
-    }));
+  const onListChange = (key: ListFieldKey, text: string) => {
+    setListDrafts(previous => ({ ...previous, [key]: text }));
   };
 
   // Atalhos de teclado
@@ -156,14 +161,20 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
       return;
     }
 
+    // Normalize once at the persistence boundary, not on every keypress.
+    const normalizedLists = Object.fromEntries(LIST_FIELDS.map(({ key }) => [
+      key, (listDrafts[key] ?? '').split(/\r?\n/).map(item => item.trim()).filter(Boolean),
+    ])) as Pick<CreateExerciseDTO, ListFieldKey>;
+    const submittedData = { ...formData, ...normalizedLists };
+
     try {
       setSaving(true);
       setError('');
 
       if (isEditMode && exercise) {
-        await libraryService.updateExercise(exercise.id, formData, exercise.version);
+        await libraryService.updateExercise(exercise.id, submittedData, exercise.version);
       } else {
-        await libraryService.createExercise(formData);
+        await libraryService.createExercise(submittedData);
       }
 
       onClose(true);
@@ -178,6 +189,7 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
   const getTitle = () => {
     if (isViewMode) return 'Visualizar Exercício';
     if (isEditMode) return 'Editar Exercício';
+    if (isCloneForCuration) return 'Nova versão para curadoria';
     return 'Novo Exercício';
   };
 
@@ -209,6 +221,9 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {isCloneForCuration && <p className="text-sm text-amber-800">
+            Será criada uma ficha em rascunho, com outro identificador. O exercício original e seus treinos permanecem intactos. Direitos de mídia precisam ser informados novamente.
+          </p>}
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
               {error}
@@ -217,10 +232,11 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
 
           {/* Nome */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="library-exercise-name" className="block text-sm font-medium text-gray-700 mb-2">
               Nome do Exercício *
             </label>
             <input
+              id="library-exercise-name"
               type="text"
               required
               disabled={isViewMode}
@@ -232,13 +248,14 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
 
           {/* Link Vídeo */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="library-exercise-video" className="block text-sm font-medium text-gray-700 mb-2">
               <div className="flex items-center gap-2">
                 <Video className="w-4 h-4" />
                 Link Vídeo Youtube
               </div>
             </label>
             <input
+              id="library-exercise-video"
               type="url"
               disabled={isViewMode}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
@@ -418,7 +435,7 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
                 <label key={key} className="block text-sm font-medium text-gray-700">
                   {label} <span className="text-xs text-gray-500">(um item por linha)</span>
                   <textarea rows={3} disabled={isViewMode}
-                    value={(formData[key] ?? []).join('\n')}
+                    value={listDrafts[key] ?? ''}
                     onChange={e => onListChange(key, e.target.value)}
                     className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 disabled:bg-gray-100" />
                 </label>
@@ -426,7 +443,7 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
             </div>
           </section>
 
-          {exercise && <section className="rounded-lg border border-gray-200 p-4" aria-label="Estado da curadoria">
+          {exercise && mode !== 'create' && <section className="rounded-lg border border-gray-200 p-4" aria-label="Estado da curadoria">
             <h3 className="font-semibold">Curadoria e versão</h3>
             <p className="text-sm text-gray-600">Situação: {exercise.curationStatus} · Versão: {exercise.version}</p>
             <p className="text-xs text-gray-500">Autor: {exercise.createdByUserId || 'Legado'} ·
