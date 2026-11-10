@@ -334,7 +334,9 @@ function collectExerciseNameRepairs(
   defaults: NormalizedExerciseDefault[],
   existingExercises: ExistingExerciseDefault[]
 ): ExerciseNameRepair[] {
-  const defaultCanonicalNames = new Set(defaults.map((item) => canonicalExerciseName(item.name)));
+  const preferredNamesByCanonical = new Map(
+    defaults.map((item) => [canonicalExerciseName(item.name), item.name] as const)
+  );
   const existingCanonicalCounts = new Map<string, number>();
   for (const item of existingExercises) {
     const key = canonicalExerciseName(item.name);
@@ -348,7 +350,9 @@ function collectExerciseNameRepairs(
     const key = canonicalExerciseName(repairedName);
     if (
       repairedName === item.name ||
-      !defaultCanonicalNames.has(key) ||
+      // Repair encoding/whitespace only if it resolves to the preferred name;
+      // do not silently change a legacy display name differing only by case.
+      preferredNamesByCanonical.get(key) !== repairedName ||
       // Preserve already-existing legacy duplicates: a rename cannot select
       // a new preferred identity when more than one row owns this key.
       existingCanonicalCounts.get(key) !== 1
