@@ -88,6 +88,47 @@ describeDatabase('installContractDefaults database integration', () => {
       .toEqual([]);
   });
 
+  it('#394 A-394-006: reuses a case/whitespace variant in PostgreSQL without a duplicate or media backfill', async () => {
+    const canonical = loadProductExerciseDefaults().find((item) => item.name === 'Abdominal Canoa');
+    expect(canonical?.videoUrl).toBeTruthy();
+    const target = await prisma.companyContract.create({
+      data: {
+        type: 'academy', document: `issue394-canonical-${randomUUID()}`,
+        name: 'Canonical defaults regression',
+      },
+    });
+    targetContractId = target.id;
+    const legacyName = '  ABDOMINAL   CANOA  ';
+    const historical = await prisma.exerciseLibrary.create({
+      data: {
+        contractId: target.id, name: legacyName, category: null,
+        loadType: null, videoUrl: null, curationStatus: 'approved', legacyGrandfathered: true,
+      },
+    });
+
+    const first = await installContractDefaults(target.id, prisma);
+    const second = await installContractDefaults(target.id, prisma);
+    expect(first.exercises.installed).toBe(loadProductExerciseDefaults().length - 1);
+    expect(second.exercises.installed).toBe(0);
+    expect(second.exercises.skipped).toBe(loadProductExerciseDefaults().length);
+
+    const matches = await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "ExerciseLibrary"
+      WHERE "contractId" = ${target.id}
+        AND issue394_exercise_canonical_name("name")
+          = issue394_exercise_canonical_name(${canonical!.name})
+    `;
+    expect(matches).toEqual([{ id: historical.id }]);
+    const after = await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: historical.id } });
+    expect(after.name).toBe(legacyName);
+    expect(after.loadType).toBe(canonical!.loadType);
+    expect(after.videoUrl).toBeNull();
+    expect(after.curationStatus).toBe('approved');
+    expect(await prisma.exerciseLibraryRevision.findFirst({
+      where: { exerciseId: historical.id, action: 'system_defaults_repair' },
+    })).not.toBeNull();
+  });
+
   it('#394 A-394-01: defaults of Prisma and raw SQL inserts are drafts, never approved legacy', async () => {
     const target = await prisma.companyContract.create({
       data: { type: 'academy', document: `issue394-defaults-${randomUUID()}`, name: 'Curadoria default' },
