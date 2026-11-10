@@ -42,27 +42,36 @@ describeDatabase('#394 RISK-394-001: curator updates versus new application on P
     const held = new Promise<void>(resolve => { release = resolve; });
     const ready = new Promise<void>(resolve => { signalReady = resolve; });
 
-    // Real transactions on separate connections: FOR SHARE blocks the
-    // status UPDATE until the application releases its transaction.
+    // Use a second pool: connection_limit=1 on the CI URL must not hide the
+    // PostgreSQL row-lock behavior behind a Prisma pool acquisition timeout.
+    const curator = new PrismaClient();
+    await curator.$connect();
     const applying = prisma.$transaction(async tx => {
       await assertApprovedWorkoutExerciseIds(tx, [exercise.id], contractId!);
       signalReady();
       await held;
-    }, { timeout: 10_000 });
+    }, { maxWait: 10_000, timeout: 20_000 });
 
+    let reachedCuratorUpdate = false;
     try {
       await ready;
-      await expect(prisma.$transaction(async tx => {
-        await tx.$executeRaw`SET LOCAL lock_timeout = '250ms'`;
+      await expect(curator.$transaction(async tx => {
+        await tx.$executeRaw`SET LOCAL lock_timeout = '500ms'`;
+        reachedCuratorUpdate = true;
         await tx.exerciseLibrary.update({
           where: { id: exercise.id }, data: { curationStatus: 'inactive' },
         });
-      })).rejects.toThrow(/lock timeout/i);
+      }, { maxWait: 10_000, timeout: 10_000 })).rejects.toThrow(/lock timeout/i);
+      expect(reachedCuratorUpdate).toBe(true);
       expect((await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: exercise.id } })).curationStatus)
         .toBe('approved');
     } finally {
       release();
-      await applying;
+      try {
+        await applying;
+      } finally {
+        await curator.$disconnect();
+      }
     }
 
     // If deactivation commits first, no new application receives authorization.
@@ -72,5 +81,5 @@ describeDatabase('#394 RISK-394-001: curator updates versus new application on P
     await expect(prisma.$transaction(tx =>
       assertApprovedWorkoutExerciseIds(tx, [exercise.id], contractId!),
     )).rejects.toThrow('Exercício indisponível para aplicação.');
-  });
+  }, 30_000);
 });

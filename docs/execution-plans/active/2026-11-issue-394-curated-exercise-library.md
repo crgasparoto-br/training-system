@@ -72,6 +72,10 @@ estados de revisão, histórico por versão e testes de regressão.
 - RISK-394-002: nova ficha para curadoria cria um draft com outro ID e nome,
   copiando metadados técnicos sem transferir direitos de mídia ou vínculos
   históricos. O registro antigo e suas referências não são alterados.
+- A-394-015: o teste PostgreSQL de corrida entre aplicação e desativação
+  utiliza clientes Prisma separados para garantir conexões independentes
+  mesmo com pool de uma conexão por cliente; exige que a atualização chegue
+  à transação e observe o lock SQL, sem aceitar timeout ao abrir transação.
 
 ## Validação e aceite
 - [ ] Tests de domínio e API, segurança e isolamento.
