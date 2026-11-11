@@ -219,12 +219,16 @@ O `screenKey=library` permanece obrigatório para administrar a biblioteca.
 As consultas **operacionais** da lista oficial (`GET /exercises` sem `scope=all`)
 e a leitura de progresso do aluno (`GET /progress/:alunoId[/:exerciseId]`)
 aceitam `screenKey=plans` **ou** `screenKey=library`, permitindo ao professor
-montar treinos sem permissão para administrar o catálogo. Em acesso somente por
-`plans`, o progresso respeita `dataScope` (`self`, `managed` ou `contract`) e
-retorna 404 para aluno fora do escopo. A consulta exige professor ativo e
-`contractId` do vínculo autenticado; não transfere acesso a outro contrato.
+montar treinos sem permissão para administrar o catálogo. Com `plans` concedido, as consultas de progresso respeitam sempre seu
+`dataScope` (`self`, `managed` ou `contract`), **mesmo se `library` também estiver
+concedido**. Sem `plans`, a permissão `library` permite consultar progresso
+**somente dos próprios alunos** (`self`); administradores `master` mantêm
+acesso ao contrato. Alunos fora do escopo retornam 404 sem consultar nem alterar
+o progresso. A consulta exige professor ativo e `contractId` do vínculo
+autenticado; não transfere acesso a outro contrato.
 O detalhe administrativo do exercício e a atualização de progresso conservam
-o requisito anterior de `screenKey=library`.
+o requisito anterior de `screenKey=library`. A atualização também exige que
+o aluno pertença ao escopo acima, inclusive para perfis com ambas as telas.
 O `GET /api/library/exercises/:id` retorna apenas metadados do catálogo,
 sem `workoutExercises`, `alunoProgress`, fichas, objetivos ou cargas de alunos.
 Ter `screenKey=library` não concede acesso aos dados de Planos ou ao progresso

@@ -137,3 +137,24 @@ Checklist aberto até verificação de CI exact-SHA e auditoria independente.
 - Regressões: controles HTTP negativos/positivos, PostgreSQL histórico/licença,
   isolamento de aluno e nenhuma alteração dos registros persistidos.
 - A PR permanece Draft até CI exact-SHA e auditoria independente.
+
+## Remediação A-394-022 / A-394-023 — 11/11/2026
+
+- **A-394-022 (escopo do progresso):** `GET /library/progress/:alunoId[/:exerciseId]`
+  e `PUT /library/progress/:alunoId/:exerciseId` passam pelo mesmo guard de
+  pertencimento do aluno. A permissão `library` não ignora o `dataScope` de
+  `plans`; o perfil que tenha somente `library` usa `self`, e `master` usa
+  `contract`. Alunos de outro escopo retornam 404 antes de consultar/gravar
+  progresso. Controles HTTP cobrem `self`, `managed`, `library` isolada,
+  permissões combinadas, `master` e negação de escrita, sem alterar treinos.
+- **A-394-023 (navegador):** adicionar o teste dedicado
+  `src/pages/Library/issue-394-browser-evidence.test.js` ao workflow CRITICAL
+  existente. Em Chromium com os componentes reais da Biblioteca e do seletor,
+  API HTTP sintética e perfis distintos, registrar criação, edição, transições
+  de curadoria, filtros, catálogo oficial e seleção nos viewports 1440×900,
+  768×1024 e 390×844. Gerar capturas, árvores de acessibilidade e relatório
+  `artifacts/issue-394/browser.json` ligado ao SHA do workflow. A integração
+  de autorização real permanece coberta pelos testes HTTP/API.
+- O checklist de aceite só pode ser marcado após a CI exact-SHA executar esses
+  controles e os artefatos serem inspecionados. A aprovação independente segue
+  sendo uma etapa posterior, sem merge automático.

@@ -229,7 +229,7 @@ function exerciseListAccess(req: Request, res: Response, next: NextFunction) {
   return (administrativeQuery ? catalogAdministrationAccess : operationalReadAccess)(req, res, next);
 }
 
-/** Plans-only access to progress must respect the professor's Plans dataScope. */
+/** Progress is student data, not catalog data: Library access cannot bypass Plans dataScope. */
 async function progressStudentScopeAccess(req: Request, res: Response, next: NextFunction) {
   try {
     const { professorId, contractId } = req.user ?? {};
@@ -239,10 +239,14 @@ async function progressStudentScopeAccess(req: Request, res: Response, next: Nex
       include: { collaboratorFunction: true },
     });
     if (!professor) return res.status(404).json({ message: 'Aluno não encontrado.' });
-    // Library permission retains the pre-existing contract-level progress read.
-    if (await canProfessorAccessScreen(professor, 'library')) return next();
-    const scope = await getEffectiveDataScopeForProfessor(professor, 'plans');
-    if (!scope) return res.status(403).json({ message: 'Acesso negado.' });
+    // With Plans, always use its effective scope, even when Library is also granted.
+    // Library-only professors retain access to progress of their own students, not
+    // unrestricted contract-level progress. A master retains contract scope.
+    const plansScope = await getEffectiveDataScopeForProfessor(professor, 'plans');
+    if (!plansScope && !(await canProfessorAccessScreen(professor, 'library'))) {
+      return res.status(403).json({ message: 'Acesso negado.' });
+    }
+    const scope = plansScope ?? 'self';
     const aluno = await prismaRuntimeClient.aluno.findFirst({
       where: {
         id: req.params.alunoId, contractId,
@@ -474,7 +478,7 @@ router.get('/progress/:alunoId/:exerciseId', operationalReadAccess, progressStud
  * PUT /api/library/progress/:alunoId/:exerciseId
  * Atualizar progresso do aluno
  */
-router.put('/progress/:alunoId/:exerciseId', catalogAdministrationAccess, async (req, res) => {
+router.put('/progress/:alunoId/:exerciseId', catalogAdministrationAccess, progressStudentScopeAccess, async (req, res) => {
   try {
     assertLibraryProfessorRequest(req);
     const contractId = req.user.contractId;

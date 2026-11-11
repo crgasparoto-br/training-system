@@ -705,9 +705,12 @@ Criação e transições de curadoria exigem professor administrador (`master`) 
 permissão da tela `library`. Professores comuns visualizam apenas o catálogo aprovado.
 Para montagem de treinos, consulta do catálogo oficial e leitura de progresso
 exigem acesso à tela `plans` **ou** `library`, sempre dentro do contrato
-autenticado; acesso exclusivamente por `plans` respeita seu `dataScope` na
-consulta de progresso. A tela `library` continua necessária para detalhe do
-exercício, atualização de progresso, `scope=all`, filtros por status,
+autenticado. Quando `plans` também está concedido, seu `dataScope` determina
+o progresso visível, mesmo com permissão `library`; apenas `library` restringe
+progresso aos próprios alunos (`self`), enquanto `master` usa escopo de contrato.
+A atualização exige igualmente pertencimento do aluno ao escopo. A tela
+`library` continua necessária para detalhe do exercício, atualização de
+progresso, `scope=all`, filtros por status,
 revisões e ações administrativas; acesso a `plans` não permite curadoria.
 
 Cada exercício possui aliases, capacidade, equipamento, grupos musculares principais e

@@ -73,12 +73,14 @@ const actor = {
   contract: { id: 'contract-394', type: 'academy', name: 'Teste', document: '394' },
 };
 
+let plansDataScope: 'self' | 'managed' | 'contract' = 'self';
+
 function accessRows(grantedScreens: readonly string[]) {
   const granted = new Set(grantedScreens);
   return [
     ...ALL_ACCESS_SCREEN_KEYS.map((screenKey) => ({
       collaboratorFunctionId: 'function-394', screenKey, blockKey: '',
-      canView: granted.has(screenKey), dataScope: screenKey === 'plans' ? 'self' : null,
+      canView: granted.has(screenKey), dataScope: screenKey === 'plans' ? plansDataScope : null,
     })),
     ...ACCESS_BLOCK_CATALOG.map((block) => ({
       collaboratorFunctionId: 'function-394', screenKey: block.screenKey,
@@ -94,6 +96,7 @@ function grantScreens(...screens: string[]) {
 describe('#394 A-394-012: operational exercise access preserves plans-only roles', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    plansDataScope = 'self';
     mockProfessorFindUnique.mockResolvedValue({ ...actor });
     mockProfessorFindFirst.mockResolvedValue({ ...actor });
     mockAlunoFindFirst.mockImplementation(async ({ where }: { where: {
@@ -174,6 +177,74 @@ describe('#394 A-394-012: operational exercise access preserves plans-only roles
     const denied = await request(app).get('/library/exercises?scope=all');
     expect(denied.status).toBe(403);
     expect(denied.body.message).toContain('administradores');
+  });
+
+  it('#394 A-394-022: Library plus Plans never bypasses a self-scoped student, including PUT', async () => {
+    grantScreens('library', 'plans');
+    const get = await request(app).get('/library/progress/aluno-2/approved-1');
+    const list = await request(app).get('/library/progress/aluno-2');
+    const put = await request(app).put('/library/progress/aluno-2/approved-1')
+      .send({ lastLoad: 90 });
+    expect([get.status, list.status, put.status]).toEqual([404, 404, 404]);
+    expect(mockGetAlunoProgress).not.toHaveBeenCalled();
+    expect(mockListAlunoProgress).not.toHaveBeenCalled();
+    expect(mockUpdateAlunoProgress).not.toHaveBeenCalled();
+
+    expect((await request(app).get('/library/progress/aluno-1/approved-1')).status).toBe(200);
+    expect((await request(app).put('/library/progress/aluno-1/approved-1')
+      .send({ lastLoad: 26 })).status).toBe(200);
+    expect(mockUpdateAlunoProgress).toHaveBeenCalledWith(
+      'contract-394', 'aluno-1', 'approved-1', { lastLoad: 26 },
+    );
+  });
+
+  it('#394 A-394-022: Library-only retains self progress, never unrestricted contract progress', async () => {
+    grantScreens('library');
+    expect((await request(app).get('/library/progress/aluno-1/approved-1')).status).toBe(200);
+    expect((await request(app).put('/library/progress/aluno-1/approved-1')
+      .send({ maxLoad: 45 })).status).toBe(200);
+    expect((await request(app).get('/library/progress/aluno-2')).status).toBe(404);
+    expect((await request(app).put('/library/progress/aluno-2/approved-1')
+      .send({ maxLoad: 999 })).status).toBe(404);
+    expect(mockUpdateAlunoProgress).toHaveBeenCalledTimes(1);
+    expect(mockUpdateAlunoProgress).toHaveBeenCalledWith(
+      'contract-394', 'aluno-1', 'approved-1', { maxLoad: 45 },
+    );
+  });
+
+  it('#394 A-394-022: managed Plans scope permits managed students but not unrelated students', async () => {
+    plansDataScope = 'managed';
+    grantScreens('library', 'plans');
+    mockAlunoFindFirst.mockImplementation(async ({ where }: {
+      where: { id: string; contractId: string; professor: {
+        OR?: Array<{ id?: string; responsibleManagerId?: string }>;
+      } };
+    }) => (where.contractId === 'contract-394' && where.id === 'aluno-managed'
+      && where.professor.OR?.some((entry) => entry.responsibleManagerId === 'professor-394')
+      ? { id: where.id } : null));
+
+    expect((await request(app).get('/library/progress/aluno-managed/approved-1')).status).toBe(200);
+    expect((await request(app).put('/library/progress/aluno-managed/approved-1')
+      .send({ lastLoad: 30 })).status).toBe(200);
+    expect((await request(app).get('/library/progress/aluno-other')).status).toBe(404);
+    expect((await request(app).put('/library/progress/aluno-other/approved-1')
+      .send({ lastLoad: 100 })).status).toBe(404);
+    expect(mockUpdateAlunoProgress).toHaveBeenCalledTimes(1);
+  });
+
+  it('#394 A-394-022: a master retains contract-scoped progress after enforcing student lookup', async () => {
+    mockProfessorFindUnique.mockResolvedValue({ ...actor, role: 'master' });
+    mockProfessorFindFirst.mockResolvedValue({ ...actor, role: 'master' });
+    grantScreens('library');
+    mockAlunoFindFirst.mockImplementation(async ({ where }: {
+      where: { id: string; contractId: string; professor: { contractId: string } };
+    }) => (where.contractId === 'contract-394'
+      && where.professor.contractId === 'contract-394' && where.id === 'aluno-2'
+      ? { id: where.id } : null));
+    expect((await request(app).get('/library/progress/aluno-2/approved-1')).status).toBe(200);
+    expect((await request(app).put('/library/progress/aluno-2/approved-1')
+      .send({ lastLoad: 30 })).status).toBe(200);
+    expect(mockUpdateAlunoProgress).toHaveBeenCalledTimes(1);
   });
 
   it('#394 A-394-020: library-only GET details cannot serialize student progress or workout templates', async () => {
