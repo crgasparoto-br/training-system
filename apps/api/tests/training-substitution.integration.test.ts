@@ -128,7 +128,8 @@ function request(f: Seed, suffix: string = randomUUID(), replacementId: string =
   return {
     sessionId: f.dayId, actor: f.teacher, kind: 'exercise' as const,
     context: 'planning' as const, originalUnitId: f.originalId,
-    replacementUnitId: replacementId, reason: 'Equipamento alternativo disponível',
+    replacementUnitId: replacementId, expectedReplacementVersion: 'exercicio:1',
+    reason: 'Equipamento alternativo disponível',
     operationKey: 'issue404-' + suffix,
   };
 }
@@ -156,6 +157,32 @@ describeDatabase('#404 substition history, eligibility, authority and concurrenc
       .rejects.toMatchObject({ status: 409 });
     const actual = await client.workoutExercise.findUniqueOrThrow({ where: { id: f.originalId } });
     expect(actual.exerciseId).toBe(f.library[0].id);
+  });
+
+  it('rejects a changed catalog version without ledger or events, then accepts a fresh selection', async () => {
+    const f = await fixture('stale-selected-revision');
+    const chosen = request(f, 'version-changed');
+    const initialEvents = await client.studentLifecycleEvent.count({
+      where: { alunoId: f.alunoId, contractId: f.contractId },
+    });
+    // Same ID and approved status, but a different published revision at POST.
+    await client.exerciseLibrary.update({
+      where: { id: f.library[1].id }, data: { version: { increment: 1 } },
+    });
+    await expect(svc.create(chosen)).rejects.toMatchObject({
+      status: 409, code: 'SUBSTITUTION_CONFLICT',
+    });
+    expect(await client.workoutSubstitution.count({ where: { workoutDayId: f.dayId } })).toBe(0);
+    expect(await client.studentLifecycleEvent.count({
+      where: { alunoId: f.alunoId, contractId: f.contractId },
+    })).toBe(initialEvents);
+    const fresh = { ...request(f, 'version-confirmed'), expectedReplacementVersion: 'exercicio:2' };
+    const accepted = await svc.create(fresh);
+    expect(accepted).toMatchObject({ status: 'approved', replacementVersion: 'exercicio:2' });
+    expect((await svc.create(fresh)).id).toBe(accepted.id);
+    await expect(svc.create({ ...fresh, expectedReplacementVersion: 'exercicio:1' }))
+      .rejects.toMatchObject({ status: 409 });
+    expect(await client.workoutSubstitution.count({ where: { workoutDayId: f.dayId } })).toBe(1);
   });
 
   it('separates training read from substitution write and revalidates revocation before review', async () => {
@@ -287,10 +314,18 @@ describeDatabase('#404 substition history, eligibility, authority and concurrenc
 
   it('allows substitution of a released session without replacing the origin', async () => {
     const f = await fixture('session');
+    await expect(svc.create({
+      sessionId: f.dayId, actor: f.teacher, kind: 'session', context: 'review',
+      originalUnitId: f.dayId, replacementUnitId: f.otherDayId,
+      expectedReplacementVersion: 'liberacao:1',
+      reason: 'Sessão alternativa antiga', operationKey: 'issue404-session-stale-' + randomUUID(),
+    })).rejects.toMatchObject({ status: 409 });
+    expect(await client.workoutSubstitution.count({ where: { workoutDayId: f.dayId } })).toBe(0);
     const candidate = await svc.create({
       sessionId: f.dayId, actor: f.teacher,
       kind: 'session', context: 'review',
       originalUnitId: f.dayId, replacementUnitId: f.otherDayId,
+      expectedReplacementVersion: 'liberacao:2',
       reason: 'Sessão reagendada em outra data', operationKey: 'issue404-session-' + randomUUID(),
     });
     expect(candidate.original.version).toBe('liberacao:2');
