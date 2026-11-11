@@ -171,9 +171,15 @@ A rota `/api/v1/training-substitutions` exige autenticação ativa e autoridade
 reavaliada por operação: aluno só acessa a própria participação `ACTIVE_STUDENT`
 no `contractId` selecionado; professor só acessa planos de aluno do mesmo
 contrato quando possuir `students.details.trainingPlans` e for responsável
-pelo aluno ou gestor do professor responsável, ou quando for `master` do contrato. As permissões e vínculos
-são reavaliados no service com o `TransactionClient`, inclusive na revisão de
-solicitação, impedindo uso de contexto de JWT antigo e acesso cross-tenant.
+pelo aluno ou gestor do professor responsável, ou quando for `master` do contrato.
+Leitura de histórico/alternativas exige o bloco `students.details.trainingPlans`;
+**pré-aprovar e revisar** exigem adicionalmente `students.actions.manageTrainingSubstitutions`.
+O bloco de escrita pertence à tela pai `students.details`, é concedido por padrão
+às funções `professor` e `manager` (configurável por função), e não é derivado
+automaticamente da leitura. O perfil `master` mantém autoridade do contrato.
+Os dois grants, vínculo e estado profissional são reavaliados no service com o
+`TransactionClient` da escrita, inclusive após revogação entre consulta e revisão,
+impedindo uso de contexto de JWT antigo e acesso cross-tenant.
 O bloqueio de mudança de estado de aluno e professor inativo mantém a barreira.
 
 A lista semanal destinada ao professor autorizado projeta somente IDs e nomes
@@ -184,5 +190,7 @@ o offset não concede acesso a itens excluídos.
 
 Os metadados de restrições do catálogo são técnicos: não são serializados na
 visão do aluno no histórico nem no catálogo de alternativas. Uma sugestão não
-atribui ao aluno permissão de aprovação. Apenas o professor pode revisar uma
-solicitação `pending_review`, com versão exata e registro do revisor.
+atribui ao aluno permissão de aprovação. Apenas professor com a capacidade
+de escrita vigente pode revisar `pending_review`, com versão exata e registro
+do revisor. O professor com leitura isolada vê o histórico, mas não recebe
+controles de criação, aprovação ou rejeição.
