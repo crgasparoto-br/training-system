@@ -4,7 +4,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import type { TrainingRoutineSessionDetail, TrainingRoutineView, TrainingSessionComparison, GuidedCyclicView } from '@corrida/types';
+import type { TrainingRoutineSessionDetail, TrainingRoutineSessionSummary, TrainingRoutineView, TrainingSessionComparison, GuidedCyclicView } from '@corrida/types';
 import { TrainingRoutinePanel } from './TrainingRoutinePanel';
 
 const session = (overrides: Partial<TrainingRoutineSessionDetail> = {}): TrainingRoutineSessionDetail => ({
@@ -104,6 +104,55 @@ const cyclicProgress = (completed: number, total: number,
 });
 
 describe('TrainingRoutinePanel (#387)', () => {
+  it('allows a professor to open substitution planning for a future released summary without previous swaps', async () => {
+    const future: TrainingRoutineSessionSummary = {
+      sessionId: 'future-day-404', workoutTemplateId: 'template-1', trainingPlanId: 'plan-1',
+      planName: 'Plano futuro', date: '2026-10-02', dayOfWeek: 5, mesocycleNumber: 1,
+      weekNumber: 2, modalities: ['resistance'], durationMin: 45, location: null,
+      method: null, status: 'not_started', origin: { kind: 'consolidated', releasedAt: '2026-09-28T12:00:00Z' },
+      substitutionExercises: [{ id: 'future-exercise-404', name: 'Agachamento futuro' }],
+      substitutions: [],
+    };
+    const view = routine({
+      audience: 'professor',
+      today: { date: '2026-10-01', state: 'none', sessions: [] },
+      days: routine().days.map(day => day.date === '2026-10-02'
+        ? { ...day, sessions: [future] } : day),
+    });
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue(view)} />);
+    const week = await screen.findByRole('region', { name: 'Rotina da semana' });
+    await userEvent.click(within(week).getByText('Planejar ou revisar substituições'));
+    expect(within(week).getByRole('button', { name: 'Buscar alternativas elegíveis' })).toBeInTheDocument();
+    expect(within(week).getByLabelText('Exercício planejado')).toHaveValue('future-exercise-404');
+  });
+
+  it('does not offer future-week substitution creation to a student or for completed sessions', async () => {
+    const old: TrainingRoutineSessionSummary = {
+      sessionId: 'old-day-404', workoutTemplateId: 'template-1', trainingPlanId: 'plan-1',
+      planName: 'Plano anterior', date: '2026-10-02', dayOfWeek: 5,
+      mesocycleNumber: 1, weekNumber: 2, modalities: ['resistance'], durationMin: 45,
+      location: null, method: null, status: 'completed',
+      origin: { kind: 'consolidated', releasedAt: '2026-09-28T12:00:00Z' },
+      substitutions: [],
+    };
+    const view = routine({
+      today: { date: '2026-10-01', state: 'none', sessions: [] },
+      days: routine().days.map(day => day.date === '2026-10-02'
+        ? { ...day, sessions: [{ ...old, status: 'not_started' }] } : day),
+    });
+    const { unmount } = render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(view)} />);
+    const studentWeek = await screen.findByRole('region', { name: 'Rotina da semana' });
+    expect(within(studentWeek).queryByText('Planejar ou revisar substituições')).toBeNull();
+    unmount();
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue({
+      ...view, audience: 'professor',
+      days: view.days.map(day => day.date === '2026-10-02'
+        ? { ...day, sessions: [old] } : day),
+    })} />);
+    const teacherWeek = await screen.findByRole('region', { name: 'Rotina da semana' });
+    expect(within(teacherWeek).queryByText('Planejar ou revisar substituições')).toBeNull();
+  });
+
   it('mostra a aderência da semana sem contar execução parcial como concluída', async () => {
     render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(routine({
       weeklyEvolution: {

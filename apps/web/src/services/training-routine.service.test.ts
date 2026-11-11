@@ -43,6 +43,16 @@ describe('trainingRoutineService', () => {
       },
     );
 
+    await trainingRoutineService.getSubstitutionAlternatives('day-1', 'exercise', 'planned-1', 'contract-1',
+      { search: 'Agachamento', offset: 25 });
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/training-substitutions/sessions/day-1/alternatives',
+      {
+        params: { kind: 'exercise', originalUnitId: 'planned-1', search: 'Agachamento', offset: 25 },
+        headers: { 'x-contract-id': 'contract-1' },
+      },
+    );
+
     const create = {
       kind: 'exercise' as const, context: 'execution' as const,
       originalUnitId: 'planned-1', replacementUnitId: 'catalog-1',

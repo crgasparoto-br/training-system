@@ -170,8 +170,8 @@ describeDatabase('#404 substition history, eligibility, authority and concurrenc
     const candidates = await svc.alternatives({
       sessionId: own.dayId, actor: own.student, kind: 'exercise', originalUnitId: own.originalId,
     });
-    expect(candidates.some(option => option.replacement.id === alien.library[1].id)).toBe(false);
-    expect(candidates.find(option => option.replacement.id === own.library[1].id)?.suitability.sameMovementPattern)
+    expect(candidates.items.some(option => option.replacement.id === alien.library[1].id)).toBe(false);
+    expect(candidates.items.find(option => option.replacement.id === own.library[1].id)?.suitability.sameMovementPattern)
       .toBe(true);
     await expect(svc.create(request(own, 'cross-catalog', alien.library[1].id)))
       .rejects.toMatchObject({ status: 409 });
@@ -201,6 +201,17 @@ describeDatabase('#404 substition history, eligibility, authority and concurrenc
     expect(candidate.original.unitId).toBe(f.dayId);
     expect(candidate.replacement.unitId).toBe(f.otherDayId);
     expect(await client.workoutDay.findUnique({ where: { id: f.dayId } })).not.toBeNull();
+    const byDate = await svc.alternatives({
+      sessionId: f.dayId, actor: f.teacher, kind: 'session', originalUnitId: f.dayId,
+      search: '2026-10-07', offset: 0,
+    });
+    expect(byDate.items.map(item => item.replacement.unitId)).toEqual([f.otherDayId]);
+    expect(byDate.nextOffset).toBeNull();
+    const missing = await svc.alternatives({
+      sessionId: f.dayId, actor: f.teacher, kind: 'session', originalUnitId: f.dayId,
+      search: '2026-10-08',
+    });
+    expect(missing.items).toEqual([]);
   });
 
   it('records student execution substitution and professor review without changing the prescription', async () => {
@@ -240,6 +251,34 @@ describeDatabase('#404 substition history, eligibility, authority and concurrenc
     expect(detail?.comparison?.substitutions?.[0].status).toBe('approved');
     const planRecord = await client.workoutExercise.findUniqueOrThrow({ where: { id: f.originalId } });
     expect(planRecord.exerciseId).toBe(f.library[0].id);
+  });
+
+  it('paginates all eligible catalog alternatives and searches without crossing scope', async () => {
+    const f = await fixture('paged');
+    await client.exerciseLibrary.createMany({ data: Array.from({ length: 28 }, (_, index) => ({
+      contractId: f.contractId, name: 'Pagina ' + String(index).padStart(3, '0'),
+      category: 'RESISTIDO', capacity: 'resisted', instructions: ['Postura'],
+      curationStatus: 'approved' as const, legacyGrandfathered: false,
+      aliases: index === 19 ? ['sinonimo-exclusivo'] : [],
+      reviewedByUserId: f.teacher.userId, reviewedAt: new Date(), lastCurationAction: 'approve',
+    })) });
+    const base = { sessionId: f.dayId, actor: f.student, kind: 'exercise' as const,
+      originalUnitId: f.originalId };
+    const first = await svc.alternatives(base);
+    expect(first.items).toHaveLength(25);
+    expect(first.nextOffset).toBe(25);
+    const second = await svc.alternatives({ ...base, offset: first.nextOffset! });
+    expect(second.items).toHaveLength(5);
+    expect(second.nextOffset).toBeNull();
+    const allIds = [...first.items, ...second.items].map(item => item.replacement.id);
+    expect(new Set(allIds).size).toBe(30);
+    expect(allIds).not.toContain(f.library[0].id);
+    const byName = await svc.alternatives({ ...base, search: 'Pagina 019' });
+    expect(byName.items).toHaveLength(1);
+    const byAlias = await svc.alternatives({ ...base, search: 'sinonimo-exclusivo' });
+    expect(byAlias.items).toHaveLength(1);
+    expect(byAlias.items[0].replacement.name).toBe('Pagina 019');
+    await expect(svc.alternatives({ ...base, offset: -1 })).rejects.toMatchObject({ status: 400 });
   });
 
   it('rejects stale execution version and serializes concurrent swaps for the same planned unit', async () => {

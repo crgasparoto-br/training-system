@@ -807,7 +807,10 @@ contrato e contexto `planning`, `review` ou `execution`.
    **registrada durante a execução / aguardando revisão do professor**. O registro não
    presume que séries ou medidas tenham sido executadas, nem altera o treino liberado.
 2. O professor com acesso à prescrição do aluno pode selecionar e aprovar antecipadamente
-   uma alternativa enquanto a sessão ainda não começou (`planning` ou `review`).
+   uma alternativa enquanto a sessão ainda não começou (`planning` ou `review`),
+   inclusive em sessões futuras abertas pela rotina semanal. Para o professor,
+   cada resumo semanal liberado traz apenas IDs e nomes congelados dos exercícios
+   planejados necessários para essa seleção; a visão do aluno não recebe esse campo.
 3. Uma troca ocorrida durante a execução é submetida à revisão explícita do professor.
    Ele pode **aprovar** ou **rejeitar** (rejeição exige justificativa). A decisão é
    terminal, com versão, responsável e data. Negar uma troca não remove o registro
@@ -824,6 +827,10 @@ contrato e contexto `planning`, `review` ou `execution`.
    separadamente. Uma aprovação prévia não é convertida em execução comprovada.
 7. Um exercício desativado após uma troca permanece legível pela captura imutável
    do vínculo, sem depender da disponibilidade corrente no catálogo.
+8. Depois de uma gravação ou revisão confirmada, falha na atualização da tela
+   não invalida a gravação. O sistema informa que a alteração foi salva,
+   bloqueia novas mutações sobre o estado desatualizado e oferece somente
+   **Atualizar histórico** até reconciliar a leitura. O retry não reenvia POST.
 
 ### API de substituições
 
@@ -833,10 +840,17 @@ Base autenticada: `/api/v1/training-substitutions`. No caso do aluno, o
 | Método | Caminho | Requisito |
 |---|---|---|
 | GET | `/sessions/:sessionId` | Histórico sob escopo do aluno/professor |
-| GET | `/sessions/:sessionId/alternatives?kind=exercise&originalUnitId=:id` | Catálogo aprovado do contrato |
-| GET | `/sessions/:sessionId/alternatives?kind=session&originalUnitId=:sessionId` | Sessões liberadas do mesmo aluno |
+| GET | `/sessions/:sessionId/alternatives?kind=exercise&originalUnitId=:id` | Catálogo aprovado do contrato, por nome ou alias |
+| GET | `/sessions/:sessionId/alternatives?kind=session&originalUnitId=:sessionId` | Sessões liberadas do mesmo aluno, com filtro por data |
 | POST | `/sessions/:sessionId` | `kind`, `context`, `originalUnitId`, `replacementUnitId`, `reason`, `operationKey`, e `expectedExecutionVersion` para aluno |
 | POST | `/sessions/:sessionId/:substitutionId/review` | Professor; `action=approve/reject`, `expectedVersion`, `reason` obrigatória para rejeitar |
+
+As consultas `alternatives` aceitam `search` (até 100 caracteres) e `offset`
+(inteiro de 0 a 10000), paginando 25 alternativas por vez em ordem estável.
+A resposta é `{ items: [...], nextOffset: number | null }`. Busca de exercícios
+combina nome parcial insensível a maiúsculas e alias exato; busca de sessões
+aceita uma data civil completa `AAAA-MM-DD`. Nenhum resultado fora do contrato,
+não aprovado ou sem liberação consolidada pode aparecer em qualquer página.
 
 A escrita valida origem, catálogo vigente, situação da sessão, contexto da ação,
 permissão profissional e contrato **dentro da transação**; utiliza versão para

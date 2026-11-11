@@ -132,6 +132,20 @@ describe('training routine service (#387)', () => {
     });
   });
 
+  it('projects frozen exercise units for authorized professor future-session planning only', async () => {
+    releasedRows = [makeRow({ exercises: [exercise('planned-e1', 'principal', 1)] })];
+    const professor = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'professor', now,
+    });
+    expect(professor.days[3].sessions[0].substitutionExercises).toEqual([
+      { id: 'planned-e1', name: 'Exercício planned-e1' },
+    ]);
+    const student = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(student.days[3].sessions[0]).not.toHaveProperty('substitutionExercises');
+  });
+
   it('calcula a aderência semanal usando apenas sessões liberadas e o lifecycle canônico', async () => {
     const executed = (dayId: string, status: 'completed' | 'partial', updatedAt: string) => ({
       workoutDayId: dayId, status, version: 1,

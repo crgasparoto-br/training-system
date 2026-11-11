@@ -45,7 +45,7 @@ const pending: TrainingSubstitutionRecord = {
 
 describe('TrainingSubstitutionCard #404', () => {
   it('suggestion is not autoapproval; teacher must choose and justify the replacement', async () => {
-    vi.mocked(trainingRoutineService.getSubstitutionAlternatives).mockResolvedValue([sampleAlternative]);
+    vi.mocked(trainingRoutineService.getSubstitutionAlternatives).mockResolvedValue({ items: [sampleAlternative], nextOffset: null });
     vi.mocked(trainingRoutineService.createSubstitution).mockResolvedValue({ ...pending, status: 'approved' });
     const refresh = vi.fn().mockResolvedValue(undefined);
     render(<TrainingSubstitutionCard session={session('not_started')} audience="professor" onChanged={refresh} />);
@@ -69,7 +69,7 @@ describe('TrainingSubstitutionCard #404', () => {
   });
 
   it('records during execution as pending review and forwards contract and version', async () => {
-    vi.mocked(trainingRoutineService.getSubstitutionAlternatives).mockResolvedValue([sampleAlternative]);
+    vi.mocked(trainingRoutineService.getSubstitutionAlternatives).mockResolvedValue({ items: [sampleAlternative], nextOffset: null });
     vi.mocked(trainingRoutineService.createSubstitution).mockResolvedValue(pending);
     render(<TrainingSubstitutionCard session={session('in_progress')} audience="student" contractId="contract-404" />);
     fireEvent.click(screen.getByRole('button', { name: 'Buscar alternativas elegíveis' }));
@@ -102,6 +102,70 @@ describe('TrainingSubstitutionCard #404', () => {
       'day-404', 'swap-404', { action: 'approve', expectedVersion: 1 },
     ));
     expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+
+  it('searches and loads later pages without losing previously available choices', async () => {
+    const second = { ...sampleAlternative, replacement: {
+      ...sampleAlternative.replacement, id: 'candidate-405', unitId: 'candidate-405', name: 'Outra alternativa',
+    } };
+    vi.mocked(trainingRoutineService.getSubstitutionAlternatives)
+      .mockResolvedValueOnce({ items: [sampleAlternative], nextOffset: 25 })
+      .mockResolvedValueOnce({ items: [second], nextOffset: null });
+    render(<TrainingSubstitutionCard session={session('not_started')} audience="professor" />);
+    fireEvent.change(screen.getByLabelText('Buscar alternativa'), { target: { value: 'squat' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar alternativas elegíveis' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Carregar mais alternativas' })).toBeTruthy());
+    expect(trainingRoutineService.getSubstitutionAlternatives).toHaveBeenCalledWith(
+      'day-404', 'exercise', 'planned-404', undefined, { search: 'squat', offset: 0 },
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais alternativas' }));
+    await waitFor(() => expect(screen.getByText(/Outra alternativa/)).toBeTruthy());
+    expect(trainingRoutineService.getSubstitutionAlternatives).toHaveBeenLastCalledWith(
+      'day-404', 'exercise', 'planned-404', undefined, { search: 'squat', offset: 25 },
+    );
+    expect(screen.getByText(/Agachamento alternativo/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Carregar mais alternativas' })).toBeNull();
+  });
+
+  it('keeps a confirmed creation confirmed when routine refresh fails, then retries only the read', async () => {
+    vi.mocked(trainingRoutineService.getSubstitutionAlternatives)
+      .mockResolvedValue({ items: [sampleAlternative], nextOffset: null });
+    vi.mocked(trainingRoutineService.createSubstitution).mockResolvedValue({ ...pending, status: 'approved' });
+    const onChanged = vi.fn().mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValue(undefined);
+    render(<TrainingSubstitutionCard session={session('not_started')} audience="professor" onChanged={onChanged} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar alternativas elegíveis' }));
+    await waitFor(() => expect(screen.getByText(/Agachamento alternativo/)).toBeTruthy());
+    fireEvent.change(screen.getByLabelText('Substituto'), { target: { value: 'candidate-404' } });
+    fireEvent.change(screen.getByLabelText('Motivo obrigatório'), { target: { value: 'Motivo técnico' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Aprovar alternativa' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Atualizar histórico' })).toBeTruthy());
+    expect(screen.getByText(/Alternativa aprovada. O planejamento original/)).toBeTruthy();
+    expect(screen.queryByText(/Não foi possível registrar/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Buscar alternativas elegíveis' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Atualizar histórico' }));
+    await waitFor(() => expect(screen.getByText(/Histórico atualizado/)).toBeTruthy());
+    expect(trainingRoutineService.createSubstitution).toHaveBeenCalledTimes(1);
+    expect(onChanged).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a confirmed review confirmed after refresh failure without double reviewing', async () => {
+    vi.mocked(trainingRoutineService.reviewSubstitution)
+      .mockResolvedValue({ ...pending, status: 'approved', version: 2 });
+    const onChanged = vi.fn().mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValue(undefined);
+    render(<TrainingSubstitutionCard session={session('completed', [pending])}
+      audience="professor" onChanged={onChanged} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Aprovar troca registrada' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Atualizar histórico' })).toBeTruthy());
+    expect(screen.getByText(/Substituição aprovada/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Aprovar troca registrada' })).toHaveProperty('disabled', true);
+    expect(screen.queryByText(/Não foi possível revisar/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Atualizar histórico' }));
+    await waitFor(() => expect(screen.getByText(/Histórico atualizado/)).toBeTruthy());
+    expect(trainingRoutineService.reviewSubstitution).toHaveBeenCalledTimes(1);
+    expect(onChanged).toHaveBeenCalledTimes(2);
   });
 
   it('does not offer changes to a finished student session or approval to the athlete', () => {

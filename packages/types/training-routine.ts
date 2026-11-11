@@ -110,6 +110,12 @@ export interface TrainingSubstitutionRecord {
   version: number;
 }
 
+export interface TrainingSubstitutionAlternativePage {
+  items: TrainingSubstitutionAlternative[];
+  /** Offset for the next page; null when all matching alternatives were returned. */
+  nextOffset: number | null;
+}
+
 export interface TrainingSubstitutionAlternative {
   kind: TrainingSubstitutionKind;
   replacement: TrainingSubstitutionSnapshot;
@@ -428,6 +434,8 @@ export interface TrainingRoutineSessionSummary {
   /** Only executed, authorized sessions have historical comparisons. */
   comparison?: TrainingSessionComparison;
   substitutions?: TrainingSubstitutionRecord[];
+  /** Professor only: minimal captured exercise units for planning a future session. */
+  substitutionExercises?: Array<Pick<TrainingRoutineExercise, 'id' | 'name'>>;
 }
 
 export interface TrainingRoutineExercise {

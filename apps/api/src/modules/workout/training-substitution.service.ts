@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { Prisma, type PrismaClient, type WorkoutSubstitution } from '@prisma/client';
 import type {
   TrainingSubstitutionAlternative,
+  TrainingSubstitutionAlternativePage,
   TrainingSubstitutionRecord,
   TrainingSubstitutionSnapshot,
   TrainingSubstitutionContext,
@@ -48,6 +49,8 @@ function stringArray(value: unknown): string[] {
 }
 type Session = Awaited<ReturnType<typeof loadSession>>;
 type Release = { id: string; releasedAssemblyVersion: number };
+type AlternativeRelease = { workoutTemplateId: string; releasedAssemblyVersion: number };
+const ALTERNATIVE_PAGE_SIZE = 25;
 type LinkedExercise = NonNullable<Awaited<ReturnType<typeof readPlannedExercise>>>;
 
 async function lookupRelease(tx: Db, templateId: string, alunoId: string, contractId: string): Promise<Release | null> {
@@ -258,8 +261,14 @@ export function createTrainingSubstitutionService(client: PrismaClient = prismaR
   }
 
   async function alternatives(input: {
-    sessionId: string; actor: SubstitutionActor; kind: TrainingSubstitutionKind; originalUnitId: string;
-  }): Promise<TrainingSubstitutionAlternative[]> {
+    sessionId: string; actor: SubstitutionActor; kind: TrainingSubstitutionKind;
+    originalUnitId: string; search?: string; offset?: number;
+  }): Promise<TrainingSubstitutionAlternativePage> {
+    const search = (input.search ?? '').trim();
+    const offset = input.offset ?? 0;
+    if (search.length > 100 || !Number.isInteger(offset) || offset < 0 || offset > 10000) {
+      return invalid('Busca ou página inválida.');
+    }
     return withTransaction(async tx => {
       const session = await loadSession(tx, input.sessionId, input.actor);
       if (input.kind === 'exercise') {
@@ -267,60 +276,85 @@ export function createTrainingSubstitutionService(client: PrismaClient = prismaR
         if (!source) return notFound();
         const original = exerciseSnapshot(source);
         const exercises = await tx.exerciseLibrary.findMany({
-          where: { contractId: input.actor.contractId, ...approvedOperationalExerciseWhere, id: { not: source.exerciseId } },
+          where: {
+            contractId: input.actor.contractId, ...approvedOperationalExerciseWhere,
+            id: { not: source.exerciseId },
+            ...(search ? { OR: [
+              { name: { contains: search, mode: 'insensitive' as const } },
+              { aliases: { has: search } },
+            ] } : {}),
+          },
           select: {
             id: true, name: true, version: true, capacity: true, movementPattern: true,
             equipment: true, difficulty: true, restrictions: true,
           },
-          orderBy: { name: 'asc' }, take: 100,
+          orderBy: [{ name: 'asc' }, { id: 'asc' }],
+          skip: offset, take: ALTERNATIVE_PAGE_SIZE + 1,
         });
-        return exercises.map(item => {
+        const hasMore = exercises.length > ALTERNATIVE_PAGE_SIZE;
+        const items = exercises.slice(0, ALTERNATIVE_PAGE_SIZE).map(item => {
           const replacement = catalogSnapshot(item);
           return {
             kind: 'exercise' as const, replacement, suitability: suitability(original, replacement),
             objectiveHint: session.day.template.studentGoal,
           };
-        }).sort((a, b) => {
-          const score = (item: typeof a) => Number(item.suitability.sameMovementPattern) * 4 +
-            Number(item.suitability.sameCapacity) * 2 + Number(item.suitability.sameDifficulty) +
-            Number(item.suitability.sharedEquipment.length > 0);
-          return score(b) - score(a) || a.replacement.name.localeCompare(b.replacement.name);
         }).map(item => input.actor.kind === 'student'
           ? { ...item, replacement: { ...item.replacement, restrictions: [] } }
           : item);
+        return { items, nextOffset: hasMore ? offset + ALTERNATIVE_PAGE_SIZE : null };
       }
       if (input.kind !== 'session' || input.originalUnitId !== session.day.id) {
         return invalid('Sessão original inválida.');
       }
+      // Only releases from this student and contract are valid session candidates.
+      const releases = await tx.$queryRaw<AlternativeRelease[]>(Prisma.sql`
+        SELECT DISTINCT ON ("workoutTemplateId")
+          "workoutTemplateId", "releasedAssemblyVersion"
+        FROM "ConsolidatedPrescriptionOperationalRelease"
+        WHERE "alunoId" = ${session.alunoId}
+          AND "contractId" = ${input.actor.contractId}
+        ORDER BY "workoutTemplateId", "releasedAt" DESC, "id" DESC
+      `);
+      if (!releases.length) return { items: [], nextOffset: null };
+      const versions = new Map(releases.map(row => [row.workoutTemplateId, row.releasedAssemblyVersion]));
+      // Session titles contain only a civil date; search is therefore an exact ISO date.
+      const sessionDate = search.replace(/^sess[ãa]o de\s+/iu, '');
+      let dateFilter: { gte: Date; lt: Date } | undefined;
+      if (search) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(sessionDate)) return { items: [], nextOffset: null };
+        const date = new Date(sessionDate + 'T00:00:00.000Z');
+        if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== sessionDate) {
+          return { items: [], nextOffset: null };
+        }
+        dateFilter = { gte: date, lt: new Date(date.getTime() + 24 * 60 * 60 * 1000) };
+      }
       const days = await tx.workoutDay.findMany({
         where: {
-          id: { not: session.day.id },
+          id: { not: session.day.id }, templateId: { in: [...versions.keys()] },
           template: {
             released: true,
             plan: { alunoId: session.alunoId, aluno: { contractId: input.actor.contractId } },
           },
+          ...(dateFilter ? { workoutDate: dateFilter } : {}),
         },
         select: { id: true, workoutDate: true, template: { select: { id: true, studentGoal: true } } },
-        orderBy: [{ workoutDate: 'asc' }, { id: 'asc' }], take: 60,
+        orderBy: [{ workoutDate: 'asc' }, { id: 'asc' }],
+        skip: offset, take: ALTERNATIVE_PAGE_SIZE + 1,
       });
-      const result: TrainingSubstitutionAlternative[] = [];
-      for (const day of days) {
-        const release = await lookupRelease(tx, day.template.id, session.alunoId, input.actor.contractId);
-        if (!release) continue;
-        result.push({
-          kind: 'session',
-          replacement: {
-            unitId: day.id, id: day.id,
-            name: 'Sessão de ' + day.workoutDate.toISOString().slice(0, 10),
-            version: 'liberacao:' + release.releasedAssemblyVersion,
-            capacity: null, movementPattern: null, equipment: [], difficulty: null, restrictions: [],
-          },
-          suitability: { sameMovementPattern: false, sameCapacity: false, sameDifficulty: false,
-            sharedEquipment: [], requiresProfessionalReview: true },
-          objectiveHint: day.template.studentGoal,
-        });
-      }
-      return result;
+      const hasMore = days.length > ALTERNATIVE_PAGE_SIZE;
+      const items: TrainingSubstitutionAlternative[] = days.slice(0, ALTERNATIVE_PAGE_SIZE).map(day => ({
+        kind: 'session',
+        replacement: {
+          unitId: day.id, id: day.id,
+          name: 'Sessão de ' + day.workoutDate.toISOString().slice(0, 10),
+          version: 'liberacao:' + versions.get(day.template.id)!,
+          capacity: null, movementPattern: null, equipment: [], difficulty: null, restrictions: [],
+        },
+        suitability: { sameMovementPattern: false, sameCapacity: false, sameDifficulty: false,
+          sharedEquipment: [], requiresProfessionalReview: true },
+        objectiveHint: day.template.studentGoal,
+      }));
+      return { items, nextOffset: hasMore ? offset + ALTERNATIVE_PAGE_SIZE : null };
     });
   }
 

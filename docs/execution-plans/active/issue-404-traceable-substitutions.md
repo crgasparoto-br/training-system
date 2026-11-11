@@ -37,7 +37,11 @@ Troca automática por IA; importação externa; modificação de prescrições f
 - [x] Interface aluno/professor e histórico.
 - [x] Casos de teste cobrindo cenários principais.
 - [x] Documentação funcional, de autenticação e banco.
-- [ ] `pnpm validate` e CI completos, sem falhas.
+- [x] A-001: disponibilizar planejamento/revisão no resumo semanal liberado de sessões futuras.
+- [x] A-002: preservar resultado confirmado da mutação após falha de refresh,
+  bloquear escrita sobre estado desatualizado e oferecer retry apenas de leitura.
+- [x] REC-001: busca no servidor e paginação de alternativas de exercício/sessão.
+- [ ] `pnpm validate` e CI completos no novo SHA, sem falhas.
 - [ ] Auditoria independente e homologação.
 
 ## Validação manual
@@ -47,6 +51,12 @@ Troca automática por IA; importação externa; modificação de prescrições f
 4. Alterar ou desativar o exercício no catálogo e verificar o histórico congelado.
 5. Tentativas cross-tenant, sem papel, duplicadas e com versão defasada devem falhar.
 6. Conferir comparação mantendo a origem e sem declarar execução não registrada.
+7. Em semana futura, professor abre sessão liberada ainda não iniciada, seleciona
+   exercício/sessão e pré-aprova; aluno e sessão concluída não permitem esse caminho.
+8. Confirmar POST e provocar falha só no refresh: mostrar sucesso, bloquear nova
+   mutação e repetir apenas GET no botão **Atualizar histórico**.
+9. Criar mais de 25 alternativas elegíveis, paginar sem duplicar, filtrar por
+   nome/alias ou data, rejeitar escopo cruzado e preservar curadoria vigente.
 
 ## Decisões e pendências
 - Mudança confinada à prescrição liberada atual, sem propagação automática.
@@ -54,4 +64,6 @@ Troca automática por IA; importação externa; modificação de prescrições f
 - Validação local indisponível: resolução DNS de github.com e pnpm ausente no
   ambiente de trabalho; comprovar testes/build na CI da PR.
 - PR: https://github.com/crgasparoto-br/training-system/pull/541
+- Remediação da auditoria de 11/11/2026: `A-001`, `A-002` e `REC-001`,
+  sem merge e sem reutilizar a CI do SHA anterior como prova do novo candidato.
 - Não fazer merge sem autorização explícita.

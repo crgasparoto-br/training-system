@@ -77,9 +77,11 @@ router.get('/sessions/:sessionId/alternatives', async (req: Request, res: Respon
     const sessionId = idSchema.parse(req.params.sessionId);
     const kind = z.enum(['exercise', 'session']).parse(req.query.kind);
     const originalUnitId = idSchema.parse(req.query.originalUnitId);
+    const search = z.string().trim().max(100).optional().parse(req.query.search);
+    const offset = z.coerce.number().int().min(0).max(10000).optional().parse(req.query.offset);
     const actor = await resolveActor(req);
     return sendSuccess(res, await trainingSubstitutionService.alternatives({
-      sessionId, actor, kind, originalUnitId,
+      sessionId, actor, kind, originalUnitId, search, offset,
     }));
   } catch (error) { return sendFailure(res, error); }
 });

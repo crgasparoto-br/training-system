@@ -31,11 +31,14 @@ type Props = {
 /** O item liberado continua intacto: o form apenas registra o vinculo auditavel. */
 export function TrainingSubstitutionCard({ session, audience, contractId, onChanged }: Props) {
   const isDetail = 'blocks' in session;
-  const exercises = isDetail ? session.blocks.flatMap(block => block.exercises) : [];
+  const exercises = isDetail ? session.blocks.flatMap(block => block.exercises) : session.substitutionExercises ?? [];
   const execution = 'execution' in session ? session.execution : undefined;
   const [kind, setKind] = useState<TrainingSubstitutionKind>(exercises.length ? 'exercise' : 'session');
   const [originalId, setOriginalId] = useState(exercises[0]?.id ?? session.sessionId);
   const [alternatives, setAlternatives] = useState<TrainingSubstitutionAlternative[]>([]);
+  const [search, setSearch] = useState('');
+  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [refreshPending, setRefreshPending] = useState(false);
   const [replacementId, setReplacementId] = useState('');
   const [reason, setReason] = useState('');
   const [preapprovalContext, setPreapprovalContext] = useState<'planning' | 'review'>('planning');
@@ -50,6 +53,9 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
     readVersion.current += 1;
     operation.current = null;
     setAlternatives([]);
+    setNextOffset(null);
+    setSearch('');
+    setRefreshPending(false);
     setReplacementId('');
     setReason('');
     setPreapprovalContext('planning');
@@ -58,8 +64,8 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
   }, [session.sessionId]);
 
   const records: TrainingSubstitutionRecord[] = session.substitutions ?? [];
-  const canCreate = isDetail && ((audience === 'professor' && session.status === 'not_started')
-    || (audience === 'student' && execution?.status === 'in_progress'));
+  const canCreate = !refreshPending && ((audience === 'professor' && session.status === 'not_started')
+    || (audience === 'student' && isDetail && execution?.status === 'in_progress'));
   const selectedAlternative = alternatives.find(item => item.replacement.id === replacementId);
 
   const resetOptions = (nextKind: TrainingSubstitutionKind, nextOriginalId: string) => {
@@ -67,32 +73,72 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
     setKind(nextKind);
     setOriginalId(nextOriginalId);
     setAlternatives([]);
+    setNextOffset(null);
+    setSearch('');
     setReplacementId('');
     setMessage(null);
     setError(null);
     operation.current = null;
   };
 
-  const loadAlternatives = async () => {
-    if (busy || !canCreate) return;
+  const loadAlternatives = async (more = false) => {
+    if (busy || !canCreate || (more && nextOffset === null)) return;
     const request = ++readVersion.current;
     setBusy(true);
     setError(null);
     setMessage(null);
-    setAlternatives([]);
-    setReplacementId('');
+    if (!more) {
+      setAlternatives([]);
+      setReplacementId('');
+      setNextOffset(null);
+    }
     try {
       const found = await trainingRoutineService.getSubstitutionAlternatives(
         session.sessionId, kind, kind === 'session' ? session.sessionId : originalId,
         audience === 'student' ? contractId ?? undefined : undefined,
+        { search, offset: more ? nextOffset! : 0 },
       );
       if (readVersion.current !== request) return;
-      setAlternatives(found);
-      if (found.length === 0) setMessage('Nenhuma alternativa elegível foi encontrada neste contrato.');
+      setAlternatives(previous => more
+        ? [...previous, ...found.items.filter(item =>
+          !previous.some(loaded => loaded.replacement.id === item.replacement.id))]
+        : found.items);
+      setNextOffset(found.nextOffset);
+      if (!more && found.items.length === 0) {
+        setMessage('Nenhuma alternativa elegível foi encontrada neste contrato.');
+      }
     } catch {
       if (readVersion.current === request) setError('Não foi possível consultar alternativas. Atualize o treino.');
     } finally {
       if (readVersion.current === request) setBusy(false);
+    }
+  };
+
+  // Once the API confirms a write, a subsequent read failure must never be
+  // presented as a failed write or invite a second mutation on stale data.
+  const refreshAfterConfirmedChange = async (confirmation: string) => {
+    setMessage(confirmation);
+    if (!onChanged) return;
+    setRefreshPending(true);
+    try {
+      await onChanged();
+      setRefreshPending(false);
+    } catch {
+      setMessage(confirmation + ' Os dados da tela não foram atualizados. Atualize o histórico antes de outra alteração.');
+    }
+  };
+
+  const retryRefresh = async () => {
+    if (busy || !refreshPending || !onChanged) return;
+    setBusy(true);
+    try {
+      await onChanged();
+      setRefreshPending(false);
+      setMessage('Histórico atualizado. A alteração anterior já estava salva.');
+    } catch {
+      setMessage('A alteração está salva, mas a atualização do histórico ainda falhou. Tente novamente.');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -124,13 +170,13 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
         ...(audience === 'student' ? { expectedExecutionVersion: execution!.version } : {}),
       }, audience === 'student' ? contractId ?? undefined : undefined);
       setAlternatives([]);
+      setNextOffset(null);
       setReplacementId('');
       setReason('');
       operation.current = null;
-      setMessage(audience === 'student'
+      await refreshAfterConfirmedChange(audience === 'student'
         ? 'Troca registrada. O professor poderá revisá-la.'
         : 'Alternativa aprovada. O planejamento original foi preservado.');
-      await onChanged?.();
     } catch {
       setError('Não foi possível registrar. A sessão ou o catálogo pode ter mudado; atualize e tente novamente.');
     } finally {
@@ -139,7 +185,7 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
   };
 
   const review = async (item: TrainingSubstitutionRecord, action: 'approve' | 'reject') => {
-    if (audience !== 'professor' || busy) return;
+    if (audience !== 'professor' || busy || refreshPending) return;
     const explanation = reviewReasons[item.id]?.trim() ?? '';
     if (action === 'reject' && explanation.length < 3) {
       setError('Informe o motivo para rejeitar a substituição.');
@@ -153,8 +199,8 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
         action, expectedVersion: item.version,
         ...(explanation ? { reason: explanation } : {}),
       });
-      setMessage(action === 'approve' ? 'Substituição aprovada.' : 'Substituição rejeitada.');
-      await onChanged?.();
+      await refreshAfterConfirmedChange(action === 'approve'
+        ? 'Substituição aprovada.' : 'Substituição rejeitada.');
     } catch {
       setError('Não foi possível revisar. Atualize a sessão e confira se já houve outra decisão.');
     } finally {
@@ -198,10 +244,10 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
                     className="w-full rounded-md border border-border bg-background px-2 py-2 text-sm"
                   />
                   <div className="flex flex-wrap gap-2">
-                    <Button type="button" size="sm" disabled={busy} onClick={() => void review(item, 'approve')}>
+                    <Button type="button" size="sm" disabled={busy || refreshPending} onClick={() => void review(item, 'approve')}>
                       Aprovar troca registrada
                     </Button>
-                    <Button type="button" size="sm" variant="outline" disabled={busy}
+                    <Button type="button" size="sm" variant="outline" disabled={busy || refreshPending}
                       onClick={() => void review(item, 'reject')}>
                       Rejeitar troca
                     </Button>
@@ -258,6 +304,20 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
               </label>
             )}
           </div>
+          <label className="block space-y-1 text-xs font-medium">
+            <span>Buscar alternativa</span>
+            <input type="search" value={search} maxLength={100} disabled={busy}
+              placeholder={kind === 'exercise' ? 'Nome ou alias do exercício' : 'Data (AAAA-MM-DD)'}
+              onChange={event => {
+                readVersion.current += 1;
+                setSearch(event.target.value);
+                setAlternatives([]);
+                setNextOffset(null);
+                setReplacementId('');
+                operation.current = null;
+              }}
+              className="w-full rounded-md border border-border bg-background px-2 py-2 text-sm" />
+          </label>
           <Button type="button" size="sm" variant="outline" disabled={busy || !originalId}
             onClick={() => void loadAlternatives()}>
             Buscar alternativas elegíveis
@@ -277,6 +337,12 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
                 ))}
               </select>
             </label>
+          )}
+          {nextOffset !== null && (
+            <Button type="button" size="sm" variant="outline" disabled={busy}
+              onClick={() => void loadAlternatives(true)}>
+              Carregar mais alternativas
+            </Button>
           )}
           {selectedAlternative && (
             <p className="text-xs text-muted-foreground">
@@ -301,6 +367,13 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
               {audience === 'professor' ? 'Aprovar alternativa' : 'Registrar troca para revisão'}
             </Button>
           )}
+        </div>
+      )}
+      {refreshPending && (
+        <div className="space-y-2 rounded-md border border-border p-3" role="status">
+          <p className="text-sm">A alteração foi salva, mas a tela precisa atualizar os dados antes de outra ação.</p>
+          <Button type="button" size="sm" variant="outline" disabled={busy}
+            onClick={() => void retryRefresh()}>Atualizar histórico</Button>
         </div>
       )}
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}

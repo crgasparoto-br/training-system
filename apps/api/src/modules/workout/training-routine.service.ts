@@ -348,6 +348,10 @@ function toSummary(
     method: cleanText(row.method),
     status: buildExecution(row, release).status,
     ...(comparison ? { comparison } : {}),
+    ...(audience === 'professor' ? {
+      substitutionExercises: buildBlocks(row).flatMap(block =>
+        block.exercises.map(({ id, name }) => ({ id, name }))),
+    } : {}),
     origin: {
       kind: 'consolidated',
       releasedAt: row.template.releasedAt?.toISOString() ?? null,

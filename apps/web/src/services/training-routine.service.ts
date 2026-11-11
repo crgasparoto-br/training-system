@@ -9,7 +9,7 @@ import type {
   GuidedCyclicActionPayload,
   GuidedCyclicView,
   TrainingSubstitutionRecord,
-  TrainingSubstitutionAlternative,
+  TrainingSubstitutionAlternativePage,
   TrainingSubstitutionKind,
   TrainingSubstitutionCreatePayload,
   TrainingSubstitutionReviewPayload,
@@ -39,10 +39,11 @@ export const trainingRoutineService = {
 
   async getSubstitutionAlternatives(
     sessionId: string, kind: TrainingSubstitutionKind, originalUnitId: string, contractId?: string,
-  ): Promise<TrainingSubstitutionAlternative[]> {
-    const { data } = await api.get<ApiEnvelope<TrainingSubstitutionAlternative[]>>(
+    options: { search?: string; offset?: number } = {},
+  ): Promise<TrainingSubstitutionAlternativePage> {
+    const { data } = await api.get<ApiEnvelope<TrainingSubstitutionAlternativePage>>(
       '/training-substitutions/sessions/' + encodeURIComponent(sessionId) + '/alternatives', {
-        params: { kind, originalUnitId },
+        params: { kind, originalUnitId, ...options },
         ...(contractId ? { headers: { 'x-contract-id': contractId } } : {}),
       },
     );

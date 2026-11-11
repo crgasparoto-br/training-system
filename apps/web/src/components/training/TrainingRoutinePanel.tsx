@@ -903,9 +903,12 @@ function WeekDayItem({ day, audience, onChanged }: {
               </div>
               <StatusBadge status={session.status} />
             </div>
-            {!day.isToday && audience === 'professor' && Boolean(session.substitutions?.length) && (
+            {!day.isToday && audience === 'professor'
+              && (session.status === 'not_started' || Boolean(session.substitutions?.length)) && (
               <details className="rounded-md border border-border p-2">
-                <summary className="cursor-pointer text-xs font-medium text-foreground">Histórico e revisão de substituições</summary>
+                <summary className="cursor-pointer text-xs font-medium text-foreground">
+                  {session.status === 'not_started' ? 'Planejar ou revisar substituições' : 'Histórico e revisão de substituições'}
+                </summary>
                 <div className="mt-2">
                   <TrainingSubstitutionCard session={session} audience="professor" onChanged={onChanged} />
                 </div>

@@ -176,6 +176,12 @@ são reavaliados no service com o `TransactionClient`, inclusive na revisão de
 solicitação, impedindo uso de contexto de JWT antigo e acesso cross-tenant.
 O bloqueio de mudança de estado de aluno e professor inativo mantém a barreira.
 
+A lista semanal destinada ao professor autorizado projeta somente IDs e nomes
+dos exercícios originais capturados, para permitir planejamento em dias futuros.
+O mesmo campo não é exposto na lista semanal do aluno. Buscar páginas seguintes
+de alternativas reexecuta as mesmas regras de contrato, curadoria e aluno;
+o offset não concede acesso a itens excluídos.
+
 Os metadados de restrições do catálogo são técnicos: não são serializados na
 visão do aluno no histórico nem no catálogo de alternativas. Uma sugestão não
 atribui ao aluno permissão de aprovação. Apenas o professor pode revisar uma
