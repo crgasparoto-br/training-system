@@ -62,7 +62,7 @@ describe('TrainingSubstitutionCard #404', () => {
     await waitFor(() => expect(trainingRoutineService.createSubstitution).toHaveBeenCalledTimes(1));
     expect(vi.mocked(trainingRoutineService.createSubstitution).mock.calls[0][1]).toMatchObject({
       kind: 'exercise', context: 'planning', originalUnitId: 'planned-404',
-      replacementUnitId: 'candidate-404',
+      replacementUnitId: 'candidate-404', expectedReplacementVersion: 'exercicio:7',
       reason: 'Ajuste supervisionado pelo professor',
     });
     expect(refresh).toHaveBeenCalledTimes(1);
@@ -81,7 +81,8 @@ describe('TrainingSubstitutionCard #404', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Registrar troca para revisão' }));
     await waitFor(() => expect(trainingRoutineService.createSubstitution).toHaveBeenCalledTimes(1));
     expect(vi.mocked(trainingRoutineService.createSubstitution).mock.calls[0]).toMatchObject([
-      'day-404', { context: 'execution', expectedExecutionVersion: 3 }, 'contract-404',
+      'day-404', { context: 'execution', expectedExecutionVersion: 3,
+        expectedReplacementVersion: 'exercicio:7' }, 'contract-404',
     ]);
     expect(screen.getByText(/professor poderá revisá-la/i)).toBeTruthy();
   });
