@@ -47,6 +47,10 @@ Troca automática por IA; importação externa; modificação de prescrições f
 - [x] RISK-001: documentar e testar a revisão histórica após desativação do catálogo.
 - [x] REC-404-001: atualizar arquitetura web com o endpoint mutável e gate de edição.
 - [x] Controles de regressão para leitura sem escrita, revogação, restauração e histórico congelado.
+- [x] A-003: validar versão exata selecionada, inclusive para alternativa de sessão;
+  rejeitar revisão stale com 409 e sem ledger/evento; incluir versão no fingerprint.
+- [ ] A-004: comprovar em Chrome/HTTP/PostgreSQL que um POST confirmado seguido
+  por falha de GET não dispara POST duplicado na recuperação (CI exact-SHA).
 - [ ] `pnpm validate` e CI completos no novo SHA, sem falhas.
 - [ ] Auditoria independente e homologação.
 
@@ -64,6 +68,10 @@ Troca automática por IA; importação externa; modificação de prescrições f
    mutação e repetir apenas GET no botão **Atualizar histórico**.
 9. Criar mais de 25 alternativas elegíveis, paginar sem duplicar, filtrar por
    nome/alias ou data, rejeitar escopo cruzado e preservar curadoria vigente.
+10. Alterar a versão de um substituto mantendo o mesmo ID entre GET/POST; a
+    criação deve retornar 409 sem ledger/evento e exigir nova seleção.
+11. Em navegador real, concluir POST e falhar exclusivamente o GET de refresh;
+    observar confirmação, bloqueio da próxima mutação e retry apenas GET.
 
 ## Decisões e pendências
 - Mudança confinada à prescrição liberada atual, sem propagação automática.
