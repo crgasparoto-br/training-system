@@ -3,6 +3,7 @@ import { PrismaClient, ContractType, ProfessorRole, UserType } from '@prisma/cli
 import { createTrainingSubstitutionService, type SubstitutionActor } from '../src/modules/workout/training-substitution.service.js';
 import { createWorkoutSessionExecutionService } from '../src/modules/workout/workout-session-execution.service.js';
 import { createTrainingRoutineService } from '../src/modules/workout/training-routine.service.js';
+import { syncAccessPermissionsForFunction } from '../src/modules/access-control/access-control.service.js';
 
 const describeDatabase = process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true' ? describe : describe.skip;
 if (process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true') jest.setTimeout(30_000);
@@ -11,7 +12,7 @@ const concurrentClient = new PrismaClient();
 const svc = createTrainingSubstitutionService(client);
 const concurrentSvc = createTrainingSubstitutionService(concurrentClient);
 
-async function fixture(label: string, options: { legacySnapshot?: boolean } = {}) {
+async function fixture(label: string, options: { legacySnapshot?: boolean; professorRole?: ProfessorRole } = {}) {
   const contractId = 'issue404-' + randomUUID();
   await client.companyContract.create({ data: {
     id: contractId, type: ContractType.academy,
@@ -26,7 +27,8 @@ async function fixture(label: string, options: { legacySnapshot?: boolean } = {}
     profile: { create: { name: 'Professor ' + label } },
   } });
   const professor = await client.professor.create({ data: {
-    userId: profUser.id, contractId, collaboratorFunctionId: fn.id, role: ProfessorRole.master,
+    userId: profUser.id, contractId, collaboratorFunctionId: fn.id,
+    role: options.professorRole ?? ProfessorRole.master,
   } });
   const alunoUser = await client.user.create({ data: {
     email: 'issue404-student-' + randomUUID() + '@example.com',
@@ -118,6 +120,7 @@ async function fixture(label: string, options: { legacySnapshot?: boolean } = {}
     kind: 'student', userId: alunoUser.id, alunoId: aluno.id, contractId,
   };
   return { contractId, alunoId: aluno.id, dayId: day.id, otherDayId: otherDay.id,
+    professorFunctionId: fn.id,
     originalId: original.id, library, teacher, student };
 }
 type Seed = Awaited<ReturnType<typeof fixture>>;
@@ -153,6 +156,87 @@ describeDatabase('#404 substition history, eligibility, authority and concurrenc
       .rejects.toMatchObject({ status: 409 });
     const actual = await client.workoutExercise.findUniqueOrThrow({ where: { id: f.originalId } });
     expect(actual.exerciseId).toBe(f.library[0].id);
+  });
+
+  it('separates training read from substitution write and revalidates revocation before review', async () => {
+    const f = await fixture('read-only-permission', { professorRole: ProfessorRole.professor });
+    await syncAccessPermissionsForFunction(f.professorFunctionId, 'professor', client);
+    const permission = {
+      collaboratorFunctionId: f.professorFunctionId,
+      blockKey: 'students.actions.manageTrainingSubstitutions',
+    };
+    await client.accessPermission.updateMany({ where: permission, data: { canView: false } });
+
+    // A concession to view the training tab is NOT a concession to approve.
+    expect(await svc.list({ sessionId: f.dayId, actor: f.teacher })).toEqual([]);
+    const page = await svc.alternatives({
+      sessionId: f.dayId, actor: f.teacher, kind: 'exercise', originalUnitId: f.originalId,
+    });
+    expect(page.items.some(item => item.replacement.id === f.library[1].id)).toBe(true);
+    await expect(svc.create(request(f, 'read-only'))).rejects
+      .toMatchObject({ status: 403, code: 'SUBSTITUTION_FORBIDDEN' });
+    expect(await client.workoutSubstitution.count({ where: { workoutDayId: f.dayId } })).toBe(0);
+
+    await client.accessPermission.updateMany({ where: permission, data: { canView: true } });
+    const allowed = await svc.create(request(f, 'write-granted'));
+    expect(allowed.status).toBe('approved');
+
+    const execution = createWorkoutSessionExecutionService(client);
+    await execution.transition({
+      sessionId: f.dayId, alunoId: f.alunoId, contractId: f.contractId,
+      actorUserId: f.student.userId,
+      payload: { operationKey: 'issue404-start-' + randomUUID(), expectedVersion: 0, targetStatus: 'in_progress' },
+    });
+    const pending = await svc.create({
+      ...request(f, 'student-pending', f.library[2].id),
+      actor: f.student, context: 'execution', expectedExecutionVersion: 1,
+    });
+    expect(pending.status).toBe('pending_review');
+
+    // Revoking the permission AFTER the request also forbids review.
+    await client.accessPermission.updateMany({ where: permission, data: { canView: false } });
+    await expect(svc.review({
+      sessionId: f.dayId, substitutionId: pending.id, actor: f.teacher,
+      action: 'approve', expectedVersion: 1,
+    })).rejects.toMatchObject({ status: 403, code: 'SUBSTITUTION_FORBIDDEN' });
+    const unchanged = await client.workoutSubstitution.findUniqueOrThrow({ where: { id: pending.id } });
+    expect(unchanged).toMatchObject({ status: 'pending_review', version: 1, reviewedByUserId: null });
+
+    await client.accessPermission.updateMany({ where: permission, data: { canView: true } });
+    const reviewed = await svc.review({
+      sessionId: f.dayId, substitutionId: pending.id, actor: f.teacher,
+      action: 'approve', expectedVersion: 1,
+    });
+    expect(reviewed).toMatchObject({ status: 'approved', version: 2 });
+  });
+
+  it('reviews a valid historical execution request after a later catalog deactivation', async () => {
+    const f = await fixture('historical-review');
+    const execution = createWorkoutSessionExecutionService(client);
+    await execution.transition({
+      sessionId: f.dayId, alunoId: f.alunoId, contractId: f.contractId,
+      actorUserId: f.student.userId,
+      payload: { operationKey: 'issue404-start-' + randomUUID(), expectedVersion: 0, targetStatus: 'in_progress' },
+    });
+    const pending = await svc.create({
+      ...request(f, 'historical-request'), actor: f.student,
+      context: 'execution', expectedExecutionVersion: 1,
+    });
+    await client.exerciseLibrary.update({
+      where: { id: f.library[1].id }, data: { curationStatus: 'inactive' },
+    });
+    // The review judges what was recorded earlier; it does not create a new replacement.
+    const accepted = await svc.review({
+      sessionId: f.dayId, substitutionId: pending.id, actor: f.teacher,
+      action: 'approve', expectedVersion: 1,
+    });
+    expect(accepted.status).toBe('approved');
+    expect(accepted.replacement.name).toBe(pending.replacement.name);
+    expect(accepted.replacementVersion).toBe(pending.replacementVersion);
+    await expect(svc.create({
+      ...request(f, 'inactive-now', f.library[1].id), actor: f.student,
+      context: 'execution', expectedExecutionVersion: 1,
+    })).rejects.toMatchObject({ status: 409 });
   });
 
   it('reports unknown release version instead of fabricating it from a newer catalog', async () => {
