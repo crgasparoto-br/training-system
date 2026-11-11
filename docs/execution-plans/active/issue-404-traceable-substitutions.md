@@ -28,6 +28,8 @@ Troca automática por IA; importação externa; modificação de prescrições f
 - Motivo, autor, data, contexto, versões, aprovação e revisão são auditáveis.
 - Repetição de operação com dados diferentes retorna conflito; nenhuma escrita parcial.
 - Professor avalia demandas feitas durante a sessão depois do registro.
+- Permissão de visualizar treinos não permite aprovar: `students.actions.manageTrainingSubstitutions` é obrigatória para mutações profissionais.
+- Na revisão de execução histórica, a elegibilidade é capturada na solicitação; a desativação posterior não concede nova autorização nem apaga o fato ocorrido.
 
 ## Passos de implementação
 - [x] Modelo, migration e invariantes de integridade.
@@ -41,6 +43,10 @@ Troca automática por IA; importação externa; modificação de prescrições f
 - [x] A-002: preservar resultado confirmado da mutação após falha de refresh,
   bloquear escrita sobre estado desatualizado e oferecer retry apenas de leitura.
 - [x] REC-001: busca no servidor e paginação de alternativas de exercício/sessão.
+- [x] A-404-001: separar autorização profissional de escrita da leitura, inclusive na transação e na UI.
+- [x] RISK-001: documentar e testar a revisão histórica após desativação do catálogo.
+- [x] REC-404-001: atualizar arquitetura web com o endpoint mutável e gate de edição.
+- [x] Controles de regressão para leitura sem escrita, revogação, restauração e histórico congelado.
 - [ ] `pnpm validate` e CI completos no novo SHA, sem falhas.
 - [ ] Auditoria independente e homologação.
 
@@ -50,6 +56,7 @@ Troca automática por IA; importação externa; modificação de prescrições f
 3. Professor revisa (aprova/rejeita com motivo quando negativo) em sessão concluída.
 4. Alterar ou desativar o exercício no catálogo e verificar o histórico congelado.
 5. Tentativas cross-tenant, sem papel, duplicadas e com versão defasada devem falhar.
+5a. Professor com `trainingPlans` e sem `manageTrainingSubstitutions` apenas lê; negar POST; após concessão permitir, após revogação negar review, sem modificar ledger; revalidar na transação.
 6. Conferir comparação mantendo a origem e sem declarar execução não registrada.
 7. Em semana futura, professor abre sessão liberada ainda não iniciada, seleciona
    exercício/sessão e pré-aprova; aluno e sessão concluída não permitem esse caminho.
@@ -65,5 +72,6 @@ Troca automática por IA; importação externa; modificação de prescrições f
   ambiente de trabalho; comprovar testes/build na CI da PR.
 - PR: https://github.com/crgasparoto-br/training-system/pull/541
 - Remediação da auditoria de 11/11/2026: `A-001`, `A-002` e `REC-001`,
+- Segunda remediação da auditoria de 11/11/2026: `A-404-001`, `RISK-001`, `REC-404-001`, com controles de permissão independente, revogação e revisão histórica;
   sem merge e sem reutilizar a CI do SHA anterior como prova do novo candidato.
 - Não fazer merge sem autorização explícita.
