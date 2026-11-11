@@ -806,7 +806,8 @@ contrato e contexto `planning`, `review` ou `execution`.
    informando motivo e selecionando uma alternativa vigente. Ela é identificada como
    **registrada durante a execução / aguardando revisão do professor**. O registro não
    presume que séries ou medidas tenham sido executadas, nem altera o treino liberado.
-2. O professor com acesso à prescrição do aluno pode selecionar e aprovar antecipadamente
+2. O professor com acesso à prescrição do aluno **e** à capacidade
+   `students.actions.manageTrainingSubstitutions` pode selecionar e aprovar antecipadamente
    uma alternativa enquanto a sessão ainda não começou (`planning` ou `review`),
    inclusive em sessões futuras abertas pela rotina semanal. Para o professor,
    cada resumo semanal liberado traz apenas IDs e nomes congelados dos exercícios
@@ -826,7 +827,12 @@ contrato e contexto `planning`, `review` ou `execution`.
    capturados, mostrando os vínculos de substituição com o momento e status de revisão
    separadamente. Uma aprovação prévia não é convertida em execução comprovada.
 7. Um exercício desativado após uma troca permanece legível pela captura imutável
-   do vínculo, sem depender da disponibilidade corrente no catálogo.
+   do vínculo, sem depender da disponibilidade corrente no catálogo. A elegibilidade
+   de uma **nova** substituição é conferida na criação; a revisão posterior de uma
+   solicitação de execução já registrada avalia o fato histórico e sua captura
+   original, sem inventar elegibilidade nova nem aprovar futuras utilizações.
+   Desativação posterior não invalida o registro original e não elimina a escolha
+   explícita do professor de aprovar/rejeitar o histórico.
 8. Depois de uma gravação ou revisão confirmada, falha na atualização da tela
    não invalida a gravação. O sistema informa que a alteração foi salva,
    bloqueia novas mutações sobre o estado desatualizado e oferece somente
@@ -852,8 +858,10 @@ combina nome parcial insensível a maiúsculas e alias exato; busca de sessões
 aceita uma data civil completa `AAAA-MM-DD`. Nenhum resultado fora do contrato,
 não aprovado ou sem liberação consolidada pode aparecer em qualquer página.
 
-A escrita valida origem, catálogo vigente, situação da sessão, contexto da ação,
-permissão profissional e contrato **dentro da transação**; utiliza versão para
+A criação valida origem, catálogo vigente, situação da sessão, contexto da ação,
+permissão profissional de escrita e contrato **dentro da transação**;
+a revisão histórica revalida a autoridade de revisão e a versão da solicitação,
+sem voltar a consultar a elegibilidade atual do catálogo; utiliza versão para
 conflitos, chave idempotente para repetição e registra evento na timeline.
 Respostas `409` exigem atualização do estado antes de tentar nova alteração.
 
