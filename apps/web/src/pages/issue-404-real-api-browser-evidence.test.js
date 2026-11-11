@@ -15,6 +15,14 @@ const suite = process.env.ISSUE_404_REAL_API_BROWSER_EVIDENCE === '1' ? describe
 const repoRoot = path.resolve(process.cwd(), '../..');
 const outputDir = path.join(repoRoot, 'artifacts/issue-404');
 
+function localToday() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const fields = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return fields.year + '-' + fields.month + '-' + fields.day;
+}
+
 function chromePath() {
   for (const candidate of [process.env.CHROME_BIN, '/usr/bin/google-chrome', '/usr/bin/chromium'].filter(Boolean)) {
     try { accessSync(candidate, constants.X_OK); return candidate; } catch { /* Puppeteer cache */ }
@@ -32,8 +40,7 @@ async function waitForHealth(origin) {
 async function seed(prisma) {
   const suffix = randomUUID();
   const contractId = 'issue404-browser-' + suffix;
-  const date = new Date();
-  date.setUTCHours(0, 0, 0, 0);
+  const date = new Date(localToday() + 'T00:00:00.000Z');
   const dayOfWeek = ((date.getUTCDay() + 6) % 7) + 1;
   const weekStart = new Date(date.getTime() - (dayOfWeek - 1) * 86400000);
   const contract = await prisma.companyContract.create({ data: {
@@ -123,31 +130,24 @@ async function seed(prisma) {
 async function createWeb(apiOrigin, token, fixture) {
   process.env.VITE_API_URL = apiOrigin;
   const { createServer } = await import('vite');
-  const initialSession = {
-    sessionId: fixture.dayId, status: 'not_started',
-    substitutionExercises: [{ id: fixture.plannedId, name: 'Agachamento planejado #404' }],
-    substitutions: [],
-  };
   const html = '<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8">' +
     '<meta name="viewport" content="width=device-width, initial-scale=1"></head>' +
-    '<body><main id="root" style="max-width:60rem;margin:0 auto;padding:1rem"></main>' +
+    '<body><main id="root" style="max-width:68rem;margin:0 auto;padding:1rem"></main>' +
     '<script type="module">' +
     'import React from "react"; import { createRoot } from "react-dom/client";' +
     'import "/src/index.css";' +
-    'import { TrainingSubstitutionCard } from "/src/components/training/TrainingSubstitutionCard.tsx";' +
+    'import { TrainingRoutinePanel } from "/src/components/training/TrainingRoutinePanel.tsx";' +
     'import { trainingRoutineService } from "/src/services/training-routine.service.ts";' +
+    'import { useAuthStore } from "/src/stores/useAuthStore.ts";' +
     'localStorage.setItem("token",' + JSON.stringify(token) + ');' +
-    'const initialSession=' + JSON.stringify(initialSession) + ';' +
-    'function Harness(){' +
-    'const [session,setSession]=React.useState(initialSession);' +
-    'const refresh=async()=>{' +
-    'const rows=await trainingRoutineService.getSubstitutions(initialSession.sessionId);' +
-    'setSession(previous=>({...previous,substitutions:rows}));' +
-    '};' +
-    'return React.createElement(TrainingSubstitutionCard,{session,audience:"professor",' +
-    'canManage:true,onChanged:refresh});' +
-    '}' +
-    'createRoot(document.getElementById("root")).render(React.createElement(Harness));' +
+    'useAuthStore.setState({user:{id:' + JSON.stringify(fixture.professorUserId) +
+      ',type:"professor",professor:{role:"master"}},' +
+      'token:' + JSON.stringify(token) + ',isAuthenticated:true,isLoading:false});' +
+    'const loadRoutine=(date)=>trainingRoutineService.getForAluno(' +
+      JSON.stringify(fixture.alunoId) + ',{date});' +
+    'createRoot(document.getElementById("root")).render(' +
+    'React.createElement(TrainingRoutinePanel,{audience:"professor",canView:true,' +
+    'title:"Treino de hoje",load:loadRoutine}));' +
     '</script></body></html>';
   const vite = await createServer({
     root: process.cwd(), logLevel: 'error',
@@ -241,11 +241,12 @@ suite('Issue #404: real browser, authenticated API and PostgreSQL', () => {
       const page = await browser.newPage();
       page.on('pageerror', error => browserErrors.push(error.message));
       await page.setRequestInterception(true);
-      const targetPath = '/api/v1/training-substitutions/sessions/' + fixture.dayId;
+      const submissionPath = '/api/v1/training-substitutions/sessions/' + fixture.dayId;
+      const refreshPath = '/api/v1/alunos/' + fixture.alunoId + '/training-routine';
       page.on('request', request => {
         const pathname = new URL(request.url()).pathname;
-        if (pathname === targetPath && request.method() === 'POST') writes += 1;
-        if (pathname === targetPath && request.method() === 'GET' && writes > 0) {
+        if (pathname === submissionPath && request.method() === 'POST') writes += 1;
+        if (pathname === refreshPath && request.method() === 'GET' && writes > 0) {
           readsAfterWrite += 1;
           if (injectedFailures === 0) {
             injectedFailures += 1;
@@ -303,7 +304,7 @@ suite('Issue #404: real browser, authenticated API and PostgreSQL', () => {
       mkdirSync(outputDir, { recursive: true });
       writeFileSync(path.join(outputDir, 'real-api-evidence.json'), JSON.stringify({
         schemaVersion: 1, issue: 404, headSha: process.env.VERIFICATION_HEAD_SHA || null,
-        mode: 'real-chrome-real-http-postgresql', writes, readsAfterWrite,
+        mode: 'production-routine-panel-real-chrome-http-postgresql', writes, readsAfterWrite,
         injectedFailures, ledgerRows: 1, lifecycleEventDelta: 1, screenshots: captures,
       }, null, 2) + '\n');
     } catch (error) {
