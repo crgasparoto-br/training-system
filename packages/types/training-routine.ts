@@ -135,6 +135,8 @@ export interface TrainingSubstitutionCreatePayload {
   context: TrainingSubstitutionContext;
   originalUnitId: string;
   replacementUnitId: string;
+  /** Exact version selected from the alternatives response. */
+  expectedReplacementVersion: string;
   reason: string;
   operationKey: string;
   expectedExecutionVersion?: number;
