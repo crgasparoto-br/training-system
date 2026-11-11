@@ -24,6 +24,7 @@ const createSchema = z.object({
   context: z.enum(['planning', 'review', 'execution']),
   originalUnitId: idSchema,
   replacementUnitId: idSchema,
+  expectedReplacementVersion: z.string().trim().regex(/^(?:exercicio|liberacao):[0-9]+$/),
   reason: z.string().trim().min(3).max(500),
   operationKey: z.string().trim().min(8).max(128),
   expectedExecutionVersion: z.number().int().nonnegative().optional(),
