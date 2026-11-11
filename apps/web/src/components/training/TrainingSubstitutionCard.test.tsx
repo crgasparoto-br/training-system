@@ -48,7 +48,7 @@ describe('TrainingSubstitutionCard #404', () => {
     vi.mocked(trainingRoutineService.getSubstitutionAlternatives).mockResolvedValue({ items: [sampleAlternative], nextOffset: null });
     vi.mocked(trainingRoutineService.createSubstitution).mockResolvedValue({ ...pending, status: 'approved' });
     const refresh = vi.fn().mockResolvedValue(undefined);
-    render(<TrainingSubstitutionCard session={session('not_started')} audience="professor" onChanged={refresh} />);
+    render(<TrainingSubstitutionCard session={session('not_started')} audience="professor" canManage onChanged={refresh} />);
     fireEvent.click(screen.getByRole('button', { name: 'Buscar alternativas elegíveis' }));
     await waitFor(() => expect(screen.getByText(/Agachamento alternativo/)).toBeTruthy());
     expect(trainingRoutineService.createSubstitution).not.toHaveBeenCalled();
@@ -92,7 +92,7 @@ describe('TrainingSubstitutionCard #404', () => {
     });
     const onChanged = vi.fn().mockResolvedValue(undefined);
     render(<TrainingSubstitutionCard session={session('completed', [pending])}
-      audience="professor" onChanged={onChanged} />);
+      audience="professor" canManage onChanged={onChanged} />);
     expect(screen.getByText(/Aguardando revisão do professor/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Rejeitar troca' }));
     expect(screen.getByRole('alert').textContent).toContain('Informe o motivo');
@@ -112,7 +112,7 @@ describe('TrainingSubstitutionCard #404', () => {
     vi.mocked(trainingRoutineService.getSubstitutionAlternatives)
       .mockResolvedValueOnce({ items: [sampleAlternative], nextOffset: 25 })
       .mockResolvedValueOnce({ items: [second], nextOffset: null });
-    render(<TrainingSubstitutionCard session={session('not_started')} audience="professor" />);
+    render(<TrainingSubstitutionCard session={session('not_started')} audience="professor" canManage />);
     fireEvent.change(screen.getByLabelText('Buscar alternativa'), { target: { value: 'squat' } });
     fireEvent.click(screen.getByRole('button', { name: 'Buscar alternativas elegíveis' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Carregar mais alternativas' })).toBeTruthy());
@@ -134,7 +134,7 @@ describe('TrainingSubstitutionCard #404', () => {
     vi.mocked(trainingRoutineService.createSubstitution).mockResolvedValue({ ...pending, status: 'approved' });
     const onChanged = vi.fn().mockRejectedValueOnce(new Error('network'))
       .mockResolvedValue(undefined);
-    render(<TrainingSubstitutionCard session={session('not_started')} audience="professor" onChanged={onChanged} />);
+    render(<TrainingSubstitutionCard session={session('not_started')} audience="professor" canManage onChanged={onChanged} />);
     fireEvent.click(screen.getByRole('button', { name: 'Buscar alternativas elegíveis' }));
     await waitFor(() => expect(screen.getByText(/Agachamento alternativo/)).toBeTruthy());
     fireEvent.change(screen.getByLabelText('Substituto'), { target: { value: 'candidate-404' } });
@@ -156,7 +156,7 @@ describe('TrainingSubstitutionCard #404', () => {
     const onChanged = vi.fn().mockRejectedValueOnce(new Error('network'))
       .mockResolvedValue(undefined);
     render(<TrainingSubstitutionCard session={session('completed', [pending])}
-      audience="professor" onChanged={onChanged} />);
+      audience="professor" canManage onChanged={onChanged} />);
     fireEvent.click(screen.getByRole('button', { name: 'Aprovar troca registrada' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Atualizar histórico' })).toBeTruthy());
     expect(screen.getByText(/Substituição aprovada/)).toBeTruthy();
@@ -166,6 +166,21 @@ describe('TrainingSubstitutionCard #404', () => {
     await waitFor(() => expect(screen.getByText(/Histórico atualizado/)).toBeTruthy());
     expect(trainingRoutineService.reviewSubstitution).toHaveBeenCalledTimes(1);
     expect(onChanged).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows history but never offers professional mutations when only read access is granted', () => {
+    render(<TrainingSubstitutionCard session={session('completed', [pending])} audience="professor" />);
+    expect(screen.getByText(/Aguardando revisão do professor/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Aprovar troca registrada' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Rejeitar troca' })).toBeNull();
+    expect(trainingRoutineService.reviewSubstitution).not.toHaveBeenCalled();
+  });
+
+  it('does not offer planning to read-only staff while preserving the original session', () => {
+    render(<TrainingSubstitutionCard session={session('not_started')} audience="professor" />);
+    expect(screen.getByText(/Nenhuma substituição registrada/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Buscar alternativas elegíveis' })).toBeNull();
+    expect(trainingRoutineService.createSubstitution).not.toHaveBeenCalled();
   });
 
   it('does not offer changes to a finished student session or approval to the athlete', () => {
