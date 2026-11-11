@@ -154,7 +154,8 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
       return;
     }
     const signature = JSON.stringify([
-      session.sessionId, kind, originalId, replacementId, reason.trim(),
+      session.sessionId, kind, originalId, replacementId,
+      selectedAlternative.replacement.version, reason.trim(),
       audience, preapprovalContext, execution?.version ?? null,
     ]);
     if (operation.current?.signature !== signature) {
@@ -167,7 +168,9 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
       await trainingRoutineService.createSubstitution(session.sessionId, {
         kind, context: audience === 'professor' ? preapprovalContext : 'execution',
         originalUnitId: kind === 'session' ? session.sessionId : originalId,
-        replacementUnitId: replacementId, reason: reason.trim(),
+        replacementUnitId: replacementId,
+        expectedReplacementVersion: selectedAlternative.replacement.version,
+        reason: reason.trim(),
         operationKey: operation.current.key,
         ...(audience === 'student' ? { expectedExecutionVersion: execution!.version } : {}),
       }, audience === 'student' ? contractId ?? undefined : undefined);
