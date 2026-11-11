@@ -93,7 +93,8 @@ export interface TrainingSubstitutionSnapshot {
 export interface TrainingSubstitutionRecord {
   id: string;
   sessionId: string;
-  alunoId: string;
+  /** Restricted to the authorized professor projection. */
+  alunoId?: string;
   kind: TrainingSubstitutionKind;
   context: TrainingSubstitutionContext;
   status: TrainingSubstitutionStatus;
@@ -102,12 +103,14 @@ export interface TrainingSubstitutionRecord {
   originalVersion: string;
   replacementVersion: string;
   reason: string;
-  actorUserId: string;
+  /** Restricted to the authorized professor projection; students see role labels only. */
+  actorUserId?: string;
   createdAt: string;
-  reviewedByUserId: string | null;
+  reviewedByUserId?: string | null;
   reviewedAt: string | null;
   reviewReason: string | null;
-  version: number;
+  /** Optimistic concurrency token needed only for professional review. */
+  version?: number;
 }
 
 export interface TrainingSubstitutionAlternativePage {

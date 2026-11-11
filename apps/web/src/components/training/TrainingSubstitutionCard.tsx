@@ -191,6 +191,11 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
 
   const review = async (item: TrainingSubstitutionRecord, action: 'approve' | 'reject') => {
     if (audience !== 'professor' || !canManage || busy || refreshPending) return;
+    const expectedVersion = item.version;
+    if (typeof expectedVersion !== 'number') {
+      setError('Atualize a sessão para revisar a versão vigente.');
+      return;
+    }
     const explanation = reviewReasons[item.id]?.trim() ?? '';
     if (action === 'reject' && explanation.length < 3) {
       setError('Informe o motivo para rejeitar a substituição.');
@@ -201,7 +206,7 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
     setMessage(null);
     try {
       await trainingRoutineService.reviewSubstitution(session.sessionId, item.id, {
-        action, expectedVersion: item.version,
+        action, expectedVersion,
         ...(explanation ? { reason: explanation } : {}),
       });
       await refreshAfterConfirmedChange(action === 'approve'
@@ -228,12 +233,16 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
               <p className="text-xs text-muted-foreground">
                 {item.kind === 'session' ? 'Sessão' : 'Exercício'} · {contextLabel[item.context]} · {statusLabel[item.status]}
               </p>
-              <p className="text-xs text-muted-foreground">
-                Original: {item.originalVersion} · Substituto: {item.replacementVersion}
-              </p>
+              {audience === 'professor' && (
+                <p className="text-xs text-muted-foreground">
+                  Original: {item.originalVersion} · Substituto: {item.replacementVersion}
+                </p>
+              )}
               <p className="text-sm">Motivo: {item.reason}</p>
               <p className="text-xs text-muted-foreground">
-                Responsável: {item.actorUserId} · {new Date(item.createdAt).toLocaleString('pt-BR')}
+                Responsável: {audience === 'student'
+                  ? item.context === 'execution' ? 'Aluno' : 'Professor'
+                  : item.actorUserId ?? 'Não identificado'} · {new Date(item.createdAt).toLocaleString('pt-BR')}
                 {item.reviewedAt ? ' · Revisão: ' + new Date(item.reviewedAt).toLocaleString('pt-BR') : ''}
               </p>
               {item.reviewReason && <p className="text-xs text-muted-foreground">Parecer: {item.reviewReason}</p>}

@@ -184,6 +184,21 @@ describe('TrainingSubstitutionCard #404', () => {
     expect(trainingRoutineService.createSubstitution).not.toHaveBeenCalled();
   });
 
+  it('shows the responsible role to students without exposing raw identity or technical versions', () => {
+    const studentHistory = { ...pending, actorUserId: undefined, reviewedByUserId: undefined };
+    render(<TrainingSubstitutionCard session={session('completed', [studentHistory])} audience="student" />);
+    expect(screen.getByText(/Responsável: Aluno/)).toBeTruthy();
+    expect(screen.queryByText(/student-user-404/)).toBeNull();
+    expect(screen.queryByText(/Original: exercicio:3/)).toBeNull();
+  });
+
+  it('shows the professional identity and versions to authorized professionals', () => {
+    render(<TrainingSubstitutionCard session={session('completed', [pending])}
+      audience="professor" canManage />);
+    expect(screen.getByText(/Responsável: student-user-404/)).toBeTruthy();
+    expect(screen.getByText(/Original: exercicio:3/)).toBeTruthy();
+  });
+
   it('does not offer changes to a finished student session or approval to the athlete', () => {
     render(<TrainingSubstitutionCard session={session('completed', [pending])} audience="student" />);
     expect(screen.queryByRole('button', { name: 'Buscar alternativas elegíveis' })).toBeNull();

@@ -96,12 +96,12 @@ async function seed(prisma) {
     templateId: template.id, dayOfWeek, workoutDate: date, method: 'continuous',
   } });
   const original = await prisma.exerciseLibrary.create({ data: {
-    contractId, name: 'Agachamento planejado #404', category: 'RESISTIDO',
+    contractId, name: 'Agachamento planejado #404', category: 'RESISTIDO', capacity: 'resisted', instructions: ['Preparar a posição'],
     curationStatus: 'approved', legacyGrandfathered: false,
     reviewedByUserId: user.id, reviewedAt: new Date(), lastCurationAction: 'approve',
   } });
   const alternative = await prisma.exerciseLibrary.create({ data: {
-    contractId, name: 'Agachamento alternativo #404', category: 'RESISTIDO',
+    contractId, name: 'Agachamento alternativo #404', category: 'RESISTIDO', capacity: 'resisted', instructions: ['Preparar a posição'],
     curationStatus: 'approved', legacyGrandfathered: false,
     reviewedByUserId: user.id, reviewedAt: new Date(), lastCurationAction: 'approve',
   } });
@@ -123,7 +123,7 @@ async function seed(prisma) {
   await prisma.workoutTemplate.update({ where: { id: template.id }, data: {
     released: true, releasedAt,
   } });
-  return { suffix, contractId, professorUserId: user.id, alunoId: aluno.id,
+  return { suffix, contractId, professorUserId: user.id, studentUserId: studentUser.id, alunoId: aluno.id,
     dayId: day.id, plannedId: planned.id, replacementId: alternative.id };
 }
 
@@ -268,7 +268,8 @@ suite('Issue #404: real browser, authenticated API and PostgreSQL', () => {
         select => [...select.options].some(option => option.value === id),
       ), fixture.replacementId);
       await selectHandle.asElement().select(fixture.replacementId);
-      await page.type('textarea', 'Equipamento alternativo confirmado pelo professor');
+      await page.type('textarea[placeholder="Explique por que a troca é necessária"]',
+        'Equipamento alternativo confirmado pelo professor');
       await clickButton(page, 'Aprovar alternativa');
       await waitText(page, 'Os dados da tela não foram atualizados.');
       expect(injectedFailures).toBe(1);
@@ -296,6 +297,37 @@ suite('Issue #404: real browser, authenticated API and PostgreSQL', () => {
       expect(await prisma.studentLifecycleEvent.count({
         where: { alunoId: fixture.alunoId, contractId: fixture.contractId },
       })).toBe(initialEvents + 1);
+      // The real student HTTP boundary must not expose professional/user identity or CAS internals.
+      const studentToken = jwt.sign({
+        userId: fixture.studentUserId,
+        email: 'issue404-browser-student-' + fixture.suffix + '@example.test',
+        type: 'aluno',
+      }, jwtSecret, { expiresIn: '1h' });
+      const studentHeaders = {
+        Authorization: 'Bearer ' + studentToken, 'x-contract-id': fixture.contractId,
+      };
+      const studentHistoryResponse = await fetch(uri, { headers: studentHeaders });
+      expect(studentHistoryResponse.status).toBe(200);
+      const studentHistory = (await studentHistoryResponse.json()).data;
+      expect(studentHistory).toHaveLength(1);
+      expect(studentHistory[0]).toMatchObject({
+        kind: 'exercise', context: 'planning', status: 'approved',
+        reason: 'Equipamento alternativo confirmado pelo professor',
+      });
+      for (const privateKey of ['alunoId', 'actorUserId', 'reviewedByUserId', 'version']) {
+        expect(studentHistory[0]).not.toHaveProperty(privateKey);
+      }
+      const studentRoutineResponse = await fetch(apiOrigin + '/api/v1/student/me/training-routine', {
+        headers: studentHeaders,
+      });
+      expect(studentRoutineResponse.status).toBe(200);
+      const studentRoutine = (await studentRoutineResponse.json()).data;
+      const projected = studentRoutine.today.sessions
+        .find(item => item.sessionId === fixture.dayId)?.substitutions?.[0];
+      expect(projected?.replacement.name).toContain('Agachamento alternativo');
+      for (const privateKey of ['alunoId', 'actorUserId', 'reviewedByUserId', 'version']) {
+        expect(projected).not.toHaveProperty(privateKey);
+      }
       await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
       const overflow = await page.evaluate(() =>
         Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - innerWidth);

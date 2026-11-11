@@ -153,6 +153,15 @@ describeDatabase('#404 substition history, eligibility, authority and concurrenc
     const history = await svc.list({ sessionId: f.dayId, actor: f.student });
     expect(history).toHaveLength(1);
     expect(history[0].replacement.name).toContain('Alternativa');
+    // Public student history must preserve a readable fact, not internal user IDs.
+    for (const privateKey of ['alunoId', 'actorUserId', 'reviewedByUserId', 'version']) {
+      expect(history[0]).not.toHaveProperty(privateKey);
+    }
+    const professionalHistory = await svc.list({ sessionId: f.dayId, actor: f.teacher });
+    expect(professionalHistory[0]).toMatchObject({
+      alunoId: f.alunoId, actorUserId: f.teacher.userId,
+      reviewedByUserId: f.teacher.userId, version: 1,
+    });
     await expect(svc.create(request(f, 'inactive-target', f.library[1].id)))
       .rejects.toMatchObject({ status: 409 });
     const actual = await client.workoutExercise.findUniqueOrThrow({ where: { id: f.originalId } });

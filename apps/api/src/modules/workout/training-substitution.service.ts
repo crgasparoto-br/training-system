@@ -211,14 +211,20 @@ export function projectTrainingSubstitutionForAudience(
   row: WorkoutSubstitution, audience: 'student' | 'professor',
 ): TrainingSubstitutionRecord {
   return {
-    id: row.id, sessionId: row.workoutDayId, alunoId: row.alunoId,
+    id: row.id, sessionId: row.workoutDayId,
     kind: row.kind, context: row.context, status: row.status,
     original: safeSnapshot(row.originalSnapshot, audience),
     replacement: safeSnapshot(row.replacementSnapshot, audience),
     originalVersion: row.originalVersion, replacementVersion: row.replacementVersion,
-    reason: row.reason, actorUserId: row.actorUserId, createdAt: row.createdAt.toISOString(),
-    reviewedByUserId: row.reviewedByUserId, reviewedAt: row.reviewedAt?.toISOString() ?? null,
-    reviewReason: row.reviewReason, version: row.version,
+    reason: row.reason, createdAt: row.createdAt.toISOString(),
+    reviewedAt: row.reviewedAt?.toISOString() ?? null,
+    reviewReason: row.reviewReason,
+    // The student's history conveys authorship by context, without exposing
+    // user identifiers, student identifiers or review-CAS internals.
+    ...(audience === 'professor' ? {
+      alunoId: row.alunoId, actorUserId: row.actorUserId,
+      reviewedByUserId: row.reviewedByUserId, version: row.version,
+    } : {}),
   };
 }
 

@@ -189,6 +189,13 @@ O mesmo campo não é exposto na lista semanal do aluno. Buscar páginas seguint
 de alternativas reexecuta as mesmas regras de contrato, curadoria e aluno;
 o offset não concede acesso a itens excluídos.
 
+A resposta de histórico de substituições ao aluno mantém nome, motivo,
+status, contexto e versões de rastreio, mas não transmite IDs de usuários
+responsáveis, IDs de revisores, ID redundante do aluno nem versão interna de CAS.
+A interface descreve a autoria como Aluno ou Professor conforme o contexto
+validado pelo backend. A resposta do professor autorizado retém IDs e versão
+para revisão concorrente; uma aprovação nunca é deduzida de uma sugestão.
+
 Os metadados de restrições do catálogo são técnicos: não são serializados na
 visão do aluno no histórico nem no catálogo de alternativas. Uma sugestão não
 atribui ao aluno permissão de aprovação. Apenas professor com a capacidade
