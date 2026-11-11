@@ -23,6 +23,8 @@ import { PreWorkoutCheckInCard } from './PreWorkoutCheckInCard';
 import { PostWorkoutFeedbackCard } from './PostWorkoutFeedbackCard';
 import { WorkoutExecutionComparisonCard } from './WorkoutExecutionComparisonCard';
 import { TrainingSubstitutionCard } from './TrainingSubstitutionCard';
+import { canAccessBlock } from '../../access/access-control';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { GuidedResistanceCard, type GuidedResistanceDraft } from './GuidedResistanceCard';
 import { GuidedCyclicCard } from './GuidedCyclicCard';
 import type { UpsertPreWorkoutCheckInPayload, PreWorkoutCheckInView, CreateCanonicalPostWorkoutFeedbackPayload, CanonicalPostWorkoutFeedbackRevisionView } from '@corrida/types';
@@ -140,6 +142,7 @@ function OriginNote({ session, audience }: { session: TrainingRoutineSessionDeta
 function TodaySession({
   session,
   audience,
+  canManageSubstitutions,
   studentContractId,
   executionAvailable,
   saveCheckIn,
@@ -154,6 +157,7 @@ function TodaySession({
 }: {
   session: TrainingRoutineSessionDetail;
   audience: TrainingRoutineAudience;
+  canManageSubstitutions: boolean;
   studentContractId?: string | null;
   executionAvailable: boolean;
   saveCheckIn?: (sessionId: string, payload: UpsertPreWorkoutCheckInPayload) => Promise<PreWorkoutCheckInView>;
@@ -548,10 +552,10 @@ function TodaySession({
       )}
 
       {(Boolean(session.substitutions?.length)
-        || (audience === 'professor' && session.status === 'not_started')
+        || (audience === 'professor' && canManageSubstitutions && session.status === 'not_started')
         || (audience === 'student' && session.execution?.status === 'in_progress')) && (
         <TrainingSubstitutionCard session={session} audience={audience}
-          contractId={studentContractId} onChanged={onExecutionChanged} />
+          canManage={canManageSubstitutions} contractId={studentContractId} onChanged={onExecutionChanged} />
       )}
 
       {session.guidelines.length > 0 && (
@@ -874,8 +878,9 @@ function TodayEmptyState({ state, audience }: { state: 'not_released' | 'none'; 
   );
 }
 
-function WeekDayItem({ day, audience, onChanged }: {
-  day: TrainingRoutineDay; audience: TrainingRoutineAudience; onChanged?: () => Promise<void>;
+function WeekDayItem({ day, audience, onChanged, canManageSubstitutions }: {
+  day: TrainingRoutineDay; audience: TrainingRoutineAudience;
+  onChanged?: () => Promise<void>; canManageSubstitutions: boolean;
 }) {
   return (
     <li
@@ -904,13 +909,16 @@ function WeekDayItem({ day, audience, onChanged }: {
               <StatusBadge status={session.status} />
             </div>
             {!day.isToday && audience === 'professor'
-              && (session.status === 'not_started' || Boolean(session.substitutions?.length)) && (
+              && ((canManageSubstitutions && session.status === 'not_started') || Boolean(session.substitutions?.length)) && (
               <details className="rounded-md border border-border p-2">
                 <summary className="cursor-pointer text-xs font-medium text-foreground">
-                  {session.status === 'not_started' ? 'Planejar ou revisar substituições' : 'Histórico e revisão de substituições'}
+                  {canManageSubstitutions && session.status === 'not_started'
+                    ? 'Planejar ou revisar substituições'
+                    : canManageSubstitutions ? 'Histórico e revisão de substituições' : 'Histórico de substituições'}
                 </summary>
                 <div className="mt-2">
-                  <TrainingSubstitutionCard session={session} audience="professor" onChanged={onChanged} />
+                  <TrainingSubstitutionCard session={session} audience="professor"
+                    canManage={canManageSubstitutions} onChanged={onChanged} />
                 </div>
               </details>
             )}
@@ -989,6 +997,9 @@ export function TrainingRoutinePanel({
   loadGuidedCyclic,
   actGuidedCyclic,
 }: TrainingRoutinePanelProps) {
+  const user = useAuthStore(state => state.user);
+  const canManageSubstitutions = audience === 'professor' &&
+    canAccessBlock(user, 'students.actions.manageTrainingSubstitutions');
   const [routine, setRoutine] = useState<TrainingRoutineView | null>(null);
   const [referenceDate, setReferenceDate] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(canView);
@@ -1105,6 +1116,7 @@ export function TrainingRoutinePanel({
                 key={session.sessionId}
                 session={session}
                 audience={audience}
+                canManageSubstitutions={canManageSubstitutions}
                 studentContractId={studentContractId}
                 executionAvailable={routine.execution.available}
                 saveCheckIn={saveCheckIn ? async (sessionId, payload) => {
@@ -1171,7 +1183,8 @@ export function TrainingRoutinePanel({
           </div>
           <ol className="divide-y divide-border rounded-lg border border-border bg-background">
             {routine.days.map((day) => (
-              <WeekDayItem onChanged={async () => { if (!await fetchRoutine(referenceDate)) throw new Error('Falha ao revalidar treino'); }} key={day.date} day={day} audience={audience} />
+              <WeekDayItem onChanged={async () => { if (!await fetchRoutine(referenceDate)) throw new Error('Falha ao revalidar treino'); }}
+                key={day.date} day={day} audience={audience} canManageSubstitutions={canManageSubstitutions} />
             ))}
           </ol>
         </section>
