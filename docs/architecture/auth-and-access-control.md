@@ -174,9 +174,10 @@ contrato quando possuir `students.details.trainingPlans` e for responsável
 pelo aluno ou gestor do professor responsável, ou quando for `master` do contrato.
 Leitura de histórico/alternativas exige o bloco `students.details.trainingPlans`;
 **pré-aprovar e revisar** exigem adicionalmente `students.actions.manageTrainingSubstitutions`.
-O bloco de escrita pertence à tela pai `students.details`, é concedido por padrão
-às funções `professor` e `manager` (configurável por função), e não é derivado
-automaticamente da leitura. O perfil `master` mantém autoridade do contrato.
+O bloco de escrita pertence à tela pai `students.details` e segue **deny by default**:
+para `professor` e `manager` deve ser concedido explicitamente pelo administrador
+da função. Ele nunca nasce habilitado apenas porque a função já podia visualizar
+ou gerenciar outro bloco. O perfil `master` mantém autoridade do contrato.
 Os dois grants, vínculo e estado profissional são reavaliados no service com o
 `TransactionClient` da escrita, inclusive após revogação entre consulta e revisão,
 impedindo uso de contexto de JWT antigo e acesso cross-tenant.
