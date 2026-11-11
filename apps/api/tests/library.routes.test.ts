@@ -11,6 +11,7 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
       email: 'professor@example.com',
       type: 'professor',
       contractId: 'contract-1',
+      professorId: 'professor-1',
       professorRole: req.headers['x-test-role'] === 'professor' ? 'professor' : 'master',
     };
     next();
@@ -24,6 +25,26 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
 
 jest.mock('../src/modules/access-control/access-control.middleware', () => ({
   screenAccessMiddleware: () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
+}));
+
+// This input-validation fixture authenticates a master with a contract-scoped
+// student. The new progress guard must run before the payload validator; without
+// these mocks the request is correctly denied and never reaches validation.
+jest.mock('../src/common/prisma-runtime-client', () => ({
+  prismaRuntimeClient: {
+    professor: {
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'professor-1', contractId: 'contract-1', role: 'master',
+      }),
+    },
+    aluno: { findFirst: jest.fn().mockResolvedValue({ id: 'aluno-1' }) },
+  },
+}));
+
+jest.mock('../src/modules/access-control/access-control.service', () => ({
+  getEffectiveDataScopeForProfessor: jest.fn().mockResolvedValue('contract'),
+  canProfessorAccessScreen: jest.fn().mockResolvedValue(true),
+  buildProfessorDataScopeWhere: jest.fn().mockReturnValue({ contractId: 'contract-1' }),
 }));
 
 jest.mock('../src/modules/library/library.service', () => ({
@@ -99,7 +120,7 @@ describe('library routes input validation', () => {
     expect(libraryService.updateExercise).not.toHaveBeenCalled();
   });
 
-  it('rejects unknown progress update fields with 400', async () => {
+  it('rejects unknown progress update fields with 400 after validating access to the student', async () => {
     const response = await request(app)
       .put('/library/progress/aluno-1/exercise-1')
       .send({
