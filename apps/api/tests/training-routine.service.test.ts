@@ -76,8 +76,10 @@ describe('training routine service (#387)', () => {
   const queryRaw = jest.fn();
   const preWorkoutCheckInFindMany = jest.fn();
   const postWorkoutFeedbackFindMany = jest.fn();
+  const workoutSubstitutionFindMany = jest.fn();
   const client = {
     workoutDay: { findMany },
+    workoutSubstitution: { findMany: workoutSubstitutionFindMany },
     preWorkoutCheckIn: { findMany: preWorkoutCheckInFindMany },
     postWorkoutFeedbackRevision: { findMany: postWorkoutFeedbackFindMany },
     $queryRaw: queryRaw,
@@ -101,6 +103,7 @@ describe('training routine service (#387)', () => {
     upcomingRows = [];
     preWorkoutCheckInFindMany.mockResolvedValue([]);
     postWorkoutFeedbackFindMany.mockResolvedValue([]);
+    workoutSubstitutionFindMany.mockResolvedValue([]);
     latestExecutionRows = [];
     findMany.mockImplementation((args: any) => {
       return Promise.resolve(args.where.template.released ? releasedRows : pendingRows);
@@ -112,6 +115,20 @@ describe('training routine service (#387)', () => {
       if (sql.includes('WorkoutDayCapacityOperationalBlock')) return Promise.resolve(capacityRows);
       if (sql.includes('ConsolidatedPrescriptionOperationalRelease')) return Promise.resolve(releaseRows);
       throw new Error(`SQL inesperado: ${sql}`);
+    });
+  });
+
+  it('consultas de substituição respeitam o aluno e contrato autorizados sem alterar a leitura anterior', async () => {
+    releasedRows = [makeRow()];
+    await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(workoutSubstitutionFindMany).toHaveBeenCalledWith({
+      where: {
+        workoutDayId: { in: ['day-1'] },
+        alunoId: 'aluno-1', contractId: 'contract-1',
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     });
   });
 
