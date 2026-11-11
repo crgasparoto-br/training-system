@@ -56,7 +56,7 @@ describe('trainingRoutineService', () => {
     const create = {
       kind: 'exercise' as const, context: 'execution' as const,
       originalUnitId: 'planned-1', replacementUnitId: 'catalog-1',
-      reason: 'Equipamento alternativo', operationKey: 'operation-404',
+      expectedReplacementVersion: 'exercicio:7', reason: 'Equipamento alternativo', operationKey: 'operation-404',
       expectedExecutionVersion: 1,
     };
     await trainingRoutineService.createSubstitution('day-1', create, 'contract-1');
