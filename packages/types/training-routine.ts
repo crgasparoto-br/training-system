@@ -65,6 +65,79 @@ export interface TrainingSessionComparison {
   snapshotSource: 'captured' | 'released_plan';
   executionVersion: number;
   units: TrainingSessionComparisonUnit[];
+  /** Vinculos historicos entre planejado e substituto, independentes dos resultados executados. */
+  substitutions?: TrainingSubstitutionRecord[];
+}
+
+/** #404: imutavel, tenant-scoped e sem alteracao da prescricao original. */
+export type TrainingSubstitutionKind = 'exercise' | 'session';
+export type TrainingSubstitutionContext = 'planning' | 'review' | 'execution';
+export type TrainingSubstitutionStatus = 'approved' | 'pending_review' | 'rejected';
+
+export interface TrainingSubstitutionSnapshot {
+  /** Identidade da unidade operacional original/substituta. */
+  unitId: string;
+  /** Identidade do item de catalogo ou da sessao. */
+  id: string;
+  name: string;
+  /** "exercicio:<versao>" ou "liberacao:<versao>". */
+  version: string;
+  capacity: string | null;
+  movementPattern: string | null;
+  equipment: string[];
+  difficulty: string | null;
+  /** Na visao do aluno nunca inclui restricoes tecnicas. */
+  restrictions: string[];
+}
+
+export interface TrainingSubstitutionRecord {
+  id: string;
+  sessionId: string;
+  alunoId: string;
+  kind: TrainingSubstitutionKind;
+  context: TrainingSubstitutionContext;
+  status: TrainingSubstitutionStatus;
+  original: TrainingSubstitutionSnapshot;
+  replacement: TrainingSubstitutionSnapshot;
+  originalVersion: string;
+  replacementVersion: string;
+  reason: string;
+  actorUserId: string;
+  createdAt: string;
+  reviewedByUserId: string | null;
+  reviewedAt: string | null;
+  reviewReason: string | null;
+  version: number;
+}
+
+export interface TrainingSubstitutionAlternative {
+  kind: TrainingSubstitutionKind;
+  replacement: TrainingSubstitutionSnapshot;
+  suitability: {
+    sameMovementPattern: boolean;
+    sameCapacity: boolean;
+    sameDifficulty: boolean;
+    sharedEquipment: string[];
+    requiresProfessionalReview: boolean;
+  };
+  /** Auxilio a escolha, jamais autorizacao clinica ou troca automatica. */
+  objectiveHint: string | null;
+}
+
+export interface TrainingSubstitutionCreatePayload {
+  kind: TrainingSubstitutionKind;
+  context: TrainingSubstitutionContext;
+  originalUnitId: string;
+  replacementUnitId: string;
+  reason: string;
+  operationKey: string;
+  expectedExecutionVersion?: number;
+}
+
+export interface TrainingSubstitutionReviewPayload {
+  action: 'approve' | 'reject';
+  expectedVersion: number;
+  reason?: string | null;
 }
 
 export interface TrainingSessionCyclicStageExecutionValue {
@@ -354,6 +427,7 @@ export interface TrainingRoutineSessionSummary {
   origin: TrainingRoutineOrigin;
   /** Only executed, authorized sessions have historical comparisons. */
   comparison?: TrainingSessionComparison;
+  substitutions?: TrainingSubstitutionRecord[];
 }
 
 export interface TrainingRoutineExercise {
