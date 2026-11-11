@@ -3627,7 +3627,7 @@ model WorkoutSubstitution {
   aluno               Aluno                      @relation(fields: [alunoId], references: [id], onDelete: Restrict)
   contract            CompanyContract           @relation(fields: [contractId], references: [id], onDelete: Restrict)
 
-  @@unique([workoutDayId, operationKey])
-  @@index([contractId, alunoId, workoutDayId, createdAt])
-  @@index([workoutDayId, kind, originalUnitId, status])
+  @@unique([workoutDayId, operationKey], map: "WorkoutSubstitution_day_operation_key")
+  @@index([contractId, alunoId, workoutDayId, createdAt], map: "WorkoutSubstitution_contract_aluno_day_created_idx")
+  @@index([workoutDayId, kind, originalUnitId, status], map: "WorkoutSubstitution_day_kind_origin_status_idx")
 }
