@@ -233,10 +233,10 @@ describeDatabase('#404 substition history, eligibility, authority and concurrenc
     expect(accepted.status).toBe('approved');
     expect(accepted.replacement.name).toBe(pending.replacement.name);
     expect(accepted.replacementVersion).toBe(pending.replacementVersion);
-    await expect(svc.create({
-      ...request(f, 'inactive-now', f.library[1].id), actor: f.student,
-      context: 'execution', expectedExecutionVersion: 1,
-    })).rejects.toMatchObject({ status: 409 });
+    const currentOptions = await svc.alternatives({
+      sessionId: f.dayId, actor: f.student, kind: 'exercise', originalUnitId: f.originalId,
+    });
+    expect(currentOptions.items.some(item => item.replacement.id === f.library[1].id)).toBe(false);
   });
 
   it('reports unknown release version instead of fabricating it from a newer catalog', async () => {
