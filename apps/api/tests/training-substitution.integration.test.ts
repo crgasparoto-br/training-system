@@ -121,7 +121,7 @@ async function fixture(label: string, options: { legacySnapshot?: boolean } = {}
     originalId: original.id, library, teacher, student };
 }
 type Seed = Awaited<ReturnType<typeof fixture>>;
-function request(f: Seed, suffix = randomUUID(), replacementId = f.library[1].id) {
+function request(f: Seed, suffix: string = randomUUID(), replacementId: string = f.library[1].id) {
   return {
     sessionId: f.dayId, actor: f.teacher, kind: 'exercise' as const,
     context: 'planning' as const, originalUnitId: f.originalId,
