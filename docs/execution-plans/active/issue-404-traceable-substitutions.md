@@ -28,7 +28,7 @@ Troca automática por IA; importação externa; modificação de prescrições f
 - Motivo, autor, data, contexto, versões, aprovação e revisão são auditáveis.
 - Repetição de operação com dados diferentes retorna conflito; nenhuma escrita parcial.
 - Professor avalia demandas feitas durante a sessão depois do registro.
-- Permissão de visualizar treinos não permite aprovar: `students.actions.manageTrainingSubstitutions` é obrigatória para mutações profissionais.
+- Permissão de visualizar treinos não permite aprovar: `students.actions.manageTrainingSubstitutions` é obrigatória para mutações profissionais; seu default é negado a funções não-master até concessão explícita.
 - Na revisão de execução histórica, a elegibilidade é capturada na solicitação; a desativação posterior não concede nova autorização nem apaga o fato ocorrido.
 
 ## Passos de implementação
