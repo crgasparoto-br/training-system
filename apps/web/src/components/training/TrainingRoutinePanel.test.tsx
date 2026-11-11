@@ -3,9 +3,10 @@ import { resolve } from 'node:path';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useNavigate, useParams } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
-import type { TrainingRoutineSessionDetail, TrainingRoutineSessionSummary, TrainingRoutineView, TrainingSessionComparison, GuidedCyclicView } from '@corrida/types';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { AuthResponse, TrainingRoutineSessionDetail, TrainingRoutineSessionSummary, TrainingRoutineView, TrainingSessionComparison, GuidedCyclicView } from '@corrida/types';
 import { TrainingRoutinePanel } from './TrainingRoutinePanel';
+import { useAuthStore } from '../../stores/useAuthStore';
 
 const session = (overrides: Partial<TrainingRoutineSessionDetail> = {}): TrainingRoutineSessionDetail => ({
   sessionId: 'day-1',
@@ -104,7 +105,10 @@ const cyclicProgress = (completed: number, total: number,
 });
 
 describe('TrainingRoutinePanel (#387)', () => {
+  afterEach(() => useAuthStore.setState({ user: null }));
+
   it('allows a professor to open substitution planning for a future released summary without previous swaps', async () => {
+    useAuthStore.setState({ user: { type: 'professor', professor: { role: 'master' } } as unknown as AuthResponse['user'] });
     const future: TrainingRoutineSessionSummary = {
       sessionId: 'future-day-404', workoutTemplateId: 'template-1', trainingPlanId: 'plan-1',
       planName: 'Plano futuro', date: '2026-10-02', dayOfWeek: 5, mesocycleNumber: 1,
@@ -124,6 +128,32 @@ describe('TrainingRoutinePanel (#387)', () => {
     await userEvent.click(within(week).getByText('Planejar ou revisar substituições'));
     expect(within(week).getByRole('button', { name: 'Buscar alternativas elegíveis' })).toBeInTheDocument();
     expect(within(week).getByLabelText('Exercício planejado')).toHaveValue('future-exercise-404');
+  });
+
+  it('does not show future-session mutation controls for a professor who can only read plans', async () => {
+    useAuthStore.setState({ user: {
+      type: 'professor', professor: { role: 'professor' },
+      accessControl: { permissions: [
+        { screenKey: 'students.details', blockKey: null, canView: true },
+        { screenKey: 'students.details', blockKey: 'students.details.trainingPlans', canView: true },
+        { screenKey: 'students.details', blockKey: 'students.actions.manageTrainingSubstitutions', canView: false },
+      ] },
+    } as unknown as AuthResponse['user'] });
+    const future: TrainingRoutineSessionSummary = {
+      ...session(), sessionId: 'future-read-only', date: '2026-10-02',
+      substitutionExercises: [{ id: 'planned-future', name: 'Agachamento futuro' }],
+      substitutions: [],
+    };
+    const view = routine({
+      audience: 'professor',
+      today: { date: '2026-10-01', state: 'none', sessions: [] },
+      days: routine().days.map(day => day.date === '2026-10-02'
+        ? { ...day, sessions: [future] } : day),
+    });
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue(view)} />);
+    const week = await screen.findByRole('region', { name: 'Rotina da semana' });
+    expect(within(week).queryByText('Planejar ou revisar substituições')).toBeNull();
+    expect(within(week).queryByRole('button', { name: 'Buscar alternativas elegíveis' })).toBeNull();
   });
 
   it('does not offer future-week substitution creation to a student or for completed sessions', async () => {
