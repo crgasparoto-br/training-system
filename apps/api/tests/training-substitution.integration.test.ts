@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { PrismaClient, ContractType, ProfessorRole, UserType } from '@prisma/client';
-import { createTrainingSubstitutionService, TrainingSubstitutionError, type SubstitutionActor } from '../src/modules/workout/training-substitution.service.js';
+import { createTrainingSubstitutionService, type SubstitutionActor } from '../src/modules/workout/training-substitution.service.js';
 import { createWorkoutSessionExecutionService } from '../src/modules/workout/workout-session-execution.service.js';
 import { createTrainingRoutineService } from '../src/modules/workout/training-routine.service.js';
 
@@ -103,10 +103,10 @@ async function fixture(label: string) {
   await client.workoutTemplate.update({
     where: { id: template.id }, data: { released: true, releasedAt },
   });
-  const teacher: SubstitutionActor = {
+  const teacher: Extract<SubstitutionActor, { kind: 'professor' }> = {
     kind: 'professor', userId: profUser.id, professorId: professor.id, contractId,
   };
-  const student: SubstitutionActor = {
+  const student: Extract<SubstitutionActor, { kind: 'student' }> = {
     kind: 'student', userId: alunoUser.id, alunoId: aluno.id, contractId,
   };
   return { contractId, alunoId: aluno.id, dayId: day.id, otherDayId: otherDay.id,

@@ -57,7 +57,7 @@ async function lookupRelease(tx: Db, templateId: string, alunoId: string, contra
     WHERE "workoutTemplateId" = ${templateId}
       AND "alunoId" = ${alunoId}
       AND "contractId" = ${contractId}
-    ORDER BY "id" DESC LIMIT 1
+    ORDER BY "releasedAt" DESC, "id" DESC LIMIT 1
   `);
   return releases[0] ?? null;
 }
