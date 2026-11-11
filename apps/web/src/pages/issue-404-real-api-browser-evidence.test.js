@@ -135,6 +135,7 @@ async function createWeb(apiOrigin, token, fixture) {
     '<body><main id="root" style="max-width:68rem;margin:0 auto;padding:1rem"></main>' +
     '<script type="module">' +
     'import React from "react"; import { createRoot } from "react-dom/client";' +
+    'import { BrowserRouter } from "react-router-dom";' +
     'import "/src/index.css";' +
     'import { TrainingRoutinePanel } from "/src/components/training/TrainingRoutinePanel.tsx";' +
     'import { trainingRoutineService } from "/src/services/training-routine.service.ts";' +
@@ -146,8 +147,8 @@ async function createWeb(apiOrigin, token, fixture) {
     'const loadRoutine=(date)=>trainingRoutineService.getForAluno(' +
       JSON.stringify(fixture.alunoId) + ',{date});' +
     'createRoot(document.getElementById("root")).render(' +
-    'React.createElement(TrainingRoutinePanel,{audience:"professor",canView:true,' +
-    'title:"Treino de hoje",load:loadRoutine}));' +
+    'React.createElement(BrowserRouter,null,React.createElement(TrainingRoutinePanel,' +
+    '{audience:"professor",canView:true,title:"Treino de hoje",load:loadRoutine})));' +
     '</script></body></html>';
   const vite = await createServer({
     root: process.cwd(), logLevel: 'error',
@@ -284,7 +285,6 @@ suite('Issue #404: real browser, authenticated API and PostgreSQL', () => {
       ))).toBe(false);
       captures.push(await screenshot(page, 'desktop-refresh-failed'));
 
-      await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
       await clickButton(page, 'Atualizar histórico');
       await waitText(page, 'Histórico atualizado.');
       await waitText(page, 'Agachamento alternativo #404');
@@ -296,6 +296,7 @@ suite('Issue #404: real browser, authenticated API and PostgreSQL', () => {
       expect(await prisma.studentLifecycleEvent.count({
         where: { alunoId: fixture.alunoId, contractId: fixture.contractId },
       })).toBe(initialEvents + 1);
+      await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
       const overflow = await page.evaluate(() =>
         Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - innerWidth);
       expect(overflow).toBeLessThanOrEqual(1);
