@@ -30,6 +30,10 @@ function hideUncapturedReleaseVideo<T extends { name: string }>(exercise: T): T 
 
 /** Filter media from library relations before returning HTTP responses. */
 export function projectWorkoutExerciseMedia<T extends { exercise: { name: string } }>(row: T): T {
+  // Historic scalar-only responses have no nested video URL to disclose.
+  // Keep their public shape rather than throwing while sanitizing rich records.
+  if (!row?.exercise || typeof row.exercise !== 'object' ||
+      typeof row.exercise.name !== 'string') return row;
   return { ...row, exercise: hideUnverifiedExerciseVideo(row.exercise) };
 }
 
