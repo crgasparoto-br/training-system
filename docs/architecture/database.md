@@ -319,3 +319,27 @@ não atestam licença para a empresa. A inclusão de mídia requer
 curadoria com origem e autorização; links legados permanecem intactos. UPDATE/DELETE
 explícitos de `ExerciseLibraryRevision` são bloqueados enquanto o exercício
 existir; exclusões em cascata de todo o contrato permanecem permitidas.
+
+
+## Substituições rastreáveis — #404
+
+`WorkoutSubstitution` registra dados imutáveis da troca sem atualização de
+`WorkoutDay`, `WorkoutExercise`, `WorkoutTemplate` ou da liberação.
+`workoutDayId`, `alunoId` e `contractId` têm FKs; o identificador
+`originReleaseId` aponta para a liberação operacional de origem. JSONB
+`originalSnapshot` e `replacementSnapshot`, acompanhados por strings
+`originalVersion` e `replacementVersion`, permitem ler histórico após
+alterações ou desativação do catálogo. O caso de sessão preserva a versão de
+liberação; o exercício preserva versão do catálogo.
+
+A constraint `(workoutDayId, operationKey)` impede duplicidade de operação.
+As restrições SQL exigem motivo e responsável e revisão coerente; triggers
+impedem DELETE e alterações do conteúdo registrado. A única transição permitida
+em UPDATE é `pending_review` para `approved/rejected` com incremento de
+versão, revisor e timestamp. O service serializa as escritas com bloqueio da
+linha `WorkoutDay` na mesma transação usada pelo registro de execução e
+verifica `expectedExecutionVersion` quando a troca acontece em sessão ativa.
+
+Migration: `apps/api/prisma/migrations/20261111180000_issue_404_traceable_substitutions/migration.sql`.
+Dados não são propagados para prescrições futuras; o histórico permanece mesmo
+se o substituto ficar inativo. Não excluir registros para "reverter" decisões.

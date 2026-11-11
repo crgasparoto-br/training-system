@@ -790,3 +790,62 @@ sem distinção de caixa no texto digitado, e mantém o `contractId` do usuário
 
 A importação considera variantes já existentes no contrato e duplicatas no
 mesmo arquivo, inclusive na simulação (`--dry-run`), como itens ignorados.
+
+
+## Substituições rastreáveis — issue #404
+
+A prescrição publicada **não é editada** ao substituir um exercício ou uma sessão. A unidade
+planejada, seu lançamento de execução e a liberação consolidada continuam sendo a referência.
+A troca é um vínculo separado, com o item original, o item substituto, versões preservadas no
+momento do registro, motivo obrigatório, identificador da pessoa solicitante, data, aluno,
+contrato e contexto `planning`, `review` ou `execution`.
+
+### Experiência do aluno e do professor
+
+1. O aluno só pode registrar uma troca enquanto a sessão canônica está **em andamento**,
+   informando motivo e selecionando uma alternativa vigente. Ela é identificada como
+   **registrada durante a execução / aguardando revisão do professor**. O registro não
+   presume que séries ou medidas tenham sido executadas, nem altera o treino liberado.
+2. O professor com acesso à prescrição do aluno pode selecionar e aprovar antecipadamente
+   uma alternativa enquanto a sessão ainda não começou (`planning` ou `review`).
+3. Uma troca ocorrida durante a execução é submetida à revisão explícita do professor.
+   Ele pode **aprovar** ou **rejeitar** (rejeição exige justificativa). A decisão é
+   terminal, com versão, responsável e data. Negar uma troca não remove o registro
+   histórico do que foi solicitado.
+4. Exercícios candidatos devem pertencer ao mesmo contrato, estar com curadoria
+   `approved` e não serem legados de uso grandfathered. Alternativas de sessão devem
+   existir como sessões liberadas para o **mesmo aluno e contrato**. Nenhum resultado
+   de busca ou correspondência de metadados aprova automaticamente uma troca.
+5. Padrão de movimento, capacidade, equipamentos compartilhados, dificuldade, objetivo
+   da sessão e restrições quando disponíveis são **auxiliares** à avaliação, sem
+   conclusão automática de equivalência técnica ou segurança.
+6. A comparação planejado × executado mantém métricas e denominadores originalmente
+   capturados, mostrando os vínculos de substituição com o momento e status de revisão
+   separadamente. Uma aprovação prévia não é convertida em execução comprovada.
+7. Um exercício desativado após uma troca permanece legível pela captura imutável
+   do vínculo, sem depender da disponibilidade corrente no catálogo.
+
+### API de substituições
+
+Base autenticada: `/api/v1/training-substitutions`. No caso do aluno, o
+`x-contract-id` pode selecionar a participação ativa; ele não concede acesso adicional.
+
+| Método | Caminho | Requisito |
+|---|---|---|
+| GET | `/sessions/:sessionId` | Histórico sob escopo do aluno/professor |
+| GET | `/sessions/:sessionId/alternatives?kind=exercise&originalUnitId=:id` | Catálogo aprovado do contrato |
+| GET | `/sessions/:sessionId/alternatives?kind=session&originalUnitId=:sessionId` | Sessões liberadas do mesmo aluno |
+| POST | `/sessions/:sessionId` | `kind`, `context`, `originalUnitId`, `replacementUnitId`, `reason`, `operationKey`, e `expectedExecutionVersion` para aluno |
+| POST | `/sessions/:sessionId/:substitutionId/review` | Professor; `action=approve/reject`, `expectedVersion`, `reason` obrigatória para rejeitar |
+
+A escrita valida origem, catálogo vigente, situação da sessão, contexto da ação,
+permissão profissional e contrato **dentro da transação**; utiliza versão para
+conflitos, chave idempotente para repetição e registra evento na timeline.
+Respostas `409` exigem atualização do estado antes de tentar nova alteração.
+
+### Limites
+
+Substituições não importam exercícios, não substituem planos futuros automaticamente
+e não produzem julgamento de aptidão clínica. A aprovação de um substituto pelo
+professor não marca suas séries nem sua sessão como executadas. Resultados efetivamente
+realizados seguem exclusivamente o registro canônico da issue #389.

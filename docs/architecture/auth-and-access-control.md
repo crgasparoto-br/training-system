@@ -163,3 +163,20 @@ consulta `AgendaBooking` e versões de prescrição filtradas por
 `contractId` e `alunoId` do token. A permissão de
 agenda não dá acesso aos dados clínicos de check-in/feedback, que
 continuam atrás de dois grants próprios em endpoint independente.
+
+
+## Substituições de exercício/sessão (#404)
+
+A rota `/api/v1/training-substitutions` exige autenticação ativa e autoridade
+reavaliada por operação: aluno só acessa a própria participação `ACTIVE_STUDENT`
+no `contractId` selecionado; professor só acessa planos de aluno do mesmo
+contrato quando possuir `students.details.trainingPlans` e for responsável
+pelo plano/aluno, ou quando for `master` do contrato. As permissões e vínculos
+são reavaliados no service com o `TransactionClient`, inclusive na revisão de
+solicitação, impedindo uso de contexto de JWT antigo e acesso cross-tenant.
+O bloqueio de mudança de estado de aluno e professor inativo mantém a barreira.
+
+Os metadados de restrições do catálogo são técnicos: não são serializados na
+visão do aluno no histórico nem no catálogo de alternativas. Uma sugestão não
+atribui ao aluno permissão de aprovação. Apenas o professor pode revisar uma
+solicitação `pending_review`, com versão exata e registro do revisor.
