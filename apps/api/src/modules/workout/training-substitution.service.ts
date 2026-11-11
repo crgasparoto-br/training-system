@@ -107,9 +107,21 @@ async function loadSession(tx: Db, sessionId: string, actor: SubstitutionActor) 
         .includes(professor.currentStatus?.trim().toLowerCase() ?? '')
       || (professor.dismissalDate && professor.dismissalDate.getTime() <= Date.now())) return notFound();
     if (!await canProfessorAccessBlock(professor, 'students.details.trainingPlans', tx)) return permissionDenied();
-    if (professor.role !== 'master' &&
-      day.template.plan.professorId !== actor.professorId &&
-      aluno.professorId !== actor.professorId) return notFound();
+    if (professor.role !== 'master') {
+      // Match the student-domain boundary: own students and directly managed
+      // collaborators, not merely stale plan authorship.
+      const assigned = await tx.aluno.findFirst({
+        where: {
+          id: aluno.id, contractId: actor.contractId,
+          OR: [
+            { professorId: actor.professorId },
+            { professor: { responsibleManagerId: actor.professorId } },
+          ],
+        },
+        select: { id: true },
+      });
+      if (!assigned) return notFound();
+    }
   }
   const release = await lookupRelease(tx, day.template.id, aluno.id, actor.contractId);
   if (!release) return notFound();

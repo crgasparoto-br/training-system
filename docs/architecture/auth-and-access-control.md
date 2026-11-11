@@ -171,7 +171,7 @@ A rota `/api/v1/training-substitutions` exige autenticação ativa e autoridade
 reavaliada por operação: aluno só acessa a própria participação `ACTIVE_STUDENT`
 no `contractId` selecionado; professor só acessa planos de aluno do mesmo
 contrato quando possuir `students.details.trainingPlans` e for responsável
-pelo plano/aluno, ou quando for `master` do contrato. As permissões e vínculos
+pelo aluno ou gestor do professor responsável, ou quando for `master` do contrato. As permissões e vínculos
 são reavaliados no service com o `TransactionClient`, inclusive na revisão de
 solicitação, impedindo uso de contexto de JWT antigo e acesso cross-tenant.
 O bloqueio de mudança de estado de aluno e professor inativo mantém a barreira.
