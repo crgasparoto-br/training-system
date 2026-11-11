@@ -174,9 +174,15 @@ describeDatabase('#404 substition history, eligibility, authority and concurrenc
       sessionId: f.dayId, actor: f.teacher, kind: 'exercise', originalUnitId: f.originalId,
     });
     expect(page.items.some(item => item.replacement.id === f.library[1].id)).toBe(true);
+    const eventsBeforeDeniedCreate = await client.studentLifecycleEvent.count({
+      where: { alunoId: f.alunoId, contractId: f.contractId },
+    });
     await expect(svc.create(request(f, 'read-only'))).rejects
       .toMatchObject({ status: 403, code: 'SUBSTITUTION_FORBIDDEN' });
     expect(await client.workoutSubstitution.count({ where: { workoutDayId: f.dayId } })).toBe(0);
+    expect(await client.studentLifecycleEvent.count({
+      where: { alunoId: f.alunoId, contractId: f.contractId },
+    })).toBe(eventsBeforeDeniedCreate);
 
     await client.accessPermission.updateMany({ where: permission, data: { canView: true } });
     const allowed = await svc.create(request(f, 'write-granted'));
@@ -196,12 +202,18 @@ describeDatabase('#404 substition history, eligibility, authority and concurrenc
 
     // Revoking the permission AFTER the request also forbids review.
     await client.accessPermission.updateMany({ where: permission, data: { canView: false } });
+    const eventsBeforeDeniedReview = await client.studentLifecycleEvent.count({
+      where: { alunoId: f.alunoId, contractId: f.contractId },
+    });
     await expect(svc.review({
       sessionId: f.dayId, substitutionId: pending.id, actor: f.teacher,
       action: 'approve', expectedVersion: 1,
     })).rejects.toMatchObject({ status: 403, code: 'SUBSTITUTION_FORBIDDEN' });
     const unchanged = await client.workoutSubstitution.findUniqueOrThrow({ where: { id: pending.id } });
     expect(unchanged).toMatchObject({ status: 'pending_review', version: 1, reviewedByUserId: null });
+    expect(await client.studentLifecycleEvent.count({
+      where: { alunoId: f.alunoId, contractId: f.contractId },
+    })).toBe(eventsBeforeDeniedReview);
 
     await client.accessPermission.updateMany({ where: permission, data: { canView: true } });
     const reviewed = await svc.review({
