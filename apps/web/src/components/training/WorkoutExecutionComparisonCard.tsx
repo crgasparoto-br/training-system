@@ -76,6 +76,23 @@ export function WorkoutExecutionComparisonCard({
           cobertura histórica não podem ser reconstituídas usando a prescrição atual.
         </p>
       )}
+      {Boolean(comparison.substitutions?.length) && (
+        <div className="mt-3 space-y-2 rounded-md border border-border p-3" aria-label="Trocas do planejamento">
+          <h5 className="text-sm font-semibold">Substituições vinculadas</h5>
+          <p className="text-xs text-muted-foreground">O plano original permanece como referência. Uma alternativa aprovada não comprova execução.</p>
+          <ul className="space-y-1.5 text-xs">
+            {comparison.substitutions?.map(item => (
+              <li key={item.id}>
+                {item.original.name} → {item.replacement.name}
+                {' · '}{item.originalVersion} → {item.replacementVersion}
+                {' · '}{item.context === 'execution' ? 'Troca na execução' : 'Aprovada previamente'}
+                {' · '}{item.status === 'pending_review' ? 'Aguardando professor' : item.status === 'rejected' ? 'Rejeitada' : 'Aprovada'}
+                {' · '}Motivo: {item.reason}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="mt-3 space-y-2">
         {visible.map((item) => {
           const metrics = item.metrics.filter((entry) => entry.planned !== null

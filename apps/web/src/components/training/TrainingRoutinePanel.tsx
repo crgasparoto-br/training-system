@@ -22,6 +22,7 @@ import { Button } from '../ui/Button';
 import { PreWorkoutCheckInCard } from './PreWorkoutCheckInCard';
 import { PostWorkoutFeedbackCard } from './PostWorkoutFeedbackCard';
 import { WorkoutExecutionComparisonCard } from './WorkoutExecutionComparisonCard';
+import { TrainingSubstitutionCard } from './TrainingSubstitutionCard';
 import { GuidedResistanceCard, type GuidedResistanceDraft } from './GuidedResistanceCard';
 import { GuidedCyclicCard } from './GuidedCyclicCard';
 import type { UpsertPreWorkoutCheckInPayload, PreWorkoutCheckInView, CreateCanonicalPostWorkoutFeedbackPayload, CanonicalPostWorkoutFeedbackRevisionView } from '@corrida/types';
@@ -139,6 +140,7 @@ function OriginNote({ session, audience }: { session: TrainingRoutineSessionDeta
 function TodaySession({
   session,
   audience,
+  studentContractId,
   executionAvailable,
   saveCheckIn,
   saveFeedback,
@@ -152,6 +154,7 @@ function TodaySession({
 }: {
   session: TrainingRoutineSessionDetail;
   audience: TrainingRoutineAudience;
+  studentContractId?: string | null;
   executionAvailable: boolean;
   saveCheckIn?: (sessionId: string, payload: UpsertPreWorkoutCheckInPayload) => Promise<PreWorkoutCheckInView>;
   saveFeedback?: (sessionId: string, payload: CreateCanonicalPostWorkoutFeedbackPayload) => Promise<CanonicalPostWorkoutFeedbackRevisionView>;
@@ -542,6 +545,13 @@ function TodaySession({
 
       {session.comparison && (
         <WorkoutExecutionComparisonCard comparison={session.comparison} audience={audience} />
+      )}
+
+      {(Boolean(session.substitutions?.length)
+        || (audience === 'professor' && session.status === 'not_started')
+        || (audience === 'student' && session.execution?.status === 'in_progress')) && (
+        <TrainingSubstitutionCard session={session} audience={audience}
+          contractId={studentContractId} onChanged={onExecutionChanged} />
       )}
 
       {session.guidelines.length > 0 && (
@@ -939,6 +949,7 @@ export type TrainingRoutinePanelProps = {
   canView?: boolean;
   headingLevel?: 'h1' | 'h2';
   title?: string;
+  studentContractId?: string | null;
   saveCheckIn?: (sessionId: string, payload: UpsertPreWorkoutCheckInPayload) => Promise<PreWorkoutCheckInView>;
   saveFeedback?: (sessionId: string, payload: CreateCanonicalPostWorkoutFeedbackPayload) => Promise<CanonicalPostWorkoutFeedbackRevisionView>;
   transitionExecution?: (sessionId: string, payload: TrainingSessionExecutionTransitionPayload) => Promise<TrainingSessionExecutionView>;
@@ -955,6 +966,7 @@ export function TrainingRoutinePanel({
   canView = true,
   headingLevel = 'h2',
   title = 'Treino de hoje',
+  studentContractId,
   saveCheckIn,
   saveFeedback,
   transitionExecution,
@@ -1080,6 +1092,7 @@ export function TrainingRoutinePanel({
                 key={session.sessionId}
                 session={session}
                 audience={audience}
+                studentContractId={studentContractId}
                 executionAvailable={routine.execution.available}
                 saveCheckIn={saveCheckIn ? async (sessionId, payload) => {
                   const saved = await saveCheckIn(sessionId, payload);
