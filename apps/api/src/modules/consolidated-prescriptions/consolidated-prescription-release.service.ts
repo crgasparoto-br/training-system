@@ -1,3 +1,6 @@
+import { approvedOperationalExerciseWhere } from '../library/library-curation.domain.js';
+import { assertApprovedWorkoutExerciseIds } from '../workout/workout-planning.helpers.js';
+import { ResistanceStructureValidationError } from '../workout/resistance-structure.domain.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { Prisma, PrismaClient } from '@prisma/client';
 import type {
@@ -369,6 +372,21 @@ async function revalidatePreparedProjection(
     });
   }
 
+  // The release actually materializes WorkoutExercise links. Lock every
+  // effective and original catalog row until this serializable transaction
+  // commits; version/read-only checks below cannot close a deactivation race.
+  const catalogIds = items.filter(item => Boolean(item.technicalCatalogItemId))
+    .flatMap(item => [item.mappedExerciseLibraryId, item.effectiveExerciseLibraryId])
+    .filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+  try {
+    await assertApprovedWorkoutExerciseIds(tx, catalogIds, context.contractId);
+  } catch (error) {
+    if (error instanceof ResistanceStructureValidationError) {
+      fail('CONFLICT', 'Um exercício operacional foi desativado ou deixou de estar aprovado');
+    }
+    throw error;
+  }
+
   const substitutions = refs
     .filter((ref) => ref.origin === CONSOLIDATED_EXERCISE_SUBSTITUTION_ORIGIN)
     .map((ref) => record(ref.context))
@@ -396,7 +414,7 @@ async function revalidatePreparedProjection(
       fail('CONFLICT', 'O vínculo técnico-operacional foi alterado após a preparação');
     }
     const originalExercise = await tx.exerciseLibrary.findFirst({
-      where: { id: mapping.exerciseLibraryId, contractId: context.contractId },
+      where: { id: mapping.exerciseLibraryId, contractId: context.contractId, ...approvedOperationalExerciseWhere },
       select: { id: true, updatedAt: true },
     });
     if (
@@ -418,7 +436,7 @@ async function revalidatePreparedProjection(
       if (!substitution) fail('CONFLICT', 'A substituição operacional preparada não pertence à versão aprovada');
     }
     const exercise = await tx.exerciseLibrary.findFirst({
-      where: { id: effectiveId, contractId: context.contractId },
+      where: { id: effectiveId, contractId: context.contractId, ...approvedOperationalExerciseWhere },
       select: { id: true, updatedAt: true },
     });
     if (!exercise || exercise.updatedAt.toISOString() !== item.operationalExerciseUpdatedAt) {

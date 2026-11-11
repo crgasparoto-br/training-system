@@ -1,9 +1,9 @@
-﻿import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 
 import { Prisma } from '@prisma/client';
-import { projectWorkoutDayExerciseCatalog } from './workout-release-catalog.js';
+import { projectWorkoutDayExerciseCatalog, projectWorkoutExecutionHistory } from './workout-release-catalog.js';
 import { assertWorkoutParentIsImmutable, normalizeResistanceBlocks, sanitizeWorkoutMutation, ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput } from './resistance-structure.domain.js';
-import { assertDayContract, isWorkoutTemplateUniqueConflict, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
+import { assertApprovedWorkoutExerciseIds, assertDayContract, assertTemplateReleaseCatalogEligibility, isWorkoutTemplateUniqueConflict, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
 import { copyTemplate as copyTemplateStructured, copyTemplateSections as copyTemplateSectionsStructured } from './workout-copy.service.js';
 import { replaceDayResistanceExercises as replaceDayResistanceExercisesStructured, saveTemplateWeek as saveTemplateWeekStructured } from './workout-week-structure.service.js';
 import { cyclicStageInclude, nestedCyclicStages, normalizeCyclicStages, replaceCyclicStagesInTransaction, snapshotCyclicStages } from './cyclic-stages.domain.js';
@@ -448,18 +448,27 @@ export const workoutService = {
   /**
    * Liberar template para o aluno
    */
-  async releaseTemplate(id: string) {
-    const previous = await prisma.workoutTemplate.findUnique({ where: { id } });
-    if (previous?.released) return serializeWorkoutTemplate(previous);
-    const template = await withWorkoutTemplatePlanningMutation(prisma, id, (tx) =>
-      tx.workoutTemplate.update({
+  async releaseTemplate(id: string, contractId?: string) {
+    const previous = await prisma.workoutTemplate.findFirst({
+      where: {
+        id,
+        ...(contractId ? { plan: { aluno: { contractId } } } : {}),
+      },
+    });
+    if (!previous) throw new ResistanceStructureNotFoundError();
+    // An already released prescription is historical: do not revoke it just
+    // because a curator deactivated a linked exercise later.
+    if (previous.released) return serializeWorkoutTemplate(previous);
+    const template = await withWorkoutTemplatePlanningMutation(prisma, id, async (tx) => {
+      await assertTemplateReleaseCatalogEligibility(tx, id, contractId);
+      return tx.workoutTemplate.update({
         where: { id },
         data: {
           released: true,
           releasedAt: new Date(),
         },
-      })
-    );
+      });
+    });
 
     return serializeWorkoutTemplate(template);
   },
@@ -742,7 +751,16 @@ export const workoutService = {
     const { resistanceBlocks, workoutExerciseId: _existingRowId, ...exercise } = data;
     const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
     return withWorkoutDayPlanningMutation(prisma, data.workoutDayId, async (tx) => {
-      if (contractId) await assertDayContract(tx, data.workoutDayId, contractId, data.exerciseId);
+      if (contractId) {
+        await assertDayContract(tx, data.workoutDayId, contractId, data.exerciseId);
+      } else {
+        const day = await tx.workoutDay.findUnique({
+          where: { id: data.workoutDayId },
+          select: { template: { select: { plan: { select: { aluno: { select: { contractId: true } } } } } } },
+        });
+        if (!day) throw new ResistanceStructureNotFoundError();
+        await assertApprovedWorkoutExerciseIds(tx, [data.exerciseId], day.template.plan.aluno.contractId);
+      }
       return tx.workoutExercise.create({
         data: {
           ...exercise,
@@ -786,7 +804,11 @@ export const workoutService = {
     const blocks = resistanceBlocks === undefined ? undefined : normalizeResistanceBlocks(resistanceBlocks);
     return withWorkoutDayPlanningMutation(prisma, current.workoutDayId, async (tx) => {
       if (contractId) {
-        await assertDayContract(tx, current.workoutDayId, contractId, data.exerciseId ?? current.exerciseId);
+        // Do not reinterpret a persisted historical link as a new application
+        // when a professor only changes row metadata or reuses the same ID.
+        await assertDayContract(tx, current.workoutDayId, contractId,
+          data.exerciseId !== undefined && data.exerciseId !== current.exerciseId
+            ? data.exerciseId : undefined);
       }
       return tx.workoutExercise.update({
         where: { id },
@@ -879,6 +901,15 @@ export const workoutService = {
     const canonicalTargetDate = workoutDateInTargetWeek(source.template.weekStartDate, targetDayOfWeek);
 
     const newDay = await withWorkoutTemplatePlanningMutation(prisma, source.templateId, async (tx) => {
+      const sourceOwner = await tx.workoutDay.findUnique({
+        where: { id },
+        select: { template: { select: { plan: { select: { aluno: { select: { contractId: true } } } } } } },
+      });
+      if (!sourceOwner) throw new ResistanceStructureNotFoundError();
+      await assertApprovedWorkoutExerciseIds(
+        tx, source.exercises.map((exercise) => exercise.exerciseId),
+        sourceOwner.template.plan.aluno.contractId,
+      );
       const created = await tx.workoutDay.create({
         data: {
           templateId: source.templateId,
@@ -1089,7 +1120,7 @@ export const workoutService = {
     startDate: Date,
     endDate: Date
   ) {
-    return await prisma.workoutExecution.findMany({
+    const rows = await prisma.workoutExecution.findMany({
       where: {
         alunoId,
         executionDate: {
@@ -1101,6 +1132,7 @@ export const workoutService = {
         workoutExercise: {
           include: {
             exercise: true,
+            releasedCatalog: { select: { catalog: true } },
             workoutDay: {
               include: {
                 template: true,
@@ -1111,6 +1143,7 @@ export const workoutService = {
       },
       orderBy: { executionDate: 'desc' },
     });
+    return rows.map(projectWorkoutExecutionHistory);
   },
 
   /**

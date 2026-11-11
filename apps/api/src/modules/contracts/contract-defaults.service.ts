@@ -5,6 +5,7 @@ import {
   Prisma,
   PrismaClient,
   type CountingType,
+  type ExerciseCurationStatus,
   type LoadType,
 } from '@prisma/client';
 import {
@@ -24,6 +25,8 @@ type ExerciseCatalogRow = Record<string, unknown>;
 
 type ExistingExerciseDefault = {
   name: string;
+  curationStatus: ExerciseCurationStatus;
+  legacyGrandfathered: boolean;
   videoUrl: string | null;
   loadType: LoadType | null;
   movementType: MovementType | null;
@@ -31,6 +34,17 @@ type ExistingExerciseDefault = {
   category: string | null;
   muscleGroup: string | null;
   notes: string | null;
+  workoutExercises?: Array<{ id: string }>;
+};
+
+// A professionally approved record is immutable to automatic defaults repair.
+function isProfessionallyApprovedExercise(exercise: ExistingExerciseDefault) {
+  return exercise.curationStatus === 'approved' && !exercise.legacyGrandfathered;
+}
+
+// Recheck at the definitive Prisma UPDATE to survive a concurrent approval.
+const defaultsWritableWhere: Prisma.ExerciseLibraryWhereInput = {
+  NOT: { curationStatus: 'approved', legacyGrandfathered: false },
 };
 
 type ExerciseNameRepair = {
@@ -90,6 +104,11 @@ const COUNTING_TYPES = new Set<string>(['I', 'T', 'R']);
 
 const normalizeExerciseName = (value: string) =>
   repairPtBrMojibake(value).trim().replace(/\s+/g, ' ');
+
+// Keep the in-memory catalog aligned with issue394_exercise_canonical_name
+// in PostgreSQL: case and whitespace variants are a single tenant identity.
+const canonicalExerciseName = (value: string) =>
+  normalizeExerciseName(value).toLowerCase();
 
 const normalizeOptionalCatalogText = (value: string | undefined) =>
   value ? repairPtBrMojibake(value).trim() || undefined : undefined;
@@ -192,7 +211,7 @@ export function loadProductExerciseDefaults(): NormalizedExerciseDefault[] {
   const rows = parseExerciseCatalog(
     fs.readFileSync(resolveExerciseDefaultsPath(), 'utf-8')
   );
-  const defaultsByName = new Map<string, NormalizedExerciseDefault>();
+  const defaultsByCanonicalName = new Map<string, NormalizedExerciseDefault>();
 
   for (const [index, row] of rows.entries()) {
     const rawName =
@@ -242,15 +261,18 @@ export function loadProductExerciseDefaults(): NormalizedExerciseDefault[] {
       notes,
     };
 
-    const existing = defaultsByName.get(name);
+    const key = canonicalExerciseName(name);
+    const existing = defaultsByCanonicalName.get(key);
     if (existing) {
+      // Preserve the first (preferred) display name and complement missing
+      // metadata from later case/whitespace variants.
       mergeMissingExerciseDefaultFields(existing, candidate);
     } else {
-      defaultsByName.set(name, candidate);
+      defaultsByCanonicalName.set(key, candidate);
     }
   }
 
-  return [...defaultsByName.values()];
+  return [...defaultsByCanonicalName.values()];
 }
 
 const supportsBulkSql = (db: DefaultsDb): db is BulkDefaultsDb =>
@@ -325,23 +347,33 @@ function collectExerciseNameRepairs(
   defaults: NormalizedExerciseDefault[],
   existingExercises: ExistingExerciseDefault[]
 ): ExerciseNameRepair[] {
-  const defaultNames = new Set(defaults.map((item) => item.name));
-  const existingNames = new Set(existingExercises.map((item) => item.name));
+  const preferredNamesByCanonical = new Map(
+    defaults.map((item) => [canonicalExerciseName(item.name), item.name] as const)
+  );
+  const existingCanonicalCounts = new Map<string, number>();
+  for (const item of existingExercises) {
+    const key = canonicalExerciseName(item.name);
+    existingCanonicalCounts.set(key, (existingCanonicalCounts.get(key) ?? 0) + 1);
+  }
   const repairs: ExerciseNameRepair[] = [];
 
   for (const item of existingExercises) {
+    if (item.workoutExercises?.length || isProfessionallyApprovedExercise(item)) continue;
     const repairedName = normalizeExerciseName(item.name);
+    const key = canonicalExerciseName(repairedName);
     if (
       repairedName === item.name ||
-      !defaultNames.has(repairedName) ||
-      existingNames.has(repairedName)
+      // Repair encoding/whitespace only if it resolves to the preferred name;
+      // do not silently change a legacy display name differing only by case.
+      preferredNamesByCanonical.get(key) !== repairedName ||
+      // Preserve already-existing legacy duplicates: a rename cannot select
+      // a new preferred identity when more than one row owns this key.
+      existingCanonicalCounts.get(key) !== 1
     ) {
       continue;
     }
 
     repairs.push({ currentName: item.name, repairedName });
-    existingNames.delete(item.name);
-    existingNames.add(repairedName);
   }
 
   return repairs;
@@ -361,22 +393,34 @@ async function applyExerciseNameRepairs(
     );
     await db.$executeRaw(Prisma.sql`
       UPDATE "ExerciseLibrary" AS exercise
-      SET "name" = repair."repairedName"
+      SET "name" = repair."repairedName",
+          "lastModifiedByUserId" = NULL,
+          "lastCurationAction" = 'system_defaults_repair'
       FROM (VALUES ${Prisma.join(rows)}) AS repair("currentName", "repairedName")
       WHERE exercise."contractId" = ${contractId}
         AND exercise."name" = repair."currentName"
+        AND (exercise."curationStatus" <> 'approved' OR exercise."legacyGrandfathered" = TRUE)
+        AND NOT EXISTS (
+          SELECT 1 FROM "WorkoutExercise" AS workout
+          WHERE workout."exerciseId" = exercise."id"
+        )
         AND NOT EXISTS (
           SELECT 1
           FROM "ExerciseLibrary" AS conflict
           WHERE conflict."contractId" = exercise."contractId"
-            AND conflict."name" = repair."repairedName"
+            AND conflict."id" <> exercise."id"
+            AND issue394_exercise_canonical_name(conflict."name")
+              = issue394_exercise_canonical_name(repair."repairedName")
         )
     `);
   } else {
     for (const repair of repairs) {
       await db.exerciseLibrary.updateMany({
-        where: { contractId, name: repair.currentName },
-        data: { name: repair.repairedName },
+        where: {
+          contractId, name: repair.currentName,
+          workoutExercises: { none: {} }, ...defaultsWritableWhere,
+        },
+        data: { name: repair.repairedName, lastModifiedByUserId: null, lastCurationAction: 'system_defaults_repair' },
       });
     }
   }
@@ -394,7 +438,8 @@ function missingExerciseFields(
 ) {
   const data: Partial<Omit<ExistingExerciseDefault, 'name'>> = {};
 
-  if (!existing.videoUrl?.trim() && canonical.videoUrl) data.videoUrl = canonical.videoUrl;
+  // A catalog URL alone does not prove media rights for an existing exercise.
+  // Preserve existing media; any new URL must be reviewed by the curator.
   if (!existing.loadType && canonical.loadType) data.loadType = canonical.loadType;
   if (!existing.movementType && canonical.movementType) data.movementType = canonical.movementType;
   if (!existing.countingType && canonical.countingType) data.countingType = canonical.countingType;
@@ -418,7 +463,6 @@ async function applyExerciseBackfills(
     const rows = backfills.map(({ canonical }) =>
       Prisma.sql`(
         ${canonical.name},
-        ${canonical.videoUrl ?? null},
         ${canonical.loadType ?? null},
         ${canonical.movementType ?? null},
         ${canonical.countingType ?? null},
@@ -431,11 +475,8 @@ async function applyExerciseBackfills(
     await db.$executeRaw(Prisma.sql`
       UPDATE "ExerciseLibrary" AS exercise
       SET
-        "videoUrl" = CASE
-          WHEN NULLIF(BTRIM(exercise."videoUrl"), '') IS NULL AND defaults."videoUrl" IS NOT NULL
-            THEN defaults."videoUrl"
-          ELSE exercise."videoUrl"
-        END,
+        "lastModifiedByUserId" = NULL,
+        "lastCurationAction" = 'system_defaults_repair',
         "loadType" = CASE
           WHEN exercise."loadType" IS NULL AND defaults."loadType" IS NOT NULL
             THEN defaults."loadType"::"LoadType"
@@ -468,7 +509,6 @@ async function applyExerciseBackfills(
         END
       FROM (VALUES ${Prisma.join(rows)}) AS defaults(
         "name",
-        "videoUrl",
         "loadType",
         "movementType",
         "countingType",
@@ -477,9 +517,14 @@ async function applyExerciseBackfills(
         "notes"
       )
       WHERE exercise."contractId" = ${contractId}
-        AND exercise."name" = defaults."name"
+        AND issue394_exercise_canonical_name(exercise."name")
+          = issue394_exercise_canonical_name(defaults."name")
+        AND (exercise."curationStatus" <> 'approved' OR exercise."legacyGrandfathered" = TRUE)
+        AND NOT EXISTS (
+          SELECT 1 FROM "WorkoutExercise" AS workout
+          WHERE workout."exerciseId" = exercise."id"
+        )
         AND (
-          (NULLIF(BTRIM(exercise."videoUrl"), '') IS NULL AND defaults."videoUrl" IS NOT NULL) OR
           (exercise."loadType" IS NULL AND defaults."loadType" IS NOT NULL) OR
           (exercise."movementType" IS NULL AND defaults."movementType" IS NOT NULL) OR
           (exercise."countingType" IS NULL AND defaults."countingType" IS NOT NULL) OR
@@ -495,8 +540,11 @@ async function applyExerciseBackfills(
 
   for (const { current, canonical, data } of backfills) {
     await db.exerciseLibrary.updateMany({
-      where: { contractId, name: canonical.name },
-      data,
+      where: {
+        contractId, name: current.name,
+        workoutExercises: { none: {} }, ...defaultsWritableWhere,
+      },
+      data: { ...data, lastModifiedByUserId: null, lastCurationAction: 'system_defaults_repair' },
     });
     Object.assign(current, data);
   }
@@ -508,6 +556,8 @@ async function installExercises(contractId: string, db: DefaultsDb) {
     where: { contractId },
     select: {
       name: true,
+      curationStatus: true,
+      legacyGrandfathered: true,
       videoUrl: true,
       loadType: true,
       movementType: true,
@@ -515,25 +565,36 @@ async function installExercises(contractId: string, db: DefaultsDb) {
       category: true,
       muscleGroup: true,
       notes: true,
+      workoutExercises: { select: { id: true }, take: 1 },
     },
   })) as ExistingExerciseDefault[];
 
   const repairs = collectExerciseNameRepairs(defaults, existing);
   await applyExerciseNameRepairs(contractId, repairs, existing, db);
 
-  const existingByName = new Map(existing.map((item) => [item.name, item]));
+  const existingByCanonicalName = new Map<string, ExistingExerciseDefault>();
+  for (const item of existing) {
+    const key = canonicalExerciseName(item.name);
+    const selected = existingByCanonicalName.get(key);
+    // Keep legacy duplicate rows untouched; a workout-linked record is the
+    // conservative representative when historical duplicates already exist.
+    if (!selected || (!selected.workoutExercises?.length && item.workoutExercises?.length)) {
+      existingByCanonicalName.set(key, item);
+    }
+  }
   const missing: NormalizedExerciseDefault[] = [];
   const backfills: ExerciseBackfill[] = [];
 
   for (const canonical of defaults) {
-    const current = existingByName.get(canonical.name);
+    const current = existingByCanonicalName.get(canonicalExerciseName(canonical.name));
     if (!current) {
       missing.push(canonical);
       continue;
     }
 
     const data = missingExerciseFields(current, canonical);
-    if (Object.keys(data).length > 0) {
+    if (!current.workoutExercises?.length && !isProfessionallyApprovedExercise(current)
+        && Object.keys(data).length > 0) {
       backfills.push({ current, canonical, data });
     }
   }
@@ -545,6 +606,9 @@ async function installExercises(contractId: string, db: DefaultsDb) {
         data: missing.map((item) => ({
           contractId,
           name: item.name,
+          curationStatus: 'draft',
+          legacyGrandfathered: false,
+          lastCurationAction: 'system_defaults_install',
           videoUrl: item.videoUrl,
           loadType: item.loadType,
           movementType: item.movementType,

@@ -46,7 +46,8 @@ async function seedReleasedWorkout(
   label: string,
   options: { publish?: boolean; seedResistance?: boolean; seedGuidedResistance?: boolean; seedGuidedGroup?: boolean;
     seedComparison?: boolean; seedIncrementalComparison?: boolean; seedRepeatedCyclic?: boolean; seedLargeCyclic?: boolean;
-    weeklyVolumeKm?: number; legacySpeedRange?: { min: string; max: string } } = {},
+    weeklyVolumeKm?: number; legacySpeedRange?: { min: string; max: string };
+    licensedMedia?: boolean } = {},
 ): Promise<Fixture> {
   const suffix = `${label}-${randomUUID()}`;
   const contractId = `issue-389-${suffix}`;
@@ -179,10 +180,19 @@ async function seedReleasedWorkout(
   });
 
   const exerciseLibraryA = await prisma.exerciseLibrary.create({
-    data: { contractId, name: `Agachamento ${label}` },
+    data: { contractId, name: `Agachamento ${label}`, category: 'RESISTIDO', capacity: 'resisted',
+      instructions: ['Preparar posição'], curationStatus: 'approved', legacyGrandfathered: false,
+      reviewedByUserId: 'fixture-reviewer', reviewedAt: new Date(), lastCurationAction: 'approve',
+      ...(options.licensedMedia ? {
+        videoUrl: 'https://example.org/issue394/original-licensed-video',
+        mediaOrigin: 'Produção original do catálogo', mediaLicense: 'Licença própria registrada',
+      } : {}),
+    },
   });
   const exerciseLibraryB = await prisma.exerciseLibrary.create({
-    data: { contractId, name: `Remada ${label}` },
+    data: { contractId, name: `Remada ${label}`, category: 'RESISTIDO', capacity: 'resisted',
+      instructions: ['Preparar posição'], curationStatus: 'approved', legacyGrandfathered: false,
+      reviewedByUserId: 'fixture-reviewer', reviewedAt: new Date(), lastCurationAction: 'approve' },
   });
   const exerciseA = await prisma.workoutExercise.create({
     data: {
@@ -243,7 +253,9 @@ async function seedReleasedWorkout(
           durationUnit: 'seconds', durationValue: 120 },
       });
       const exerciseC = await prisma.exerciseLibrary.create({
-        data: { contractId, name: `Mobilidade ${label}` },
+        data: { contractId, name: `Mobilidade ${label}`, category: 'RESISTIDO', capacity: 'resisted',
+      instructions: ['Preparar posição'], curationStatus: 'approved', legacyGrandfathered: false,
+      reviewedByUserId: 'fixture-reviewer', reviewedAt: new Date(), lastCurationAction: 'approve' },
       });
       const workoutExerciseC = await prisma.workoutExercise.create({
         data: { workoutDayId: day.id, exerciseId: exerciseC.id, section: 'principal',
@@ -1090,11 +1102,18 @@ describeDatabase('workout session execution persistence - issue 389', () => {
       where: { workoutExerciseId: fixture.exerciseIds[0] },
     });
     expect(snapshot.catalog).toMatchObject({ name: before.current?.exerciseName });
+    // An approved catalog cannot gain third-party media without source and license.
+    await expect(prisma.exerciseLibrary.update({
+      where: { id: exercise.exerciseId },
+      data: { videoUrl: 'https://example.org/video-sem-licenca' },
+    })).rejects.toThrow();
     await prisma.exerciseLibrary.update({
       where: { id: exercise.exerciseId },
       data: {
         name: 'Nome alterado depois da liberação',
         videoUrl: 'https://example.org/video-alterado',
+        mediaOrigin: 'video de teste criado pela equipe',
+        mediaLicense: 'conteudo proprio de teste',
         notes: 'Orientação editada depois da liberação',
       },
     });
@@ -1562,6 +1581,142 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     }));
     return { fixture, input };
   }
+
+  it.each(['draft', 'in_review', 'inactive'] as const)(
+    '#394: bloqueia nova aplicacao %s em adicao, dia e semana; aceita apos aprovacao',
+    async (curationStatus) => {
+      const { fixture, input } = await editableFixture(`issue394-new-${curationStatus}`);
+      const day = await prisma.workoutDay.findUniqueOrThrow({
+        where: { id: fixture.dayId }, select: { templateId: true },
+      });
+      const candidate = await prisma.exerciseLibrary.create({
+        data: { contractId: fixture.contractId, name: `Exercicio ${curationStatus}`, curationStatus,
+          category: 'RESISTIDO', capacity: 'resisted', instructions: ['Iniciar movimento'] },
+      });
+      const newInput = {
+        workoutDayId: fixture.dayId, exerciseId: candidate.id,
+        section: 'resfriamento', exerciseOrder: 1,
+      };
+      const before = await prisma.workoutExercise.count({ where: { workoutDayId: fixture.dayId } });
+      await expect(workoutService.addExerciseToDay(newInput, fixture.contractId))
+        .rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+      await expect(workoutService.replaceDayResistanceExercises(
+        fixture.dayId, [...input, newInput], fixture.contractId,
+      )).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+      await expect(workoutService.saveTemplateWeek(day.templateId, {
+        resistedExercises: { 2: { sessao: input, resfriamento: [newInput] } },
+      }, fixture.contractId)).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+      expect(await prisma.workoutExercise.count({ where: { workoutDayId: fixture.dayId } }))
+        .toBe(before);
+
+      await prisma.exerciseLibrary.update({
+        where: { id: candidate.id }, data: { curationStatus: 'approved',
+          reviewedByUserId: 'fixture-reviewer', reviewedAt: new Date(), lastCurationAction: 'approve' },
+      });
+      await expect(workoutService.addExerciseToDay(newInput, fixture.contractId))
+        .resolves.toMatchObject({ exerciseId: candidate.id });
+    },
+  );
+
+  it('#394 A-394-016: legacy release rechecks all linked exercises at publication', async () => {
+    const { fixture } = await editableFixture('issue394-legacy-release-denied');
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, select: { templateId: true },
+    });
+    const linked = await prisma.workoutExercise.findFirstOrThrow({
+      where: { workoutDayId: fixture.dayId }, select: { exerciseId: true },
+    });
+    await prisma.exerciseLibrary.update({
+      where: { id: linked.exerciseId }, data: { curationStatus: 'inactive' },
+    });
+
+    await expect(workoutService.releaseTemplate(day.templateId, fixture.contractId))
+      .rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    expect(await prisma.workoutTemplate.findUniqueOrThrow({
+      where: { id: day.templateId }, select: { released: true, releasedAt: true },
+    })).toMatchObject({ released: false, releasedAt: null });
+    expect(await prisma.workoutReleasedExerciseSnapshot.count({
+      where: { workoutExerciseId: { in: fixture.exerciseIds } },
+    })).toBe(0);
+    await expect(workoutService.releaseTemplate(day.templateId, 'foreign-tenant'))
+      .rejects.toMatchObject({ code: 'RESISTANCE_DAY_NOT_FOUND' });
+
+    const eligible = await editableFixture('issue394-legacy-release-approved');
+    const validDay = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: eligible.fixture.dayId }, select: { templateId: true },
+    });
+    await expect(workoutService.releaseTemplate(validDay.templateId, eligible.fixture.contractId))
+      .resolves.toMatchObject({ released: true });
+    await prisma.exerciseLibrary.update({
+      where: { id: eligible.input[0].exerciseId }, data: { curationStatus: 'inactive' },
+    });
+    // A previously published prescription remains available/idempotent.
+    await expect(workoutService.releaseTemplate(validDay.templateId, eligible.fixture.contractId))
+      .resolves.toMatchObject({ released: true });
+  });
+
+  it('#394: preserva linhas existentes desativadas, mas rejeita copia como nova aplicacao', async () => {
+    const { fixture, input } = await editableFixture('issue394-copy-inactive');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input, fixture.contractId);
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, select: { templateId: true },
+    });
+    const initialIds = (await prisma.workoutExercise.findMany({
+      where: { workoutDayId: fixture.dayId }, orderBy: { exerciseOrder: 'asc' }, select: { id: true },
+    })).map((row) => row.id);
+    await prisma.exerciseLibrary.update({
+      where: { id: input[0].exerciseId }, data: { curationStatus: 'inactive' },
+    });
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input, fixture.contractId);
+    await workoutService.saveTemplateWeek(day.templateId, {
+      resistedExercises: { 2: { sessao: input } },
+    }, fixture.contractId);
+    const persisted = (await prisma.workoutExercise.findMany({
+      where: { workoutDayId: fixture.dayId }, orderBy: { exerciseOrder: 'asc' }, select: { id: true },
+    })).map((row) => row.id);
+    expect(persisted).toEqual(initialIds);
+
+    const targetWeekStartDate = new Date('2026-10-12T12:00:00.000Z');
+    await expect(workoutService.copyTemplate(day.templateId, 2, targetWeekStartDate))
+      .rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    await expect(workoutService.copyTemplateSections(day.templateId, 2, targetWeekStartDate, 'resistance'))
+      .rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    await expect(workoutService.copyDay(fixture.dayId, 3, targetWeekStartDate))
+      .rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    expect(await prisma.workoutExercise.count({ where: { workoutDayId: fixture.dayId } }))
+      .toBe(initialIds.length);
+    expect(await prisma.workoutTemplate.count({ where: {
+      planId: (await prisma.workoutTemplate.findUniqueOrThrow({
+        where: { id: day.templateId }, select: { planId: true },
+      })).planId, weekNumber: 2,
+    } })).toBe(0);
+
+    // Cyclic-only copy never reapplies resistance exercises.
+    const cyclicCopy = await workoutService.copyTemplateSections(
+      day.templateId, 2, targetWeekStartDate, 'cyclic',
+    );
+    expect(cyclicCopy).toBeTruthy();
+    expect(cyclicCopy!.workoutDays.flatMap((candidate) => candidate.exercises)).toHaveLength(0);
+  });
+
+  it('#394: rejeita exercicio aprovado de contrato diferente em nova aplicacao', async () => {
+    const own = await editableFixture('issue394-own');
+    const foreign = await editableFixture('issue394-foreign');
+    const candidate = {
+      workoutDayId: own.fixture.dayId,
+      exerciseId: foreign.input[0].exerciseId, section: 'resfriamento', exerciseOrder: 1,
+    };
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: own.fixture.dayId }, select: { templateId: true },
+    });
+    await expect(workoutService.replaceDayResistanceExercises(
+      own.fixture.dayId, [...own.input, candidate], own.fixture.contractId,
+    )).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    await expect(workoutService.saveTemplateWeek(day.templateId, {
+      resistedExercises: { 2: { sessao: own.input, resfriamento: [candidate] } },
+    }, own.fixture.contractId)).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    expect(await prisma.workoutExercise.count({ where: { workoutDayId: own.fixture.dayId } })).toBe(2);
+  });
 
   it('salvamentos repetidos preservam ids de exercícios, blocos e séries', async () => {
     const { fixture, input } = await editableFixture('issue399-replay');
@@ -3104,6 +3259,135 @@ describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
     expect((await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
       where: { workoutExerciseId: exercise.id },
     })).catalog).toMatchObject({ name: originalName });
+  });
+
+  it('#394 A-394-019: new releases freeze licensed video provenance and protect historical views', async () => {
+    const fixture = await seedReleasedWorkout('issue394-release-media-license', { licensedMedia: true });
+    const exercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] }, select: { exerciseId: true, workoutDay: { select: { templateId: true } } },
+    });
+    const snapshot = await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
+      where: { workoutExerciseId: fixture.exerciseIds[0] },
+    });
+    expect(snapshot.catalog).toMatchObject({
+      videoUrl: 'https://example.org/issue394/original-licensed-video',
+      mediaOrigin: 'Produção original do catálogo', mediaLicense: 'Licença própria registrada',
+      legacyGrandfathered: false,
+    });
+    const before = await workoutService.getTemplateById(exercise.workoutDay.templateId);
+    const original = before!.workoutDays.flatMap((day) => day.exercises)
+      .find((item) => item.id === fixture.exerciseIds[0]);
+    expect(original?.exercise).toMatchObject({
+      videoUrl: 'https://example.org/issue394/original-licensed-video',
+      mediaOrigin: 'Produção original do catálogo', mediaLicense: 'Licença própria registrada',
+    });
+
+    // A later licensed catalog revision must not change the originally released rights or URL.
+    await prisma.exerciseLibrary.update({ where: { id: exercise.exerciseId }, data: {
+      videoUrl: 'https://example.org/issue394/new-video',
+      mediaOrigin: 'Outra produção', mediaLicense: 'Outra licença',
+    } });
+    const after = await workoutService.getTemplateById(exercise.workoutDay.templateId);
+    const released = after!.workoutDays.flatMap((day) => day.exercises)
+      .find((item) => item.id === fixture.exerciseIds[0]);
+    expect(released?.exercise).toMatchObject({
+      videoUrl: 'https://example.org/issue394/original-licensed-video',
+      mediaOrigin: 'Produção original do catálogo', mediaLicense: 'Licença própria registrada',
+    });
+    const persisted = await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
+      where: { workoutExerciseId: fixture.exerciseIds[0] },
+    });
+    expect(persisted.catalog).toEqual(snapshot.catalog);
+  });
+
+  it('#394 A-394-019: pre-existing snapshots without provenance stay unmodified and suppress the URL', async () => {
+    const fixture = await seedReleasedWorkout('issue394-preexisting-no-license', {
+      publish: false, licensedMedia: true,
+    });
+    const exercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] }, select: { workoutDay: { select: { templateId: true } } },
+    });
+    const original = { name: 'Snapshot anterior à migração',
+      videoUrl: 'https://example.org/issue394/old-video-without-proof' };
+    await prisma.workoutReleasedExerciseSnapshot.create({
+      data: { workoutExerciseId: fixture.exerciseIds[0], catalog: original },
+    });
+    await workoutService.releaseTemplate(exercise.workoutDay.templateId, fixture.contractId);
+    const snapshot = await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
+      where: { workoutExerciseId: fixture.exerciseIds[0] },
+    });
+    expect(snapshot.catalog).toEqual(original);
+    const template = await workoutService.getTemplateById(exercise.workoutDay.templateId);
+    const released = template!.workoutDays.flatMap((day) => day.exercises)
+      .find((item) => item.id === fixture.exerciseIds[0]);
+    expect(released?.exercise).toMatchObject({ name: original.name, videoUrl: null });
+  });
+
+
+  it('#394 A-021: historical WorkoutExecution preserves release data and redacts old media', async () => {
+    const fixture = await seedReleasedWorkout('issue394-a021-unlicensed-history', {
+      publish: false, licensedMedia: true,
+    });
+    const exercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] },
+      select: { exerciseId: true, workoutDay: { select: { templateId: true } } },
+    });
+    const original = { name: 'Recorded exercise', videoUrl: 'https://example.org/old-unlicensed' };
+    await prisma.workoutReleasedExerciseSnapshot.create({
+      data: { workoutExerciseId: fixture.exerciseIds[0], catalog: original },
+    });
+    await workoutService.releaseTemplate(exercise.workoutDay.templateId, fixture.contractId);
+    await prisma.workoutExecution.create({ data: {
+      workoutExerciseId: fixture.exerciseIds[0], alunoId: fixture.alunoId,
+      executionDate: new Date('2026-10-07T09:00:00.000Z'), setsCompleted: 3,
+    } });
+    await prisma.exerciseLibrary.update({ where: { id: exercise.exerciseId }, data: {
+      name: 'Changed live name', videoUrl: 'https://example.org/new-licensed',
+      mediaOrigin: 'Later creator', mediaLicense: 'License acquired later',
+    } });
+    const rows = await workoutService.getExecutionsByAluno(
+      fixture.alunoId, new Date('2026-10-06T00:00:00.000Z'), new Date('2026-10-08T00:00:00.000Z'),
+    );
+    const row = rows.find((item) => item.workoutExercise.id === fixture.exerciseIds[0]);
+    expect(row?.setsCompleted).toBe(3);
+    expect(row?.workoutExercise.exercise).toMatchObject({ name: original.name, videoUrl: null });
+    expect(JSON.stringify(row)).not.toContain('releasedCatalog');
+    expect((await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
+      where: { workoutExerciseId: fixture.exerciseIds[0] },
+    })).catalog).toEqual(original);
+    expect((await prisma.exerciseLibrary.findUniqueOrThrow({
+      where: { id: exercise.exerciseId },
+    })).videoUrl).toBe('https://example.org/new-licensed');
+  });
+
+  it('#394 A-021: licensed media at release remains visible after catalog changes', async () => {
+    const fixture = await seedReleasedWorkout('issue394-a021-licensed-history', {
+      publish: false, licensedMedia: true,
+    });
+    const exercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] },
+      select: { exerciseId: true, workoutDay: { select: { templateId: true } } },
+    });
+    await workoutService.releaseTemplate(exercise.workoutDay.templateId, fixture.contractId);
+    await prisma.workoutExecution.create({ data: {
+      workoutExerciseId: fixture.exerciseIds[0], alunoId: fixture.alunoId,
+      executionDate: new Date('2026-10-07T09:00:00.000Z'), repsCompleted: 8,
+    } });
+    await prisma.exerciseLibrary.update({ where: { id: exercise.exerciseId }, data: {
+      videoUrl: 'https://example.org/new-recording',
+      mediaOrigin: 'Later producer', mediaLicense: 'Later license',
+    } });
+    const rows = await workoutService.getExecutionsByAluno(
+      fixture.alunoId, new Date('2026-10-06T00:00:00.000Z'), new Date('2026-10-08T00:00:00.000Z'),
+    );
+    expect(rows[0]?.workoutExercise.exercise).toMatchObject({
+      videoUrl: 'https://example.org/issue394/original-licensed-video',
+      mediaOrigin: 'Produção original do catálogo', mediaLicense: 'Licença própria registrada',
+    });
+    expect(rows[0]?.repsCompleted).toBe(8);
+    expect(await workoutService.getExecutionsByAluno(
+      'another-student', new Date('2026-10-06T00:00:00.000Z'), new Date('2026-10-08T00:00:00.000Z'),
+    )).toEqual([]);
   });
 
   it('A-004: consolidated release also captures the immutable catalog', async () => {

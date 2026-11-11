@@ -6,6 +6,8 @@ Integrar a Montagem Consolidada com as prescrições por capacidade, o catálogo
 
 ## Contexto
 
+> **Registro histórico da #319:** este plano descreve o escopo e as limitações daquela fase. As entregas posteriores #320 e #394 ampliaram o produto; para as regras atuais de liberação e curadoria, consulte `docs/product/consolidated-prescription-operational-integration.md`. As listas de aceite abaixo referem-se somente à execução original da #319.
+
 - Issue: #319.
 - Base: `develop`.
 - Dependência #317 já materializada em `develop` pela PR #322.
@@ -92,6 +94,6 @@ Integrar a Montagem Consolidada com as prescrições por capacidade, o catálogo
 
 ## Decisões e pendências
 
-- `ExerciseLibrary` não possui status real de curadoria. A API expõe `curationStatus = not_modeled` e não inventa aprovação; um domínio de curadoria, se necessário, deve ser especificado em issue própria.
+- **Decisão histórica da #319, superada pela #394:** naquele momento `ExerciseLibrary` não possuía curadoria persistida, e `curationStatus = not_modeled` sinalizava a ausência desse modelo. Atualmente os estados reais são `draft`, `in_review`, `approved` e `inactive`, com revisão explícita; `not_modeled` permanece somente na projeção quando não há exercício operacional resolvido. A seleção e o vínculo novos exigem `approved`, `legacyGrandfathered=false` e o `contractId` autorizado, sem aprovação automática.
 - A mutação operacional definitiva e a transição `released` permanecem reservadas à #320.
 - O ambiente desta execução não conseguiu materializar o repositório local por falha DNS; os gates executáveis serão observados no GitHub Actions do candidato publicado, sem rerun ou polling ativo.

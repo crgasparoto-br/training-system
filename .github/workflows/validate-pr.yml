@@ -354,6 +354,11 @@ jobs:
           set -euo pipefail
           node --test scripts/verify-issue-487-browser-evidence.test.mjs
           node scripts/verify-issue-487-browser-evidence.mjs artifacts/ci/full-tests.log artifacts/issue-487 "$AUDIT_HEAD_SHA" | tee artifacts/issue-487/verified-captures.jsonl
+      - name: Issue #394 curated Library browser evidence
+        env:
+          ISSUE_394_BROWSER_EVIDENCE: '1'
+          VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: pnpm --filter @corrida/web exec vitest run --no-file-parallelism src/pages/Library/issue-394-browser-evidence.test.js
       - name: Issue #399 full-page browser evidence
         env:
           ISSUE_399_BROWSER_EVIDENCE: '1'
@@ -444,6 +449,7 @@ jobs:
             artifacts/ci/training-next-session.sql
             artifacts/issue-388/**
             artifacts/issue-391/**
+            artifacts/issue-394/**
             artifacts/issue-399/**
             artifacts/issue-400/**
             artifacts/issue-401/**

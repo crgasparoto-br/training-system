@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { matchResistanceExerciseRows, normalizeResistanceBlocks, sanitizeWorkoutMutation, validateWorkoutWeekEnvelope, ResistanceStructureNotFoundError, ResistanceStructureValidationError, WorkoutPlanningVersionConflictError } from './resistance-structure.domain.js';
-import { assertDayContract, comparableResistanceBlocks, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
+import { assertApprovedWorkoutExerciseIds, assertDayContract, comparableResistanceBlocks, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
 import { cyclicStageInclude, replaceCyclicStagesInTransaction } from './cyclic-stages.domain.js';
 import { normalizeResistanceGroups, replaceResistanceGroupsInTransaction, resistanceGroupInclude, unlinkResistanceGroupMemberForExercise } from './resistance-groups.domain.js';
 import type { CreateWorkoutExerciseDTO, SaveWorkoutWeekDTO } from './workout.service.js';
@@ -15,7 +15,10 @@ export async function saveTemplateWeek(prisma: PrismaClient, id: string, data: S
   return withWorkoutTemplatePlanningMutation(prisma, id, async (tx) => {
     const template = await tx.workoutTemplate.findUnique({
       where: { id },
-      select: { id: true, planId: true, weekStartDate: true, updatedAt: true },
+      select: {
+        id: true, planId: true, weekStartDate: true, updatedAt: true,
+        plan: { select: { aluno: { select: { contractId: true } } } },
+      },
     });
     if (!template) throw new ResistanceStructureNotFoundError();
     if (data.baseUpdatedAt !== undefined) {
@@ -188,12 +191,6 @@ export async function saveTemplateWeek(prisma: PrismaClient, id: string, data: S
           };
         });
 
-        if (contractId) {
-          const libraryIds = [...new Set(prepared.map((item) => item.exercise.exerciseId))];
-          const available = await tx.exerciseLibrary.count({ where: { id: { in: libraryIds }, contractId } });
-          if (available !== libraryIds.length) throw new ResistanceStructureValidationError('Exercício fora do contrato.');
-        }
-
         const current = await tx.workoutExercise.findMany({
           where: { workoutDayId: resolvedTargetDay.id },
           include: {
@@ -207,6 +204,13 @@ export async function saveTemplateWeek(prisma: PrismaClient, id: string, data: S
           exerciseId: item.exercise.exerciseId,
           section: item.exercise.section,
         })));
+        // A row already applied to this day survives catalog deactivation;
+        // only genuinely new applications require current approval.
+        await assertApprovedWorkoutExerciseIds(
+          tx,
+          prepared.filter((_, index) => identity[index] === null).map((item) => item.exercise.exerciseId),
+          template.plan.aluno.contractId,
+        );
         const preserved = new Set(identity.filter((value): value is string => value !== null));
         for (const prior of current) {
           if (!preserved.has(prior.id)
@@ -324,20 +328,14 @@ export async function replaceDayResistanceExercises(prisma: PrismaClient, workou
   }
 
   return withWorkoutDayPlanningMutation(prisma, workoutDayId, async (tx) => {
-    if (contractId !== undefined) {
-      const owned = await tx.workoutDay.findFirst({
-        where: { id: workoutDayId, template: { plan: { aluno: { contractId } } } },
-        select: { id: true },
-      });
-      if (!owned) throw new ResistanceStructureNotFoundError();
-      const libraryIds = [...new Set(prepared.map((item) => item.exercise.exerciseId))];
-      const available = await tx.exerciseLibrary.count({
-        where: { id: { in: libraryIds }, contractId },
-      });
-      if (available !== libraryIds.length) {
-        throw new ResistanceStructureValidationError('Exercício fora do contrato.');
-      }
-    }
+    const owned = await tx.workoutDay.findFirst({
+      where: {
+        id: workoutDayId,
+        ...(contractId !== undefined ? { template: { plan: { aluno: { contractId } } } } : {}),
+      },
+      select: { template: { select: { plan: { select: { aluno: { select: { contractId: true } } } } } } },
+    });
+    if (!owned) throw new ResistanceStructureNotFoundError();
     const current = await tx.workoutExercise.findMany({
       where: { workoutDayId },
       include: {
@@ -351,6 +349,11 @@ export async function replaceDayResistanceExercises(prisma: PrismaClient, workou
       exerciseId: item.exercise.exerciseId,
       section: item.exercise.section,
     })));
+    await assertApprovedWorkoutExerciseIds(
+      tx,
+      prepared.filter((_, index) => identity[index] === null).map((item) => item.exercise.exerciseId),
+      owned.template.plan.aluno.contractId,
+    );
     const preserved = new Set(identity.filter((id): id is string => id !== null));
 
     // Validate removals before any writes to protect historical execution rows.

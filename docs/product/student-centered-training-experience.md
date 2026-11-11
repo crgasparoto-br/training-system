@@ -687,3 +687,106 @@ A-401017 — Os registros de etapas e agrupamentos são cumulativos por ID do pl
 ## Governança dos conflitos do treinamento combinado — #403 (2026-11-05)
 
 O protocolo versionado para a detecção de conflitos por capacidade está documentado em `docs/product/combined-training-clinical-protocol-v1.md`. A proposta funcional foi aprovada para desenvolvimento, mas os sete critérios/limiares clínicos não foram homologados; aprovação profissional em #534 é pré-requisito de ativação. O motor inicial permanece sem regras combinadas ativas, sem alterar automaticamente treinos, e a issue #403 continua aberta até integração, testes e auditoria.
+
+### Curadoria operacional da biblioteca (#394)
+
+A biblioteca administrativa permite criar registros em `draft`, submeter para `in_review`,
+aprovar explicitamente para `approved`, devolver à edição ou desativar em `inactive`.
+A seleção oficial e o vínculo operacional aceitam apenas exercícios `approved` do
+mesmo `contractId`. A validação definitiva na transação também alcança a montagem
+semanal/diária, adição direta, cópia de dia/semana e cópia de seções resistidas,
+inclusive quando a requisição contém IDs manualmente. Cópias com exercícios
+não aprovados são rejeitadas atomicamente; a modalidade cíclica isolada não
+precisa de curadoria resistida. Exercícios já vinculados podem permanecer em
+salvamentos que preservem a mesma identidade, e consultas históricas continuam
+resolvendo exercícios desativados; nenhuma ação de curadoria aplica exercício
+automaticamente ao aluno.
+Criação e transições de curadoria exigem professor administrador (`master`) com
+permissão da tela `library`. Professores comuns visualizam apenas o catálogo aprovado.
+Para montagem de treinos, consulta do catálogo oficial e leitura de progresso
+exigem acesso à tela `plans` **ou** `library`, sempre dentro do contrato
+autenticado. Quando `plans` também está concedido, seu `dataScope` determina
+o progresso visível, mesmo com permissão `library`; apenas `library` restringe
+progresso aos próprios alunos (`self`), enquanto `master` usa escopo de contrato.
+A atualização exige igualmente pertencimento do aluno ao escopo. A tela
+`library` continua necessária para detalhe do exercício, atualização de
+progresso, `scope=all`, filtros por status,
+revisões e ações administrativas; acesso a `plans` não permite curadoria.
+
+Cada exercício possui aliases, capacidade, equipamento, grupos musculares principais e
+secundários, padrão de movimento, articulações, lateralidade, dificuldade, etapas de
+instrução, erros comuns, regressões, progressões, alternativas, restrições e alertas.
+Vídeo referenciado exige origem e licença explícitas antes da aprovação.
+A aprovação exige nome, categoria, capacidade e instruções; não é homologação clínica.
+O guard PostgreSQL impede que valores `NULL` de capacidade ou de ação da última
+revisão permitam aprovação direta sem os metadados obrigatórios; o histórico
+anterior à migração não é reclassificado.
+
+Na edição da Biblioteca, campos multilinha preservam espaços e quebras até o
+envio; somente o salvamento normaliza itens vazios e espaços excedentes.
+A partir de um registro histórico legado, o administrador pode criar nova
+ficha em rascunho com identificador e nome diferentes, sem reutilizar
+automaticamente URL ou licença de mídia. A ficha original e os seus vínculos
+históricos não são modificados e a nova precisa de revisão explícita.
+A aplicação de novos vínculos bloqueia a linha aprovada durante a transação,
+serializando a operação com eventual desativação ou alteração de curadoria.
+A liberação legada de template ainda não publicado revalida, sob os mesmos
+locks, todos os exercícios previamente vinculados: qualquer `draft`,
+`in_review`, `inactive` ou legado não aprovado operacionalmente impede a
+publicação integral. Templates já publicados continuam legíveis sem nova
+aprovação retroativa.
+
+Toda alteração recebe versão monotônica e snapshot imutável, com ator, ação e data.
+Mudança concorrente com `expectedVersion` responde 409. Editar conteúdo de exercício
+referenciado por `WorkoutExercise` é rejeitado tanto na pré-checagem quanto no
+predicado definitivo da escrita para preservar o significado histórico;
+desativação mantém referência. Edição de aprovado fora do treino retorna a `draft`.
+`GET /api/v1/library/exercises` retorna apenas aprovados por padrão; `scope=all`
+e histórico de revisões exigem acesso administrativo.
+
+A migração mantém catálogo existente como `approved` e anota snapshot `legacy_baseline`,
+sem fabricar revisor ou assinatura. Apenas os registros anteriores à migração
+recebem esse estado: novas inserções sem `curationStatus` explícito passam a
+ser `draft` também no banco, inclusive via SQL e importadores. O padrão de
+`legacyGrandfathered` para inserções novas é `false`. A identidade canônica
+de um nome usa caixa e espaços normalizados por contrato, sem fundir aliases
+ou registros históricos: nomes duplicados preexistentes permanecem legíveis,
+mas novas criações e renomeações colidentes são recusadas com HTTP 409 mesmo
+quando simultâneas. As ações administrativas revalidam `master`, acesso
+`library` e usuário ativo na transação definitiva, protegendo contra revogação
+entre a entrada HTTP e a gravação. Padrões existentes permanecem aprovados como legado identificado, sem inventar
+revisor ou licença. Novas instalações de padrões, API, importações e cópias
+entre contratos entram em rascunho até revisão. O saneamento automático ignora
+exercícios vinculados a treinos e registra `system_defaults_repair` com ator
+nulo. O saneamento não injeta URL de vídeo em exercícios existentes:
+o catálogo padrão não comprova direito de uso e uma nova mídia depende de
+curadoria explícita com origem e licença; mídias legadas já presentes não são removidas. A busca por aliases é parcial, sem distinção de caixa e isolada por
+contrato na biblioteca e na montagem consolidada. Cópias entre contratos
+preservam metadados técnicos, mas não transferem direitos de mídia.
+
+Na instalação dos padrões e na importação JSON, variações apenas de caixa ou
+espaçamento compartilham uma única identidade canônica por contrato. O catálogo
+padrão consolida os campos complementares sem substituir o primeiro nome
+preferencial; uma instalação repetida não cria uma segunda linha. Registros
+históricos com grafias equivalentes permanecem com o nome e os vínculos
+originais. O saneamento só complementa campos vazios quando não há vínculo
+com treino, e nunca acrescenta automaticamente mídia sem procedência.
+A classificação `capacity` da biblioteca utiliza exclusivamente a taxonomia
+`resisted` (resistido), `flexibility` (flexibilidade), `cyclic` (cíclico) e
+`balance` (equilíbrio), com seletor na interface e rejeição HTTP de nomes
+arbitrários, inclusive `resistance`. Valores de capacidade já presentes não são
+substituídos em massa: devem ser corrigidos durante revisão profissional.
+Registros aprovados anteriores à migração continuam com
+`legacyGrandfathered=true` e acesso histórico, mas são bloqueados para novos
+planos, cópias, mapeamentos, substituições e liberações até curadoria explícita.
+Vídeos legados sem origem/licença permanecem armazenados para auditoria, sem
+prévia pública ou reprodução na execução. As respostas operacionais individuais
+e agregadas de progresso também ocultam esses links de mídia sem alterar os
+registros persistidos; o progresso retornado permanece vinculado a aluno e
+exercício do mesmo contrato. Um exercício já vinculado a treino
+não é editado: o professor cria versão separada para novas aplicações.
+A busca inclui nomes, aliases e grupos musculares primários e secundários,
+sem distinção de caixa no texto digitado, e mantém o `contractId` do usuário.
+
+A importação considera variantes já existentes no contrato e duplicatas no
+mesmo arquivo, inclusive na simulação (`--dry-run`), como itens ignorados.

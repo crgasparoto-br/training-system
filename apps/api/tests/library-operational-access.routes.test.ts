@@ -1,0 +1,347 @@
+import express from 'express';
+import { ACCESS_BLOCK_CATALOG, ALL_ACCESS_SCREEN_KEYS } from '@corrida/types';
+
+const request = require('supertest');
+const mockProfessorFindUnique = jest.fn();
+const mockProfessorFindFirst = jest.fn();
+const mockAlunoFindFirst = jest.fn();
+const mockAccessPermissionFindMany = jest.fn();
+const mockAccessPermissionCreateMany = jest.fn();
+const mockListExercises = jest.fn();
+const mockGetExerciseById = jest.fn();
+const mockGetAlunoProgress = jest.fn();
+const mockListAlunoProgress = jest.fn();
+const mockUpdateAlunoProgress = jest.fn();
+const mockCreateExercise = jest.fn();
+const mockReviewExercise = jest.fn();
+const mockListExerciseRevisions = jest.fn();
+const mockUpdateExercise = jest.fn();
+const mockDeleteExercise = jest.fn();
+const mockExerciseFindFirst = jest.fn();
+
+// Preserve the real middleware and access-control service: only the DB and
+// endpoint domain service are mocked. The HTTP tests exercise the real grant
+// evaluation and its ordering relative to the route handlers.
+jest.mock('@prisma/client', () => ({
+  ...jest.requireActual('@prisma/client'),
+  PrismaClient: jest.fn(() => ({
+    professor: { findUnique: mockProfessorFindUnique, findFirst: mockProfessorFindFirst },
+    aluno: { findFirst: mockAlunoFindFirst },
+    exerciseLibrary: { findFirst: mockExerciseFindFirst },
+    accessPermission: {
+      findMany: mockAccessPermissionFindMany,
+      createMany: mockAccessPermissionCreateMany,
+    },
+  })),
+}));
+
+jest.mock('../src/modules/auth/auth.middleware', () => ({
+  authMiddleware: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+    req.user = {
+      userId: 'professor-user-394', email: 'professor@example.com', type: 'professor',
+    };
+    next();
+  },
+  professorMiddleware: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
+}));
+
+jest.mock('../src/modules/library/library.service', () => ({
+  libraryService: {
+    listExercises: mockListExercises,
+    getExerciseById: mockGetExerciseById,
+    getAlunoProgress: mockGetAlunoProgress,
+    listAlunoProgress: mockListAlunoProgress,
+    updateAlunoProgress: mockUpdateAlunoProgress,
+    createExercise: mockCreateExercise,
+    reviewExercise: mockReviewExercise,
+    listExerciseRevisions: mockListExerciseRevisions,
+    updateExercise: mockUpdateExercise,
+    deleteExercise: mockDeleteExercise,
+  },
+}));
+
+const libraryRouter = require('../src/routes/library.routes').default;
+const app = express();
+app.use(express.json());
+app.use('/library', libraryRouter);
+
+const actor = {
+  id: 'professor-394', userId: 'professor-user-394', contractId: 'contract-394',
+  role: 'professor', collaboratorFunctionId: 'function-394', currentStatus: 'active',
+  dismissalDate: null, user: { isActive: true },
+  collaboratorFunction: { id: 'function-394', code: 'professor' },
+  contract: { id: 'contract-394', type: 'academy', name: 'Teste', document: '394' },
+};
+
+let plansDataScope: 'self' | 'managed' | 'contract' = 'self';
+
+function accessRows(grantedScreens: readonly string[]) {
+  const granted = new Set(grantedScreens);
+  return [
+    ...ALL_ACCESS_SCREEN_KEYS.map((screenKey) => ({
+      collaboratorFunctionId: 'function-394', screenKey, blockKey: '',
+      canView: granted.has(screenKey), dataScope: screenKey === 'plans' ? plansDataScope : null,
+    })),
+    ...ACCESS_BLOCK_CATALOG.map((block) => ({
+      collaboratorFunctionId: 'function-394', screenKey: block.screenKey,
+      blockKey: block.key, canView: false, dataScope: null,
+    })),
+  ];
+}
+
+function grantScreens(...screens: string[]) {
+  mockAccessPermissionFindMany.mockResolvedValue(accessRows(screens));
+}
+
+describe('#394 A-394-012: operational exercise access preserves plans-only roles', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    plansDataScope = 'self';
+    mockProfessorFindUnique.mockResolvedValue({ ...actor });
+    mockProfessorFindFirst.mockResolvedValue({ ...actor });
+    mockAlunoFindFirst.mockImplementation(async ({ where }: { where: {
+      id: string; contractId: string; professor: { id?: string };
+    } }) => (where.id === 'aluno-1' && where.contractId === 'contract-394'
+      && where.professor.id === 'professor-394' ? { id: 'aluno-1' } : null));
+    mockAccessPermissionCreateMany.mockResolvedValue({ count: 0 });
+    mockListExercises.mockResolvedValue([{ id: 'approved-1', curationStatus: 'approved' }]);
+    mockGetExerciseById.mockResolvedValue({ id: 'approved-1', curationStatus: 'approved' });
+    mockGetAlunoProgress.mockResolvedValue({ alunoId: 'aluno-1', exerciseId: 'approved-1', lastLoad: 25 });
+    mockListAlunoProgress.mockResolvedValue([]);
+    mockUpdateAlunoProgress.mockResolvedValue({ alunoId: 'aluno-1', exerciseId: 'approved-1', lastLoad: 26 });
+    mockListExerciseRevisions.mockResolvedValue([]);
+    mockExerciseFindFirst.mockResolvedValue(null);
+    grantScreens('plans');
+  });
+
+  it('allows the official picker and scoped historical load for a plans-only professor', async () => {
+    const list = await request(app).get('/library/exercises?search=agachamento');
+    expect(list.status).toBe(200);
+    expect(list.body).toEqual([{ id: 'approved-1', curationStatus: 'approved' }]);
+    expect(mockListExercises).toHaveBeenCalledWith(
+      'contract-394', expect.objectContaining({ search: 'agachamento', scope: undefined }),
+    );
+
+    const progress = await request(app).get('/library/progress/aluno-1/approved-1');
+    expect(progress.status).toBe(200);
+    expect(progress.body.lastLoad).toBe(25);
+    expect(mockGetAlunoProgress).toHaveBeenCalledWith('contract-394', 'aluno-1', 'approved-1');
+    expect((await request(app).get('/library/progress/aluno-1')).status).toBe(200);
+    expect(mockListAlunoProgress).toHaveBeenCalledWith('contract-394', 'aluno-1');
+    expect(mockAccessPermissionCreateMany).not.toHaveBeenCalled();
+  });
+
+  it('does not grant progress mutations or unscoped exercise details to a plans-only professor', async () => {
+    const updated = await request(app).put('/library/progress/aluno-1/approved-1')
+      .send({ lastLoad: 26 });
+    expect(updated.status).toBe(403);
+    expect((await request(app).get('/library/exercises/approved-1')).status).toBe(403);
+    expect(mockUpdateAlunoProgress).not.toHaveBeenCalled();
+    expect(mockGetExerciseById).not.toHaveBeenCalled();
+  });
+
+  it('hides other students progress when Plans is limited to the professor himself', async () => {
+    const denied = await request(app).get('/library/progress/aluno-2/approved-1');
+    expect(denied.status).toBe(404);
+    expect(mockGetAlunoProgress).not.toHaveBeenCalled();
+    expect((await request(app).get('/library/progress/aluno-2')).status).toBe(404);
+    expect(mockListAlunoProgress).not.toHaveBeenCalled();
+  });
+
+  it('denies drafts, revisions and catalog mutations without Library permission', async () => {
+    const requests = [
+      request(app).get('/library/exercises?scope=all'),
+      request(app).get('/library/exercises?curationStatus=draft'),
+      request(app).get('/library/exercises/approved-1/revisions'),
+      request(app).post('/library/exercises').send({ name: 'Rascunho' }),
+      request(app).put('/library/exercises/approved-1').send({ name: 'Editar', expectedVersion: 1 }),
+      request(app).delete('/library/exercises/approved-1?expectedVersion=1'),
+      request(app).post('/library/exercises/approved-1/curation').send({ action: 'approve', expectedVersion: 1 }),
+    ];
+    for (const response of await Promise.all(requests)) {
+      expect(response.status).toBe(403);
+      expect(response.body.error).toBe('Perfil sem permissão para acessar este recurso');
+    }
+    expect(mockListExercises).not.toHaveBeenCalled();
+    expect(mockCreateExercise).not.toHaveBeenCalled();
+    expect(mockUpdateExercise).not.toHaveBeenCalled();
+    expect(mockDeleteExercise).not.toHaveBeenCalled();
+    expect(mockReviewExercise).not.toHaveBeenCalled();
+    expect(mockListExerciseRevisions).not.toHaveBeenCalled();
+  });
+
+  it('allows a library-only role to browse official exercises without granting curation', async () => {
+    grantScreens('library');
+    expect((await request(app).get('/library/exercises')).status).toBe(200);
+    expect((await request(app).get('/library/progress/aluno-1/approved-1')).status).toBe(200);
+    const denied = await request(app).get('/library/exercises?scope=all');
+    expect(denied.status).toBe(403);
+    expect(denied.body.message).toContain('administradores');
+  });
+
+  it('#394 A-394-022: Library plus Plans never bypasses a self-scoped student, including PUT', async () => {
+    grantScreens('library', 'plans');
+    const get = await request(app).get('/library/progress/aluno-2/approved-1');
+    const list = await request(app).get('/library/progress/aluno-2');
+    const put = await request(app).put('/library/progress/aluno-2/approved-1')
+      .send({ lastLoad: 90 });
+    expect([get.status, list.status, put.status]).toEqual([404, 404, 404]);
+    expect(mockGetAlunoProgress).not.toHaveBeenCalled();
+    expect(mockListAlunoProgress).not.toHaveBeenCalled();
+    expect(mockUpdateAlunoProgress).not.toHaveBeenCalled();
+
+    expect((await request(app).get('/library/progress/aluno-1/approved-1')).status).toBe(200);
+    expect((await request(app).put('/library/progress/aluno-1/approved-1')
+      .send({ lastLoad: 26 })).status).toBe(200);
+    expect(mockUpdateAlunoProgress).toHaveBeenCalledWith(
+      'contract-394', 'aluno-1', 'approved-1', { lastLoad: 26 },
+    );
+  });
+
+  it('#394 A-394-022: Library-only retains self progress, never unrestricted contract progress', async () => {
+    grantScreens('library');
+    expect((await request(app).get('/library/progress/aluno-1/approved-1')).status).toBe(200);
+    expect((await request(app).put('/library/progress/aluno-1/approved-1')
+      .send({ maxLoad: 45 })).status).toBe(200);
+    expect((await request(app).get('/library/progress/aluno-2')).status).toBe(404);
+    expect((await request(app).put('/library/progress/aluno-2/approved-1')
+      .send({ maxLoad: 999 })).status).toBe(404);
+    expect(mockUpdateAlunoProgress).toHaveBeenCalledTimes(1);
+    expect(mockUpdateAlunoProgress).toHaveBeenCalledWith(
+      'contract-394', 'aluno-1', 'approved-1', { maxLoad: 45 },
+    );
+  });
+
+  it('#394 A-394-022: managed Plans scope permits managed students but not unrelated students', async () => {
+    plansDataScope = 'managed';
+    grantScreens('library', 'plans');
+    mockAlunoFindFirst.mockImplementation(async ({ where }: {
+      where: { id: string; contractId: string; professor: {
+        OR?: Array<{ id?: string; responsibleManagerId?: string }>;
+      } };
+    }) => (where.contractId === 'contract-394' && where.id === 'aluno-managed'
+      && where.professor.OR?.some((entry) => entry.responsibleManagerId === 'professor-394')
+      ? { id: where.id } : null));
+
+    expect((await request(app).get('/library/progress/aluno-managed/approved-1')).status).toBe(200);
+    expect((await request(app).put('/library/progress/aluno-managed/approved-1')
+      .send({ lastLoad: 30 })).status).toBe(200);
+    expect((await request(app).get('/library/progress/aluno-other')).status).toBe(404);
+    expect((await request(app).put('/library/progress/aluno-other/approved-1')
+      .send({ lastLoad: 100 })).status).toBe(404);
+    expect(mockUpdateAlunoProgress).toHaveBeenCalledTimes(1);
+  });
+
+  it('#394 A-394-022: a master retains contract-scoped progress after enforcing student lookup', async () => {
+    mockProfessorFindUnique.mockResolvedValue({ ...actor, role: 'master' });
+    mockProfessorFindFirst.mockResolvedValue({ ...actor, role: 'master' });
+    grantScreens('library');
+    mockAlunoFindFirst.mockImplementation(async ({ where }: {
+      where: { id: string; contractId: string; professor: { contractId: string } };
+    }) => (where.contractId === 'contract-394'
+      && where.professor.contractId === 'contract-394' && where.id === 'aluno-2'
+      ? { id: where.id } : null));
+    expect((await request(app).get('/library/progress/aluno-2/approved-1')).status).toBe(200);
+    expect((await request(app).put('/library/progress/aluno-2/approved-1')
+      .send({ lastLoad: 30 })).status).toBe(200);
+    expect(mockUpdateAlunoProgress).toHaveBeenCalledTimes(1);
+  });
+
+  it('#394 A-394-020: library-only GET details cannot serialize student progress or workout templates', async () => {
+    grantScreens('library');
+    const rawExercise = {
+      id: 'approved-1', contractId: 'contract-394', name: 'Agachamento',
+      curationStatus: 'approved', legacyGrandfathered: false,
+      workoutExercises: [{ workoutDay: { template: {
+        planId: 'private-plan', studentGoal: 'Objetivo confidencial', coachGoal: 'Nota de acompanhamento',
+      } } }],
+      alunoProgress: [{ alunoId: 'private-student', lastLoad: 75, maxLoad: 95 }],
+    };
+    mockExerciseFindFirst.mockImplementation(async ({ where, select, include }: {
+      where: { id: string; contractId: string }; select?: Record<string, boolean>;
+      include?: unknown;
+    }) => {
+      if (where.contractId !== 'contract-394' || where.id !== 'approved-1') return null;
+      if (select) return Object.fromEntries(Object.entries(rawExercise)
+        .filter(([key]) => select[key] === true));
+      if (include || !select) return rawExercise;
+      return null;
+    });
+    const realService = jest.requireActual('../src/modules/library/library.service').libraryService;
+    mockGetExerciseById.mockImplementation((contractId: string, id: string, officialOnly: boolean) =>
+      realService.getExerciseById(contractId, id, officialOnly));
+
+    const result = await request(app).get('/library/exercises/approved-1');
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({ id: 'approved-1', name: 'Agachamento' });
+    expect(result.body).not.toHaveProperty('workoutExercises');
+    expect(result.body).not.toHaveProperty('alunoProgress');
+    expect(JSON.stringify(result.body)).not.toMatch(/private-student|private-plan|Objetivo confidencial|75|95/);
+    const query = mockExerciseFindFirst.mock.calls[0][0];
+    expect(query).toMatchObject({ where: {
+      id: 'approved-1', contractId: 'contract-394',
+      curationStatus: 'approved', legacyGrandfathered: false,
+    } });
+    expect(query.include).toBeUndefined();
+    expect(query.select).toHaveProperty('name', true);
+    expect(query.select).not.toHaveProperty('alunoProgress');
+    expect(query.select).not.toHaveProperty('workoutExercises');
+    expect(mockGetExerciseById).toHaveBeenCalledWith('contract-394', 'approved-1', true);
+
+    const forbidden = await request(app).get('/library/exercises/approved-1?contractId=other-contract');
+    expect(forbidden.status).toBe(200);
+    expect(mockExerciseFindFirst).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ contractId: 'contract-394' }),
+    }));
+    grantScreens('plans');
+    expect((await request(app).get('/library/exercises/approved-1')).status).toBe(403);
+    mockProfessorFindUnique.mockResolvedValue({ ...actor, role: 'master' });
+    grantScreens('library');
+    expect((await request(app).get('/library/exercises/approved-1')).status).toBe(200);
+    expect(mockExerciseFindFirst).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: { id: 'approved-1', contractId: 'contract-394' },
+    }));
+  });
+
+  it('denies the operational routes when both Plans and Library are revoked', async () => {
+    grantScreens();
+    for (const path of ['/library/exercises', '/library/exercises/approved-1', '/library/progress/aluno-1/approved-1']) {
+      const response = await request(app).get(path);
+      expect(response.status).toBe(403);
+    }
+    expect(mockListExercises).not.toHaveBeenCalled();
+    expect(mockGetAlunoProgress).not.toHaveBeenCalled();
+  });
+
+  it('rechecks the active professor and tenant, ignoring a forged client contract', async () => {
+    mockProfessorFindUnique.mockResolvedValueOnce({ ...actor, user: { isActive: false } });
+    const revoked = await request(app).get('/library/exercises');
+    expect(revoked.status).toBe(404);
+    expect(mockListExercises).not.toHaveBeenCalled();
+
+    mockProfessorFindUnique.mockResolvedValue({ ...actor, contractId: 'other-contract' });
+    const tenant = await request(app).get('/library/exercises?contractId=contract-394');
+    expect(tenant.status).toBe(200);
+    expect(mockListExercises).toHaveBeenCalledWith(
+      'other-contract', expect.objectContaining({ scope: undefined }),
+    );
+  });
+
+  it('preserves administrative reads and curation for an active master', async () => {
+    mockProfessorFindUnique.mockResolvedValue({ ...actor, role: 'master' });
+    const all = await request(app).get('/library/exercises?scope=all');
+    expect(all.status).toBe(200);
+    expect(mockListExercises).toHaveBeenCalledWith(
+      'contract-394', expect.objectContaining({ scope: 'all' }),
+    );
+    mockReviewExercise.mockResolvedValue({ id: 'approved-1', curationStatus: 'approved' });
+    const approval = await request(app).post('/library/exercises/approved-1/curation')
+      .send({ action: 'approve', expectedVersion: 1 });
+    expect(approval.status).toBe(200);
+    expect(mockReviewExercise).toHaveBeenCalledWith(
+      'contract-394', 'approved-1', 1, 'approve', 'professor-user-394',
+    );
+    expect((await request(app).get('/library/exercises/approved-1')).status).toBe(200);
+    expect(mockGetExerciseById).toHaveBeenCalledWith('contract-394', 'approved-1', false);
+  });
+});

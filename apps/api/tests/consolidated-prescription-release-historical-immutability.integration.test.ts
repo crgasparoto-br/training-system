@@ -152,6 +152,7 @@ async function seedReleasedWorkout(label: string): Promise<ReleasedWorkoutFixtur
     data: {
       contractId,
       name: `Agachamento ${label}`,
+      curationStatus: 'approved', legacyGrandfathered: true,
     },
   });
   const exercise = await prisma.workoutExercise.create({
@@ -280,6 +281,7 @@ describeDatabase('consolidated released workout historical immutability - issue 
           })
         ).contractId,
         name: `Novo exercício bloqueado ${randomUUID()}`,
+        curationStatus: 'approved', legacyGrandfathered: true,
       },
     });
     await expect(

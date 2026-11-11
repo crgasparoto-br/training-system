@@ -253,3 +253,69 @@ persistido como PostgreSQL `DATE`; a API de seleção retorna `bookingDate=null`
 quando a origem canônica é ausente, sem expor um dia possivelmente errado em
 servidores UTC positivos. A prévia permanece read-only, não grava associação,
 não altera liberação e não ativa regra clínica antes de #534.
+
+## Curadoria e histórico do catálogo (#394)
+
+O schema `apps/api/prisma/schema.prisma` define `ExerciseLibrary.curationStatus`,
+versão e metadados estruturados. `ExerciseLibraryRevision` registra snapshots
+por `(exerciseId,version)`; triggers transacionais PostgreSQL de INSERT/UPDATE
+gravam revisões inclusive para importadores e rotinas legadas via Prisma.
+A migração preserva IDs e realiza backfill sem desvincular progresso ou treinos.
+A migração inicial #394 identifica somente o catálogo já existente como
+`approved`/`legacyGrandfathered=true`, sem inventar revisor. A migração
+`20261109205000_issue_394_curated_catalog_guards` altera o default do banco
+para `draft`/`legacyGrandfathered=false`; isso vale inclusive para `INSERT`
+SQL direto e para `Prisma.create` que omita o status, sem reclassificar os
+registros históricos. Registros antigos com nome repetido permanecem intactos.
+A migração `20261110025500_issue_394_operational_eligibility` não altera nenhuma
+linha legada: `approved/legacyGrandfathered=true` conserva status, vídeo e
+referências para leitura histórica, mas não é selecionável para novas aplicações.
+A transição de volta ao catálogo exige curadoria profissional explícita, que
+valida capacidade da taxonomia `PHYSICAL_CAPACITY_TYPES`, categoria, instruções,
+e origem/licença da mídia e marca `legacyGrandfathered=false`. A constraint
+`ExerciseLibrary_approved_curated_guard` é `NOT VALID` para não reprovar dados
+existentes; protege inserções/atualizações futuras de registros `approved`
+não legados, inclusive caminhos SQL, sem backfill fabricado de licença ou revisor.
+A migração posterior `20261110124500_issue_394_guard_null_safe` substitui o
+`CHECK` sem reescrever uma migração aplicada. Como PostgreSQL aceita `UNKNOWN`
+em `CHECK`, capacidade nula é explicitamente convertida para `false` e a ação
+de revisão usa comparação nula-segura. Dados legados permanecem intocados e
+novas aprovações por Prisma/SQL não contornam os requisitos obrigatórios com
+`NULL`. A constraint permanece `NOT VALID` para preservar dados históricos.
+
+
+A migration `20261110215000_issue_394_release_media_provenance` substitui
+apenas a função SQL `issue400_capture_released_exercise_catalog`, usada pelo
+trigger de liberação de treinos. Novos `WorkoutReleasedExerciseSnapshot.catalog`
+congelam, além da URL, os campos `mediaOrigin`, `mediaLicense` e
+`legacyGrandfathered` da liberação. O projetor da API usa a procedência e o
+estado legado registrados no snapshot, não os valores mutáveis do catálogo.
+Não há backfill dos snapshots históricos: vídeos sem prova própria de origem e
+licença ficam ocultos nas respostas, mas a linha histórica permanece íntegra.
+A migração #400 já aplicada e seus checksums não são alterados.
+
+O trigger `issue394_exercise_canonical_name_guard` protege novos nomes e
+renomeações por `contractId` e chave canônica (caixa e espaços normalizados).
+Um advisory lock transacional pelo par contrato/nome serializa cadastros
+concorrentes; colisões retornam SQLSTATE `23505`, traduzido para HTTP 409
+nos serviços da biblioteca. O índice funcional acelera a verificação,
+sem impor uma constraint retroativa sobre duplicidades históricas. A cópia entre
+contratos também compara a chave normalizada antes de criar, contabilizando
+identidades já presentes como ignoradas em vez de falhar a clonagem.
+
+Uma comparação de `version` dentro da transação evita concorrência silenciosa.
+Legado recebe `legacy_baseline`, sem presumir homologação profissional.
+Importações, novas instalações de padrões e cópias entram como rascunho.
+O saneamento automático ignora exercícios relacionados a `WorkoutExercise`
+e também exercícios já aprovados por curadoria profissional
+(`approved` com `legacyGrandfathered=false`), mesmo que ainda não tenham
+vínculo a treinos. As rotinas de reparo de nomes e preenchimento de metadados
+verificam essa elegibilidade tanto na seleção quanto no UPDATE definitivo (SQL
+ou Prisma), preservando `lastCurationAction='approve'`, revisor e versão.
+Rascunhos e registros legados continuam elegíveis ao saneamento seguro, que
+marca revisões com `system_defaults_repair` e ator nulo. Repares set-based ou Prisma não
+preenchem `videoUrl` em registros já existentes: URLs do catálogo
+não atestam licença para a empresa. A inclusão de mídia requer
+curadoria com origem e autorização; links legados permanecem intactos. UPDATE/DELETE
+explícitos de `ExerciseLibraryRevision` são bloqueados enquanto o exercício
+existir; exclusões em cascata de todo o contrato permanecem permitidas.

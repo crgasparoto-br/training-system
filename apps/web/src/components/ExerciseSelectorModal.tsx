@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Search, Play } from 'lucide-react';
 import { Button } from './ui/Button';
-import { libraryService, type Exercise } from '../services/library.service';
+import { libraryService, type Exercise, type ExerciseFilters } from '../services/library.service';
 
 interface ExerciseSelectorModalProps {
   isOpen: boolean;
@@ -36,6 +36,8 @@ const CATEGORIES = [
   { value: 'MOBILIDADE', label: 'Mobilidade' },
   { value: 'RESISTIDO', label: 'Resistido' },
   { value: 'CICLICO', label: 'Cíclico' },
+  { value: 'FLEXIBILIDADE', label: 'Flexibilidade' },
+  { value: 'EQUILIBRIO', label: 'Equilíbrio' },
 ];
 
 export function ExerciseSelectorModal({
@@ -73,7 +75,7 @@ export function ExerciseSelectorModal({
   const loadExercises = async () => {
     setLoading(true);
     try {
-      const filters: any = {};
+      const filters: ExerciseFilters = { scope: 'official' };
       
       if (search) {
         filters.search = search;

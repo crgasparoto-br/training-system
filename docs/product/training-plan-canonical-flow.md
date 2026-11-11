@@ -145,7 +145,17 @@ A elegibilidade de exercícios cíclicos na API e nos gatilhos PostgreSQL usa o 
 
 Ao liberar um `WorkoutTemplate` (`released: false → true`), seja pelo fluxo legado, pelo consolidado com ledger ou por atualização SQL direta, o PostgreSQL captura um `WorkoutReleasedExerciseSnapshot` para cada `WorkoutExercise` real. A entidade contém os metadados de apresentação do catálogo em JSONB (nome, categoria, grupo muscular, vídeo, tipos de carga, contagem, movimento e observações); não duplica exercícios nem séries. As leituras do aluno, da rotina e dos detalhes do professor usam esse snapshot para treinos liberados, de modo que renomear o catálogo posteriormente não altera a prescrição histórica. Os triggers impedem alteração, exclusão ou inserção tardia de snapshots de um treino já liberado.
 
-A migração preenche snapshots de treinos **já liberados** somente com o catálogo disponível na data da migração. Nomes anteriores não podem ser reconstruídos e não são inventados; registros historicamente sem snapshot têm fallback explícito para o catálogo atual. Novas liberações capturam o valor real da liberação e não dependem desse fallback.
+Desde a migração incremental da #394, **novas liberações** congelam no mesmo
+snapshot `mediaOrigin`, `mediaLicense` e `legacyGrandfathered` junto à URL,
+para que uma mídia licenciada continue acessível na execução e no histórico
+sem herdar direitos de uma revisão posterior. Um snapshot anterior sem origem
+ou licença própria mantém o nome e os demais dados históricos, mas sua URL
+é omitida nas respostas. Não se reescrevem snapshots já publicados nem se
+inferem direitos a partir do catálogo mutável.
+
+A migração preenche snapshots de treinos **já liberados** somente com o catálogo disponível na data da migração. Nomes anteriores não podem ser reconstruídos e não são inventados; registros historicamente sem snapshot têm fallback explícito para nome e metadados não sensíveis do catálogo atual; nenhuma URL de vídeo é autorizada sem prova capturada na liberação. Novas liberações capturam o valor real da liberação e não dependem desse fallback.
+
+A-021: GET /api/v1/executions/aluno usa os metadados e direitos capturados em WorkoutReleasedExerciseSnapshot. PUT /api/v1/workout/days/:id/resistance-exercises e PUT /api/v1/workout/exercises/:id aplicam sanitização de mídia à resposta HTTP. Nenhuma projeção altera os exercícios aplicados, execuções ou snapshots armazenados.
 
 ### Leitura histórica por período — AUD-400-05
 

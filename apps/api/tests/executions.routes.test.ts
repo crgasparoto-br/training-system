@@ -92,3 +92,27 @@ describe('legacy execution route error boundary', () => {
     expect(JSON.stringify(response.body)).not.toContain(secret);
   });
 });
+
+describe('#394 A-021: student execution HTTP response media redaction', () => {
+  const app = express();
+  app.use(express.json());
+  app.use('/executions', router);
+  beforeEach(() => jest.clearAllMocks());
+
+  it.each([
+    { label: 'legacy reference', legacyGrandfathered: true, mediaOrigin: null, mediaLicense: null, result: null },
+    { label: 'missing rights', legacyGrandfathered: false, mediaOrigin: 'Third party', mediaLicense: null, result: null },
+    { label: 'licensed author', legacyGrandfathered: false, mediaOrigin: 'Original', mediaLicense: 'License', result: 'https://example.org/live' },
+  ])('protects $label without changing the service record', async ({ legacyGrandfathered, mediaOrigin, mediaLicense, result }) => {
+    const originals = [{ id: 'execution-1', setsCompleted: 4, workoutExercise: {
+      id: 'row-1', exercise: { name: 'Exercise', videoUrl: 'https://example.org/live',
+        legacyGrandfathered, mediaOrigin, mediaLicense },
+    } }];
+    workoutService.getExecutionsByAluno.mockResolvedValueOnce(originals);
+    const response = await request(app).get('/executions/aluno?startDate=2026-10-06&endDate=2026-10-07');
+    expect(response.status).toBe(200);
+    expect(response.body[0].workoutExercise.exercise.videoUrl).toBe(result);
+    expect(response.body[0].setsCompleted).toBe(4);
+    expect(originals[0].workoutExercise.exercise.videoUrl).toBe('https://example.org/live');
+  });
+});

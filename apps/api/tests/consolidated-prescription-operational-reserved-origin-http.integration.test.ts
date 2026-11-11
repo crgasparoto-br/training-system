@@ -35,6 +35,7 @@ function tokenFor(user: { id: string; email: string; type: UserType }) {
 async function cleanupFixtures() {
   await prisma.consolidatedPrescription.deleteMany({ where: { contractId } });
   await prisma.capacityPrescription.deleteMany({ where: { contractId } });
+  await prisma.capacityTechnicalCatalogItem.deleteMany({ where: { contractId } });
   await prisma.aluno.deleteMany({ where: { contractId } });
   await prisma.professor.deleteMany({ where: { contractId } });
   await prisma.collaboratorFunctionOption.deleteMany({ where: { contractId } });
@@ -257,4 +258,106 @@ describeDatabase('consolidated operational reserved-origin normalization HTTP co
       );
     }
   );
+  it('#394 A-394-018: GET current, list and history redact old substitution media but keep persisted refs unchanged', async () => {
+    const fixture = await createContext();
+    await request(app)
+      .post('/consolidated-prescriptions/alunos/' + alunoId)
+      .set('Authorization', 'Bearer ' + fixture.token)
+      .send({
+        capacityBlocks: fixture.capacityBlocks,
+        professorJustification: 'Histórico com substituição de vídeo não licenciado.',
+      }).expect(201);
+    const version = await prisma.consolidatedPrescriptionVersion.findFirstOrThrow({
+      where: { contractId, alunoId }, select: { id: true },
+    });
+    const legacyUrl = 'https://example.org/unlicensed-original-historical-video';
+    const licensedUrl = 'https://example.org/licensed-substitute-video';
+    const ref = await prisma.consolidatedPrescriptionDataRef.create({
+      data: {
+        assemblyVersionId: version.id,
+        role: 'manual_observation', sourceType: 'manual_observation',
+        sourceId: 'technical-legacy:substitute-approved',
+        origin: 'consolidated_exercise_substitution_v1',
+        context: {
+          kind: 'exercise_substitution_v1',
+          originalExerciseSnapshot: {
+            id: 'library-legacy', name: 'Original histórico', videoUrl: legacyUrl,
+          },
+          substituteExerciseSnapshot: {
+            id: 'library-reviewed', name: 'Substituto revisado',
+            videoUrl: licensedUrl, mediaOrigin: 'company_production', mediaLicense: 'owned',
+            legacyGrandfathered: false,
+          },
+        },
+      },
+    });
+
+    for (const path of [
+      '/consolidated-prescriptions/alunos/' + alunoId,
+      '/consolidated-prescriptions/alunos/' + alunoId + '/assemblies',
+      '/consolidated-prescriptions/alunos/' + alunoId + '/history',
+    ]) {
+      const result = await request(app).get(path)
+        .set('Authorization', 'Bearer ' + fixture.token).expect(200);
+      expect(JSON.stringify(result.body)).not.toContain(legacyUrl);
+      expect(JSON.stringify(result.body)).toContain(licensedUrl);
+      expect(JSON.stringify(result.body)).toContain('Original histórico');
+    }
+    const stored = await prisma.consolidatedPrescriptionDataRef.findUniqueOrThrow({ where: { id: ref.id } });
+    expect((stored.context as Record<string, any>).originalExerciseSnapshot.videoUrl).toBe(legacyUrl);
+  });
+
+  it('#394 A-394-018: GET operational-preview keeps historic identity without exposing an unlicensed mapping URL', async () => {
+    const fixture = await createContext();
+    const technicalId = 'technical-legacy-preview-394';
+    const legacyUrl = 'https://example.org/unlicensed-preview-video';
+    const professor = await prisma.professor.findFirstOrThrow({ where: { contractId } });
+    await prisma.capacityTechnicalCatalogItem.create({
+      data: {
+        id: technicalId, contractId, category: 'exercise', code: 'LEGACY394',
+        name: 'Exercício técnico histórico', createdByProfessorId: professor.id,
+        metadata: { operationalExerciseMapping: {
+          exerciseLibraryId: 'library-legacy-removed',
+          exerciseSnapshot: {
+            id: 'library-legacy-removed', name: 'Exercício histórico',
+            videoUrl: legacyUrl, loadType: null, movementType: null, countingType: null,
+            category: 'resisted', muscleGroup: null, notes: null,
+            updatedAt: '2026-08-01T10:00:00.000Z',
+          },
+          mappingRevision: 1, mappedAt: '2026-08-01T10:00:00.000Z',
+          mappedByProfessorId: professor.id, origin: 'capacity_technical_catalog',
+        } },
+      },
+    });
+    await prisma.capacityPrescriptionVersion.update({
+      where: { id: fixture.capacityBlocks[0].capacityPrescriptionVersionId },
+      data: { parameters: {
+        type: 'resisted', resisted: { exerciseTechnicalCatalogItemIds: [technicalId] },
+      } },
+    });
+    await request(app)
+      .post('/consolidated-prescriptions/alunos/' + alunoId)
+      .set('Authorization', 'Bearer ' + fixture.token)
+      .send({
+        capacityBlocks: fixture.capacityBlocks,
+        professorJustification: 'Prévia operacional histórica.',
+      }).expect(201);
+    const preview = await request(app)
+      .get('/consolidated-prescriptions/alunos/' + alunoId + '/operational-preview')
+      .set('Authorization', 'Bearer ' + fixture.token).expect(200);
+    const entry = preview.body.data.items.find((item: { technicalCatalogItemId?: string }) =>
+      item.technicalCatalogItemId === technicalId
+    );
+    expect(entry).toMatchObject({
+      compatibility: 'incompatible',
+      incompatibilityCode: 'operational_exercise_unavailable',
+      mappedExerciseLibraryId: 'library-legacy-removed',
+      operationalExerciseSnapshot: { name: 'Exercício histórico', videoUrl: null },
+    });
+    expect(JSON.stringify(preview.body)).not.toContain(legacyUrl);
+    const stored = await prisma.capacityTechnicalCatalogItem.findUniqueOrThrow({ where: { id: technicalId } });
+    expect((stored.metadata as Record<string, any>).operationalExerciseMapping.exerciseSnapshot.videoUrl)
+      .toBe(legacyUrl);
+  });
+
 });

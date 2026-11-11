@@ -1,7 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { sendError, sendSuccess } from '@corrida/utils';
+import { sendError, sendSuccess as sendSuccessUnsafe } from '@corrida/utils';
+import { sanitizeConsolidatedOperationalMedia } from './consolidated-prescription-operational-media.js';
 import type { AccessDataScope, ConsolidatedPrescriptionDataRefInput } from '@corrida/types';
 import {
   canProfessorAccessBlock,
@@ -17,6 +18,11 @@ import {
   hasReservedOperationalOrigin,
   OPERATIONAL_MAPPING_REQUIRED_BLOCKS,
 } from './consolidated-prescription-operational-integrity.js';
+
+// Output-only sanitization: do not rewrite reserved, append-only version snapshots.
+function sendSuccess<T>(res: Response, data: T, message: string, statusCode = 200): Response {
+  return sendSuccessUnsafe(res, sanitizeConsolidatedOperationalMedia(data), message, statusCode);
+}
 
 const router: Router = Router();
 const prisma = new PrismaClient();

@@ -221,3 +221,78 @@ A diferença entre o fim de uma sessão e o início da seguinte é apenas
 informação cronológica — sem decisão clínica, alteração de estado, escrita
 ou efeito sobre a liberação operacional. `coverage=partial`
 e `mayConcludeNoConflict=false` são invariantes.
+
+## Biblioteca oficial de exercícios (#394)
+
+A seleção de um exercício para aplicação nova usa SELECT ... FOR SHARE na
+transação que grava o treino, segurando o estado aprovado até a confirmação.
+Uma alteração de curadoria simultânea espera o lock; uma aplicação posterior
+a desativação é rejeitada. A rota legada `POST /workout/templates/:id/release`
+também revalida todas as referências existentes ao publicar um template ainda
+não liberado, dentro da transação de liberação e do contrato do professor autenticado.
+Exercícios desativados, pendentes ou legados impedem a nova liberação integral,
+sem criar snapshots parciais; templates já liberados permanecem historicamente
+consultáveis mesmo após desativação posterior do catálogo. O filtro continua exigindo contractId, approved e
+legacyGrandfathered=false. A interface preserva listas durante a digitação
+e permite criar um novo draft sem alterar o exercício histórico ou transferir
+licenças de mídia.
+
+
+`/api/v1/library/exercises` exige autenticação de professor ativo e permissão
+`screenKey=plans` **ou** `screenKey=library` para consulta operacional, e retorna somente exercícios `approved` com
+`legacyGrandfathered=false` por padrão. Aprovação histórica legada não equivale
+a permissão de nova aplicação, mesmo que o status ainda seja `approved`.
+Consultas de progresso usadas no Workout Builder aceitam `plans` ou `library`;
+com acesso apenas a `plans` também respeitam o `dataScope` da tela para o
+aluno solicitado. O detalhe do exercício e a escrita de progresso mantêm
+acesso pela tela `library`. `GET /api/library/exercises/:id` aplica projeção
+restrita aos campos do catálogo: não consulta nem serializa relações
+`workoutExercises`, `alunoProgress`, objetivos de plano ou cargas de alunos.
+Essas informações pertencem a rotas próprias com escopo de estudante.
+Todas as leituras são delimitadas pelo
+`contractId` autenticado. `scope=all`, filtros de estado, escrita administrativa,
+transições de curadoria e revisões exigem **ambos** `library` e papel `master`.
+O backend revalida identidade e contrato independentemente da interface.
+Nas mutações de curadoria, inclusive criação, edição, aprovação, reabertura e
+desativação, a transação definitiva bloqueia as linhas de `Professor` e `User`
+e revalida `master`, situação ativa, contrato e acesso `library`, antes de
+gravar; uma revogação posterior ao middleware retorna HTTP 403 sem revisão
+nova. A tentativa de criar/renomear exercício com nome canônico já presente
+no contrato retorna HTTP 409, inclusive sob concorrência.
+
+`POST /exercises` cria rascunho. `PUT /exercises/:id` exige `expectedVersion`,
+retorna a rascunho e responde 409 para concorrência ou item já usado em treino.
+`POST /exercises/:id/curation` recebe `{action,expectedVersion}` com `submit`,
+`approve`, `request_changes`, `deactivate` ou `reopen`.
+`GET /exercises/:id/revisions` devolve versões ao administrador do contrato.
+No Workout Builder, `save-week`, `PUT /days/:id/resistance-exercises` e
+`POST /exercises` verificam exercícios novos `approved` e curados (não legados) na transação, no mesmo
+contrato do aluno. Linhas já vinculadas não são removidas nem exigem nova
+aprovação em um replay de identidade estável. Cópia de dia, semana e resistência
+faz nova aplicação e rejeita atomicamente referências desativadas/em revisão;
+cópia apenas cíclica permanece independente da biblioteca resistida.
+`DELETE /exercises/:id` é compatibilidade de desativação lógica com versão,
+sem exclusão física. Seleções em Workout Builder, vinculação técnica,
+substituição e Montagem Consolidada verificam `approved` e `contractId`.
+A busca por aliases e grupos musculares primários/secundários é parcial,
+insensível à caixa e parametrizada pelo contrato; o filtro muscular também
+considera grupos secundários sem diferenças de caixa. `capacity` na criação
+e edição aceita apenas `resisted`, `flexibility`, `cyclic` ou `balance` (HTTP 400
+para valores arbitrários); a aprovação também confere o enum canônico.
+Registros legados continuam consultáveis na visão administrativa e no histórico
+dos treinos, mas são excluídos da seleção, cópia, substituição e liberação
+operacional até a aprovação profissional explícita. Vídeos sem origem/licença
+comprovadas não são reproduzidos pelas projeções históricas nem retornados nos
+campos de mídia dos endpoints de progresso do aluno. A projeção dos registros
+de progresso remove apenas o link operacional não verificado e preserva os
+valores e o catálogo originais no banco; a listagem restringe também a relação
+do exercício ao mesmo contrato. Os links originais continuam persistidos.
+Novas instalações de padrões geram rascunhos;
+ novas instalações de padrões geram rascunhos. Cópias entre
+contratos não transferem automaticamente URLs/licenças de mídia.
+
+A-021: GET /executions/aluno usa o catálogo imutável de liberação e omite
+releasedCatalog interno da resposta; URLs de mídia sem direitos documentados
+na liberação são ocultas mesmo que o catálogo seja licenciado mais tarde.
+PUT /workout/days/:id/resistance-exercises e PUT /workout/exercises/:id
+sanitizam vídeo de registros legados antes de responder, sem alterar o banco.
