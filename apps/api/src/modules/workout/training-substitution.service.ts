@@ -65,7 +65,10 @@ async function lookupRelease(tx: Db, templateId: string, alunoId: string, contra
   return releases[0] ?? null;
 }
 
-async function loadSession(tx: Db, sessionId: string, actor: SubstitutionActor) {
+async function loadSession(
+  tx: Db, sessionId: string, actor: SubstitutionActor,
+  professorPermission: 'view' | 'manage' = 'view',
+) {
   const day = await tx.workoutDay.findFirst({
     where: {
       id: sessionId,
@@ -110,6 +113,11 @@ async function loadSession(tx: Db, sessionId: string, actor: SubstitutionActor) 
         .includes(professor.currentStatus?.trim().toLowerCase() ?? '')
       || (professor.dismissalDate && professor.dismissalDate.getTime() <= Date.now())) return notFound();
     if (!await canProfessorAccessBlock(professor, 'students.details.trainingPlans', tx)) return permissionDenied();
+    // A consulta da aba nao autoriza uma decisao profissional de substituicao.
+    if (professorPermission === 'manage' &&
+      !await canProfessorAccessBlock(professor, 'students.actions.manageTrainingSubstitutions', tx)) {
+      return permissionDenied();
+    }
     if (professor.role !== 'master') {
       // Match the student-domain boundary: own students and directly managed
       // collaborators, not merely stale plan authorship.
@@ -374,7 +382,7 @@ export function createTrainingSubstitutionService(client: PrismaClient = prismaR
       reason, expectedExecutionVersion: input.expectedExecutionVersion ?? null,
     });
     return withTransaction(async tx => {
-      const session = await loadSession(tx, input.sessionId, input.actor);
+      const session = await loadSession(tx, input.sessionId, input.actor, 'manage');
       // Bloqueio do dia compartilhado pelas escritas da execucao canonica #389.
       await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "WorkoutDay" WHERE "id" = ${session.day.id} FOR UPDATE`);
       const existing = await tx.workoutSubstitution.findUnique({
@@ -497,7 +505,7 @@ export function createTrainingSubstitutionService(client: PrismaClient = prismaR
     action: 'approve' | 'reject'; expectedVersion: number; reason?: string | null;
   }): Promise<TrainingSubstitutionRecord> {
     return withTransaction(async tx => {
-      const session = await loadSession(tx, input.sessionId, input.actor);
+      const session = await loadSession(tx, input.sessionId, input.actor, 'manage');
       await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "WorkoutDay" WHERE "id" = ${session.day.id} FOR UPDATE`);
       const current = await tx.workoutSubstitution.findFirst({
         where: {
