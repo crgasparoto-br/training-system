@@ -38,6 +38,7 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
   const [alternatives, setAlternatives] = useState<TrainingSubstitutionAlternative[]>([]);
   const [replacementId, setReplacementId] = useState('');
   const [reason, setReason] = useState('');
+  const [preapprovalContext, setPreapprovalContext] = useState<'planning' | 'review'>('planning');
   const [reviewReasons, setReviewReasons] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +52,7 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
     setAlternatives([]);
     setReplacementId('');
     setReason('');
+    setPreapprovalContext('planning');
     setError(null);
     setMessage(null);
   }, [session.sessionId]);
@@ -105,7 +107,7 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
     }
     const signature = JSON.stringify([
       session.sessionId, kind, originalId, replacementId, reason.trim(),
-      audience, execution?.version ?? null,
+      audience, preapprovalContext, execution?.version ?? null,
     ]);
     if (operation.current?.signature !== signature) {
       operation.current = { signature, key: crypto.randomUUID() };
@@ -115,7 +117,7 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
     setError(null);
     try {
       await trainingRoutineService.createSubstitution(session.sessionId, {
-        kind, context: audience === 'professor' ? 'planning' : 'execution',
+        kind, context: audience === 'professor' ? preapprovalContext : 'execution',
         originalUnitId: kind === 'session' ? session.sessionId : originalId,
         replacementUnitId: replacementId, reason: reason.trim(),
         operationKey: operation.current.key,
@@ -216,6 +218,20 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
           <h5 className="text-sm font-semibold">
             {audience === 'professor' ? 'Aprovar alternativa antes do treino' : 'Registrar troca durante o treino'}
           </h5>
+          {audience === 'professor' && (
+            <label className="block space-y-1 text-xs font-medium">
+              <span>Momento da aprovação</span>
+              <select value={preapprovalContext} disabled={busy}
+                onChange={event => {
+                  setPreapprovalContext(event.target.value as 'planning' | 'review');
+                  operation.current = null;
+                }}
+                className="w-full rounded-md border border-border bg-background px-2 py-2 text-sm">
+                <option value="planning">Planejamento</option>
+                <option value="review">Revisão antes da execução</option>
+              </select>
+            </label>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-1 text-xs font-medium">
               <span>Tipo de substituição</span>
