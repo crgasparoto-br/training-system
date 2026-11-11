@@ -124,6 +124,7 @@ model CompanyContract {
   collaboratorFunctions                 CollaboratorFunctionOption[]
   cloneLogsAsSource                     ContractDataCloneLog[]                 @relation("ContractCloneSource")
   cloneLogsAsTarget                     ContractDataCloneLog[]                 @relation("ContractCloneTarget")
+  workoutSubstitutions                  WorkoutSubstitution[]
   exerciseLibrary                       ExerciseLibrary[]
   hourlyRateLevels                      HourlyRateLevel[]
   professores                           Professor[]
@@ -507,6 +508,7 @@ model Aluno {
   discardedByProfessor                  Professor?                             @relation("AlunoDiscardedByProfessor", fields: [discardedByProfessorId], references: [id], onDelete: SetNull)
   canonicalAluno                        Aluno?                                 @relation("AlunoDuplicateCanonical", fields: [canonicalAlunoId], references: [id], onDelete: SetNull)
   duplicateSources                      Aluno[]                                @relation("AlunoDuplicateCanonical")
+  workoutSubstitutions                  WorkoutSubstitution[]
   exerciseProgress                      AlunoExerciseProgress[]
   intakeForm                            AlunoIntakeForm?
   profileReviewSettings                 AlunoProfileReviewSettings?
@@ -1972,6 +1974,7 @@ model WorkoutDay {
   resistanceGroups    WorkoutResistanceGroup[]
   preWorkoutCheckIn   PreWorkoutCheckIn?
   execution           WorkoutSessionExecution?
+  substitutions       WorkoutSubstitution[]
   postWorkoutFeedbackRevisions PostWorkoutFeedbackRevision[]
 
   @@unique([templateId, dayOfWeek])
@@ -3575,4 +3578,56 @@ enum ExerciseCurationStatus {
   in_review
   approved
   inactive
+}
+
+
+// #404: historico independente do planejamento, liberacao e lifecycle #389.
+enum WorkoutSubstitutionKind {
+  exercise
+  session
+}
+
+enum WorkoutSubstitutionContext {
+  planning
+  review
+  execution
+}
+
+enum WorkoutSubstitutionStatus {
+  approved
+  pending_review
+  rejected
+}
+
+model WorkoutSubstitution {
+  id                  String                     @id @default(cuid())
+  workoutDayId        String
+  alunoId             String
+  contractId          String
+  originReleaseId     String
+  kind                WorkoutSubstitutionKind
+  context             WorkoutSubstitutionContext
+  status              WorkoutSubstitutionStatus
+  originalUnitId      String
+  replacementUnitId   String
+  originalVersion     String
+  replacementVersion  String
+  originalSnapshot    Json
+  replacementSnapshot Json
+  reason              String
+  actorUserId         String
+  operationKey        String
+  requestFingerprint  String
+  reviewedByUserId    String?
+  reviewedAt          DateTime?
+  reviewReason        String?
+  version             Int                        @default(1)
+  createdAt           DateTime                   @default(now())
+  workoutDay          WorkoutDay                 @relation(fields: [workoutDayId], references: [id], onDelete: Restrict)
+  aluno               Aluno                      @relation(fields: [alunoId], references: [id], onDelete: Restrict)
+  contract            CompanyContract           @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  @@unique([workoutDayId, operationKey])
+  @@index([contractId, alunoId, workoutDayId, createdAt])
+  @@index([workoutDayId, kind, originalUnitId, status])
 }
