@@ -849,3 +849,8 @@ Substituições não importam exercícios, não substituem planos futuros automa
 e não produzem julgamento de aptidão clínica. A aprovação de um substituto pelo
 professor não marca suas séries nem sua sessão como executadas. Resultados efetivamente
 realizados seguem exclusivamente o registro canônico da issue #389.
+
+**Versão histórica ausente:** liberações anteriores à captura versionada podem
+mostrar `historico:versao_indisponivel`. Isso informa que a revisão exata do
+catálogo não foi guardada à época; não é correto substituir a origem por uma
+revisão atual e apresentá-la como evidência histórica.

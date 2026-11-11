@@ -96,3 +96,33 @@ FOR EACH ROW EXECUTE FUNCTION guard_workout_substitution_history();
 CREATE TRIGGER workout_substitution_review_only
 BEFORE UPDATE ON "WorkoutSubstitution"
 FOR EACH ROW EXECUTE FUNCTION guard_workout_substitution_history();
+
+
+-- #404: only future release captures can prove an exact catalog revision.
+-- Never backfill legacy release JSON from today's mutable catalog.
+-- Retain all #394-019 media provenance fields and catalog snapshot rights.
+CREATE OR REPLACE FUNCTION "issue400_capture_released_exercise_catalog"() RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD."released" = FALSE AND NEW."released" = TRUE THEN
+    INSERT INTO "WorkoutReleasedExerciseSnapshot" ("workoutExerciseId", "catalog")
+    SELECT e."id", jsonb_build_object(
+        'name', library."name", 'version', library."version",
+        'videoUrl', library."videoUrl", 'category', library."category",
+        'muscleGroup', library."muscleGroup", 'loadType', library."loadType",
+        'movementType', library."movementType", 'countingType', library."countingType",
+        'notes', library."notes", 'mediaOrigin', library."mediaOrigin",
+        'mediaLicense', library."mediaLicense",
+        'legacyGrandfathered', library."legacyGrandfathered",
+        'capacity', library."capacity", 'movementPattern', library."movementPattern",
+        'equipment', library."equipment", 'difficulty', library."difficulty",
+        'restrictions', library."restrictions"
+      )
+      FROM "WorkoutExercise" e
+      JOIN "WorkoutDay" d ON d."id" = e."workoutDayId"
+      JOIN "ExerciseLibrary" library ON library."id" = e."exerciseId"
+    WHERE d."templateId" = OLD."id"
+    ON CONFLICT ("workoutExerciseId") DO NOTHING;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;

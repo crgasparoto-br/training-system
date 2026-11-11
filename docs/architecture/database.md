@@ -343,3 +343,14 @@ verifica `expectedExecutionVersion` quando a troca acontece em sessão ativa.
 Migration: `apps/api/prisma/migrations/20261111180000_issue_404_traceable_substitutions/migration.sql`.
 Dados não são propagados para prescrições futuras; o histórico permanece mesmo
 se o substituto ficar inativo. Não excluir registros para "reverter" decisões.
+
+### Versões de catálogos anteriores à #404
+
+O snapshot de catálogo capturado por `issue400_capture_released_exercise_catalog`
+passa a conter o `version` real e os atributos técnicos no instante de
+liberação; o patch preserva os campos de licenciamento e proveniência da #394.
+
+Snapshots imutáveis anteriores à migration podem não conter a versão do
+catálogo. Nestes casos a substituição registra
+`historico:versao_indisponivel` para a origem, **não** a revisão atual da
+biblioteca. Nenhum backfill ou reescrita de snapshot histórico é permitido.

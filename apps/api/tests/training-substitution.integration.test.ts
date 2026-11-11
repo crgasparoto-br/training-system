@@ -11,7 +11,7 @@ const concurrentClient = new PrismaClient();
 const svc = createTrainingSubstitutionService(client);
 const concurrentSvc = createTrainingSubstitutionService(concurrentClient);
 
-async function fixture(label: string) {
+async function fixture(label: string, options: { legacySnapshot?: boolean } = {}) {
   const contractId = 'issue404-' + randomUUID();
   await client.companyContract.create({ data: {
     id: contractId, type: ContractType.academy,
@@ -86,6 +86,14 @@ async function fixture(label: string) {
     workoutDayId: day.id, exerciseId: library[0].id, section: 'principal',
     exerciseOrder: 1, sets: 3, reps: 10,
   } });
+  if (options.legacySnapshot) {
+    await client.workoutReleasedExerciseSnapshot.create({
+      data: {
+        workoutExerciseId: original.id,
+        catalog: { name: 'Nome congelado do catálogo legado' },
+      },
+    });
+  }
   const releasedAt = new Date('2026-10-05T12:00:00.000Z');
   await client.$executeRaw`
     INSERT INTO "ConsolidatedPrescriptionOperationalRelease" (
@@ -145,6 +153,15 @@ describeDatabase('#404 substition history, eligibility, authority and concurrenc
       .rejects.toMatchObject({ status: 409 });
     const actual = await client.workoutExercise.findUniqueOrThrow({ where: { id: f.originalId } });
     expect(actual.exerciseId).toBe(f.library[0].id);
+  });
+
+  it('reports unknown release version instead of fabricating it from a newer catalog', async () => {
+    const f = await fixture('historical', { legacySnapshot: true });
+    const recorded = await svc.create(request(f, 'historical-release'));
+    expect(recorded.originalVersion).toBe('historico:versao_indisponivel');
+    expect(recorded.original.name).toBe('Nome congelado do catálogo legado');
+    expect(recorded.original.movementPattern).toBeNull();
+    expect(recorded.replacementVersion).toBe('exercicio:1');
   });
 
   it('accepts only matching tenant and approved catalog, rejects self and stale idempotency', async () => {

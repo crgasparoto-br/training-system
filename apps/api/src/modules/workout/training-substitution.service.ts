@@ -139,12 +139,15 @@ function exerciseSnapshot(item: LinkedExercise): TrainingSubstitutionSnapshot {
     unitId: item.id,
     id: item.exerciseId,
     name: textOf(frozen.name) ?? item.exercise.name,
-    version: 'exercicio:' + (typeof frozen.version === 'number' ? frozen.version : item.exercise.version),
-    capacity: textOf(frozen.capacity) ?? item.exercise.capacity,
-    movementPattern: textOf(frozen.movementPattern) ?? item.exercise.movementPattern,
-    equipment: stringArray(frozen.equipment ?? item.exercise.equipment),
-    difficulty: textOf(frozen.difficulty) ?? item.exercise.difficulty,
-    restrictions: stringArray(frozen.restrictions ?? item.exercise.restrictions),
+    // Old release snapshots did not record catalog.version. A later live revision
+    // must not be passed off as the release revision.
+    version: typeof frozen.version === 'number' && Number.isInteger(frozen.version)
+      ? 'exercicio:' + frozen.version : 'historico:versao_indisponivel',
+    capacity: textOf(frozen.capacity),
+    movementPattern: textOf(frozen.movementPattern),
+    equipment: stringArray(frozen.equipment),
+    difficulty: textOf(frozen.difficulty),
+    restrictions: stringArray(frozen.restrictions),
   };
 }
 
