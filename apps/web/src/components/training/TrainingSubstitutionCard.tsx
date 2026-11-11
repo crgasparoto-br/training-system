@@ -26,10 +26,12 @@ type Props = {
   audience: TrainingRoutineAudience;
   contractId?: string | null;
   onChanged?: () => Promise<void>;
+  /** Capacidade profissional independente da permissao de leitura dos treinos. */
+  canManage?: boolean;
 };
 
 /** O item liberado continua intacto: o form apenas registra o vinculo auditavel. */
-export function TrainingSubstitutionCard({ session, audience, contractId, onChanged }: Props) {
+export function TrainingSubstitutionCard({ session, audience, contractId, onChanged, canManage = false }: Props) {
   const isDetail = 'blocks' in session;
   const exercises = isDetail ? session.blocks.flatMap(block => block.exercises) : session.substitutionExercises ?? [];
   const execution = 'execution' in session ? session.execution : undefined;
@@ -64,7 +66,7 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
   }, [session.sessionId]);
 
   const records: TrainingSubstitutionRecord[] = session.substitutions ?? [];
-  const canCreate = !refreshPending && ((audience === 'professor' && session.status === 'not_started')
+  const canCreate = !refreshPending && ((audience === 'professor' && canManage && session.status === 'not_started')
     || (audience === 'student' && isDetail && execution?.status === 'in_progress'));
   const selectedAlternative = alternatives.find(item => item.replacement.id === replacementId);
 
@@ -185,7 +187,7 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
   };
 
   const review = async (item: TrainingSubstitutionRecord, action: 'approve' | 'reject') => {
-    if (audience !== 'professor' || busy || refreshPending) return;
+    if (audience !== 'professor' || !canManage || busy || refreshPending) return;
     const explanation = reviewReasons[item.id]?.trim() ?? '';
     if (action === 'reject' && explanation.length < 3) {
       setError('Informe o motivo para rejeitar a substituição.');
@@ -232,7 +234,7 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
                 {item.reviewedAt ? ' · Revisão: ' + new Date(item.reviewedAt).toLocaleString('pt-BR') : ''}
               </p>
               {item.reviewReason && <p className="text-xs text-muted-foreground">Parecer: {item.reviewReason}</p>}
-              {audience === 'professor' && item.context === 'execution' && item.status === 'pending_review' && (
+              {audience === 'professor' && canManage && item.context === 'execution' && item.status === 'pending_review' && (
                 <div className="space-y-2 border-t border-border pt-2">
                   <label className="block text-xs font-medium" htmlFor={'review-' + item.id}>
                     Motivo da decisão (obrigatório para rejeição)
