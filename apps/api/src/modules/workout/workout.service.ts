@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 
 import { Prisma } from '@prisma/client';
-import { projectWorkoutDayExerciseCatalog } from './workout-release-catalog.js';
+import { projectWorkoutDayExerciseCatalog, projectWorkoutExecutionHistory } from './workout-release-catalog.js';
 import { assertWorkoutParentIsImmutable, normalizeResistanceBlocks, sanitizeWorkoutMutation, ResistanceStructureNotFoundError, ResistanceStructureValidationError, type ResistanceBlockInput } from './resistance-structure.domain.js';
 import { assertApprovedWorkoutExerciseIds, assertDayContract, assertTemplateReleaseCatalogEligibility, isWorkoutTemplateUniqueConflict, nestedResistanceBlocks, normalizeWorkoutTemplateUpdateData, resistanceBlockInclude, serializeWorkoutTemplate, touchWorkoutTemplateRevision, withWorkoutDayPlanningMutation, withWorkoutTemplatePlanningMutation, workoutDateInTargetWeek, WorkoutPlanningLockedError } from './workout-planning.helpers.js';
 import { copyTemplate as copyTemplateStructured, copyTemplateSections as copyTemplateSectionsStructured } from './workout-copy.service.js';
@@ -1120,7 +1120,7 @@ export const workoutService = {
     startDate: Date,
     endDate: Date
   ) {
-    return await prisma.workoutExecution.findMany({
+    const rows = await prisma.workoutExecution.findMany({
       where: {
         alunoId,
         executionDate: {
@@ -1132,6 +1132,7 @@ export const workoutService = {
         workoutExercise: {
           include: {
             exercise: true,
+            releasedCatalog: { select: { catalog: true } },
             workoutDay: {
               include: {
                 template: true,
@@ -1142,6 +1143,7 @@ export const workoutService = {
       },
       orderBy: { executionDate: 'desc' },
     });
+    return rows.map(projectWorkoutExecutionHistory);
   },
 
   /**

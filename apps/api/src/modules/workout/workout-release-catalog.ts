@@ -23,13 +23,49 @@ export function hideUnverifiedExerciseVideo<T extends { name: string }>(exercise
   return exercise;
 }
 
+function hideUncapturedReleaseVideo<T extends { name: string }>(exercise: T): T {
+  if (!Object.prototype.hasOwnProperty.call(exercise, 'videoUrl')) return exercise;
+  return { ...exercise, videoUrl: null } as T;
+}
+
+/** Filter media from library relations before returning HTTP responses. */
+export function projectWorkoutExerciseMedia<T extends { exercise: { name: string } }>(row: T): T {
+  return { ...row, exercise: hideUnverifiedExerciseVideo(row.exercise) };
+}
+
+export function projectWorkoutExecutionMedia<T extends { workoutExercise: { exercise: { name: string } } }>(row: T): T {
+  return { ...row, workoutExercise: projectWorkoutExerciseMedia(row.workoutExercise) };
+}
+
+/** Present immutable release-time catalog data for historical executions. */
+export function projectWorkoutExecutionHistory<T extends {
+  workoutExercise: {
+    exercise: { name: string };
+    releasedCatalog: ReleasedCatalogRecord;
+    workoutDay: { template: { released: boolean } };
+  };
+}>(row: T) {
+  const { releasedCatalog, ...workoutExercise } = row.workoutExercise;
+  return {
+    ...row,
+    workoutExercise: {
+      ...workoutExercise,
+      exercise: workoutExercise.workoutDay.template.released
+        ? projectReleasedExerciseCatalog(workoutExercise.exercise, releasedCatalog)
+        : hideUnverifiedExerciseVideo(workoutExercise.exercise),
+    },
+  };
+}
+
 export function projectReleasedExerciseCatalog<T extends { name: string }>(
   live: T, captured: ReleasedCatalogRecord,
 ): T {
   const raw = captured?.catalog;
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return hideUnverifiedExerciseVideo(live);
+  // Live catalog labels can be a historical fallback, but later licensing
+  // must never retroactively grant rights to an uncaptured release video.
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return hideUncapturedReleaseVideo(live);
   const snapshot = raw as Record<string, unknown>;
-  if (typeof snapshot.name !== 'string') return hideUnverifiedExerciseVideo(live);
+  if (typeof snapshot.name !== 'string') return hideUncapturedReleaseVideo(live);
 
   const projected: Record<string, unknown> = { ...live };
   for (const field of CATALOG_FIELDS) {
@@ -41,11 +77,13 @@ export function projectReleasedExerciseCatalog<T extends { name: string }>(
   if (typeof snapshot.legacyGrandfathered === 'boolean') {
     projected.legacyGrandfathered = snapshot.legacyGrandfathered;
   }
-  // A released video must carry provenance in its own historical snapshot.
-  // Never pair an older URL with a new license stored on the live catalog.
-  if (typeof snapshot.videoUrl === 'string' && snapshot.videoUrl.trim() &&
-      (typeof snapshot.mediaOrigin !== 'string' || !snapshot.mediaOrigin.trim() ||
-       typeof snapshot.mediaLicense !== 'string' || !snapshot.mediaLicense.trim())) {
+  // Media must carry both verified provenance and non-legacy release status
+  // in the same immutable snapshot, not in a later library revision.
+  const licensedAtRelease = typeof snapshot.videoUrl === 'string' && !!snapshot.videoUrl.trim()
+    && typeof snapshot.mediaOrigin === 'string' && !!snapshot.mediaOrigin.trim()
+    && typeof snapshot.mediaLicense === 'string' && !!snapshot.mediaLicense.trim()
+    && snapshot.legacyGrandfathered === false;
+  if (!licensedAtRelease && Object.prototype.hasOwnProperty.call(projected, 'videoUrl')) {
     projected.videoUrl = null;
   }
   return hideUnverifiedExerciseVideo(projected as T);

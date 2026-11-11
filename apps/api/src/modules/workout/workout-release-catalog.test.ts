@@ -1,5 +1,6 @@
 import {
   projectReleasedExerciseCatalog, projectWorkoutDayExerciseCatalog,
+  projectWorkoutExecutionHistory, projectWorkoutExerciseMedia,
 } from './workout-release-catalog.js';
 
 describe('#394 A-007: exercise media provenance at historical response boundaries', () => {
@@ -29,7 +30,7 @@ describe('#394 A-007: exercise media provenance at historical response boundarie
     }).videoUrl).toBeNull();
     expect(projectReleasedExerciseCatalog(approved, {
       catalog: { name: 'Histórico autorizado', videoUrl: 'https://example.org/licensed',
-        mediaOrigin: 'Licença de arquivo', mediaLicense: 'Contrato 2025' },
+        mediaOrigin: 'Licença de arquivo', mediaLicense: 'Contrato 2025', legacyGrandfathered: false },
     }).videoUrl).toBe('https://example.org/licensed');
   });
 
@@ -51,10 +52,47 @@ describe('#394 A-007: exercise media provenance at historical response boundarie
     expect(original.legacyGrandfathered).toBe(true);
   });
 
-  it('allows licensed curator-approved media but never infers provenance from a URL', () => {
-    expect(projectReleasedExerciseCatalog(approved, null).videoUrl)
+  it('cannot infer media rights from a missing or incomplete release snapshot', () => {
+    expect(projectReleasedExerciseCatalog(approved, null).videoUrl).toBeNull();
+    expect(projectReleasedExerciseCatalog(approved, { catalog: { name: 'No video' } }).videoUrl).toBeNull();
+    expect(projectReleasedExerciseCatalog(approved, { catalog: {
+      name: 'Old recording', videoUrl: 'https://example.org/old',
+      mediaOrigin: 'Archive', mediaLicense: 'Prior license',
+    } }).videoUrl).toBeNull();
+    expect(projectReleasedExerciseCatalog(approved, { catalog: {
+      name: 'Old recording', videoUrl: 'https://example.org/old',
+    } }).videoUrl).toBeNull();
+  });
+
+  it('resolves historical executions without changing the original record or exposing internals', () => {
+    const execution = { id: 'execution-1', setsCompleted: 3, workoutExercise: {
+      id: 'row-1', exercise: approved,
+      releasedCatalog: { catalog: { name: 'Captured name', videoUrl: 'https://example.org/old' } },
+      workoutDay: { template: { released: true } },
+    } };
+    const actual = projectWorkoutExecutionHistory(execution);
+    expect(actual.workoutExercise.exercise).toMatchObject({ name: 'Captured name', videoUrl: null });
+    expect(actual.setsCompleted).toBe(3);
+    expect(JSON.stringify(actual)).not.toContain('releasedCatalog');
+    expect(execution.workoutExercise.exercise.videoUrl).toBe('https://example.org/third-party');
+    expect(execution.workoutExercise.releasedCatalog.catalog.videoUrl).toBe('https://example.org/old');
+  });
+
+  it('preserves licensed release media after later live edits and hides draft legacy media', () => {
+    const released = { workoutExercise: {
+      exercise: { ...approved, videoUrl: 'https://example.org/changed' },
+      releasedCatalog: { catalog: { name: 'Released name', videoUrl: 'https://example.org/original',
+        mediaOrigin: 'Original author', mediaLicense: 'Original license', legacyGrandfathered: false } },
+      workoutDay: { template: { released: true } },
+    } };
+    expect(projectWorkoutExecutionHistory(released).workoutExercise.exercise.videoUrl)
+      .toBe('https://example.org/original');
+    expect(projectWorkoutExecutionHistory({ workoutExercise: {
+      ...released.workoutExercise, workoutDay: { template: { released: false } },
+      exercise: historical,
+    } }).workoutExercise.exercise.videoUrl).toBeNull();
+    expect(projectWorkoutExerciseMedia({ exercise: historical }).exercise.videoUrl).toBeNull();
+    expect(projectWorkoutExerciseMedia({ exercise: approved }).exercise.videoUrl)
       .toBe('https://example.org/third-party');
-    expect(projectReleasedExerciseCatalog({ ...approved, mediaLicense: ' ' }, null).videoUrl)
-      .toBeNull();
   });
 });

@@ -128,3 +128,12 @@ Checklist aberto até verificação de CI exact-SHA e auditoria independente.
 - Validações obrigatórias: Prisma migrations no PostgreSQL real,
   testes API/HTTP, `pnpm validate`, CI exact-SHA e reauditoria independente.
   A PR deve permanecer Draft e a issue aberta até o parecer externo.
+
+## Remediação A-021 — histórico e resposta HTTP (11/11/2026)
+
+- Histórico GET /executions/aluno usa catálogo congelado na liberação para nome e direitos de mídia.
+- Dados sem snapshot mantêm o texto, sem inferir direitos de vídeo adquiridos depois.
+- Ambas as rotas PUT de exercício filtram URLs legadas ou não licenciadas na resposta.
+- Regressões: controles HTTP negativos/positivos, PostgreSQL histórico/licença,
+  isolamento de aluno e nenhuma alteração dos registros persistidos.
+- A PR permanece Draft até CI exact-SHA e auditoria independente.

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { workoutService } from '../modules/workout/workout.service.js';
+import { projectWorkoutExerciseMedia } from '../modules/workout/workout-release-catalog.js';
 import {
   classifyResistanceWriteError,
   sanitizeWorkoutMutation,
@@ -235,7 +236,7 @@ router.put('/days/:id/resistance-exercises', async (req, res) => {
     if (!Array.isArray(req.body?.exercises)) throw new ResistanceStructureValidationError('Lista de exercícios inválida.');
     const safe = (req.body.exercises as unknown[]).map((x) => sanitizeWorkoutMutation(x, 'exercise', 'create')) as Parameters<typeof workoutService.replaceDayResistanceExercises>[1];
     const exercises = await workoutService.replaceDayResistanceExercises(req.params.id, safe, contractId);
-    res.json(exercises);
+    res.json(exercises.map(projectWorkoutExerciseMedia));
   } catch (error: any) {
     console.error('Error replacing resistance exercises:', error);
     const response = classifyResistanceWriteError(error);
@@ -337,7 +338,7 @@ router.put('/exercises/reorder', async (req, res) => {
 router.put('/exercises/:id', async (req, res) => {
   try {
     const exercise = await workoutService.updateExercise(req.params.id, sanitizeWorkoutMutation(req.body, 'exercise'), req.user!.contractId);
-    res.json(exercise);
+    res.json(projectWorkoutExerciseMedia(exercise));
   } catch (error: any) {
     console.error('Error updating exercise:', error);
     return sendSafeWorkoutError(res, error);

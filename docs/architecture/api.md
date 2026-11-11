@@ -290,3 +290,9 @@ do exercício ao mesmo contrato. Os links originais continuam persistidos.
 Novas instalações de padrões geram rascunhos;
  novas instalações de padrões geram rascunhos. Cópias entre
 contratos não transferem automaticamente URLs/licenças de mídia.
+
+A-021: GET /executions/aluno usa o catálogo imutável de liberação e omite
+releasedCatalog interno da resposta; URLs de mídia sem direitos documentados
+na liberação são ocultas mesmo que o catálogo seja licenciado mais tarde.
+PUT /workout/days/:id/resistance-exercises e PUT /workout/exercises/:id
+sanitizam vídeo de registros legados antes de responder, sem alterar o banco.
