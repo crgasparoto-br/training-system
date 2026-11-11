@@ -215,7 +215,7 @@ describeDatabase('#404 substition history, eligibility, authority and concurrenc
     })).rejects.toMatchObject({ status: 409 });
     const routine = await createTrainingRoutineService(client).getRoutine({
       alunoId: f.alunoId, contractId: f.contractId,
-      audience: 'student', date: '2026-10-06',
+      audience: 'student', date: '2026-10-06', now: new Date('2026-10-06T13:00:00.000Z'),
     });
     const detail = routine.today.sessions.find(day => day.sessionId === f.dayId);
     expect(detail?.substitutions?.[0].replacement.id).toBe(f.library[1].id);

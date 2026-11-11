@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type {
   TrainingRoutineAudience,
   TrainingRoutineSessionDetail,
+  TrainingRoutineSessionSummary,
   TrainingSubstitutionAlternative,
   TrainingSubstitutionKind,
   TrainingSubstitutionRecord,
@@ -21,7 +22,7 @@ const statusLabel = {
 } as const;
 
 type Props = {
-  session: TrainingRoutineSessionDetail;
+  session: TrainingRoutineSessionDetail | TrainingRoutineSessionSummary;
   audience: TrainingRoutineAudience;
   contractId?: string | null;
   onChanged?: () => Promise<void>;
@@ -29,7 +30,9 @@ type Props = {
 
 /** O item liberado continua intacto: o form apenas registra o vinculo auditavel. */
 export function TrainingSubstitutionCard({ session, audience, contractId, onChanged }: Props) {
-  const exercises = session.blocks.flatMap(block => block.exercises);
+  const isDetail = 'blocks' in session;
+  const exercises = isDetail ? session.blocks.flatMap(block => block.exercises) : [];
+  const execution = 'execution' in session ? session.execution : undefined;
   const [kind, setKind] = useState<TrainingSubstitutionKind>(exercises.length ? 'exercise' : 'session');
   const [originalId, setOriginalId] = useState(exercises[0]?.id ?? session.sessionId);
   const [alternatives, setAlternatives] = useState<TrainingSubstitutionAlternative[]>([]);
@@ -53,8 +56,8 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
   }, [session.sessionId]);
 
   const records: TrainingSubstitutionRecord[] = session.substitutions ?? [];
-  const canCreate = (audience === 'professor' && session.status === 'not_started')
-    || (audience === 'student' && session.execution?.status === 'in_progress');
+  const canCreate = isDetail && ((audience === 'professor' && session.status === 'not_started')
+    || (audience === 'student' && execution?.status === 'in_progress'));
   const selectedAlternative = alternatives.find(item => item.replacement.id === replacementId);
 
   const resetOptions = (nextKind: TrainingSubstitutionKind, nextOriginalId: string) => {
@@ -96,13 +99,13 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
       setError('Selecione uma alternativa e informe o motivo da troca.');
       return;
     }
-    if (audience === 'student' && session.execution?.version === undefined) {
+    if (audience === 'student' && execution?.version === undefined) {
       setError('Atualize a sessão antes de registrar uma troca.');
       return;
     }
     const signature = JSON.stringify([
       session.sessionId, kind, originalId, replacementId, reason.trim(),
-      audience, session.execution?.version ?? null,
+      audience, execution?.version ?? null,
     ]);
     if (operation.current?.signature !== signature) {
       operation.current = { signature, key: crypto.randomUUID() };
@@ -116,7 +119,7 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
         originalUnitId: kind === 'session' ? session.sessionId : originalId,
         replacementUnitId: replacementId, reason: reason.trim(),
         operationKey: operation.current.key,
-        ...(audience === 'student' ? { expectedExecutionVersion: session.execution.version } : {}),
+        ...(audience === 'student' ? { expectedExecutionVersion: execution!.version } : {}),
       }, audience === 'student' ? contractId ?? undefined : undefined);
       setAlternatives([]);
       setReplacementId('');

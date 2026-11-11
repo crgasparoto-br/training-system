@@ -874,7 +874,9 @@ function TodayEmptyState({ state, audience }: { state: 'not_released' | 'none'; 
   );
 }
 
-function WeekDayItem({ day, audience }: { day: TrainingRoutineDay; audience: TrainingRoutineAudience }) {
+function WeekDayItem({ day, audience, onChanged }: {
+  day: TrainingRoutineDay; audience: TrainingRoutineAudience; onChanged?: () => Promise<void>;
+}) {
   return (
     <li
       className={`flex gap-3 p-3 ${day.isToday ? 'bg-primary/5' : ''}`}
@@ -901,6 +903,14 @@ function WeekDayItem({ day, audience }: { day: TrainingRoutineDay; audience: Tra
               </div>
               <StatusBadge status={session.status} />
             </div>
+            {!day.isToday && audience === 'professor' && Boolean(session.substitutions?.length) && (
+              <details className="rounded-md border border-border p-2">
+                <summary className="cursor-pointer text-xs font-medium text-foreground">Histórico e revisão de substituições</summary>
+                <div className="mt-2">
+                  <TrainingSubstitutionCard session={session} audience="professor" onChanged={onChanged} />
+                </div>
+              </details>
+            )}
             {!day.isToday && session.comparison && (
               <details className="min-w-0 rounded-md border border-border p-2">
                 <summary className="cursor-pointer text-xs font-medium text-foreground">
@@ -1158,7 +1168,7 @@ export function TrainingRoutinePanel({
           </div>
           <ol className="divide-y divide-border rounded-lg border border-border bg-background">
             {routine.days.map((day) => (
-              <WeekDayItem key={day.date} day={day} audience={audience} />
+              <WeekDayItem onChanged={async () => { if (!await fetchRoutine(referenceDate)) throw new Error('Falha ao revalidar treino'); }} key={day.date} day={day} audience={audience} />
             ))}
           </ol>
         </section>
