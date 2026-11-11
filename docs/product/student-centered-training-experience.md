@@ -833,6 +833,9 @@ contrato e contexto `planning`, `review` ou `execution`.
    original, sem inventar elegibilidade nova nem aprovar futuras utilizações.
    Desativação posterior não invalida o registro original e não elimina a escolha
    explícita do professor de aprovar/rejeitar o histórico.
+   A criação também exige a **versão exata selecionada** na consulta. Se uma
+   nova revisão for publicada com o mesmo ID antes do POST, a API responde 409
+   sem registrar substituição ou evento, exigindo nova escolha consciente.
 8. Depois de uma gravação ou revisão confirmada, falha na atualização da tela
    não invalida a gravação. O sistema informa que a alteração foi salva,
    bloqueia novas mutações sobre o estado desatualizado e oferece somente
@@ -848,7 +851,7 @@ Base autenticada: `/api/v1/training-substitutions`. No caso do aluno, o
 | GET | `/sessions/:sessionId` | Histórico sob escopo do aluno/professor |
 | GET | `/sessions/:sessionId/alternatives?kind=exercise&originalUnitId=:id` | Catálogo aprovado do contrato, por nome ou alias |
 | GET | `/sessions/:sessionId/alternatives?kind=session&originalUnitId=:sessionId` | Sessões liberadas do mesmo aluno, com filtro por data |
-| POST | `/sessions/:sessionId` | `kind`, `context`, `originalUnitId`, `replacementUnitId`, `reason`, `operationKey`, e `expectedExecutionVersion` para aluno |
+| POST | `/sessions/:sessionId` | `kind`, `context`, `originalUnitId`, `replacementUnitId`, `expectedReplacementVersion` (versão exibida na lista), `reason`, `operationKey`, e `expectedExecutionVersion` para aluno |
 | POST | `/sessions/:sessionId/:substitutionId/review` | Professor; `action=approve/reject`, `expectedVersion`, `reason` obrigatória para rejeitar |
 
 As consultas `alternatives` aceitam `search` (até 100 caracteres) e `offset`
@@ -863,6 +866,9 @@ permissão profissional de escrita e contrato **dentro da transação**;
 a revisão histórica revalida a autoridade de revisão e a versão da solicitação,
 sem voltar a consultar a elegibilidade atual do catálogo; utiliza versão para
 conflitos, chave idempotente para repetição e registra evento na timeline.
+`expectedReplacementVersion` integra o fingerprint idempotente, e a transação
+verifica a versão vigente da alternativa aprovada (ou da liberação de sessão),
+sem aceitar silenciosamente uma revisão posterior à seleção.
 Respostas `409` exigem atualização do estado antes de tentar nova alteração.
 
 ### Limites
