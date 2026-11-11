@@ -369,6 +369,7 @@ export function createTrainingSubstitutionService(client: PrismaClient = prismaR
   async function create(input: {
     sessionId: string; actor: SubstitutionActor; kind: TrainingSubstitutionKind;
     context: TrainingSubstitutionContext; originalUnitId: string; replacementUnitId: string;
+    expectedReplacementVersion: string;
     reason: string; operationKey: string; expectedExecutionVersion?: number;
   }): Promise<TrainingSubstitutionRecord> {
     const reason = normalizedText(input.reason, 500, 'um motivo');
@@ -379,6 +380,7 @@ export function createTrainingSubstitutionService(client: PrismaClient = prismaR
     const payloadFingerprint = fingerprint({
       actorUserId: input.actor.userId, kind: input.kind, context: input.context,
       original: input.originalUnitId, replacement: input.replacementUnitId,
+      expectedReplacementVersion: input.expectedReplacementVersion,
       reason, expectedExecutionVersion: input.expectedExecutionVersion ?? null,
     });
     return withTransaction(async tx => {
@@ -444,6 +446,10 @@ export function createTrainingSubstitutionService(client: PrismaClient = prismaR
           },
         });
         if (!candidate) return conflict('Exercício indisponível para substituição.');
+        // The SELECT FOR SHARE above protects the chosen revision through commit.
+        if (input.expectedReplacementVersion !== 'exercicio:' + candidate.version) {
+          return conflict('A versão da alternativa mudou. Consulte as alternativas novamente.');
+        }
         replacement = catalogSnapshot(candidate);
       } else {
         if (input.originalUnitId !== session.day.id) return invalid('Identidade da sessão original inválida.');
@@ -461,10 +467,14 @@ export function createTrainingSubstitutionService(client: PrismaClient = prismaR
         if (!target) return notFound();
         const release = await lookupRelease(tx, target.template.id, session.alunoId, input.actor.contractId);
         if (!release) return notFound();
+        const selectedReleaseVersion = 'liberacao:' + release.releasedAssemblyVersion;
+        if (input.expectedReplacementVersion !== selectedReleaseVersion) {
+          return conflict('A versão da sessão alternativa mudou. Consulte as alternativas novamente.');
+        }
         replacement = {
           unitId: target.id, id: target.id,
           name: 'Sessão de ' + target.workoutDate.toISOString().slice(0, 10),
-          version: 'liberacao:' + release.releasedAssemblyVersion,
+          version: selectedReleaseVersion,
           capacity: null, movementPattern: null, equipment: [], difficulty: null, restrictions: [],
         };
       }
