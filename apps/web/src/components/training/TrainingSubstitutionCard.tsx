@@ -253,7 +253,7 @@ export function TrainingSubstitutionCard({ session, audience, contractId, onChan
                 <select value={originalId} disabled={busy}
                   onChange={event => resetOptions('exercise', event.target.value)}
                   className="w-full rounded-md border border-border bg-background px-2 py-2 text-sm">
-                  {exercises.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  {exercises.map(item => <option key={item.id} value={item.id}>{item.name} (planejado)</option>)}
                 </select>
               </label>
             )}
