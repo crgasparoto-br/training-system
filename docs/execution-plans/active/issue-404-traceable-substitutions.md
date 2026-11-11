@@ -71,7 +71,8 @@ Troca automática por IA; importação externa; modificação de prescrições f
 - Validação local indisponível: resolução DNS de github.com e pnpm ausente no
   ambiente de trabalho; comprovar testes/build na CI da PR.
 - PR: https://github.com/crgasparoto-br/training-system/pull/541
-- Remediação da auditoria de 11/11/2026: `A-001`, `A-002` e `REC-001`,
-- Segunda remediação da auditoria de 11/11/2026: `A-404-001`, `RISK-001`, `REC-404-001`, com controles de permissão independente, revogação e revisão histórica;
-  sem merge e sem reutilizar a CI do SHA anterior como prova do novo candidato.
+- Remediação inicial da auditoria de 11/11/2026: `A-001`, `A-002` e `REC-001`.
+- Remediação desta rodada: `A-404-001`, `RISK-001`, `REC-404-001`, com controles
+  de permissão independente, revogação e revisão histórica. Sem merge; a CI do SHA
+  anterior não comprova o novo candidato.
 - Não fazer merge sem autorização explícita.
