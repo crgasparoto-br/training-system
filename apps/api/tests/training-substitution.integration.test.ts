@@ -165,7 +165,8 @@ describeDatabase('#404 substition history, eligibility, authority and concurrenc
       collaboratorFunctionId: f.professorFunctionId,
       blockKey: 'students.actions.manageTrainingSubstitutions',
     };
-    await client.accessPermission.updateMany({ where: permission, data: { canView: false } });
+    const initialGrant = await client.accessPermission.findFirstOrThrow({ where: permission });
+    expect(initialGrant.canView).toBe(false); // No automatic elevation on permission catalog upgrades.
 
     // A concession to view the training tab is NOT a concession to approve.
     expect(await svc.list({ sessionId: f.dayId, actor: f.teacher })).toEqual([]);
