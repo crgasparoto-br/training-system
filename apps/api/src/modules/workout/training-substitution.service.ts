@@ -169,24 +169,26 @@ function sessionSnapshot(session: Session, id?: string): TrainingSubstitutionSna
   };
 }
 
-function safeSnapshot(value: Prisma.JsonValue, actor: SubstitutionActor): TrainingSubstitutionSnapshot {
+function safeSnapshot(value: Prisma.JsonValue, audience: 'student' | 'professor'): TrainingSubstitutionSnapshot {
   const row = fromJson(value);
   const snapshot: TrainingSubstitutionSnapshot = {
     unitId: String(row.unitId ?? ''), id: String(row.id ?? ''), name: String(row.name ?? ''),
     version: String(row.version ?? ''), capacity: textOf(row.capacity),
     movementPattern: textOf(row.movementPattern), equipment: stringArray(row.equipment),
     difficulty: textOf(row.difficulty),
-    restrictions: actor.kind === 'professor' ? stringArray(row.restrictions) : [],
+    restrictions: audience === 'professor' ? stringArray(row.restrictions) : [],
   };
   return snapshot;
 }
 
-function toPublic(row: WorkoutSubstitution, actor: SubstitutionActor): TrainingSubstitutionRecord {
+export function projectTrainingSubstitutionForAudience(
+  row: WorkoutSubstitution, audience: 'student' | 'professor',
+): TrainingSubstitutionRecord {
   return {
     id: row.id, sessionId: row.workoutDayId, alunoId: row.alunoId,
     kind: row.kind, context: row.context, status: row.status,
-    original: safeSnapshot(row.originalSnapshot, actor),
-    replacement: safeSnapshot(row.replacementSnapshot, actor),
+    original: safeSnapshot(row.originalSnapshot, audience),
+    replacement: safeSnapshot(row.replacementSnapshot, audience),
     originalVersion: row.originalVersion, replacementVersion: row.replacementVersion,
     reason: row.reason, actorUserId: row.actorUserId, createdAt: row.createdAt.toISOString(),
     reviewedByUserId: row.reviewedByUserId, reviewedAt: row.reviewedAt?.toISOString() ?? null,
@@ -236,7 +238,7 @@ export function createTrainingSubstitutionService(client: PrismaClient = prismaR
         where: { workoutDayId: input.sessionId, contractId: input.actor.contractId },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       });
-      return records.map(row => toPublic(row, input.actor));
+      return records.map(row => projectTrainingSubstitutionForAudience(row, input.actor.kind));
     });
   }
 
@@ -331,7 +333,7 @@ export function createTrainingSubstitutionService(client: PrismaClient = prismaR
       });
       if (existing) {
         if (existing.requestFingerprint !== payloadFingerprint) return conflict('Chave reutilizada para outra substituição.');
-        return toPublic(existing, input.actor);
+        return projectTrainingSubstitutionForAudience(existing, input.actor.kind);
       }
       const execution = await tx.workoutSessionExecution.findUnique({
         where: { workoutDayId: input.sessionId }, select: { status: true, version: true },
@@ -436,7 +438,7 @@ export function createTrainingSubstitutionService(client: PrismaClient = prismaR
           },
         },
       });
-      return toPublic(row, input.actor);
+      return projectTrainingSubstitutionForAudience(row, input.actor.kind);
     });
   }
 
@@ -484,7 +486,7 @@ export function createTrainingSubstitutionService(client: PrismaClient = prismaR
         },
       });
       const updated = await tx.workoutSubstitution.findUniqueOrThrow({ where: { id: current.id } });
-      return toPublic(updated, input.actor);
+      return projectTrainingSubstitutionForAudience(updated, input.actor.kind);
     });
   }
 
