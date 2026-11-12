@@ -273,9 +273,11 @@ describe('issue #487 - guia resistido', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Ver ficha completa' }));
     await userEvent.click(screen.getByRole('button', { name: 'Continuar execução guiada' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/posição desatualizada/i);
-    expect(screen.getByRole('button', { name: 'Concluir série' })).toBeDisabled();
-    expect(screen.getByLabelText('Exercício efetivamente executado')).toBeDisabled();
-    expect(screen.getByText(/0 de 2 séries confirmadas/)).toBeInTheDocument();
+    // Um GET regressivo após o remount não pode renderizar formulário nem progresso.
+    // A ausência desses controles é o estado fail-closed esperado até a leitura canônica válida.
+    expect(screen.queryByRole('button', { name: 'Concluir série' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Exercício efetivamente executado')).not.toBeInTheDocument();
+    expect(screen.queryByText(/0 de 2 séries confirmadas/)).not.toBeInTheDocument();
     expect(draftStore.current?.acceptedVersion).toBe(4);
     await userEvent.click(screen.getByRole('button', { name: 'Atualizar estado salvo' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Concluir série' })).toBeEnabled());
