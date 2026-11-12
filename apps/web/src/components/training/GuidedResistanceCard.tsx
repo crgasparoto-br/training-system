@@ -59,6 +59,8 @@ export type GuidedResistanceDraft = {
   operation: GuidedResistanceOperation | null;
   /** A 409 must remain a write lock even after switching to the overview. */
   conflictVersion: number | null;
+  /** Highest canonical version already observed; survives guide/overview remounts. */
+  acceptedVersion?: number;
 };
 
 type Props = {
@@ -143,7 +145,10 @@ export function GuidedResistanceCard({
   // Only the latest read may change the UI. A confirmed mutation also invalidates
   // reads started before the POST returned.
   const refreshSequenceRef = useRef(0);
-  const acceptedVersionRef = useRef<{ sessionId: string; version: number } | null>(null);
+  const acceptedVersionRef = useRef<{ sessionId: string; version: number } | null>(
+    draftStore?.current?.sessionId === sessionId && draftStore.current.acceptedVersion !== undefined
+      ? { sessionId, version: draftStore.current.acceptedVersion } : null,
+  );
   // The parent can advance while an older POST is awaiting its response.
   // A callback captured before that render must still see the latest version.
   const parentVersionRef = useRef({ sessionId, version });
@@ -168,7 +173,9 @@ export function GuidedResistanceCard({
     draftStore.current = { sessionId, plannedSetId, repetitions: nextRepetitions,
       loadKg: nextLoadKg, substitutionId: nextSubstitutionId,
       substitutionNote: nextSubstitutionNote, operation,
-      conflictVersion: conflictVersionRef.current };
+      conflictVersion: conflictVersionRef.current,
+      acceptedVersion: acceptedVersionRef.current?.sessionId === sessionId
+        ? acceptedVersionRef.current.version : undefined };
   };
 
   const acceptView = useCallback((
@@ -205,6 +212,7 @@ export function GuidedResistanceCard({
         repetitions: nextRepetitions, loadKg: nextLoadKg,
         substitutionId: nextSubstitutionId, substitutionNote: nextSubstitutionNote,
         operation: retainedOperation, conflictVersion: conflictVersionRef.current,
+        acceptedVersion: saved.version,
       } : null;
     } else if (operationRef.current && operationRef.current.payload.expectedVersion !== saved.version) {
       // The same planned set may survive a pause/resume or a competing edit.
@@ -230,6 +238,12 @@ export function GuidedResistanceCard({
       serverClockAnchorRef.current = { sessionId: sourceSessionId, serverNowMs,
         receivedAtMs: observation.receivedAtMs,
         ageUpperBoundMs: Math.max(0, roundTripMs - processingMs) };
+    }
+    // A business 409 may leave this version unchanged. Preserve the highest
+    // canonical read independently of the conflict lock, including when the
+    // component is unmounted while reconciliation is still required.
+    if (draftStore?.current?.sessionId === sourceSessionId) {
+      draftStore.current = { ...draftStore.current, acceptedVersion: saved.version };
     }
     setView({ ...saved, restObservation });
     return true;
@@ -268,7 +282,7 @@ export function GuidedResistanceCard({
       }
       setReconciliationRequired(false);
       setError(reason === 'incompatible'
-        ? 'Esta série já possui uma substituição registrada. Selecione explicitamente a troca e informe o motivo ou corrija o registro na ficha completa.'
+        ? 'O resultado manual desta série é incompatível com a confirmação. Corrija-o na ficha completa; se houver uma substituição registrada, selecione explicitamente a troca e informe o motivo.'
         : reason === 'conflict'
           ? 'O treino mudou em outro dispositivo. Revise a série atualizada antes de confirmar novamente.'
           : null);
@@ -277,7 +291,7 @@ export function GuidedResistanceCard({
       if (requestId !== refreshSequenceRef.current) return false;
       setReconciliationRequired(true);
       setError(reason === 'incompatible'
-        ? 'Não foi possível recarregar a série com substituição. Atualize o estado salvo antes de tentar corrigir a seleção.'
+        ? 'Não foi possível recarregar a série após um resultado incompatível. Atualize o estado salvo antes de corrigir o registro.'
         : reason === 'conflict'
           ? 'O treino mudou em outro dispositivo e a recarga falhou. Nova confirmação bloqueada até atualizar o estado salvo.'
           : 'Não foi possível consultar a posição salva. Atualize o treino antes de confirmar outra série.');
