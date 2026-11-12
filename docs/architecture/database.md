@@ -351,7 +351,8 @@ A migration `20261112012500_issue_404_execution_ledger_link` adiciona
 (`ON DELETE RESTRICT`). Toda nova escrita com `outcome=substituted` em série ou
 exercício resistido deve apontar explicitamente para a substituição criada
 antes na API da #404. A transação da execução confirma aluno, `contractId`, dia,
-unidade original e estado vigente da revisão; a constraint `NOT VALID` protege
+unidade original, estado vigente da revisão e elegibilidade/versão atual do
+catálogo no primeiro vínculo; a constraint `NOT VALID` protege
 novos inserts/updates sem fabricar um destino para registros pré-existentes.
 Um trigger adicional rejeita associação SQL a uma substituição de outro aluno,
 contrato, dia ou exercício. Vínculos rejeitados depois da execução permanecem

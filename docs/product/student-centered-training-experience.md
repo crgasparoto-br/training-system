@@ -883,7 +883,10 @@ série ou exercício resistido como `substituted` em `PUT .../execution/values`
 ou `POST .../execution/transition`, a execução exige `substitutionId` de um
 registro `WorkoutSubstitution` já persistido. A API revalida aluno, contrato,
 sessão, exercício original e decisão vigente na transação, antes da gravação
-atômica de medidas, versão e evento. `planning/review` já aprovado e troca
+atômica de medidas, versão e evento. Na primeira utilização do vínculo, a
+mesma versão do exercício deve continuar aprovada e ativa na curadoria vigente,
+sob bloqueio de leitura para impedir desativação concorrente. `planning/review`
+já aprovado e troca
 `execution` pendente/aprovada são elegíveis; revisão rejeitada não pode iniciar
 novo vínculo. Depois de uma rejeição, uma série previamente vinculada continua
 registrável até a conclusão, sem apagar o que ocorreu. O identificador da troca

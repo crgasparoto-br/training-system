@@ -5460,4 +5460,68 @@ describeDatabase('issue #404: canonical execution references the audited substit
     } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
     expect((await service.getForSession(scope(fixture))).version).toBe(1);
   });
+
+  it('rechecks catalog activation after the request and blocks new execution against a deactivated item', async () => {
+    const fixture = await seedReleasedWorkout('404-t3-deactivated');
+    await transition(fixture, '404-t3-deactivated-start', 0, 'in_progress');
+    const pending = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '404-t3-active-request');
+    await prisma.exerciseLibrary.update({
+      where: { id: pending.replacement.id }, data: { curationStatus: 'inactive' },
+    });
+    const before = await prisma.studentLifecycleEvent.count({
+      where: { alunoId: fixture.alunoId, contractId: fixture.contractId },
+    });
+    await expect(service.saveValues({ ...scope(fixture), payload: {
+      operationKey: '404-t3-deactivated-write', expectedVersion: 1,
+      items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
+        outcome: 'substituted', substitutionNote: 'Troca com catálogo desativado',
+        substitutionId: pending.id }],
+    } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    expect((await service.getForSession(scope(fixture))).items).toHaveLength(0);
+    expect((await service.getForSession(scope(fixture))).version).toBe(1);
+    expect(await prisma.studentLifecycleEvent.count({
+      where: { alunoId: fixture.alunoId, contractId: fixture.contractId },
+    })).toBe(before);
+    // The historical ledger remains visible despite the catalog deactivation.
+    expect(await prisma.workoutSubstitution.findUnique({ where: { id: pending.id } })).not.toBeNull();
+  });
+
+  it('rejects an alternative whose ID remains the same but version changes between request and execution', async () => {
+    const fixture = await seedReleasedWorkout('404-t3-version');
+    await transition(fixture, '404-t3-version-start', 0, 'in_progress');
+    const pending = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '404-t3-version-request');
+    await prisma.exerciseLibrary.update({
+      where: { id: pending.replacement.id }, data: { version: { increment: 1 } },
+    });
+    await expect(service.saveValues({ ...scope(fixture), payload: {
+      operationKey: '404-t3-version-stale', expectedVersion: 1,
+      items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
+        outcome: 'substituted', substitutionNote: 'Troca de versão desatualizada',
+        substitutionId: pending.id }],
+    } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    expect((await service.getForSession(scope(fixture))).items).toHaveLength(0);
+  });
+
+  it('keeps already-linked historical measurements editable after a later catalog deactivation', async () => {
+    const fixture = await seedReleasedWorkout('404-t3-historical');
+    await transition(fixture, '404-t3-history-start', 0, 'in_progress');
+    const pending = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '404-t3-history-request');
+    const first = await service.saveValues({ ...scope(fixture), payload: {
+      operationKey: '404-t3-history-first', expectedVersion: 1,
+      items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
+        outcome: 'substituted', substitutionNote: 'Adaptação executada e identificada',
+        substitutionId: pending.id, repetitions: 6 }],
+    } });
+    await prisma.exerciseLibrary.update({
+      where: { id: pending.replacement.id }, data: { curationStatus: 'inactive' },
+    });
+    const corrected = await service.saveValues({ ...scope(fixture), payload: {
+      operationKey: '404-t3-history-corrected', expectedVersion: first.version,
+      items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1, repetitions: 8 }],
+    } });
+    expect(corrected.items[0]).toMatchObject({
+      substitutionId: pending.id, substitutionNote: 'Adaptação executada e identificada', repetitions: 8,
+    });
+  });
+
 });
