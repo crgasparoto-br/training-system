@@ -6,7 +6,8 @@ import type { CanonicalPostWorkoutFeedbackRevisionView } from './post-workout-fe
  *
  * A fonte é exclusivamente o grafo operacional liberado
  * `TrainingPlan -> WorkoutTemplate(released=true) -> WorkoutDay -> WorkoutExercise`.
- * Este contrato é somente leitura: o lifecycle da sessão pertence à issue #389.
+ * A projeção semanal é somente leitura. Operações de substituição (#404)
+ * possuem comandos POST próprios; a execução continua pertencendo à issue #389.
  */
 
 export type TrainingRoutineAudience = 'student' | 'professor';
@@ -50,6 +51,8 @@ export interface TrainingSessionComparisonUnit {
   executedSetNumber?: number | null;
   /** Explicit user-provided replacement, never inferred from exercise names. */
   substitutionNote?: string | null;
+  /** #404: actual exercise-execution link; absent on legacy rows and cyclic stage adaptations. */
+  substitutionId?: string | null;
   kind: 'session' | 'cyclic_stage' | 'exercise' | 'block' | 'set' | 'group';
   label: string;
   outcome: TrainingSessionComparisonOutcome;
@@ -257,6 +260,8 @@ export interface TrainingSessionExecutionItemValue {
   /** Only explicit write outcomes; aggregate/unknown labels are derived on read. */
   outcome?: TrainingSessionExecutionOutcome;
   substitutionNote?: string | null;
+  /** #404: requerido para novas substituições de exercício; legado sem vínculo continua legível. */
+  substitutionId?: string | null;
   rir?: number | null;
   rpe?: number | null;
   tempo?: string | null;

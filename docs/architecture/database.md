@@ -344,6 +344,25 @@ Migration: `apps/api/prisma/migrations/20261111180000_issue_404_traceable_substi
 Dados não são propagados para prescrições futuras; o histórico permanece mesmo
 se o substituto ficar inativo. Não excluir registros para "reverter" decisões.
 
+#### Vínculo do resultado executado com o ledger (#404, A-404-006)
+
+A migration `20261112012500_issue_404_execution_ledger_link` adiciona
+`WorkoutSessionExecutionItem.substitutionId`, FK para `WorkoutSubstitution`
+(`ON DELETE RESTRICT`). Toda nova escrita com `outcome=substituted` em série ou
+exercício resistido deve apontar explicitamente para a substituição criada
+antes na API da #404. A transação da execução confirma aluno, `contractId`, dia,
+unidade original e estado vigente da revisão; a constraint `NOT VALID` protege
+novos inserts/updates sem fabricar um destino para registros pré-existentes.
+Um trigger adicional rejeita associação SQL a uma substituição de outro aluno,
+contrato, dia ou exercício. Vínculos rejeitados depois da execução permanecem
+históricos e não são apagados. Ao voltar para `full`, o vínculo do item é limpo;
+o registro imutável de substituição da #404 continua preservado.
+
+Etapas cíclicas e agrupamentos mantêm a descrição operacional de adaptação no
+JSON da execução (#401/#489), pois não são unidades de catálogo de exercícios
+nem alternativas de sessão. Não confundir essa observação com aprovação ou
+substituição rastreável da biblioteca.
+
 ### Versões de catálogos anteriores à #404
 
 O snapshot de catálogo capturado por `issue400_capture_released_exercise_catalog`

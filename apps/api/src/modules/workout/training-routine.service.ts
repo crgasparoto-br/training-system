@@ -105,6 +105,7 @@ const sessionSelect = {
           heartRateZone: true,
           outcome: true,
           substitutionNote: true,
+          substitutionId: true,
           rir: true,
           rpe: true,
           tempo: true,

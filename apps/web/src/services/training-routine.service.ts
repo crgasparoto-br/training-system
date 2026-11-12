@@ -25,8 +25,9 @@ type ApiEnvelope<T> = {
 /**
  * Leitura da rotina semanal e do Treino de hoje (#387).
  *
- * Este serviço é intencionalmente somente leitura: iniciar, pausar, concluir ou
- * registrar impossibilidade pertencem ao contrato canônico de execução (#389).
+ * As consultas da rotina semanal são somente leitura. A criação/revisão de
+ * substituições é uma operação separada (#404), com autorização do backend;
+ * o lifecycle da execução permanece no contrato canônico da #389.
  */
 export const trainingRoutineService = {
   async getSubstitutions(sessionId: string, contractId?: string): Promise<TrainingSubstitutionRecord[]> {

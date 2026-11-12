@@ -12,6 +12,7 @@ import {
   WorkoutSessionExecutionNotFoundError,
 } from '../src/modules/workout/workout-session-execution.service.js';
 import { workoutService } from '../src/modules/workout/workout.service.js';
+import { createTrainingSubstitutionService } from '../src/modules/workout/training-substitution.service.js';
 import { compareWorkoutSession, readCapturedWorkoutComparisonPlan } from '../src/modules/workout/workout-session-comparison.domain.js';
 import { createStudentWorkoutService } from '../src/modules/workout/student-workout.service.js';
 import { createTrainingRoutineService } from '../src/modules/workout/training-routine.service.js';
@@ -360,6 +361,30 @@ async function seedReleasedWorkout(
     dayId: day.id,
     exerciseIds: [exerciseA.id, exerciseB.id],
   };
+}
+
+/** Real #404 writer: the execution tests must not manufacture a ledger identifier. */
+async function recordExecutionReplacement(fixture: Fixture, originalUnitId: string, operationKey: string) {
+  // The original execution suite uses LEAD fixtures; the real #404 student's
+  // authenticated membership must be active before a substitution request.
+  await prisma.aluno.update({ where: { id: fixture.alunoId }, data: { status: 'ACTIVE_STUDENT' } });
+  const candidate = await prisma.workoutExercise.findFirstOrThrow({
+    where: { workoutDayId: fixture.dayId, id: { not: originalUnitId } },
+    select: { exerciseId: true, exercise: { select: { version: true } } },
+  });
+  const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+    where: { workoutDayId: fixture.dayId }, select: { version: true },
+  });
+  return createTrainingSubstitutionService(prisma).create({
+    sessionId: fixture.dayId,
+    actor: { kind: 'student', userId: fixture.alunoUserId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId },
+    kind: 'exercise', context: 'execution', originalUnitId,
+    replacementUnitId: candidate.exerciseId,
+    expectedReplacementVersion: `exercicio:${candidate.exercise.version}`,
+    reason: 'Substituição efetiva documentada durante a sessão',
+    operationKey, expectedExecutionVersion: execution.version,
+  });
 }
 
 function transition(
@@ -3480,11 +3505,12 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
     expect((await service.getGuidedForSession(scope)).completed).toBe(0);
 
     // A deliberate manual correction can retain the legitimate substitution.
+    const linked = await recordExecutionReplacement(fixture, current.plannedUnitId, '40122-linked-replacement');
     const corrected = await service.saveValues({ ...scope, payload: {
       operationKey: '40122-correct-to-substitution', expectedVersion: negative.version,
       items: [{ plannedUnitId: current.plannedUnitId, plannedSetId: current.plannedSetId,
         setNumber: current.setNumber, outcome: 'substituted',
-        substitutionNote: 'Adaptação orientada pelo professor' }],
+        substitutionNote: 'Adaptação orientada pelo professor', substitutionId: linked.id }],
     } });
     const confirmation = { operationKey: '40122-valid-confirmation',
       expectedVersion: corrected.version, ...guidance };
@@ -4168,8 +4194,10 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
     } });
 
     await transition(fixture, '40118-substitution-start', 0, 'in_progress');
+    const linked = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '40118-linked-replacement');
     const initial = await save('40118-substitution-initial', 1, {
-      outcome: 'substituted', substitutionNote: '  Remada adaptada  ', loadKg: 20, repetitions: 10,
+      outcome: 'substituted', substitutionNote: '  Remada adaptada  ',
+      substitutionId: linked.id, loadKg: 20, repetitions: 10,
     });
     expect(initial.version).toBe(2);
     expect(initial.items[0]).toMatchObject({
@@ -4357,6 +4385,7 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
     ]);
 
     await transition(fixture, 'issue401-start-comparison', 0, 'in_progress');
+    const linked = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '401-frozen-comparison-link');
     const frozen = await prisma.workoutSessionExecution.findUniqueOrThrow({
       where: { workoutDayId: fixture.dayId },
     });
@@ -4382,6 +4411,7 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
         items: [{
           plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSet.id,
           setNumber: 1, outcome: 'substituted', substitutionNote: 'Versão sem carga',
+          substitutionId: linked.id,
           repetitions: 9, loadKg: 0, rir: 2, rpe: 7, tempo: '2-0-2', restSec: 45,
         }],
       },
@@ -4528,6 +4558,7 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
   it('A-401-13/14: persisted legacy records retain separate measures through the read API', async () => {
     const fixture = await seedReleasedWorkout('issue401-legacy-item-metrics');
     await transition(fixture, 'issue401-legacy-items-start', 0, 'in_progress');
+    const linked = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '401-legacy-items-link');
     const input = {
       sessionId: fixture.dayId, alunoId: fixture.alunoId,
       contractId: fixture.contractId, actorUserId: fixture.alunoUserId,
@@ -4538,7 +4569,8 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
             repetitions: 10, loadKg: 20, durationSec: 0, distanceKm: 0,
             pace: '6:30', heartRateBpm: 145, heartRateZone: 'Z3' },
           { plannedUnitId: fixture.exerciseIds[0], setNumber: 2, outcome: 'substituted' as const,
-            substitutionNote: 'Adaptação do exercício', repetitions: 8, loadKg: 22,
+            substitutionNote: 'Adaptação do exercício', substitutionId: linked.id,
+            repetitions: 8, loadKg: 22,
             durationSec: 600, distanceKm: 1.5, pace: '6:00',
             heartRateBpm: 151, heartRateZone: 'Z4' },
         ],
@@ -5277,5 +5309,155 @@ describeDatabase('issue #489: guided cyclic stages share the canonical lifecycle
     expect(await prisma.workoutSessionExecutionOperation.count({
       where: { executionId: execution.id, action: 'guided_cyclic_start' },
     })).toBe(1);
+  });
+});
+
+
+describeDatabase('issue #404: canonical execution references the audited substitution ledger', () => {
+  const scope = (fixture: Fixture) => ({
+    sessionId: fixture.dayId, alunoId: fixture.alunoId,
+    contractId: fixture.contractId, actorUserId: fixture.alunoUserId,
+  });
+
+  it('rejects note-only exercise substitution and a forged ledger ID without any execution side effects', async () => {
+    const fixture = await seedReleasedWorkout('404-execution-no-bypass');
+    await transition(fixture, '404-execution-start', 0, 'in_progress');
+    const initialEvents = await prisma.studentLifecycleEvent.count({
+      where: { alunoId: fixture.alunoId, contractId: fixture.contractId },
+    });
+    const attempts = [
+      { outcome: 'substituted' as const, substitutionNote: 'Troca sem catálogo' },
+      { outcome: 'substituted' as const, substitutionNote: 'ID inventado', substitutionId: randomUUID() },
+    ];
+    for (const [index, item] of attempts.entries()) {
+      await expect(service.saveValues({ ...scope(fixture), payload: {
+        operationKey: `404-no-bypass-${index}`, expectedVersion: 1,
+        items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1, ...item }],
+      } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    }
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, include: { items: true, operations: true },
+    });
+    expect(execution.version).toBe(1);
+    expect(execution.items).toHaveLength(0);
+    expect(execution.operations).toHaveLength(1); // start only
+    expect(await prisma.studentLifecycleEvent.count({
+      where: { alunoId: fixture.alunoId, contractId: fixture.contractId },
+    })).toBe(initialEvents);
+  });
+
+  it('rejects cross-tenant and wrong-planned-unit links; accepts only the verified original', async () => {
+    const fixture = await seedReleasedWorkout('404-linked-valid');
+    const other = await seedReleasedWorkout('404-linked-foreign');
+    await transition(fixture, '404-linked-start', 0, 'in_progress');
+    await transition(other, '404-foreign-start', 0, 'in_progress');
+    const own = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '404-canonical-own');
+    const foreign = await recordExecutionReplacement(other, other.exerciseIds[0], '404-canonical-foreign');
+    const put = (key: string, substitutionId: string, plannedUnitId = fixture.exerciseIds[0]) =>
+      service.saveValues({ ...scope(fixture), payload: {
+        operationKey: key, expectedVersion: 1,
+        items: [{ plannedUnitId, setNumber: 1, outcome: 'substituted',
+          substitutionNote: 'Troca comprovada na mesma sessão', substitutionId }],
+      } });
+    await expect(put('404-linked-cross-tenant', foreign.id))
+      .rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    await expect(put('404-linked-wrong-original', own.id, fixture.exerciseIds[1]))
+      .rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    expect((await service.getForSession(scope(fixture))).version).toBe(1);
+    const recorded = await put('404-linked-correct', own.id);
+    expect(recorded.items[0]).toMatchObject({ outcome: 'substituted', substitutionId: own.id });
+    const stored = await prisma.workoutSessionExecutionItem.findFirstOrThrow({
+      where: { execution: { workoutDayId: fixture.dayId }, plannedUnitId: fixture.exerciseIds[0] },
+    });
+    expect(stored.substitutionId).toBe(own.id);
+    expect((await put('404-linked-correct', own.id)).version).toBe(recorded.version);
+    const plan = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, select: { plannedSnapshot: true },
+    });
+    const frozen = readCapturedWorkoutComparisonPlan(plan.plannedSnapshot)!;
+    const compared = compareWorkoutSession(frozen, recorded, 'captured');
+    expect(compared.units.some((unit) => unit.outcome === 'substituted')).toBe(true);
+  });
+
+  it('links a professional preapproval without pretending that selection already means execution', async () => {
+    const fixture = await seedReleasedWorkout('404-preapproved-boundary');
+    const prof = await prisma.professor.findFirstOrThrow({
+      where: { userId: fixture.professorUserId, contractId: fixture.contractId },
+    });
+    const candidate = await prisma.workoutExercise.findFirstOrThrow({
+      where: { workoutDayId: fixture.dayId, id: fixture.exerciseIds[1] },
+      select: { exerciseId: true, exercise: { select: { version: true } } },
+    });
+    const approved = await createTrainingSubstitutionService(prisma).create({
+      sessionId: fixture.dayId,
+      actor: { kind: 'professor', userId: fixture.professorUserId,
+        professorId: prof.id, contractId: fixture.contractId },
+      kind: 'exercise', context: 'planning', originalUnitId: fixture.exerciseIds[0],
+      replacementUnitId: candidate.exerciseId,
+      expectedReplacementVersion: `exercicio:${candidate.exercise.version}`,
+      reason: 'Ajuste profissional previamente aprovado', operationKey: '404-professor-preapproved',
+    });
+    expect(approved.status).toBe('approved');
+    await transition(fixture, '404-preapproved-start', 0, 'in_progress');
+    expect((await service.getForSession(scope(fixture))).items).toHaveLength(0);
+    const result = await service.saveValues({ ...scope(fixture), payload: {
+      operationKey: '404-preapproved-record', expectedVersion: 1,
+      items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
+        outcome: 'substituted', substitutionNote: 'Executado conforme aprovação anterior',
+        substitutionId: approved.id, repetitions: 10 }],
+    } });
+    expect(result.items[0]?.substitutionId).toBe(approved.id);
+    expect(await prisma.workoutSubstitution.count({
+      where: { id: approved.id, status: 'approved', context: 'planning' },
+    })).toBe(1);
+  });
+
+  it('protects the database from unlinked and cross-tenant direct writes', async () => {
+    const fixture = await seedReleasedWorkout('404-db-integrity');
+    const alien = await seedReleasedWorkout('404-db-integrity-alien');
+    await transition(fixture, '404-db-integrity-start', 0, 'in_progress');
+    await transition(alien, '404-db-integrity-alien-start', 0, 'in_progress');
+    const otherLink = await recordExecutionReplacement(alien, alien.exerciseIds[0], '404-db-foreign-ledger');
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, select: { id: true },
+    });
+    await expect(prisma.workoutSessionExecutionItem.create({ data: {
+      executionId: execution.id, plannedUnitId: fixture.exerciseIds[0],
+      setNumber: 1, outcome: 'substituted', substitutionNote: 'Sem ledger',
+    } })).rejects.toThrow();
+    await expect(prisma.workoutSessionExecutionItem.create({ data: {
+      executionId: execution.id, plannedUnitId: fixture.exerciseIds[0],
+      setNumber: 1, outcome: 'substituted', substitutionNote: 'ID de outro contrato',
+      substitutionId: otherLink.id,
+    } })).rejects.toThrow();
+    expect(await prisma.workoutSessionExecutionItem.count({
+      where: { executionId: execution.id },
+    })).toBe(0);
+  });
+
+  it('cannot newly execute a substitution after explicit rejection by the professor', async () => {
+    const fixture = await seedReleasedWorkout('404-reviewed-rejected');
+    await transition(fixture, '404-reviewed-start', 0, 'in_progress');
+    const pending = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '404-reviewed-request');
+    const version = await prisma.workoutSubstitution.findUniqueOrThrow({
+      where: { id: pending.id }, select: { version: true },
+    });
+    const professor = await prisma.professor.findFirstOrThrow({
+      where: { userId: fixture.professorUserId, contractId: fixture.contractId },
+    });
+    await createTrainingSubstitutionService(prisma).review({
+      sessionId: fixture.dayId, substitutionId: pending.id,
+      actor: { kind: 'professor', userId: fixture.professorUserId, professorId: professor.id,
+        contractId: fixture.contractId },
+      action: 'reject', expectedVersion: version.version,
+      reason: 'Alternativa inadequada após avaliação técnica',
+    });
+    await expect(service.saveValues({ ...scope(fixture), payload: {
+      operationKey: '404-rejected-write', expectedVersion: 1,
+      items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
+        outcome: 'substituted', substitutionNote: 'Tentativa depois da rejeição',
+        substitutionId: pending.id }],
+    } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    expect((await service.getForSession(scope(fixture))).version).toBe(1);
   });
 });

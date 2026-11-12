@@ -880,6 +880,8 @@ const executionItemSchema = z.object({
   setNumber: z.number().int().nonnegative().optional(),
   outcome: executionUnitOutcomeSchema.optional(),
   substitutionNote: z.string().trim().max(500).nullable().optional(),
+  // A direct exercise substitution must reference a previously recorded #404 ledger entry.
+  substitutionId: z.string().trim().min(1).max(128).nullable().optional(),
   rir: z.number().min(0).max(30).nullable().optional(),
   rpe: z.number().min(0).max(10).nullable().optional(),
   tempo: z.string().trim().max(80).nullable().optional(),

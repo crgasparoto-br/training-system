@@ -2278,6 +2278,9 @@ model WorkoutSessionExecutionItem {
   setNumber      Int                     @default(0)
   outcome        String?
   substitutionNote String?
+  // #404: immutable exercise replacement ledger, not a free-text claim.
+  substitutionId String?
+  substitution   WorkoutSubstitution? @relation("ExecutedExerciseSubstitution", fields: [substitutionId], references: [id], onDelete: Restrict)
   rir            Float?
   rpe            Float?
   tempo          String?
@@ -2301,6 +2304,7 @@ model WorkoutSessionExecutionItem {
   @@unique([executionId, plannedUnitId, setNumber])
   @@index([plannedUnitId])
   @@index([plannedSetId])
+  @@index([substitutionId])
 }
 
 
@@ -3626,6 +3630,7 @@ model WorkoutSubstitution {
   workoutDay          WorkoutDay                 @relation(fields: [workoutDayId], references: [id], onDelete: Restrict)
   aluno               Aluno                      @relation(fields: [alunoId], references: [id], onDelete: Restrict)
   contract            CompanyContract           @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  executedItems       WorkoutSessionExecutionItem[] @relation("ExecutedExerciseSubstitution")
 
   @@unique([workoutDayId, operationKey], map: "WorkoutSubstitution_day_operation_key")
   @@index([contractId, alunoId, workoutDayId, createdAt], map: "WorkoutSubstitution_contract_aluno_day_created_idx")

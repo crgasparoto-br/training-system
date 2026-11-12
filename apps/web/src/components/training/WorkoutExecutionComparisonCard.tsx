@@ -95,6 +95,8 @@ export function WorkoutExecutionComparisonCard({
       )}
       <div className="mt-3 space-y-2">
         {visible.map((item) => {
+          const linked = item.substitutionId
+            ? comparison.substitutions?.find(entry => entry.id === item.substitutionId) : undefined;
           const metrics = item.metrics.filter((entry) => entry.planned !== null
             || entry.plannedMax !== null || entry.executed !== null);
           return (
@@ -107,13 +109,24 @@ export function WorkoutExecutionComparisonCard({
                 {item.label}{item.iteration ? ` · volta ${item.iteration}` : ''}
                 {item.kind === 'set' && item.executedSetNumber != null ? ` · registro ${item.executedSetNumber}` : ''}
                 <span className="ml-2 text-xs font-normal text-muted-foreground">
-                  {outcomeLabel[item.outcome]}
+                  {(item.kind === 'cyclic_stage' || item.kind === 'group') && item.outcome === 'substituted'
+                    ? 'Adaptação registrada' : outcomeLabel[item.outcome]}
                   {item.containsSubstitution && item.outcome !== 'substituted' ? ' · com substituição' : ''}
                 </span>
               </summary>
+              {linked && (
+                <p className="mt-2 text-xs text-foreground">
+                  Execução vinculada: {linked.original.name} → {linked.replacement.name}
+                  {' · '}{linked.context === 'execution' ? 'Troca durante a sessão' : 'Pré-aprovada pelo professor'}
+                  {' · '}{linked.status === 'pending_review' ? 'Aguardando revisão' : linked.status === 'rejected' ? 'Rejeitada' : 'Aprovada'}
+                </p>
+              )}
               {item.substitutionNote && (
                 <p className="mt-2 text-xs text-foreground">
-                  Substituição registrada: {item.substitutionNote}
+                  {item.kind === 'cyclic_stage' || item.kind === 'group'
+                    ? 'Adaptação da etapa/agrupamento: '
+                    : item.substitutionId ? 'Observação da execução: ' : 'Registro legado sem vínculo de catálogo: '}
+                  {item.substitutionNote}
                 </p>
               )}
               {metrics.length ? (

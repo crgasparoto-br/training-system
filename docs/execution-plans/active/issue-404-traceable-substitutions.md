@@ -20,6 +20,8 @@ Troca automática por IA; importação externa; modificação de prescrições f
 - `apps/api/src/modules/workout/training-routine.service.ts` e tipos compartilhados.
 - `apps/web/src/components/training/TrainingSubstitutionCard.tsx`.
 - `apps/api/tests/training-substitution.integration.test.ts` e teste React.
+- `apps/api/src/modules/workout/workout-session-execution-values.ts` e
+  `apps/api/tests/workout-session-execution.integration.test.ts` para vínculo de execução.
 
 ## Restrições
 - O contrato, a identidade da sessão e o vínculo professor/aluno são checados no backend.
@@ -49,8 +51,12 @@ Troca automática por IA; importação externa; modificação de prescrições f
 - [x] Controles de regressão para leitura sem escrita, revogação, restauração e histórico congelado.
 - [x] A-003: validar versão exata selecionada, inclusive para alternativa de sessão;
   rejeitar revisão stale com 409 e sem ledger/evento; incluir versão no fingerprint.
-- [ ] A-004: comprovar em Chrome/HTTP/PostgreSQL que um POST confirmado seguido
-  por falha de GET não dispara POST duplicado na recuperação (CI exact-SHA).
+- [x] A-004: Chrome/HTTP/PostgreSQL com falha pós-POST e retry apenas GET,
+  atestado na CI do SHA `42de210b576d950ce2432a8ba2ef85fe416e25d8`.
+- [x] A-404-006: integrar `substituted` de exercícios à trilha #404 com FK,
+  validação transacional e trigger de identidade (aguarda CI do novo SHA).
+- [x] A-404-007: delimitar a projeção somente leitura versus endpoints
+  explícitos de criação e revisão (aguarda CI do novo SHA).
 - [ ] `pnpm validate` e CI completos no novo SHA, sem falhas.
 - [ ] Auditoria independente e homologação.
 
@@ -76,11 +82,16 @@ Troca automática por IA; importação externa; modificação de prescrições f
 ## Decisões e pendências
 - Mudança confinada à prescrição liberada atual, sem propagação automática.
 - Status do histórico é independente do estado de execução.
+- Execução resistida com `outcome=substituted` exige `substitutionId` real,
+  preserva aprovação/solicitação e rejeita string avulsa; etapa cíclica e
+  agrupamento registram apenas adaptação operacional, sem inventar catálogo.
+- Registros antigos sem o vínculo continuam legíveis, sem backfill enganoso.
 - Validação local indisponível: resolução DNS de github.com e pnpm ausente no
   ambiente de trabalho; comprovar testes/build na CI da PR.
 - PR: https://github.com/crgasparoto-br/training-system/pull/541
 - Remediação inicial da auditoria de 11/11/2026: `A-001`, `A-002` e `REC-001`.
-- Remediação desta rodada: `A-404-001`, `RISK-001`, `REC-404-001`, com controles
-  de permissão independente, revogação e revisão histórica. Sem merge; a CI do SHA
-  anterior não comprova o novo candidato.
+- Remediações anteriores: `A-404-001`, `RISK-001`, `REC-404-001`, com controles
+  de permissão independente, revogação e revisão histórica. A-404-006/007
+  introduzem o vínculo efetivo no registro de execução e corrigem a documentação.
+  A CI do SHA anterior não comprova este novo candidato.
 - Não fazer merge sem autorização explícita.

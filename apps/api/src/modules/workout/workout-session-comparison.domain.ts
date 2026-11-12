@@ -143,8 +143,12 @@ function unit(
   substitutionNote: string | null = null,
   executedSetNumber: number | null = null,
   containsSubstitution = outcome === 'substituted',
+  substitutionId: string | null = null,
 ): TrainingSessionComparisonUnit {
-  return { plannedUnitId, kind, label, outcome, parentUnitId, iteration, substitutionNote, executedSetNumber, containsSubstitution, metrics };
+  return { plannedUnitId, kind, label, outcome, parentUnitId, iteration,
+    substitutionNote, executedSetNumber, containsSubstitution, metrics,
+    ...(substitutionId ? { substitutionId } : {}),
+  };
 }
 
 type RecordedExerciseItem = TrainingSessionExecutionView['items'][number];
@@ -281,12 +285,14 @@ export function compareWorkoutSessionWithoutSnapshot(
       ...(ordered.length === 1 ? recordedItemMetrics(ordered[0]) : []),
     ], null, null,
     ordered.find((item) => item.outcome === 'substituted')?.substitutionNote ?? null,
-    null, containsSubstitution));
+    null, containsSubstitution,
+    ordered.find((item) => item.outcome === 'substituted')?.substitutionId ?? null));
     for (const item of ordered) {
       units.push(unit(item.plannedSetId ?? item.plannedUnitId,
         'set', 'Série registrada', recordedItemOutcome(item),
         recordedItemMetrics(item), exerciseId, null,
-        item.substitutionNote ?? null, item.setNumber ?? 0));
+        item.substitutionNote ?? null, item.setNumber ?? 0,
+        item.outcome === 'substituted', item.substitutionId ?? null));
     }
   }
   for (const group of recordedGroups) {
@@ -427,7 +433,8 @@ export function compareWorkoutSession(
       return name;
     })(), recordedCount ? summaryOutcome(statuses, expected) : missingOutcome, exerciseMetrics,
     null, null, items.find((item) => item.outcome === 'substituted')?.substitutionNote ?? null,
-    null, items.some((item) => item.outcome === 'substituted')));
+    null, items.some((item) => item.outcome === 'substituted'),
+    items.find((item) => item.outcome === 'substituted')?.substitutionId ?? null));
 
     if (setCount === 0 && items.length > 1) {
       // A legacy series has no plannedSetId. Keep the exercise's real ID and
@@ -436,7 +443,8 @@ export function compareWorkoutSession(
         result.push(unit(exercise.id, 'set', 'Série registrada',
           recordedItemOutcome(logged),
           legacyExerciseItemMetrics(exercise, logged),
-          exercise.id, null, logged.substitutionNote ?? null, logged.setNumber ?? 0));
+          exercise.id, null, logged.substitutionNote ?? null, logged.setNumber ?? 0,
+          logged.outcome === 'substituted', logged.substitutionId ?? null));
       }
     }
 
@@ -466,7 +474,8 @@ export function compareWorkoutSession(
               metric('tempo', 'Cadência', set.tempo, logged?.tempo, null),
               metric('rest', 'Intervalo', set.restSec, logged?.restSec, 's'),
               ...exerciseItemCyclicMetrics(logged),
-            ], block.id, null, logged?.substitutionNote ?? null, logged?.setNumber ?? null));
+            ], block.id, null, logged?.substitutionNote ?? null, logged?.setNumber ?? null,
+            logged?.outcome === 'substituted', logged?.substitutionId ?? null));
         }
       }
     }

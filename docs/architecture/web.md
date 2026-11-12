@@ -47,6 +47,13 @@ A matriz de regressao do fluxo esta em `docs/profile-review-e2e-validation.md`. 
 
 A projeção semanal do painel é somente leitura, mas `TrainingSubstitutionCard` realiza comandos explícitos pela API `/api/v1/training-substitutions`. Para professores, as ações de pré-aprovação e revisão só aparecem com `students.actions.manageTrainingSubstitutions`, além de `students.details.trainingPlans`; professores com leitura isolada mantêm o histórico, sem botões de alteração. O backend repete a mesma autorização de escrita dentro da transação; esconder ações na interface não é controle suficiente. Sem `plannedSnapshot`, a comparação antiga exibe apenas valores executados realmente registrados e `historical_unknown` (Cobertura histórica indisponível) para agregados sem denominador histórico comprovável; alterar o plano atual não muda esse resumo. O professor continua vendo as séries e medidas históricas explícitas, enquanto o aluno recebe apenas métricas autorizadas. A evidência autenticada #401 percorre a própria Central do Aluno no desktop e mobile, além do cartão isolado. A rotina semanal permite expandir comparações históricas de sessões já executadas, com dados autorizados na API e chave distinta para cada ocorrência de série. Controles de execução ficam desabilitados enquanto a API declarar `execution.available = false`; não há estado de sessão local nem chamada a endpoints de execução. O card legado baseado em `Microcycle` foi removido da Central.
 
+A execução resistida com resultado `substituted` deve trazer o ID da
+substituição explicitamente selecionada e registrada no ledger da #404; não
+basta `substitutionNote` livre. A comparação exibe a unidade original, sua
+alternativa e o estado da revisão quando houver vínculo, sem interpretar uma
+pré-aprovação como execução confirmada. Etapas cíclicas/agrupamentos com nota
+livre são adaptações operacionais distintas, não substituição de exercício.
+
 ## Check-in pré-treino
 
 O `TrainingRoutinePanel` projeta o check-in da #388 no mesmo card da sessão. Para o aluno em `not_started`, `PreWorkoutCheckInCard` permite preenchimento parcial e salva pela fronteira `student/me`; depois do início a mesma visão fica somente leitura. Na Central do Aluno, o modo professor só renderiza esse bloco quando a API inclui explicitamente `preWorkoutCheckIn`, o que exige a concessão sensível `students.details.preWorkoutCheckIn`; sem essa concessão o campo e o bloco visual são omitidos.

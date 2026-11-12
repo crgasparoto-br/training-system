@@ -176,7 +176,7 @@ export function GuidedCyclicCard({ sessionId, status, version, load, act, onExec
       if (action === 'complete') {
         values = {};
         if (outcome === 'substituted' && !substitutionNote.trim()) {
-          throw new Error('Descreva a substituição realizada.');
+          throw new Error('Descreva a adaptação da etapa realizada.');
         }
         if (outcome === 'substituted') values.substitutionNote = substitutionNote.trim();
         if (outcome !== 'not_performed') {
@@ -334,7 +334,7 @@ export function GuidedCyclicCard({ sessionId, status, version, load, act, onExec
                       disabled={!canEdit} className="min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-base">
                       <option value="full">Realizada</option>
                       <option value="partial">Parcialmente realizada</option>
-                      <option value="substituted">Substituída</option>
+                      <option value="substituted">Etapa adaptada</option>
                       <option value="not_performed">Não realizada</option>
                     </select>
                   </div>
