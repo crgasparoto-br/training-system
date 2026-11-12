@@ -59,7 +59,7 @@ As regras de produto estão em `docs/product/student-centered-training-experienc
 
 ## Coerência entre classificação e execução (#401, A-401022/A-401023)
 
-A confirmação guiada de uma série já marcada como `not_performed` é rejeitada com HTTP 409 e código `WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME` na mesma transação serializável. O aluno deve alterar explicitamente o outcome manual antes de confirmar; uma série `partial` ou `substituted` pode ser confirmada sem reclassificação silenciosa. O replay da chave idempotente preserva o estado após confirmação legítima.
+A confirmação guiada de uma série já marcada como `not_performed` é rejeitada com HTTP 409 e código `WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME` na mesma transação serializável. O aluno deve alterar explicitamente o outcome manual antes de confirmar. Uma série `partial` pode ser confirmada preservando a classificação; uma série previamente marcada `substituted` **não** pode ser confirmada como exercício planejado por omissão dos campos de troca: retorna HTTP 409 até correção manual ou seleção explícita de `outcome=substituted`, `substitutionId` e motivo. O replay da chave idempotente preserva o estado após confirmação legítima.
 
 A transição da sessão para `not_performed` exige motivo e ausência total de `sessionValues` e `items` no payload; também recusa um shell persistido que já contenha qualquer registro executado. A rejeição HTTP 400 ocorre antes de qualquer escrita de execução, operação ou evento, e zero explícito não é tratado como ausência. A transição válida sem registros permanece disponível.
 

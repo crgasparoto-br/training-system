@@ -59,6 +59,8 @@ export type GuidedResistanceDraft = {
   operation: GuidedResistanceOperation | null;
   /** A 409 must remain a write lock even after switching to the overview. */
   conflictVersion: number | null;
+  /** Highest canonical version already observed; survives guide/overview remounts. */
+  acceptedVersion?: number;
 };
 
 type Props = {
@@ -143,7 +145,10 @@ export function GuidedResistanceCard({
   // Only the latest read may change the UI. A confirmed mutation also invalidates
   // reads started before the POST returned.
   const refreshSequenceRef = useRef(0);
-  const acceptedVersionRef = useRef<{ sessionId: string; version: number } | null>(null);
+  const acceptedVersionRef = useRef<{ sessionId: string; version: number } | null>(
+    draftStore?.current?.sessionId === sessionId && draftStore.current.acceptedVersion !== undefined
+      ? { sessionId, version: draftStore.current.acceptedVersion } : null,
+  );
   // The parent can advance while an older POST is awaiting its response.
   // A callback captured before that render must still see the latest version.
   const parentVersionRef = useRef({ sessionId, version });
@@ -168,7 +173,9 @@ export function GuidedResistanceCard({
     draftStore.current = { sessionId, plannedSetId, repetitions: nextRepetitions,
       loadKg: nextLoadKg, substitutionId: nextSubstitutionId,
       substitutionNote: nextSubstitutionNote, operation,
-      conflictVersion: conflictVersionRef.current };
+      conflictVersion: conflictVersionRef.current,
+      acceptedVersion: acceptedVersionRef.current?.sessionId === sessionId
+        ? acceptedVersionRef.current.version : undefined };
   };
 
   const acceptView = useCallback((
@@ -205,6 +212,7 @@ export function GuidedResistanceCard({
         repetitions: nextRepetitions, loadKg: nextLoadKg,
         substitutionId: nextSubstitutionId, substitutionNote: nextSubstitutionNote,
         operation: retainedOperation, conflictVersion: conflictVersionRef.current,
+        acceptedVersion: saved.version,
       } : null;
     } else if (operationRef.current && operationRef.current.payload.expectedVersion !== saved.version) {
       // The same planned set may survive a pause/resume or a competing edit.
@@ -231,11 +239,17 @@ export function GuidedResistanceCard({
         receivedAtMs: observation.receivedAtMs,
         ageUpperBoundMs: Math.max(0, roundTripMs - processingMs) };
     }
+    // A business 409 may leave this version unchanged. Preserve the highest
+    // canonical read independently of the conflict lock, including when the
+    // component is unmounted while reconciliation is still required.
+    if (draftStore?.current?.sessionId === sourceSessionId) {
+      draftStore.current = { ...draftStore.current, acceptedVersion: saved.version };
+    }
     setView({ ...saved, restObservation });
     return true;
   }, [draftStore]);
 
-  const refresh = useCallback(async (reason: 'normal' | 'conflict' = 'normal'): Promise<boolean> => {
+  const refresh = useCallback(async (reason: 'normal' | 'conflict' | 'incompatible' = 'normal'): Promise<boolean> => {
     const requestId = ++refreshSequenceRef.current;
     setLoading(true);
     const requestedAtMs = performance.now();
@@ -267,16 +281,20 @@ export function GuidedResistanceCard({
         draftStore.current = { ...draftStore.current, conflictVersion: null };
       }
       setReconciliationRequired(false);
-      setError(reason === 'conflict'
-        ? 'O treino mudou em outro dispositivo. Revise a série atualizada antes de confirmar novamente.'
-        : null);
+      setError(reason === 'incompatible'
+        ? 'O resultado manual desta série é incompatível com a confirmação. Corrija-o na ficha completa; se houver uma substituição registrada, selecione explicitamente a troca e informe o motivo.'
+        : reason === 'conflict'
+          ? 'O treino mudou em outro dispositivo. Revise a série atualizada antes de confirmar novamente.'
+          : null);
       return true;
     } catch {
       if (requestId !== refreshSequenceRef.current) return false;
       setReconciliationRequired(true);
-      setError(reason === 'conflict'
-        ? 'O treino mudou em outro dispositivo e a recarga falhou. Nova confirmação bloqueada até atualizar o estado salvo.'
-        : 'Não foi possível consultar a posição salva. Atualize o treino antes de confirmar outra série.');
+      setError(reason === 'incompatible'
+        ? 'Não foi possível recarregar a série após um resultado incompatível. Atualize o estado salvo antes de corrigir o registro.'
+        : reason === 'conflict'
+          ? 'O treino mudou em outro dispositivo e a recarga falhou. Nova confirmação bloqueada até atualizar o estado salvo.'
+          : 'Não foi possível consultar a posição salva. Atualize o treino antes de confirmar outra série.');
       return false;
     } finally {
       if (requestId === refreshSequenceRef.current) setLoading(false);
@@ -370,16 +388,22 @@ export function GuidedResistanceCard({
       }
     } catch (cause) {
       const httpStatus = (cause as { response?: { status?: number } })?.response?.status;
+      const code = (cause as { response?: { data?: { details?: { code?: string } } } })
+        ?.response?.data?.details?.code;
       if (httpStatus === 409) {
         operationRef.current = null;
-        conflictVersionRef.current = Math.max(conflictVersionRef.current ?? -1, view.version);
-        // Preserve the 409 lock with the draft before the card can unmount.
+        // An incompatible outcome is a business rejection, not a concurrent
+        // version change. A same-version canonical GET can unlock selection.
+        // All other 409s retain the monotonic version fence across remounts.
+        const incompatibleOutcome = code === 'WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME';
+        if (!incompatibleOutcome) {
+          conflictVersionRef.current = Math.max(conflictVersionRef.current ?? -1, view.version);
+        }
         keepDraft(repetitions, loadKg, null);
-        // Invalidate any read started before we learned about the conflict.
         refreshSequenceRef.current += 1;
         setLoading(false);
         setReconciliationRequired(true);
-        await refresh('conflict');
+        await refresh(incompatibleOutcome ? 'incompatible' : 'conflict');
       } else {
         setError('Não foi possível confirmar a gravação. Atualize o estado salvo ou tente novamente; sua informação foi preservada.');
       }
