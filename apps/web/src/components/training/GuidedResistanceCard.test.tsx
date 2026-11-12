@@ -202,6 +202,61 @@ describe('issue #487 - guia resistido', () => {
     expect(screen.getByText(/Próximo:/)).toHaveTextContent(/rodada 2/);
   });
 
+  it('A-404-RECOVERY: a business 409 unlocks explicit substitution after a canonical same-version GET', async () => {
+    const load = vi.fn().mockResolvedValue(projection());
+    const complete = vi.fn().mockRejectedValueOnce({ response: { status: 409, data: {
+      details: { code: 'WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME' },
+    } } }).mockResolvedValueOnce(projection({ version: 2, completed: 1, current: second, next: null }));
+    panel({ load, complete, substitutions: [approvedSwap] });
+    const submit = await screen.findByRole('button', { name: 'Concluir série' });
+    await userEvent.clear(screen.getByLabelText('Repetições realizadas'));
+    await userEvent.type(screen.getByLabelText('Repetições realizadas'), '6');
+    await userEvent.click(submit);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(submit).toBeEnabled());
+    expect(await screen.findByRole('alert')).toHaveTextContent(/substituição registrada/i);
+    expect(screen.getByLabelText('Repetições realizadas')).toHaveValue('6');
+    expect(complete.mock.calls[0][1]).not.toHaveProperty('substitutionId');
+
+    fireEvent.change(screen.getByLabelText('Exercício efetivamente executado'), {
+      target: { value: approvedSwap.id },
+    });
+    fireEvent.change(screen.getByLabelText('Observação da substituição realizada'), {
+      target: { value: 'Troca confirmada após consultar estado atual' },
+    });
+    await userEvent.click(submit);
+    await waitFor(() => expect(complete).toHaveBeenCalledTimes(2));
+    expect(complete.mock.calls[1][1]).toMatchObject({
+      outcome: 'substituted', substitutionId: approvedSwap.id,
+      substitutionNote: 'Troca confirmada após consultar estado atual',
+      repetitions: 6, expectedVersion: 1,
+    });
+    expect(complete.mock.calls[1][1].operationKey).not.toBe(complete.mock.calls[0][1].operationKey);
+  });
+
+  it('A-404-RECOVERY: a failed/stale GET after incompatible outcome stays blocked until fresh canonical read', async () => {
+    const load = vi.fn().mockResolvedValueOnce(projection())
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(projection({ version: 0 }))
+      .mockResolvedValueOnce(projection());
+    const complete = vi.fn().mockRejectedValue({ response: { status: 409, data: {
+      details: { code: 'WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME' },
+    } } });
+    panel({ load, complete, substitutions: [approvedSwap] });
+    const submit = await screen.findByRole('button', { name: 'Concluir série' });
+    await userEvent.click(submit);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/não foi possível recarregar/i);
+    expect(submit).toBeDisabled();
+    expect(screen.getByLabelText('Exercício efetivamente executado')).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Atualizar estado salvo' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/posição desatualizada/i);
+    expect(submit).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Atualizar estado salvo' }));
+    await waitFor(() => expect(submit).toBeEnabled());
+    expect(screen.getByLabelText('Exercício efetivamente executado')).toBeEnabled();
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
   it('revalida após 409 sem repetir uma operação obsoleta', async () => {
     const load = vi.fn().mockResolvedValueOnce(projection()).mockResolvedValue(projection({
       version: 2, completed: 1, current: second, next: null,
