@@ -653,11 +653,18 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
           && record.plannedSetId === items[0].plannedSetId
           && record.setNumber === items[0].setNumber
         );
-        // A guided completion must never leave a persisted "not performed"
-        // outcome on a completed set. Keep partial/substituted outcomes intact.
+        // A guided confirmation must not silently reinterpret a negative result,
+        // or inherit a manually recorded substitute when the planned exercise was chosen.
+        // Preserve partial outcomes and explicit, audited substitute confirmations.
         if (previous?.outcome === 'not_performed') {
           throw new WorkoutSessionExecutionConflictError(
             'Esta série está marcada como não realizada. Corrija o resultado registrado antes de confirmá-la.',
+            'WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME'
+          );
+        }
+        if (previous?.outcome === 'substituted' && items[0].outcome !== 'substituted') {
+          throw new WorkoutSessionExecutionConflictError(
+            'Esta série possui uma substituição registrada. Corrija o registro ou selecione explicitamente a substituição para confirmar.',
             'WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME'
           );
         }

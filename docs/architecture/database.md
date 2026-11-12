@@ -354,7 +354,13 @@ antes na API da #404. A transação da execução confirma aluno, `contractId`, 
 unidade original, estado vigente da revisão e elegibilidade/versão atual do
 catálogo no primeiro vínculo; a constraint `NOT VALID` protege
 novos inserts/updates sem fabricar um destino para registros pré-existentes.
-Um trigger adicional rejeita associação SQL a uma substituição de outro aluno,
+A migration incremental `20261112200000_issue_404_substitution_null_safe_guard`
+substitui somente essa constraint por um predicado null-safe (`IS NOT DISTINCT
+FROM 'substituted'`), pois `CHECK` aceita expressão `UNKNOWN` no PostgreSQL.
+Novos INSERTs/UPDATEs de `outcome=NULL` com `substitutionId` não nulo são
+rejeitados, inclusive edições de item existente; registros históricos não são
+reclassificados nem submetidos a validação retroativa. O checksum da migration
+anterior é preservado. Um trigger adicional rejeita associação SQL a uma substituição de outro aluno,
 contrato, dia ou exercício. Vínculos rejeitados depois da execução permanecem
 históricos e não são apagados. Ao voltar para `full`, o vínculo do item é limpo;
 o registro imutável de substituição da #404 continua preservado.

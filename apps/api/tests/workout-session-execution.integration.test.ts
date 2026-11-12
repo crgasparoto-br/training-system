@@ -3512,8 +3512,23 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
         setNumber: current.setNumber, outcome: 'substituted',
         substitutionNote: 'Adaptação orientada pelo professor', substitutionId: linked.id }],
     } });
+    const beforeSubstituted = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, include: { items: true, operations: true },
+    });
+    await expect(service.completeGuided({ ...scope, payload: {
+      operationKey: '40122-stale-substitution-denied', expectedVersion: corrected.version, ...guidance,
+    } })).rejects.toMatchObject({
+      statusCode: 409, code: 'WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME',
+    });
+    expect(await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, include: { items: true, operations: true },
+    })).toEqual(beforeSubstituted);
+    expect((await service.getGuidedForSession(scope)).completed).toBe(0);
+
     const confirmation = { operationKey: '40122-valid-confirmation',
-      expectedVersion: corrected.version, ...guidance };
+      expectedVersion: corrected.version, ...guidance,
+      outcome: 'substituted' as const, substitutionId: linked.id,
+      substitutionNote: 'Adaptação orientada pelo professor' };
     const guided = await service.completeGuided({ ...scope, payload: confirmation });
     expect(guided).toMatchObject({ completed: 1 });
     expect(await concurrentService.completeGuided({ ...scope, payload: confirmation }))
@@ -3532,6 +3547,28 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
       && unit.plannedUnitId === current.plannedSetId)).toMatchObject({
       outcome: 'substituted', substitutionNote: 'Adaptação orientada pelo professor',
     });
+  });
+
+  it('A-404-STALE: guided confirmation keeps an existing partial classification without a replacement link', async () => {
+    const fixture = await seedReleasedWorkout('404-guided-partial-safe', { seedGuidedResistance: true });
+    const currentScope = { sessionId: fixture.dayId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId, actorUserId: fixture.alunoUserId };
+    await transition(fixture, '404-partial-start', 0, 'in_progress');
+    const current = (await service.getGuidedForSession(currentScope)).current!;
+    const recorded = await service.saveValues({ ...currentScope, payload: {
+      operationKey: '404-partial-record', expectedVersion: 1,
+      items: [{ plannedUnitId: current.plannedUnitId, plannedSetId: current.plannedSetId,
+        setNumber: current.setNumber, outcome: 'partial', repetitions: 4 }],
+    } });
+    const guided = await service.completeGuided({ ...currentScope, payload: {
+      operationKey: '404-partial-confirm', expectedVersion: recorded.version,
+      plannedUnitId: current.plannedUnitId, plannedSetId: current.plannedSetId,
+      setNumber: current.setNumber, repetitions: 6, loadKg: 20,
+    } });
+    expect(guided.completed).toBe(1);
+    const saved = await service.getForSession(currentScope);
+    expect(saved.items[0]).toMatchObject({ outcome: 'partial', repetitions: 6, loadKg: 20 });
+    expect(saved.items[0].substitutionId).toBeNull();
   });
 
   it('A-401023: non-performance cannot carry executed items or session measurements', async () => {
@@ -5527,6 +5564,42 @@ describeDatabase('issue #404: canonical execution references the audited substit
     expect(await prisma.workoutSessionExecutionItem.count({
       where: { executionId: execution.id },
     })).toBe(0);
+  });
+
+  it('A-404-NULL: SQL denies linked outcomes without substituted classification on INSERT and UPDATE', async () => {
+    const fixture = await seedReleasedWorkout('404-db-null-outcome');
+    await transition(fixture, '404-db-null-start', 0, 'in_progress');
+    const own = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '404-db-null-ledger');
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, select: { id: true },
+    });
+    const identity = { executionId: execution.id, plannedUnitId: fixture.exerciseIds[0], setNumber: 1 };
+    await expect(prisma.workoutSessionExecutionItem.create({ data: {
+      ...identity, outcome: null, substitutionId: own.id,
+    } })).rejects.toThrow();
+    expect(await prisma.workoutSessionExecutionItem.count({ where: { executionId: execution.id } }))
+      .toBe(0);
+
+    const original = await prisma.workoutSessionExecutionItem.create({ data: {
+      ...identity, outcome: null,
+    } });
+    await expect(prisma.workoutSessionExecutionItem.update({
+      where: { id: original.id }, data: { substitutionId: own.id },
+    })).rejects.toThrow();
+    expect(await prisma.workoutSessionExecutionItem.findUniqueOrThrow({ where: { id: original.id } }))
+      .toMatchObject({ outcome: null, substitutionId: null });
+
+    const legitimate = await prisma.workoutSessionExecutionItem.update({
+      where: { id: original.id }, data: {
+        outcome: 'substituted', substitutionId: own.id, substitutionNote: 'Troca confirmada no SQL',
+      },
+    });
+    expect(legitimate).toMatchObject({ outcome: 'substituted', substitutionId: own.id });
+    await expect(prisma.workoutSessionExecutionItem.update({
+      where: { id: original.id }, data: { outcome: null },
+    })).rejects.toThrow();
+    expect(await prisma.workoutSessionExecutionItem.findUniqueOrThrow({ where: { id: original.id } }))
+      .toMatchObject({ outcome: 'substituted', substitutionId: own.id });
   });
 
   it('cannot newly execute a substitution after explicit rejection by the professor', async () => {
