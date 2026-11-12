@@ -4187,7 +4187,7 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
     const save = (
       operationKey: string, expectedVersion: number,
       item: { outcome?: 'full' | 'partial' | 'substituted' | 'not_performed';
-        substitutionNote?: string | null; loadKg?: number; repetitions?: number },
+        substitutionNote?: string | null; substitutionId?: string | null; loadKg?: number; repetitions?: number },
     ) => service.saveValues({ ...scope, payload: {
       operationKey, expectedVersion,
       items: [{ plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSet.id, ...item }],
