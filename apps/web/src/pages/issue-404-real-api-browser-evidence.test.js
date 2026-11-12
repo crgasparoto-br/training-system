@@ -500,7 +500,7 @@ suite('Issue #404: real browser, authenticated API and PostgreSQL', () => {
       await waitText(page, 'Agachamento alternativo #404');
       const mobile = await page.evaluate(() => ({
         textLength: document.body.innerText.trim().length,
-        hasComparison: document.body.innerText.includes('Planejado e executado'),
+        hasComparison: Boolean(document.querySelector('section[aria-label="Planejado e executado"]')),
         overflow: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - innerWidth,
       }));
       expect(mobile.textLength).toBeGreaterThan(200);
