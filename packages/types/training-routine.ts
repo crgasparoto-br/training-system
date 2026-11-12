@@ -6,7 +6,8 @@ import type { CanonicalPostWorkoutFeedbackRevisionView } from './post-workout-fe
  *
  * A fonte é exclusivamente o grafo operacional liberado
  * `TrainingPlan -> WorkoutTemplate(released=true) -> WorkoutDay -> WorkoutExercise`.
- * Este contrato é somente leitura: o lifecycle da sessão pertence à issue #389.
+ * A projeção semanal é somente leitura. Operações de substituição (#404)
+ * possuem comandos POST próprios; a execução continua pertencendo à issue #389.
  */
 
 export type TrainingRoutineAudience = 'student' | 'professor';
@@ -50,6 +51,8 @@ export interface TrainingSessionComparisonUnit {
   executedSetNumber?: number | null;
   /** Explicit user-provided replacement, never inferred from exercise names. */
   substitutionNote?: string | null;
+  /** #404: actual exercise-execution link; absent on legacy rows and cyclic stage adaptations. */
+  substitutionId?: string | null;
   kind: 'session' | 'cyclic_stage' | 'exercise' | 'block' | 'set' | 'group';
   label: string;
   outcome: TrainingSessionComparisonOutcome;
@@ -65,6 +68,90 @@ export interface TrainingSessionComparison {
   snapshotSource: 'captured' | 'released_plan';
   executionVersion: number;
   units: TrainingSessionComparisonUnit[];
+  /** Vinculos historicos entre planejado e substituto, independentes dos resultados executados. */
+  substitutions?: TrainingSubstitutionRecord[];
+}
+
+/** #404: imutavel, tenant-scoped e sem alteracao da prescricao original. */
+export type TrainingSubstitutionKind = 'exercise' | 'session';
+export type TrainingSubstitutionContext = 'planning' | 'review' | 'execution';
+export type TrainingSubstitutionStatus = 'approved' | 'pending_review' | 'rejected';
+
+export interface TrainingSubstitutionSnapshot {
+  /** Identidade da unidade operacional original/substituta. */
+  unitId: string;
+  /** Identidade do item de catalogo ou da sessao. */
+  id: string;
+  name: string;
+  /** "exercicio:<versao>" ou "liberacao:<versao>". */
+  version: string;
+  capacity: string | null;
+  movementPattern: string | null;
+  equipment: string[];
+  difficulty: string | null;
+  /** Na visao do aluno nunca inclui restricoes tecnicas. */
+  restrictions: string[];
+}
+
+export interface TrainingSubstitutionRecord {
+  id: string;
+  sessionId: string;
+  /** Restricted to the authorized professor projection. */
+  alunoId?: string;
+  kind: TrainingSubstitutionKind;
+  context: TrainingSubstitutionContext;
+  status: TrainingSubstitutionStatus;
+  original: TrainingSubstitutionSnapshot;
+  replacement: TrainingSubstitutionSnapshot;
+  originalVersion: string;
+  replacementVersion: string;
+  reason: string;
+  /** Restricted to the authorized professor projection; students see role labels only. */
+  actorUserId?: string;
+  createdAt: string;
+  reviewedByUserId?: string | null;
+  reviewedAt: string | null;
+  reviewReason: string | null;
+  /** Optimistic concurrency token needed only for professional review. */
+  version?: number;
+}
+
+export interface TrainingSubstitutionAlternativePage {
+  items: TrainingSubstitutionAlternative[];
+  /** Offset for the next page; null when all matching alternatives were returned. */
+  nextOffset: number | null;
+}
+
+export interface TrainingSubstitutionAlternative {
+  kind: TrainingSubstitutionKind;
+  replacement: TrainingSubstitutionSnapshot;
+  suitability: {
+    sameMovementPattern: boolean;
+    sameCapacity: boolean;
+    sameDifficulty: boolean;
+    sharedEquipment: string[];
+    requiresProfessionalReview: boolean;
+  };
+  /** Auxilio a escolha, jamais autorizacao clinica ou troca automatica. */
+  objectiveHint: string | null;
+}
+
+export interface TrainingSubstitutionCreatePayload {
+  kind: TrainingSubstitutionKind;
+  context: TrainingSubstitutionContext;
+  originalUnitId: string;
+  replacementUnitId: string;
+  /** Exact version selected from the alternatives response. */
+  expectedReplacementVersion: string;
+  reason: string;
+  operationKey: string;
+  expectedExecutionVersion?: number;
+}
+
+export interface TrainingSubstitutionReviewPayload {
+  action: 'approve' | 'reject';
+  expectedVersion: number;
+  reason?: string | null;
 }
 
 export interface TrainingSessionCyclicStageExecutionValue {
@@ -173,6 +260,8 @@ export interface TrainingSessionExecutionItemValue {
   /** Only explicit write outcomes; aggregate/unknown labels are derived on read. */
   outcome?: TrainingSessionExecutionOutcome;
   substitutionNote?: string | null;
+  /** #404: requerido para novas substituições de exercício; legado sem vínculo continua legível. */
+  substitutionId?: string | null;
   rir?: number | null;
   rpe?: number | null;
   tempo?: string | null;
@@ -308,6 +397,10 @@ export interface GuidedResistanceCompletePayload {
   setNumber: number;
   repetitions: number | null;
   loadKg: number | null;
+  /** #404: an explicitly selected, eligible catalog replacement executed on this set. */
+  outcome?: 'substituted';
+  substitutionId?: string;
+  substitutionNote?: string;
 }
 
 export type TrainingRoutineModality = 'resistance' | 'cyclic' | 'flexibility' | 'balance';
@@ -354,6 +447,9 @@ export interface TrainingRoutineSessionSummary {
   origin: TrainingRoutineOrigin;
   /** Only executed, authorized sessions have historical comparisons. */
   comparison?: TrainingSessionComparison;
+  substitutions?: TrainingSubstitutionRecord[];
+  /** Professor only: minimal captured exercise units for planning a future session. */
+  substitutionExercises?: Array<Pick<TrainingRoutineExercise, 'id' | 'name'>>;
 }
 
 export interface TrainingRoutineExercise {

@@ -33,6 +33,14 @@ O controle de acesso define o que cada função de colaborador pode ver e quais 
 
 - Tem acesso total dentro do contrato.
 
+## Aprovação e revisão de substituições de treino (#404)
+
+- `students.details.trainingPlans` permite visualizar rotina, alternativas e histórico autorizado.
+- `students.actions.manageTrainingSubstitutions` é um grant separado para pré-aprovar e revisar substituições; somente visualizar a aba não autoriza essas decisões.
+- Para perfis `professor` e `manager`, a capacidade começa desativada e precisa de concessão explícita por função, evitando ampliação silenciosa de permissões antigas; `master` tem acesso integral ao próprio contrato.
+- A API verifica o bloco de leitura, o bloco de escrita, o vínculo vigente com o aluno e o `contractId` na mesma transação da mutação. Após revogação, consulta permanece possível quando a leitura continuar autorizada; novos POSTs respondem 403, sem registro ou evento.
+- A UI oculta ações profissionais ao não possuir o bloco de escrita. Alunos não recebem aprovação, apenas o registro da execução em andamento sujeito à revisão.
+
 ## Quando criar `screenKey`
 
 Crie uma nova `screenKey` quando a funcionalidade for uma tela, item de menu ou capacidade principal que precise ser ligada/desligada para uma função.

@@ -45,7 +45,21 @@ A matriz de regressao do fluxo esta em `docs/profile-review-e2e-validation.md`. 
 
 `components/training/TrainingRoutinePanel.tsx` renderiza a rotina semanal e o Treino de hoje para o aluno (`/student/training`) e para o professor na aba Aluno 360 da Central. O painel recebe a função de carregamento e trata localmente carregamento, vazio, sessão não liberada, permissão negada e erro com nova tentativa, sem derrubar os demais blocos da Central. Na Central ele só consulta a API quando o perfil possui `students.details.trainingPlans`.
 
-O painel e `services/training-routine.service.ts` são somente leitura. Sem `plannedSnapshot`, a comparação antiga exibe apenas valores executados realmente registrados e `historical_unknown` (Cobertura histórica indisponível) para agregados sem denominador histórico comprovável; alterar o plano atual não muda esse resumo. O professor continua vendo as séries e medidas históricas explícitas, enquanto o aluno recebe apenas métricas autorizadas. A evidência autenticada #401 percorre a própria Central do Aluno no desktop e mobile, além do cartão isolado. A rotina semanal permite expandir comparações históricas de sessões já executadas, com dados autorizados na API e chave distinta para cada ocorrência de série. Controles de execução ficam desabilitados enquanto a API declarar `execution.available = false`; não há estado de sessão local nem chamada a endpoints de execução. O card legado baseado em `Microcycle` foi removido da Central.
+A projeção semanal do painel é somente leitura, mas `TrainingSubstitutionCard` realiza comandos explícitos pela API `/api/v1/training-substitutions`. Para professores, as ações de pré-aprovação e revisão só aparecem com `students.actions.manageTrainingSubstitutions`, além de `students.details.trainingPlans`; professores com leitura isolada mantêm o histórico, sem botões de alteração. O backend repete a mesma autorização de escrita dentro da transação; esconder ações na interface não é controle suficiente. Sem `plannedSnapshot`, a comparação antiga exibe apenas valores executados realmente registrados e `historical_unknown` (Cobertura histórica indisponível) para agregados sem denominador histórico comprovável; alterar o plano atual não muda esse resumo. O professor continua vendo as séries e medidas históricas explícitas, enquanto o aluno recebe apenas métricas autorizadas. A evidência autenticada #401 percorre a própria Central do Aluno no desktop e mobile, além do cartão isolado. A rotina semanal permite expandir comparações históricas de sessões já executadas, com dados autorizados na API e chave distinta para cada ocorrência de série. Controles de execução ficam desabilitados enquanto a API declarar `execution.available = false`; não há estado de sessão local nem chamada a endpoints de execução. O card legado baseado em `Microcycle` foi removido da Central.
+
+A execução resistida com resultado `substituted` deve trazer o ID da
+substituição explicitamente selecionada e registrada no ledger da #404; não
+basta `substitutionNote` livre. No guia de séries, a escolha padrão é executar
+o exercício originalmente planejado; quando há pré-aprovação ou solicitação
+válida para a unidade atual, o aluno pode escolher o substituto e informar
+uma observação obrigatória. A mesma operação `guided/complete` grava o resultado,
+`substitutionId`, série, repetições e carga de forma idempotente. A escolha
+permanece no rascunho da mesma série ao alternar guia/ficha, mas não passa
+para outra série ou sessão. A API revalida catálogo, vínculo, contrato,
+revisão e versão na transação. A comparação exibe a unidade original, sua
+alternativa e o estado da revisão quando houver vínculo, sem interpretar uma
+pré-aprovação como execução confirmada. Etapas cíclicas/agrupamentos com nota
+livre são adaptações operacionais distintas, não substituição de exercício.
 
 ## Check-in pré-treino
 

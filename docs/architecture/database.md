@@ -319,3 +319,58 @@ não atestam licença para a empresa. A inclusão de mídia requer
 curadoria com origem e autorização; links legados permanecem intactos. UPDATE/DELETE
 explícitos de `ExerciseLibraryRevision` são bloqueados enquanto o exercício
 existir; exclusões em cascata de todo o contrato permanecem permitidas.
+
+
+## Substituições rastreáveis — #404
+
+`WorkoutSubstitution` registra dados imutáveis da troca sem atualização de
+`WorkoutDay`, `WorkoutExercise`, `WorkoutTemplate` ou da liberação.
+`workoutDayId`, `alunoId` e `contractId` têm FKs; o identificador
+`originReleaseId` aponta para a liberação operacional de origem. JSONB
+`originalSnapshot` e `replacementSnapshot`, acompanhados por strings
+`originalVersion` e `replacementVersion`, permitem ler histórico após
+alterações ou desativação do catálogo. O caso de sessão preserva a versão de
+liberação; o exercício preserva versão do catálogo.
+
+A constraint `(workoutDayId, operationKey)` impede duplicidade de operação.
+As restrições SQL exigem motivo e responsável e revisão coerente; triggers
+impedem DELETE e alterações do conteúdo registrado. A única transição permitida
+em UPDATE é `pending_review` para `approved/rejected` com incremento de
+versão, revisor e timestamp. O service serializa as escritas com bloqueio da
+linha `WorkoutDay` na mesma transação usada pelo registro de execução e
+verifica `expectedExecutionVersion` quando a troca acontece em sessão ativa.
+
+Migration: `apps/api/prisma/migrations/20261111180000_issue_404_traceable_substitutions/migration.sql`.
+Dados não são propagados para prescrições futuras; o histórico permanece mesmo
+se o substituto ficar inativo. Não excluir registros para "reverter" decisões.
+
+#### Vínculo do resultado executado com o ledger (#404, A-404-006)
+
+A migration `20261112012500_issue_404_execution_ledger_link` adiciona
+`WorkoutSessionExecutionItem.substitutionId`, FK para `WorkoutSubstitution`
+(`ON DELETE RESTRICT`). Toda nova escrita com `outcome=substituted` em série ou
+exercício resistido deve apontar explicitamente para a substituição criada
+antes na API da #404. A transação da execução confirma aluno, `contractId`, dia,
+unidade original, estado vigente da revisão e elegibilidade/versão atual do
+catálogo no primeiro vínculo; a constraint `NOT VALID` protege
+novos inserts/updates sem fabricar um destino para registros pré-existentes.
+Um trigger adicional rejeita associação SQL a uma substituição de outro aluno,
+contrato, dia ou exercício. Vínculos rejeitados depois da execução permanecem
+históricos e não são apagados. Ao voltar para `full`, o vínculo do item é limpo;
+o registro imutável de substituição da #404 continua preservado.
+
+Etapas cíclicas e agrupamentos mantêm a descrição operacional de adaptação no
+JSON da execução (#401/#489), pois não são unidades de catálogo de exercícios
+nem alternativas de sessão. Não confundir essa observação com aprovação ou
+substituição rastreável da biblioteca.
+
+### Versões de catálogos anteriores à #404
+
+O snapshot de catálogo capturado por `issue400_capture_released_exercise_catalog`
+passa a conter o `version` real e os atributos técnicos no instante de
+liberação; o patch preserva os campos de licenciamento e proveniência da #394.
+
+Snapshots imutáveis anteriores à migration podem não conter a versão do
+catálogo. Nestes casos a substituição registra
+`historico:versao_indisponivel` para a origem, **não** a revisão atual da
+biblioteca. Nenhum backfill ou reescrita de snapshot histórico é permitido.

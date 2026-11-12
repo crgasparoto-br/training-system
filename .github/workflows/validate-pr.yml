@@ -391,6 +391,16 @@ jobs:
           mkdir -p artifacts/issue-489
           pnpm --filter @corrida/web exec vitest run --no-file-parallelism src/pages/issue-489-browser-evidence.test.js 2>&1 | tee artifacts/issue-489/browser.log
           node scripts/verify-issue-489-browser-evidence.mjs artifacts/issue-489/browser.log artifacts/issue-489 "$VERIFICATION_HEAD_SHA" | tee artifacts/issue-489/verified-captures.jsonl
+      - name: Issue #404 confirmed-write recovery in authenticated real Chrome/API/PostgreSQL
+        env:
+          ISSUE_404_REAL_API_BROWSER_EVIDENCE: '1'
+          ISSUE_404_REAL_API_PORT: '19204'
+          ISSUE_404_REAL_JWT_SECRET: 'issue404-ci-secret'
+          VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
+          pnpm --filter @corrida/web exec vitest run --no-file-parallelism src/pages/issue-404-real-api-browser-evidence.test.js
       - name: Build
         run: pnpm build
       - name: Validate settings parameters in real browser
@@ -453,6 +463,7 @@ jobs:
             artifacts/issue-399/**
             artifacts/issue-400/**
             artifacts/issue-401/**
+            artifacts/issue-404/**
             artifacts/issue-487/**
             artifacts/issue-489/**
           if-no-files-found: error

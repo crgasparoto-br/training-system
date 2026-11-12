@@ -33,6 +33,30 @@ function makeProfessorUser(
 }
 
 describe('controle de acesso de abas e acoes sensiveis do aluno', () => {
+  it('does not implicitly grant training substitution approval to professors or managers', () => {
+    for (const code of ['professor', 'manager']) {
+      const defaultUser = makeProfessorUser([], code);
+      expect(canAccessBlock(defaultUser, 'students.details.trainingPlans')).toBe(true);
+      expect(canAccessBlock(defaultUser, 'students.actions.manageTrainingSubstitutions')).toBe(false);
+    }
+  });
+
+  it('requires an explicit grant in addition to the training read permission', () => {
+    const readOnly = makeProfessorUser([
+      { screenKey: 'students.details', blockKey: null, canView: true },
+      { screenKey: 'students.details', blockKey: 'students.details.trainingPlans', canView: true },
+    ]);
+    expect(canAccessBlock(readOnly, 'students.details.trainingPlans')).toBe(true);
+    expect(canAccessBlock(readOnly, 'students.actions.manageTrainingSubstitutions')).toBe(false);
+    const reviewer = makeProfessorUser([
+      { screenKey: 'students.details', blockKey: null, canView: true },
+      { screenKey: 'students.details', blockKey: 'students.details.trainingPlans', canView: true },
+      { screenKey: 'students.details', blockKey: 'students.actions.manageTrainingSubstitutions', canView: true },
+    ]);
+    expect(canAccessBlock(reviewer, 'students.actions.manageTrainingSubstitutions')).toBe(true);
+  });
+
+
   it('nao quebra quando professor nao possui collaboratorFunction carregada', () => {
     const user = {
       id: 'u-2',

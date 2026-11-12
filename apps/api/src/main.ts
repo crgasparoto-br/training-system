@@ -48,6 +48,7 @@ import libraryRoutes from './routes/library.routes.js';
 import executionsRoutes from './routes/executions.routes.js';
 import studentRoutes from './routes/student.routes.js';
 import workoutRoutes from './routes/workout.routes.js';
+import trainingSubstitutionsRoutes from './routes/training-substitutions.routes.js';
 import { getUploadStorageRoot } from './common/asset-storage.js';
 import { createApiCorsOptions } from './common/api-cors.js';
 import {
@@ -221,6 +222,7 @@ app.use('/api/v1/professores', professorRoutes);
 app.use('/api/v1/services', serviceRoutes);
 app.use('/api/v1/student', studentRoutes);
 app.use('/api/v1/workout', workoutRoutes);
+app.use('/api/v1/training-substitutions', trainingSubstitutionsRoutes);
 app.use('/api/v1/executions', executionsRoutes);
 
 app.use((_req, res) => {

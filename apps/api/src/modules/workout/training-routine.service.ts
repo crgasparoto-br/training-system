@@ -20,6 +20,7 @@ import type {
 import { DEFAULT_CONTRACT_TIME_ZONE } from '../contracts/contract-date-input.js';
 import { projectPreWorkoutCheckIn } from './pre-workout-check-in.service.js';
 import { projectWorkoutSessionExecution } from './workout-session-execution.service.js';
+import { projectTrainingSubstitutionForAudience } from './training-substitution.service.js';
 import {
   compareWorkoutSession,
   compareWorkoutSessionWithoutSnapshot,
@@ -104,6 +105,7 @@ const sessionSelect = {
           heartRateZone: true,
           outcome: true,
           substitutionNote: true,
+          substitutionId: true,
           rir: true,
           rpe: true,
           tempo: true,
@@ -347,6 +349,10 @@ function toSummary(
     method: cleanText(row.method),
     status: buildExecution(row, release).status,
     ...(comparison ? { comparison } : {}),
+    ...(audience === 'professor' ? {
+      substitutionExercises: buildBlocks(row).flatMap(block =>
+        block.exercises.map(({ id, name }) => ({ id, name }))),
+    } : {}),
     origin: {
       kind: 'consolidated',
       releasedAt: row.template.releasedAt?.toISOString() ?? null,
@@ -582,6 +588,22 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
       const context = (row: SessionRow) =>
         [query.audience, capacitiesByDay.get(row.id) ?? [], releaseByTemplate.get(row.template.id)!] as const;
 
+      // #404: carga explicita dos vinculos, somente das sessoes liberadas e do aluno/contrato autorizado.
+      const substitutionRows = visibleRows.length
+        ? await client.workoutSubstitution.findMany({
+            where: {
+              workoutDayId: { in: visibleRows.map(row => row.id) },
+              alunoId: query.alunoId, contractId: query.contractId,
+            },
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          })
+        : [];
+      const substitutionByDay = new Map<string, ReturnType<typeof projectTrainingSubstitutionForAudience>[]>();
+      for (const item of substitutionRows) {
+        const projected = projectTrainingSubstitutionForAudience(item, query.audience);
+        substitutionByDay.set(item.workoutDayId, [...(substitutionByDay.get(item.workoutDayId) ?? []), projected]);
+      }
+
       // Project authorized sessions from their immutable execution records. When
       // no original plan was captured, the current WorkoutDay cannot supply a
       // historical denominator, names or series structure for comparison.
@@ -592,14 +614,19 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
         const comparison = frozen && frozen.id === execution.sessionId
           ? compareWorkoutSession(frozen, execution, 'captured')
           : compareWorkoutSessionWithoutSnapshot(execution);
-        comparisonByDay.set(row.id, projectWorkoutComparisonForAudience(comparison, query.audience));
+        const publicComparison = projectWorkoutComparisonForAudience(comparison, query.audience);
+        if (substitutionByDay.has(row.id)) publicComparison.substitutions = substitutionByDay.get(row.id);
+        comparisonByDay.set(row.id, publicComparison);
       }
       const days: TrainingRoutineDay[] = week.days.map((date) => {
         const key = toDateOnly(date);
         return {
           date: key,
           isToday: key === today,
-          sessions: rowsOn(key).map((row) => toSummary(row, ...context(row), comparisonByDay.get(row.id))),
+          sessions: rowsOn(key).map((row) => ({
+             ...toSummary(row, ...context(row), comparisonByDay.get(row.id)),
+             substitutions: substitutionByDay.get(row.id) ?? [],
+           })),
           pendingReleaseCount: pendingByDate.get(key) ?? 0,
         };
       });
@@ -626,8 +653,8 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
         today: {
           date: today,
           state: todayRows.length > 0 ? 'released' : todayPending > 0 ? 'not_released' : 'none',
-          sessions: todayRows.map((row) =>
-            toDetail(
+          sessions: todayRows.map((row) => ({
+            ...toDetail(
               row,
               ...context(row),
               checkInBySession.get(row.id) ?? null,
@@ -635,8 +662,9 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
               latestFeedbackBySession.get(row.id) ?? [],
               canProjectPostWorkoutFeedback,
               comparisonByDay.get(row.id)
-            )
-          ),
+            ),
+            substitutions: substitutionByDay.get(row.id) ?? [],
+          })),
         },
         execution: { available: true, reason: null },
         nextSession: upcoming[0]

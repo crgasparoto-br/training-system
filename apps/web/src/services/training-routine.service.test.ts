@@ -27,6 +27,51 @@ describe('trainingRoutineService', () => {
     });
   });
 
+  it('consulta e registra substituições somente com escopo de contrato explícito no cliente', async () => {
+    await trainingRoutineService.getSubstitutions('day-1', 'contract-1');
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/training-substitutions/sessions/day-1',
+      { headers: { 'x-contract-id': 'contract-1' } },
+    );
+
+    await trainingRoutineService.getSubstitutionAlternatives('day-1', 'exercise', 'planned-1', 'contract-1');
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/training-substitutions/sessions/day-1/alternatives',
+      {
+        params: { kind: 'exercise', originalUnitId: 'planned-1' },
+        headers: { 'x-contract-id': 'contract-1' },
+      },
+    );
+
+    await trainingRoutineService.getSubstitutionAlternatives('day-1', 'exercise', 'planned-1', 'contract-1',
+      { search: 'Agachamento', offset: 25 });
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/training-substitutions/sessions/day-1/alternatives',
+      {
+        params: { kind: 'exercise', originalUnitId: 'planned-1', search: 'Agachamento', offset: 25 },
+        headers: { 'x-contract-id': 'contract-1' },
+      },
+    );
+
+    const create = {
+      kind: 'exercise' as const, context: 'execution' as const,
+      originalUnitId: 'planned-1', replacementUnitId: 'catalog-1',
+      expectedReplacementVersion: 'exercicio:7', reason: 'Equipamento alternativo', operationKey: 'operation-404',
+      expectedExecutionVersion: 1,
+    };
+    await trainingRoutineService.createSubstitution('day-1', create, 'contract-1');
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/training-substitutions/sessions/day-1', create,
+      { headers: { 'x-contract-id': 'contract-1' } },
+    );
+
+    const review = { action: 'approve' as const, expectedVersion: 1 };
+    await trainingRoutineService.reviewSubstitution('day-1', 'substitution-1', review);
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/training-substitutions/sessions/day-1/substitution-1/review', review,
+    );
+  });
+
   it('consulta a rotina do aluno selecionado na Central', async () => {
     await trainingRoutineService.getForAluno('aluno-1', { date: '2026-10-05' });
     expect(mocks.get).toHaveBeenCalledWith('/alunos/aluno-1/training-routine', { params: { date: '2026-10-05' } });
@@ -37,10 +82,14 @@ describe('trainingRoutineService', () => {
       'actGuidedCyclicForStudent',
       'actGuidedRestForStudent',
       'completeGuidedForStudent',
+      'createSubstitution',
       'getForAluno',
       'getForStudent',
       'getGuidedCyclicForStudent',
       'getGuidedForStudent',
+      'getSubstitutionAlternatives',
+      'getSubstitutions',
+      'reviewSubstitution',
       'saveExecutionValuesForStudent',
       'transitionForStudent',
     ]);

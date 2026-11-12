@@ -150,7 +150,7 @@ A experiencia guiada deve usar o lifecycle canonico da sessao e nao criar estado
 
 O `Treino de hoje` e a Central do Aluno/Professor apresentam `comparison` apenas para sessões publicadas pelo release consolidado do mesmo aluno e `contractId`. A rotina semanal também disponibiliza a comparação de execuções anteriores ao navegar entre semanas, em um painel expansível, sem depender de a sessão histórica ser o treino de hoje. A projeção lê o grafo operacional liberado e a execução canônica, sem gravar nova interpretação. Ao criar a sessão, `WorkoutSessionExecution.plannedSnapshot` captura o plano de etapas, exercícios, blocos, séries e agrupamentos; a base de dados bloqueia alterações posteriores na captura. Em sessões legadas sem captura própria, a resposta indica explicitamente `snapshotSource=released_plan`; a projeção reconstrói somente as unidades, IDs, medições e outcomes explicitamente persistidos, sem consultar o plano atual para inventar quantidades ou metas. Metas históricas e diferenças permanecem indisponíveis (`null`), e os agregados sem denominador original comprovável usam `historical_unknown` (**Cobertura histórica indisponível**); `partial` e `not_performed` explícitos da sessão permanecem fiéis. Mudar o catálogo, séries ou exercícios liberados depois do treino não reclassifica a execução antiga. Série registrada e resultado próprio continuam visíveis ao professor; a visão do aluno mantém apenas métricas práticas autorizadas.
 
-As etapas repetidas usam `plannedStageId` mais o número da iteração; séries usam `plannedUnitId`, `plannedSetId` e `setNumber`; agrupamentos usam `plannedGroupId`. A API valida que cada ID pertence ao mesmo `WorkoutDay` do aluno/contrato. As medidas comparáveis são tempo, distância, pace, velocidade, FC/zona, PSE e, no resistido, séries, repetições, carga, RIR, RPE, cadência e descansos. Ausência de valor é `null`, não zero; unidades ou faixas diferentes não geram delta numérico enganoso. O campo `WorkoutTemplate.totalVolumeKm` representa o volume **semanal** e nunca é reutilizado como meta de distância de um `WorkoutDay`: sem meta diária explícita, a distância planejada da sessão é `null`, e o resumo do Treino de hoje também não exibe a métrica semanal como `Distância prevista`; a comparação em metros continua disponível nas etapas cíclicas que prescrevem distância. As faixas de FC, velocidade e ritmo conservam os limites inferior e superior e os tipos/unidades de origem, sem converter silenciosamente texto em número. Para sessões cíclicas legadas sem etapas estruturadas, `sessionValues.speedKmh` recebe somente uma velocidade executada informada explicitamente em km/h; o valor é validado e persistido com a versão da sessão e exibido ao lado da faixa de `WorkoutDay.targetSpeedMin`/`targetSpeedMax`. `null` e ausência permanecem indisponíveis, enquanto `0` é um registro real; não há conversão de pace, distância ou texto de meta nem delta numérico artificial em faixas. `full`, `partial`, `substituted` (com descrição) e `not_performed` são estados explícitos; sem registro é `not_recorded`. Registro existente sem classificação explícita é `unclassified`, nunca integral presumido. Agregados com séries planejadas sem registro são `incomplete_record`, mantendo `containsSubstitution` quando também houve substituição. Gravações repetidas da mesma série contam como uma única série planejada coberta, mas permanecem registros distintos. O status de lifecycle `completed` não prova realização integral: o resultado da sessão agrega etapas cíclicas não repetidoras, exercícios (que consolidam suas séries) e agrupamentos. Apenas confirmação `full` em todas as unidades planejadas permite resultado integral; ausências, registros incompletos e substituições permanecem diferenciados, inclusive durante uma sessão em andamento. Na escrita, `TrainingSessionExecutionItemValue.outcome` aceita exclusivamente `TrainingSessionExecutionOutcome` (`full | partial | substituted | not_performed`); `not_recorded`, `unclassified` e `incomplete_record` são projeções de leitura, nunca entradas aceitas pela API. Nenhum deles altera treino futuro ou prescrição.
+As etapas repetidas usam `plannedStageId` mais o número da iteração; séries usam `plannedUnitId`, `plannedSetId` e `setNumber`; agrupamentos usam `plannedGroupId`. A API valida que cada ID pertence ao mesmo `WorkoutDay` do aluno/contrato. As medidas comparáveis são tempo, distância, pace, velocidade, FC/zona, PSE e, no resistido, séries, repetições, carga, RIR, RPE, cadência e descansos. Ausência de valor é `null`, não zero; unidades ou faixas diferentes não geram delta numérico enganoso. O campo `WorkoutTemplate.totalVolumeKm` representa o volume **semanal** e nunca é reutilizado como meta de distância de um `WorkoutDay`: sem meta diária explícita, a distância planejada da sessão é `null`, e o resumo do Treino de hoje também não exibe a métrica semanal como `Distância prevista`; a comparação em metros continua disponível nas etapas cíclicas que prescrevem distância. As faixas de FC, velocidade e ritmo conservam os limites inferior e superior e os tipos/unidades de origem, sem converter silenciosamente texto em número. Para sessões cíclicas legadas sem etapas estruturadas, `sessionValues.speedKmh` recebe somente uma velocidade executada informada explicitamente em km/h; o valor é validado e persistido com a versão da sessão e exibido ao lado da faixa de `WorkoutDay.targetSpeedMin`/`targetSpeedMax`. `null` e ausência permanecem indisponíveis, enquanto `0` é um registro real; não há conversão de pace, distância ou texto de meta nem delta numérico artificial em faixas. `full`, `partial`, `substituted` (com descrição; para novas séries/exercícios exige também `substitutionId` de #404) e `not_performed` são estados explícitos; sem registro é `not_recorded`. Registro existente sem classificação explícita é `unclassified`, nunca integral presumido. Agregados com séries planejadas sem registro são `incomplete_record`, mantendo `containsSubstitution` quando também houve substituição. Gravações repetidas da mesma série contam como uma única série planejada coberta, mas permanecem registros distintos. O status de lifecycle `completed` não prova realização integral: o resultado da sessão agrega etapas cíclicas não repetidoras, exercícios (que consolidam suas séries) e agrupamentos. Apenas confirmação `full` em todas as unidades planejadas permite resultado integral; ausências, registros incompletos e substituições permanecem diferenciados, inclusive durante uma sessão em andamento. Na escrita, `TrainingSessionExecutionItemValue.outcome` aceita exclusivamente `TrainingSessionExecutionOutcome` (`full | partial | substituted | not_performed`); `not_recorded`, `unclassified` e `incomplete_record` são projeções de leitura, nunca entradas aceitas pela API. Nenhum deles altera treino futuro ou prescrição.
 
 O aluno lê o resultado em linguagem simples; o professor, pela mesma rotina autorizada, pode expandir blocos e séries e ver diferenças numéricas neutras. Não existe julgamento automático de melhora/piora nem indicador de adesão derivado dessa leitura. Na apresentação, números planejados/executados preservam até 17 algarismos significativos em pt-BR para não ocultar divergências pequenas. Deltas usam até 8 algarismos significativos e o símbolo `≈` quando houver arredondamento; um delta real não nulo jamais é apresentado como zero. Zero realmente registrado, valor ausente, string original e unidade física continuam distintos (A-401-10). Metas exatas (`plannedConstraint=exact`) são distintas de limites mínimos (`minimum`), máximos (`maximum`) e faixas (`range`): limites não geram diferença numérica automática, mínimos isolados aparecem como `A partir de`, máximos isolados como `Até`, preservando os valores originais e a ausência de limites (A-401-11). Em exercício resistido com séries estruturadas, o resumo oferece apenas a contagem de séries planejadas/com registro, sem tratar carga, repetição ou descanso legados do exercício como se fossem a execução de uma série; medidas específicas permanecem nos IDs das séries e na visão técnica autorizada. Exercícios sem blocos estruturados conservam a comparação legada (A-401-12). Quando houver várias gravações legadas, cada setNumber vira uma linha técnica de série registrada ligada ao WorkoutExercise.id original, sem inventar plannedSetId; o resumo continua agregando a quantidade de séries, e as repetições, cargas, intervalos, RIR/RPE, cadência e substituição são preservados por gravação (A-401-13). O aluno continua recebendo somente o agregado, enquanto o professor pode expandir cada registro. Mesmo com uma única gravação legada, RIR, RPE e cadência são filtrados na resposta da API do aluno, preservando-os apenas no painel técnico autorizado. Medidas cíclicas gravadas em WorkoutSessionExecutionItem (duração em segundos, distância em quilômetros, ritmo, FC e zona) permanecem na unidade individual em que foram registradas: no exercício legado com um registro ou na série estruturada/ocorrência legada quando houver múltiplos registros. Sem meta no nível desse exercício, planned permanece null; não há conversão ou empréstimo de metas de sessão/etapa (A-401-14). Em etapas cíclicas, a prescrição por segundos ou metros limita apenas qual medida recebe a meta; não limita as medidas executadas visíveis. Duração e distância registradas na mesma iteração aparecem separadas, com pace, velocidade, FC, zona e PSE também preservados independentemente do tipo de alvo. Parâmetros sem meta própria permanecem com planejado/diferença indisponíveis; zero real e os valores de fallback histórico são preservados (A-401-15). A execução resistida guiada da #487 utiliza o mesmo estado canônico e não pode ser perdida na integração com a #401 (A-401-16). Uma série com `completedAt` persistido pela confirmação guiada é evidência explícita `full` dessa unidade quando não houver `outcome` mais específico; isso não conclui automaticamente outras séries, agrupamentos nem a sessão. Um registro sem `outcome` e sem `completedAt` continua `unclassified`.
 
@@ -790,3 +790,115 @@ sem distinção de caixa no texto digitado, e mantém o `contractId` do usuário
 
 A importação considera variantes já existentes no contrato e duplicatas no
 mesmo arquivo, inclusive na simulação (`--dry-run`), como itens ignorados.
+
+
+## Substituições rastreáveis — issue #404
+
+A prescrição publicada **não é editada** ao substituir um exercício ou uma sessão. A unidade
+planejada, seu lançamento de execução e a liberação consolidada continuam sendo a referência.
+A troca é um vínculo separado, com o item original, o item substituto, versões preservadas no
+momento do registro, motivo obrigatório, identificador da pessoa solicitante, data, aluno,
+contrato e contexto `planning`, `review` ou `execution`.
+
+### Experiência do aluno e do professor
+
+1. O aluno só pode registrar uma troca enquanto a sessão canônica está **em andamento**,
+   informando motivo e selecionando uma alternativa vigente. Ela é identificada como
+   **registrada durante a execução / aguardando revisão do professor**. O registro não
+   presume que séries ou medidas tenham sido executadas, nem altera o treino liberado.
+2. O professor com acesso à prescrição do aluno **e** à capacidade
+   `students.actions.manageTrainingSubstitutions` pode selecionar e aprovar antecipadamente
+   uma alternativa enquanto a sessão ainda não começou (`planning` ou `review`),
+   inclusive em sessões futuras abertas pela rotina semanal. Para o professor,
+   cada resumo semanal liberado traz apenas IDs e nomes congelados dos exercícios
+   planejados necessários para essa seleção; a visão do aluno não recebe esse campo.
+3. Uma troca ocorrida durante a execução é submetida à revisão explícita do professor.
+   Ele pode **aprovar** ou **rejeitar** (rejeição exige justificativa). A decisão é
+   terminal, com versão, responsável e data. Negar uma troca não remove o registro
+   histórico do que foi solicitado.
+4. Exercícios candidatos devem pertencer ao mesmo contrato, estar com curadoria
+   `approved` e não serem legados de uso grandfathered. Alternativas de sessão devem
+   existir como sessões liberadas para o **mesmo aluno e contrato**. Nenhum resultado
+   de busca ou correspondência de metadados aprova automaticamente uma troca.
+5. Padrão de movimento, capacidade, equipamentos compartilhados, dificuldade, objetivo
+   da sessão e restrições quando disponíveis são **auxiliares** à avaliação, sem
+   conclusão automática de equivalência técnica ou segurança.
+6. A comparação planejado × executado mantém métricas e denominadores originalmente
+   capturados, mostrando os vínculos de substituição com o momento e status de revisão
+   separadamente. Uma aprovação prévia não é convertida em execução comprovada.
+7. Um exercício desativado após uma troca permanece legível pela captura imutável
+   do vínculo, sem depender da disponibilidade corrente no catálogo. A elegibilidade
+   de uma **nova** substituição é conferida na criação; a revisão posterior de uma
+   solicitação de execução já registrada avalia o fato histórico e sua captura
+   original, sem inventar elegibilidade nova nem aprovar futuras utilizações.
+   Desativação posterior não invalida o registro original e não elimina a escolha
+   explícita do professor de aprovar/rejeitar o histórico.
+   A criação também exige a **versão exata selecionada** na consulta. Se uma
+   nova revisão for publicada com o mesmo ID antes do POST, a API responde 409
+   sem registrar substituição ou evento, exigindo nova escolha consciente.
+8. Depois de uma gravação ou revisão confirmada, falha na atualização da tela
+   não invalida a gravação. O sistema informa que a alteração foi salva,
+   bloqueia novas mutações sobre o estado desatualizado e oferece somente
+   **Atualizar histórico** até reconciliar a leitura. O retry não reenvia POST.
+
+### API de substituições
+
+Base autenticada: `/api/v1/training-substitutions`. No caso do aluno, o
+`x-contract-id` pode selecionar a participação ativa; ele não concede acesso adicional.
+
+| Método | Caminho | Requisito |
+|---|---|---|
+| GET | `/sessions/:sessionId` | Histórico sob escopo do aluno/professor |
+| GET | `/sessions/:sessionId/alternatives?kind=exercise&originalUnitId=:id` | Catálogo aprovado do contrato, por nome ou alias |
+| GET | `/sessions/:sessionId/alternatives?kind=session&originalUnitId=:sessionId` | Sessões liberadas do mesmo aluno, com filtro por data |
+| POST | `/sessions/:sessionId` | `kind`, `context`, `originalUnitId`, `replacementUnitId`, `expectedReplacementVersion` (versão exibida na lista), `reason`, `operationKey`, e `expectedExecutionVersion` para aluno |
+| POST | `/sessions/:sessionId/:substitutionId/review` | Professor; `action=approve/reject`, `expectedVersion`, `reason` obrigatória para rejeitar |
+
+As consultas `alternatives` aceitam `search` (até 100 caracteres) e `offset`
+(inteiro de 0 a 10000), paginando 25 alternativas por vez em ordem estável.
+A resposta é `{ items: [...], nextOffset: number | null }`. Busca de exercícios
+combina nome parcial insensível a maiúsculas e alias exato; busca de sessões
+aceita uma data civil completa `AAAA-MM-DD`. Nenhum resultado fora do contrato,
+não aprovado ou sem liberação consolidada pode aparecer em qualquer página.
+
+A criação valida origem, catálogo vigente, situação da sessão, contexto da ação,
+permissão profissional de escrita e contrato **dentro da transação**;
+a revisão histórica revalida a autoridade de revisão e a versão da solicitação,
+sem voltar a consultar a elegibilidade atual do catálogo; utiliza versão para
+conflitos, chave idempotente para repetição e registra evento na timeline.
+`expectedReplacementVersion` integra o fingerprint idempotente, e a transação
+verifica a versão vigente da alternativa aprovada (ou da liberação de sessão),
+sem aceitar silenciosamente uma revisão posterior à seleção.
+Respostas `409` exigem atualização do estado antes de tentar nova alteração.
+
+### Limites
+
+Substituições não importam exercícios, não substituem planos futuros automaticamente
+e não produzem julgamento de aptidão clínica. A aprovação de um substituto pelo
+professor não marca suas séries nem sua sessão como executadas. Resultados efetivamente
+realizados seguem exclusivamente o registro canônico da issue #389.
+
+**A-404-006 — fechamento entre execução e vínculo histórico:** para marcar uma
+série ou exercício resistido como `substituted` em `PUT .../execution/values`
+ou `POST .../execution/transition`, a execução exige `substitutionId` de um
+registro `WorkoutSubstitution` já persistido. A API revalida aluno, contrato,
+sessão, exercício original e decisão vigente na transação, antes da gravação
+atômica de medidas, versão e evento. Na primeira utilização do vínculo, a
+mesma versão do exercício deve continuar aprovada e ativa na curadoria vigente,
+sob bloqueio de leitura para impedir desativação concorrente. `planning/review`
+já aprovado e troca
+`execution` pendente/aprovada são elegíveis; revisão rejeitada não pode iniciar
+novo vínculo. Depois de uma rejeição, uma série previamente vinculada continua
+registrável até a conclusão, sem apagar o que ocorreu. O identificador da troca
+viaja com `TrainingSessionExecutionItemValue` e aparece na comparação planejado
+× executado; uma pré-aprovação sem execução não marca a unidade como realizada.
+A migração não modifica gravações históricas com `substitutionNote` sem ID:
+essas continuam legíveis e são identificadas como legado sem vínculo, não como
+prova de catálogo aprovado. Etapas cíclicas e agrupamentos representam
+adaptações da própria estrutura executada e mantêm seu texto/estado por #401;
+não são substituições de exercícios da biblioteca por esse caminho.
+
+**Versão histórica ausente:** liberações anteriores à captura versionada podem
+mostrar `historico:versao_indisponivel`. Isso informa que a revisão exata do
+catálogo não foi guardada à época; não é correto substituir a origem por uma
+revisão atual e apresentá-la como evidência histórica.

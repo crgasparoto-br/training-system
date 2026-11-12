@@ -284,6 +284,11 @@ function normalizeItems(items: TrainingSessionExecutionItemValue[] | undefined):
     const outcome = normalizeOutcome(item.outcome);
     // Only the persisted outcome can decide whether an omitted substitution note is valid.
     const substitutionNote = normalizeText(item.substitutionNote, 500);
+    const substitutionId = item.substitutionId === undefined ? undefined
+      : item.substitutionId === null ? null : item.substitutionId.trim();
+    if (item.substitutionId !== undefined && item.substitutionId !== null && !substitutionId) {
+      throw new WorkoutSessionExecutionInputError('Identificador de substituição inválido.');
+    }
     const nonNegative = (value: number | null | undefined, label: string, integer = false) => {
       if (value !== undefined && value !== null && (!Number.isFinite(value) || value < 0 || (integer && !Number.isInteger(value)))) throw new WorkoutSessionExecutionInputError(`${label} inválido.`);
       return value;
@@ -294,6 +299,7 @@ function normalizeItems(items: TrainingSessionExecutionItemValue[] | undefined):
       setNumber,
       ...(outcome !== undefined ? { outcome } : {}),
       ...(item.substitutionNote !== undefined ? { substitutionNote } : {}),
+      ...(item.substitutionId !== undefined ? { substitutionId } : {}),
       rir: checkNumber(item.rir, 'RIR executado', { max: 30 }),
       rpe: checkNumber(item.rpe, 'RPE executado', { max: 10 }),
       tempo: normalizeText(item.tempo, 80),
@@ -421,6 +427,7 @@ type ExecutionProjectionRow = {
     heartRateZone: string | null;
     outcome?: string | null;
     substitutionNote?: string | null;
+    substitutionId?: string | null;
     rir?: number | null;
     rpe?: number | null;
     tempo?: string | null;
@@ -453,6 +460,7 @@ export function projectWorkoutSessionExecution(
       setNumber: item.setNumber,
       outcome: (item.outcome ?? undefined) as TrainingSessionExecutionItemValue['outcome'],
       substitutionNote: item.substitutionNote ?? null,
+      substitutionId: item.substitutionId ?? null,
       rir: item.rir ?? null,
       rpe: item.rpe ?? null,
       tempo: item.tempo ?? null,
@@ -690,6 +698,7 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
       const mergedSessionValues = await persistWorkoutSessionValues(
         tx, execution.id, input.sessionId, sessionValues, items,
         input.guidedCompletion ? now : undefined, guidedOperation?.id,
+        { alunoId: input.alunoId, contractId: input.contractId },
       );
       if (restAfterGuidedSet) {
         // Unique completed-set identity and partial unique active index guard retries
@@ -963,6 +972,7 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
           };
           const persistedValues = await persistWorkoutSessionValues(
             tx, execution.id, input.sessionId, { cyclicStages: [completed] }, [],
+            undefined, undefined, { alunoId: input.alunoId, contractId: input.contractId },
           );
           const following = plan.units[projected.completed + 1] ?? null;
           cursor = {
@@ -1166,7 +1176,12 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
       actorUserId: string;
       payload: GuidedResistanceCompletePayload;
     }): Promise<GuidedResistanceView> {
-      const { operationKey, expectedVersion, plannedUnitId, plannedSetId, setNumber, repetitions, loadKg } = input.payload;
+      const { operationKey, expectedVersion, plannedUnitId, plannedSetId, setNumber,
+        repetitions, loadKg, outcome, substitutionId, substitutionNote } = input.payload;
+      if ([outcome, substitutionId, substitutionNote].some(value => value !== undefined)
+        && (!outcome || !substitutionId || !substitutionNote?.trim())) {
+        throw new WorkoutSessionExecutionInputError('Execução substituída exige vínculo e motivo.');
+      }
       await runOperation({
         sessionId: input.sessionId,
         alunoId: input.alunoId,
@@ -1174,7 +1189,8 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
         actorUserId: input.actorUserId,
         operationKey,
         expectedVersion,
-        items: [{ plannedUnitId, plannedSetId, setNumber, repetitions, loadKg }],
+        items: [{ plannedUnitId, plannedSetId, setNumber, repetitions, loadKg,
+          ...(outcome === 'substituted' ? { outcome, substitutionId, substitutionNote } : {}) }],
         guidedCompletion: true,
       });
       return getGuidedForSession(input);
