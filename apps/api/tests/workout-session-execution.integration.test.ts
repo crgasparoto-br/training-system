@@ -5376,7 +5376,13 @@ describeDatabase('issue #404: canonical execution references the audited substit
     });
     const frozen = readCapturedWorkoutComparisonPlan(plan.plannedSnapshot)!;
     const compared = compareWorkoutSession(frozen, recorded, 'captured');
-    expect(compared.units.some((unit) => unit.outcome === 'substituted')).toBe(true);
+    // One recorded set does not cover all three prescribed sets. The exercise
+    // remains incomplete, but the confirmed replacement link must still be visible.
+    expect(compared.units.find((unit) => unit.kind === 'exercise'
+      && unit.plannedUnitId === fixture.exerciseIds[0])).toMatchObject({
+      outcome: 'incomplete_record', containsSubstitution: true, substitutionId: own.id,
+      substitutionNote: 'Troca comprovada na mesma sessão',
+    });
   });
 
   it('links a professional preapproval without pretending that selection already means execution', async () => {
