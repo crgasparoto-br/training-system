@@ -347,11 +347,21 @@ suite('Issue #404: real browser, authenticated API and PostgreSQL', () => {
       for (const privateKey of ['alunoId', 'actorUserId', 'reviewedByUserId', 'version']) {
         expect(projected).not.toHaveProperty(privateKey);
       }
-      await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
-      const overflow = await page.evaluate(() =>
-        Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - innerWidth);
-      expect(overflow).toBeLessThanOrEqual(1);
-      captures.push(await screenshot(page, 'mobile-recovered'));
+      // Responsive viewport only: switching mobile emulation during an active
+      // page can reload Vite and yield a blank screenshot before React mounts.
+      await page.setViewport({ width: 390, height: 844 });
+      await waitText(page, 'Agachamento alternativo #404');
+      const mobile = await page.evaluate(() => ({
+        textLength: document.body.innerText.trim().length,
+        hasHistory: document.body.innerText.includes('Substituições da sessão'),
+        overflow: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - innerWidth,
+      }));
+      expect(mobile.textLength).toBeGreaterThan(200);
+      expect(mobile.hasHistory).toBe(true);
+      expect(mobile.overflow).toBeLessThanOrEqual(1);
+      const mobileCapture = await screenshot(page, 'mobile-recovered');
+      expect(mobileCapture.bytes).toBeGreaterThan(12000);
+      captures.push(mobileCapture);
       expect(browserErrors).toEqual([]);
       mkdirSync(outputDir, { recursive: true });
       writeFileSync(path.join(outputDir, 'real-api-evidence.json'), JSON.stringify({
@@ -486,11 +496,19 @@ suite('Issue #404: real browser, authenticated API and PostgreSQL', () => {
         && unit.plannedUnitId === fixture.plannedId)).toMatchObject({
           containsSubstitution: true, substitutionId: linked.id,
         });
-      await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
-      const overflow = await page.evaluate(() =>
-        Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - innerWidth);
-      expect(overflow).toBeLessThanOrEqual(1);
-      captures.push(await screenshot(page, 'mobile-guided-executed'));
+      await page.setViewport({ width: 390, height: 844 });
+      await waitText(page, 'Agachamento alternativo #404');
+      const mobile = await page.evaluate(() => ({
+        textLength: document.body.innerText.trim().length,
+        hasComparison: document.body.innerText.includes('Planejado e executado'),
+        overflow: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - innerWidth,
+      }));
+      expect(mobile.textLength).toBeGreaterThan(200);
+      expect(mobile.hasComparison).toBe(true);
+      expect(mobile.overflow).toBeLessThanOrEqual(1);
+      const mobileCapture = await screenshot(page, 'mobile-guided-executed');
+      expect(mobileCapture.bytes).toBeGreaterThan(12000);
+      captures.push(mobileCapture);
       expect(browserErrors).toEqual([]);
       mkdirSync(outputDir, { recursive: true });
       writeFileSync(path.join(outputDir, 'real-guided-link-evidence.json'), JSON.stringify({
