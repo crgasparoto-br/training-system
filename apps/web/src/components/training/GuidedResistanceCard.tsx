@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type {
   GuidedResistanceCompletePayload, GuidedResistanceRestActionPayload,
-  GuidedResistanceView, TrainingSessionExecutionStatus,
+  GuidedResistanceView, TrainingSessionExecutionStatus, TrainingSubstitutionRecord,
 } from '@corrida/types';
 import { Button } from '../ui/Button';
 import { ResistanceRestPanel, type ResistanceRestObservation, type ResistanceRestActionResult } from './ResistanceRestPanel';
@@ -54,6 +54,8 @@ export type GuidedResistanceDraft = {
   plannedSetId: string;
   repetitions: string;
   loadKg: string;
+  substitutionId?: string;
+  substitutionNote?: string;
   operation: GuidedResistanceOperation | null;
   /** A 409 must remain a write lock even after switching to the overview. */
   conflictVersion: number | null;
@@ -66,6 +68,8 @@ type Props = {
   load: (sessionId: string) => Promise<GuidedResistanceView>;
   complete: (sessionId: string, payload: GuidedResistanceCompletePayload) => Promise<GuidedResistanceView>;
   restAction?: (sessionId: string, payload: GuidedResistanceRestActionPayload) => Promise<GuidedResistanceView>;
+  /** Approved pre-plan or execution-time requests for this authorized student/session. */
+  substitutions?: TrainingSubstitutionRecord[];
   onExecutionChanged?: () => Promise<void>;
   onOverview: () => void;
   /** Owned by the session panel, not by the unmounted guide or browser storage. */
@@ -117,14 +121,19 @@ function parseActualNumber(text: string, integer: boolean): number | null {
 }
 
 export function GuidedResistanceCard({
-  sessionId, status, version, load, complete, restAction, onExecutionChanged, onOverview, draftStore,
+  sessionId, status, version, load, complete, restAction, substitutions = [],
+  onExecutionChanged, onOverview, draftStore,
 }: Props) {
   const headingId = useId();
   const repsId = useId();
   const loadId = useId();
+  const substitutionSelectId = useId();
+  const substitutionNoteId = useId();
   const [view, setView] = useState<ObservedGuidedView | null>(null);
   const [repetitions, setRepetitions] = useState('');
   const [loadKg, setLoadKg] = useState('');
+  const [substitutionId, setSubstitutionId] = useState('');
+  const [substitutionNote, setSubstitutionNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reconciliationRequired, setReconciliationRequired] = useState(false);
@@ -150,11 +159,16 @@ export function GuidedResistanceCard({
   const serverClockAnchorRef = useRef<ServerClockAnchor | null>(null);
   const reconciledUncertainRestRef = useRef<string | null>(null);
 
-  const keepDraft = (nextRepetitions: string, nextLoadKg: string, operation = operationRef.current) => {
+  const keepDraft = (
+    nextRepetitions: string, nextLoadKg: string, operation = operationRef.current,
+    nextSubstitutionId = substitutionId, nextSubstitutionNote = substitutionNote,
+  ) => {
     const plannedSetId = currentSetRef.current;
     if (!draftStore || !plannedSetId) return;
     draftStore.current = { sessionId, plannedSetId, repetitions: nextRepetitions,
-      loadKg: nextLoadKg, operation, conflictVersion: conflictVersionRef.current };
+      loadKg: nextLoadKg, substitutionId: nextSubstitutionId,
+      substitutionNote: nextSubstitutionNote, operation,
+      conflictVersion: conflictVersionRef.current };
   };
 
   const acceptView = useCallback((
@@ -177,15 +191,20 @@ export function GuidedResistanceCard({
         : saved.current?.repsMin == null ? '' : String(saved.current.repsMin);
       const nextLoadKg = sameUnit ? retained!.loadKg
         : saved.current?.loadKg == null ? '' : String(saved.current.loadKg);
+      const nextSubstitutionId = sameUnit ? retained!.substitutionId ?? '' : '';
+      const nextSubstitutionNote = sameUnit ? retained!.substitutionNote ?? '' : '';
       const retainedOperation = sameUnit && retained!.operation?.payload.expectedVersion === saved.version
         ? retained!.operation : null;
       setRepetitions(nextRepetitions);
       setLoadKg(nextLoadKg);
+      setSubstitutionId(nextSubstitutionId);
+      setSubstitutionNote(nextSubstitutionNote);
       operationRef.current = retainedOperation;
       if (draftStore) draftStore.current = currentId ? {
         sessionId: sourceSessionId, plannedSetId: currentId,
-        repetitions: nextRepetitions, loadKg: nextLoadKg, operation: retainedOperation,
-        conflictVersion: conflictVersionRef.current,
+        repetitions: nextRepetitions, loadKg: nextLoadKg,
+        substitutionId: nextSubstitutionId, substitutionNote: nextSubstitutionNote,
+        operation: retainedOperation, conflictVersion: conflictVersionRef.current,
       } : null;
     } else if (operationRef.current && operationRef.current.payload.expectedVersion !== saved.version) {
       // The same planned set may survive a pause/resume or a competing edit.
@@ -271,9 +290,21 @@ export function GuidedResistanceCard({
     return () => { refreshSequenceRef.current += 1; };
   }, [refresh, status, version]);
 
+  // A preapproval is only an available option, never a performed substitution.
+  const eligibleSubstitutions = substitutions.filter(item =>
+    item.kind === 'exercise' && item.original.unitId === view?.current?.plannedUnitId
+    && (item.status === 'approved'
+      || (item.status === 'pending_review' && item.context === 'execution')),
+  );
+  const selectedSubstitution = eligibleSubstitutions.find(item => item.id === substitutionId);
+
   async function confirmCurrent() {
     if (!view?.current || view.rest || view.status !== 'in_progress' || status !== 'in_progress' || busy || loading || reconciliationRequired) return;
     const current = view.current;
+    if (substitutionId && (!selectedSubstitution || substitutionNote.trim().length < 3)) {
+      setError('Selecione uma troca válida e descreva o exercício realmente executado.');
+      return;
+    }
     let actualReps: number | null;
     let actualLoad: number | null;
     try {
@@ -283,9 +314,10 @@ export function GuidedResistanceCard({
       setError(cause instanceof Error ? cause.message : 'Revise os valores realizados.');
       return;
     }
-    const signature = [
+    const signature = JSON.stringify([
       sessionId, view.version, current.plannedSetId, current.setNumber, actualReps, actualLoad,
-    ].join(':');
+      selectedSubstitution?.id ?? null, selectedSubstitution ? substitutionNote.trim() : null,
+    ]);
     if (operationRef.current?.signature !== signature) {
       operationRef.current = {
         signature,
@@ -297,6 +329,8 @@ export function GuidedResistanceCard({
           setNumber: current.setNumber,
           repetitions: actualReps,
           loadKg: actualLoad,
+          ...(selectedSubstitution ? { outcome: 'substituted' as const,
+            substitutionId: selectedSubstitution.id, substitutionNote: substitutionNote.trim() } : {}),
         },
       };
     }
@@ -516,6 +550,65 @@ export function GuidedResistanceCard({
                 </a>
               )}
               <form aria-label="Registrar série realizada" onSubmit={(event) => { event.preventDefault(); void confirmCurrent(); }} className="space-y-3">
+                {(eligibleSubstitutions.length > 0 || substitutionId) ? (
+                  <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+                    <label htmlFor={substitutionSelectId} className="block text-sm font-medium">
+                      Exercício efetivamente executado
+                    </label>
+                    <select id={substitutionSelectId} value={substitutionId}
+                      disabled={busy || loading || reconciliationRequired}
+                      onChange={event => {
+                        const selected = event.target.value;
+                        operationRef.current = null;
+                        setSubstitutionId(selected);
+                        setSubstitutionNote('');
+                        keepDraft(repetitions, loadKg, null, selected, '');
+                      }}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm">
+                      <option value="">{current.exerciseName} (planejado, sem troca)</option>
+                      {substitutionId && !selectedSubstitution && (
+                        <option value={substitutionId} disabled>Troca indisponível; atualize e selecione novamente</option>
+                      )}
+                      {eligibleSubstitutions.map(item => (
+                        <option key={item.id} value={item.id}>
+                          {item.replacement.name} ({item.context === 'execution'
+                            ? 'troca registrada durante a sessão' : 'pré-aprovada pelo professor'})
+                        </option>
+                      ))}
+                    </select>
+                    {selectedSubstitution && (
+                      <>
+                        <p className="text-xs text-muted-foreground">
+                          {current.exerciseName} → {selectedSubstitution.replacement.name} ·
+                          {' '}{selectedSubstitution.status === 'pending_review'
+                            ? 'Aguardando revisão do professor' : 'Aprovada pelo professor'}
+                        </p>
+                        <label htmlFor={substitutionNoteId} className="block text-sm font-medium">
+                          Observação da substituição realizada
+                        </label>
+                        <textarea id={substitutionNoteId} value={substitutionNote}
+                          maxLength={500} rows={2}
+                          disabled={busy || loading || reconciliationRequired}
+                          onChange={event => {
+                            operationRef.current = null;
+                            setSubstitutionNote(event.target.value);
+                            keepDraft(repetitions, loadKg, null, substitutionId, event.target.value);
+                          }}
+                          placeholder="Descreva a troca efetivamente realizada"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" />
+                      </>
+                    )}
+                    {!selectedSubstitution && substitutionId && (
+                      <p role="alert" className="text-sm text-amber-800">
+                        A troca selecionada deixou de estar disponível. Atualize e selecione outra opção.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Para executar outro exercício, registre primeiro uma substituição em Ver ficha completa.
+                  </p>
+                )}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <label htmlFor={repsId} className="text-sm font-medium">Repetições realizadas</label>
@@ -538,7 +631,9 @@ export function GuidedResistanceCard({
                 </div>
                 {view.status === 'paused' && <p role="status" className="text-sm text-amber-800">Treino pausado. Retome a sessão para registrar esta série.</p>}
               {reconciliationRequired && <p role="status" className="text-sm text-amber-800">Confirmação bloqueada até revalidar a posição no servidor.</p>}
-                <Button type="submit" className="w-full sm:w-auto" disabled={busy || loading || reconciliationRequired || view.status !== 'in_progress' || status !== 'in_progress'}>
+                <Button type="submit" className="w-full sm:w-auto" disabled={busy || loading || reconciliationRequired
+                  || (Boolean(substitutionId) && !selectedSubstitution)
+                  || view.status !== 'in_progress' || status !== 'in_progress'}>
                   {busy ? 'Salvando série...' : 'Concluir série'}
                 </Button>
               </form>

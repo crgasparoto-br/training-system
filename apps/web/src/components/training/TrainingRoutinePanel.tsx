@@ -516,6 +516,7 @@ function TodaySession({
           onExecutionChanged={onExecutionChanged}
           onOverview={() => setShowGuided(false)}
           draftStore={guidedDraftStore}
+          substitutions={session.substitutions ?? []}
         />
       )}
       {hasGuided && !showGuided && (

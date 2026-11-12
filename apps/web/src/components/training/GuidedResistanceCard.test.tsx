@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { GuidedResistanceCompletePayload, GuidedResistanceView } from '@corrida/types';
+import type { GuidedResistanceCompletePayload, GuidedResistanceView, TrainingSubstitutionRecord } from '@corrida/types';
 import { GuidedResistanceCard, observeGuidedRestTiming, type GuidedResistanceDraft } from './GuidedResistanceCard';
 
 const first = {
@@ -14,6 +14,16 @@ const first = {
   rir: 2, rpe: 8, tempo: '3-1-1', restSec: 60, notes: 'Controle a descida',
 };
 const second = { ...first, plannedSetId: 'set-2', setNumber: 2, setPosition: 2 };
+const approvedSwap: TrainingSubstitutionRecord = {
+  id: 'approved-swap', sessionId: 'day-1', kind: 'exercise', context: 'planning', status: 'approved',
+  original: { unitId: 'exercise-a', id: 'catalog-a', name: 'Agachamento', version: 'exercicio:1',
+    capacity: 'resisted', movementPattern: 'squat', equipment: [], difficulty: null, restrictions: [] },
+  replacement: { unitId: 'catalog-b', id: 'catalog-b', name: 'Agachamento alternativo', version: 'exercicio:2',
+    capacity: 'resisted', movementPattern: 'squat', equipment: [], difficulty: null, restrictions: [] },
+  originalVersion: 'exercicio:1', replacementVersion: 'exercicio:2',
+  reason: 'Troca previamente autorizada', createdAt: '2026-11-12T00:00:00.000Z',
+  reviewedAt: '2026-11-12T00:00:00.000Z', reviewReason: null,
+};
 function projection(overrides: Partial<GuidedResistanceView> = {}): GuidedResistanceView {
   return {
     sessionId: 'day-1', status: 'in_progress', version: 1, availability: 'available',
@@ -32,6 +42,7 @@ const panel = (options: {
   load?: ReturnType<typeof vi.fn>;
   complete?: ReturnType<typeof vi.fn>;
   status?: GuidedResistanceView['status'];
+  substitutions?: TrainingSubstitutionRecord[];
 } = {}) => {
   const load = options.load ?? vi.fn().mockResolvedValue(projection());
   const complete = options.complete ?? vi.fn().mockResolvedValue(projection({
@@ -44,6 +55,7 @@ const panel = (options: {
     load={load as (sessionId: string) => Promise<GuidedResistanceView>}
     complete={complete as (sessionId: string, payload: GuidedResistanceCompletePayload) => Promise<GuidedResistanceView>}
     onExecutionChanged={onChanged}
+    substitutions={options.substitutions}
     onOverview={onOverview}
   />;
   const { rerender } = render(card(1));
@@ -747,5 +759,100 @@ describe('issue #488 - integração com guia e reconciliação', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Atualizar estado salvo' }));
     expect(await screen.findByRole('button', { name: 'Concluir série' })).toBeEnabled();
     expect(restAction).toHaveBeenCalledTimes(1);
+  });
+  it('A-404-008: a preapproval is never executed without explicit selection and an execution note', async () => {
+    const { complete } = panel({ substitutions: [approvedSwap] });
+    await screen.findByRole('button', { name: 'Concluir série' });
+    expect(screen.getByLabelText('Exercício efetivamente executado')).toHaveValue('');
+    expect(complete).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Exercício efetivamente executado'), {
+      target: { value: approvedSwap.id },
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Concluir série' }));
+    expect(screen.getByRole('alert')).toHaveTextContent(/descreva o exercício realmente executado/i);
+    expect(complete).not.toHaveBeenCalled();
+    await userEvent.type(screen.getByLabelText('Observação da substituição realizada'),
+      'Executei o exercício alternativo com equipamento disponível');
+    await userEvent.click(screen.getByRole('button', { name: 'Concluir série' }));
+    await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+    expect(complete.mock.calls[0][1]).toMatchObject({
+      outcome: 'substituted', substitutionId: approvedSwap.id,
+      substitutionNote: 'Executei o exercício alternativo com equipamento disponível',
+      plannedUnitId: first.plannedUnitId, plannedSetId: first.plannedSetId,
+    });
+  });
+
+  it('A-404-008: current-session pending replacement is eligible, but rejected and wrong-unit records are not', async () => {
+    const pending = { ...approvedSwap, id: 'pending-swap', context: 'execution' as const,
+      status: 'pending_review' as const, reviewedAt: null };
+    const rejected = { ...pending, id: 'rejected-swap', status: 'rejected' as const };
+    const foreign = { ...pending, id: 'wrong-unit', original: {
+      ...approvedSwap.original, unitId: 'another-exercise',
+    } };
+    const { complete } = panel({ substitutions: [pending, rejected, foreign] });
+    await screen.findByRole('button', { name: 'Concluir série' });
+    const select = screen.getByLabelText('Exercício efetivamente executado');
+    expect(select.querySelectorAll('option')).toHaveLength(2);
+    fireEvent.change(select, { target: { value: pending.id } });
+    fireEvent.change(screen.getByLabelText('Observação da substituição realizada'), {
+      target: { value: 'Troca realizada durante a série' },
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Concluir série' }));
+    await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+    expect(complete.mock.calls[0][1]).toMatchObject({ substitutionId: pending.id, outcome: 'substituted' });
+  });
+
+  it('A-404-008: replacing a selected link with a rejected revision disables confirmation', async () => {
+    const load = vi.fn().mockResolvedValue(projection());
+    const complete = vi.fn();
+    const card = (substitutions: TrainingSubstitutionRecord[]) => <GuidedResistanceCard
+      sessionId="day-1" status="in_progress" version={1} load={load}
+      complete={complete} onOverview={vi.fn()} substitutions={substitutions} />;
+    const ui = render(card([approvedSwap]));
+    await screen.findByRole('button', { name: 'Concluir série' });
+    fireEvent.change(screen.getByLabelText('Exercício efetivamente executado'), {
+      target: { value: approvedSwap.id },
+    });
+    ui.rerender(card([{ ...approvedSwap, status: 'rejected' }]));
+    expect(screen.getByRole('button', { name: 'Concluir série' })).toBeDisabled();
+    expect(screen.getByRole('alert')).toHaveTextContent(/deixou de estar disponível/);
+    expect(complete).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Exercício efetivamente executado'), {
+      target: { value: '' },
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Concluir série' }));
+    await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+    expect(complete.mock.calls[0][1]).not.toHaveProperty('substitutionId');
+  });
+
+  it('A-404-008: operation retry and overview round trip keep selected replacement and note for the same set', async () => {
+    const draftStore = { current: null as GuidedResistanceDraft | null };
+    const load = vi.fn().mockResolvedValue(projection());
+    const complete = vi.fn().mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValueOnce(projection({ version: 2, completed: 1, current: second, next: null }));
+    function Container() {
+      const [guided, setGuided] = useState(true);
+      return guided ? <GuidedResistanceCard sessionId="day-1" status="in_progress" version={1}
+        load={load} complete={complete} draftStore={draftStore}
+        substitutions={[approvedSwap]} onOverview={() => setGuided(false)} />
+        : <button onClick={() => setGuided(true)}>Continuar execução guiada</button>;
+    }
+    render(<Container />);
+    await screen.findByRole('button', { name: 'Concluir série' });
+    fireEvent.change(screen.getByLabelText('Exercício efetivamente executado'), { target: { value: approvedSwap.id } });
+    fireEvent.change(screen.getByLabelText('Observação da substituição realizada'), {
+      target: { value: 'Execução vinculada antes do timeout' },
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Concluir série' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/não foi possível confirmar/i);
+    await userEvent.click(screen.getByRole('button', { name: 'Ver ficha completa' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Continuar execução guiada' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Concluir série' })).toBeEnabled());
+    expect(screen.getByLabelText('Exercício efetivamente executado')).toHaveValue(approvedSwap.id);
+    expect(screen.getByLabelText('Observação da substituição realizada')).toHaveValue('Execução vinculada antes do timeout');
+    await userEvent.click(screen.getByRole('button', { name: 'Concluir série' }));
+    await waitFor(() => expect(complete).toHaveBeenCalledTimes(2));
+    expect(complete.mock.calls[0][1]).toMatchObject({ substitutionId: approvedSwap.id });
+    expect(complete.mock.calls[1][1]).toEqual(complete.mock.calls[0][1]);
   });
 });

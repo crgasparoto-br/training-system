@@ -37,7 +37,7 @@ async function waitForHealth(origin) {
   throw new Error('Issue #404 real API did not become healthy: ' + origin);
 }
 
-async function seed(prisma) {
+async function seed(prisma, { guidedResistance = false } = {}) {
   const suffix = randomUUID();
   const contractId = 'issue404-browser-' + suffix;
   const date = new Date(localToday() + 'T00:00:00.000Z');
@@ -109,6 +109,18 @@ async function seed(prisma) {
     workoutDayId: day.id, exerciseId: original.id,
     section: 'principal', exerciseOrder: 1, sets: 3, reps: 10,
   } });
+  let plannedSetId = null;
+  if (guidedResistance) {
+    const block = await prisma.workoutExerciseBlock.create({ data: {
+      workoutExerciseId: planned.id, position: 1, kind: 'principal',
+      plannedSets: { create: [
+        { position: 1, repsMin: 8, repsMax: 12, loadKg: 20, restSec: null },
+      ] },
+    } });
+    plannedSetId = (await prisma.workoutExercisePlannedSet.findFirstOrThrow({
+      where: { blockId: block.id, position: 1 }, select: { id: true },
+    })).id;
+  }
   const releasedAt = new Date();
   await prisma.$executeRawUnsafe(
     'INSERT INTO "ConsolidatedPrescriptionOperationalRelease" (' +
@@ -124,12 +136,24 @@ async function seed(prisma) {
     released: true, releasedAt,
   } });
   return { suffix, contractId, professorUserId: user.id, studentUserId: studentUser.id, alunoId: aluno.id,
-    dayId: day.id, plannedId: planned.id, replacementId: alternative.id };
+    dayId: day.id, plannedId: planned.id, plannedSetId, replacementId: alternative.id };
 }
 
-async function createWeb(apiOrigin, token, fixture) {
+async function createWeb(apiOrigin, token, fixture, audience = 'professor') {
   process.env.VITE_API_URL = apiOrigin;
   const { createServer } = await import('vite');
+  const student = audience === 'student';
+  const body = student
+    ? 'const { StudentTraining } = await import("/src/pages/StudentTraining.tsx");' +
+      'createRoot(document.getElementById("root")).render(' +
+      'React.createElement(BrowserRouter,null,React.createElement(StudentTraining)));'
+    : 'const { TrainingRoutinePanel } = await import("/src/components/training/TrainingRoutinePanel.tsx");' +
+      'const { trainingRoutineService } = await import("/src/services/training-routine.service.ts");' +
+      'const loadRoutine=(date)=>trainingRoutineService.getForAluno(' +
+        JSON.stringify(fixture.alunoId) + ',{date});' +
+      'createRoot(document.getElementById("root")).render(' +
+      'React.createElement(BrowserRouter,null,React.createElement(TrainingRoutinePanel,' +
+      '{audience:"professor",canView:true,title:"Treino de hoje",load:loadRoutine})));';
   const html = '<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8">' +
     '<meta name="viewport" content="width=device-width, initial-scale=1"></head>' +
     '<body><main id="root" style="max-width:68rem;margin:0 auto;padding:1rem"></main>' +
@@ -137,18 +161,13 @@ async function createWeb(apiOrigin, token, fixture) {
     'import React from "react"; import { createRoot } from "react-dom/client";' +
     'import { BrowserRouter } from "react-router-dom";' +
     'import "/src/index.css";' +
-    'import { TrainingRoutinePanel } from "/src/components/training/TrainingRoutinePanel.tsx";' +
-    'import { trainingRoutineService } from "/src/services/training-routine.service.ts";' +
     'import { useAuthStore } from "/src/stores/useAuthStore.ts";' +
     'localStorage.setItem("token",' + JSON.stringify(token) + ');' +
-    'useAuthStore.setState({user:{id:' + JSON.stringify(fixture.professorUserId) +
-      ',type:"professor",professor:{role:"master"}},' +
-      'token:' + JSON.stringify(token) + ',isAuthenticated:true,isLoading:false});' +
-    'const loadRoutine=(date)=>trainingRoutineService.getForAluno(' +
-      JSON.stringify(fixture.alunoId) + ',{date});' +
-    'createRoot(document.getElementById("root")).render(' +
-    'React.createElement(BrowserRouter,null,React.createElement(TrainingRoutinePanel,' +
-    '{audience:"professor",canView:true,title:"Treino de hoje",load:loadRoutine})));' +
+    'useAuthStore.setState({user:{id:' +
+      JSON.stringify(student ? fixture.studentUserId : fixture.professorUserId) +
+      ',type:' + JSON.stringify(student ? 'aluno' : 'professor') +
+      (student ? '' : ',professor:{role:"master"}') + '},token:' + JSON.stringify(token) +
+      ',isAuthenticated:true,isLoading:false});' + body +
     '</script></body></html>';
   const vite = await createServer({
     root: process.cwd(), logLevel: 'error',
@@ -339,6 +358,147 @@ suite('Issue #404: real browser, authenticated API and PostgreSQL', () => {
         schemaVersion: 1, issue: 404, headSha: process.env.VERIFICATION_HEAD_SHA || null,
         mode: 'production-routine-panel-real-chrome-http-postgresql', writes, readsAfterWrite,
         injectedFailures, ledgerRows: 1, lifecycleEventDelta: 1, screenshots: captures,
+      }, null, 2) + '\n');
+    } catch (error) {
+      throw new Error(String(error) + '\nAPI logs: ' + apiLogs.slice(-8).join('\n'));
+    } finally {
+      if (browser) await browser.close();
+      if (vite) await vite.close();
+      if (apiProcess) apiProcess.kill('SIGTERM');
+      await prisma.$disconnect();
+    }
+  }, 120_000);
+  it('A-404-008: an authenticated student executes a preapproved replacement in Chrome, API and PostgreSQL', async () => {
+    const prisma = new PrismaClient();
+    const jwtSecret = process.env.ISSUE_404_REAL_JWT_SECRET || 'issue404-ci-secret';
+    // A different API port avoids conflicts with the original browser scenario.
+    const port = Number(process.env.ISSUE_404_REAL_API_PORT || 19204) + 1;
+    const apiOrigin = 'http://127.0.0.1:' + port;
+    let browser, vite, apiProcess;
+    const apiLogs = [], browserErrors = [], captures = [], executionPosts = [];
+    try {
+      const fixture = await seed(prisma, { guidedResistance: true });
+      const professorToken = jwt.sign({
+        userId: fixture.professorUserId,
+        email: 'issue404-browser-prof-' + fixture.suffix + '@example.test',
+        type: 'professor',
+      }, jwtSecret, { expiresIn: '1h' });
+      const studentToken = jwt.sign({
+        userId: fixture.studentUserId,
+        email: 'issue404-browser-student-' + fixture.suffix + '@example.test',
+        type: 'aluno',
+      }, jwtSecret, { expiresIn: '1h' });
+      const web = await createWeb(apiOrigin, studentToken, fixture, 'student');
+      vite = web.vite;
+      apiProcess = spawn('pnpm', ['--filter', '@corrida/api', 'exec', 'tsx', 'src/main.ts'], {
+        cwd: repoRoot,
+        env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL, JWT_SECRET: jwtSecret,
+          PORT: String(port), NODE_ENV: 'test', CORS_ORIGIN: web.origin, FRONTEND_URL: web.origin },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      apiProcess.stdout?.on('data', chunk => apiLogs.push(String(chunk).slice(0, 1200)));
+      apiProcess.stderr?.on('data', chunk => apiLogs.push(String(chunk).slice(0, 1200)));
+      await waitForHealth(apiOrigin);
+      const substitutionEndpoint = apiOrigin + '/api/v1/training-substitutions/sessions/' + fixture.dayId;
+      const replacement = await prisma.exerciseLibrary.findUniqueOrThrow({
+        where: { id: fixture.replacementId }, select: { version: true },
+      });
+      const prior = await fetch(substitutionEndpoint, { method: 'POST', headers: {
+        Authorization: 'Bearer ' + professorToken, 'Content-Type': 'application/json',
+      }, body: JSON.stringify({
+        kind: 'exercise', context: 'planning', originalUnitId: fixture.plannedId,
+        replacementUnitId: fixture.replacementId,
+        expectedReplacementVersion: `exercicio:${replacement.version}`,
+        reason: 'Troca previamente validada pelo professor',
+        operationKey: '404-guided-browser-preapproval-' + fixture.suffix,
+      }) });
+      expect(prior.status).toBe(200);
+      const linked = (await prior.json()).data;
+      expect(linked).toMatchObject({ context: 'planning', status: 'approved' });
+      expect(await prisma.workoutSessionExecutionItem.count({
+        where: { plannedUnitId: fixture.plannedId },
+      })).toBe(0); // Preapproval is not execution.
+
+      browser = await puppeteer.launch({ executablePath: chromePath(), headless: true,
+        args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+      const page = await browser.newPage();
+      page.on('pageerror', error => browserErrors.push(error.message));
+      await page.setRequestInterception(true);
+      page.on('request', request => {
+        if (request.method() === 'POST'
+          && new URL(request.url()).pathname.endsWith('/execution/guided/complete')) {
+          executionPosts.push(JSON.parse(request.postData() || '{}'));
+        }
+        void request.continue();
+      });
+      await page.setViewport({ width: 1440, height: 900 });
+      await page.goto(web.origin + '/__issue-404?contractId=' + encodeURIComponent(fixture.contractId),
+        { waitUntil: 'domcontentloaded' });
+      await clickButton(page, 'Iniciar treino');
+      await waitText(page, 'Exercício efetivamente executado');
+      // A prior approval never preselects the replacement in the guided screen.
+      const replacementSelect = await page.evaluateHandle(id => [...document.querySelectorAll('select')]
+        .find(select => [...select.options].some(option => option.value === id)), linked.id);
+      expect(replacementSelect.asElement()).toBeTruthy();
+      expect(await replacementSelect.asElement().evaluate(select => select.value)).toBe('');
+      expect(executionPosts).toHaveLength(0);
+      const headers = { Authorization: 'Bearer ' + studentToken,
+        'x-contract-id': fixture.contractId, 'Content-Type': 'application/json' };
+      const invalid = await fetch(apiOrigin + '/api/v1/student/me/training-sessions/' +
+        fixture.dayId + '/execution/guided/complete', { method: 'POST', headers,
+        body: JSON.stringify({
+          operationKey: '404-guided-browser-forged', expectedVersion: 1,
+          plannedUnitId: fixture.plannedId, plannedSetId: fixture.plannedSetId,
+          setNumber: 1, repetitions: 8, loadKg: 20,
+          outcome: 'substituted', substitutionId: 'not-an-approved-link',
+          substitutionNote: 'Tentativa de vínculo adulterado',
+        }),
+      });
+      expect(invalid.status).toBe(400);
+      expect(await prisma.workoutSessionExecutionItem.count({ where: {
+        plannedUnitId: fixture.plannedId,
+      } })).toBe(0);
+      await replacementSelect.asElement().select(linked.id);
+      await page.type('textarea[placeholder="Descreva a troca efetivamente realizada"]',
+        'Aluno executou a variação aprovada pelo profissional');
+      await clickButton(page, 'Concluir série');
+      await waitText(page, 'Série registrada.');
+      expect(executionPosts).toHaveLength(1);
+      expect(executionPosts[0]).toMatchObject({
+        plannedUnitId: fixture.plannedId, plannedSetId: fixture.plannedSetId,
+        outcome: 'substituted', substitutionId: linked.id,
+        substitutionNote: 'Aluno executou a variação aprovada pelo profissional',
+      });
+      const stored = await prisma.workoutSessionExecutionItem.findFirstOrThrow({
+        where: { plannedUnitId: fixture.plannedId },
+      });
+      expect(stored).toMatchObject({
+        substitutionId: linked.id, outcome: 'substituted',
+        substitutionNote: 'Aluno executou a variação aprovada pelo profissional',
+      });
+      expect(stored.completedAt).not.toBeNull();
+      captures.push(await screenshot(page, 'desktop-guided-executed'));
+      const routine = await fetch(apiOrigin + '/api/v1/student/me/training-routine', { headers });
+      expect(routine.status).toBe(200);
+      const view = (await routine.json()).data;
+      const compared = view.today.sessions.find(session => session.sessionId === fixture.dayId)?.comparison;
+      expect(compared?.units.find(unit => unit.kind === 'exercise'
+        && unit.plannedUnitId === fixture.plannedId)).toMatchObject({
+          containsSubstitution: true, substitutionId: linked.id,
+        });
+      await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
+      const overflow = await page.evaluate(() =>
+        Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - innerWidth);
+      expect(overflow).toBeLessThanOrEqual(1);
+      captures.push(await screenshot(page, 'mobile-guided-executed'));
+      expect(browserErrors).toEqual([]);
+      mkdirSync(outputDir, { recursive: true });
+      writeFileSync(path.join(outputDir, 'real-guided-link-evidence.json'), JSON.stringify({
+        schemaVersion: 1, issue: 404, headSha: process.env.VERIFICATION_HEAD_SHA || null,
+        mode: 'student-chrome-authenticated-http-postgresql-guided-substitution',
+        preapprovalId: linked.id, executionPostCount: executionPosts.length,
+        persistedSubstitutionId: stored.substitutionId, negativeCaseStatus: invalid.status,
+        screenshots: captures,
       }, null, 2) + '\n');
     } catch (error) {
       throw new Error(String(error) + '\nAPI logs: ' + apiLogs.slice(-8).join('\n'));

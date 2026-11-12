@@ -1176,7 +1176,12 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
       actorUserId: string;
       payload: GuidedResistanceCompletePayload;
     }): Promise<GuidedResistanceView> {
-      const { operationKey, expectedVersion, plannedUnitId, plannedSetId, setNumber, repetitions, loadKg } = input.payload;
+      const { operationKey, expectedVersion, plannedUnitId, plannedSetId, setNumber,
+        repetitions, loadKg, outcome, substitutionId, substitutionNote } = input.payload;
+      if ([outcome, substitutionId, substitutionNote].some(value => value !== undefined)
+        && (!outcome || !substitutionId || !substitutionNote?.trim())) {
+        throw new WorkoutSessionExecutionInputError('Execução substituída exige vínculo e motivo.');
+      }
       await runOperation({
         sessionId: input.sessionId,
         alunoId: input.alunoId,
@@ -1184,7 +1189,8 @@ export function createWorkoutSessionExecutionService(client: PrismaClient = pris
         actorUserId: input.actorUserId,
         operationKey,
         expectedVersion,
-        items: [{ plannedUnitId, plannedSetId, setNumber, repetitions, loadKg }],
+        items: [{ plannedUnitId, plannedSetId, setNumber, repetitions, loadKg,
+          ...(outcome === 'substituted' ? { outcome, substitutionId, substitutionNote } : {}) }],
         guidedCompletion: true,
       });
       return getGuidedForSession(input);

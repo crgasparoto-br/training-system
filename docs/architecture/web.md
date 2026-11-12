@@ -49,7 +49,14 @@ A projeção semanal do painel é somente leitura, mas `TrainingSubstitutionCard
 
 A execução resistida com resultado `substituted` deve trazer o ID da
 substituição explicitamente selecionada e registrada no ledger da #404; não
-basta `substitutionNote` livre. A comparação exibe a unidade original, sua
+basta `substitutionNote` livre. No guia de séries, a escolha padrão é executar
+o exercício originalmente planejado; quando há pré-aprovação ou solicitação
+válida para a unidade atual, o aluno pode escolher o substituto e informar
+uma observação obrigatória. A mesma operação `guided/complete` grava o resultado,
+`substitutionId`, série, repetições e carga de forma idempotente. A escolha
+permanece no rascunho da mesma série ao alternar guia/ficha, mas não passa
+para outra série ou sessão. A API revalida catálogo, vínculo, contrato,
+revisão e versão na transação. A comparação exibe a unidade original, sua
 alternativa e o estado da revisão quando houver vínculo, sem interpretar uma
 pré-aprovação como execução confirmada. Etapas cíclicas/agrupamentos com nota
 livre são adaptações operacionais distintas, não substituição de exercício.

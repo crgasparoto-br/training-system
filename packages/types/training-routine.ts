@@ -397,6 +397,10 @@ export interface GuidedResistanceCompletePayload {
   setNumber: number;
   repetitions: number | null;
   loadKg: number | null;
+  /** #404: an explicitly selected, eligible catalog replacement executed on this set. */
+  outcome?: 'substituted';
+  substitutionId?: string;
+  substitutionNote?: string;
 }
 
 export type TrainingRoutineModality = 'resistance' | 'cyclic' | 'flexibility' | 'balance';

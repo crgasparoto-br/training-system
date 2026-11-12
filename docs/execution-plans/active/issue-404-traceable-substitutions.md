@@ -57,6 +57,9 @@ Troca automática por IA; importação externa; modificação de prescrições f
   validação transacional e trigger de identidade (aguarda CI do novo SHA).
 - [x] A-404-007: delimitar a projeção somente leitura versus endpoints
   explícitos de criação e revisão (aguarda CI do novo SHA).
+- [x] A-404-008: integração explícita do substituto na execução guiada;
+  `guided/complete` persiste resultado, ID e observação em uma única transação,
+  sem selecionar pré-aprovações automaticamente.
 - [ ] `pnpm validate` e CI completos no novo SHA, sem falhas.
 - [ ] Auditoria independente e homologação.
 
@@ -82,6 +85,8 @@ Troca automática por IA; importação externa; modificação de prescrições f
 ## Decisões e pendências
 - Mudança confinada à prescrição liberada atual, sem propagação automática.
 - Status do histórico é independente do estado de execução.
+- A série guiada permite vincular a pré-aprovação ou a solicitação da sessão
+  em andamento, com observação obrigatória; vínculo inválido impede a confirmação.
 - Execução resistida com `outcome=substituted` exige `substitutionId` real,
   preserva aprovação/solicitação e rejeita string avulsa; etapa cíclica e
   agrupamento registram apenas adaptação operacional, sem inventar catálogo.

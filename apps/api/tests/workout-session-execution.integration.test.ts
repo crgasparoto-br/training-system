@@ -5319,6 +5319,94 @@ describeDatabase('issue #404: canonical execution references the audited substit
     contractId: fixture.contractId, actorUserId: fixture.alunoUserId,
   });
 
+  it('A-404-008: the guided completion atomically records a preapproved exercise substitution', async () => {
+    const fixture = await seedReleasedWorkout('404-guided-preapproved', { seedGuidedResistance: true });
+    const professor = await prisma.professor.findFirstOrThrow({
+      where: { userId: fixture.professorUserId, contractId: fixture.contractId },
+    });
+    const alternative = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[1] },
+      select: { exerciseId: true, exercise: { select: { version: true } } },
+    });
+    const approved = await createTrainingSubstitutionService(prisma).create({
+      sessionId: fixture.dayId,
+      actor: { kind: 'professor', userId: fixture.professorUserId,
+        professorId: professor.id, contractId: fixture.contractId },
+      kind: 'exercise', context: 'planning', originalUnitId: fixture.exerciseIds[0],
+      replacementUnitId: alternative.exerciseId,
+      expectedReplacementVersion: `exercicio:${alternative.exercise.version}`,
+      reason: 'Alternativa liberada pelo profissional', operationKey: '404-guided-preapproval',
+    });
+    await transition(fixture, '404-guided-preapproval-start', 0, 'in_progress');
+    const before = await service.getForSession(scope(fixture));
+    expect(before.items).toHaveLength(0); // Approval is not execution.
+    const current = (await service.getGuidedForSession(scope(fixture))).current!;
+    const payload = {
+      operationKey: '404-guided-preapproval-executed', expectedVersion: 1,
+      plannedUnitId: current.plannedUnitId, plannedSetId: current.plannedSetId,
+      setNumber: current.setNumber, repetitions: 9, loadKg: 29,
+      outcome: 'substituted' as const, substitutionId: approved.id,
+      substitutionNote: 'Aluno executou o substituto pré-aprovado',
+    };
+    const guided = await service.completeGuided({ ...scope(fixture), payload });
+    expect(guided).toMatchObject({ completed: 1, version: 2 });
+    const replay = await concurrentService.completeGuided({ ...scope(fixture), payload });
+    expect(replay).toMatchObject({ completed: 1, version: 2 });
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, include: { items: true, operations: true },
+    });
+    expect(execution.items).toHaveLength(1);
+    expect(execution.items[0]).toMatchObject({
+      plannedUnitId: current.plannedUnitId, plannedSetId: current.plannedSetId,
+      outcome: 'substituted', substitutionId: approved.id,
+      substitutionNote: 'Aluno executou o substituto pré-aprovado',
+      repetitions: 9, loadKg: 29,
+    });
+    expect(execution.operations.filter(item => item.action === 'complete_resistance_set')).toHaveLength(1);
+    const plan = readCapturedWorkoutComparisonPlan(execution.plannedSnapshot)!;
+    const comparison = compareWorkoutSession(plan, await service.getForSession(scope(fixture)), 'captured');
+    expect(comparison.units.find(unit => unit.kind === 'exercise'
+      && unit.plannedUnitId === fixture.exerciseIds[0])).toMatchObject({
+      containsSubstitution: true, substitutionId: approved.id,
+    });
+  });
+
+  it('A-404-008: a pending execution-time replacement can be confirmed, but a forged or wrong-unit link cannot', async () => {
+    const fixture = await seedReleasedWorkout('404-guided-pending', { seedGuidedResistance: true });
+    const other = await seedReleasedWorkout('404-guided-foreign', { seedGuidedResistance: true });
+    await transition(fixture, '404-guided-pending-start', 0, 'in_progress');
+    await transition(other, '404-guided-foreign-start', 0, 'in_progress');
+    const own = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '404-guided-pending-swap');
+    const foreign = await recordExecutionReplacement(other, other.exerciseIds[0], '404-guided-foreign-swap');
+    const current = (await service.getGuidedForSession(scope(fixture))).current!;
+    const payload = {
+      operationKey: '404-guided-pending-execution', expectedVersion: 1,
+      plannedUnitId: current.plannedUnitId, plannedSetId: current.plannedSetId,
+      setNumber: current.setNumber, repetitions: 8, loadKg: 25,
+      outcome: 'substituted' as const, substitutionId: own.id,
+      substitutionNote: 'Outra variação executada pelo aluno',
+    };
+    for (const [key, data] of [
+      ['note-only', { substitutionId: undefined }],
+      ['forged', { substitutionId: 'not-a-ledger-link' }],
+      ['cross-tenant', { substitutionId: foreign.id }],
+    ] as const) {
+      await expect(service.completeGuided({ ...scope(fixture), payload: {
+        ...payload, ...data, operationKey: '404-guided-denied-' + key,
+      } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    }
+    expect((await service.getForSession(scope(fixture))).version).toBe(1);
+    const saved = await service.completeGuided({ ...scope(fixture), payload });
+    expect(saved).toMatchObject({ version: 2, completed: 1 });
+    expect((await service.getForSession(scope(fixture))).items[0]).toMatchObject({
+      outcome: 'substituted', substitutionId: own.id,
+    });
+    expect(await prisma.workoutSessionExecutionOperation.count({
+      where: { execution: { workoutDayId: fixture.dayId },
+        action: 'complete_resistance_set' },
+    })).toBe(1);
+  });
+
   it('rejects note-only exercise substitution and a forged ledger ID without any execution side effects', async () => {
     const fixture = await seedReleasedWorkout('404-execution-no-bypass');
     await transition(fixture, '404-execution-start', 0, 'in_progress');

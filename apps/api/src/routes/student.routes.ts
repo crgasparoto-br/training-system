@@ -910,7 +910,16 @@ const guidedCompletionSchema = z.object({
   setNumber: z.number().int().positive(),
   repetitions: z.number().int().nonnegative().nullable(),
   loadKg: z.number().finite().nonnegative().nullable(),
-}).strict();
+  outcome: z.literal('substituted').optional(),
+  substitutionId: z.string().trim().min(1).max(128).optional(),
+  substitutionNote: z.string().trim().min(3).max(500).optional(),
+}).strict().superRefine((payload, ctx) => {
+  const fields = [payload.outcome, payload.substitutionId, payload.substitutionNote];
+  if (fields.some(value => value !== undefined) && fields.some(value => value === undefined)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['substitutionId'],
+      message: 'Execução substituída exige resultado, vínculo e motivo em conjunto.' });
+  }
+});
 
 const guidedCyclicActionSchema = z.object({
   operationKey: z.string().trim().min(8).max(128),
