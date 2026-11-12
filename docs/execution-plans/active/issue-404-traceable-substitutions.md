@@ -54,14 +54,45 @@ Troca automática por IA; importação externa; modificação de prescrições f
 - [x] A-004: Chrome/HTTP/PostgreSQL com falha pós-POST e retry apenas GET,
   atestado na CI do SHA `42de210b576d950ce2432a8ba2ef85fe416e25d8`.
 - [x] A-404-006: integrar `substituted` de exercícios à trilha #404 com FK,
-  validação transacional e trigger de identidade (aguarda CI do novo SHA).
+  validação transacional e trigger de identidade.
 - [x] A-404-007: delimitar a projeção somente leitura versus endpoints
-  explícitos de criação e revisão (aguarda CI do novo SHA).
+  explícitos de criação e revisão.
 - [x] A-404-008: integração explícita do substituto na execução guiada;
   `guided/complete` persiste resultado, ID e observação em uma única transação,
   sem selecionar pré-aprovações automaticamente.
-- [ ] `pnpm validate` e CI completos no novo SHA, sem falhas.
-- [ ] Auditoria independente e homologação.
+- [x] Gates de validação equivalentes a `pnpm validate` na CI `Validate PR`
+  para o SHA funcional `72ada5852d88d881b6b943f05186aa314f525875`.
+- [x] Ressalva documental do parecer de 12/11/2026: reconciliar status de CI,
+  histórico de remediações e evidência exata de execução.
+- [ ] Certificação formal da auditoria independente sobre o HEAD final e
+  homologação funcional/operacional; CI aprovada não substitui essas etapas.
+
+## Evidências de validação técnica — 12/11/2026
+
+- **Identidade funcional validada:** PR #541, base `develop@2b25442860339c257522ccd83947bcffd53ace2a`,
+  HEAD `72ada5852d88d881b6b943f05186aa314f525875`.
+- **GitHub Actions (pull_request):** [Validate PR #43209020937](https://github.com/crgasparoto-br/training-system/actions/runs/43209020937),
+  `completed/success` para o HEAD acima. Os jobs `Repository CI risk`,
+  `Merge preview compatibility`, `CRITICAL validation` e `Validate repository`
+  terminaram em `success`.
+- **GitHub Actions (push):** [Validate PR #43209010006](https://github.com/crgasparoto-br/training-system/actions/runs/43209010006),
+  `completed/success` no mesmo SHA.
+- **Escopo alcançado pelo job CRITICAL:** PostgreSQL e migrações, geração Prisma,
+  type-check, lint, testes completos, jornada real Chrome/API/PostgreSQL #404,
+  build e verificações de arquitetura, acesso, documentação e provas de fonte.
+- **Evidência autenticada:** artefato `validate-pr-critical-72ada5852d88d881b6b943f05186aa314f525875`
+  (ID `13943530765`, digest ZIP `sha256:eeb5b2c7cb071a0ca8ef22634b1715801421a9eed7b108e75ba2c40ad8dfe1ff`),
+  e bundle Git de auditoria `audit-git-bundle-72ada5852d88d881b6b943f05186aa314f525875`
+  (ID `13941964113`, digest ZIP `sha256:a8116b2864b69a0631a1134fa11502d05076dec1b3c4ef2bdf155ca0ae2c2ebf`).
+- **Execução local:** `pnpm validate` não foi executado no ambiente implementador
+  por ausência de `pnpm` e checkout/dependências; as etapas aplicáveis foram
+  executadas remotamente pelo workflow oficial, não por uma chamada local.
+- **Fronteira do atestado:** o sucesso acima comprova somente o SHA
+  `72ada5852d88d881b6b943f05186aa314f525875`. Este ajuste documental
+  gera um novo HEAD; ele exige sua própria CI terminal verde e posterior
+  auditoria independente, sem transportar automaticamente a aprovação anterior.
+  O estado corrente do novo HEAD deve ser consultado no GitHub Actions, sem
+  registrar no plano um status dinâmico que ficaria obsoleto após novo commit.
 
 ## Validação manual
 1. Professor pré-aprova substituto elegível numa sessão não iniciada.
@@ -91,12 +122,13 @@ Troca automática por IA; importação externa; modificação de prescrições f
   preserva aprovação/solicitação e rejeita string avulsa; etapa cíclica e
   agrupamento registram apenas adaptação operacional, sem inventar catálogo.
 - Registros antigos sem o vínculo continuam legíveis, sem backfill enganoso.
-- Validação local indisponível: resolução DNS de github.com e pnpm ausente no
-  ambiente de trabalho; comprovar testes/build na CI da PR.
+- Validação local indisponível: resolução DNS de github.com e `pnpm` ausente no
+  ambiente de trabalho; testes/build da implementação comprovados nos runs
+  exact-SHA identificados em **Evidências de validação técnica**.
 - PR: https://github.com/crgasparoto-br/training-system/pull/541
 - Remediação inicial da auditoria de 11/11/2026: `A-001`, `A-002` e `REC-001`.
 - Remediações anteriores: `A-404-001`, `RISK-001`, `REC-404-001`, com controles
   de permissão independente, revogação e revisão histórica. A-404-006/007
   introduzem o vínculo efetivo no registro de execução e corrigem a documentação.
-  A CI do SHA anterior não comprova este novo candidato.
+  Evidências de SHAs anteriores não certificam automaticamente novos commits.
 - Não fazer merge sem autorização explícita.
