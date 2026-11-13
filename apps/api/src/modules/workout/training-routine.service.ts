@@ -27,6 +27,7 @@ import {
   projectWorkoutComparisonForAudience,
   projectWorkoutExecutionForAudience,
   readCapturedWorkoutComparisonPlan,
+  type TrainingComparisonSnapshot,
 } from './workout-session-comparison.domain.js';
 import { projectPostWorkoutFeedback } from '../post-workout-feedback/post-workout-feedback-persistence.service.js';
 import { calculateWeeklyTrainingEvolution } from './training-evolution.domain.js';
