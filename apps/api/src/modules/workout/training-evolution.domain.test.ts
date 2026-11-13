@@ -362,7 +362,7 @@ describe('evolução semanal canônica (#405)', () => {
     const partial = executed('partial-1', '2026-11-03', 'resistance', 'partial');
     partial.execution!.plannedExercises = [plannedUnit('unit-1', 'squat', 'Agachamento')];
     partial.execution!.items = [
-      { plannedUnitId: 'unit-1', setNumber: 1, outcome: null, completedAt: null,
+      { plannedUnitId: 'unit-1', setNumber: 1, completedAt: null,
         loadKg: 99, repetitions: 99 },
       { plannedUnitId: 'unit-1', setNumber: 2, outcome: 'full', loadKg: 40, repetitions: 10 },
       { plannedUnitId: 'unit-1', setNumber: 3, outcome: 'partial', loadKg: 20, repetitions: 5 },
@@ -384,7 +384,7 @@ describe('evolução semanal canônica (#405)', () => {
     const onlyDraft = executed('partial-draft', '2026-11-04', 'resistance', 'partial');
     onlyDraft.execution!.plannedExercises = [plannedUnit('unit-2', 'squat', 'Agachamento')];
     onlyDraft.execution!.items = [{ plannedUnitId: 'unit-2', setNumber: 1,
-      loadKg: 99, repetitions: 99, outcome: null, completedAt: null }];
+      loadKg: 99, repetitions: 99, completedAt: null }];
     const noVolume = calculateWeeklyTrainingEvolution({ period, sessions: [onlyDraft], audience: 'student' });
     expect(noVolume.metrics.find((m) => m.key === 'tonnage'))
       .toMatchObject({ status: 'insufficient_data', value: null, sampleCount: 0 });
