@@ -212,12 +212,14 @@ describe('TrainingRoutinePanel (#387)', () => {
       period: { startDate: '2026-09-28', endDate: '2026-10-04' },
       counts: { prescribedSessions: 1, completedSessions: 1, partialSessions: 0, notPerformedSessions: 0, pendingSessions: 0 },
       adherence: { status: 'available' as const, value: 100, unit: '%' as const },
+      metrics: [], series: [],
       lastSourceUpdateAt: null,
       technical: {
         ruleVersion: 'weekly-adherence-v1' as const,
         source: 'consolidated_release_and_session_execution' as const,
         formula: 'completedSessions / prescribedSessions * 100' as const,
         sessions: [{ sessionId: 'professor-private-session', status: 'completed' as const }],
+        indicators: [],
       },
     };
     const studentView = routine({ weeklyEvolution });
