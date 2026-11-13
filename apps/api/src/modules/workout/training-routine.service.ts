@@ -610,7 +610,9 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
             const feedback = canProjectPostWorkoutFeedback
               ? latestFeedbackBySession.get(row.id) ?? [] : [];
             const canonicalAt = canonical && row.execution
-              ? row.execution.updatedAt.toISOString()
+              ? row.execution.updatedAt?.toISOString()
+                ?? row.updatedAt?.toISOString()
+                ?? row.template.releasedAt?.toISOString() ?? null
               : row.execution
                 ? row.template.releasedAt?.toISOString() ?? row.updatedAt?.toISOString() ?? null
                 : row.updatedAt?.toISOString() ?? row.template.releasedAt?.toISOString() ?? null;
