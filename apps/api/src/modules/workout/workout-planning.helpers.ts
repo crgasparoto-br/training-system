@@ -61,6 +61,65 @@ export class WorkoutPlanningLockedError extends Error {
 }
 
 
+/**
+ * New applications must reference an approved exercise in the student's own
+ * contract. Existing WorkoutExercise rows remain readable after deactivation.
+ * Call only from the definitive planning transaction, after matching stable
+ * identities, so a replay cannot silently create an uncurated exercise.
+ */
+export async function assertApprovedWorkoutExerciseIds(
+  tx: Prisma.TransactionClient,
+  exerciseIds: readonly string[],
+  contractId: string,
+) {
+  const uniqueIds = [...new Set(exerciseIds)];
+  if (!uniqueIds.length) return;
+  // Hold the approved catalog rows through the definitive workout write.
+  // A concurrent curator UPDATE conflicts with FOR SHARE and must serialize.
+  const approved = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT "id" FROM "ExerciseLibrary"
+    WHERE "id" IN (${Prisma.join(uniqueIds)})
+      AND "contractId" = ${contractId}
+      AND "curationStatus" = 'approved'
+      AND "legacyGrandfathered" = FALSE
+    ORDER BY "id" FOR SHARE
+  `);
+  if (approved.length !== uniqueIds.length) {
+    throw new ResistanceStructureValidationError('Exercício indisponível para aplicação.');
+  }
+}
+
+/**
+ * A legacy template release publishes existing workout links as a new
+ * prescription. Recheck every referenced catalog row under the same write
+ * transaction, even when the row was valid when first added.
+ * Historical releases are handled separately and remain readable.
+ */
+export async function assertTemplateReleaseCatalogEligibility(
+  tx: Prisma.TransactionClient,
+  templateId: string,
+  authenticatedContractId?: string,
+) {
+  const template = await tx.workoutTemplate.findFirst({
+    where: {
+      id: templateId,
+      ...(authenticatedContractId
+        ? { plan: { aluno: { contractId: authenticatedContractId } } }
+        : {}),
+    },
+    select: { plan: { select: { aluno: { select: { contractId: true } } } } },
+  });
+  if (!template) throw new ResistanceStructureNotFoundError();
+
+  const linked = await tx.workoutExercise.findMany({
+    where: { workoutDay: { templateId } },
+    select: { exerciseId: true },
+  });
+  await assertApprovedWorkoutExerciseIds(
+    tx, linked.map(({ exerciseId }) => exerciseId), template.plan.aluno.contractId,
+  );
+}
+
 export async function assertDayContract(
   tx: Prisma.TransactionClient,
   workoutDayId: string,
@@ -73,10 +132,7 @@ export async function assertDayContract(
   });
   if (!day) throw new ResistanceStructureNotFoundError();
   if (exerciseId !== undefined) {
-    const libraryExercise = await tx.exerciseLibrary.findFirst({
-      where: { id: exerciseId, contractId }, select: { id: true },
-    });
-    if (!libraryExercise) throw new ResistanceStructureValidationError('Exercício fora do contrato.');
+    await assertApprovedWorkoutExerciseIds(tx, [exerciseId], contractId);
   }
 }
 

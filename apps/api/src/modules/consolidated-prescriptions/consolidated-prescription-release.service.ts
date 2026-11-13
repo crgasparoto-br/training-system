@@ -1,3 +1,6 @@
+import { approvedOperationalExerciseWhere } from '../library/library-curation.domain.js';
+import { assertApprovedWorkoutExerciseIds } from '../workout/workout-planning.helpers.js';
+import { ResistanceStructureValidationError } from '../workout/resistance-structure.domain.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { Prisma, PrismaClient } from '@prisma/client';
 import type {
@@ -112,6 +115,14 @@ type ReleaseRow = {
 
 type PreparedProjectionItem = ConsolidatedOperationalProjectionItem & {
   preparedForAssemblyVersion?: number;
+};
+
+/** The cyclic source has a distinct table; the flex/balance CHECK must remain unchanged. */
+type ReleasedCapacityBlock = WorkoutDayCapacityOperationalBlock | {
+  contractVersion: 1;
+  capacity: 'cyclic';
+  capacityPrescriptionVersionId: string;
+  parameters: Record<string, unknown>;
 };
 
 function fail(code: ConsolidatedReleaseErrorCode, message: string, details?: Record<string, unknown>): never {
@@ -361,6 +372,21 @@ async function revalidatePreparedProjection(
     });
   }
 
+  // The release actually materializes WorkoutExercise links. Lock every
+  // effective and original catalog row until this serializable transaction
+  // commits; version/read-only checks below cannot close a deactivation race.
+  const catalogIds = items.filter(item => Boolean(item.technicalCatalogItemId))
+    .flatMap(item => [item.mappedExerciseLibraryId, item.effectiveExerciseLibraryId])
+    .filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+  try {
+    await assertApprovedWorkoutExerciseIds(tx, catalogIds, context.contractId);
+  } catch (error) {
+    if (error instanceof ResistanceStructureValidationError) {
+      fail('CONFLICT', 'Um exercício operacional foi desativado ou deixou de estar aprovado');
+    }
+    throw error;
+  }
+
   const substitutions = refs
     .filter((ref) => ref.origin === CONSOLIDATED_EXERCISE_SUBSTITUTION_ORIGIN)
     .map((ref) => record(ref.context))
@@ -388,7 +414,7 @@ async function revalidatePreparedProjection(
       fail('CONFLICT', 'O vínculo técnico-operacional foi alterado após a preparação');
     }
     const originalExercise = await tx.exerciseLibrary.findFirst({
-      where: { id: mapping.exerciseLibraryId, contractId: context.contractId },
+      where: { id: mapping.exerciseLibraryId, contractId: context.contractId, ...approvedOperationalExerciseWhere },
       select: { id: true, updatedAt: true },
     });
     if (
@@ -410,7 +436,7 @@ async function revalidatePreparedProjection(
       if (!substitution) fail('CONFLICT', 'A substituição operacional preparada não pertence à versão aprovada');
     }
     const exercise = await tx.exerciseLibrary.findFirst({
-      where: { id: effectiveId, contractId: context.contractId },
+      where: { id: effectiveId, contractId: context.contractId, ...approvedOperationalExerciseWhere },
       select: { id: true, updatedAt: true },
     });
     if (!exercise || exercise.updatedAt.toISOString() !== item.operationalExerciseUpdatedAt) {
@@ -553,7 +579,7 @@ async function applyOperationalProjection(
 
   const templateFields: Record<string, unknown> = {};
   const dayFields = new Map<number, Record<string, unknown>>();
-  const capacityBlocksByDay = new Map<number, WorkoutDayCapacityOperationalBlock[]>();
+  const capacityBlocksByDay = new Map<number, ReleasedCapacityBlock[]>();
   const placementByKey = new Map(command.target.placements.map((placement) => [placement.projectionKey.trim(), placement]));
   const placementsByDay = new Map<number, ConsolidatedReleasePlacement[]>();
   for (const placement of command.target.placements) {
@@ -582,8 +608,18 @@ async function applyOperationalProjection(
           ['method', 'vo2maxPct', 'stimulusDurationMin', 'detailNotes', 'complementNotes']
         );
         dayFields.set(placement.dayOfWeek, target);
-        const operationalBlock = preparedWorkoutDayCapacityBlock(item);
+        const operationalBlock: ReleasedCapacityBlock | null = item.capacity === 'cyclic'
+          ? {
+              contractVersion: 1,
+              capacity: 'cyclic',
+              capacityPrescriptionVersionId: item.capacityPrescriptionVersionId,
+              parameters: record(item.sourceParameters),
+            }
+          : preparedWorkoutDayCapacityBlock(item);
         if (operationalBlock) {
+          if (!Object.keys(operationalBlock.parameters).length) {
+            fail('CONFLICT', 'Capacidade sem parâmetros estruturados para a sessão liberada');
+          }
           const blocks = capacityBlocksByDay.get(placement.dayOfWeek) ?? [];
           if (blocks.some((block) => block.capacity === operationalBlock.capacity)) {
             fail('CONFLICT', `A capacidade ${operationalBlock.capacity} foi posicionada mais de uma vez no mesmo dia`);
@@ -716,6 +752,18 @@ async function applyOperationalProjection(
     dayIds.set(dayOfWeek, day.id);
 
     for (const block of capacityBlocksByDay.get(dayOfWeek) ?? []) {
+      if (block.capacity === 'cyclic') {
+        await tx.$executeRaw`
+          INSERT INTO "WorkoutDayCyclicOperationalBlock" (
+            "id", "workoutDayId", "capacityPrescriptionVersionId", "capacity",
+            "contractVersion", "parameters", "createdAt"
+          ) VALUES (
+            ${randomUUID()}, ${day.id}, ${block.capacityPrescriptionVersionId}, ${block.capacity},
+            ${block.contractVersion}, CAST(${JSON.stringify(block.parameters)} AS jsonb), CURRENT_TIMESTAMP
+          )
+        `;
+        continue;
+      }
       await tx.$executeRaw`
         INSERT INTO "WorkoutDayCapacityOperationalBlock" (
           "id", "workoutDayId", "capacityPrescriptionVersionId", "capacity",

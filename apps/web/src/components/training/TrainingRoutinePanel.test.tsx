@@ -3,9 +3,10 @@ import { resolve } from 'node:path';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useNavigate, useParams } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
-import type { TrainingRoutineSessionDetail, TrainingRoutineView, TrainingSessionComparison, GuidedCyclicView } from '@corrida/types';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { AuthResponse, TrainingRoutineSessionDetail, TrainingRoutineSessionSummary, TrainingRoutineView, TrainingSessionComparison, GuidedCyclicView } from '@corrida/types';
 import { TrainingRoutinePanel } from './TrainingRoutinePanel';
+import { useAuthStore } from '../../stores/useAuthStore';
 
 const session = (overrides: Partial<TrainingRoutineSessionDetail> = {}): TrainingRoutineSessionDetail => ({
   sessionId: 'day-1',
@@ -104,6 +105,161 @@ const cyclicProgress = (completed: number, total: number,
 });
 
 describe('TrainingRoutinePanel (#387)', () => {
+  afterEach(() => useAuthStore.setState({ user: null }));
+
+  it('allows a professor to open substitution planning for a future released summary without previous swaps', async () => {
+    useAuthStore.setState({ user: { type: 'professor', professor: { role: 'master' } } as unknown as AuthResponse['user'] });
+    const future: TrainingRoutineSessionSummary = {
+      sessionId: 'future-day-404', workoutTemplateId: 'template-1', trainingPlanId: 'plan-1',
+      planName: 'Plano futuro', date: '2026-10-02', dayOfWeek: 5, mesocycleNumber: 1,
+      weekNumber: 2, modalities: ['resistance'], durationMin: 45, location: null,
+      method: null, status: 'not_started', origin: { kind: 'consolidated', releasedAt: '2026-09-28T12:00:00Z' },
+      substitutionExercises: [{ id: 'future-exercise-404', name: 'Agachamento futuro' }],
+      substitutions: [],
+    };
+    const view = routine({
+      audience: 'professor',
+      today: { date: '2026-10-01', state: 'none', sessions: [] },
+      days: routine().days.map(day => day.date === '2026-10-02'
+        ? { ...day, sessions: [future] } : day),
+    });
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue(view)} />);
+    const week = await screen.findByRole('region', { name: 'Rotina da semana' });
+    await userEvent.click(within(week).getByText('Planejar ou revisar substituições'));
+    expect(within(week).getByRole('button', { name: 'Buscar alternativas elegíveis' })).toBeInTheDocument();
+    expect(within(week).getByLabelText('Exercício planejado')).toHaveValue('future-exercise-404');
+  });
+
+  it('does not show future-session mutation controls for a professor who can only read plans', async () => {
+    useAuthStore.setState({ user: {
+      type: 'professor', professor: { role: 'professor' },
+      accessControl: { permissions: [
+        { screenKey: 'students.details', blockKey: null, canView: true },
+        { screenKey: 'students.details', blockKey: 'students.details.trainingPlans', canView: true },
+        { screenKey: 'students.details', blockKey: 'students.actions.manageTrainingSubstitutions', canView: false },
+      ] },
+    } as unknown as AuthResponse['user'] });
+    const future: TrainingRoutineSessionSummary = {
+      ...session(), sessionId: 'future-read-only', date: '2026-10-02',
+      substitutionExercises: [{ id: 'planned-future', name: 'Agachamento futuro' }],
+      substitutions: [],
+    };
+    const view = routine({
+      audience: 'professor',
+      today: { date: '2026-10-01', state: 'none', sessions: [] },
+      days: routine().days.map(day => day.date === '2026-10-02'
+        ? { ...day, sessions: [future] } : day),
+    });
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue(view)} />);
+    const week = await screen.findByRole('region', { name: 'Rotina da semana' });
+    expect(within(week).queryByText('Planejar ou revisar substituições')).toBeNull();
+    expect(within(week).queryByRole('button', { name: 'Buscar alternativas elegíveis' })).toBeNull();
+  });
+
+  it('does not offer future-week substitution creation to a student or for completed sessions', async () => {
+    const old: TrainingRoutineSessionSummary = {
+      sessionId: 'old-day-404', workoutTemplateId: 'template-1', trainingPlanId: 'plan-1',
+      planName: 'Plano anterior', date: '2026-10-02', dayOfWeek: 5,
+      mesocycleNumber: 1, weekNumber: 2, modalities: ['resistance'], durationMin: 45,
+      location: null, method: null, status: 'completed',
+      origin: { kind: 'consolidated', releasedAt: '2026-09-28T12:00:00Z' },
+      substitutions: [],
+    };
+    const view = routine({
+      today: { date: '2026-10-01', state: 'none', sessions: [] },
+      days: routine().days.map(day => day.date === '2026-10-02'
+        ? { ...day, sessions: [{ ...old, status: 'not_started' }] } : day),
+    });
+    const { unmount } = render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(view)} />);
+    const studentWeek = await screen.findByRole('region', { name: 'Rotina da semana' });
+    expect(within(studentWeek).queryByText('Planejar ou revisar substituições')).toBeNull();
+    unmount();
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue({
+      ...view, audience: 'professor',
+      days: view.days.map(day => day.date === '2026-10-02'
+        ? { ...day, sessions: [old] } : day),
+    })} />);
+    const teacherWeek = await screen.findByRole('region', { name: 'Rotina da semana' });
+    expect(within(teacherWeek).queryByText('Planejar ou revisar substituições')).toBeNull();
+  });
+
+  it('mostra a aderência da semana sem contar execução parcial como concluída', async () => {
+    render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(routine({
+      weeklyEvolution: {
+        sourceLabel: 'Montagem Consolidada e execução das sessões',
+        period: { startDate: '2026-09-28', endDate: '2026-10-04' },
+        counts: {
+          prescribedSessions: 2, completedSessions: 1, partialSessions: 1,
+          notPerformedSessions: 0, pendingSessions: 0,
+        },
+        adherence: { status: 'available', value: 50, unit: '%' },
+        lastSourceUpdateAt: '2026-10-02T12:00:00.000Z',
+      },
+    }))} />);
+    expect(await screen.findByText('Aderência semanal')).toBeInTheDocument();
+    expect(screen.getByText('50%')).toBeInTheDocument();
+    expect(screen.getByText(/2 previstas · 1 concluída · 1 parcial · 0 não realizadas · 0 pendentes/)).toBeInTheDocument();
+    expect(screen.getByText('Unidade: %')).toBeInTheDocument();
+    expect(screen.getByText('Fonte: Montagem Consolidada e execução das sessões')).toBeInTheDocument();
+    expect(screen.getByText(/Última atualização: 02\/10\/2026/)).toBeInTheDocument();
+    expect(screen.queryByText('Detalhes técnicos do indicador')).not.toBeInTheDocument();
+  });
+
+  it('restringe fonte técnica, fórmula e IDs ao professor autorizado, mesmo que o payload de aluno os contenha', async () => {
+    const weeklyEvolution = {
+      sourceLabel: 'Montagem Consolidada e execução das sessões',
+      period: { startDate: '2026-09-28', endDate: '2026-10-04' },
+      counts: { prescribedSessions: 1, completedSessions: 1, partialSessions: 0, notPerformedSessions: 0, pendingSessions: 0 },
+      adherence: { status: 'available' as const, value: 100, unit: '%' as const },
+      lastSourceUpdateAt: null,
+      technical: {
+        ruleVersion: 'weekly-adherence-v1' as const,
+        source: 'consolidated_release_and_session_execution' as const,
+        formula: 'completedSessions / prescribedSessions * 100' as const,
+        sessions: [{ sessionId: 'professor-private-session', status: 'completed' as const }],
+      },
+    };
+    const studentView = routine({ weeklyEvolution });
+    const { unmount } = render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(studentView)} />);
+    expect(await screen.findByText('Aderência semanal')).toBeInTheDocument();
+    expect(screen.getByText('Última atualização: Não informada')).toBeInTheDocument();
+    expect(screen.queryByText('professor-private-session')).not.toBeInTheDocument();
+    expect(screen.queryByText('weekly-adherence-v1')).not.toBeInTheDocument();
+    unmount();
+
+    render(<TrainingRoutinePanel audience="professor" load={vi.fn().mockResolvedValue(routine({
+      audience: 'professor', weeklyEvolution,
+    }))} />);
+    await userEvent.click(await screen.findByText('Detalhes técnicos do indicador'));
+    expect(screen.getByText('professor-private-session')).toBeInTheDocument();
+    expect(screen.getByText('weekly-adherence-v1')).toBeInTheDocument();
+    expect(screen.getByText(weeklyEvolution.technical.formula)).toBeInTheDocument();
+    expect(screen.getByText(weeklyEvolution.technical.source)).toBeInTheDocument();
+  });
+
+  it('exibe a aderência para semanas históricas, sem mostrar continuidade da semana atual', async () => {
+    const historical = routine({
+      referenceDate: '2026-09-21',
+      week: { startDate: '2026-09-21', endDate: '2026-09-27' },
+      days: ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24',
+        '2026-09-25', '2026-09-26', '2026-09-27'].map((date) => ({
+        date, isToday: false, sessions: [], pendingReleaseCount: 0,
+      })),
+      weeklyEvolution: {
+        sourceLabel: 'Montagem Consolidada e execução das sessões',
+        period: { startDate: '2026-09-21', endDate: '2026-09-27' },
+        counts: { prescribedSessions: 0, completedSessions: 0, partialSessions: 0, notPerformedSessions: 0, pendingSessions: 0 },
+        adherence: { status: 'insufficient_data', value: null, unit: '%' },
+        lastSourceUpdateAt: null,
+      },
+    });
+    render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(historical)} />);
+    const historicalIndicator = await screen.findByRole('region', { name: 'Aderência da semana selecionada' });
+    expect(within(historicalIndicator).getByText('Dados insuficientes')).toBeInTheDocument();
+    expect(within(historicalIndicator).getByText('Última atualização: Não informada')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Continuidade do treinamento' })).not.toBeInTheDocument();
+  });
+
   it('apresenta objetivo, duração, ordem, blocos e parâmetros do Treino de hoje', async () => {
     render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(routine())} />);
 
@@ -627,7 +783,8 @@ describe('TrainingRoutinePanel (#387)', () => {
     expect(within(continuity).getByText('Próximo treino')).toBeInTheDocument();
     expect(within(continuity).getByText('Última execução')).toBeInTheDocument();
     expect(within(continuity).getByText('1 feedback pendente')).toBeInTheDocument();
-    expect(within(continuity).getByText(/indicador canônico será consumido quando a #405/i)).toBeInTheDocument();
+    expect(within(continuity).getByText(/O feedback é registrado separadamente do indicador de aderência/i)).toBeInTheDocument();
+    expect(within(continuity).getByText('Aderência semanal')).toBeInTheDocument();
   });
 
   it('usa próxima sessão canônica de outra semana sem inferir ausência pela semana atual', async () => {
@@ -636,7 +793,7 @@ describe('TrainingRoutinePanel (#387)', () => {
     }));
     render(<TrainingRoutinePanel audience="student" load={load} />);
     const cards = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
-    expect(cards).toHaveClass('grid', 'sm:grid-cols-3');
+    expect(cards).toHaveClass('grid', 'sm:grid-cols-2', 'xl:grid-cols-4');
     expect(within(cards).getByText('Treino programado')).toBeInTheDocument();
     expect(within(cards).getByText('03/11 · Não iniciado')).toBeInTheDocument();
     expect(within(cards).queryByText(/Nenhuma sessão pendente/)).not.toBeInTheDocument();

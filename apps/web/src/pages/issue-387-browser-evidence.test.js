@@ -115,6 +115,45 @@ function routinePayload(audience = 'student') {
   const audienceDays = days.map((d) => (
     d.isToday ? { ...d, sessions: [audienceSummary] } : { ...d }
   ));
+  if (mode === 'adherence') {
+    // A coherent synthetic contract-scoped week: completed, partial and pending.
+    // This browser fixture verifies rendering, not the backend calculation.
+    const origin = audience === 'professor' ? professorOrigin : session.origin;
+    const releasedDays = audienceDays.map((day) => {
+      const previous = day.date === '2026-09-28'
+        ? { sessionId: 'day-completed', date: day.date, dayOfWeek: 1, status: 'completed' }
+        : day.date === '2026-09-29'
+          ? { sessionId: 'day-partial', date: day.date, dayOfWeek: 2, status: 'partial' }
+          : null;
+      return previous ? { ...day, sessions: [{ ...session, ...previous, origin }] } : day;
+    });
+    const technicalSessions = [
+      { sessionId: 'day-completed', status: 'completed' },
+      { sessionId: 'day-partial', status: 'partial' },
+      { sessionId: 'day-today', status: 'not_started' },
+    ];
+    return routine({
+      days: releasedDays,
+      today: { date: TODAY, state: 'released', sessions: [audienceDetail] },
+      lastExecution: { sessionId: 'day-completed', date: '2026-09-28', status: 'completed' },
+      weeklyEvolution: {
+        period: { startDate: '2026-09-28', endDate: '2026-10-04' },
+        sourceLabel: 'Montagem Consolidada e execução das sessões',
+        counts: {
+          prescribedSessions: 3, completedSessions: 1, partialSessions: 1,
+          notPerformedSessions: 0, pendingSessions: 1,
+        },
+        adherence: { status: 'available', value: 33.33, unit: '%' },
+        lastSourceUpdateAt: '2026-09-30T13:00:00.000Z',
+        ...(audience === 'professor' ? { technical: {
+          ruleVersion: 'weekly-adherence-v1',
+          source: 'consolidated_release_and_session_execution',
+          formula: 'completedSessions / prescribedSessions * 100',
+          sessions: technicalSessions,
+        } } : {}),
+      },
+    }, audience);
+  }
   if (mode === 'not_released') {
     return routine({
       days: audienceDays.map((d) => d.isToday ? { ...d, sessions: [], pendingReleaseCount: 1 } : d),
@@ -210,7 +249,8 @@ suite('Issue #387 - evidencia browser Treino de hoje', () => {
         });
         expect(studentLayout?.text).toContain('Última execução');
         expect(studentLayout?.text).toContain('Feedback pós-treino');
-        expect(studentLayout?.columns).toBe(viewport.width < 640 ? 1 : 3);
+        expect(studentLayout?.text).toContain('Aderência semanal');
+        expect(studentLayout?.columns).toBe(viewport.width < 640 ? 1 : viewport.width < 1280 ? 2 : 4);
         const disabled = await page.evaluate(() => [...document.querySelectorAll('main button[disabled]')].map((b) => (b.textContent || '').trim()));
         expect(disabled.length).toBeGreaterThan(0);
         const releasedShot = await shot(page, `${viewport.name}-released`);
@@ -232,6 +272,73 @@ suite('Issue #387 - evidencia browser Treino de hoje', () => {
       const evidence = { kind: 'issue-387-browser-evidence', result: 'PASS', identity: id, browser: await browser.version(), viewports: scenarios, verified: ['home-entry', 'today-released', 'not-released', 'no-session', 'retryable-error', 'access-denied', 'execution-controls-disabled', 'read-only-requests', 'x-contract-id', 'no-horizontal-overflow', 'desktop-1440x900', 'desktop-1366x768', 'mobile-390x844'], apiRequests: api.requests };
       console.log(`BROWSER_EVIDENCE_387 ${JSON.stringify(evidence)}`); console.log(`BROWSER_EVIDENCE_387 PASS head=${id.headSha}`);
     } finally { await browser?.close().catch(() => {}); await stopVite(vite).catch(() => {}); await stopApi(api?.server).catch(() => {}); }
+  }, 150000);
+
+  it('captura aderência preenchida para aluno e detalhe técnico exclusivo do professor em desktop/mobile', async () => {
+    let api, vite, browser;
+    try {
+      api = await startApi(); vite = await startVite();
+      browser = await puppeteer.launch({ executablePath: chromeExecutable(), headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+      const page = await browser.newPage();
+      mode = 'adherence';
+      await setSession(page);
+      for (const viewport of [
+        { name: 'desktop-1440x900', width: 1440, height: 900 },
+        { name: 'mobile-390x844', width: 390, height: 844, isMobile: true, hasTouch: true },
+      ]) {
+        await page.setViewport(viewport);
+        await gotoTraining(page);
+        await waitText(page, '33,33%');
+        const studentCard = await page.evaluate(() => {
+          const section = document.querySelector('section[aria-label="Continuidade do treinamento"]');
+          const card = [...(section?.children || [])].find((node) => node.textContent?.includes('Aderência semanal'));
+          return card ? { text: card.innerText, html: card.innerHTML } : null;
+        });
+        expect(studentCard?.text).toContain('3 previstas · 1 concluída · 1 parcial · 0 não realizadas · 1 pendente');
+        expect(studentCard?.text).toContain('Fonte: Montagem Consolidada e execução das sessões');
+        expect(studentCard?.text).toContain('Última atualização:');
+        expect(studentCard?.text).toContain('Unidade: %');
+        expect(studentCard?.html).not.toMatch(/day-completed|weekly-adherence-v1|completedSessions \/ prescribedSessions/);
+        await assertNoOverflow(page);
+        await shot(page, `${viewport.name}-weekly-adherence-student`);
+
+        authUser = professorUser(true);
+        await setSession(page, authUser, null);
+        await gotoCentral(page);
+        await waitText(page, '33,33%');
+        await waitText(page, 'Detalhes técnicos do indicador');
+        await page.evaluate(() => {
+          const summary = [...document.querySelectorAll('summary')]
+            .find((node) => node.textContent?.includes('Detalhes técnicos do indicador'));
+          if (!summary) throw new Error('Detalhe técnico da aderência ausente');
+          summary.click();
+        });
+        await waitText(page, 'completedSessions / prescribedSessions * 100');
+        await waitText(page, 'day-completed');
+        await waitText(page, 'day-partial');
+        await assertNoOverflow(page);
+        await shot(page, `${viewport.name}-weekly-adherence-professor-expanded`);
+        authUser = user;
+        await setSession(page);
+      }
+      const studentResponse = routinePayload('student');
+      const professorResponse = routinePayload('professor');
+      expect(studentResponse.weeklyEvolution?.technical).toBeUndefined();
+      expect(professorResponse.weeklyEvolution?.technical?.sessions).toEqual([
+        { sessionId: 'day-completed', status: 'completed' },
+        { sessionId: 'day-partial', status: 'partial' },
+        { sessionId: 'day-today', status: 'not_started' },
+      ]);
+      expect(api.requests.filter((r) => r.method !== 'GET' && r.method !== 'OPTIONS')).toEqual([]);
+      expect(api.requests.some((r) => r.path === '/api/v1/student/me/training-routine' && r.contractId === CONTRACT_ID)).toBe(true);
+      expect(api.requests.some((r) => r.path === `/api/v1/alunos/${centralStudent.id}/training-routine`)).toBe(true);
+    } finally {
+      authUser = user;
+      mode = 'released';
+      await browser?.close().catch(() => {});
+      await stopVite(vite).catch(() => {});
+      await stopApi(api?.server).catch(() => {});
+    }
   }, 150000);
 
   it('valida a Central do Aluno do professor com estados, responsividade e teclado', async () => {
@@ -262,7 +369,8 @@ suite('Issue #387 - evidencia browser Treino de hoje', () => {
           return { text: section.textContent || '', columns: new Set([...section.children].map((node) => Math.round(node.getBoundingClientRect().left))).size };
         });
         expect(professorLayout?.text).toContain('Feedback indisponível');
-        expect(professorLayout?.columns).toBe(viewport.width < 640 ? 1 : 3);
+        expect(professorLayout?.text).toContain('Aderência semanal');
+        expect(professorLayout?.columns).toBe(viewport.width < 640 ? 1 : viewport.width < 1280 ? 2 : 4);
         await assertNoOverflow(page);
         await shot(page, viewport.name);
         await page.click('#aluno-details-menu-selectedStudent');

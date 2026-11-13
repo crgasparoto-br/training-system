@@ -1,0 +1,70 @@
+import {
+  FutureTemporalInputError, assertFutureWindow,
+  canonicalTimeZone, resolveAgendaBookingUtc,
+} from './combined-future-temporal.domain.js';
+
+const today = new Date('2026-11-06T12:00:00.000Z');
+const date = (value: string) => new Date(value + 'T00:00:00.000Z');
+
+describe('#403 future IANA local time proof', () => {
+  it('resolves a known UTC appointment without inferring a clinical rule', () => {
+    expect(resolveAgendaBookingUtc(date('2026-11-10'), '08:00', '09:00', 'UTC'))
+      .toEqual({ status: 'verified', startAtUtc: '2026-11-10T08:00:00.000Z', endAtUtc: '2026-11-10T09:00:00.000Z' });
+    expect(resolveAgendaBookingUtc(date('2026-11-10'), '08:00', '09:00', 'America/Sao_Paulo'))
+      .toEqual({ status: 'verified', startAtUtc: '2026-11-10T11:00:00.000Z', endAtUtc: '2026-11-10T12:00:00.000Z' });
+  });
+
+  it('does not guess repeated local time at fall-back DST', () => {
+    expect(resolveAgendaBookingUtc(date('2026-11-01'), '01:30', '02:30', 'America/New_York'))
+      .toEqual({ status: 'unverified', reason: 'ambiguous_local_time' });
+  });
+
+  it('does not invent a timestamp for spring-forward clock gap', () => {
+    expect(resolveAgendaBookingUtc(date('2026-03-08'), '02:30', '03:30', 'America/New_York'))
+      .toEqual({ status: 'unverified', reason: 'nonexistent_local_time' });
+  });
+
+  it('rejects legacy non-midnight date, malformed intervals and timezone', () => {
+    expect(resolveAgendaBookingUtc(null, '08:00', '09:00', 'America/Sao_Paulo'))
+      .toMatchObject({ status: 'unverified', reason: 'invalid_source_date' });
+    expect(resolveAgendaBookingUtc(new Date('2026-11-10T03:00:00.000Z'), '08:00', '09:00', 'UTC'))
+      .toMatchObject({ status: 'unverified', reason: 'invalid_source_date' });
+    expect(resolveAgendaBookingUtc(date('2026-11-10'), '09:00', '09:00', 'UTC'))
+      .toMatchObject({ status: 'unverified', reason: 'invalid_local_range' });
+    expect(() => canonicalTimeZone('UTC;DROP TABLE')).toThrow(FutureTemporalInputError);
+  });
+
+  it('TEMP-CURRENT/FUTURE rejects malformed dates, expired/far-future windows and accepts UTC bounds', () => {
+    expect(() => assertFutureWindow('invalid', '2026-11-10T00:00:00.000Z', today)).toThrow(FutureTemporalInputError);
+    expect(() => assertFutureWindow('2026-11-01T00:00:00.000Z', '2026-11-02T00:00:00.000Z', today)).toThrow(FutureTemporalInputError);
+    expect(() => assertFutureWindow('2026-11-07T00:00:00.000Z', '2026-12-15T00:00:00.000Z', today)).toThrow(FutureTemporalInputError);
+    expect(assertFutureWindow('2026-11-10T00:00:00.000Z', '2026-11-11T00:00:00.000Z', today).to.toISOString())
+      .toBe('2026-11-11T00:00:00.000Z');
+  });
+
+  it('TEMP-DEST-001 blocks a short window located beyond the rolling 31-day horizon', () => {
+    expect(() => assertFutureWindow('2027-11-10T00:00:00.000Z', '2027-11-11T00:00:00.000Z', today))
+      .toThrow(FutureTemporalInputError);
+    expect(() => assertFutureWindow('2026-12-08T12:00:00.000Z', '2026-12-09T12:00:00.000Z', today))
+      .toThrow(FutureTemporalInputError);
+  });
+
+  it('TEMP-DEST-001 blocks a stale start even when its end is in the future', () => {
+    expect(() => assertFutureWindow('2026-11-06T11:54:59.999Z', '2026-11-07T12:00:00.000Z', today))
+      .toThrow(FutureTemporalInputError);
+    expect(() => assertFutureWindow('2026-11-05T12:00:00.000Z', '2026-11-07T12:00:00.000Z', today))
+      .toThrow(FutureTemporalInputError);
+  });
+
+  it('accepts the exact 31-day end boundary and five-minute start skew, but not a millisecond more', () => {
+    const horizon = '2026-12-07T12:00:00.000Z';
+    expect(assertFutureWindow('2026-11-06T12:00:00.000Z', horizon, today).to.toISOString())
+      .toBe(horizon);
+    expect(assertFutureWindow('2026-11-06T11:59:00.000Z', '2026-11-07T12:00:00.000Z', today).from.toISOString())
+      .toBe('2026-11-06T11:59:00.000Z');
+    expect(assertFutureWindow('2026-11-06T11:55:00.000Z', '2026-11-07T12:00:00.000Z', today).from.toISOString())
+      .toBe('2026-11-06T11:55:00.000Z');
+    expect(() => assertFutureWindow('2026-11-06T12:00:00.000Z', '2026-12-07T12:00:00.001Z', today))
+      .toThrow(FutureTemporalInputError);
+  });
+});

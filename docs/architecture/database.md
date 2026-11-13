@@ -98,6 +98,15 @@ Snapshots de desconforto corporal ficam em `ProntuarioDiscomfortSnapshot` e `Pro
 
 A imutabilidade depois do início não depende de flag paralela no check-in: ela deriva do lifecycle canônico de `WorkoutDay`. A escrita bloqueia a linha da sessão e revalida `planned` dentro da mesma transação que grava check-in, operação e evento da timeline.
 
+## Compatibilidade física da Agenda (#403)
+
+A migration histórica `20260220150000_add_agenda_management` criou a coluna
+PostgreSQL `AgendaBooking."bookingType"`. A propriedade Prisma `type` usa
+`@map("bookingType")` para preservar a coluna e os valores existentes, sem
+renomeação física e sem modificar o contrato público `bookingType` da Agenda.
+O teste HTTP/PostgreSQL da prévia temporal deve inserir reservas reais pelo Prisma
+para detectar deriva entre schema e migrations.
+
 ## Cuidados para agentes
 
 - Nao criar `PrismaClient` em arquivos aleatorios sem necessidade.
@@ -225,3 +234,149 @@ A migration adicional `20261029210000_issue_487_completed_operation_guard` fecha
 A migration 20261030120000_issue_487_set_event_integrity exige que WorkoutSessionExecutionItem.setNumber corresponda ao ranking persistido das séries, ordenado por bloco.position e série.position. Novas gravações SQL com IDs ou ordinais inconsistentes são rejeitadas. A migration não inventa backfill e não altera silenciosamente histórico; rascunhos anteriores são recuperados por serviço apenas quando há destino livre.
 
 A operação de conclusão passa a ter FK entre WorkoutSessionExecutionOperation.lifecycleEventId e StudentLifecycleEvent.id, validando os valores preexistentes e falhando caso haja referências órfãs. O trigger de ledger diferido garante o mesmo aluno, contrato, treino, operação, domínio, ação e versões do lifecycle. O evento vinculado a uma série concluída fica imutável. O fluxo canônico #389 cria, vincula e confirma tudo em uma transação serializável; a aprovação exige regressões PostgreSQL de casos falsos e replay verdadeiro.
+
+## Data civil autoritativa da Agenda (#403, A-539-002)
+
+A migration `20261106210000_issue_403_booking_civil_date` adiciona
+`AgendaBooking.bookingCivilDate DATE NULL` (Prisma `DateTime? @db.Date`). O POST
+`/api/v1/agenda/bookings` grava o dia `YYYY-MM-DD` recebido como
+`bookingCivilDate`, sem consultar o fuso do servidor. Esse campo é a única
+fonte de dia civil comprovado para a prévia temporal do treinamento combinado;
+`AgendaBooking.bookingDate` é mantido intacto para compatibilidade com o
+agendamento/checagens de disponibilidade existentes e **não** serve como
+prova da data civil nesse consumidor.
+
+A migração é aditiva, não reescreve/agrega registros antigos e não infere o
+fuso de dados históricos: `bookingCivilDate=NULL` mantém o legado
+`unverified/invalid_source_date`. Os novos registros têm o dia explicitamente
+persistido como PostgreSQL `DATE`; a API de seleção retorna `bookingDate=null`
+quando a origem canônica é ausente, sem expor um dia possivelmente errado em
+servidores UTC positivos. A prévia permanece read-only, não grava associação,
+não altera liberação e não ativa regra clínica antes de #534.
+
+## Curadoria e histórico do catálogo (#394)
+
+O schema `apps/api/prisma/schema.prisma` define `ExerciseLibrary.curationStatus`,
+versão e metadados estruturados. `ExerciseLibraryRevision` registra snapshots
+por `(exerciseId,version)`; triggers transacionais PostgreSQL de INSERT/UPDATE
+gravam revisões inclusive para importadores e rotinas legadas via Prisma.
+A migração preserva IDs e realiza backfill sem desvincular progresso ou treinos.
+A migração inicial #394 identifica somente o catálogo já existente como
+`approved`/`legacyGrandfathered=true`, sem inventar revisor. A migração
+`20261109205000_issue_394_curated_catalog_guards` altera o default do banco
+para `draft`/`legacyGrandfathered=false`; isso vale inclusive para `INSERT`
+SQL direto e para `Prisma.create` que omita o status, sem reclassificar os
+registros históricos. Registros antigos com nome repetido permanecem intactos.
+A migração `20261110025500_issue_394_operational_eligibility` não altera nenhuma
+linha legada: `approved/legacyGrandfathered=true` conserva status, vídeo e
+referências para leitura histórica, mas não é selecionável para novas aplicações.
+A transição de volta ao catálogo exige curadoria profissional explícita, que
+valida capacidade da taxonomia `PHYSICAL_CAPACITY_TYPES`, categoria, instruções,
+e origem/licença da mídia e marca `legacyGrandfathered=false`. A constraint
+`ExerciseLibrary_approved_curated_guard` é `NOT VALID` para não reprovar dados
+existentes; protege inserções/atualizações futuras de registros `approved`
+não legados, inclusive caminhos SQL, sem backfill fabricado de licença ou revisor.
+A migração posterior `20261110124500_issue_394_guard_null_safe` substitui o
+`CHECK` sem reescrever uma migração aplicada. Como PostgreSQL aceita `UNKNOWN`
+em `CHECK`, capacidade nula é explicitamente convertida para `false` e a ação
+de revisão usa comparação nula-segura. Dados legados permanecem intocados e
+novas aprovações por Prisma/SQL não contornam os requisitos obrigatórios com
+`NULL`. A constraint permanece `NOT VALID` para preservar dados históricos.
+
+
+A migration `20261110215000_issue_394_release_media_provenance` substitui
+apenas a função SQL `issue400_capture_released_exercise_catalog`, usada pelo
+trigger de liberação de treinos. Novos `WorkoutReleasedExerciseSnapshot.catalog`
+congelam, além da URL, os campos `mediaOrigin`, `mediaLicense` e
+`legacyGrandfathered` da liberação. O projetor da API usa a procedência e o
+estado legado registrados no snapshot, não os valores mutáveis do catálogo.
+Não há backfill dos snapshots históricos: vídeos sem prova própria de origem e
+licença ficam ocultos nas respostas, mas a linha histórica permanece íntegra.
+A migração #400 já aplicada e seus checksums não são alterados.
+
+O trigger `issue394_exercise_canonical_name_guard` protege novos nomes e
+renomeações por `contractId` e chave canônica (caixa e espaços normalizados).
+Um advisory lock transacional pelo par contrato/nome serializa cadastros
+concorrentes; colisões retornam SQLSTATE `23505`, traduzido para HTTP 409
+nos serviços da biblioteca. O índice funcional acelera a verificação,
+sem impor uma constraint retroativa sobre duplicidades históricas. A cópia entre
+contratos também compara a chave normalizada antes de criar, contabilizando
+identidades já presentes como ignoradas em vez de falhar a clonagem.
+
+Uma comparação de `version` dentro da transação evita concorrência silenciosa.
+Legado recebe `legacy_baseline`, sem presumir homologação profissional.
+Importações, novas instalações de padrões e cópias entram como rascunho.
+O saneamento automático ignora exercícios relacionados a `WorkoutExercise`
+e também exercícios já aprovados por curadoria profissional
+(`approved` com `legacyGrandfathered=false`), mesmo que ainda não tenham
+vínculo a treinos. As rotinas de reparo de nomes e preenchimento de metadados
+verificam essa elegibilidade tanto na seleção quanto no UPDATE definitivo (SQL
+ou Prisma), preservando `lastCurationAction='approve'`, revisor e versão.
+Rascunhos e registros legados continuam elegíveis ao saneamento seguro, que
+marca revisões com `system_defaults_repair` e ator nulo. Repares set-based ou Prisma não
+preenchem `videoUrl` em registros já existentes: URLs do catálogo
+não atestam licença para a empresa. A inclusão de mídia requer
+curadoria com origem e autorização; links legados permanecem intactos. UPDATE/DELETE
+explícitos de `ExerciseLibraryRevision` são bloqueados enquanto o exercício
+existir; exclusões em cascata de todo o contrato permanecem permitidas.
+
+
+## Substituições rastreáveis — #404
+
+`WorkoutSubstitution` registra dados imutáveis da troca sem atualização de
+`WorkoutDay`, `WorkoutExercise`, `WorkoutTemplate` ou da liberação.
+`workoutDayId`, `alunoId` e `contractId` têm FKs; o identificador
+`originReleaseId` aponta para a liberação operacional de origem. JSONB
+`originalSnapshot` e `replacementSnapshot`, acompanhados por strings
+`originalVersion` e `replacementVersion`, permitem ler histórico após
+alterações ou desativação do catálogo. O caso de sessão preserva a versão de
+liberação; o exercício preserva versão do catálogo.
+
+A constraint `(workoutDayId, operationKey)` impede duplicidade de operação.
+As restrições SQL exigem motivo e responsável e revisão coerente; triggers
+impedem DELETE e alterações do conteúdo registrado. A única transição permitida
+em UPDATE é `pending_review` para `approved/rejected` com incremento de
+versão, revisor e timestamp. O service serializa as escritas com bloqueio da
+linha `WorkoutDay` na mesma transação usada pelo registro de execução e
+verifica `expectedExecutionVersion` quando a troca acontece em sessão ativa.
+
+Migration: `apps/api/prisma/migrations/20261111180000_issue_404_traceable_substitutions/migration.sql`.
+Dados não são propagados para prescrições futuras; o histórico permanece mesmo
+se o substituto ficar inativo. Não excluir registros para "reverter" decisões.
+
+#### Vínculo do resultado executado com o ledger (#404, A-404-006)
+
+A migration `20261112012500_issue_404_execution_ledger_link` adiciona
+`WorkoutSessionExecutionItem.substitutionId`, FK para `WorkoutSubstitution`
+(`ON DELETE RESTRICT`). Toda nova escrita com `outcome=substituted` em série ou
+exercício resistido deve apontar explicitamente para a substituição criada
+antes na API da #404. A transação da execução confirma aluno, `contractId`, dia,
+unidade original, estado vigente da revisão e elegibilidade/versão atual do
+catálogo no primeiro vínculo; a constraint `NOT VALID` protege
+novos inserts/updates sem fabricar um destino para registros pré-existentes.
+A migration incremental `20261112200000_issue_404_substitution_null_safe_guard`
+substitui somente essa constraint por um predicado null-safe (`IS NOT DISTINCT
+FROM 'substituted'`), pois `CHECK` aceita expressão `UNKNOWN` no PostgreSQL.
+Novos INSERTs/UPDATEs de `outcome=NULL` com `substitutionId` não nulo são
+rejeitados, inclusive edições de item existente; registros históricos não são
+reclassificados nem submetidos a validação retroativa. O checksum da migration
+anterior é preservado. Um trigger adicional rejeita associação SQL a uma substituição de outro aluno,
+contrato, dia ou exercício. Vínculos rejeitados depois da execução permanecem
+históricos e não são apagados. Ao voltar para `full`, o vínculo do item é limpo;
+o registro imutável de substituição da #404 continua preservado.
+
+Etapas cíclicas e agrupamentos mantêm a descrição operacional de adaptação no
+JSON da execução (#401/#489), pois não são unidades de catálogo de exercícios
+nem alternativas de sessão. Não confundir essa observação com aprovação ou
+substituição rastreável da biblioteca.
+
+### Versões de catálogos anteriores à #404
+
+O snapshot de catálogo capturado por `issue400_capture_released_exercise_catalog`
+passa a conter o `version` real e os atributos técnicos no instante de
+liberação; o patch preserva os campos de licenciamento e proveniência da #394.
+
+Snapshots imutáveis anteriores à migration podem não conter a versão do
+catálogo. Nestes casos a substituição registra
+`historico:versao_indisponivel` para a origem, **não** a revisão atual da
+biblioteca. Nenhum backfill ou reescrita de snapshot histórico é permitido.

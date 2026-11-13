@@ -16,6 +16,10 @@ export interface OperationalExerciseSnapshot {
   id: string;
   name: string;
   videoUrl: string | null;
+  /** Optional on older snapshots: never infer historical media rights from live catalog fields. */
+  mediaOrigin?: string | null;
+  mediaLicense?: string | null;
+  legacyGrandfathered?: boolean;
   loadType: string | null;
   movementType: string | null;
   countingType: string | null;
@@ -42,7 +46,7 @@ export interface TechnicalExerciseOperationalMapping {
   mappedByProfessorId: string | null;
   currentExerciseAvailable: boolean;
   currentExerciseUpdatedAt: string | null;
-  curationStatus: 'not_modeled';
+  curationStatus: 'not_modeled' | 'draft' | 'in_review' | 'approved' | 'inactive';
 }
 
 export interface SetTechnicalExerciseOperationalMappingCommand {

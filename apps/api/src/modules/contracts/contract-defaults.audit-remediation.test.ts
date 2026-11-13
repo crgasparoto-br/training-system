@@ -22,11 +22,15 @@ describe('contract defaults audit remediation', () => {
     );
   });
 
-  it('consolida nomes canônicos duplicados após normalização sem instalar duplicatas', () => {
+  it('consolida variantes de caixa e espaços, sem perder metadados ou a grafia preferencial', () => {
     jest.spyOn(fs, 'readFileSync').mockReturnValueOnce(
       JSON.stringify([
-        { name: 'Agachamento Livre', muscleGroup: 'Quadríceps' },
-        { name: '  Agachamento   Livre  ', muscleGroup: 'Quadríceps' },
+        { name: 'Agachamento Livre', notes: 'Instrução principal' },
+        {
+          name: '  agachamento   LIVRE  ', muscleGroup: 'Quadríceps',
+          videoUrl: 'https://example.org/video', notes: 'Instrução secundária',
+        },
+        { name: 'Agachamento lateral', muscleGroup: 'Glúteos' },
       ])
     );
 
@@ -34,6 +38,12 @@ describe('contract defaults audit remediation', () => {
       expect.objectContaining({
         name: 'Agachamento Livre',
         muscleGroup: 'Quadríceps',
+        notes: 'Instrução principal',
+        videoUrl: 'https://example.org/video',
+      }),
+      expect.objectContaining({
+        name: 'Agachamento lateral',
+        muscleGroup: 'Glúteos',
       }),
     ]);
   });
@@ -143,5 +153,49 @@ describe('contract defaults audit remediation', () => {
     // One raw statement acquires the advisory lock and one updates every
     // eligible exercise, regardless of catalog size.
     expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
+    const [query] = tx.$executeRaw.mock.calls[1] as unknown as [{ strings: string[] }];
+    expect(query.strings.join('')).toContain('"WorkoutExercise"');
+    expect(query.strings.join('')).toContain('NOT EXISTS');
+    expect(query.strings.join('')).toContain("'system_defaults_repair'");
+    expect(query.strings.join('')).not.toContain('"videoUrl"');
   });
+  it('#394 A-394-013: guards Prisma fallback against overwriting curated approvals', async () => {
+    const defaults = loadProductExerciseDefaults();
+    const approved = defaults.find((item) => item.name === 'Abdominal Canoa');
+    const draft = defaults.find((item) => item.name === 'Abdominal Bicicleta');
+    expect(approved).toBeDefined();
+    expect(draft).toBeDefined();
+
+    const createMany = jest.fn(async ({ data }: { data: unknown[] }) => ({ count: data.length }));
+    const updateMany = jest.fn(async (_args: unknown) => ({ count: 1 }));
+    const row = (name: string, status: 'approved' | 'draft', legacyGrandfathered: boolean) => ({
+      name, curationStatus: status, legacyGrandfathered,
+      videoUrl: null, loadType: null, movementType: null, countingType: null,
+      category: status === 'approved' ? 'RESISTIDO' : null,
+      muscleGroup: null, notes: null, workoutExercises: [],
+    });
+    const db = {
+      trainingParameter: { findMany: jest.fn(async () => []), createMany },
+      assessmentType: { findMany: jest.fn(async () => []), createMany },
+      exerciseLibrary: {
+        findMany: jest.fn(async () => [
+          row('  Abdominal   Canoa  ', 'approved', false),
+          row(draft!.name, 'draft', false),
+        ]),
+        createMany, updateMany,
+      },
+    } as unknown as Parameters<typeof installContractDefaults>[1];
+
+    await installContractDefaults('contract-394', db);
+    expect(updateMany).toHaveBeenCalledTimes(1);
+    expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        contractId: 'contract-394',
+        name: draft!.name,
+        NOT: { curationStatus: 'approved', legacyGrandfathered: false },
+      }),
+      data: expect.objectContaining({ lastCurationAction: 'system_defaults_repair' }),
+    }));
+  });
+
 });

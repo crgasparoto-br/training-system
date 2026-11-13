@@ -2,6 +2,7 @@
 import { authMiddleware, professorMiddleware, alunoMiddleware } from '../modules/auth/auth.middleware.js';
 import { alunoService } from '../modules/alunos/aluno.service.js';
 import { workoutService } from '../modules/workout/workout.service.js';
+import { projectWorkoutExecutionMedia } from '../modules/workout/workout-release-catalog.js';
 import {
   normalizeRequestedStudentContractId,
   resolveActiveStudentMembership,
@@ -216,7 +217,7 @@ router.get('/aluno', alunoMiddleware, async (req: Request, res: Response) => {
       new Date(`${endDate}T23:59:59`)
     );
 
-    return res.json(data);
+    return res.json(data.map(projectWorkoutExecutionMedia));
   } catch (error: unknown) {
     return sendInternalExecutionError(res, 'Error listing executions:', error, 'Não foi possível consultar as execuções.');
   }

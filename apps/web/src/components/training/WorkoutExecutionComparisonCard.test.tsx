@@ -248,8 +248,9 @@ describe('WorkoutExecutionComparisonCard (#401)', () => {
         substitutionNote: 'Bike adaptada' },
       repeated.units[2],
     ] }} audience="professor" />);
-    expect(screen.getAllByText('Substituído')).toHaveLength(2);
-    expect(screen.getByText('Substituição registrada: Bike adaptada')).toBeInTheDocument();
+    expect(screen.getAllByText('Substituído')).toHaveLength(1);
+    expect(screen.getByText('Adaptação registrada')).toBeInTheDocument();
+    expect(screen.getByText('Adaptação da etapa/agrupamento: Bike adaptada')).toBeInTheDocument();
   });
 
   it('does not claim completion for a recording without an explicit outcome', () => {
@@ -323,4 +324,42 @@ describe('WorkoutExecutionComparisonCard (#401)', () => {
     expect(screen.queryByText(/Resultado:\s*(melhor|pior)|Desempenho:\s*(melhor|pior)/i)).not.toBeInTheDocument();
   });
 
+});
+
+
+describe('Issue #404: vínculo real de execução na comparação', () => {
+  it('mostra a alternativa aprovada, seu estado e a unidade original no resultado realmente executado', () => {
+    const linked: TrainingSessionComparison = {
+      ...comparison,
+      substitutions: [{
+        id: 'link-404', sessionId: 'day-1', kind: 'exercise', context: 'execution',
+        status: 'pending_review',
+        original: { unitId: 'ex-1', id: 'original', name: 'Agachamento', version: 'exercicio:3',
+          capacity: 'resisted', movementPattern: null, equipment: [], difficulty: null, restrictions: [] },
+        replacement: { unitId: 'candidate', id: 'candidate', name: 'Remada', version: 'exercicio:5',
+          capacity: 'resisted', movementPattern: null, equipment: [], difficulty: null, restrictions: [] },
+        originalVersion: 'exercicio:3', replacementVersion: 'exercicio:5',
+        reason: 'Equipamento indisponível', createdAt: '2026-11-11T18:00:00.000Z',
+        reviewedAt: null, reviewReason: null,
+      }],
+      units: comparison.units.map(item => item.plannedUnitId === 'set-1'
+        ? { ...item, outcome: 'substituted', substitutionNote: 'Adaptação efetiva',
+          substitutionId: 'link-404' } : item),
+    };
+    render(<WorkoutExecutionComparisonCard comparison={linked} audience="professor" />);
+    expect(screen.getByText(/Execução vinculada: Agachamento → Remada/)).toBeInTheDocument();
+    expect(screen.getByText(/Troca durante a sessão/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Aguardando revisão/).length).toBeGreaterThan(0);
+  });
+
+  it('não inventa catálogo para um resultado histórico sem substituição estruturada', () => {
+    const historical: TrainingSessionComparison = {
+      ...comparison, substitutions: [],
+      units: comparison.units.map(item => item.plannedUnitId === 'set-1'
+        ? { ...item, outcome: 'substituted', substitutionNote: 'Adaptação antiga' } : item),
+    };
+    render(<WorkoutExecutionComparisonCard comparison={historical} audience="professor" />);
+    expect(screen.getByText(/Registro legado sem vínculo de catálogo: Adaptação antiga/)).toBeInTheDocument();
+    expect(screen.queryByText(/Execução vinculada/)).not.toBeInTheDocument();
+  });
 });

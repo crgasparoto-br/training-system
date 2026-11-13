@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { MAX_CYCLIC_STAGE_EXECUTION_RECORDS } from './cyclic-stages.domain.js';
+import { assertApprovedWorkoutExerciseIds } from './workout-planning.helpers.js';
 import type {
   TrainingSessionExecutionItemValue,
   TrainingSessionExecutionSessionValues,
@@ -222,7 +223,8 @@ export async function persistWorkoutSessionValues(
   sessionValues: TrainingSessionExecutionSessionValuesPatch | undefined,
   items: TrainingSessionExecutionItemValue[],
   completedAt?: Date,
-  completionOperationId?: string
+  completionOperationId?: string,
+  actorScope?: { alunoId: string; contractId: string },
 ): Promise<Prisma.InputJsonValue | undefined> {
   if (completedAt && !completionOperationId) {
     throw new WorkoutSessionExecutionInputError('A conclusão guiada exige uma operação canônica vinculada.');
@@ -261,7 +263,7 @@ export async function persistWorkoutSessionValues(
       where: { executionId_plannedUnitId_setNumber: { executionId, plannedUnitId: item.plannedUnitId, setNumber } },
       select: {
         plannedSetId: true, completedAt: true, outcome: true, substitutionNote: true,
-        rir: true, rpe: true, tempo: true, restSec: true, loadKg: true,
+        substitutionId: true, rir: true, rpe: true, tempo: true, restSec: true, loadKg: true,
         repetitions: true, durationSec: true, distanceKm: true, pace: true,
         heartRateBpm: true, heartRateZone: true,
       },
@@ -283,6 +285,58 @@ export async function persistWorkoutSessionValues(
       : null;
     if (outcome === 'substituted' && !substitutionNote?.trim()) {
       throw new WorkoutSessionExecutionInputError('Substituição exige uma descrição.');
+    }
+    // Never derive a replacement identity from a textual note or the current catalog.
+    // Existing pre-#404 rows remain readable but cannot become new unlinked writes.
+    const substitutionId = outcome === 'substituted'
+      ? item.substitutionId === undefined ? existingItem?.substitutionId ?? null : item.substitutionId
+      : null;
+    if (outcome === 'substituted' && !substitutionId) {
+      throw new WorkoutSessionExecutionInputError('Registre uma alternativa do catálogo antes de executar a substituição.');
+    }
+    if (outcome !== 'substituted' && item.substitutionId) {
+      throw new WorkoutSessionExecutionInputError('O vínculo exige uma unidade executada como substituída.');
+    }
+    if (substitutionId) {
+      if (!actorScope) {
+        throw new WorkoutSessionExecutionInputError('Escopo do vínculo de substituição indisponível.');
+      }
+      const linked = await tx.workoutSubstitution.findFirst({
+        where: {
+          id: substitutionId, workoutDayId: sessionId, kind: 'exercise',
+          contractId: actorScope.contractId, alunoId: actorScope.alunoId,
+          originalUnitId: item.plannedUnitId,
+          OR: [
+            { status: 'approved' },
+            { status: 'pending_review', context: 'execution' },
+            // A reviewed/rejected change still happened; allow non-terminal
+            // edits of the already linked outcome, never a new rejected link.
+            ...(existingItem?.substitutionId === substitutionId
+              ? [{ status: 'rejected' as const, context: 'execution' as const }] : []),
+          ],
+        },
+        select: { id: true, replacementUnitId: true, replacementVersion: true },
+      });
+      if (!linked) {
+        throw new WorkoutSessionExecutionInputError('Vínculo da substituição inválido, rejeitado ou fora da sessão.');
+      }
+      if (existingItem?.substitutionId !== substitutionId) {
+        // A preapproval is not an unconditional future authorization: before a
+        // first executed link, check the same catalog revision under a lock.
+        // Historical linked measurements survive later curatorial changes.
+        try {
+          await assertApprovedWorkoutExerciseIds(tx, [linked.replacementUnitId], actorScope.contractId);
+        } catch {
+          throw new WorkoutSessionExecutionInputError('A alternativa foi desativada ou perdeu a aprovação.');
+        }
+        const catalog = await tx.exerciseLibrary.findFirst({
+          where: { id: linked.replacementUnitId, contractId: actorScope.contractId },
+          select: { version: true },
+        });
+        if (!catalog || linked.replacementVersion !== `exercicio:${catalog.version}`) {
+          throw new WorkoutSessionExecutionInputError('A versão da alternativa mudou após a aprovação.');
+        }
+      }
     }
     // An omitted outcome inherits the durable state, but cannot add a note to a non-substitution.
     if (outcome !== 'substituted' && item.substitutionNote) {
@@ -311,6 +365,7 @@ export async function persistWorkoutSessionValues(
         setNumber,
         outcome,
         substitutionNote,
+        substitutionId,
         rir: item.rir,
         rpe: item.rpe,
         tempo: item.tempo,
@@ -328,6 +383,7 @@ export async function persistWorkoutSessionValues(
         plannedSetId: persistedPlannedSetId,
         outcome,
         substitutionNote,
+        substitutionId,
         rir: item.rir,
         rpe: item.rpe,
         tempo: item.tempo,

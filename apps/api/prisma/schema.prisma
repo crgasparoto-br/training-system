@@ -124,6 +124,7 @@ model CompanyContract {
   collaboratorFunctions                 CollaboratorFunctionOption[]
   cloneLogsAsSource                     ContractDataCloneLog[]                 @relation("ContractCloneSource")
   cloneLogsAsTarget                     ContractDataCloneLog[]                 @relation("ContractCloneTarget")
+  workoutSubstitutions                  WorkoutSubstitution[]
   exerciseLibrary                       ExerciseLibrary[]
   hourlyRateLevels                      HourlyRateLevel[]
   professores                           Professor[]
@@ -507,6 +508,7 @@ model Aluno {
   discardedByProfessor                  Professor?                             @relation("AlunoDiscardedByProfessor", fields: [discardedByProfessorId], references: [id], onDelete: SetNull)
   canonicalAluno                        Aluno?                                 @relation("AlunoDuplicateCanonical", fields: [canonicalAlunoId], references: [id], onDelete: SetNull)
   duplicateSources                      Aluno[]                                @relation("AlunoDuplicateCanonical")
+  workoutSubstitutions                  WorkoutSubstitution[]
   exerciseProgress                      AlunoExerciseProgress[]
   intakeForm                            AlunoIntakeForm?
   profileReviewSettings                 AlunoProfileReviewSettings?
@@ -1004,9 +1006,11 @@ model AgendaBooking {
   spaceId     String?
   fixedSlotId String?
   bookingDate DateTime
+  // Authoritative civil day for new bookings; null means legacy/unverified origin.
+  bookingCivilDate DateTime? @db.Date
   startTime   String
   endTime     String
-  type        AgendaBookingType   @default(free)
+  type        AgendaBookingType   @default(free) @map("bookingType")
   status      AgendaBookingStatus @default(scheduled)
   notes       String?
   createdAt   DateTime            @default(now())
@@ -1825,6 +1829,34 @@ model ExerciseLibrary {
   category         String?
   muscleGroup      String?
   notes            String?
+  aliases          String[]                @default([])
+  capacity         String?
+  equipment        String[]                @default([])
+  primaryMuscleGroups String[]             @default([])
+  secondaryMuscleGroups String[]           @default([])
+  movementPattern  String?
+  joints           String[]                @default([])
+  laterality       String?
+  difficulty       String?
+  instructions     String[]                @default([])
+  commonErrors     String[]                @default([])
+  regressions      String[]                @default([])
+  progressions     String[]                @default([])
+  alternatives     String[]                @default([])
+  restrictions     String[]                @default([])
+  alerts           String[]                @default([])
+  mediaOrigin      String?
+  mediaLicense     String?
+  mediaAuthor      String?
+  curationStatus   ExerciseCurationStatus  @default(draft)
+  version          Int                     @default(1)
+  createdByUserId  String?
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  lastModifiedByUserId String?
+  lastCurationAction String?
+  legacyGrandfathered Boolean             @default(false)
+  revisions        ExerciseLibraryRevision[]
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
   contractId       String
@@ -1835,6 +1867,22 @@ model ExerciseLibrary {
   @@index([contractId])
   @@index([contractId, name])
   @@index([contractId, category])
+  @@index([contractId, curationStatus])
+}
+
+model ExerciseLibraryRevision {
+  id           String          @id
+  exerciseId   String
+  contractId   String
+  version      Int
+  actorUserId  String?
+  action       String
+  snapshot     Json
+  createdAt    DateTime        @default(now())
+  exercise     ExerciseLibrary @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([exerciseId, version])
+  @@index([contractId, exerciseId, version])
 }
 
 model AlunoExerciseProgress {
@@ -1926,6 +1974,7 @@ model WorkoutDay {
   resistanceGroups    WorkoutResistanceGroup[]
   preWorkoutCheckIn   PreWorkoutCheckIn?
   execution           WorkoutSessionExecution?
+  substitutions       WorkoutSubstitution[]
   postWorkoutFeedbackRevisions PostWorkoutFeedbackRevision[]
 
   @@unique([templateId, dayOfWeek])
@@ -2229,6 +2278,9 @@ model WorkoutSessionExecutionItem {
   setNumber      Int                     @default(0)
   outcome        String?
   substitutionNote String?
+  // #404: immutable exercise replacement ledger, not a free-text claim.
+  substitutionId String?
+  substitution   WorkoutSubstitution? @relation("ExecutedExerciseSubstitution", fields: [substitutionId], references: [id], onDelete: Restrict)
   rir            Float?
   rpe            Float?
   tempo          String?
@@ -2252,6 +2304,7 @@ model WorkoutSessionExecutionItem {
   @@unique([executionId, plannedUnitId, setNumber])
   @@index([plannedUnitId])
   @@index([plannedSetId])
+  @@index([substitutionId])
 }
 
 
@@ -3521,4 +3574,65 @@ model ProntuarioGoalCapacityClassification {
   updatedByProfessor   Professor       @relation("GoalCapacityClassificationUpdatedBy", fields: [updatedByProfessorId], references: [id], onDelete: Restrict)
 
   @@index([contractId, alunoId], map: "ProntuarioGoalCapacityClassification_contract_aluno_idx")
+}
+
+// Issue #394: curadoria de exercícios por contrato.
+enum ExerciseCurationStatus {
+  draft
+  in_review
+  approved
+  inactive
+}
+
+
+// #404: historico independente do planejamento, liberacao e lifecycle #389.
+enum WorkoutSubstitutionKind {
+  exercise
+  session
+}
+
+enum WorkoutSubstitutionContext {
+  planning
+  review
+  execution
+}
+
+enum WorkoutSubstitutionStatus {
+  approved
+  pending_review
+  rejected
+}
+
+model WorkoutSubstitution {
+  id                  String                     @id @default(cuid())
+  workoutDayId        String
+  alunoId             String
+  contractId          String
+  originReleaseId     String
+  kind                WorkoutSubstitutionKind
+  context             WorkoutSubstitutionContext
+  status              WorkoutSubstitutionStatus
+  originalUnitId      String
+  replacementUnitId   String
+  originalVersion     String
+  replacementVersion  String
+  originalSnapshot    Json
+  replacementSnapshot Json
+  reason              String
+  actorUserId         String
+  operationKey        String
+  requestFingerprint  String
+  reviewedByUserId    String?
+  reviewedAt          DateTime?
+  reviewReason        String?
+  version             Int                        @default(1)
+  createdAt           DateTime                   @default(now())
+  workoutDay          WorkoutDay                 @relation(fields: [workoutDayId], references: [id], onDelete: Restrict)
+  aluno               Aluno                      @relation(fields: [alunoId], references: [id], onDelete: Restrict)
+  contract            CompanyContract           @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  executedItems       WorkoutSessionExecutionItem[] @relation("ExecutedExerciseSubstitution")
+
+  @@unique([workoutDayId, operationKey], map: "WorkoutSubstitution_day_operation_key")
+  @@index([contractId, alunoId, workoutDayId, createdAt], map: "WorkoutSubstitution_contract_aluno_day_created_idx")
+  @@index([workoutDayId, kind, originalUnitId, status], map: "WorkoutSubstitution_day_kind_origin_status_idx")
 }

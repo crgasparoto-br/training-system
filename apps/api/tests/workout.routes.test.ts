@@ -260,6 +260,28 @@ describe('Issue #399 - route protection and contract isolation', () => {
     expect(workoutService.reorderExercises).not.toHaveBeenCalled();
   });
 
+  it('#394 A-007: does not treat an existing historical link as a new operational approval', async () => {
+    (prismaRuntimeClient.workoutExercise.findFirst as jest.Mock)
+      .mockResolvedValue({ id: 'row-1', exerciseId: 'legacy-id' });
+    (workoutService.updateExercise as jest.Mock).mockResolvedValueOnce({ id: 'row-1' });
+    const update = await request(app).put('/workout/exercises/row-1').send({
+      exerciseId: 'legacy-id', exerciseNotes: 'Observação clínica',
+    });
+    expect(update.status).toBe(200);
+    expect(prismaRuntimeClient.exerciseLibrary.findFirst).not.toHaveBeenCalled();
+
+    (prismaRuntimeClient.exerciseLibrary.findFirst as jest.Mock).mockResolvedValueOnce(null);
+    const substitute = await request(app).put('/workout/exercises/row-1').send({
+      exerciseId: 'historical-other-id', exerciseNotes: 'Substituição',
+    });
+    expect(prismaRuntimeClient.exerciseLibrary.findFirst).toHaveBeenCalledWith({
+      where: { id: 'historical-other-id', contractId: 'contract-test',
+        curationStatus: 'approved', legacyGrandfathered: false }, select: { id: true },
+    });
+    expect(substitute.status).toBe(404);
+    expect(workoutService.updateExercise).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects library exercises from a different contract', async () => {
     (prismaRuntimeClient.exerciseLibrary.findFirst as jest.Mock).mockResolvedValueOnce(null);
     const response = await request(app).post('/workout/exercises').send({
@@ -698,5 +720,67 @@ describe('Issue #400 - rota de agrupamentos resistidos', () => {
       .send({ groups: [], baseUpdatedAt });
     expect(res.status).toBe(500);
     expect(JSON.stringify(res.body)).not.toMatch(/SQL|password|secret/);
+  });
+});
+
+describe('#394 A-394-016: HTTP legacy release binds current tenant', () => {
+  const app = express();
+  app.use(express.json());
+  app.use('/workout', workoutRouter);
+
+  beforeEach(() => { jest.clearAllMocks(); });
+
+  it('passes the authenticated contract to the definitive release guard', async () => {
+    (workoutService.releaseTemplate as jest.Mock).mockResolvedValue({
+      id: 'template-1', released: true,
+    });
+    const response = await request(app).post('/workout/templates/template-1/release');
+    expect(response.status).toBe(200);
+    expect(workoutService.releaseTemplate).toHaveBeenCalledWith('template-1', 'contract-test');
+  });
+
+  it('does not invoke release for a student or a template outside the contract', async () => {
+    expect((await request(app).post('/workout/templates/template-1/release')
+      .set('x-test-student', '1')).status).toBe(403);
+    (prismaRuntimeClient.workoutTemplate.findFirst as jest.Mock).mockResolvedValueOnce(null);
+    expect((await request(app).post('/workout/templates/template-1/release')).status).toBe(404);
+    expect(workoutService.releaseTemplate).not.toHaveBeenCalled();
+  });
+});
+
+describe('#394 A-021: exercise write responses sanitize historical media', () => {
+  const app = express();
+  app.use(express.json());
+  app.use('/workout', workoutRouter);
+  beforeEach(() => jest.clearAllMocks());
+  const input = { workoutDayId: 'day-1', exerciseId: 'exercise-1', section: 'sessao', exerciseOrder: 1 };
+
+  it.each([
+    { name: 'legacy URL', legacyGrandfathered: true, mediaOrigin: 'Old', mediaLicense: 'Old', result: null },
+    { name: 'missing license', legacyGrandfathered: false, mediaOrigin: 'Third party', mediaLicense: null, result: null },
+    { name: 'licensed media', legacyGrandfathered: false, mediaOrigin: 'Original', mediaLicense: 'License', result: 'https://example.org/video' },
+  ])('filters $name on both PUT endpoints without modifying the service object', async ({ legacyGrandfathered, mediaOrigin, mediaLicense, result }) => {
+    const row = { id: 'row-1', sets: 3, exercise: {
+      name: 'Exercise', videoUrl: 'https://example.org/video',
+      legacyGrandfathered, mediaOrigin, mediaLicense,
+    } };
+    (workoutService.replaceDayResistanceExercises as jest.Mock).mockResolvedValueOnce([row]);
+    const replaceResponse = await request(app).put('/workout/days/day-1/resistance-exercises')
+      .send({ exercises: [input] });
+    expect(replaceResponse.status).toBe(200);
+    expect(replaceResponse.body[0].exercise.videoUrl).toBe(result);
+    expect(replaceResponse.body[0].sets).toBe(3);
+    expect(workoutService.replaceDayResistanceExercises)
+      .toHaveBeenCalledWith('day-1', [expect.objectContaining(input)], 'contract-test');
+
+    (workoutService.updateExercise as jest.Mock).mockResolvedValueOnce(row);
+    const updateResponse = await request(app).put('/workout/exercises/row-1')
+      .send({ exerciseNotes: 'Metadata edit' });
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.exercise.videoUrl).toBe(result);
+    expect(workoutService.updateExercise).toHaveBeenCalledWith(
+      'row-1', { exerciseNotes: 'Metadata edit' }, 'contract-test',
+    );
+    expect(row.exercise.videoUrl).toBe('https://example.org/video');
   });
 });

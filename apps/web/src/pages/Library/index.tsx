@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Edit, Trash2, Eye, X, Video as VideoIcon, BookOpen } from 'lucide-react';
-import { libraryService, Exercise, ExerciseFilters } from '../../services/library.service';
+import { Plus, Search, Filter, Edit, Archive, Eye, X, Check, Send, RotateCcw, Copy, Video as VideoIcon, BookOpen } from 'lucide-react';
+import { libraryService, type Exercise, type ExerciseFilters, type ExerciseCurationAction } from '../../services/library.service';
+import { useAuthStore } from '../../stores/useAuthStore';
 import ExerciseModal from './ExerciseModal';
 import LibraryStats from './LibraryStats';
 
@@ -26,7 +27,7 @@ const COUNTING_TYPES = [
   { value: 'R', label: 'Repetições' },
 ];
 
-const CATEGORIES = ['MOBILIDADE', 'RESISTIDO', 'CICLICO'];
+const CATEGORIES = ['MOBILIDADE', 'RESISTIDO', 'CICLICO', 'FLEXIBILIDADE', 'EQUILIBRIO'];
 
 const MUSCLE_GROUPS = [
   'Abdômen',
@@ -47,7 +48,12 @@ const MUSCLE_GROUPS = [
   'Tríceps',
 ];
 
+const STATUS_LABELS = { draft: 'Rascunho', in_review: 'Em revisão', approved: 'Aprovado', inactive: 'Desativado' } as const;
+
 export default function Library() {
+  const { user } = useAuthStore();
+  const canManage = user?.type === 'professor' && user.professor?.role === 'master';
+  const [loadError, setLoadError] = useState('');
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<ExerciseFilters>({});
@@ -58,15 +64,17 @@ export default function Library() {
 
   useEffect(() => {
     loadExercises();
-  }, [filters]);
+  }, [filters, canManage]);
 
   const loadExercises = async () => {
     try {
       setLoading(true);
-      const data = await libraryService.listExercises(filters);
+      const data = await libraryService.listExercises({ ...filters, scope: canManage ? 'all' : 'official' });
       setExercises(data);
+      setLoadError('');
     } catch (error) {
       console.error('Erro ao carregar exercícios:', error);
+      setLoadError('Não foi possível carregar a biblioteca. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -84,6 +92,12 @@ export default function Library() {
     setModalOpen(true);
   };
 
+  const handleCloneForCuration = (exercise: Exercise) => {
+    setSelectedExercise(exercise);
+    setModalMode('create');
+    setModalOpen(true);
+  };
+
   const handleView = (exercise: Exercise) => {
     setSelectedExercise(exercise);
     setModalMode('view');
@@ -91,16 +105,28 @@ export default function Library() {
   };
 
   const handleDelete = async (exercise: Exercise) => {
-    if (!confirm(`Tem certeza que deseja excluir "${exercise.name}"?`)) {
+    if (!canManage || !confirm(`Desativar "${exercise.name}"? Os treinos antigos continuarão disponíveis.`)) {
       return;
     }
 
     try {
-      await libraryService.deleteExercise(exercise.id);
+      await libraryService.deleteExercise(exercise.id, exercise.version);
       loadExercises();
     } catch (error) {
       console.error('Erro ao excluir exercício:', error);
-      alert('Erro ao excluir exercício');
+      alert('Não foi possível desativar. Recarregue a biblioteca e tente novamente.');
+    }
+  };
+
+  const handleCuration = async (exercise: Exercise, action: ExerciseCurationAction) => {
+    if (!canManage) return;
+    if (!confirm(`Confirma a ação "${action}" no exercício "${exercise.name}"?`)) return;
+    try {
+      await libraryService.reviewExercise(exercise.id, action, exercise.version);
+      await loadExercises();
+    } catch (error) {
+      console.error('Erro na curadoria:', error);
+      alert('Não foi possível concluir a revisão. Verifique os dados ou recarregue a biblioteca.');
     }
   };
 
@@ -142,7 +168,7 @@ export default function Library() {
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Biblioteca de Exercícios</h1>
-          <p className="text-gray-600 mt-2">Gerencie o catálogo de exercícios disponíveis</p>
+          <p className="text-gray-600 mt-2">{canManage ? 'Cadastre, revise e aprove exercícios antes de disponibilizá-los.' : 'Consulte exercícios aprovados para aplicação nos treinos.'}</p>
         </div>
 
         {/* Statistics */}
@@ -193,19 +219,19 @@ export default function Library() {
                   Limpar
                 </button>
               )}
-              <button
+              {canManage && <button
                 onClick={handleCreate}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <Plus className="w-5 h-5" />
                 Novo Exercício
-              </button>
+              </button>}
             </div>
           </div>
 
           {/* Filters Panel */}
           {showFilters && (
-            <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
                 <select
@@ -238,6 +264,25 @@ export default function Library() {
                 </select>
               </div>
 
+              {canManage && <div>
+                <label htmlFor="exercise-status" className="block text-sm font-medium text-gray-700 mb-1">Situação</label>
+                <select id="exercise-status" className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  value={filters.curationStatus || ''}
+                  onChange={e => setFilters({ ...filters, curationStatus: (e.target.value || undefined) as ExerciseFilters['curationStatus'] })}>
+                  <option value="">Todas</option>
+                  {Object.entries(STATUS_LABELS).map(([status, label]) => <option key={status} value={status}>{label}</option>)}
+                </select>
+              </div>}
+              <div>
+                <label htmlFor="exercise-equipment" className="block text-sm font-medium text-gray-700 mb-1">Equipamento</label>
+                <input id="exercise-equipment" className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Halteres"
+                  value={filters.equipment || ''} onChange={e => setFilters({ ...filters, equipment: e.target.value || undefined })} />
+              </div>
+              <div>
+                <label htmlFor="exercise-difficulty" className="block text-sm font-medium text-gray-700 mb-1">Dificuldade</label>
+                <input id="exercise-difficulty" className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Iniciante"
+                  value={filters.difficulty || ''} onChange={e => setFilters({ ...filters, difficulty: e.target.value || undefined })} />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Carga</label>
                 <select
@@ -289,6 +334,9 @@ export default function Library() {
           )}
         </div>
 
+        {loadError && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+          {loadError} <button className="ml-2 underline" onClick={loadExercises}>Tentar novamente</button>
+        </div>}
         {/* Table */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           {loading ? (
@@ -314,7 +362,7 @@ export default function Library() {
                   ? 'Tente ajustar os filtros para encontrar exercícios.'
                   : 'Comece adicionando exercícios à sua biblioteca.'}
               </p>
-              {!hasActiveFilters() && (
+              {!hasActiveFilters() && canManage && (
                 <button
                   onClick={handleCreate}
                   className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -347,6 +395,7 @@ export default function Library() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Contagem
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Situação</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Ações
                     </th>
@@ -380,6 +429,15 @@ export default function Library() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {getCountingTypeLabel(exercise.countingType)}
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                          exercise.curationStatus === 'approved' ? 'bg-green-100 text-green-800'
+                            : exercise.curationStatus === 'in_review' ? 'bg-blue-100 text-blue-800'
+                              : exercise.curationStatus === 'inactive' ? 'bg-gray-200 text-gray-700'
+                                : 'bg-amber-100 text-amber-800'
+                        }`}>{STATUS_LABELS[exercise.curationStatus] ?? 'Não informado'}</span>
+                        <p className="text-xs text-gray-500">Versão {exercise.version}</p>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end gap-2">
                           <button
@@ -389,20 +447,41 @@ export default function Library() {
                           >
                             <Eye className="w-5 h-5" />
                           </button>
-                          <button
+                          {canManage && <button
                             onClick={() => handleEdit(exercise)}
                             className="text-blue-600 hover:text-blue-900"
                             title="Editar"
                           >
                             <Edit className="w-5 h-5" />
-                          </button>
-                          <button
+                          </button>}
+                          {canManage && exercise.legacyGrandfathered && <button
+                            onClick={() => handleCloneForCuration(exercise)}
+                            title="Criar nova versão para curadoria sem alterar o histórico"
+                            aria-label={`Criar nova versão para curadoria de ${exercise.name}`}
+                            className="text-indigo-700 hover:text-indigo-900"
+                          >
+                            <Copy className="w-5 h-5" />
+                          </button>}
+                          {canManage && exercise.curationStatus === 'draft' && <button
+                            onClick={() => handleCuration(exercise, 'submit')} title="Enviar para revisão"
+                            className="text-blue-700" aria-label={`Revisar ${exercise.name}`}><Send className="w-5 h-5" /></button>}
+                          {canManage && exercise.curationStatus === 'in_review' && <>
+                            <button onClick={() => handleCuration(exercise, 'approve')} title="Aprovar"
+                              className="text-green-700" aria-label={`Aprovar ${exercise.name}`}><Check className="w-5 h-5" /></button>
+                            <button onClick={() => handleCuration(exercise, 'request_changes')} title="Solicitar ajustes"
+                              className="text-amber-700" aria-label={`Solicitar ajustes em ${exercise.name}`}><RotateCcw className="w-5 h-5" /></button>
+                          </>}
+                          {canManage && exercise.curationStatus === 'inactive' && <button
+                            onClick={() => handleCuration(exercise, 'reopen')} title="Reabrir como rascunho"
+                            className="text-blue-700" aria-label={`Reabrir ${exercise.name}`}><RotateCcw className="w-5 h-5" /></button>}
+                          {canManage && exercise.curationStatus !== 'inactive' && <button
                             onClick={() => handleDelete(exercise)}
                             className="text-red-600 hover:text-red-900"
-                            title="Excluir"
+                            title="Desativar (preserva histórico)"
+                            aria-label={`Desativar ${exercise.name}`}
                           >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
+                            <Archive className="w-5 h-5" />
+                          </button>}
                         </div>
                       </td>
                     </tr>
@@ -425,6 +504,7 @@ export default function Library() {
           mode={modalMode}
           exercise={selectedExercise}
           onClose={handleModalClose}
+          showHistory={Boolean(canManage)}
         />
       )}
     </div>

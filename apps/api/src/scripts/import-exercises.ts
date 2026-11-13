@@ -189,6 +189,8 @@ async function importExercises(filePath: string, dryRun: boolean) {
   let imported = 0;
   let skipped = 0;
   let errors = 0;
+  // A dry-run also must count duplicate input rows only once.
+  const seenCanonicalNames = new Set<string>();
 
   for (const row of rows) {
     try {
@@ -200,11 +202,26 @@ async function importExercises(filePath: string, dryRun: boolean) {
         continue;
       }
 
-      const existing = await prisma.exerciseLibrary.findFirst({
-        where: { name: normalizedName, contractId },
-      });
+      const canonicalName = normalizedName.toLowerCase();
+      if (seenCanonicalNames.has(canonicalName)) {
+        console.log(`⏭️  Pulando "${normalizedName}" (duplicado no arquivo)`);
+        skipped++;
+        continue;
+      }
 
-      if (existing) {
+      // Use the same canonical identity enforced by PostgreSQL. Exact-name
+      // lookups miss existing case/whitespace variants and turn reruns into
+      // uniqueness errors instead of cleanly skipped rows.
+      const existing = await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "ExerciseLibrary"
+        WHERE "contractId" = ${contractId}
+          AND issue394_exercise_canonical_name("name") =
+              issue394_exercise_canonical_name(${normalizedName})
+        LIMIT 1
+      `;
+
+      if (existing.length > 0) {
+        seenCanonicalNames.add(canonicalName);
         console.log(`⏭️  Pulando "${normalizedName}" (já existe)`);
         skipped++;
         continue;
@@ -213,6 +230,9 @@ async function importExercises(filePath: string, dryRun: boolean) {
       const data = {
         contractId,
         name: normalizedName,
+        curationStatus: 'draft' as const,
+        legacyGrandfathered: false,
+        lastCurationAction: 'import',
         videoUrl: row.videoUrl?.trim() || undefined,
         loadType: normalizeLoadType(row.loadType),
         movementType: normalizeMovementType(row.movementType),
@@ -226,11 +246,13 @@ async function importExercises(filePath: string, dryRun: boolean) {
 
       if (dryRun) {
         console.log(`🧪 Dry-run: importaria "${normalizedName}"`);
+        seenCanonicalNames.add(canonicalName);
         imported++;
         continue;
       }
 
       await prisma.exerciseLibrary.create({ data });
+      seenCanonicalNames.add(canonicalName);
 
       console.log(`✅ Importado: "${normalizedName}"`);
       imported++;

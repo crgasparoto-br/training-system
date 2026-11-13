@@ -49,9 +49,9 @@ A gravação exige o ID do item técnico e o ID do exercício operacional. Ambos
 - procura correspondência por nome, código, categoria ou grupo muscular;
 - cria `ExerciseLibrary` automaticamente;
 - promove item importado ou recém-criado por heurística;
-- inventa campos de equipamento, articulação, dificuldade, restrição clínica ou curadoria que não existem no modelo atual.
+- infere equipamento, articulações, dificuldade ou restrições clínicas a partir do vínculo técnico, mesmo quando esses metadados estão cadastrados na biblioteca.
 
-Como `ExerciseLibrary` não possui hoje um status de curadoria, a API expõe esse gap como `curationStatus = not_modeled`. A ausência desse campo não é convertida em aprovação fictícia.
+A biblioteca `ExerciseLibrary` possui curadoria persistida: `draft`, `in_review`, `approved` e `inactive`. A vinculação técnica exige exercício do mesmo `contractId`, explicitamente `approved` e com `legacyGrandfathered=false`; aprovações legadas sem revisão profissional não autorizam novos vínculos. O campo de projeção `curationStatus = not_modeled` indica exclusivamente ausência de exercício operacional resolvido no vínculo, não a inexistência de curadoria nem um estado persistido no catálogo. A operação não aprova exercícios nem altera treinos previamente aplicados.
 
 A rota é:
 
@@ -65,9 +65,15 @@ A seleção operacional usa:
 
 `GET /api/v1/consolidated-prescriptions/alunos/:alunoId/operational-exercises`
 
-A consulta é sempre filtrada por `contractId` e pode receber `search`, `category` e `muscleGroup`. Esses campos servem somente à busca humana; não constituem contrato de associação técnica.
+Na liberação definitiva de uma montagem, as linhas de `ExerciseLibrary`
+dos exercícios de origem e efetivos recebem `SELECT ... FOR SHARE` na mesma
+transação que grava os vínculos de `WorkoutExercise`. Isso serializa a
+materialização com desativação administrativa concorrente sem alterar
+automaticamente prescrições ou reescrever históricos.
 
-Somente os campos realmente presentes no `ExerciseLibrary` são retornados: ID, nome, vídeo, tipos de carga/movimento/contagem, categoria, grupo muscular, notas e `updatedAt`.
+A consulta valida o aluno no mesmo `contractId` e apresenta somente exercícios operacionais `approved` e `legacyGrandfathered=false`; rascunhos, itens em revisão, inativos e aprovações legadas não são selecionáveis. Os parâmetros `search`, `category` e `muscleGroup` servem somente à busca humana, nunca à associação técnica (feita por ID explícito).
+
+`search` pesquisa parcialmente, sem diferenciar maiúsculas/minúsculas, nome, aliases, `muscleGroup` legado e os grupos musculares primários e secundários. O filtro `muscleGroup` usa correspondência exata sem diferenciar caixa sobre o campo legado e ambos os arrays musculares; `category` permanece filtro de categoria. A consulta reutiliza o buscador canônico da biblioteca, parametrizado por contrato. A resposta projeta o subconjunto operacional já contratado: ID, nome, vídeo, tipos de carga/movimento/contagem, categoria, grupo muscular legado, notas e `updatedAt`; metadados adicionais da biblioteca não são automaticamente transformados em prescrições ou critérios de elegibilidade clínica.
 
 ## Projeção operacional
 
@@ -207,6 +213,11 @@ Continuam fora do fluxo integrado:
 - importação em massa e deduplicação de biblioteca;
 - matching por nome/texto como contrato de integração;
 - sugestão automática de substituição;
-- criação de modelo fictício de curadoria;
+- aprovação automática de exercícios ou presunção de curadoria a partir do vínculo técnico;
 - criação de uma árvore paralela de `Treino de hoje`;
 - escolha automática de outra semana/período para contornar conflito.
+
+
+## Proteção da mídia nos snapshots operacionais (#394, A-394-018)
+
+O vínculo técnico-operacional e a substituição registram, nos novos snapshots, a origem e a licença da mídia, além do indicador de legado. Snapshots anteriores continuam legíveis e imutáveis, mas um `videoUrl` histórico sem `mediaOrigin` e `mediaLicense` próprios não é devolvido nas prévias operacionais, nas respostas de mapeamento ou na montagem consolidada e seu histórico. A licença do exercício atual não autoriza reutilizar links de versões anteriores. A projeção mascara apenas o link de vídeo (valor `null`), preservando ID, nome, revisão, incompatibilidade e demais atributos técnicos. A proteção é aplicada na leitura/serialização, sem modificar os registros persistidos.

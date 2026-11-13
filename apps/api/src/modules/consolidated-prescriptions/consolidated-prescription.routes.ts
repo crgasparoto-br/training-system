@@ -1,7 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { sendError, sendSuccess } from '@corrida/utils';
+import { sendError, sendSuccess as sendSuccessUnsafe } from '@corrida/utils';
+import { sanitizeConsolidatedOperationalMedia } from './consolidated-prescription-operational-media.js';
 import type {
   AccessDataScope,
   CreateConsolidatedPrescriptionDraftPayload,
@@ -9,13 +10,22 @@ import type {
 } from '@corrida/types';
 import {
   canProfessorAccessBlock,
+  canProfessorAccessScreen,
   getEffectiveDataScopeForProfessor,
 } from '../access-control/access-control.service.js';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
+import { combinedConflictSourceService, CombinedConflictSourceError } from './combined-training-conflicts.service.js';
+import { combinedFutureTemporalService } from './combined-future-temporal.service.js';
+import { FutureTemporalInputError } from './combined-future-temporal.domain.js';
 import {
   ConsolidatedPrescriptionDomainError,
   consolidatedPrescriptionService,
 } from './consolidated-prescription.service.js';
+
+// Output-only sanitization: do not rewrite reserved, append-only version snapshots.
+function sendSuccess<T>(res: Response, data: T, message: string, statusCode = 200): Response {
+  return sendSuccessUnsafe(res, sanitizeConsolidatedOperationalMedia(data), message, statusCode);
+}
 
 const router: Router = Router();
 const prisma = new PrismaClient();
@@ -73,6 +83,23 @@ const unblockSchema = versionCommandSchema
 const revisionSchema = versionCommandSchema
   .extend({ reason: z.string().trim().optional().nullable() })
   .strict();
+
+const futureWindowSchema = z.object({
+  start: z.string().datetime(),
+  end: z.string().datetime(),
+  page: z.coerce.number().int().min(1).max(100).optional(),
+}).strict();
+const futureTemporalPreviewSchema = z.object({
+  expectedCurrentVersion: z.number().int().positive(),
+  windowStart: z.string().datetime(),
+  windowEnd: z.string().datetime(),
+  timeZone: z.string().min(1).max(90),
+  bindings: z.array(z.object({
+    bookingId: z.string().trim().min(1).max(128),
+    capacityPrescriptionVersionId: z.string().trim().min(1).max(128),
+    expectedBookingUpdatedAt: z.string().datetime(),
+  }).strict()).max(320),
+}).strict();
 
 type ConsolidatedActor = {
   contractId: string;
@@ -237,6 +264,96 @@ router.patch(
       return sendSuccess(res, updated, 'Montagem consolidada versionada');
     } catch (error) {
       return handleError(res, error, 'Erro ao atualizar montagem consolidada');
+    }
+  }
+);
+
+
+/** Explicit booking-to-capacity mapping is required: a calendar appointment is not a workout by default. */
+async function ensureAgendaAccess(req: ConsolidatedRequest, res: Response) {
+  const actor = await ensureAlunoScope(req, res);
+  if (!actor) return null;
+  const professor = await prisma.professor.findFirst({
+    where: { id: actor.professorId, contractId: actor.contractId },
+    include: { collaboratorFunction: true },
+  });
+  if (!professor || !(await canProfessorAccessScreen(professor, 'agenda'))) {
+    sendError(res, 'Perfil sem permissão para consultar a agenda desta revisão', 403);
+    return null;
+  }
+  return actor;
+}
+
+router.get(
+  '/alunos/:alunoId/combined-future-bookings',
+  requireConsolidatedBlock('plans.consolidatedPrescriptions.view'),
+  async (req: ConsolidatedRequest, res: Response) => {
+    try {
+      const actor = await ensureAgendaAccess(req, res);
+      if (!actor) return;
+      const range = futureWindowSchema.parse(req.query);
+      const bookings = await combinedFutureTemporalService.getCandidates(
+        { alunoId: req.params.alunoId, contractId: actor.contractId },
+        range.start, range.end, undefined, range.page ?? 1
+      );
+      return sendSuccess(res, bookings, 'Agendamentos futuros elegíveis para vínculo explícito');
+    } catch (error) {
+      if (error instanceof FutureTemporalInputError) return sendError(res, error.message, 400);
+      return handleError(res, error, 'Erro ao consultar agendamentos futuros');
+    }
+  }
+);
+
+/** Read-only, optimistic-versioned UTC preview. No agenda, training or approval write is performed. */
+router.post(
+  '/alunos/:alunoId/combined-future-temporal-preview',
+  requireConsolidatedBlock('plans.consolidatedPrescriptions.view'),
+  async (req: ConsolidatedRequest, res: Response) => {
+    try {
+      const actor = await ensureAgendaAccess(req, res);
+      if (!actor) return;
+      const command = futureTemporalPreviewSchema.parse(req.body);
+      const preview = await combinedFutureTemporalService.preview(
+        { alunoId: req.params.alunoId, contractId: actor.contractId }, command
+      );
+      return sendSuccess(res, preview, 'Evidência temporal futura de vínculos selecionados');
+    } catch (error) {
+      if (error instanceof FutureTemporalInputError) return sendError(res, error.message, 400);
+      return handleError(res, error, 'Erro ao conferir horários futuros');
+    }
+  }
+);
+
+/** #403: read-only technical preview; both clinical evidence grants are mandatory. */
+router.get(
+  '/alunos/:alunoId/combined-conflicts',
+  requireConsolidatedBlock('plans.consolidatedPrescriptions.view'),
+  async (req: ConsolidatedRequest, res: Response) => {
+    try {
+      const actor = await ensureAlunoScope(req, res);
+      if (!actor) return;
+      const professor = await prisma.professor.findFirst({
+        where: { id: actor.professorId, contractId: actor.contractId },
+        include: { collaboratorFunction: true },
+      });
+      if (!professor ||
+          !(await canProfessorAccessBlock(professor, 'students.details.preWorkoutCheckIn')) ||
+          !(await canProfessorAccessBlock(professor, 'students.details.postWorkoutFeedback'))) {
+        return sendError(res, 'Sem permissão para os sinais sensíveis do treino', 403);
+      }
+      const period = z.object({
+        start: z.string().datetime(),
+        end: z.string().datetime(),
+      }).strict().parse(req.query);
+      const result = await combinedConflictSourceService.getReport({
+        alunoId: req.params.alunoId, contractId: actor.contractId,
+        start: period.start, end: period.end,
+      });
+      if (!result) return sendError(res, 'Recurso não encontrado', 404);
+      return sendSuccess(res, result, 'Prévia técnica dos conflitos combinados carregada');
+    } catch (error) {
+      if (error instanceof CombinedConflictSourceError) return sendError(res, error.message, 400);
+      return handleError(res, error, 'Erro ao consultar conflitos combinados');
     }
   }
 );

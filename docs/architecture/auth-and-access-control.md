@@ -127,3 +127,78 @@ Esses blocos exigem tambem acesso de tela em `collaborators.registration` e deve
 - A troca autenticada exige a senha atual, uma nova senha com pelo menos 8 caracteres e uma senha diferente da atual. Em sucesso, atualiza o hash e limpa `mustChangePassword`.
 - A recuperacao publica continua usando `POST /api/v1/auth/forgot-password` e `POST /api/v1/auth/reset-password`. O token e assinado com segredo derivado do hash atual; por isso, qualquer troca de senha invalida tokens anteriores. A redefinicao bem-sucedida tambem limpa `mustChangePassword`.
 - A solicitacao publica de recuperacao mantem resposta generica para evitar enumeracao de contas.
+
+## Revisão combinada da Montagem (#403)
+
+`GET /consolidated-prescriptions/alunos/:alunoId/conflicts` acrescenta
+apenas metadados de versão das quatro prescrições e o estado conservador
+`no_active_rules` / `insufficient_data`. A resposta desse bloco
+de Montagem não carrega check-in, feedback ou métricas sensíveis.
+
+A UI do professor oferece a consulta histórica somente após verificar ambos
+`students.details.preWorkoutCheckIn` e
+`students.details.postWorkoutFeedback`. O endpoint clínico existente
+`GET .../combined-conflicts` permanece separado e exige os dois
+blocos, além de `plans.consolidatedPrescriptions.view`, ator professor,
+`contractId` e escopo autorizado. O frontend não transfere
+resultado histórico para o endpoint de Montagem nem para o aluno; ausência de
+concessão não é preenchida com dados de origem alternativa.
+
+O histórico combinado em memória é associado à identidade de usuário/professor,
+contrato, `dataScope` de `plans` e concessões atuais. O refresh de permissões
+não precisa desmontar a rota: a tela invalida imediatamente a apresentação
+anterior e revalida o escopo contra as rotas protegidas de montagem/workspace.
+Uma resposta antiga ou perda de acesso `self` não pode restaurar dados clínicos;
+a consulta histórica exige nova ação explícita depois da revalidação.
+
+
+## Limite de autorização — prévia temporal futura (#403)
+
+O relatório comum da Montagem não incorpora agendamentos. A nova
+listagem mínima e a prévia temporal exigem **cumulativamente** acesso à
+Montagem Consolidada e à tela `agenda`; o `dataScope`
+de `plans` é revalidado contra o aluno antes da leitura.
+A API nunca confia no `contractId` enviado pelo cliente:
+consulta `AgendaBooking` e versões de prescrição filtradas por
+`contractId` e `alunoId` do token. A permissão de
+agenda não dá acesso aos dados clínicos de check-in/feedback, que
+continuam atrás de dois grants próprios em endpoint independente.
+
+
+## Substituições de exercício/sessão (#404)
+
+A rota `/api/v1/training-substitutions` exige autenticação ativa e autoridade
+reavaliada por operação: aluno só acessa a própria participação `ACTIVE_STUDENT`
+no `contractId` selecionado; professor só acessa planos de aluno do mesmo
+contrato quando possuir `students.details.trainingPlans` e for responsável
+pelo aluno ou gestor do professor responsável, ou quando for `master` do contrato.
+Leitura de histórico/alternativas exige o bloco `students.details.trainingPlans`;
+**pré-aprovar e revisar** exigem adicionalmente `students.actions.manageTrainingSubstitutions`.
+O bloco de escrita pertence à tela pai `students.details` e segue **deny by default**:
+para `professor` e `manager` deve ser concedido explicitamente pelo administrador
+da função. Ele nunca nasce habilitado apenas porque a função já podia visualizar
+ou gerenciar outro bloco. O perfil `master` mantém autoridade do contrato.
+Os dois grants, vínculo e estado profissional são reavaliados no service com o
+`TransactionClient` da escrita, inclusive após revogação entre consulta e revisão,
+impedindo uso de contexto de JWT antigo e acesso cross-tenant.
+O bloqueio de mudança de estado de aluno e professor inativo mantém a barreira.
+
+A lista semanal destinada ao professor autorizado projeta somente IDs e nomes
+dos exercícios originais capturados, para permitir planejamento em dias futuros.
+O mesmo campo não é exposto na lista semanal do aluno. Buscar páginas seguintes
+de alternativas reexecuta as mesmas regras de contrato, curadoria e aluno;
+o offset não concede acesso a itens excluídos.
+
+A resposta de histórico de substituições ao aluno mantém nome, motivo,
+status, contexto e versões de rastreio, mas não transmite IDs de usuários
+responsáveis, IDs de revisores, ID redundante do aluno nem versão interna de CAS.
+A interface descreve a autoria como Aluno ou Professor conforme o contexto
+validado pelo backend. A resposta do professor autorizado retém IDs e versão
+para revisão concorrente; uma aprovação nunca é deduzida de uma sugestão.
+
+Os metadados de restrições do catálogo são técnicos: não são serializados na
+visão do aluno no histórico nem no catálogo de alternativas. Uma sugestão não
+atribui ao aluno permissão de aprovação. Apenas professor com a capacidade
+de escrita vigente pode revisar `pending_review`, com versão exata e registro
+do revisor. O professor com leitura isolada vê o histórico, mas não recebe
+controles de criação, aprovação ou rejeição.

@@ -33,6 +33,14 @@ O controle de acesso define o que cada função de colaborador pode ver e quais 
 
 - Tem acesso total dentro do contrato.
 
+## Aprovação e revisão de substituições de treino (#404)
+
+- `students.details.trainingPlans` permite visualizar rotina, alternativas e histórico autorizado.
+- `students.actions.manageTrainingSubstitutions` é um grant separado para pré-aprovar e revisar substituições; somente visualizar a aba não autoriza essas decisões.
+- Para perfis `professor` e `manager`, a capacidade começa desativada e precisa de concessão explícita por função, evitando ampliação silenciosa de permissões antigas; `master` tem acesso integral ao próprio contrato.
+- A API verifica o bloco de leitura, o bloco de escrita, o vínculo vigente com o aluno e o `contractId` na mesma transação da mutação. Após revogação, consulta permanece possível quando a leitura continuar autorizada; novos POSTs respondem 403, sem registro ou evento.
+- A UI oculta ações profissionais ao não possuir o bloco de escrita. Alunos não recebem aprovação, apenas o registro da execução em andamento sujeito à revisão.
+
 ## Quando criar `screenKey`
 
 Crie uma nova `screenKey` quando a funcionalidade for uma tela, item de menu ou capacidade principal que precise ser ligada/desligada para uma função.
@@ -212,3 +220,35 @@ Para `students.preRegistration`, quando a interface estiver habilitada, a posiç
 - Frontend oculta menu, tela, aba ou ação sem permissão quando a interface correspondente existir.
 - Testes cobrem pelo menos um caso permitido e um negado.
 - `pnpm access:check` passa.
+
+### Biblioteca de exercícios (#394)
+
+O `screenKey=library` permanece obrigatório para administrar a biblioteca.
+As consultas **operacionais** da lista oficial (`GET /exercises` sem `scope=all`)
+e a leitura de progresso do aluno (`GET /progress/:alunoId[/:exerciseId]`)
+aceitam `screenKey=plans` **ou** `screenKey=library`, permitindo ao professor
+montar treinos sem permissão para administrar o catálogo. Com `plans` concedido, as consultas de progresso respeitam sempre seu
+`dataScope` (`self`, `managed` ou `contract`), **mesmo se `library` também estiver
+concedido**. Sem `plans`, a permissão `library` permite consultar progresso
+**somente dos próprios alunos** (`self`); administradores `master` mantêm
+acesso ao contrato. Alunos fora do escopo retornam 404 sem consultar nem alterar
+o progresso. A consulta exige professor ativo e `contractId` do vínculo
+autenticado; não transfere acesso a outro contrato.
+O detalhe administrativo do exercício e a atualização de progresso conservam
+o requisito anterior de `screenKey=library`. A atualização também exige que
+o aluno pertença ao escopo acima, inclusive para perfis com ambas as telas.
+O `GET /api/library/exercises/:id` retorna apenas metadados do catálogo,
+sem `workoutExercises`, `alunoProgress`, fichas, objetivos ou cargas de alunos.
+Ter `screenKey=library` não concede acesso aos dados de Planos ou ao progresso
+de estudantes fora do `dataScope`; essas leituras usam rotas próprias e escopo
+apropriado.
+
+`scope=all`, filtros de estado, criar/editar, aprovar, devolver,
+desativar/reabrir e consultar revisões exigem `screenKey=library` e ainda papel
+`professorRole=master`, conferidos pelo backend. O frontend apenas oculta ações.
+Não há concessão de escopo cruzado entre contratos. Uma verificação HTTP
+prévia não autoriza escrita após revogação: na mesma transação de curadoria,
+o backend revalida o usuário ativo e o vínculo `master` do contrato com
+bloqueio `FOR UPDATE` sobre `Professor` e `User`. A revogação de papel,
+a situação inativa, o desligamento ou a desativação do usuário impedem a
+escrita e o registro de revisão, retornando HTTP 403.

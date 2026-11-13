@@ -8,6 +8,11 @@ import type {
   GuidedResistanceView,
   GuidedCyclicActionPayload,
   GuidedCyclicView,
+  TrainingSubstitutionRecord,
+  TrainingSubstitutionAlternativePage,
+  TrainingSubstitutionKind,
+  TrainingSubstitutionCreatePayload,
+  TrainingSubstitutionReviewPayload,
 } from '@corrida/types';
 import api from './api';
 
@@ -20,10 +25,53 @@ type ApiEnvelope<T> = {
 /**
  * Leitura da rotina semanal e do Treino de hoje (#387).
  *
- * Este serviço é intencionalmente somente leitura: iniciar, pausar, concluir ou
- * registrar impossibilidade pertencem ao contrato canônico de execução (#389).
+ * As consultas da rotina semanal são somente leitura. A criação/revisão de
+ * substituições é uma operação separada (#404), com autorização do backend;
+ * o lifecycle da execução permanece no contrato canônico da #389.
  */
 export const trainingRoutineService = {
+  async getSubstitutions(sessionId: string, contractId?: string): Promise<TrainingSubstitutionRecord[]> {
+    const { data } = await api.get<ApiEnvelope<TrainingSubstitutionRecord[]>>(
+      '/training-substitutions/sessions/' + encodeURIComponent(sessionId),
+      contractId ? { headers: { 'x-contract-id': contractId } } : undefined,
+    );
+    return data.data;
+  },
+
+  async getSubstitutionAlternatives(
+    sessionId: string, kind: TrainingSubstitutionKind, originalUnitId: string, contractId?: string,
+    options: { search?: string; offset?: number } = {},
+  ): Promise<TrainingSubstitutionAlternativePage> {
+    const { data } = await api.get<ApiEnvelope<TrainingSubstitutionAlternativePage>>(
+      '/training-substitutions/sessions/' + encodeURIComponent(sessionId) + '/alternatives', {
+        params: { kind, originalUnitId, ...options },
+        ...(contractId ? { headers: { 'x-contract-id': contractId } } : {}),
+      },
+    );
+    return data.data;
+  },
+
+  async createSubstitution(
+    sessionId: string, payload: TrainingSubstitutionCreatePayload, contractId?: string,
+  ): Promise<TrainingSubstitutionRecord> {
+    const { data } = await api.post<ApiEnvelope<TrainingSubstitutionRecord>>(
+      '/training-substitutions/sessions/' + encodeURIComponent(sessionId), payload,
+      contractId ? { headers: { 'x-contract-id': contractId } } : undefined,
+    );
+    return data.data;
+  },
+
+  async reviewSubstitution(
+    sessionId: string, substitutionId: string, payload: TrainingSubstitutionReviewPayload,
+  ): Promise<TrainingSubstitutionRecord> {
+    const { data } = await api.post<ApiEnvelope<TrainingSubstitutionRecord>>(
+      '/training-substitutions/sessions/' + encodeURIComponent(sessionId) + '/'
+        + encodeURIComponent(substitutionId) + '/review', payload,
+    );
+    return data.data;
+  },
+
+
   async getForStudent(options: { date?: string; contractId?: string } = {}): Promise<TrainingRoutineView> {
     const response = await api.get<ApiEnvelope<TrainingRoutineView>>('/student/me/training-routine', {
       ...(options.date ? { params: { date: options.date } } : {}),

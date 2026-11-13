@@ -10,7 +10,7 @@ vi.mock('../../services/training-routine.service', async (importOriginal) => {
 });
 
 describe('Central: aba Treinos / Planos', () => {
-  it('apresenta os três cards do backend com colunas responsivas e aluno correto', async () => {
+  it('apresenta os quatro cards da continuidade com colunas responsivas e aluno correto', async () => {
     const view: TrainingRoutineView = {
       alunoId: 'aluno-1', audience: 'professor',
       referenceDate: '2026-10-01', timeZone: 'America/Sao_Paulo',
@@ -26,10 +26,12 @@ describe('Central: aba Treinos / Planos', () => {
     render(<AlunoTrainingTab alunoId="aluno-1" />);
 
     const cards = await screen.findByRole('region', { name: 'Continuidade do treinamento' });
-    expect(cards).toHaveClass('grid', 'sm:grid-cols-3');
+    expect(cards).toHaveClass('grid', 'sm:grid-cols-2', 'xl:grid-cols-4');
     expect(within(cards).getByText('Próximo treino')).toBeInTheDocument();
     expect(within(cards).getByText('Última execução')).toBeInTheDocument();
     expect(within(cards).getByText('Feedback indisponível')).toBeInTheDocument();
+    expect(within(cards).getByText('Aderência semanal')).toBeInTheDocument();
+    expect(within(cards).getByText('Dados insuficientes')).toBeInTheDocument();
     expect(getForAluno).toHaveBeenCalledWith('aluno-1', { date: undefined });
   });
 

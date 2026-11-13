@@ -326,6 +326,7 @@ router.post('/bookings', async (req: Request, res: Response) => {
     const booking = await agendaService.createBooking(contractId, {
       ...validated,
       bookingDate: new Date(`${validated.bookingDate}T00:00:00`),
+      bookingCivilDate: validated.bookingDate,
     });
     return sendSuccess(res, booking, 'Agendamento criado com sucesso', 201);
   } catch (error: any) {

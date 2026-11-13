@@ -28,6 +28,9 @@ export interface CloneResult {
 
 const normalizeExerciseName = (value: string) =>
   repairPtBrMojibake(value).trim().replace(/\s+/g, ' ');
+// Match the PostgreSQL guard's case/whitespace identity while preserving
+// the preferred spelling in the copied exercise's display name.
+const canonicalExerciseName = (value: string) => normalizeExerciseName(value).toLowerCase();
 
 const normalizeOptionalExerciseText = (value: string | null) => {
   if (value === null) return null;
@@ -107,6 +110,11 @@ export async function cloneContractData(
         category: true,
         muscleGroup: true,
         notes: true,
+        aliases: true, capacity: true, equipment: true,
+        primaryMuscleGroups: true, secondaryMuscleGroups: true,
+        movementPattern: true, joints: true, laterality: true, difficulty: true,
+        instructions: true, commonErrors: true, regressions: true, progressions: true,
+        alternatives: true, restrictions: true, alerts: true, mediaAuthor: true,
       },
     });
 
@@ -117,16 +125,17 @@ export async function cloneContractData(
             where: { contractId: targetContractId },
             select: { name: true },
           })
-        ).map((item) => normalizeExerciseName(item.name))
+        ).map((item) => canonicalExerciseName(item.name))
       );
 
       const toCreate = exercises.reduce<typeof exercises>((items, exercise) => {
         const normalizedName = normalizeExerciseName(exercise.name);
-        if (!normalizedName || existingNames.has(normalizedName)) {
+        const canonicalName = canonicalExerciseName(normalizedName);
+        if (!canonicalName || existingNames.has(canonicalName)) {
           return items;
         }
 
-        existingNames.add(normalizedName);
+        existingNames.add(canonicalName);
         items.push({
           ...exercise,
           name: normalizedName,
@@ -141,13 +150,26 @@ export async function cloneContractData(
           data: toCreate.map((exercise) => ({
             contractId: targetContractId,
             name: exercise.name,
-            videoUrl: exercise.videoUrl,
+            curationStatus: 'draft',
+            legacyGrandfathered: false,
+            lastCurationAction: 'tenant_copy',
             loadType: exercise.loadType,
             movementType: exercise.movementType,
             countingType: exercise.countingType,
             category: exercise.category,
             muscleGroup: exercise.muscleGroup,
             notes: exercise.notes,
+            aliases: exercise.aliases, capacity: exercise.capacity, equipment: exercise.equipment,
+            primaryMuscleGroups: exercise.primaryMuscleGroups,
+            secondaryMuscleGroups: exercise.secondaryMuscleGroups,
+            movementPattern: exercise.movementPattern, joints: exercise.joints,
+            laterality: exercise.laterality, difficulty: exercise.difficulty,
+            instructions: exercise.instructions, commonErrors: exercise.commonErrors,
+            regressions: exercise.regressions, progressions: exercise.progressions,
+            alternatives: exercise.alternatives, restrictions: exercise.restrictions,
+            alerts: exercise.alerts, mediaAuthor: exercise.mediaAuthor,
+            // Media authorization is tenant-specific and must be revalidated before use.
+            videoUrl: null, mediaOrigin: null, mediaLicense: null,
           })),
         });
 

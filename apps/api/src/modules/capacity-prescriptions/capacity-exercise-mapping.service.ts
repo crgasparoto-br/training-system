@@ -1,3 +1,5 @@
+import { approvedOperationalExerciseWhere } from '../library/library-curation.domain.js';
+import { hideUnverifiedExerciseVideo } from '../workout/workout-release-catalog.js';
 import { Prisma, PrismaClient } from '@prisma/client';
 import type {
   CapacityPrescriptionParameters,
@@ -40,6 +42,9 @@ function exerciseSnapshot(exercise: {
   id: string;
   name: string;
   videoUrl: string | null;
+  mediaOrigin: string | null;
+  mediaLicense: string | null;
+  legacyGrandfathered: boolean;
   loadType: string | null;
   movementType: string | null;
   countingType: string | null;
@@ -52,6 +57,9 @@ function exerciseSnapshot(exercise: {
     id: exercise.id,
     name: exercise.name,
     videoUrl: exercise.videoUrl,
+    mediaOrigin: exercise.mediaOrigin ?? null,
+    mediaLicense: exercise.mediaLicense ?? null,
+    legacyGrandfathered: exercise.legacyGrandfathered !== false,
     loadType: exercise.loadType,
     movementType: exercise.movementType,
     countingType: exercise.countingType,
@@ -150,7 +158,7 @@ export function createCapacityExerciseMappingService(client: PrismaClient = pris
             if (!technical) invalid('Item técnico de exercício inexistente, histórico ou fora do contrato');
 
             const exercise = await tx.exerciseLibrary.findFirst({
-              where: { id: exerciseLibraryId, contractId: context.contractId },
+              where: { id: exerciseLibraryId, contractId: context.contractId, ...approvedOperationalExerciseWhere },
             });
             if (!exercise) invalid('Exercício operacional inexistente ou fora do contrato');
 
@@ -194,7 +202,7 @@ export function createCapacityExerciseMappingService(client: PrismaClient = pris
               mappedByProfessorId: context.actorProfessorId,
               currentExerciseAvailable: true,
               currentExerciseUpdatedAt: nextMapping.exerciseSnapshot.updatedAt,
-              curationStatus: 'not_modeled',
+              curationStatus: 'approved',
             };
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
@@ -231,13 +239,17 @@ export function createCapacityExerciseMappingService(client: PrismaClient = pris
           version: technical.version,
         },
         exerciseLibraryId: mapping?.exerciseLibraryId ?? null,
-        operationalExerciseSnapshot: mapping?.exerciseSnapshot ?? null,
+        // Historical metadata remains stored verbatim; only public projections hide unlicensed media.
+        operationalExerciseSnapshot: mapping?.exerciseSnapshot
+          ? hideUnverifiedExerciseVideo(mapping.exerciseSnapshot)
+          : null,
         mappingRevision: mapping?.mappingRevision ?? 0,
         mappedAt: mapping?.mappedAt ?? null,
         mappedByProfessorId: mapping?.mappedByProfessorId ?? null,
-        currentExerciseAvailable: Boolean(liveExercise),
+        currentExerciseAvailable: liveExercise?.curationStatus === 'approved'
+          && liveExercise.legacyGrandfathered === false,
         currentExerciseUpdatedAt: liveExercise?.updatedAt.toISOString() ?? null,
-        curationStatus: 'not_modeled',
+        curationStatus: liveExercise?.curationStatus ?? 'not_modeled',
       };
     },
   };

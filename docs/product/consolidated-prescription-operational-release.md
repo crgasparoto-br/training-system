@@ -8,7 +8,7 @@ A saída autoritativa continua sendo:
 
 `TrainingPlan -> WorkoutTemplate -> WorkoutDay -> WorkoutExercise -> ExerciseLibrary`.
 
-Para capacidades sem exercício, `WorkoutDayCapacityOperationalBlock` é uma relação aditiva do próprio `WorkoutDay`; não cria uma segunda árvore de treino.
+Para capacidades sem exercício, `WorkoutDayCapacityOperationalBlock` é uma relação aditiva do próprio `WorkoutDay`; não cria uma segunda árvore de treino. A #403 acrescenta `WorkoutDayCyclicOperationalBlock` para preservar a atribuição cíclica por dia, sem ampliar o CHECK restrito a flexibilidade/equilíbrio.
 
 A liberação é um comando próprio e posterior à aprovação. Aprovar uma montagem não publica treino automaticamente.
 
@@ -73,7 +73,8 @@ A projeção pode escrever apenas os campos explicitamente suportados pela ponte
 - `WorkoutTemplate`: `trainingMethod`, `trainingDivision`, `repReserve`, `totalVolumeKm`;
 - `WorkoutDay`: `method`, `vo2maxPct`, `stimulusDurationMin`, `detailNotes`, `complementNotes`;
 - `WorkoutExercise`: `sets`, `reps`, além do `exerciseId` resolvido por vínculo persistido;
-- `WorkoutDayCapacityOperationalBlock`: somente o contrato estruturado versionado de Flexibilidade/Equilíbrio, ligado por FK à `CapacityPrescriptionVersion` exata.
+- `WorkoutDayCapacityOperationalBlock`: somente o contrato estruturado versionado de Flexibilidade/Equilíbrio, ligado por FK à `CapacityPrescriptionVersion` exata;
+- `WorkoutDayCyclicOperationalBlock`: registro exclusivamente backend da versão cíclica e do dia explicitamente selecionado, sem campo injetável pelo cliente.
 
 Qualquer outro campo presente no snapshot é recusado. IDs estruturais, status e `released` não podem ser injetados pela projeção.
 
@@ -117,7 +118,7 @@ A migration `20260812143000_issue_320_consolidated_operational_release` cria `Co
 - professor ator e timestamp;
 - fingerprint canônico da requisição.
 
-A mesma migration cria `WorkoutDayCapacityOperationalBlock`, permitindo navegar do dia operacional diretamente para a versão imutável de Flexibilidade/Equilíbrio e, pelo template, para o release consolidado.
+A mesma migration cria `WorkoutDayCapacityOperationalBlock`, permitindo navegar do dia operacional diretamente para a versão imutável de Flexibilidade/Equilíbrio e, pelo template, para o release consolidado. A migration aditiva de #403 cria `WorkoutDayCyclicOperationalBlock` para associar ao dia a versão cíclica até quando a projeção só registra `WorkoutTemplate.totalVolumeKm`. O bloco cíclico reutiliza os guards de escopo, comparação JSONB, imutabilidade e proibição de inserção depois da publicação.
 
 A chave única em `sourceAssemblyVersionId` é a chave natural de idempotência. Repetir o mesmo comando para a mesma versão devolve a liberação existente. Repetir a mesma versão com destino diferente retorna conflito. `workoutTemplateId` também é único para impedir reassociação silenciosa do mesmo treino a outra versão consolidada.
 
@@ -150,7 +151,7 @@ A presença de `ConsolidatedPrescriptionOperationalRelease` transforma o conteú
 - `WorkoutTemplate` vinculado não pode ser alterado ou removido; a única exceção é a transição atômica inicial `released=false/releasedAt=null -> released=true/releasedAt=<timestamp>` realizada pelo próprio release;
 - `WorkoutDay` vinculado não pode ser criado, removido, movido nem ter campos de planejamento alterados;
 - `WorkoutExercise` vinculado não pode ser criado, alterado, reordenado, movido ou removido;
-- `WorkoutDayCapacityOperationalBlock` e o próprio ledger continuam imutáveis pelos guards já existentes.
+- `WorkoutDayCapacityOperationalBlock`, `WorkoutDayCyclicOperationalBlock` e o próprio ledger continuam imutáveis pelos guards já existentes.
 
 O ciclo de execução continua funcionando sobre o snapshot publicado. Em `WorkoutDay`, somente `status`, `startedAt`, `finishedAt`, `psrResponse`, `pseResponse` e o `updatedAt` derivado podem mudar depois da liberação. Execuções de exercício permanecem registradas em `WorkoutExecution`, sem reescrever o planejamento que originou o treino.
 
@@ -164,6 +165,7 @@ Os testes da #320/#339 cobrem:
 - projeção de Flexibilidade e Equilíbrio para blocos estruturados versionados mais notas derivadas;
 - fail-closed quando o contrato estruturado não pode ser produzido;
 - liberação PostgreSQL de uma montagem com as quatro capacidades e verificação dos parâmetros relacionais sem perda;
+- regressão #403/A-005: cíclico com distância somente no template, resistido em outro dia, vínculo cíclico versionado preservado, nenhuma atribuição cruzada e bloqueio de inserção após a liberação;
 - revalidação PostgreSQL de liveness para objetivo clínico removido, avaliação removida e avaliação que perde elegibilidade de categoria entre aprovação e release, sempre sem efeitos parciais;
 - controles temporais para data fora da semana declarada, alvo passado, borda da data atual e target existente de período divergente;
 - reconciliação de target futuro previamente preenchido, removendo dia/exercício excedentes e limpando campos gerenciados residuais;

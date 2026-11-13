@@ -2,6 +2,10 @@ import type {
   CapacityPrescriptionView,
   ConsolidatedPrescriptionAssembly,
   ConsolidatedPrescriptionConflictReport,
+  FutureTemporalBookingCandidate,
+  FutureTemporalPreview,
+  FutureTemporalPreviewCommand,
+  ConsolidatedCombinedHistoryPreview,
   ConsolidatedPrescriptionHistory,
   ConsolidatedPrescriptionVersionCommand,
   ConsolidatedPrescriptionWorkspaceContext,
@@ -69,6 +73,38 @@ export const consolidatedPrescriptionService = {
     const response = await api.patch<ApiEnvelope<ConsolidatedPrescriptionAssembly>>(
       `/consolidated-prescriptions/alunos/${alunoId}/composition`,
       payload
+    );
+    return response.data.data;
+  },
+
+  /** Evidence remains read-only and requires the two clinical block grants in the API. */
+  async getCombinedHistory(
+    alunoId: string, start: string, end: string
+  ): Promise<ConsolidatedCombinedHistoryPreview> {
+    const search = new URLSearchParams({ start, end });
+    const response = await api.get<ApiEnvelope<ConsolidatedCombinedHistoryPreview>>(
+      '/consolidated-prescriptions/alunos/' + alunoId + '/combined-conflicts?' + search.toString()
+    );
+    return response.data.data;
+  },
+
+  /** Future booking association is explicit, versioned and read-only. */
+  async getFutureBookingCandidates(
+    alunoId: string, start: string, end: string, page = 1
+  ): Promise<FutureTemporalBookingCandidate[]> {
+    const search = new URLSearchParams({ start, end, page: String(page) });
+    const response = await api.get<ApiEnvelope<FutureTemporalBookingCandidate[]>>(
+      '/consolidated-prescriptions/alunos/' + alunoId + '/combined-future-bookings?' + search.toString()
+    );
+    return response.data.data;
+  },
+
+  async previewFutureTemporal(
+    alunoId: string, command: FutureTemporalPreviewCommand
+  ): Promise<FutureTemporalPreview> {
+    const response = await api.post<ApiEnvelope<FutureTemporalPreview>>(
+      '/consolidated-prescriptions/alunos/' + alunoId + '/combined-future-temporal-preview',
+      command
     );
     return response.data.data;
   },

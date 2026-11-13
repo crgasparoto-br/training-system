@@ -73,6 +73,7 @@ export function StudentTraining() {
         key={contractId ?? 'sem-contrato-explicito'}
         audience="student"
         load={load}
+        studentContractId={contractId}
         headingLevel="h1"
         saveCheckIn={saveCheckIn}
         saveFeedback={saveFeedback}

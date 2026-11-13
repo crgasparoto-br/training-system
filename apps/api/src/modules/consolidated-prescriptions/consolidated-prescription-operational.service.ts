@@ -1,3 +1,5 @@
+import { approvedOperationalExerciseWhere } from '../library/library-curation.domain.js';
+import { hideUnverifiedExerciseVideo } from '../workout/workout-release-catalog.js';
 import { PrismaClient } from '@prisma/client';
 import type {
   CapacityPrescriptionParameters,
@@ -14,6 +16,7 @@ import type {
   TechnicalExerciseOperationalMapping,
 } from '@corrida/types';
 import { capacityExerciseMappingService } from '../capacity-prescriptions/capacity-exercise-mapping.service.js';
+import { findExerciseIdsByAlias, findExerciseIdsByMuscleGroup } from '../library/exercise-alias-search.js';
 import {
   ConsolidatedPrescriptionDomainError,
   consolidatedPrescriptionService,
@@ -115,6 +118,9 @@ function exerciseSnapshot(exercise: {
   id: string;
   name: string;
   videoUrl: string | null;
+  mediaOrigin: string | null;
+  mediaLicense: string | null;
+  legacyGrandfathered: boolean;
   loadType: string | null;
   movementType: string | null;
   countingType: string | null;
@@ -127,6 +133,9 @@ function exerciseSnapshot(exercise: {
     id: exercise.id,
     name: exercise.name,
     videoUrl: exercise.videoUrl,
+    mediaOrigin: exercise.mediaOrigin ?? null,
+    mediaLicense: exercise.mediaLicense ?? null,
+    legacyGrandfathered: exercise.legacyGrandfathered !== false,
     loadType: exercise.loadType,
     movementType: exercise.movementType,
     countingType: exercise.countingType,
@@ -333,7 +342,10 @@ export function buildOperationalProjectionItems(
           effectiveExerciseLibraryId: effectiveExerciseId,
           substituted: Boolean(substitution),
           technicalSnapshot: mapping?.technicalSnapshot ?? null,
-          operationalExerciseSnapshot: operationalSnapshot,
+          // Do not inherit today's media license for a historical snapshot.
+          operationalExerciseSnapshot: operationalSnapshot
+            ? hideUnverifiedExerciseVideo(operationalSnapshot)
+            : null,
           operationalExerciseUpdatedAt,
           proposedFields: {
             ...(Object.keys(workoutTemplate).length ? { WorkoutTemplate: workoutTemplate } : {}),
@@ -521,7 +533,7 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
     );
     if (substituteIds.length) {
       const liveSubstitutes = await client.exerciseLibrary.findMany({
-        where: { id: { in: substituteIds }, contractId: context.contractId },
+        where: { id: { in: substituteIds }, contractId: context.contractId, ...approvedOperationalExerciseWhere },
         select: { id: true, updatedAt: true },
       });
       const currentById = new Map(
@@ -576,16 +588,34 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
       });
       if (!aluno) notFound();
       const search = filters.search?.trim();
+      const muscleGroup = filters.muscleGroup?.trim();
+      // Share the catalog's primary/secondary muscle finder with operational selection.
+      const aliasIds = search ? await findExerciseIdsByAlias(client, context.contractId, search) : [];
+      const muscleSearchIds = search ? await findExerciseIdsByMuscleGroup(client, context.contractId, search) : [];
+      const muscleFilterIds = muscleGroup
+        ? await findExerciseIdsByMuscleGroup(client, context.contractId, muscleGroup, true)
+        : [];
       return client.exerciseLibrary.findMany({
         where: {
           contractId: context.contractId,
+          ...approvedOperationalExerciseWhere,
           ...(filters.category ? { category: filters.category } : {}),
-          ...(filters.muscleGroup ? { muscleGroup: filters.muscleGroup } : {}),
+          ...(muscleGroup
+            ? {
+                AND: [{
+                  OR: [
+                    { muscleGroup: { equals: muscleGroup, mode: 'insensitive' } },
+                    { id: { in: muscleFilterIds } },
+                  ],
+                }],
+              }
+            : {}),
           ...(search
             ? {
                 OR: [
                   { name: { contains: search, mode: 'insensitive' } },
                   { muscleGroup: { contains: search, mode: 'insensitive' } },
+                  { id: { in: [...new Set([...aliasIds, ...muscleSearchIds])] } },
                 ],
               }
             : {}),
@@ -768,7 +798,7 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
       }
 
       const substitute = await client.exerciseLibrary.findFirst({
-        where: { id: command.substituteExerciseLibraryId, contractId: context.contractId },
+        where: { id: command.substituteExerciseLibraryId, contractId: context.contractId, ...approvedOperationalExerciseWhere },
       });
       if (!substitute) invalid('Exercício substituto inexistente ou fora do contrato');
       const compatibilityIssue = getOperationalSubstitutionCompatibilityIssue(

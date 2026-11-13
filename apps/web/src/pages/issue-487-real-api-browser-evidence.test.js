@@ -96,10 +96,10 @@ async function seedReleasedSession(prisma, today, suffix, options = {}) {
   });
   const exerciseA = await prisma.exerciseLibrary.create({
     data: { contractId: contract.id, name: 'Agachamento real #487', category: 'Resistido',
-      notes: 'Movimento controlado' },
+      notes: 'Movimento controlado', curationStatus: 'approved', legacyGrandfathered: true },
   });
   const exerciseB = await prisma.exerciseLibrary.create({
-    data: { contractId: contract.id, name: 'Remada real #487', category: 'Resistido' },
+    data: { contractId: contract.id, name: 'Remada real #487', category: 'Resistido', curationStatus: 'approved', legacyGrandfathered: true },
   });
   const workoutA = await prisma.workoutExercise.create({
     data: { workoutDayId: day.id, exerciseId: exerciseA.id,
@@ -138,7 +138,7 @@ async function seedReleasedSession(prisma, today, suffix, options = {}) {
   if (options.withLegacyAndRepeated) {
     const legacyLibrary = await prisma.exerciseLibrary.create({
       data: { contractId: contract.id, name: 'Execução legada #401',
-        category: 'Resistido' },
+        category: 'Resistido', curationStatus: 'approved', legacyGrandfathered: true },
     });
     const legacyWorkout = await prisma.workoutExercise.create({
       data: { workoutDayId: day.id, exerciseId: legacyLibrary.id,

@@ -557,3 +557,12 @@ Uma entrega so pode ser considerada concluida quando:
 - atualiza a Central apos salvar ou concluir;
 - possui testes relevantes e validacao manual;
 - atualiza documentacao e roadmap.
+
+#### Biblioteca curada por contrato — issue #394
+
+A implementação da #394 acrescenta metadados pesquisáveis, autoria, histórico
+versionado e estados `draft → in_review → approved` ou `inactive`.
+Área administrativa consulta todos os estados; seletores, vínculos técnicos e
+liberação de treinos aceitam somente exercícios aprovados. Origem de mídia
+de terceiros e licença devem estar informadas. Desativar não exclui sessões.
+CI e auditoria independente devem avaliar o SHA final antes do encerramento.

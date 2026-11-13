@@ -12,6 +12,7 @@ import {
   WorkoutSessionExecutionNotFoundError,
 } from '../src/modules/workout/workout-session-execution.service.js';
 import { workoutService } from '../src/modules/workout/workout.service.js';
+import { createTrainingSubstitutionService } from '../src/modules/workout/training-substitution.service.js';
 import { compareWorkoutSession, readCapturedWorkoutComparisonPlan } from '../src/modules/workout/workout-session-comparison.domain.js';
 import { createStudentWorkoutService } from '../src/modules/workout/student-workout.service.js';
 import { createTrainingRoutineService } from '../src/modules/workout/training-routine.service.js';
@@ -46,7 +47,8 @@ async function seedReleasedWorkout(
   label: string,
   options: { publish?: boolean; seedResistance?: boolean; seedGuidedResistance?: boolean; seedGuidedGroup?: boolean;
     seedComparison?: boolean; seedIncrementalComparison?: boolean; seedRepeatedCyclic?: boolean; seedLargeCyclic?: boolean;
-    weeklyVolumeKm?: number; legacySpeedRange?: { min: string; max: string } } = {},
+    weeklyVolumeKm?: number; legacySpeedRange?: { min: string; max: string };
+    licensedMedia?: boolean } = {},
 ): Promise<Fixture> {
   const suffix = `${label}-${randomUUID()}`;
   const contractId = `issue-389-${suffix}`;
@@ -179,10 +181,19 @@ async function seedReleasedWorkout(
   });
 
   const exerciseLibraryA = await prisma.exerciseLibrary.create({
-    data: { contractId, name: `Agachamento ${label}` },
+    data: { contractId, name: `Agachamento ${label}`, category: 'RESISTIDO', capacity: 'resisted',
+      instructions: ['Preparar posição'], curationStatus: 'approved', legacyGrandfathered: false,
+      reviewedByUserId: 'fixture-reviewer', reviewedAt: new Date(), lastCurationAction: 'approve',
+      ...(options.licensedMedia ? {
+        videoUrl: 'https://example.org/issue394/original-licensed-video',
+        mediaOrigin: 'Produção original do catálogo', mediaLicense: 'Licença própria registrada',
+      } : {}),
+    },
   });
   const exerciseLibraryB = await prisma.exerciseLibrary.create({
-    data: { contractId, name: `Remada ${label}` },
+    data: { contractId, name: `Remada ${label}`, category: 'RESISTIDO', capacity: 'resisted',
+      instructions: ['Preparar posição'], curationStatus: 'approved', legacyGrandfathered: false,
+      reviewedByUserId: 'fixture-reviewer', reviewedAt: new Date(), lastCurationAction: 'approve' },
   });
   const exerciseA = await prisma.workoutExercise.create({
     data: {
@@ -243,7 +254,9 @@ async function seedReleasedWorkout(
           durationUnit: 'seconds', durationValue: 120 },
       });
       const exerciseC = await prisma.exerciseLibrary.create({
-        data: { contractId, name: `Mobilidade ${label}` },
+        data: { contractId, name: `Mobilidade ${label}`, category: 'RESISTIDO', capacity: 'resisted',
+      instructions: ['Preparar posição'], curationStatus: 'approved', legacyGrandfathered: false,
+      reviewedByUserId: 'fixture-reviewer', reviewedAt: new Date(), lastCurationAction: 'approve' },
       });
       const workoutExerciseC = await prisma.workoutExercise.create({
         data: { workoutDayId: day.id, exerciseId: exerciseC.id, section: 'principal',
@@ -348,6 +361,30 @@ async function seedReleasedWorkout(
     dayId: day.id,
     exerciseIds: [exerciseA.id, exerciseB.id],
   };
+}
+
+/** Real #404 writer: the execution tests must not manufacture a ledger identifier. */
+async function recordExecutionReplacement(fixture: Fixture, originalUnitId: string, operationKey: string) {
+  // The original execution suite uses LEAD fixtures; the real #404 student's
+  // authenticated membership must be active before a substitution request.
+  await prisma.aluno.update({ where: { id: fixture.alunoId }, data: { status: 'ACTIVE_STUDENT' } });
+  const candidate = await prisma.workoutExercise.findFirstOrThrow({
+    where: { workoutDayId: fixture.dayId, id: { not: originalUnitId } },
+    select: { exerciseId: true, exercise: { select: { version: true } } },
+  });
+  const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+    where: { workoutDayId: fixture.dayId }, select: { version: true },
+  });
+  return createTrainingSubstitutionService(prisma).create({
+    sessionId: fixture.dayId,
+    actor: { kind: 'student', userId: fixture.alunoUserId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId },
+    kind: 'exercise', context: 'execution', originalUnitId,
+    replacementUnitId: candidate.exerciseId,
+    expectedReplacementVersion: `exercicio:${candidate.exercise.version}`,
+    reason: 'Substituição efetiva documentada durante a sessão',
+    operationKey, expectedExecutionVersion: execution.version,
+  });
 }
 
 function transition(
@@ -1090,11 +1127,18 @@ describeDatabase('workout session execution persistence - issue 389', () => {
       where: { workoutExerciseId: fixture.exerciseIds[0] },
     });
     expect(snapshot.catalog).toMatchObject({ name: before.current?.exerciseName });
+    // An approved catalog cannot gain third-party media without source and license.
+    await expect(prisma.exerciseLibrary.update({
+      where: { id: exercise.exerciseId },
+      data: { videoUrl: 'https://example.org/video-sem-licenca' },
+    })).rejects.toThrow();
     await prisma.exerciseLibrary.update({
       where: { id: exercise.exerciseId },
       data: {
         name: 'Nome alterado depois da liberação',
         videoUrl: 'https://example.org/video-alterado',
+        mediaOrigin: 'video de teste criado pela equipe',
+        mediaLicense: 'conteudo proprio de teste',
         notes: 'Orientação editada depois da liberação',
       },
     });
@@ -1562,6 +1606,142 @@ describeDatabase('resistance blocks - historical identity and transactional pers
     }));
     return { fixture, input };
   }
+
+  it.each(['draft', 'in_review', 'inactive'] as const)(
+    '#394: bloqueia nova aplicacao %s em adicao, dia e semana; aceita apos aprovacao',
+    async (curationStatus) => {
+      const { fixture, input } = await editableFixture(`issue394-new-${curationStatus}`);
+      const day = await prisma.workoutDay.findUniqueOrThrow({
+        where: { id: fixture.dayId }, select: { templateId: true },
+      });
+      const candidate = await prisma.exerciseLibrary.create({
+        data: { contractId: fixture.contractId, name: `Exercicio ${curationStatus}`, curationStatus,
+          category: 'RESISTIDO', capacity: 'resisted', instructions: ['Iniciar movimento'] },
+      });
+      const newInput = {
+        workoutDayId: fixture.dayId, exerciseId: candidate.id,
+        section: 'resfriamento', exerciseOrder: 1,
+      };
+      const before = await prisma.workoutExercise.count({ where: { workoutDayId: fixture.dayId } });
+      await expect(workoutService.addExerciseToDay(newInput, fixture.contractId))
+        .rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+      await expect(workoutService.replaceDayResistanceExercises(
+        fixture.dayId, [...input, newInput], fixture.contractId,
+      )).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+      await expect(workoutService.saveTemplateWeek(day.templateId, {
+        resistedExercises: { 2: { sessao: input, resfriamento: [newInput] } },
+      }, fixture.contractId)).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+      expect(await prisma.workoutExercise.count({ where: { workoutDayId: fixture.dayId } }))
+        .toBe(before);
+
+      await prisma.exerciseLibrary.update({
+        where: { id: candidate.id }, data: { curationStatus: 'approved',
+          reviewedByUserId: 'fixture-reviewer', reviewedAt: new Date(), lastCurationAction: 'approve' },
+      });
+      await expect(workoutService.addExerciseToDay(newInput, fixture.contractId))
+        .resolves.toMatchObject({ exerciseId: candidate.id });
+    },
+  );
+
+  it('#394 A-394-016: legacy release rechecks all linked exercises at publication', async () => {
+    const { fixture } = await editableFixture('issue394-legacy-release-denied');
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, select: { templateId: true },
+    });
+    const linked = await prisma.workoutExercise.findFirstOrThrow({
+      where: { workoutDayId: fixture.dayId }, select: { exerciseId: true },
+    });
+    await prisma.exerciseLibrary.update({
+      where: { id: linked.exerciseId }, data: { curationStatus: 'inactive' },
+    });
+
+    await expect(workoutService.releaseTemplate(day.templateId, fixture.contractId))
+      .rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    expect(await prisma.workoutTemplate.findUniqueOrThrow({
+      where: { id: day.templateId }, select: { released: true, releasedAt: true },
+    })).toMatchObject({ released: false, releasedAt: null });
+    expect(await prisma.workoutReleasedExerciseSnapshot.count({
+      where: { workoutExerciseId: { in: fixture.exerciseIds } },
+    })).toBe(0);
+    await expect(workoutService.releaseTemplate(day.templateId, 'foreign-tenant'))
+      .rejects.toMatchObject({ code: 'RESISTANCE_DAY_NOT_FOUND' });
+
+    const eligible = await editableFixture('issue394-legacy-release-approved');
+    const validDay = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: eligible.fixture.dayId }, select: { templateId: true },
+    });
+    await expect(workoutService.releaseTemplate(validDay.templateId, eligible.fixture.contractId))
+      .resolves.toMatchObject({ released: true });
+    await prisma.exerciseLibrary.update({
+      where: { id: eligible.input[0].exerciseId }, data: { curationStatus: 'inactive' },
+    });
+    // A previously published prescription remains available/idempotent.
+    await expect(workoutService.releaseTemplate(validDay.templateId, eligible.fixture.contractId))
+      .resolves.toMatchObject({ released: true });
+  });
+
+  it('#394: preserva linhas existentes desativadas, mas rejeita copia como nova aplicacao', async () => {
+    const { fixture, input } = await editableFixture('issue394-copy-inactive');
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input, fixture.contractId);
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: fixture.dayId }, select: { templateId: true },
+    });
+    const initialIds = (await prisma.workoutExercise.findMany({
+      where: { workoutDayId: fixture.dayId }, orderBy: { exerciseOrder: 'asc' }, select: { id: true },
+    })).map((row) => row.id);
+    await prisma.exerciseLibrary.update({
+      where: { id: input[0].exerciseId }, data: { curationStatus: 'inactive' },
+    });
+    await workoutService.replaceDayResistanceExercises(fixture.dayId, input, fixture.contractId);
+    await workoutService.saveTemplateWeek(day.templateId, {
+      resistedExercises: { 2: { sessao: input } },
+    }, fixture.contractId);
+    const persisted = (await prisma.workoutExercise.findMany({
+      where: { workoutDayId: fixture.dayId }, orderBy: { exerciseOrder: 'asc' }, select: { id: true },
+    })).map((row) => row.id);
+    expect(persisted).toEqual(initialIds);
+
+    const targetWeekStartDate = new Date('2026-10-12T12:00:00.000Z');
+    await expect(workoutService.copyTemplate(day.templateId, 2, targetWeekStartDate))
+      .rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    await expect(workoutService.copyTemplateSections(day.templateId, 2, targetWeekStartDate, 'resistance'))
+      .rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    await expect(workoutService.copyDay(fixture.dayId, 3, targetWeekStartDate))
+      .rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    expect(await prisma.workoutExercise.count({ where: { workoutDayId: fixture.dayId } }))
+      .toBe(initialIds.length);
+    expect(await prisma.workoutTemplate.count({ where: {
+      planId: (await prisma.workoutTemplate.findUniqueOrThrow({
+        where: { id: day.templateId }, select: { planId: true },
+      })).planId, weekNumber: 2,
+    } })).toBe(0);
+
+    // Cyclic-only copy never reapplies resistance exercises.
+    const cyclicCopy = await workoutService.copyTemplateSections(
+      day.templateId, 2, targetWeekStartDate, 'cyclic',
+    );
+    expect(cyclicCopy).toBeTruthy();
+    expect(cyclicCopy!.workoutDays.flatMap((candidate) => candidate.exercises)).toHaveLength(0);
+  });
+
+  it('#394: rejeita exercicio aprovado de contrato diferente em nova aplicacao', async () => {
+    const own = await editableFixture('issue394-own');
+    const foreign = await editableFixture('issue394-foreign');
+    const candidate = {
+      workoutDayId: own.fixture.dayId,
+      exerciseId: foreign.input[0].exerciseId, section: 'resfriamento', exerciseOrder: 1,
+    };
+    const day = await prisma.workoutDay.findUniqueOrThrow({
+      where: { id: own.fixture.dayId }, select: { templateId: true },
+    });
+    await expect(workoutService.replaceDayResistanceExercises(
+      own.fixture.dayId, [...own.input, candidate], own.fixture.contractId,
+    )).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    await expect(workoutService.saveTemplateWeek(day.templateId, {
+      resistedExercises: { 2: { sessao: own.input, resfriamento: [candidate] } },
+    }, own.fixture.contractId)).rejects.toMatchObject({ code: 'INVALID_RESISTANCE_STRUCTURE' });
+    expect(await prisma.workoutExercise.count({ where: { workoutDayId: own.fixture.dayId } })).toBe(2);
+  });
 
   it('salvamentos repetidos preservam ids de exercícios, blocos e séries', async () => {
     const { fixture, input } = await editableFixture('issue399-replay');
@@ -3106,6 +3286,135 @@ describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
     })).catalog).toMatchObject({ name: originalName });
   });
 
+  it('#394 A-394-019: new releases freeze licensed video provenance and protect historical views', async () => {
+    const fixture = await seedReleasedWorkout('issue394-release-media-license', { licensedMedia: true });
+    const exercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] }, select: { exerciseId: true, workoutDay: { select: { templateId: true } } },
+    });
+    const snapshot = await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
+      where: { workoutExerciseId: fixture.exerciseIds[0] },
+    });
+    expect(snapshot.catalog).toMatchObject({
+      videoUrl: 'https://example.org/issue394/original-licensed-video',
+      mediaOrigin: 'Produção original do catálogo', mediaLicense: 'Licença própria registrada',
+      legacyGrandfathered: false,
+    });
+    const before = await workoutService.getTemplateById(exercise.workoutDay.templateId);
+    const original = before!.workoutDays.flatMap((day) => day.exercises)
+      .find((item) => item.id === fixture.exerciseIds[0]);
+    expect(original?.exercise).toMatchObject({
+      videoUrl: 'https://example.org/issue394/original-licensed-video',
+      mediaOrigin: 'Produção original do catálogo', mediaLicense: 'Licença própria registrada',
+    });
+
+    // A later licensed catalog revision must not change the originally released rights or URL.
+    await prisma.exerciseLibrary.update({ where: { id: exercise.exerciseId }, data: {
+      videoUrl: 'https://example.org/issue394/new-video',
+      mediaOrigin: 'Outra produção', mediaLicense: 'Outra licença',
+    } });
+    const after = await workoutService.getTemplateById(exercise.workoutDay.templateId);
+    const released = after!.workoutDays.flatMap((day) => day.exercises)
+      .find((item) => item.id === fixture.exerciseIds[0]);
+    expect(released?.exercise).toMatchObject({
+      videoUrl: 'https://example.org/issue394/original-licensed-video',
+      mediaOrigin: 'Produção original do catálogo', mediaLicense: 'Licença própria registrada',
+    });
+    const persisted = await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
+      where: { workoutExerciseId: fixture.exerciseIds[0] },
+    });
+    expect(persisted.catalog).toEqual(snapshot.catalog);
+  });
+
+  it('#394 A-394-019: pre-existing snapshots without provenance stay unmodified and suppress the URL', async () => {
+    const fixture = await seedReleasedWorkout('issue394-preexisting-no-license', {
+      publish: false, licensedMedia: true,
+    });
+    const exercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] }, select: { workoutDay: { select: { templateId: true } } },
+    });
+    const original = { name: 'Snapshot anterior à migração',
+      videoUrl: 'https://example.org/issue394/old-video-without-proof' };
+    await prisma.workoutReleasedExerciseSnapshot.create({
+      data: { workoutExerciseId: fixture.exerciseIds[0], catalog: original },
+    });
+    await workoutService.releaseTemplate(exercise.workoutDay.templateId, fixture.contractId);
+    const snapshot = await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
+      where: { workoutExerciseId: fixture.exerciseIds[0] },
+    });
+    expect(snapshot.catalog).toEqual(original);
+    const template = await workoutService.getTemplateById(exercise.workoutDay.templateId);
+    const released = template!.workoutDays.flatMap((day) => day.exercises)
+      .find((item) => item.id === fixture.exerciseIds[0]);
+    expect(released?.exercise).toMatchObject({ name: original.name, videoUrl: null });
+  });
+
+
+  it('#394 A-021: historical WorkoutExecution preserves release data and redacts old media', async () => {
+    const fixture = await seedReleasedWorkout('issue394-a021-unlicensed-history', {
+      publish: false, licensedMedia: true,
+    });
+    const exercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] },
+      select: { exerciseId: true, workoutDay: { select: { templateId: true } } },
+    });
+    const original = { name: 'Recorded exercise', videoUrl: 'https://example.org/old-unlicensed' };
+    await prisma.workoutReleasedExerciseSnapshot.create({
+      data: { workoutExerciseId: fixture.exerciseIds[0], catalog: original },
+    });
+    await workoutService.releaseTemplate(exercise.workoutDay.templateId, fixture.contractId);
+    await prisma.workoutExecution.create({ data: {
+      workoutExerciseId: fixture.exerciseIds[0], alunoId: fixture.alunoId,
+      executionDate: new Date('2026-10-07T09:00:00.000Z'), setsCompleted: 3,
+    } });
+    await prisma.exerciseLibrary.update({ where: { id: exercise.exerciseId }, data: {
+      name: 'Changed live name', videoUrl: 'https://example.org/new-licensed',
+      mediaOrigin: 'Later creator', mediaLicense: 'License acquired later',
+    } });
+    const rows = await workoutService.getExecutionsByAluno(
+      fixture.alunoId, new Date('2026-10-06T00:00:00.000Z'), new Date('2026-10-08T00:00:00.000Z'),
+    );
+    const row = rows.find((item) => item.workoutExercise.id === fixture.exerciseIds[0]);
+    expect(row?.setsCompleted).toBe(3);
+    expect(row?.workoutExercise.exercise).toMatchObject({ name: original.name, videoUrl: null });
+    expect(JSON.stringify(row)).not.toContain('releasedCatalog');
+    expect((await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
+      where: { workoutExerciseId: fixture.exerciseIds[0] },
+    })).catalog).toEqual(original);
+    expect((await prisma.exerciseLibrary.findUniqueOrThrow({
+      where: { id: exercise.exerciseId },
+    })).videoUrl).toBe('https://example.org/new-licensed');
+  });
+
+  it('#394 A-021: licensed media at release remains visible after catalog changes', async () => {
+    const fixture = await seedReleasedWorkout('issue394-a021-licensed-history', {
+      publish: false, licensedMedia: true,
+    });
+    const exercise = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[0] },
+      select: { exerciseId: true, workoutDay: { select: { templateId: true } } },
+    });
+    await workoutService.releaseTemplate(exercise.workoutDay.templateId, fixture.contractId);
+    await prisma.workoutExecution.create({ data: {
+      workoutExerciseId: fixture.exerciseIds[0], alunoId: fixture.alunoId,
+      executionDate: new Date('2026-10-07T09:00:00.000Z'), repsCompleted: 8,
+    } });
+    await prisma.exerciseLibrary.update({ where: { id: exercise.exerciseId }, data: {
+      videoUrl: 'https://example.org/new-recording',
+      mediaOrigin: 'Later producer', mediaLicense: 'Later license',
+    } });
+    const rows = await workoutService.getExecutionsByAluno(
+      fixture.alunoId, new Date('2026-10-06T00:00:00.000Z'), new Date('2026-10-08T00:00:00.000Z'),
+    );
+    expect(rows[0]?.workoutExercise.exercise).toMatchObject({
+      videoUrl: 'https://example.org/issue394/original-licensed-video',
+      mediaOrigin: 'Produção original do catálogo', mediaLicense: 'Licença própria registrada',
+    });
+    expect(rows[0]?.repsCompleted).toBe(8);
+    expect(await workoutService.getExecutionsByAluno(
+      'another-student', new Date('2026-10-06T00:00:00.000Z'), new Date('2026-10-08T00:00:00.000Z'),
+    )).toEqual([]);
+  });
+
   it('A-004: consolidated release also captures the immutable catalog', async () => {
     const fixture = await seedReleasedWorkout('issue400-release-snapshot-consolidated');
     const exercise = await prisma.workoutExercise.findUniqueOrThrow({
@@ -3196,14 +3505,30 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
     expect((await service.getGuidedForSession(scope)).completed).toBe(0);
 
     // A deliberate manual correction can retain the legitimate substitution.
+    const linked = await recordExecutionReplacement(fixture, current.plannedUnitId, '40122-linked-replacement');
     const corrected = await service.saveValues({ ...scope, payload: {
       operationKey: '40122-correct-to-substitution', expectedVersion: negative.version,
       items: [{ plannedUnitId: current.plannedUnitId, plannedSetId: current.plannedSetId,
         setNumber: current.setNumber, outcome: 'substituted',
-        substitutionNote: 'Adaptação orientada pelo professor' }],
+        substitutionNote: 'Adaptação orientada pelo professor', substitutionId: linked.id }],
     } });
+    const beforeSubstituted = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, include: { items: true, operations: true },
+    });
+    await expect(service.completeGuided({ ...scope, payload: {
+      operationKey: '40122-stale-substitution-denied', expectedVersion: corrected.version, ...guidance,
+    } })).rejects.toMatchObject({
+      statusCode: 409, code: 'WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME',
+    });
+    expect(await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, include: { items: true, operations: true },
+    })).toEqual(beforeSubstituted);
+    expect((await service.getGuidedForSession(scope)).completed).toBe(0);
+
     const confirmation = { operationKey: '40122-valid-confirmation',
-      expectedVersion: corrected.version, ...guidance };
+      expectedVersion: corrected.version, ...guidance,
+      outcome: 'substituted' as const, substitutionId: linked.id,
+      substitutionNote: 'Adaptação orientada pelo professor' };
     const guided = await service.completeGuided({ ...scope, payload: confirmation });
     expect(guided).toMatchObject({ completed: 1 });
     expect(await concurrentService.completeGuided({ ...scope, payload: confirmation }))
@@ -3222,6 +3547,28 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
       && unit.plannedUnitId === current.plannedSetId)).toMatchObject({
       outcome: 'substituted', substitutionNote: 'Adaptação orientada pelo professor',
     });
+  });
+
+  it('A-404-STALE: guided confirmation keeps an existing partial classification without a replacement link', async () => {
+    const fixture = await seedReleasedWorkout('404-guided-partial-safe', { seedGuidedResistance: true });
+    const currentScope = { sessionId: fixture.dayId, alunoId: fixture.alunoId,
+      contractId: fixture.contractId, actorUserId: fixture.alunoUserId };
+    await transition(fixture, '404-partial-start', 0, 'in_progress');
+    const current = (await service.getGuidedForSession(currentScope)).current!;
+    const recorded = await service.saveValues({ ...currentScope, payload: {
+      operationKey: '404-partial-record', expectedVersion: 1,
+      items: [{ plannedUnitId: current.plannedUnitId, plannedSetId: current.plannedSetId,
+        setNumber: current.setNumber, outcome: 'partial', repetitions: 4 }],
+    } });
+    const guided = await service.completeGuided({ ...currentScope, payload: {
+      operationKey: '404-partial-confirm', expectedVersion: recorded.version,
+      plannedUnitId: current.plannedUnitId, plannedSetId: current.plannedSetId,
+      setNumber: current.setNumber, repetitions: 6, loadKg: 20,
+    } });
+    expect(guided.completed).toBe(1);
+    const saved = await service.getForSession(currentScope);
+    expect(saved.items[0]).toMatchObject({ outcome: 'partial', repetitions: 6, loadKg: 20 });
+    expect(saved.items[0].substitutionId).toBeNull();
   });
 
   it('A-401023: non-performance cannot carry executed items or session measurements', async () => {
@@ -3877,15 +4224,17 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
     const save = (
       operationKey: string, expectedVersion: number,
       item: { outcome?: 'full' | 'partial' | 'substituted' | 'not_performed';
-        substitutionNote?: string | null; loadKg?: number; repetitions?: number },
+        substitutionNote?: string | null; substitutionId?: string | null; loadKg?: number; repetitions?: number },
     ) => service.saveValues({ ...scope, payload: {
       operationKey, expectedVersion,
       items: [{ plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSet.id, ...item }],
     } });
 
     await transition(fixture, '40118-substitution-start', 0, 'in_progress');
+    const linked = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '40118-linked-replacement');
     const initial = await save('40118-substitution-initial', 1, {
-      outcome: 'substituted', substitutionNote: '  Remada adaptada  ', loadKg: 20, repetitions: 10,
+      outcome: 'substituted', substitutionNote: '  Remada adaptada  ',
+      substitutionId: linked.id, loadKg: 20, repetitions: 10,
     });
     expect(initial.version).toBe(2);
     expect(initial.items[0]).toMatchObject({
@@ -4073,6 +4422,7 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
     ]);
 
     await transition(fixture, 'issue401-start-comparison', 0, 'in_progress');
+    const linked = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '401-frozen-comparison-link');
     const frozen = await prisma.workoutSessionExecution.findUniqueOrThrow({
       where: { workoutDayId: fixture.dayId },
     });
@@ -4098,6 +4448,7 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
         items: [{
           plannedUnitId: fixture.exerciseIds[0], plannedSetId: plannedSet.id,
           setNumber: 1, outcome: 'substituted', substitutionNote: 'Versão sem carga',
+          substitutionId: linked.id,
           repetitions: 9, loadKg: 0, rir: 2, rpe: 7, tempo: '2-0-2', restSec: 45,
         }],
       },
@@ -4244,6 +4595,7 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
   it('A-401-13/14: persisted legacy records retain separate measures through the read API', async () => {
     const fixture = await seedReleasedWorkout('issue401-legacy-item-metrics');
     await transition(fixture, 'issue401-legacy-items-start', 0, 'in_progress');
+    const linked = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '401-legacy-items-link');
     const input = {
       sessionId: fixture.dayId, alunoId: fixture.alunoId,
       contractId: fixture.contractId, actorUserId: fixture.alunoUserId,
@@ -4254,7 +4606,8 @@ describeDatabase('issue #401: frozen planned versus executed comparison', () => 
             repetitions: 10, loadKg: 20, durationSec: 0, distanceKm: 0,
             pace: '6:30', heartRateBpm: 145, heartRateZone: 'Z3' },
           { plannedUnitId: fixture.exerciseIds[0], setNumber: 2, outcome: 'substituted' as const,
-            substitutionNote: 'Adaptação do exercício', repetitions: 8, loadKg: 22,
+            substitutionNote: 'Adaptação do exercício', substitutionId: linked.id,
+            repetitions: 8, loadKg: 22,
             durationSec: 600, distanceKm: 1.5, pace: '6:00',
             heartRateBpm: 151, heartRateZone: 'Z4' },
         ],
@@ -4994,4 +5347,348 @@ describeDatabase('issue #489: guided cyclic stages share the canonical lifecycle
       where: { executionId: execution.id, action: 'guided_cyclic_start' },
     })).toBe(1);
   });
+});
+
+
+describeDatabase('issue #404: canonical execution references the audited substitution ledger', () => {
+  const scope = (fixture: Fixture) => ({
+    sessionId: fixture.dayId, alunoId: fixture.alunoId,
+    contractId: fixture.contractId, actorUserId: fixture.alunoUserId,
+  });
+
+  it('A-404-008: the guided completion atomically records a preapproved exercise substitution', async () => {
+    const fixture = await seedReleasedWorkout('404-guided-preapproved', { seedGuidedResistance: true });
+    const professor = await prisma.professor.findFirstOrThrow({
+      where: { userId: fixture.professorUserId, contractId: fixture.contractId },
+    });
+    const alternative = await prisma.workoutExercise.findUniqueOrThrow({
+      where: { id: fixture.exerciseIds[1] },
+      select: { exerciseId: true, exercise: { select: { version: true } } },
+    });
+    const approved = await createTrainingSubstitutionService(prisma).create({
+      sessionId: fixture.dayId,
+      actor: { kind: 'professor', userId: fixture.professorUserId,
+        professorId: professor.id, contractId: fixture.contractId },
+      kind: 'exercise', context: 'planning', originalUnitId: fixture.exerciseIds[0],
+      replacementUnitId: alternative.exerciseId,
+      expectedReplacementVersion: `exercicio:${alternative.exercise.version}`,
+      reason: 'Alternativa liberada pelo profissional', operationKey: '404-guided-preapproval',
+    });
+    await transition(fixture, '404-guided-preapproval-start', 0, 'in_progress');
+    const before = await service.getForSession(scope(fixture));
+    expect(before.items).toHaveLength(0); // Approval is not execution.
+    const current = (await service.getGuidedForSession(scope(fixture))).current!;
+    const payload = {
+      operationKey: '404-guided-preapproval-executed', expectedVersion: 1,
+      plannedUnitId: current.plannedUnitId, plannedSetId: current.plannedSetId,
+      setNumber: current.setNumber, repetitions: 9, loadKg: 29,
+      outcome: 'substituted' as const, substitutionId: approved.id,
+      substitutionNote: 'Aluno executou o substituto pré-aprovado',
+    };
+    const guided = await service.completeGuided({ ...scope(fixture), payload });
+    expect(guided).toMatchObject({ completed: 1, version: 2 });
+    const replay = await concurrentService.completeGuided({ ...scope(fixture), payload });
+    expect(replay).toMatchObject({ completed: 1, version: 2 });
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, include: { items: true, operations: true },
+    });
+    expect(execution.items).toHaveLength(1);
+    expect(execution.items[0]).toMatchObject({
+      plannedUnitId: current.plannedUnitId, plannedSetId: current.plannedSetId,
+      outcome: 'substituted', substitutionId: approved.id,
+      substitutionNote: 'Aluno executou o substituto pré-aprovado',
+      repetitions: 9, loadKg: 29,
+    });
+    expect(execution.operations.filter(item => item.action === 'complete_resistance_set')).toHaveLength(1);
+    const plan = readCapturedWorkoutComparisonPlan(execution.plannedSnapshot)!;
+    const comparison = compareWorkoutSession(plan, await service.getForSession(scope(fixture)), 'captured');
+    expect(comparison.units.find(unit => unit.kind === 'exercise'
+      && unit.plannedUnitId === fixture.exerciseIds[0])).toMatchObject({
+      containsSubstitution: true, substitutionId: approved.id,
+    });
+  });
+
+  it('A-404-008: a pending execution-time replacement can be confirmed, but a forged or wrong-unit link cannot', async () => {
+    const fixture = await seedReleasedWorkout('404-guided-pending', { seedGuidedResistance: true });
+    const other = await seedReleasedWorkout('404-guided-foreign', { seedGuidedResistance: true });
+    await transition(fixture, '404-guided-pending-start', 0, 'in_progress');
+    await transition(other, '404-guided-foreign-start', 0, 'in_progress');
+    const own = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '404-guided-pending-swap');
+    const foreign = await recordExecutionReplacement(other, other.exerciseIds[0], '404-guided-foreign-swap');
+    const current = (await service.getGuidedForSession(scope(fixture))).current!;
+    const payload = {
+      operationKey: '404-guided-pending-execution', expectedVersion: 1,
+      plannedUnitId: current.plannedUnitId, plannedSetId: current.plannedSetId,
+      setNumber: current.setNumber, repetitions: 8, loadKg: 25,
+      outcome: 'substituted' as const, substitutionId: own.id,
+      substitutionNote: 'Outra variação executada pelo aluno',
+    };
+    for (const [key, data] of [
+      ['note-only', { substitutionId: undefined }],
+      ['forged', { substitutionId: 'not-a-ledger-link' }],
+      ['cross-tenant', { substitutionId: foreign.id }],
+    ] as const) {
+      await expect(service.completeGuided({ ...scope(fixture), payload: {
+        ...payload, ...data, operationKey: '404-guided-denied-' + key,
+      } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    }
+    expect((await service.getForSession(scope(fixture))).version).toBe(1);
+    const saved = await service.completeGuided({ ...scope(fixture), payload });
+    expect(saved).toMatchObject({ version: 2, completed: 1 });
+    expect((await service.getForSession(scope(fixture))).items[0]).toMatchObject({
+      outcome: 'substituted', substitutionId: own.id,
+    });
+    expect(await prisma.workoutSessionExecutionOperation.count({
+      where: { execution: { workoutDayId: fixture.dayId },
+        action: 'complete_resistance_set' },
+    })).toBe(1);
+  });
+
+  it('rejects note-only exercise substitution and a forged ledger ID without any execution side effects', async () => {
+    const fixture = await seedReleasedWorkout('404-execution-no-bypass');
+    await transition(fixture, '404-execution-start', 0, 'in_progress');
+    const initialEvents = await prisma.studentLifecycleEvent.count({
+      where: { alunoId: fixture.alunoId, contractId: fixture.contractId },
+    });
+    const attempts = [
+      { outcome: 'substituted' as const, substitutionNote: 'Troca sem catálogo' },
+      { outcome: 'substituted' as const, substitutionNote: 'ID inventado', substitutionId: randomUUID() },
+    ];
+    for (const [index, item] of attempts.entries()) {
+      await expect(service.saveValues({ ...scope(fixture), payload: {
+        operationKey: `404-no-bypass-${index}`, expectedVersion: 1,
+        items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1, ...item }],
+      } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    }
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, include: { items: true, operations: true },
+    });
+    expect(execution.version).toBe(1);
+    expect(execution.items).toHaveLength(0);
+    expect(execution.operations).toHaveLength(1); // start only
+    expect(await prisma.studentLifecycleEvent.count({
+      where: { alunoId: fixture.alunoId, contractId: fixture.contractId },
+    })).toBe(initialEvents);
+  });
+
+  it('rejects cross-tenant and wrong-planned-unit links; accepts only the verified original', async () => {
+    const fixture = await seedReleasedWorkout('404-linked-valid');
+    const other = await seedReleasedWorkout('404-linked-foreign');
+    await transition(fixture, '404-linked-start', 0, 'in_progress');
+    await transition(other, '404-foreign-start', 0, 'in_progress');
+    const own = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '404-canonical-own');
+    const foreign = await recordExecutionReplacement(other, other.exerciseIds[0], '404-canonical-foreign');
+    const put = (key: string, substitutionId: string, plannedUnitId = fixture.exerciseIds[0]) =>
+      service.saveValues({ ...scope(fixture), payload: {
+        operationKey: key, expectedVersion: 1,
+        items: [{ plannedUnitId, setNumber: 1, outcome: 'substituted',
+          substitutionNote: 'Troca comprovada na mesma sessão', substitutionId }],
+      } });
+    await expect(put('404-linked-cross-tenant', foreign.id))
+      .rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    await expect(put('404-linked-wrong-original', own.id, fixture.exerciseIds[1]))
+      .rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    expect((await service.getForSession(scope(fixture))).version).toBe(1);
+    const recorded = await put('404-linked-correct', own.id);
+    expect(recorded.items[0]).toMatchObject({ outcome: 'substituted', substitutionId: own.id });
+    const stored = await prisma.workoutSessionExecutionItem.findFirstOrThrow({
+      where: { execution: { workoutDayId: fixture.dayId }, plannedUnitId: fixture.exerciseIds[0] },
+    });
+    expect(stored.substitutionId).toBe(own.id);
+    expect((await put('404-linked-correct', own.id)).version).toBe(recorded.version);
+    const plan = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, select: { plannedSnapshot: true },
+    });
+    const frozen = readCapturedWorkoutComparisonPlan(plan.plannedSnapshot)!;
+    const compared = compareWorkoutSession(frozen, recorded, 'captured');
+    // One recorded set does not cover all three prescribed sets. The exercise
+    // remains incomplete, but the confirmed replacement link must still be visible.
+    expect(compared.units.find((unit) => unit.kind === 'exercise'
+      && unit.plannedUnitId === fixture.exerciseIds[0])).toMatchObject({
+      outcome: 'incomplete_record', containsSubstitution: true, substitutionId: own.id,
+      substitutionNote: 'Troca comprovada na mesma sessão',
+    });
+  });
+
+  it('links a professional preapproval without pretending that selection already means execution', async () => {
+    const fixture = await seedReleasedWorkout('404-preapproved-boundary');
+    const prof = await prisma.professor.findFirstOrThrow({
+      where: { userId: fixture.professorUserId, contractId: fixture.contractId },
+    });
+    const candidate = await prisma.workoutExercise.findFirstOrThrow({
+      where: { workoutDayId: fixture.dayId, id: fixture.exerciseIds[1] },
+      select: { exerciseId: true, exercise: { select: { version: true } } },
+    });
+    const approved = await createTrainingSubstitutionService(prisma).create({
+      sessionId: fixture.dayId,
+      actor: { kind: 'professor', userId: fixture.professorUserId,
+        professorId: prof.id, contractId: fixture.contractId },
+      kind: 'exercise', context: 'planning', originalUnitId: fixture.exerciseIds[0],
+      replacementUnitId: candidate.exerciseId,
+      expectedReplacementVersion: `exercicio:${candidate.exercise.version}`,
+      reason: 'Ajuste profissional previamente aprovado', operationKey: '404-professor-preapproved',
+    });
+    expect(approved.status).toBe('approved');
+    await transition(fixture, '404-preapproved-start', 0, 'in_progress');
+    expect((await service.getForSession(scope(fixture))).items).toHaveLength(0);
+    const result = await service.saveValues({ ...scope(fixture), payload: {
+      operationKey: '404-preapproved-record', expectedVersion: 1,
+      items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
+        outcome: 'substituted', substitutionNote: 'Executado conforme aprovação anterior',
+        substitutionId: approved.id, repetitions: 10 }],
+    } });
+    expect(result.items[0]?.substitutionId).toBe(approved.id);
+    expect(await prisma.workoutSubstitution.count({
+      where: { id: approved.id, status: 'approved', context: 'planning' },
+    })).toBe(1);
+  });
+
+  it('protects the database from unlinked and cross-tenant direct writes', async () => {
+    const fixture = await seedReleasedWorkout('404-db-integrity');
+    const alien = await seedReleasedWorkout('404-db-integrity-alien');
+    await transition(fixture, '404-db-integrity-start', 0, 'in_progress');
+    await transition(alien, '404-db-integrity-alien-start', 0, 'in_progress');
+    const otherLink = await recordExecutionReplacement(alien, alien.exerciseIds[0], '404-db-foreign-ledger');
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, select: { id: true },
+    });
+    await expect(prisma.workoutSessionExecutionItem.create({ data: {
+      executionId: execution.id, plannedUnitId: fixture.exerciseIds[0],
+      setNumber: 1, outcome: 'substituted', substitutionNote: 'Sem ledger',
+    } })).rejects.toThrow();
+    await expect(prisma.workoutSessionExecutionItem.create({ data: {
+      executionId: execution.id, plannedUnitId: fixture.exerciseIds[0],
+      setNumber: 1, outcome: 'substituted', substitutionNote: 'ID de outro contrato',
+      substitutionId: otherLink.id,
+    } })).rejects.toThrow();
+    expect(await prisma.workoutSessionExecutionItem.count({
+      where: { executionId: execution.id },
+    })).toBe(0);
+  });
+
+  it('A-404-NULL: SQL denies linked outcomes without substituted classification on INSERT and UPDATE', async () => {
+    const fixture = await seedReleasedWorkout('404-db-null-outcome');
+    await transition(fixture, '404-db-null-start', 0, 'in_progress');
+    const own = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '404-db-null-ledger');
+    const execution = await prisma.workoutSessionExecution.findUniqueOrThrow({
+      where: { workoutDayId: fixture.dayId }, select: { id: true },
+    });
+    const identity = { executionId: execution.id, plannedUnitId: fixture.exerciseIds[0], setNumber: 1 };
+    await expect(prisma.workoutSessionExecutionItem.create({ data: {
+      ...identity, outcome: null, substitutionId: own.id,
+    } })).rejects.toThrow();
+    expect(await prisma.workoutSessionExecutionItem.count({ where: { executionId: execution.id } }))
+      .toBe(0);
+
+    const original = await prisma.workoutSessionExecutionItem.create({ data: {
+      ...identity, outcome: null,
+    } });
+    await expect(prisma.workoutSessionExecutionItem.update({
+      where: { id: original.id }, data: { substitutionId: own.id },
+    })).rejects.toThrow();
+    expect(await prisma.workoutSessionExecutionItem.findUniqueOrThrow({ where: { id: original.id } }))
+      .toMatchObject({ outcome: null, substitutionId: null });
+
+    const legitimate = await prisma.workoutSessionExecutionItem.update({
+      where: { id: original.id }, data: {
+        outcome: 'substituted', substitutionId: own.id, substitutionNote: 'Troca confirmada no SQL',
+      },
+    });
+    expect(legitimate).toMatchObject({ outcome: 'substituted', substitutionId: own.id });
+    await expect(prisma.workoutSessionExecutionItem.update({
+      where: { id: original.id }, data: { outcome: null },
+    })).rejects.toThrow();
+    expect(await prisma.workoutSessionExecutionItem.findUniqueOrThrow({ where: { id: original.id } }))
+      .toMatchObject({ outcome: 'substituted', substitutionId: own.id });
+  });
+
+  it('cannot newly execute a substitution after explicit rejection by the professor', async () => {
+    const fixture = await seedReleasedWorkout('404-reviewed-rejected');
+    await transition(fixture, '404-reviewed-start', 0, 'in_progress');
+    const pending = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '404-reviewed-request');
+    const version = await prisma.workoutSubstitution.findUniqueOrThrow({
+      where: { id: pending.id }, select: { version: true },
+    });
+    const professor = await prisma.professor.findFirstOrThrow({
+      where: { userId: fixture.professorUserId, contractId: fixture.contractId },
+    });
+    await createTrainingSubstitutionService(prisma).review({
+      sessionId: fixture.dayId, substitutionId: pending.id,
+      actor: { kind: 'professor', userId: fixture.professorUserId, professorId: professor.id,
+        contractId: fixture.contractId },
+      action: 'reject', expectedVersion: version.version,
+      reason: 'Alternativa inadequada após avaliação técnica',
+    });
+    await expect(service.saveValues({ ...scope(fixture), payload: {
+      operationKey: '404-rejected-write', expectedVersion: 1,
+      items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
+        outcome: 'substituted', substitutionNote: 'Tentativa depois da rejeição',
+        substitutionId: pending.id }],
+    } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    expect((await service.getForSession(scope(fixture))).version).toBe(1);
+  });
+
+  it('rechecks catalog activation after the request and blocks new execution against a deactivated item', async () => {
+    const fixture = await seedReleasedWorkout('404-t3-deactivated');
+    await transition(fixture, '404-t3-deactivated-start', 0, 'in_progress');
+    const pending = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '404-t3-active-request');
+    await prisma.exerciseLibrary.update({
+      where: { id: pending.replacement.id }, data: { curationStatus: 'inactive' },
+    });
+    const before = await prisma.studentLifecycleEvent.count({
+      where: { alunoId: fixture.alunoId, contractId: fixture.contractId },
+    });
+    await expect(service.saveValues({ ...scope(fixture), payload: {
+      operationKey: '404-t3-deactivated-write', expectedVersion: 1,
+      items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
+        outcome: 'substituted', substitutionNote: 'Troca com catálogo desativado',
+        substitutionId: pending.id }],
+    } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    expect((await service.getForSession(scope(fixture))).items).toHaveLength(0);
+    expect((await service.getForSession(scope(fixture))).version).toBe(1);
+    expect(await prisma.studentLifecycleEvent.count({
+      where: { alunoId: fixture.alunoId, contractId: fixture.contractId },
+    })).toBe(before);
+    // The historical ledger remains visible despite the catalog deactivation.
+    expect(await prisma.workoutSubstitution.findUnique({ where: { id: pending.id } })).not.toBeNull();
+  });
+
+  it('rejects an alternative whose ID remains the same but version changes between request and execution', async () => {
+    const fixture = await seedReleasedWorkout('404-t3-version');
+    await transition(fixture, '404-t3-version-start', 0, 'in_progress');
+    const pending = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '404-t3-version-request');
+    await prisma.exerciseLibrary.update({
+      where: { id: pending.replacement.id }, data: { version: { increment: 1 } },
+    });
+    await expect(service.saveValues({ ...scope(fixture), payload: {
+      operationKey: '404-t3-version-stale', expectedVersion: 1,
+      items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
+        outcome: 'substituted', substitutionNote: 'Troca de versão desatualizada',
+        substitutionId: pending.id }],
+    } })).rejects.toMatchObject({ code: 'WORKOUT_SESSION_EXECUTION_INVALID' });
+    expect((await service.getForSession(scope(fixture))).items).toHaveLength(0);
+  });
+
+  it('keeps already-linked historical measurements editable after a later catalog deactivation', async () => {
+    const fixture = await seedReleasedWorkout('404-t3-historical');
+    await transition(fixture, '404-t3-history-start', 0, 'in_progress');
+    const pending = await recordExecutionReplacement(fixture, fixture.exerciseIds[0], '404-t3-history-request');
+    const first = await service.saveValues({ ...scope(fixture), payload: {
+      operationKey: '404-t3-history-first', expectedVersion: 1,
+      items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1,
+        outcome: 'substituted', substitutionNote: 'Adaptação executada e identificada',
+        substitutionId: pending.id, repetitions: 6 }],
+    } });
+    await prisma.exerciseLibrary.update({
+      where: { id: pending.replacement.id }, data: { curationStatus: 'inactive' },
+    });
+    const corrected = await service.saveValues({ ...scope(fixture), payload: {
+      operationKey: '404-t3-history-corrected', expectedVersion: first.version,
+      items: [{ plannedUnitId: fixture.exerciseIds[0], setNumber: 1, repetitions: 8 }],
+    } });
+    expect(corrected.items[0]).toMatchObject({
+      substitutionId: pending.id, substitutionNote: 'Adaptação executada e identificada', repetitions: 8,
+    });
+  });
+
 });

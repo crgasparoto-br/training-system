@@ -38,6 +38,10 @@ type ExerciseRow = {
   category?: string | null;
   muscleGroup?: string | null;
   notes?: string | null;
+  workoutExercises?: Array<{ id: string }>;
+  curationStatus?: string;
+  legacyGrandfathered?: boolean;
+  lastCurationAction?: string;
 };
 
 function createFakeDb(initial?: {
@@ -77,14 +81,21 @@ function createFakeDb(initial?: {
     return { count: args.data.length };
   });
   const exerciseUpdateMany = jest.fn(async (args: {
-    where: { contractId: string; name: string };
+    where: {
+      contractId: string; name: string;
+      workoutExercises?: { none: Record<string, never> };
+      NOT?: { curationStatus: string; legacyGrandfathered: boolean };
+    };
     data: Partial<Omit<ExerciseRow, 'contractId'>>;
   }) => {
     let count = 0;
     for (const exercise of exercises) {
       if (
         exercise.contractId === args.where.contractId &&
-        exercise.name === args.where.name
+        exercise.name === args.where.name &&
+        (!args.where.workoutExercises || !exercise.workoutExercises?.length) &&
+        (!args.where.NOT || !(exercise.curationStatus === args.where.NOT.curationStatus &&
+          exercise.legacyGrandfathered === args.where.NOT.legacyGrandfathered))
       ) {
         Object.assign(exercise, args.data);
         count++;
@@ -156,6 +167,8 @@ describe('installContractDefaults', () => {
       where: { contractId },
       select: {
         name: true,
+        curationStatus: true,
+        legacyGrandfathered: true,
         videoUrl: true,
         loadType: true,
         movementType: true,
@@ -163,8 +176,72 @@ describe('installContractDefaults', () => {
         category: true,
         muscleGroup: true,
         notes: true,
+        workoutExercises: { select: { id: true }, take: 1 },
       },
     });
+  });
+
+  it('installs brand-new defaults as drafts without a presumed review', async () => {
+    const fake = createFakeDb();
+    await installContractDefaults(contractId, fake.db);
+    const created = fake.state.exercises.filter((row) => row.contractId === contractId);
+    expect(created).toHaveLength(exerciseDefaults.length);
+    expect(created.every((row) => row.curationStatus === 'draft' &&
+      row.legacyGrandfathered === false && row.lastCurationAction === 'system_defaults_install')).toBe(true);
+  });
+
+  it('reuses an existing case/whitespace variant without a second row or lost historical link', async () => {
+    const canonical = exerciseDefaults.find((entry) => entry.name === 'Abdominal Canoa');
+    expect(canonical).toBeDefined();
+    const legacyName = '  ABDOMINAL   CANOA  ';
+    const fake = createFakeDb({ exercises: [{
+      contractId, name: legacyName, category: null, videoUrl: null,
+      workoutExercises: [{ id: 'historical-workout' }],
+    }] });
+
+    const first = await installContractDefaults(contractId, fake.db);
+    const second = await installContractDefaults(contractId, fake.db);
+    const matches = fake.state.exercises.filter((entry) =>
+      entry.contractId === contractId &&
+      entry.name.trim().replace(/\s+/g, ' ').toLowerCase() === 'abdominal canoa'
+    );
+
+    expect(first.exercises.installed).toBe(exerciseDefaults.length - 1);
+    expect(second.exercises.installed).toBe(0);
+    expect(second.exercises.skipped).toBe(exerciseDefaults.length);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({
+      name: legacyName, category: null, videoUrl: null,
+      workoutExercises: [{ id: 'historical-workout' }],
+    });
+  });
+
+  it('keeps historical canonical duplicates intact rather than renaming or deleting them', async () => {
+    const fake = createFakeDb({ exercises: [
+      { contractId, name: ' Abdominal   Canoa ', category: 'RESISTIDO', videoUrl: null },
+      { contractId, name: 'ABDOMINAL CANOA', category: 'RESISTIDO', videoUrl: null },
+    ] });
+    const before = fake.state.exercises.map((item) => item.name);
+    const first = await installContractDefaults(contractId, fake.db);
+    const second = await installContractDefaults(contractId, fake.db);
+    expect(first.exercises.installed).toBe(exerciseDefaults.length - 1);
+    expect(second.exercises.installed).toBe(0);
+    expect(fake.state.exercises.slice(0, 2).map((item) => item.name)).toEqual(before);
+    expect(fake.state.exercises.filter((item) =>
+      item.name.trim().replace(/\s+/g, ' ').toLowerCase() === 'abdominal canoa'
+    )).toHaveLength(2);
+  });
+
+  it('does not mutate or duplicate workout-linked exercises', async () => {
+    const canonical = exerciseDefaults[0];
+    const fake = createFakeDb({ exercises: [{
+      contractId, name: canonical.name, category: null, videoUrl: null,
+      workoutExercises: [{ id: 'linked-workout' }],
+    }] });
+    await installContractDefaults(contractId, fake.db);
+    expect(fake.state.exercises.filter((row) => row.name === canonical.name)).toHaveLength(1);
+    expect(fake.state.exercises.find((row) => row.name === canonical.name))
+      .toMatchObject({ category: null, videoUrl: null });
   });
 
   it.each([
@@ -320,8 +397,13 @@ describe('installContractDefaults', () => {
       muscleGroup: customMuscleGroup,
     });
     expect(fake.writes.exerciseUpdateMany).toHaveBeenCalledWith({
-      where: { contractId, name: canonical!.name },
+      where: {
+        contractId, name: canonical!.name, workoutExercises: { none: {} },
+        NOT: { curationStatus: 'approved', legacyGrandfathered: false },
+      },
       data: expect.objectContaining({
+        lastModifiedByUserId: null,
+        lastCurationAction: 'system_defaults_repair',
         loadType: canonical!.loadType,
         movementType: canonical!.movementType,
         countingType: canonical!.countingType,
@@ -330,6 +412,31 @@ describe('installContractDefaults', () => {
     });
     expect(fake.writes.exerciseUpdateMany.mock.calls.at(-1)?.[0].data).not.toHaveProperty('videoUrl');
     expect(fake.writes.exerciseUpdateMany.mock.calls.at(-1)?.[0].data).not.toHaveProperty('muscleGroup');
+  });
+
+  it('never adds unlicensed default media to an approved legacy exercise', async () => {
+    const canonical = exerciseDefaults.find((item) => item.name === 'Abdominal Bicicleta');
+    expect(canonical?.videoUrl).toBeTruthy();
+    expect(canonical?.loadType).toBeTruthy();
+    const fake = createFakeDb({ exercises: [{
+      contractId,
+      name: canonical!.name,
+      curationStatus: 'approved',
+      legacyGrandfathered: true,
+      videoUrl: null,
+      loadType: null,
+    }] });
+
+    await installContractDefaults(contractId, fake.db);
+
+    expect(fake.state.exercises.find((item) => item.name === canonical!.name)).toMatchObject({
+      videoUrl: null,
+      curationStatus: 'approved',
+      loadType: canonical!.loadType,
+    });
+    const updates = fake.writes.exerciseUpdateMany.mock.calls.map(([args]) => args.data);
+    expect(updates).not.toHaveLength(0);
+    expect(updates.every((data) => !Object.prototype.hasOwnProperty.call(data, 'videoUrl'))).toBe(true);
   });
 
   it('completa lacunas de nomes duplicados sem sobrescrever o primeiro valor preenchido', () => {
@@ -369,8 +476,15 @@ describe('installContractDefaults', () => {
     await installContractDefaults(contractId, fake.db);
 
     expect(fake.writes.exerciseUpdateMany).toHaveBeenCalledWith({
-      where: { contractId, name: corruptedName },
-      data: { name: correctName },
+      where: {
+        contractId, name: corruptedName, workoutExercises: { none: {} },
+        NOT: { curationStatus: 'approved', legacyGrandfathered: false },
+      },
+      data: {
+        name: correctName,
+        lastModifiedByUserId: null,
+        lastCurationAction: 'system_defaults_repair',
+      },
     });
     expect(fake.state.exercises.filter((item) => item.name === correctName)).toHaveLength(1);
     expect(fake.state.exercises.some((item) => item.name === corruptedName)).toBe(false);
@@ -439,19 +553,25 @@ describe('installContractDefaults', () => {
       nome?: string;
       name?: string;
     }>;
-    const canonicalNames = [
-      ...new Set(
-        canonicalRows
-          .map((row) =>
-            repairPtBrMojibake(row.name || row.nome || '')
-              .trim()
-              .replace(/\s+/g, ' ')
-          )
-          .filter(Boolean)
-      ),
-    ];
+    const canonicalNamesByIdentity = new Map<string, string>();
+    for (const row of canonicalRows) {
+      const preferredName = repairPtBrMojibake(row.name || row.nome || '')
+        .trim()
+        .replace(/\s+/g, ' ');
+      if (preferredName) {
+        const key = preferredName.toLowerCase();
+        if (!canonicalNamesByIdentity.has(key)) {
+          canonicalNamesByIdentity.set(key, preferredName);
+        }
+      }
+    }
 
-    expect(loadProductExerciseDefaults().map((item) => item.name)).toEqual(canonicalNames);
+    const actual = loadProductExerciseDefaults();
+    expect(actual.map((item) => item.name)).toEqual([...canonicalNamesByIdentity.values()]);
+    expect(actual.filter((item) => item.name.toLowerCase() === 'abdominal canoa'))
+      .toHaveLength(1);
+    expect(actual.find((item) => item.name.toLowerCase() === 'abdominal canoa')?.name)
+      .toBe('Abdominal Canoa');
   });
 
   it('mantém o catálogo canônico em UTF-8 pt-BR sem marcadores CP850', () => {

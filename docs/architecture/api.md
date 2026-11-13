@@ -59,7 +59,7 @@ As regras de produto estão em `docs/product/student-centered-training-experienc
 
 ## Coerência entre classificação e execução (#401, A-401022/A-401023)
 
-A confirmação guiada de uma série já marcada como `not_performed` é rejeitada com HTTP 409 e código `WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME` na mesma transação serializável. O aluno deve alterar explicitamente o outcome manual antes de confirmar; uma série `partial` ou `substituted` pode ser confirmada sem reclassificação silenciosa. O replay da chave idempotente preserva o estado após confirmação legítima.
+A confirmação guiada de uma série já marcada como `not_performed` é rejeitada com HTTP 409 e código `WORKOUT_SESSION_EXECUTION_INCOMPATIBLE_OUTCOME` na mesma transação serializável. O aluno deve alterar explicitamente o outcome manual antes de confirmar. Uma série `partial` pode ser confirmada preservando a classificação; uma série previamente marcada `substituted` **não** pode ser confirmada como exercício planejado por omissão dos campos de troca: retorna HTTP 409 até correção manual ou seleção explícita de `outcome=substituted`, `substitutionId` e motivo. O replay da chave idempotente preserva o estado após confirmação legítima.
 
 A transição da sessão para `not_performed` exige motivo e ausência total de `sessionValues` e `items` no payload; também recusa um shell persistido que já contenha qualquer registro executado. A rejeição HTTP 400 ocorre antes de qualquer escrita de execução, operação ou evento, e zero explícito não é tratado como ausência. A transição válida sem registros permanece disponível.
 
@@ -178,3 +178,121 @@ O PUT /api/v1/student/me/training-sessions/:sessionId/execution/values usa a mes
 ### Limites e segurança do executor cíclico (#489, remediação)
 
 A validação de sequência usa os IDs históricos da #398 e o cursor da própria execução #389. A transição pública `completed` consulta o plano e o progresso persistido na **mesma transação serializável** que grava o lifecycle/ledger; `invalid_plan`, `reconciliation_required` ou etapas pendentes retornam 409 e preservam o estado. `partial` e o fallback legado continuam pelo #389. O teto de `sessionValues.cyclicStages` é de 80.040 registros: 80.000 folhas autorizadas pela #398 e até 40 agregados opcionais dos pais `repeat` da #401; o limite é compartilhado por Zod HTTP, normalização e merge persistido. O relógio dos estados terminais é projetado pelo `finishedAt`; pausas efetivamente registradas são deduzidas de `pausedDurationMs`.
+
+
+## Prévia temporal futura da Montagem Consolidada (#403)
+
+As rotas `GET /api/v1/consolidated-prescriptions/alunos/:alunoId/combined-future-bookings`
+e `POST /api/v1/consolidated-prescriptions/alunos/:alunoId/combined-future-temporal-preview`
+exigem professor autenticado, bloco
+`plans.consolidatedPrescriptions.view`, escopo de `plans`
+e acesso à tela `agenda`. O GET recebe `start/end` em ISO UTC
+canônico. O início não pode preceder o relógio do servidor em mais de 5 minutos
+(tolerância apenas para diferenças de relógio) e o término não pode ultrapassar
+31 dias corridos a partir do mesmo relógio. Janelas curtas em futuro distante
+ou iniciadas no passado fora dessa tolerância são rejeitadas.
+O cliente calcula uma janela nova ao solicitar a prévia, mesmo quando o GET
+ocorreu mais de cinco minutos antes; o limite de 31 dias continua sendo
+reavaliado pelo servidor. A API retorna somente ID, data civil canônica
+(`bookingDate: YYYY-MM-DD`) ou `bookingDate: null` para legado não comprovado,
+horas civis e revisão `updatedAt` dos agendamentos `scheduled` do mesmo
+aluno/contrato, em **páginas de até 80 candidatos** (`page=1..100`,
+padrão 1). Todas as páginas de uma consulta reutilizam o mesmo `start/end`;
+a paginação ocorre **depois** do descarte de datas comprovadamente passadas,
+de modo que registros antigos não consumam as 80 posições. Como o GET não
+recebe fuso confirmado, ele só remove um início civil quando está fora do
+período futuro sob **todos** os deslocamentos UTC possíveis (envelope
+conservador de ±14 horas); datas legadas sem fonte civil continuam não
+verificadas, nunca convertidas usando timezone do host. Cada página mantém
+isolamento de aluno/contrato e verifica o horizonte de 31 dias. O POST
+continua limitado a 80 bookings distintos, exigindo versão da
+montagem e `updatedAt` exato das fontes. `bookingDate: null` não autoriza
+reconstruir a data a partir do timestamp local antigo.
+
+O POST recebe `expectedCurrentVersion`, janela,
+`timeZone` IANA, e `bindings[]` com
+`bookingId`, `capacityPrescriptionVersionId` e
+`expectedBookingUpdatedAt`. A API rejeita regras clínicas e
+severidades no body, IDs desconhecidos, duplicidade, versão stale, fonte
+inativa e agendamento cancelado. A origem versionada é consultada novamente.
+A resolução de horário possui estados verificado, ambíguo, inexistente e
+inconsistente, e nunca usa uma data civil como se fosse timestamp UTC.
+A diferença entre o fim de uma sessão e o início da seguinte é apenas
+informação cronológica — sem decisão clínica, alteração de estado, escrita
+ou efeito sobre a liberação operacional. `coverage=partial`
+e `mayConcludeNoConflict=false` são invariantes.
+
+## Biblioteca oficial de exercícios (#394)
+
+A seleção de um exercício para aplicação nova usa SELECT ... FOR SHARE na
+transação que grava o treino, segurando o estado aprovado até a confirmação.
+Uma alteração de curadoria simultânea espera o lock; uma aplicação posterior
+a desativação é rejeitada. A rota legada `POST /workout/templates/:id/release`
+também revalida todas as referências existentes ao publicar um template ainda
+não liberado, dentro da transação de liberação e do contrato do professor autenticado.
+Exercícios desativados, pendentes ou legados impedem a nova liberação integral,
+sem criar snapshots parciais; templates já liberados permanecem historicamente
+consultáveis mesmo após desativação posterior do catálogo. O filtro continua exigindo contractId, approved e
+legacyGrandfathered=false. A interface preserva listas durante a digitação
+e permite criar um novo draft sem alterar o exercício histórico ou transferir
+licenças de mídia.
+
+
+`/api/v1/library/exercises` exige autenticação de professor ativo e permissão
+`screenKey=plans` **ou** `screenKey=library` para consulta operacional, e retorna somente exercícios `approved` com
+`legacyGrandfathered=false` por padrão. Aprovação histórica legada não equivale
+a permissão de nova aplicação, mesmo que o status ainda seja `approved`.
+Consultas de progresso usadas no Workout Builder aceitam `plans` ou `library`;
+com acesso apenas a `plans` também respeitam o `dataScope` da tela para o
+aluno solicitado. O detalhe do exercício e a escrita de progresso mantêm
+acesso pela tela `library`. `GET /api/library/exercises/:id` aplica projeção
+restrita aos campos do catálogo: não consulta nem serializa relações
+`workoutExercises`, `alunoProgress`, objetivos de plano ou cargas de alunos.
+Essas informações pertencem a rotas próprias com escopo de estudante.
+Todas as leituras são delimitadas pelo
+`contractId` autenticado. `scope=all`, filtros de estado, escrita administrativa,
+transições de curadoria e revisões exigem **ambos** `library` e papel `master`.
+O backend revalida identidade e contrato independentemente da interface.
+Nas mutações de curadoria, inclusive criação, edição, aprovação, reabertura e
+desativação, a transação definitiva bloqueia as linhas de `Professor` e `User`
+e revalida `master`, situação ativa, contrato e acesso `library`, antes de
+gravar; uma revogação posterior ao middleware retorna HTTP 403 sem revisão
+nova. A tentativa de criar/renomear exercício com nome canônico já presente
+no contrato retorna HTTP 409, inclusive sob concorrência.
+
+`POST /exercises` cria rascunho. `PUT /exercises/:id` exige `expectedVersion`,
+retorna a rascunho e responde 409 para concorrência ou item já usado em treino.
+`POST /exercises/:id/curation` recebe `{action,expectedVersion}` com `submit`,
+`approve`, `request_changes`, `deactivate` ou `reopen`.
+`GET /exercises/:id/revisions` devolve versões ao administrador do contrato.
+No Workout Builder, `save-week`, `PUT /days/:id/resistance-exercises` e
+`POST /exercises` verificam exercícios novos `approved` e curados (não legados) na transação, no mesmo
+contrato do aluno. Linhas já vinculadas não são removidas nem exigem nova
+aprovação em um replay de identidade estável. Cópia de dia, semana e resistência
+faz nova aplicação e rejeita atomicamente referências desativadas/em revisão;
+cópia apenas cíclica permanece independente da biblioteca resistida.
+`DELETE /exercises/:id` é compatibilidade de desativação lógica com versão,
+sem exclusão física. Seleções em Workout Builder, vinculação técnica,
+substituição e Montagem Consolidada verificam `approved` e `contractId`.
+A busca por aliases e grupos musculares primários/secundários é parcial,
+insensível à caixa e parametrizada pelo contrato; o filtro muscular também
+considera grupos secundários sem diferenças de caixa. `capacity` na criação
+e edição aceita apenas `resisted`, `flexibility`, `cyclic` ou `balance` (HTTP 400
+para valores arbitrários); a aprovação também confere o enum canônico.
+Registros legados continuam consultáveis na visão administrativa e no histórico
+dos treinos, mas são excluídos da seleção, cópia, substituição e liberação
+operacional até a aprovação profissional explícita. Vídeos sem origem/licença
+comprovadas não são reproduzidos pelas projeções históricas nem retornados nos
+campos de mídia dos endpoints de progresso do aluno. A projeção dos registros
+de progresso remove apenas o link operacional não verificado e preserva os
+valores e o catálogo originais no banco; a listagem restringe também a relação
+do exercício ao mesmo contrato. Os links originais continuam persistidos.
+Novas instalações de padrões geram rascunhos;
+ novas instalações de padrões geram rascunhos. Cópias entre
+contratos não transferem automaticamente URLs/licenças de mídia.
+
+A-021: GET /executions/aluno usa o catálogo imutável de liberação e omite
+releasedCatalog interno da resposta; URLs de mídia sem direitos documentados
+na liberação são ocultas mesmo que o catálogo seja licenciado mais tarde.
+PUT /workout/days/:id/resistance-exercises e PUT /workout/exercises/:id
+sanitizam vídeo de registros legados antes de responder, sem alterar o banco.
