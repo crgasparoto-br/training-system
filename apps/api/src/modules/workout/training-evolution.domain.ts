@@ -10,6 +10,7 @@ import type {
   TrainingSessionExecutionSessionValues,
 } from '@corrida/types';
 import { ambiguousLatestOrder, observationOrder, measure } from './training-evolution-aggregation.domain.js';
+import { countDistinctExecutedSubstitutions } from './training-evolution-substitutions.domain.js';
 
 /** All sources are scoped to an authenticated student, contract and consolidated release upstream. */
 export type WeeklyEvolutionSessionSource = {
@@ -34,6 +35,7 @@ export type WeeklyEvolutionSessionSource = {
       parentStageId: string | null;
     }>;
     /** Captured #401 plan only. Current mutable WorkoutDay cannot identify a historic exercise. */
+    plannedResistanceGroups?: Array<{ id: string; memberUnitIds: string[] }>;
     plannedExercises: Array<{
       plannedUnitId: string;
       catalogExerciseId: string | null;
@@ -105,7 +107,7 @@ const DEFINITIONS: readonly IndicatorDefinition[] = [
     formula: 'mean(latest_revision_psr) within same feedback_scope',
     source: 'canonical_post_workout_feedback_current_revision' },
   { key: 'substitutions', label: 'Substituições executadas', unit: 'ocorrências', aggregation: 'sum',
-    formula: 'sum(explicit_substituted_items_and_cyclic_stage_occurrences)',
+    formula: 'sum(distinct_executed_substituted_sets_stages_and_resistance_groups)',
     source: 'canonical_session_execution' },
 ];
 
@@ -305,7 +307,7 @@ export function calculateWeeklyTrainingEvolution(input: {
 
   for (const session of sessions) {
     if (!isTerminalPerformed(session.status) || !session.execution) continue;
-    const { sessionValues, items, plannedExercises, plannedCyclicStages } = session.execution;
+    const { sessionValues, items, plannedExercises, plannedCyclicStages, plannedResistanceGroups } = session.execution;
     const stages = sessionValues.cyclicStages ?? [];
     const stageDuration = sessionValues.durationSec == null
       ? sumCapturedStageMeasurements(stages, plannedCyclicStages, 'durationSec') : null;
@@ -393,9 +395,10 @@ export function calculateWeeklyTrainingEvolution(input: {
       add(session, 'tonnage', tonnage, 'session', 'Sessão', session.sessionId);
     }
 
-    const substitutedUnits = items.filter((item) => item.outcome === 'substituted').length;
-    const substitutedStages = stages.filter((stage) => stage.outcome === 'substituted').length;
-    add(session, 'substitutions', substitutedUnits + substitutedStages, 'session', 'Sessão', session.sessionId);
+    const substitutionCount = countDistinctExecutedSubstitutions(
+      items, sessionValues, plannedCyclicStages, plannedResistanceGroups);
+    if (substitutionCount === 'incomparable') incompatible.add('substitutions');
+    else add(session, 'substitutions', substitutionCount, 'session', 'Sessão', session.sessionId);
 
     for (const feedback of session.feedback ?? []) {
       const scopeLabel = feedback.scopeKey === 'session' ? 'Sessão' : 'Feedback: ' + feedback.scopeKey;

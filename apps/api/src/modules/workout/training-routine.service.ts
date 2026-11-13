@@ -641,6 +641,11 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
                     kind: stage.kind,
                     parentStageId: stage.parentStageId,
                   })),
+                  plannedResistanceGroups: frozen?.resistanceGroups
+                    .filter((group) => group && Array.isArray(group.members))
+                    .map((group) => ({
+                      id: group.id, memberUnitIds: group.members.map((member) => member.workoutExerciseId),
+                    })),
                   plannedExercises: frozen?.id === row.id
                     ? frozen.exercises.map((exercise) => {
                         const group = frozen.resistanceGroups.find((candidate) =>

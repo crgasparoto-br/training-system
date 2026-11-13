@@ -597,7 +597,7 @@ a leitura é repetível, sem persistência nova nem alteração da prescrição.
 | Volume resistido (tonelagem) | Soma de `loadKg × repetitions` (`kg × rep`) | Apenas séries com confirmação canônica (`full`, `partial`, `substituted` ou conclusão guiada persistida); rascunhos `outcome=null` sem `completedAt` não geram volume executado |
 | Carga e repetições | Última série confirmada pela ordem temporal efetiva no mesmo contexto da unidade de treino e série (`kg`, `rep`) | Prioriza `completedAt` da série guiada e, nas confirmações manuais, `finishedAt` da execução canônica. IDs e datas planejadas não substituem a cronologia. Ausência ou empate de timestamps confiáveis entre registros gera `incomparable` e medições isoladas. Exige confirmação canônica, catálogo, seção, posição, sistema, blocos, grupo e série capturados. Rascunhos e substituições sem identidade original não geram tendência |
 | PSE e PSR | Média das percepções vigentes (`0–10`) dentro do mesmo `scopeKey` | Apenas revisão mais recente por sessão e escopo da #390; campos clínicos, histórico substituído e revisões anteriores não compõem o cálculo |
-| Substituições executadas | Soma das ocorrências `substituted` (`ocorrências`) | Itens/séries e etapas cíclicas da execução; aprovação planejada isolada não equivale a substituição executada |
+| Substituições executadas | Soma das ocorrências distintas `substituted` (`ocorrências`) | Séries/exercícios, etapas cíclicas e agrupamentos resistidos da execução. Um pai `repeat` ou grupo substituído é agregado: quando houver registros substituídos nos filhos/membros, contar as ocorrências individuais, nunca o agregado também. Aprovação planejada isolada não equivale a execução |
 
 A leitura de cada série identifica modalidade, unidade e escopo semântico (sessão,
 catálogo/unidade/série, tipo da sessão cíclica ou escopo de feedback). **Séries com
@@ -643,6 +643,18 @@ gerar totais artificiais. Um único estágio ou múltiplas iterações do mesmo 
 sem grafo continuam legíveis, e `sessionValues` explícito tem precedência sobre
 qualquer fallback. Não há novas tabelas, migrations ou alteração da fonte canônica.
 
+A contagem de substituicoes usa exclusivamente o snapshot historico da execucao
+para relacionar pais `repeat` a etapas filhas e grupos resistidos a series/exercicios.
+O pai ou grupo com substituicao explicita conta uma ocorrencia quando nao existem
+substituicoes confirmadas em seus descendentes; caso contrario, contam as
+ocorrencias dos filhos/membros, sem somar novamente o agregado. Substituicoes
+independentes fora de um grupo continuam contando separadamente. Historico sem
+vinculo confiavel entre registros que possam se sobrepor retorna `incomparable`
+com `value: null`, em vez de inventar um total. As duas visoes recebem a mesma
+contagem, mas os IDs de origem permanecem restritos ao professor autorizado.
+Essa correcao preserva a regra semantica versionada `training-evolution-v1`:
+contar ocorrencias distintas, sem alterar registros historicos ou persistencia.
+
 Cada métrica inclui `key`, `label`, `status`, `unit`, `value`,
 `sampleCount`, `sourceLabel` legível e `lastSourceUpdateAt`; `period` aparece no
 envelope semanal. As séries retornam datas civis e valores, nunca valores
@@ -682,7 +694,10 @@ de feedback; alternância entre contratos; ausência de vazamento de metadados
 técnicos para o aluno; constância da versão/fórmula e fontes da projeção; última carga/repetições
 com sessões no mesmo dia, IDs invertidos, execução fora da ordem planejada,
 ausência e empate de timestamps; grafo cíclico vazio válido versus órfão;
-execução vinculada a outra liberação sem contaminar status e aderência.
+execução vinculada a outra liberação sem contaminar status e aderência;
+pai `repeat` e etapas substituidas, agrupamento resistido substituido sem serie,
+grupo com series substituidas e substituicao externa ao grupo; contexto historico
+ausente ou invalido gera `incomparable`, sem duplicar ocorrencias.
 
 ## Linguagem para o aluno
 

@@ -112,6 +112,14 @@ e heurísticas clínicas sem regra versionada e aprovada.
       feedback, comparação ou próxima sessão.
 - [x] Testes positivos/negativos adicionados no domínio e serviço; documentação
       sincronizada com cronologia, modalidades e origem canônica.
+- [x] A-011 (auditoria 13/11): eliminar dupla contagem de substituicoes em pais
+      `repeat` quando as etapas filhas registram a mesma substituicao; preservar
+      agregado isolado, filhos independentes e ausencia de topologia confiavel.
+- [x] A-012 (auditoria 13/11): contar agrupamentos resistidos substituidos,
+      conciliando as series/exercicios do snapshot para evitar duplicidade;
+      conjuntos sem vinculo historico ficam `incomparable`.
+- [x] Cobrir A-011/A-012 em testes de dominio e integracao e atualizar
+      regra documentada sem nova persistencia.
 - [ ] Revalidar `pnpm validate` no CI do HEAD material exato e obter auditoria
       independente da PR corrigida antes de marcar a issue como encerrada.
 

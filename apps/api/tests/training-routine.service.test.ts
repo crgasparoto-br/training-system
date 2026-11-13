@@ -395,6 +395,52 @@ describe('training routine service (#387)', () => {
     expect(JSON.stringify(result.weeklyEvolution)).not.toMatch(/Ciclismo atual|release-1|"sessionId"/);
   });
 
+  it('#405 A-011/A-012: projects historical groups and repeat parents without duplicate substitution totals', async () => {
+    const captured = {
+      id: 'day-1', method: 'Corrida continua', cyclicTimeMin: 10,
+      cyclicStages: [
+        { id: 'parent', kind: 'repeat', parentStageId: null, position: 1, targetKind: null, repeatCount: 2 },
+        { id: 'stage', kind: 'work', parentStageId: 'parent', position: 1, targetKind: null, repeatCount: null },
+      ],
+      resistanceGroups: [{ id: 'group-a', kind: 'bi_set', position: 1,
+        members: [{ workoutExerciseId: 'unit-a', position: 1 }] }],
+      exercises: [{ id: 'unit-a', exerciseId: 'catalog-a', section: 'principal', exerciseOrder: 1,
+        system: null, resistanceBlocks: [], exercise: { name: 'Exercise A' } }],
+    };
+    const execution = {
+      workoutDayId: 'day-1', status: 'partial', version: 1,
+      updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+      startedAt: new Date('2026-10-01T11:00:00.000Z'),
+      finishedAt: new Date('2026-10-01T12:00:00.000Z'),
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1', plannedSnapshot: captured,
+      sessionValues: {
+        cyclicStages: [
+          { plannedStageId: 'parent', outcome: 'substituted' },
+          { plannedStageId: 'stage', iteration: 1, outcome: 'substituted' },
+          { plannedStageId: 'stage', iteration: 2, outcome: 'substituted' },
+        ],
+        resistanceGroups: [{ plannedGroupId: 'group-a', outcome: 'substituted' }],
+      },
+      items: [{ plannedUnitId: 'unit-a', plannedSetId: null, setNumber: 1,
+        outcome: 'substituted', completedAt: null, loadKg: null, repetitions: null }],
+    };
+    releasedRows = [makeRow({ method: 'Changed current method', execution })];
+    const query = { alunoId: 'aluno-1', contractId: 'contract-1',
+      audience: 'student' as const, now };
+    const student = await service.getRoutine(query);
+    expect(student.weeklyEvolution?.metrics.find((item) => item.key === 'substitutions'))
+      .toMatchObject({ status: 'available', value: 3, sampleCount: 1 });
+    expect(student.weeklyEvolution?.adherence.value).toBe(0);
+    expect(JSON.stringify(student.weeklyEvolution)).not.toMatch(/group-a|unit-a|release-1|"sessionId"/);
+    releasedRows = [makeRow({ method: 'Other current method', execution })];
+    const unchanged = await service.getRoutine(query);
+    expect(unchanged.weeklyEvolution?.metrics).toEqual(student.weeklyEvolution?.metrics);
+    const professor = await service.getRoutine({ ...query, audience: 'professor' });
+    expect(professor.weeklyEvolution?.metrics.find((item) => item.key === 'substitutions')?.value).toBe(3);
+  });
+
   it('#405 A-004: mantém modalidade capturada após edição do planejamento atual e isola snapshots inválidos', async () => {
     const captured = {
       id: 'day-1', method: 'Corrida contínua', cyclicTimeMin: 30,

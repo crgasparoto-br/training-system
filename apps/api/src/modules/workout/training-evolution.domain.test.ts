@@ -608,4 +608,115 @@ describe('evolução semanal canônica (#405)', () => {
       .toMatchObject({ status: 'available', value: 13, sampleCount: 2 });
   });
 
+  it('A-011: counts substituted repeat leaves once, with parent-only and external stages preserved', () => {
+    const run = executed('sub-repeat', '2026-11-02', 'cyclic', 'partial');
+    run.execution!.plannedCyclicStages = [
+      { id: 'parent', kind: 'repeat', parentStageId: null },
+      { id: 'child', kind: 'work', parentStageId: 'parent' },
+      { id: 'outside', kind: 'work', parentStageId: null },
+    ];
+    const parent = { plannedStageId: 'parent', outcome: 'substituted' as const, iteration: 1 };
+    const first = { plannedStageId: 'child', outcome: 'substituted' as const, iteration: 1 };
+    const second = { plannedStageId: 'child', outcome: 'substituted' as const, iteration: 2 };
+    const outside = { plannedStageId: 'outside', outcome: 'substituted' as const, iteration: 1 };
+    const result = () => calculateWeeklyTrainingEvolution({
+      period, sessions: [run], audience: 'student',
+    }).metrics.find((metric) => metric.key === 'substitutions');
+
+    run.execution!.sessionValues.cyclicStages = [parent, first, second];
+    expect(result()).toMatchObject({ status: 'available', value: 2, sampleCount: 1 });
+    run.execution!.sessionValues.cyclicStages = [parent];
+    expect(result()?.value).toBe(1);
+    run.execution!.sessionValues.cyclicStages = [first, second];
+    expect(result()?.value).toBe(2);
+    run.execution!.sessionValues.cyclicStages = [parent, first, second, outside];
+    expect(result()?.value).toBe(3);
+    expect(calculateWeeklyTrainingEvolution({ period, sessions: [run], audience: 'student' })
+      .adherence.value).toBe(0);
+  });
+
+  it('A-011: ambiguous and corrupt cyclic histories never generate a substitution total', () => {
+    const run = executed('sub-legacy', '2026-11-03', 'cyclic');
+    const parent = { plannedStageId: 'parent', outcome: 'substituted' as const };
+    const child = { plannedStageId: 'child', outcome: 'substituted' as const };
+    const result = () => calculateWeeklyTrainingEvolution({
+      period, sessions: [run], audience: 'student',
+    }).metrics.find((metric) => metric.key === 'substitutions');
+    run.execution!.sessionValues.cyclicStages = [parent, child];
+    expect(result()).toMatchObject({ status: 'incomparable', value: null });
+    run.execution!.sessionValues.cyclicStages = [child];
+    expect(result()?.value).toBe(1);
+    run.execution!.plannedCyclicStages = [
+      { id: 'child', kind: 'work', parentStageId: 'missing-repeat' },
+    ];
+    expect(result()).toMatchObject({ status: 'incomparable', value: null });
+    run.execution!.plannedCyclicStages = [];
+    expect(result()).toMatchObject({ status: 'incomparable', value: null });
+    run.execution!.plannedCyclicStages = [
+      { id: 'child', kind: 'work', parentStageId: null },
+    ];
+    run.execution!.sessionValues.cyclicStages = [child, child];
+    expect(result()).toMatchObject({ status: 'incomparable', value: null });
+  });
+
+  it('A-012: counts substituted resistance groups even without substituted sets', () => {
+    const run = executed('sub-group-only', '2026-11-04', 'resistance');
+    run.execution!.plannedResistanceGroups = [{ id: 'group-a', memberUnitIds: ['unit-a'] }];
+    const group = { plannedGroupId: 'group-a', outcome: 'substituted' as const };
+    const result = () => calculateWeeklyTrainingEvolution({
+      period, sessions: [run], audience: 'student',
+    }).metrics.find((metric) => metric.key === 'substitutions');
+    run.execution!.sessionValues.resistanceGroups = [group];
+    expect(result()).toMatchObject({ status: 'available', value: 1, sampleCount: 1 });
+    run.execution!.sessionValues.resistanceGroups = [{ ...group, outcome: 'full' }];
+    expect(result()?.value).toBe(0);
+    run.execution!.sessionValues.resistanceGroups = [group];
+    const student = calculateWeeklyTrainingEvolution({ period, sessions: [run], audience: 'student' });
+    const professor = calculateWeeklyTrainingEvolution({ period, sessions: [run], audience: 'professor' });
+    expect(student.metrics.find((metric) => metric.key === 'substitutions')?.value)
+      .toBe(professor.metrics.find((metric) => metric.key === 'substitutions')?.value);
+    expect(JSON.stringify(student)).not.toMatch(/group-a|unit-a|release-1|training-evolution-v1/);
+  });
+
+  it('A-012: reconciles group aggregates with their member sets, preserving external units', () => {
+    const run = executed('sub-group-members', '2026-11-05', 'resistance');
+    run.execution!.plannedResistanceGroups = [
+      { id: 'group-a', memberUnitIds: ['unit-a', 'unit-b'] },
+      { id: 'group-b', memberUnitIds: ['unit-c'] },
+    ];
+    run.execution!.sessionValues.resistanceGroups = [
+      { plannedGroupId: 'group-a', outcome: 'substituted' },
+    ];
+    const one = { plannedUnitId: 'unit-a', setNumber: 1, outcome: 'substituted' as const };
+    const two = { plannedUnitId: 'unit-b', setNumber: 1, outcome: 'substituted' as const };
+    const external = { plannedUnitId: 'unit-c', setNumber: 1, outcome: 'substituted' as const };
+    const metric = () => calculateWeeklyTrainingEvolution({
+      period, sessions: [run], audience: 'student',
+    }).metrics.find((entry) => entry.key === 'substitutions');
+    run.execution!.items = [one];
+    expect(metric()).toMatchObject({ status: 'available', value: 1 });
+    run.execution!.items = [one, two];
+    expect(metric()?.value).toBe(2);
+    run.execution!.items = [one, external];
+    expect(metric()?.value).toBe(2);
+    run.execution!.items = [external];
+    expect(metric()?.value).toBe(2);
+  });
+
+  it('A-012: rejects unverifiable group-to-set overlap without a matching captured graph', () => {
+    const run = executed('sub-unknown-group', '2026-11-06', 'resistance');
+    run.execution!.sessionValues.resistanceGroups = [
+      { plannedGroupId: 'group-a', outcome: 'substituted' },
+    ];
+    const metric = () => calculateWeeklyTrainingEvolution({
+      period, sessions: [run], audience: 'student',
+    }).metrics.find((entry) => entry.key === 'substitutions');
+    expect(metric()?.value).toBe(1);
+    run.execution!.items = [{ plannedUnitId: 'unit-a', setNumber: 1, outcome: 'substituted' }];
+    expect(metric()).toMatchObject({ status: 'incomparable', value: null });
+    run.execution!.plannedResistanceGroups = [];
+    expect(metric()).toMatchObject({ status: 'incomparable', value: null });
+    run.execution!.plannedResistanceGroups = [{ id: 'group-a', memberUnitIds: ['unit-a'] }];
+    expect(metric()).toMatchObject({ status: 'available', value: 1 });
+  });
 });
