@@ -268,6 +268,59 @@ describe('training routine service (#387)', () => {
     expect(student.weeklyEvolution?.lastSourceUpdateAt).toBe('2026-10-01T12:00:00.000Z');
   });
 
+  it('#405: mantém revisão de feedback vigente, tenant e permissão na projeção de métricas', async () => {
+    releasedRows = [makeRow({
+      id: 'day-1', status: 'completed',
+      execution: {
+        workoutDayId: 'day-1', status: 'completed', version: 3,
+        updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+        startedAt: new Date('2026-10-01T11:00:00.000Z'),
+        finishedAt: new Date('2026-10-01T12:00:00.000Z'),
+        currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+        originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+        originTrainingPlanId: 'plan-1', sessionValues: { durationSec: 3600 },
+        plannedSnapshot: { id: 'day-1', cyclicStages: [], resistanceGroups: [], exercises: [] },
+        items: [],
+      },
+    })];
+    postWorkoutFeedbackFindMany.mockResolvedValue([
+      { id: 'fb-r2', workoutDayId: 'day-1', scopeKey: 'session', revisionNumber: 2,
+        values: { pse: 6, psr: 7, painAfter: 9, professorTechnicalNotes: 'sigiloso' },
+        createdAt: new Date('2026-10-02T10:00:00.000Z') },
+      { id: 'fb-r1', workoutDayId: 'day-1', scopeKey: 'session', revisionNumber: 1,
+        values: { pse: 2, psr: 3 },
+        createdAt: new Date('2026-10-01T13:00:00.000Z') },
+    ]);
+    const query = { alunoId: 'aluno-1', contractId: 'contract-1',
+      date: '2026-10-01', now: new Date('2026-10-08T15:00:00.000Z') };
+    const student = await service.getRoutine({ ...query, audience: 'student' });
+    expect(student.weeklyEvolution?.metrics.find((item) => item.key === 'pse')).toMatchObject({
+      status: 'available', value: 6, sampleCount: 1,
+      lastSourceUpdateAt: '2026-10-02T10:00:00.000Z',
+    });
+    expect(student.weeklyEvolution?.metrics.find((item) => item.key === 'psr')?.value).toBe(7);
+    expect(JSON.stringify(student.weeklyEvolution)).not.toMatch(/fb-r2|fb-r1|sigiloso|painAfter|release-1/);
+    expect(postWorkoutFeedbackFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { workoutDayId: { in: ['day-1'] }, alunoId: 'aluno-1', contractId: 'contract-1' },
+    }));
+
+    postWorkoutFeedbackFindMany.mockClear();
+    const professorWithoutGrant = await service.getRoutine({ ...query, audience: 'professor' });
+    expect(postWorkoutFeedbackFindMany).not.toHaveBeenCalled();
+    expect(professorWithoutGrant.weeklyEvolution?.metrics.find((item) => item.key === 'pse'))
+      .toMatchObject({ status: 'insufficient_data', value: null });
+    expect(professorWithoutGrant.weeklyEvolution?.technical?.indicators.find((item) => item.key === 'pse')?.observations)
+      .toEqual([]);
+
+    const authorized = await service.getRoutine({
+      ...query, audience: 'professor', includePostWorkoutFeedback: true,
+    });
+    expect(authorized.weeklyEvolution?.metrics.find((item) => item.key === 'pse')?.value).toBe(6);
+    expect(authorized.weeklyEvolution?.technical?.indicators.find((item) => item.key === 'pse')?.observations)
+      .toMatchObject([{ sessionId: 'day-1', releaseId: 'release-1', sourceId: 'fb-r2' }]);
+    expect(authorized.weeklyEvolution?.adherence.value).toBe(student.weeklyEvolution?.adherence.value);
+  });
+
   it('projeta o próximo treino de outra semana apenas com liberação consolidada e escopo contratual', async () => {
     upcomingRows = [{
       sessionId: 'next-month',

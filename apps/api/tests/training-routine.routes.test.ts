@@ -440,7 +440,7 @@ describe('training routine HTTP boundaries (#387)', () => {
         adherence: { status: 'available', value: 50, unit: '%' },
       });
       expect(Object.keys(indicator).sort()).toEqual([
-        'adherence', 'counts', 'lastSourceUpdateAt', 'period', 'sourceLabel',
+        'adherence', 'counts', 'lastSourceUpdateAt', 'metrics', 'period', 'series', 'sourceLabel',
       ]);
       expect(indicator.adherence).not.toHaveProperty('formula');
       expect(JSON.stringify(response.body)).not.toMatch(

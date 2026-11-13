@@ -534,6 +534,58 @@ export interface TrainingRoutineExecutionAvailability {
   reason: 'execution_contract_pending' | null;
 }
 
+
+/** #405: only observations with matching modality, meaning, source and unit share a series. */
+export type TrainingEvolutionMetricKey =
+  | 'duration' | 'distance' | 'pace' | 'tonnage'
+  | 'load' | 'repetitions' | 'pse' | 'psr' | 'substitutions';
+
+export type TrainingEvolutionMetricStatus = 'available' | 'insufficient_data' | 'incomparable';
+
+export interface TrainingEvolutionMetric {
+  key: TrainingEvolutionMetricKey;
+  label: string;
+  unit: string;
+  status: TrainingEvolutionMetricStatus;
+  value: number | null;
+  sampleCount: number;
+  lastSourceUpdateAt: string | null;
+  sourceLabel: string;
+}
+
+/** Series are separate for each semantic scope; no synthetic improvement/decline is inferred. */
+export interface TrainingEvolutionSeries {
+  key: TrainingEvolutionMetricKey;
+  label: string;
+  unit: string;
+  modality: string;
+  scopeLabel: string;
+  points: Array<{ date: string; value: number }>;
+  /** Only the professor receives stable source identities, never the student. */
+  technical?: {
+    ruleVersion: 'training-evolution-v1';
+    sources: Array<{
+      sessionId: string;
+      releaseId: string;
+      sourceId: string;
+      updatedAt: string | null;
+    }>;
+  };
+}
+
+export interface TrainingEvolutionRuleEvidence {
+  key: TrainingEvolutionMetricKey;
+  ruleVersion: 'training-evolution-v1';
+  formula: string;
+  source: string;
+  observations: Array<{
+    sessionId: string;
+    releaseId: string;
+    sourceId: string;
+    updatedAt: string | null;
+  }>;
+}
+
 /** #405: read-only weekly projection from released sessions and canonical execution. */
 export interface TrainingRoutineWeeklyEvolution {
   period: { startDate: string; endDate: string };
@@ -552,12 +604,15 @@ export interface TrainingRoutineWeeklyEvolution {
     unit: '%';
   };
   lastSourceUpdateAt: string | null;
+  metrics: TrainingEvolutionMetric[];
+  series: TrainingEvolutionSeries[];
   /** Present only in the professor API response, never in the student payload. */
   technical?: {
     ruleVersion: 'weekly-adherence-v1';
     source: 'consolidated_release_and_session_execution';
     formula: 'completedSessions / prescribedSessions * 100';
     sessions: Array<{ sessionId: string; status: TrainingRoutineExecutionProjectionStatus }>;
+    indicators: TrainingEvolutionRuleEvidence[];
   };
 }
 

@@ -36,7 +36,7 @@ export const workoutComparisonPlanSelect = {
   exercises: {
     orderBy: [{ section: 'asc' as const }, { exerciseOrder: 'asc' as const }, { id: 'asc' as const }],
     select: {
-      id: true, section: true, exerciseOrder: true, sets: true, reps: true,
+      id: true, exerciseId: true, section: true, exerciseOrder: true, sets: true, reps: true,
       load: true, intervalSec: true, exercise: { select: { name: true } },
       releasedCatalog: { select: { catalog: true } },
       resistanceBlocks: {

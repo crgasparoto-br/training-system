@@ -562,9 +562,11 @@ template como último fallback. Isso não cria contadores nem reescreve históri
 
 O indicador considera toda a semana consultada, inclusive sessões futuras já
 liberadas; não deve ser interpretado como resultado definitivo antes do término
-do período. Nenhuma métrica muda planejamento, liberação ou execução. Métricas
-de consistência, pace, carga, tonelagem e tendência ainda não integram este
-recorte; dependem da comparabilidade e das fontes canônicas previstas na #405.
+do período. Nenhuma métrica muda planejamento, liberação ou execução. Além
+da aderência, a regra versionada training-evolution-v1 projeta somente medições
+persistidas da execução canônica e das revisões vigentes de feedback, sem
+contador ou armazenamento paralelo. A consistência permanece indisponível:
+não existe fórmula canônica aprovada para ativá-la.
 
 Na interface, o cartão de aderência aparece para toda semana selecionada, inclusive histórica. Exibe período,
 percentual (unidade `%`), contagens, origem legível e data/hora da última atualização no fuso do contrato;
@@ -573,6 +575,65 @@ O aluno recebe somente indicadores práticos; somente o professor autorizado pod
 com versão da regra, fórmula, código da fonte e IDs/status das sessões. A separação é feita na
 projeção da API por audiência, não apenas na interface, mantendo a mesma semântica e os mesmos
 valores numéricos. A API mantém o isolamento de `contractId` e a separação por audiência.
+
+### Indicadores executados, séries e comparabilidade — training-evolution-v1
+
+O serviço lê o mesmo grafo autorizado de Montagem Consolidada da rotina e
+usa como fonte **somente** a execução #389 cujo vínculo imutável de origem
+(`originReleaseId`, `originWorkoutTemplateId`, `originTrainingPlanId`) corresponde
+à sessão liberada. Registros históricos sem execução canônica seguem contando
+para aderência via compatibilidade legada, mas **não geram valores executados**.
+A janela é a semana civil selecionada (segunda–domingo), por data da sessão;
+a leitura é repetível, sem persistência nova nem alteração da prescrição.
+
+| Indicador | Regra e unidade | Fonte e condições |
+| --- | --- | --- |
+| Tempo executado | Soma de segundos registrados dividida por 60 (`min`) | `sessionValues.durationSec`; na ausência, soma das etapas cíclicas com tempo explícito, sem imputar etapas ausentes |
+| Distância | Soma de distâncias registradas (`km`) | `sessionValues.distanceKm`; na ausência, etapas cíclicas com distância explícita convertida de metros; somente modalidade cíclica |
+| Ritmo (pace) | Média aritmética de ritmos de sessão registrados (`min/km`) | Apenas `sessionValues.pace` em `mm:ss` por km, sem derivar de velocidade, sem somar ritmos, sem misturar etapas e sessão |
+| Volume resistido (tonelagem) | Soma de `loadKg × repetitions` (`kg × rep`) | Valores explícitos de séries executadas da modalidade resistida; não usa carga/repetições planejadas |
+| Carga e repetições | Último registro na mesma identidade de exercício e número de série (`kg`, `rep`) | Itens da execução com `catalogExerciseId` persistido no snapshot da #401; substituições não assumem identidade do exercício original |
+| PSE e PSR | Média das percepções vigentes (`0–10`) dentro do mesmo `scopeKey` | Apenas revisão mais recente por sessão e escopo da #390; campos clínicos, histórico substituído e revisões anteriores não compõem o cálculo |
+| Substituições executadas | Soma das ocorrências `substituted` (`ocorrências`) | Itens/séries e etapas cíclicas da execução; aprovação planejada isolada não equivale a substituição executada |
+
+A leitura de cada série identifica modalidade, unidade e escopo semântico (sessão,
+catálogo/série ou escopo de feedback). **Séries com modalidades, identidades ou
+escopos diferentes nunca são fundidas**. Quando há múltiplas séries sem base comum,
+o resumo retorna `incomparable` e `value: null`, preservando os grupos separados
+na história. Na ausência de qualquer medição retorna `insufficient_data` e `null`,
+jamais zero inventado; **zero explícito** registrado é preservado. Resultados
+parciais contribuem somente com o que foi efetivamente registrado, e continuam
+fora do numerador da aderência. Nenhuma direção de tendência é chamada de
+melhora/piora automaticamente; uma única observação não constitui evolução
+temporal. Dados com pace em outro formato são marcados `incomparable`.
+
+Cada métrica inclui `key`, `label`, `status`, `unit`, `value`,
+`sampleCount`, `sourceLabel` legível e `lastSourceUpdateAt`; `period` aparece no
+envelope semanal. As séries retornam datas civis e valores, nunca valores
+planejados tratados como executados. **Somente o professor autorizado** recebe
+`technical.indicators` (versão, fórmula, fonte e IDs da sessão, liberação e
+registro) e IDs em `series.technical`. O aluno recebe os mesmos resultados
+numéricos sem IDs, fórmulas ou comentários técnicos internos. Os endpoints
+existentes preservam a seleção contratual do aluno e as permissões
+`students.details.trainingPlans` para o professor; PSE/PSR do professor só
+são buscados e projetados após concessão explícita do bloco
+`students.details.postWorkoutFeedback`. A interface não substitui a
+autorização no backend.
+
+A revisão futura de capacidades clínicas, prontuário ou decisões automáticas
+**não é ativada** por esses indicadores. A timeline do aluno permanece uma
+projeção dos eventos canônicos, e não uma segunda fonte de métricas. A
+comparabilidade entre equipamentos, unidades distintas, exercícios substituídos
+sem identidade confirmada e snapshots legados sem catálogo persistido depende
+de fonte adequada; nesse caso a métrica/série é indisponível, em vez de
+inferir retrospectivamente o planejamento.
+
+**Validação mínima (#405):** contar sessão futura liberada no denominador;
+distinguir `completed`/`partial`/`not_performed`; semana vazia, zero explícito e
+nulo; modalidades incompatíveis; séries de exercícios com catálogo/numeração
+distintos; revisão de feedback vigente sem duplicidade; professor sem permissão
+de feedback; alternância entre contratos; ausência de vazamento de metadados
+técnicos para o aluno; constância da versão/fórmula e fontes da projeção.
 
 ## Linguagem para o aluno
 

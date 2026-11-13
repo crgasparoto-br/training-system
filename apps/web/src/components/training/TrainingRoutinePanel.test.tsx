@@ -193,6 +193,7 @@ describe('TrainingRoutinePanel (#387)', () => {
           notPerformedSessions: 0, pendingSessions: 0,
         },
         adherence: { status: 'available', value: 50, unit: '%' },
+        metrics: [], series: [],
         lastSourceUpdateAt: '2026-10-02T12:00:00.000Z',
       },
     }))} />);
@@ -251,6 +252,7 @@ describe('TrainingRoutinePanel (#387)', () => {
         counts: { prescribedSessions: 0, completedSessions: 0, partialSessions: 0, notPerformedSessions: 0, pendingSessions: 0 },
         adherence: { status: 'insufficient_data', value: null, unit: '%' },
         lastSourceUpdateAt: null,
+        metrics: [], series: [],
       },
     });
     render(<TrainingRoutinePanel audience="student" load={vi.fn().mockResolvedValue(historical)} />);

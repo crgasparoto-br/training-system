@@ -547,22 +547,6 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
       // consolidado (por exemplo, liberação manual do Workout Builder) não
       // participa da rotina semanal nem do Treino de hoje.
       const visibleRows = rows.filter((row) => releaseByTemplate.has(row.template.id));
-      // #405 uses the same released, contract-scoped rows as the routine.
-      // A session is prescribed even when it has not yet been executed.
-      const weeklyEvolution = calculateWeeklyTrainingEvolution({
-        period: { startDate: toDateOnly(week.start), endDate: toDateOnly(week.days[6]) },
-        sessions: visibleRows
-          .filter((row) => row.workoutDate >= week.start && row.workoutDate < week.endExclusive)
-          .map((row) => ({
-            sessionId: row.id,
-            // Use the same canonical-first legacy fallback as toSummary/buildExecution.
-            status: row.execution?.status ?? projectLegacyExecutionStatus(row.status),
-            sourceUpdatedAt: row.execution?.updatedAt?.toISOString()
-              ?? row.updatedAt?.toISOString()
-              ?? row.template.releasedAt?.toISOString() ?? null,
-          })),
-        audience: query.audience,
-      });
       const canProjectPreWorkoutCheckIn =
         query.audience === 'student' || query.includePreWorkoutCheckIn === true;
       const canProjectPostWorkoutFeedback = query.audience === 'student' || query.includePostWorkoutFeedback === true;
@@ -579,6 +563,65 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
       const feedbackRows = canProjectPostWorkoutFeedback && visibleRows.length ? await client.postWorkoutFeedbackRevision.findMany({where:{workoutDayId:{in:visibleRows.map((row)=>row.id)},alunoId:query.alunoId,contractId:query.contractId},include:{execution:{select:{status:true}}},orderBy:[{workoutDayId:'asc'},{scopeKey:'asc'},{revisionNumber:'desc'}]}) : [];
       const latestFeedbackBySession = new Map<string, typeof feedbackRows>(); const latestScopes = new Set<string>();
       for (const feedback of feedbackRows) { const key = `${feedback.workoutDayId}:${feedback.scopeKey}`; if (latestScopes.has(key)) continue; latestScopes.add(key); latestFeedbackBySession.set(feedback.workoutDayId,[...(latestFeedbackBySession.get(feedback.workoutDayId) ?? []),feedback]); }
+      // #405 reads the very same tenant-scoped release, canonical execution and
+      // latest feedback revisions as the routine. No counter or independent store.
+      // A professor without feedback permission never queries or receives PSE/PSR.
+      const weeklyEvolution = calculateWeeklyTrainingEvolution({
+        period: { startDate: toDateOnly(week.start), endDate: toDateOnly(week.days[6]) },
+        sessions: visibleRows
+          .filter((row) => row.workoutDate >= week.start && row.workoutDate < week.endExclusive)
+          .map((row) => {
+            const release = releaseByTemplate.get(row.template.id)!;
+            const canonical = row.execution
+              && row.execution.originReleaseId === release.id
+              && row.execution.originWorkoutTemplateId === row.template.id
+              && row.execution.originTrainingPlanId === row.template.plan.id;
+            const frozen = canonical ? readCapturedWorkoutComparisonPlan(row.execution?.plannedSnapshot) : null;
+            const execution = canonical && row.execution ? projectWorkoutSessionExecution(row.execution) : null;
+            const feedback = canProjectPostWorkoutFeedback
+              ? latestFeedbackBySession.get(row.id) ?? [] : [];
+            const canonicalAt = row.execution?.updatedAt?.toISOString()
+              ?? row.updatedAt?.toISOString()
+              ?? row.template.releasedAt?.toISOString() ?? null;
+            const sourceUpdatedAt = feedback.reduce<string | null>((latest, item) => {
+              const next = item.createdAt.toISOString();
+              return latest === null || next > latest ? next : latest;
+            }, canonicalAt);
+            return {
+              sessionId: row.id,
+              date: toDateOnly(row.workoutDate),
+              modality: resolveModalities(row, capacitiesByDay.get(row.id) ?? []).sort().join('+') || 'unknown',
+              releaseId: release.id,
+              status: row.execution?.status ?? projectLegacyExecutionStatus(row.status),
+              sourceUpdatedAt,
+              ...(execution ? {
+                execution: {
+                  sessionValues: execution.sessionValues,
+                  items: execution.items,
+                  plannedExercises: frozen?.id === row.id
+                    ? frozen.exercises.map((exercise) => ({
+                        plannedUnitId: exercise.id,
+                        catalogExerciseId: exercise.exerciseId ?? null,
+                        name: exercise.exercise.name,
+                      })) : [],
+                },
+              } : {}),
+              feedback: execution && canProjectPostWorkoutFeedback
+                ? feedback.map((item) => {
+                    const values = item.values as { pse?: number | null; psr?: number | null };
+                    return {
+                      id: item.id,
+                      scopeKey: item.scopeKey,
+                      createdAt: item.createdAt.toISOString(),
+                      pse: values.pse ?? null,
+                      psr: values.psr ?? null,
+                    };
+                  })
+                : [],
+            };
+          }),
+        audience: query.audience,
+      });
       const pendingByDate = new Map<string, number>();
       for (const pending of pendingRows) {
         const key = toDateOnly(pending.workoutDate);
