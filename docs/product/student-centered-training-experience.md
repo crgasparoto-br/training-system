@@ -180,7 +180,7 @@ Apos mudancas confirmadas de check-in, execucao ou feedback, a Central deve reva
 
 O contexto do aluno permanece preso ao `alunoId` da rota corrente. Uma resposta de outro contexto nao pode substituir silenciosamente o aluno selecionado. Falha localizada de treino ou timeline preserva os demais dados ja confirmados e permite nova tentativa.
 
-Eventos canonicos de `pre_workout_check_in`, `workout_session_execution` e `post_workout_feedback` alimentam a timeline como projecoes derivadas dos `StudentLifecycleEvent`; a timeline nao se torna fonte de verdade e nao expoe os valores sensiveis do feedback. Aderencia continua fora deste recorte ate a fonte canonica da #405 estar disponivel. A continuidade da rotina agora expõe `lastExecution` global, filtrada por `alunoId` e `contractId`, derivada de `WorkoutSessionExecution` e independente da semana consultada. O estado `feedbackContinuity` contabiliza sessões elegíveis e revisões canônicas na janela semanal, sem disponibilizar conteúdo sensível quando a permissão não permite.
+Eventos canonicos de `pre_workout_check_in`, `workout_session_execution` e `post_workout_feedback` alimentam a timeline como projecoes derivadas dos `StudentLifecycleEvent`; a timeline nao se torna fonte de verdade e nao expoe os valores sensiveis do feedback. A aderência semanal da #405 é derivada diretamente do lifecycle e das sessões liberadas, não dos eventos projetados na timeline da Central. A continuidade da rotina agora expõe `lastExecution` global, filtrada por `alunoId` e `contractId`, derivada de `WorkoutSessionExecution` e independente da semana consultada. O estado `feedbackContinuity` contabiliza sessões elegíveis e revisões canônicas na janela semanal, sem disponibilizar conteúdo sensível quando a permissão não permite.
 
 A consulta dos eventos de treinamento filtra os dominios canonicos antes da paginacao e retorna no maximo 200 eventos por requisicao (padrao 100). O contrato de `GET /alunos/:id/timeline` oferece `limit`, `cursor` e `nextCursor`; cursor informado vazio e rejeitado com HTTP 400; os eventos gerais não são repetidos nas páginas posteriores de eventos de treinamento; o Historico apresenta `Carregar eventos anteriores` para continuar a partir do cursor sem requisitar toda a historia de uma vez. Atualizacoes concorrentes da timeline desconsideram respostas anteriores a uma requisicao mais recente, inclusive carregamento de pagina anterior iniciado antes de uma revalidacao ou troca de aluno; o retorno de visibilidade tambem revalida o Historico.
 
@@ -581,8 +581,11 @@ valores numéricos. A API mantém o isolamento de `contractId` e a separação p
 O serviço lê o mesmo grafo autorizado de Montagem Consolidada da rotina e
 usa como fonte **somente** a execução #389 cujo vínculo imutável de origem
 (`originReleaseId`, `originWorkoutTemplateId`, `originTrainingPlanId`) corresponde
-à sessão liberada. Registros históricos sem execução canônica seguem contando
+à sessão liberada. Registros históricos **sem linha de execução** seguem contando
 para aderência via compatibilidade legada, mas **não geram valores executados**.
+Se houver execução com origem divergente da liberação vigente, seu status,
+medições, feedback e data de atualização não são reutilizados: a nova liberação
+permanece `not_started` até existir execução canônica correspondente.
 A janela é a semana civil selecionada (segunda–domingo), por data da sessão;
 a leitura é repetível, sem persistência nova nem alteração da prescrição.
 
@@ -592,7 +595,7 @@ a leitura é repetível, sem persistência nova nem alteração da prescrição.
 | Distância | Soma de distâncias registradas (`km`) **somente no mesmo esporte e contexto cíclico** | `sessionValues.distanceKm`; na ausência, reconciliar etapas e agregados `repeat` do snapshot histórico, convertendo metros para km uma só vez. Método e topologia devem ter esporte explicitamente identificável; `CEXT`, genérico ou ambíguo não demonstra corrida versus ciclismo e retorna `incomparable` |
 | Ritmo (pace) | Média aritmética de ritmos de sessão registrados (`min/km`) **somente no mesmo esporte e contexto cíclico** | Apenas `sessionValues.pace` em `mm:ss` por km; esporte inequívoco, método e topologia históricos da #401 determinam a compatibilidade. Sem tipo identificável ou entre esportes diferentes, medições isoladas e resumo `incomparable`; não deriva de velocidade |
 | Volume resistido (tonelagem) | Soma de `loadKg × repetitions` (`kg × rep`) | Apenas séries com confirmação canônica (`full`, `partial`, `substituted` ou conclusão guiada persistida); rascunhos `outcome=null` sem `completedAt` não geram volume executado |
-| Carga e repetições | Última série confirmada no mesmo contexto da unidade de treino e número de série (`kg`, `rep`) | Exige confirmação canônica da execução; rascunhos não contam. Compara catálogo, seção, posição, sistema, blocos e grupo do snapshot da #401, além da série. Contexto incompleto ou unidades com assinatura duplicada geram medições isoladas; substituições não assumem identidade original |
+| Carga e repetições | Última série confirmada pela ordem temporal efetiva no mesmo contexto da unidade de treino e série (`kg`, `rep`) | Prioriza `completedAt` da série guiada e, nas confirmações manuais, `finishedAt` da execução canônica. IDs e datas planejadas não substituem a cronologia. Ausência ou empate de timestamps confiáveis entre registros gera `incomparable` e medições isoladas. Exige confirmação canônica, catálogo, seção, posição, sistema, blocos, grupo e série capturados. Rascunhos e substituições sem identidade original não geram tendência |
 | PSE e PSR | Média das percepções vigentes (`0–10`) dentro do mesmo `scopeKey` | Apenas revisão mais recente por sessão e escopo da #390; campos clínicos, histórico substituído e revisões anteriores não compõem o cálculo |
 | Substituições executadas | Soma das ocorrências `substituted` (`ocorrências`) | Itens/séries e etapas cíclicas da execução; aprovação planejada isolada não equivale a substituição executada |
 
@@ -608,8 +611,11 @@ válido, manter medições explícitas isoladas com estado `incomparable`, sem
 forçar uma modalidade pelo planejamento atual. A identidade do exercício não pode ser
 reconstruída a partir de um planejamento atual mutável; contexto incompleto do
 snapshot histórico também gera `incomparable` em carga/repetições. O tipo de pace e distância exige identificação explícita e não ambígua do **esporte**
-no método capturado, além da identidade do método e da topologia cíclica quando
-existente; topologia ou nome de método genérico (`CEXT`, `intervalado`) isolado
+no método capturado, além da identidade do método e da topologia cíclica
+historicamente válida. Snapshot com lista vazia de etapas (`[]`) é distinto de
+grafo inválido, órfão, duplicado ou ausente: o último não certifica
+comparabilidade e permanece isolado, inclusive com método/esporte idênticos.
+Topologia ou nome de método genérico (`CEXT`, `intervalado`) isolado
 não comprova o mesmo esporte. Métodos que mencionam mais de um esporte também
 são ambíguos. Nesses casos, preservar leituras individuais, mas isolar por sessão
 e retornar `incomparable`, mesmo que o método genérico e a estrutura coincidam.
@@ -673,7 +679,10 @@ unidades do mesmo exercício com seção, posição, blocos ou grupos distintos 
 posições duplicadas; séries de exercícios com catálogo/numeração distintos;
 revisão de feedback vigente sem duplicidade; professor sem permissão
 de feedback; alternância entre contratos; ausência de vazamento de metadados
-técnicos para o aluno; constância da versão/fórmula e fontes da projeção.
+técnicos para o aluno; constância da versão/fórmula e fontes da projeção; última carga/repetições
+com sessões no mesmo dia, IDs invertidos, execução fora da ordem planejada,
+ausência e empate de timestamps; grafo cíclico vazio válido versus órfão;
+execução vinculada a outra liberação sem contaminar status e aderência.
 
 ## Linguagem para o aluno
 

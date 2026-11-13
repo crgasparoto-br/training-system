@@ -83,6 +83,8 @@ describe('evolução semanal canônica (#405)', () => {
     sessionId: id, date, modality, status, releaseId: 'release-1',
     method: modality.split('+').includes('cyclic') ? 'corrida continua' : null,
     sourceUpdatedAt: date + 'T12:00:00.000Z',
+    executionFinishedAt: date + 'T18:00:00.000Z',
+    cyclicStructure: modality.split('+').includes('cyclic') ? '[]' : undefined,
     execution: { sessionValues: {}, items: [], plannedExercises: [] },
   });
 
@@ -534,5 +536,76 @@ describe('evolução semanal canônica (#405)', () => {
       .toMatchObject({ status: 'available', value: 5 });
   });
 
+
+  it('A-009: última carga/repetições seguem a execução cronológica, não o ID', () => {
+    const early = executed('z-early', '2026-11-02', 'resistance');
+    const late = executed('a-late', '2026-11-02', 'resistance');
+    early.executionFinishedAt = '2026-11-02T08:00:00.000Z';
+    late.executionFinishedAt = '2026-11-02T18:00:00.000Z';
+    early.execution!.plannedExercises = [plannedUnit('unit-early', 'squat', 'Agachamento')];
+    late.execution!.plannedExercises = [plannedUnit('unit-late', 'squat', 'Agachamento')];
+    early.execution!.items = [{ plannedUnitId: 'unit-early', setNumber: 1, outcome: 'full',
+      loadKg: 30, repetitions: 8 }];
+    late.execution!.items = [{ plannedUnitId: 'unit-late', setNumber: 1, outcome: 'full',
+      loadKg: 50, repetitions: 5 }];
+    const project = () => calculateWeeklyTrainingEvolution({ period, sessions: [early, late], audience: 'student' });
+    expect(project().metrics.find((item) => item.key === 'load'))
+      .toMatchObject({ status: 'available', value: 50, sampleCount: 2 });
+    expect(project().metrics.find((item) => item.key === 'repetitions'))
+      .toMatchObject({ status: 'available', value: 5, sampleCount: 2 });
+    expect(project().series.find((item) => item.key === 'load')?.points)
+      .toEqual([{ date: '2026-11-02', value: 30 }, { date: '2026-11-02', value: 50 }]);
+
+    // A postponed session can be completed after a later scheduled session.
+    early.date = '2026-11-06';
+    late.date = '2026-11-02';
+    early.executionFinishedAt = '2026-11-06T08:00:00.000Z';
+    late.executionFinishedAt = '2026-11-07T18:00:00.000Z';
+    expect(project().metrics.find((item) => item.key === 'load')?.value).toBe(50);
+  });
+
+  it('A-009: ausências e empates de conclusão isolam a ordem temporal desconhecida', () => {
+    const early = executed('old', '2026-11-02', 'resistance');
+    const late = executed('new', '2026-11-04', 'resistance');
+    early.execution!.plannedExercises = [plannedUnit('u1', 'squat', 'Agachamento')];
+    late.execution!.plannedExercises = [plannedUnit('u2', 'squat', 'Agachamento')];
+    early.execution!.items = [{ plannedUnitId: 'u1', setNumber: 1, outcome: 'full',
+      loadKg: 30, repetitions: 8 }];
+    late.execution!.items = [{ plannedUnitId: 'u2', setNumber: 1, outcome: 'full',
+      loadKg: 50, repetitions: 5 }];
+    const project = () => calculateWeeklyTrainingEvolution({ period, sessions: [early, late], audience: 'student' });
+    late.executionFinishedAt = null;
+    for (const key of ['load', 'repetitions'] as const) {
+      expect(project().metrics.find((metric) => metric.key === key))
+        .toMatchObject({ status: 'incomparable', value: null, sampleCount: 2 });
+      expect(project().series.filter((series) => series.key === key)
+        .every((series) => series.points.length === 1)).toBe(true);
+    }
+    late.executionFinishedAt = early.executionFinishedAt;
+    expect(project().metrics.find((metric) => metric.key === 'load')?.status).toBe('incomparable');
+    late.execution!.items[0].completedAt = '2026-11-07T20:00:00.000Z';
+    expect(project().metrics.find((metric) => metric.key === 'load'))
+      .toMatchObject({ status: 'available', value: 50 });
+  });
+
+  it('A-010: topologia histórica inválida não se funde com plano cíclico vazio válido', () => {
+    const empty = executed('empty', '2026-11-02', 'cyclic');
+    const corrupt = executed('corrupt', '2026-11-04', 'cyclic');
+    empty.method = 'Corrida contínua';
+    corrupt.method = 'Corrida contínua';
+    empty.cyclicStructure = '[]';
+    corrupt.cyclicStructure = null;
+    empty.execution!.sessionValues = { durationSec: 1800, distanceKm: 5, pace: '05:00' };
+    corrupt.execution!.sessionValues = { durationSec: 2400, distanceKm: 8, pace: '06:00' };
+    const project = () => calculateWeeklyTrainingEvolution({ period, sessions: [empty, corrupt], audience: 'student' });
+    for (const key of ['duration', 'distance', 'pace'] as const) {
+      expect(project().metrics.find((metric) => metric.key === key))
+        .toMatchObject({ status: 'incomparable', value: null, sampleCount: 2 });
+      expect(project().series.filter((series) => series.key === key)).toHaveLength(2);
+    }
+    corrupt.cyclicStructure = '[]';
+    expect(project().metrics.find((metric) => metric.key === 'distance'))
+      .toMatchObject({ status: 'available', value: 13, sampleCount: 2 });
+  });
 
 });

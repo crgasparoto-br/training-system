@@ -27,10 +27,10 @@ import {
   projectWorkoutComparisonForAudience,
   projectWorkoutExecutionForAudience,
   readCapturedWorkoutComparisonPlan,
-  type TrainingComparisonSnapshot,
 } from './workout-session-comparison.domain.js';
 import { projectPostWorkoutFeedback } from '../post-workout-feedback/post-workout-feedback-persistence.service.js';
 import { calculateWeeklyTrainingEvolution } from './training-evolution.domain.js';
+import { capturedCyclicStructure } from './training-cyclic-identity.domain.js';
 
 /**
  * Leitura da rotina semanal e do Treino de hoje (issue #387).
@@ -175,6 +175,14 @@ type ReleaseRow = {
   releasedAssemblyVersion: number;
 };
 
+/** An execution from a previous release cannot confirm the current released session. */
+function hasCanonicalExecution(row: SessionRow, release: ReleaseRow): boolean {
+  const execution = row.execution;
+  return Boolean(execution && execution.originReleaseId === release.id
+    && execution.originWorkoutTemplateId === row.template.id
+    && execution.originTrainingPlanId === row.template.plan.id);
+}
+
 const SECTION_BLOCK: Record<string, TrainingRoutineBlockKey> = {
   mobilidade: 'warmup',
   aquecimento: 'warmup',
@@ -253,24 +261,6 @@ function buildCyclicTargets(row: SessionRow): TrainingRoutineCyclicTargets | nul
   return hasTargets ? targets : null;
 }
 
-/** Stable, identity-free description of a captured cyclic session's stage topology. */
-function capturedCyclicStructure(plan: TrainingComparisonSnapshot | null): string | null {
-  if (!plan?.cyclicStages.length) return null;
-  const stages = plan.cyclicStages;
-  const visited = new Set<string>();
-  const children = (parentId: string | null): unknown[] => stages
-    .filter((stage) => stage.parentStageId === parentId && typeof stage.kind === 'string')
-    .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))
-    .flatMap((stage) => {
-      // Corrupt/legacy cyclic snapshots must not trigger recursion or invent a type.
-      if (visited.has(stage.id)) return [];
-      visited.add(stage.id);
-      return [[stage.kind, stage.targetKind, stage.repeatCount, children(stage.id)]];
-    });
-  const structure = children(null);
-  return structure.length && visited.size === stages.length ? JSON.stringify(structure) : null;
-}
-
 /** Historical execution cannot inherit a modality from today's mutable WorkoutDay. */
 function resolveCapturedModalities(plan: TrainingComparisonSnapshot | null): TrainingRoutineModality[] {
   if (!plan) return [];
@@ -332,10 +322,11 @@ function projectLegacyExecutionStatus(status: SessionRow['status']): TrainingRou
 }
 
 function buildExecution(row: SessionRow, release: ReleaseRow): TrainingSessionExecutionView {
-  if (row.execution) return projectWorkoutSessionExecution(row.execution);
+  if (hasCanonicalExecution(row, release)) return projectWorkoutSessionExecution(row.execution!);
   return {
     sessionId: row.id,
-    status: projectLegacyExecutionStatus(row.status),
+    // Never borrow the legacy terminal status from another execution/release.
+    status: row.execution ? 'not_started' : projectLegacyExecutionStatus(row.status),
     version: 0,
     startedAt: null,
     finishedAt: null,
@@ -505,6 +496,9 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
           ON execution."workoutDayId" = day."id"
          AND execution."alunoId" = ${query.alunoId}
          AND execution."contractId" = ${query.contractId}
+         AND execution."originReleaseId" = release."id"
+         AND execution."originWorkoutTemplateId" = template."id"
+         AND execution."originTrainingPlanId" = plan."id"
         WHERE plan."alunoId" = ${query.alunoId}
           AND student."contractId" = ${query.contractId}
           AND template."released" = true
@@ -536,6 +530,8 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
          AND release."workoutTemplateId" = template."id"
          AND release."alunoId" = execution."alunoId"
          AND release."contractId" = execution."contractId"
+         AND execution."originWorkoutTemplateId" = template."id"
+         AND execution."originTrainingPlanId" = plan."id"
         WHERE execution."alunoId" = ${query.alunoId}
           AND execution."contractId" = ${query.contractId}
           AND plan."alunoId" = ${query.alunoId}
@@ -592,7 +588,9 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
           })
         : [];
       const checkInBySession = new Map(checkInRows.map((checkIn) => [checkIn.workoutDayId, checkIn]));
-      const feedbackRows = canProjectPostWorkoutFeedback && visibleRows.length ? await client.postWorkoutFeedbackRevision.findMany({where:{workoutDayId:{in:visibleRows.map((row)=>row.id)},alunoId:query.alunoId,contractId:query.contractId},include:{execution:{select:{status:true}}},orderBy:[{workoutDayId:'asc'},{scopeKey:'asc'},{revisionNumber:'desc'}]}) : [];
+      const canonicalRows = visibleRows.filter((row) =>
+        hasCanonicalExecution(row, releaseByTemplate.get(row.template.id)!));
+      const feedbackRows = canProjectPostWorkoutFeedback && canonicalRows.length ? await client.postWorkoutFeedbackRevision.findMany({where:{workoutDayId:{in:canonicalRows.map((row)=>row.id)},alunoId:query.alunoId,contractId:query.contractId},include:{execution:{select:{status:true}}},orderBy:[{workoutDayId:'asc'},{scopeKey:'asc'},{revisionNumber:'desc'}]}) : [];
       const latestFeedbackBySession = new Map<string, typeof feedbackRows>(); const latestScopes = new Set<string>();
       for (const feedback of feedbackRows) { const key = `${feedback.workoutDayId}:${feedback.scopeKey}`; if (latestScopes.has(key)) continue; latestScopes.add(key); latestFeedbackBySession.set(feedback.workoutDayId,[...(latestFeedbackBySession.get(feedback.workoutDayId) ?? []),feedback]); }
       // #405 reads the very same tenant-scoped release, canonical execution and
@@ -604,18 +602,17 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
           .filter((row) => row.workoutDate >= week.start && row.workoutDate < week.endExclusive)
           .map((row) => {
             const release = releaseByTemplate.get(row.template.id)!;
-            const canonical = row.execution
-              && row.execution.originReleaseId === release.id
-              && row.execution.originWorkoutTemplateId === row.template.id
-              && row.execution.originTrainingPlanId === row.template.plan.id;
+            const canonical = hasCanonicalExecution(row, release);
             const captured = canonical ? readCapturedWorkoutComparisonPlan(row.execution?.plannedSnapshot) : null;
             const frozen = captured?.id === row.id ? captured : null;
             const execution = canonical && row.execution ? projectWorkoutSessionExecution(row.execution) : null;
             const feedback = canProjectPostWorkoutFeedback
               ? latestFeedbackBySession.get(row.id) ?? [] : [];
-            const canonicalAt = row.execution?.updatedAt?.toISOString()
-              ?? row.updatedAt?.toISOString()
-              ?? row.template.releasedAt?.toISOString() ?? null;
+            const canonicalAt = canonical && row.execution
+              ? row.execution.updatedAt.toISOString()
+              : row.execution
+                ? row.template.releasedAt?.toISOString() ?? row.updatedAt?.toISOString() ?? null
+                : row.updatedAt?.toISOString() ?? row.template.releasedAt?.toISOString() ?? null;
             const sourceUpdatedAt = feedback.reduce<string | null>((latest, item) => {
               const next = item.createdAt.toISOString();
               return latest === null || next > latest ? next : latest;
@@ -628,7 +625,9 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
               method: typeof frozen?.method === 'string' ? frozen.method : null,
               cyclicStructure: capturedCyclicStructure(frozen),
               releaseId: release.id,
-              status: row.execution?.status ?? projectLegacyExecutionStatus(row.status),
+              status: canonical ? row.execution!.status
+                : row.execution ? 'not_started' : projectLegacyExecutionStatus(row.status),
+              executionFinishedAt: canonical ? row.execution?.finishedAt?.toISOString() ?? null : null,
               sourceUpdatedAt,
               ...(execution ? {
                 execution: {
@@ -714,7 +713,7 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
       // no original plan was captured, the current WorkoutDay cannot supply a
       // historical denominator, names or series structure for comparison.
       const comparisonByDay = new Map<string, TrainingSessionComparison>();
-      for (const row of visibleRows.filter((entry) => Boolean(entry.execution))) {
+      for (const row of canonicalRows) {
         const execution = buildExecution(row, releaseByTemplate.get(row.template.id)!);
         const frozen = readCapturedWorkoutComparisonPlan(row.execution?.plannedSnapshot);
         const comparison = frozen && frozen.id === execution.sessionId
@@ -742,7 +741,8 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
         toDateOnly(row.workoutDate) <= today && toDateOnly(row.workoutDate) >= toDateOnly(week.start)
       );
       const feedbackEligible = weekRows.filter((row) =>
-        row.execution?.status === 'completed' || row.execution?.status === 'partial'
+        hasCanonicalExecution(row, releaseByTemplate.get(row.template.id)!)
+        && (row.execution?.status === 'completed' || row.execution?.status === 'partial')
       );
       const registeredCount = feedbackEligible.filter((row) =>
         (latestFeedbackBySession.get(row.id)?.length ?? 0) > 0

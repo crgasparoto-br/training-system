@@ -9,12 +9,15 @@ import type {
   TrainingSessionExecutionItemValue,
   TrainingSessionExecutionSessionValues,
 } from '@corrida/types';
+import { ambiguousLatestOrder, observationOrder, measure } from './training-evolution-aggregation.domain.js';
 
 /** All sources are scoped to an authenticated student, contract and consolidated release upstream. */
 export type WeeklyEvolutionSessionSource = {
   sessionId: string;
   status: TrainingRoutineExecutionProjectionStatus;
   sourceUpdatedAt: string | null;
+  /** Canonical execution finish time, unaffected by later feedback revisions. */
+  executionFinishedAt?: string | null;
   date?: string;
   modality?: string;
   /** Explicit training method and cyclic structure captured with the execution plan. */
@@ -64,6 +67,7 @@ type Observation = {
   releaseId: string;
   sourceId: string;
   updatedAt: string | null;
+  performedAt: string | null;
 };
 
 type IndicatorDefinition = {
@@ -182,7 +186,7 @@ function capturedCyclicContext(session: WeeklyEvolutionSessionSource) {
   const method = comparableText(session.method);
   const structure = comparableText(session.cyclicStructure);
   const sport = explicitCapturedSport(method);
-  const knownType = sport !== null;
+  const knownType = sport !== null && structure !== null;
   return {
     knownType,
     scope: knownType
@@ -244,14 +248,6 @@ function sumCapturedStageMeasurements(
   return total;
 }
 
-function measure(definition: IndicatorDefinition, values: Observation[]): number {
-  const ordered = [...values].sort((a, b) =>
-    a.date.localeCompare(b.date) || a.sessionId.localeCompare(b.sessionId) || a.sourceId.localeCompare(b.sourceId));
-  if (definition.aggregation === 'last') return ordered[ordered.length - 1].value;
-  const total = ordered.reduce((sum, entry) => sum + entry.value, 0);
-  return definition.aggregation === 'mean' ? total / ordered.length : total;
-}
-
 /**
  * Read-only #405 projection. Never infers absent measurements, clinical findings,
  * a consistency score, or a positive/negative judgement from trend direction.
@@ -287,6 +283,7 @@ export function calculateWeeklyTrainingEvolution(input: {
     session: WeeklyEvolutionSessionSource, key: TrainingEvolutionMetricKey,
     value: unknown, scope: string, scopeLabel: string, sourceId: string,
     updatedAt: string | null = session.sourceUpdatedAt,
+    performedAt: string | null = null,
   ) => {
     if (value === undefined || value === null) return;
     if (!finite(value)) { incompatible.add(key); return; }
@@ -302,7 +299,7 @@ export function calculateWeeklyTrainingEvolution(input: {
       scope: hasModality ? scope : JSON.stringify([scope, 'unclassified', session.sessionId]),
       scopeLabel: hasModality ? scopeLabel : scopeLabel + ' · modalidade não identificada',
       modality: hasModality ? session.modality! : 'unknown', date: session.date,
-      sessionId: session.sessionId, releaseId: session.releaseId, sourceId, updatedAt,
+      sessionId: session.sessionId, releaseId: session.releaseId, sourceId, updatedAt, performedAt,
     });
   };
 
@@ -388,8 +385,9 @@ export function calculateWeeklyTrainingEvolution(input: {
           + ' · série ' + String(item.setNumber)
         : plan.name + ' · unidade histórica não comparável · série ' + String(item.setNumber);
       const sourceId = item.plannedSetId ?? item.plannedUnitId + ':set:' + String(item.setNumber);
-      add(session, 'load', item.loadKg, scope, label, sourceId);
-      add(session, 'repetitions', item.repetitions, scope, label, sourceId);
+      const performedAt = item.completedAt ?? session.executionFinishedAt ?? null;
+      add(session, 'load', item.loadKg, scope, label, sourceId, session.sourceUpdatedAt, performedAt);
+      add(session, 'repetitions', item.repetitions, scope, label, sourceId, session.sourceUpdatedAt, performedAt);
     }
     if (tonnageSamples > 0) {
       add(session, 'tonnage', tonnage, 'session', 'Sessão', session.sessionId);
@@ -425,27 +423,34 @@ export function calculateWeeklyTrainingEvolution(input: {
       const signature = observation.modality + '|' + observation.scope;
       groups.set(signature, [...(groups.get(signature) ?? []), observation]);
     }
+    // Isolate unorderable records: an ID or planned date is not a completion time.
+    for (const [signature, values] of [...groups]) {
+      if (definition.aggregation !== 'last' || !ambiguousLatestOrder(values)) continue;
+      groups.delete(signature);
+      values.forEach((entry, index) =>
+        groups.set(signature + '|order-unverified|' + String(index), [entry]));
+      incompatible.add(definition.key);
+    }
     const comparable = groups.size === 1 && !incompatible.has(definition.key);
     metrics.push({
       key: definition.key, label: definition.label, unit: definition.unit,
       status: incompatible.has(definition.key) || groups.size > 1
         ? 'incomparable' : relevant.length ? 'available' : 'insufficient_data',
-      value: comparable ? round(measure(definition, relevant)) : null,
+      value: comparable ? round(measure(definition.aggregation, relevant)) : null,
       sampleCount: relevant.length,
       lastSourceUpdateAt: relevant.reduce<string | null>(
         (latest, item) => maxIso(latest, item.updatedAt), null),
       sourceLabel: PUBLIC_SOURCES[definition.key],
     });
-    for (const [, values] of [...groups].sort(([left], [right]) => left.localeCompare(right))) {
-      const sorted = [...values].sort((left, right) =>
-        left.date.localeCompare(right.date) || left.sessionId.localeCompare(right.sessionId)
-        || left.sourceId.localeCompare(right.sourceId));
+    for (const [signature, values] of [...groups].sort(([left], [right]) => left.localeCompare(right))) {
+      const sorted = [...values].sort((left, right) => observationOrder(definition.aggregation, left, right));
       series.push({
         key: definition.key,
         label: definition.label,
         unit: definition.unit,
         modality: sorted[0].modality,
-        scopeLabel: sorted[0].scopeLabel,
+        scopeLabel: sorted[0].scopeLabel
+          + (signature.includes('|order-unverified|') ? ' · ordem temporal não identificada' : ''),
         points: sorted.map(({ date, value }) => ({ date, value: round(value) })),
         ...(input.audience === 'professor' ? {
           technical: {

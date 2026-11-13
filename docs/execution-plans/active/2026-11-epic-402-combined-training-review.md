@@ -103,6 +103,15 @@ e heurísticas clínicas sem regra versionada e aprovada.
       de serviço com snapshot histórico; preservar separação de permissões.
 - [x] Adicionar regressões adversariais de domínio e serviço e sincronizar as
       regras documentadas no produto.
+- [x] A-009: última carga/repetições pela cronologia da confirmação (`completedAt`
+      ou `finishedAt`), não por ID/data planejada; ausência ou empate isola
+      medições sem fabricar uma evolução.
+- [x] A-010: topologia cíclica legitimamente vazia difere de grafo histórico
+      inválido, órfão ou duplicado; método igual não comprova comparabilidade.
+- [x] RISK-001: execução de outra liberação não contamina status, aderência,
+      feedback, comparação ou próxima sessão.
+- [x] Testes positivos/negativos adicionados no domínio e serviço; documentação
+      sincronizada com cronologia, modalidades e origem canônica.
 - [ ] Revalidar `pnpm validate` no CI do HEAD material exato e obter auditoria
       independente da PR corrigida antes de marcar a issue como encerrada.
 
