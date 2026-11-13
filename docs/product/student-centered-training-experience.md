@@ -590,15 +590,22 @@ a leitura é repetível, sem persistência nova nem alteração da prescrição.
 | --- | --- | --- |
 | Tempo executado | Soma de segundos registrados dividida por 60 (`min`) | `sessionValues.durationSec`; na ausência, soma das etapas cíclicas com tempo explícito, sem imputar etapas ausentes |
 | Distância | Soma de distâncias registradas (`km`) | `sessionValues.distanceKm`; na ausência, etapas cíclicas com distância explícita convertida de metros; somente modalidade cíclica |
-| Ritmo (pace) | Média aritmética de ritmos de sessão registrados (`min/km`) | Apenas `sessionValues.pace` em `mm:ss` por km, sem derivar de velocidade, sem somar ritmos, sem misturar etapas e sessão |
+| Ritmo (pace) | Média aritmética de ritmos de sessão registrados (`min/km`) **somente no mesmo contexto cíclico** | Apenas `sessionValues.pace` em `mm:ss` por km; método da sessão e topologia das etapas cíclicas capturados no snapshot histórico da #401. Sem tipo identificável ou entre tipos diferentes, medições isoladas e resumo `incomparable`; não deriva de velocidade |
 | Volume resistido (tonelagem) | Soma de `loadKg × repetitions` (`kg × rep`) | Valores explícitos de séries executadas da modalidade resistida; não usa carga/repetições planejadas |
-| Carga e repetições | Último registro na mesma identidade de exercício e número de série (`kg`, `rep`) | Itens da execução com `catalogExerciseId` persistido no snapshot da #401; substituições não assumem identidade do exercício original |
+| Carga e repetições | Último registro no mesmo contexto da unidade de treino e número de série (`kg`, `rep`) | O catálogo sozinho não prova identidade: compara somente catálogo, seção, posição, sistema, blocos e grupo do snapshot da #401, além da série. Contexto incompleto ou duas unidades com a mesma assinatura no mesmo treino geram medições isoladas, não tendência; substituições não assumem identidade do exercício original |
 | PSE e PSR | Média das percepções vigentes (`0–10`) dentro do mesmo `scopeKey` | Apenas revisão mais recente por sessão e escopo da #390; campos clínicos, histórico substituído e revisões anteriores não compõem o cálculo |
 | Substituições executadas | Soma das ocorrências `substituted` (`ocorrências`) | Itens/séries e etapas cíclicas da execução; aprovação planejada isolada não equivale a substituição executada |
 
 A leitura de cada série identifica modalidade, unidade e escopo semântico (sessão,
-catálogo/série ou escopo de feedback). **Séries com modalidades, identidades ou
-escopos diferentes nunca são fundidas**. Quando há múltiplas séries sem base comum,
+catálogo/unidade/série, tipo da sessão cíclica ou escopo de feedback). **Séries com
+modalidades, tipos, identidades ou escopos diferentes nunca são fundidas**. Modalidade
+`unknown` ou inválida não constitui base de comparação: medições existentes continuam
+rastreáveis e isoladas, com estado `incomparable`, mesmo quando todas as sessões
+têm a mesma modalidade desconhecida. A identidade do exercício não pode ser
+reconstruída a partir de um planejamento atual mutável; contexto incompleto do
+snapshot histórico também gera `incomparable` em carga/repetições. O tipo do pace
+vem somente do método e/ou estrutura cíclica capturados, nunca de uma inferência
+sobre o método atual do WorkoutDay. Quando há múltiplas séries sem base comum,
 o resumo retorna `incomparable` e `value: null`, preservando os grupos separados
 na história. Na ausência de qualquer medição retorna `insufficient_data` e `null`,
 jamais zero inventado; **zero explícito** registrado é preservado. Resultados
@@ -630,8 +637,11 @@ inferir retrospectivamente o planejamento.
 
 **Validação mínima (#405):** contar sessão futura liberada no denominador;
 distinguir `completed`/`partial`/`not_performed`; semana vazia, zero explícito e
-nulo; modalidades incompatíveis; séries de exercícios com catálogo/numeração
-distintos; revisão de feedback vigente sem duplicidade; professor sem permissão
+nulo; modalidades incompatíveis, desconhecidas ou inválidas; métodos cíclicos
+contínuo/intervalado e estruturas divergentes; ausência de método no legado;
+unidades do mesmo exercício com seção, posição, blocos ou grupos distintos e
+posições duplicadas; séries de exercícios com catálogo/numeração distintos;
+revisão de feedback vigente sem duplicidade; professor sem permissão
 de feedback; alternância entre contratos; ausência de vazamento de metadados
 técnicos para o aluno; constância da versão/fórmula e fontes da projeção.
 

@@ -72,6 +72,20 @@ e heurísticas clínicas sem regra versionada e aprovada.
       e cobrir perfil aluno/professor, histórico e ausência de liberação em testes.
 - [ ] Confirmar CI no HEAD da remediação A-004 e obter nova auditoria independente.
 
+## Remediação dos achados da auditoria #405 — PR #547
+
+- [x] A-001: preservar o contexto da unidade de treino (catálogo, seção, posição,
+      sistema, blocos e grupo) extraído do snapshot da execução; séries ambíguas
+      permanecem isoladas, sem média ou tendência fictícia.
+- [x] A-002: separar o pace pelo método e topologia cíclica registrados no snapshot
+      imutável; ausência de ambos impede comparabilidade.
+- [x] A-003: rejeitar modalidade desconhecida/inválida como evidência de compatibilidade;
+      manter leituras rastreáveis e isoladas sem soma enganosa.
+- [x] Incluir controles negativos e regressões nas suítes de domínio, serviço e interface;
+      sincronizar a documentação funcional da regra.
+- [ ] Revalidar `pnpm validate` no CI do HEAD material exato e obter auditoria
+      independente da PR corrigida antes de marcar a issue como encerrada.
+
 ## Validação manual
 
 Consultar uma semana com sessões completas, parciais, não realizadas e futuras

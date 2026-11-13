@@ -27,6 +27,7 @@ import {
   projectWorkoutComparisonForAudience,
   projectWorkoutExecutionForAudience,
   readCapturedWorkoutComparisonPlan,
+  type TrainingComparisonSnapshot,
 } from './workout-session-comparison.domain.js';
 import { projectPostWorkoutFeedback } from '../post-workout-feedback/post-workout-feedback-persistence.service.js';
 import { calculateWeeklyTrainingEvolution } from './training-evolution.domain.js';
@@ -250,6 +251,24 @@ function buildCyclicTargets(row: SessionRow): TrainingRoutineCyclicTargets | nul
     targets.pace ||
     row.vo2maxPct !== null;
   return hasTargets ? targets : null;
+}
+
+/** Stable, identity-free description of a captured cyclic session's stage topology. */
+function capturedCyclicStructure(plan: TrainingComparisonSnapshot | null): string | null {
+  if (!plan?.cyclicStages.length) return null;
+  const stages = plan.cyclicStages;
+  const visited = new Set<string>();
+  const children = (parentId: string | null): unknown[] => stages
+    .filter((stage) => stage.parentStageId === parentId && typeof stage.kind === 'string')
+    .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))
+    .flatMap((stage) => {
+      // Corrupt/legacy cyclic snapshots must not trigger recursion or invent a type.
+      if (visited.has(stage.id)) return [];
+      visited.add(stage.id);
+      return [[stage.kind, stage.targetKind, stage.repeatCount, children(stage.id)]];
+    });
+  const structure = children(null);
+  return structure.length && visited.size === stages.length ? JSON.stringify(structure) : null;
 }
 
 function resolveModalities(row: SessionRow, capacities: string[]): TrainingRoutineModality[] {
@@ -591,6 +610,9 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
               sessionId: row.id,
               date: toDateOnly(row.workoutDate),
               modality: resolveModalities(row, capacitiesByDay.get(row.id) ?? []).sort().join('+') || 'unknown',
+              // Historical comparison requires the captured training method, not today's mutable row.
+              method: typeof frozen?.method === 'string' ? frozen.method : null,
+              cyclicStructure: capturedCyclicStructure(frozen),
               releaseId: release.id,
               status: row.execution?.status ?? projectLegacyExecutionStatus(row.status),
               sourceUpdatedAt,
@@ -599,11 +621,33 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
                   sessionValues: execution.sessionValues,
                   items: execution.items,
                   plannedExercises: frozen?.id === row.id
-                    ? frozen.exercises.map((exercise) => ({
-                        plannedUnitId: exercise.id,
-                        catalogExerciseId: exercise.exerciseId ?? null,
-                        name: exercise.exercise.name,
-                      })) : [],
+                    ? frozen.exercises.map((exercise) => {
+                        const group = frozen.resistanceGroups.find((candidate) =>
+                          Array.isArray(candidate.members)
+                          && candidate.members.some((member) => member.workoutExerciseId === exercise.id));
+                        const member = group?.members.find((item) => item.workoutExerciseId === exercise.id);
+                        const blocks = Array.isArray(exercise.resistanceBlocks)
+                          && exercise.resistanceBlocks.every((block) =>
+                            Number.isInteger(block.position) && typeof block.kind === 'string')
+                          ? JSON.stringify(exercise.resistanceBlocks.map((block) =>
+                              [block.position, block.kind.trim().toLowerCase()]))
+                          : undefined;
+                        return {
+                          plannedUnitId: exercise.id,
+                          catalogExerciseId: exercise.exerciseId ?? null,
+                          name: exercise.exercise.name,
+                          section: exercise.section,
+                          exerciseOrder: exercise.exerciseOrder,
+                          system: exercise.system,
+                          blockSignature: blocks,
+                          groupSignature: group && member
+                            ? typeof group.kind === 'string' && Number.isInteger(group.position)
+                              && Number.isInteger(member.position)
+                              ? JSON.stringify([group.kind.trim().toLowerCase(), group.position, member.position])
+                              : undefined
+                            : null,
+                        };
+                      }) : [],
                 },
               } : {}),
               feedback: execution && canProjectPostWorkoutFeedback

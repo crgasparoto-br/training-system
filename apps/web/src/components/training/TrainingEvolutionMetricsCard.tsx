@@ -70,10 +70,11 @@ export function TrainingEvolutionMetricsCard({
       {series.length ? (
         <details className="rounded-md border border-border p-3">
           <summary className="cursor-pointer text-sm font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-            Ver medições históricas comparáveis ({series.length} séries)
+            Ver medições históricas ({series.length} séries)
           </summary>
           <p className="mt-2 text-xs text-muted-foreground">
-            Cada série preserva sua modalidade, unidade e contexto. Variações não indicam, por si só, melhora ou piora.
+            Séries com contexto confirmado são comparáveis; registros sem modalidade, método ou unidade histórica
+            confiável ficam isolados. Variações não indicam, por si só, melhora ou piora.
           </p>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             {series.map((item, index) => (

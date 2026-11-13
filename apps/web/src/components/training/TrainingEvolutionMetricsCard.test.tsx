@@ -61,6 +61,7 @@ describe('TrainingEvolutionMetricsCard (#405)', () => {
     expect(within(region).getByText(/Consistência: indisponível/)).toBeInTheDocument();
     expect(within(region).getByText('03/11/2026: 3 km')).toBeInTheDocument();
     expect(within(region).getByText('05/11/2026: 5 km')).toBeInTheDocument();
+    expect(within(region).getByText(/registros sem modalidade, método ou unidade histórica/)).toBeInTheDocument();
     expect(within(region).queryByText('Regras técnicas e rastreabilidade')).not.toBeInTheDocument();
     expect(within(region).queryByText(/private-record-1/)).not.toBeInTheDocument();
   });

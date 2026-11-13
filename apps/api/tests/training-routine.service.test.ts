@@ -321,6 +321,42 @@ describe('training routine service (#387)', () => {
     expect(authorized.weeklyEvolution?.adherence.value).toBe(student.weeklyEvolution?.adherence.value);
   });
 
+  it('#405 A-002: deriva método e topologia do snapshot, nunca do método atual do WorkoutDay', async () => {
+    const captured = {
+      id: 'day-1', method: 'Intervalado',
+      cyclicStages: [{ id: 'work-1', parentStageId: null, position: 1,
+        kind: 'work', targetKind: 'pace_min_per_km', repeatCount: null }],
+      exercises: [], resistanceGroups: [],
+    };
+    const execution = {
+      workoutDayId: 'day-1', status: 'completed', version: 1,
+      updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+      startedAt: new Date('2026-10-01T11:00:00.000Z'),
+      finishedAt: new Date('2026-10-01T12:00:00.000Z'),
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1', sessionValues: { pace: '05:00' },
+      plannedSnapshot: captured, items: [],
+    };
+    releasedRows = [makeRow({ method: 'Contínuo (valor atual)', cyclicTimeMin: 30, execution })];
+    const query = { alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student' as const, now };
+    const verified = await service.getRoutine(query);
+    expect(verified.weeklyEvolution?.metrics.find((item) => item.key === 'pace'))
+      .toMatchObject({ status: 'available', value: 5 });
+    expect(verified.weeklyEvolution?.series.find((item) => item.key === 'pace')?.scopeLabel)
+      .toContain('Intervalado');
+    expect(JSON.stringify(verified.weeklyEvolution)).not.toContain('Contínuo (valor atual)');
+
+    // Legacy #401 snapshot with no captured type cannot borrow a mutable current method.
+    releasedRows = [makeRow({ method: 'Contínuo (valor atual)', cyclicTimeMin: 30,
+      execution: { ...execution, plannedSnapshot: { ...captured, method: null, cyclicStages: [] } },
+    })];
+    const historical = await service.getRoutine(query);
+    expect(historical.weeklyEvolution?.metrics.find((item) => item.key === 'pace'))
+      .toMatchObject({ status: 'incomparable', value: null, sampleCount: 1 });
+    expect(historical.weeklyEvolution?.series.filter((item) => item.key === 'pace')).toHaveLength(1);
+  });
+
   it('projeta o próximo treino de outra semana apenas com liberação consolidada e escopo contratual', async () => {
     upcomingRows = [{
       sessionId: 'next-month',

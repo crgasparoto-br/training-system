@@ -81,9 +81,16 @@ describe('evolução semanal canônica (#405)', () => {
     id: string, date: string, modality: string, status: WeeklyEvolutionSessionSource['status'] = 'completed',
   ): WeeklyEvolutionSessionSource => ({
     sessionId: id, date, modality, status, releaseId: 'release-1',
+    method: modality.split('+').includes('cyclic') ? 'corrida continua' : null,
     sourceUpdatedAt: date + 'T12:00:00.000Z',
     execution: { sessionValues: {}, items: [], plannedExercises: [] },
   });
+
+  const plannedUnit = (
+    plannedUnitId: string, catalogExerciseId: string, name: string,
+    section = 'principal', exerciseOrder = 1, blockSignature = '[]', groupSignature: string | null = null,
+  ) => ({ plannedUnitId, catalogExerciseId, name, section, exerciseOrder,
+    system: null, blockSignature, groupSignature });
 
   it('agrega medições cíclicas compatíveis, inclusive parciais, sem pontuá-las como concluídas', () => {
     const first = executed('cyclic-1', '2026-11-02', 'cyclic');
@@ -114,12 +121,12 @@ describe('evolução semanal canônica (#405)', () => {
 
   it('compara carga/repetições apenas pelo catálogo estável e série no snapshot histórico', () => {
     const first = executed('res-1', '2026-11-02', 'resistance');
-    first.execution!.plannedExercises = [{ plannedUnitId: 'p-1', catalogExerciseId: 'squat', name: 'Agachamento' }];
+    first.execution!.plannedExercises = [plannedUnit('p-1', 'squat', 'Agachamento')];
     first.execution!.items = [{
       plannedUnitId: 'p-1', plannedSetId: 'set-a', setNumber: 1, outcome: 'full', loadKg: 40, repetitions: 8,
     }];
     const second = executed('res-2', '2026-11-04', 'resistance');
-    second.execution!.plannedExercises = [{ plannedUnitId: 'p-2', catalogExerciseId: 'squat', name: 'Agachamento' }];
+    second.execution!.plannedExercises = [plannedUnit('p-2', 'squat', 'Agachamento')];
     second.execution!.items = [{
       plannedUnitId: 'p-2', plannedSetId: 'set-b', setNumber: 1, outcome: 'full', loadKg: 42, repetitions: 8,
     }];
@@ -150,8 +157,8 @@ describe('evolução semanal canônica (#405)', () => {
     const resistance = executed('weights', '2026-11-03', 'resistance');
     resistance.execution!.sessionValues = { durationSec: 3600 };
     resistance.execution!.plannedExercises = [
-      { plannedUnitId: 'p1', catalogExerciseId: 'squat', name: 'Agachamento' },
-      { plannedUnitId: 'p2', catalogExerciseId: 'press', name: 'Supino' },
+      plannedUnit('p1', 'squat', 'Agachamento', 'principal', 1),
+      plannedUnit('p2', 'press', 'Supino', 'principal', 2),
     ];
     resistance.execution!.items = [
       { plannedUnitId: 'p1', setNumber: 1, loadKg: 40, repetitions: 8 },
@@ -168,6 +175,122 @@ describe('evolução semanal canônica (#405)', () => {
     });
     expect(result.series.filter((item) => item.key === 'load')).toHaveLength(2);
     expect(result.metrics.find((item) => item.key === 'tonnage')?.value).toBe(620);
+  });
+
+  it('A-001: mantém unidades separadas do mesmo exercício por seção, ordem, bloco e agrupamento', () => {
+    const workout = executed('weights', '2026-11-02', 'resistance');
+    workout.execution!.plannedExercises = [
+      plannedUnit('warmup', 'squat', 'Agachamento', 'aquecimento', 1),
+      plannedUnit('main', 'squat', 'Agachamento', 'principal', 1),
+      plannedUnit('main-2', 'squat', 'Agachamento', 'principal', 2),
+      plannedUnit('main-block', 'squat', 'Agachamento', 'principal', 3, '[[1,"principal"]]'),
+      plannedUnit('main-group', 'squat', 'Agachamento', 'principal', 4, '[]', '["bi_set",1,1]'),
+    ];
+    workout.execution!.items = workout.execution!.plannedExercises.map((unit, index) => ({
+      plannedUnitId: unit.plannedUnitId, plannedSetId: `s-${index}`, setNumber: 1,
+      outcome: 'full', loadKg: 20 + index * 10, repetitions: 8,
+    }));
+    const result = calculateWeeklyTrainingEvolution({ period, audience: 'student', sessions: [workout] });
+    expect(result.series.filter((item) => item.key === 'load')).toHaveLength(5);
+    expect(result.series.filter((item) => item.key === 'repetitions')).toHaveLength(5);
+    expect(result.metrics.find((item) => item.key === 'load')).toMatchObject({
+      status: 'incomparable', value: null, sampleCount: 5,
+    });
+  });
+
+  it('A-001: sessões distintas com mesmo contexto explícito seguem comparáveis', () => {
+    const a = executed('a', '2026-11-02', 'resistance');
+    const b = executed('b', '2026-11-04', 'resistance');
+    a.execution!.plannedExercises = [plannedUnit('a-main', 'squat', 'Agachamento', 'principal', 1)];
+    b.execution!.plannedExercises = [plannedUnit('b-main', 'squat', 'Agachamento', 'principal', 1)];
+    a.execution!.items = [{ plannedUnitId: 'a-main', setNumber: 1, loadKg: 40, repetitions: 8 }];
+    b.execution!.items = [{ plannedUnitId: 'b-main', setNumber: 1, loadKg: 42, repetitions: 8 }];
+    const result = calculateWeeklyTrainingEvolution({ period, audience: 'professor', sessions: [a, b] });
+    expect(result.metrics.find((item) => item.key === 'load')).toMatchObject({
+      status: 'available', value: 42, sampleCount: 2,
+    });
+    expect(result.series.filter((item) => item.key === 'load')).toHaveLength(1);
+    expect(result.series.find((item) => item.key === 'load')?.technical?.sources).toHaveLength(2);
+  });
+
+  it('A-001: snapshots legados e posições ambíguas preservam medições isoladas, não tendências', () => {
+    const workout = executed('a', '2026-11-02', 'resistance');
+    workout.execution!.plannedExercises = [
+      { plannedUnitId: 'old', catalogExerciseId: 'squat', name: 'Agachamento' },
+      plannedUnit('duplicate-1', 'press', 'Supino'),
+      plannedUnit('duplicate-2', 'press', 'Supino'),
+    ];
+    workout.execution!.items = [
+      { plannedUnitId: 'old', setNumber: 1, loadKg: 20, repetitions: 8 },
+      { plannedUnitId: 'duplicate-1', setNumber: 1, loadKg: 30, repetitions: 8 },
+      { plannedUnitId: 'duplicate-2', setNumber: 1, loadKg: 35, repetitions: 8 },
+    ];
+    const result = calculateWeeklyTrainingEvolution({ period, audience: 'student', sessions: [workout] });
+    expect(result.series.filter((item) => item.key === 'load')).toHaveLength(3);
+    expect(result.metrics.find((item) => item.key === 'load')).toMatchObject({
+      status: 'incomparable', value: null, sampleCount: 3,
+    });
+  });
+
+  it('A-002: separa pace entre métodos contínuo e intervalado sem produzir média fictícia', () => {
+    const steady = executed('steady', '2026-11-02', 'cyclic');
+    const interval = executed('interval', '2026-11-04', 'cyclic');
+    steady.method = ' Corrida   CONTÍNUA ';
+    interval.method = 'Corrida intervalada';
+    steady.execution!.sessionValues.pace = '04:00';
+    interval.execution!.sessionValues.pace = '07:00';
+    const result = calculateWeeklyTrainingEvolution({ period, audience: 'student', sessions: [steady, interval] });
+    expect(result.metrics.find((item) => item.key === 'pace')).toMatchObject({
+      status: 'incomparable', value: null, sampleCount: 2,
+    });
+    expect(result.series.filter((item) => item.key === 'pace')).toHaveLength(2);
+  });
+
+  it('A-002: métodos iguais com estruturas diferentes não geram média cruzada', () => {
+    const steady = executed('steady', '2026-11-02', 'cyclic');
+    const intervals = executed('intervals', '2026-11-04', 'cyclic');
+    steady.method = 'Corrida';
+    intervals.method = 'corrida';
+    steady.cyclicStructure = '[["work",null,null,[]]]';
+    intervals.cyclicStructure = '[["repeat",null,4,[["work",null,null,[]]]]]';
+    steady.execution!.sessionValues.pace = '05:00';
+    intervals.execution!.sessionValues.pace = '06:00';
+    const result = calculateWeeklyTrainingEvolution({ period, audience: 'student', sessions: [steady, intervals] });
+    expect(result.metrics.find((item) => item.key === 'pace')).toMatchObject({
+      status: 'incomparable', value: null, sampleCount: 2,
+    });
+    expect(result.series.filter((item) => item.key === 'pace')).toHaveLength(2);
+  });
+
+  it('A-002: sem contexto histórico de método/etapas, pace não é tendência comparável', () => {
+    const a = executed('a', '2026-11-02', 'cyclic');
+    const b = executed('b', '2026-11-04', 'cyclic');
+    a.method = null;
+    b.method = null;
+    a.execution!.sessionValues.pace = '05:00';
+    b.execution!.sessionValues.pace = '05:30';
+    const result = calculateWeeklyTrainingEvolution({ period, audience: 'professor', sessions: [a, b] });
+    expect(result.metrics.find((item) => item.key === 'pace')).toMatchObject({
+      status: 'incomparable', value: null, sampleCount: 2,
+    });
+    expect(result.series.filter((item) => item.key === 'pace')).toHaveLength(2);
+    expect(result.technical?.indicators.find((item) => item.key === 'pace')?.observations).toHaveLength(2);
+  });
+
+  it('A-003: modalidade desconhecida ou inválida não prova comparabilidade nem vaza dados', () => {
+    const a = executed('a', '2026-11-02', 'unknown');
+    const b = executed('b', '2026-11-04', 'unknown');
+    const invalid = executed('c', '2026-11-05', 'cyclic+invented');
+    a.execution!.sessionValues.durationSec = 1800;
+    b.execution!.sessionValues.durationSec = 3600;
+    invalid.execution!.sessionValues.durationSec = 600;
+    const student = calculateWeeklyTrainingEvolution({ period, audience: 'student', sessions: [a, b, invalid] });
+    expect(student.metrics.find((item) => item.key === 'duration')).toMatchObject({
+      status: 'incomparable', value: null, sampleCount: 3,
+    });
+    expect(student.series.filter((item) => item.key === 'duration')).toHaveLength(3);
+    expect(student.series.every((item) => item.technical === undefined)).toBe(true);
+    expect(JSON.stringify(student)).not.toMatch(/release-1|"sessionId"/);
   });
 
   it('PSE/PSR usam revisão vigente recebida, não incluem dados clínicos e separam escopos', () => {
