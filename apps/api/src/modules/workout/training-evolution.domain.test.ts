@@ -434,5 +434,105 @@ describe('evolução semanal canônica (#405)', () => {
     }
   });
 
+  it('A-007: método genérico idêntico não certifica esporte nem agrega distância/pace', () => {
+    const run = executed('run-generic', '2026-11-02', 'cyclic');
+    const bike = executed('bike-generic', '2026-11-04', 'cyclic');
+    run.method = 'CEXT';
+    bike.method = ' CEXT ';
+    run.cyclicStructure = '[["work",null,null,[]]]';
+    bike.cyclicStructure = run.cyclicStructure;
+    run.execution!.sessionValues = { distanceKm: 5, pace: '05:00' };
+    bike.execution!.sessionValues = { distanceKm: 30, pace: '02:00' };
+    const student = calculateWeeklyTrainingEvolution({ period, sessions: [run, bike], audience: 'student' });
+    for (const key of ['distance', 'pace'] as const) {
+      expect(student.metrics.find((metric) => metric.key === key))
+        .toMatchObject({ status: 'incomparable', value: null, sampleCount: 2 });
+      expect(student.series.filter((series) => series.key === key)).toHaveLength(2);
+    }
+    expect(student.series.every((series) => series.technical === undefined)).toBe(true);
+
+    // A method containing incompatible sport markers must not be trusted either.
+    run.method = 'Corrida e ciclismo contínuo';
+    const mixed = calculateWeeklyTrainingEvolution({ period, sessions: [run], audience: 'professor' });
+    expect(mixed.metrics.find((metric) => metric.key === 'distance'))
+      .toMatchObject({ status: 'incomparable', value: null, sampleCount: 1 });
+    expect(mixed.technical?.indicators.find((metric) => metric.key === 'distance')?.observations)
+      .toHaveLength(1);
+  });
+
+  it('A-008: não soma o total repeat com as medições das etapas filhas', () => {
+    const run = executed('run-repeat', '2026-11-02', 'cyclic');
+    run.execution!.plannedCyclicStages = [
+      { id: 'repeat-parent', kind: 'repeat', parentStageId: null },
+      { id: 'child-a', kind: 'work', parentStageId: 'repeat-parent' },
+    ];
+    run.execution!.sessionValues.cyclicStages = [
+      { plannedStageId: 'repeat-parent', iteration: 1, outcome: 'full',
+        durationSec: 600, distanceMeters: 5000 },
+      { plannedStageId: 'child-a', iteration: 1, outcome: 'full',
+        durationSec: 300, distanceMeters: 2500 },
+      { plannedStageId: 'child-a', iteration: 2, outcome: 'full',
+        durationSec: 300, distanceMeters: 2500 },
+    ];
+    const project = () => calculateWeeklyTrainingEvolution({ period, sessions: [run], audience: 'student' });
+    expect(project().metrics.find((metric) => metric.key === 'duration'))
+      .toMatchObject({ status: 'available', value: 10 });
+    expect(project().metrics.find((metric) => metric.key === 'distance'))
+      .toMatchObject({ status: 'available', value: 5 });
+
+    // Missing aggregate: keep both confirmed iterations. Parent-only is valid too.
+    run.execution!.sessionValues.cyclicStages = run.execution!.sessionValues.cyclicStages!.slice(1);
+    expect(project().metrics.find((metric) => metric.key === 'duration')?.value).toBe(10);
+    expect(project().metrics.find((metric) => metric.key === 'distance')?.value).toBe(5);
+    run.execution!.sessionValues.cyclicStages = [
+      { plannedStageId: 'repeat-parent', outcome: 'full', durationSec: 600, distanceMeters: 5000 },
+    ];
+    expect(project().metrics.find((metric) => metric.key === 'duration')?.value).toBe(10);
+    expect(project().metrics.find((metric) => metric.key === 'distance')?.value).toBe(5);
+  });
+
+  it('A-008: reconcilia métricas independentes e outros estágios fora de repeat', () => {
+    const run = executed('run-topology', '2026-11-03', 'cyclic', 'partial');
+    run.execution!.plannedCyclicStages = [
+      { id: 'warmup', kind: 'warmup', parentStageId: null },
+      { id: 'repeat', kind: 'repeat', parentStageId: null },
+      { id: 'child', kind: 'work', parentStageId: 'repeat' },
+    ];
+    run.execution!.sessionValues.cyclicStages = [
+      { plannedStageId: 'warmup', outcome: 'full', durationSec: 120, distanceMeters: 500 },
+      { plannedStageId: 'repeat', outcome: 'partial', durationSec: 600 },
+      { plannedStageId: 'child', iteration: 1, outcome: 'full', durationSec: 300, distanceMeters: 2500 },
+      { plannedStageId: 'child', iteration: 2, outcome: 'full', durationSec: 300, distanceMeters: 2500 },
+    ];
+    const result = calculateWeeklyTrainingEvolution({ period, sessions: [run], audience: 'student' });
+    expect(result.metrics.find((m) => m.key === 'duration'))
+      .toMatchObject({ status: 'available', value: 12 });
+    expect(result.metrics.find((m) => m.key === 'distance'))
+      .toMatchObject({ status: 'available', value: 5.5 });
+    expect(result.adherence.value).toBe(0);
+
+    // Explicit zero is an authoritative parent total, never replaced by child totals.
+    run.execution!.sessionValues.cyclicStages![1].distanceMeters = 0;
+    const zero = calculateWeeklyTrainingEvolution({ period, sessions: [run], audience: 'student' });
+    expect(zero.metrics.find((m) => m.key === 'distance')?.value).toBe(0.5);
+  });
+
+  it('A-008: histórico ambíguo não infere total, mas mantém leitura explícita da sessão', () => {
+    const legacy = executed('legacy', '2026-11-04', 'cyclic');
+    legacy.execution!.sessionValues.cyclicStages = [
+      { plannedStageId: 'possibly-repeat', outcome: 'full', distanceMeters: 5000, durationSec: 600 },
+      { plannedStageId: 'child', outcome: 'full', distanceMeters: 5000, durationSec: 600 },
+    ];
+    const unknown = calculateWeeklyTrainingEvolution({ period, sessions: [legacy], audience: 'student' });
+    for (const key of ['duration', 'distance'] as const) {
+      expect(unknown.metrics.find((m) => m.key === key))
+        .toMatchObject({ status: 'incomparable', value: null, sampleCount: 0 });
+    }
+    legacy.execution!.sessionValues.distanceKm = 5;
+    const explicit = calculateWeeklyTrainingEvolution({ period, sessions: [legacy], audience: 'student' });
+    expect(explicit.metrics.find((m) => m.key === 'distance'))
+      .toMatchObject({ status: 'available', value: 5 });
+  });
+
 
 });

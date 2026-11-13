@@ -24,6 +24,12 @@ export type WeeklyEvolutionSessionSource = {
   execution?: {
     sessionValues: TrainingSessionExecutionSessionValues;
     items: TrainingSessionExecutionItemValue[];
+    /** Historical stage graph from the execution snapshot, never the mutable WorkoutDay. */
+    plannedCyclicStages?: Array<{
+      id: string;
+      kind: string;
+      parentStageId: string | null;
+    }>;
     /** Captured #401 plan only. Current mutable WorkoutDay cannot identify a historic exercise. */
     plannedExercises: Array<{
       plannedUnitId: string;
@@ -71,12 +77,13 @@ type IndicatorDefinition = {
 
 const DEFINITIONS: readonly IndicatorDefinition[] = [
   { key: 'duration', label: 'Tempo executado', unit: 'min', aggregation: 'sum',
-    formula: 'sum(executed_duration_seconds) / 60', source: 'canonical_session_execution' },
+    formula: 'session_duration_seconds or deduplicated captured cyclic stage duration / 60',
+    source: 'captured_plan_and_canonical_session_execution' },
   { key: 'distance', label: 'Distância executada', unit: 'km', aggregation: 'sum',
-    formula: 'sum(executed_distance_km) within same captured cyclic method and structure',
+    formula: 'session_distance_km or deduplicated captured cyclic stage distance within explicit sport, method and structure',
     source: 'captured_plan_and_canonical_session_execution' },
   { key: 'pace', label: 'Ritmo registrado', unit: 'min/km', aggregation: 'mean',
-    formula: 'mean(canonical_session_pace_min_per_km) within same captured session method and cyclic structure',
+    formula: 'mean(canonical_session_pace_min_per_km) within same explicit sport, captured method and cyclic structure',
     source: 'captured_plan_and_canonical_session_execution' },
   { key: 'tonnage', label: 'Volume resistido registrado', unit: 'kg × rep', aggregation: 'sum',
     formula: 'sum(confirmed_executed_load_kg * confirmed_executed_repetitions)',
@@ -156,22 +163,85 @@ function paceMinutes(value: string): number | null {
   return match ? Number(match[1]) + Number(match[2]) / 60 : null;
 }
 
-/**
- * A stage topology can repeat across sports. Without a captured method, even
- * identical stages cannot certify running versus cycling or other session types.
- */
+/** An exercise method is not a sport: e.g. CEXT can mean running or cycling. */
+function explicitCapturedSport(method: string | null | undefined): string | null {
+  const label = comparableText(method)?.normalize('NFKD').replace(/\p{M}/gu, '') ?? '';
+  const sportMarkers: Array<[string, RegExp]> = [
+    ['running', /\b(corrida|correr|running|run)\b/u],
+    ['cycling', /\b(ciclismo|pedalada|bicicleta|bike|cycling)\b/u],
+    ['walking', /\b(caminhada|walking)\b/u],
+    ['swimming', /\b(natacao|swimming)\b/u],
+  ];
+  const matches = sportMarkers.filter(([, expression]) => expression.test(label));
+  // Ambiguous or generic methods cannot establish comparable sport identity.
+  return matches.length === 1 ? matches[0][0] : null;
+}
+
+/** A captured method and topology never prove the sport without an explicit identifier. */
 function capturedCyclicContext(session: WeeklyEvolutionSessionSource) {
   const method = comparableText(session.method);
   const structure = comparableText(session.cyclicStructure);
-  const knownType = method !== null;
+  const sport = explicitCapturedSport(method);
+  const knownType = sport !== null;
   return {
     knownType,
     scope: knownType
-      ? JSON.stringify(['captured-cyclic', method, structure])
+      ? JSON.stringify(['captured-cyclic', sport, method, structure])
       : JSON.stringify(['unclassified-cyclic', session.sessionId]),
     label: knownType ? 'Sessão · ' + session.method!.trim()
-      : 'Sessão · tipo cíclico não identificado',
+      : 'Sessão · esporte cíclico não identificado',
   };
+}
+
+type RecordedCyclicStage = NonNullable<TrainingSessionExecutionSessionValues['cyclicStages']>[number];
+type CapturedCyclicStages = NonNullable<NonNullable<WeeklyEvolutionSessionSource['execution']>['plannedCyclicStages']>;
+
+/**
+ * A recorded repeat parent is an aggregate of its descendants, not an extra
+ * performed stage. For each measurement prefer the explicit parent total if
+ * present; otherwise sum the measured children. A missing historical graph
+ * cannot safely distinguish distinct leaves from parent/child aggregates.
+ */
+function sumCapturedStageMeasurements(
+  stages: RecordedCyclicStage[], plan: CapturedCyclicStages | undefined,
+  field: 'durationSec' | 'distanceMeters',
+): number | null | 'incomparable' {
+  const measured = stages.filter((stage) => stage.outcome !== 'not_performed'
+    && stage[field] !== null && stage[field] !== undefined);
+  if (!measured.length) return null;
+  const occurrences = new Set<string>();
+  for (const stage of measured) {
+    const iteration = stage.iteration ?? 1;
+    const occurrence = JSON.stringify([stage.plannedStageId, iteration]);
+    if (!stage.plannedStageId || !Number.isInteger(iteration) || iteration < 1
+      || occurrences.has(occurrence) || !finite(stage[field])) return 'incomparable';
+    occurrences.add(occurrence);
+  }
+  if (!plan?.length) {
+    // One stage with several iterations can be summed; distinct stage IDs
+    // might instead be a parent aggregate and its leaves.
+    if (new Set(measured.map((stage) => stage.plannedStageId)).size > 1) return 'incomparable';
+    return measured.reduce((total, stage) => total + stage[field]!, 0);
+  }
+  const byId = new Map(plan.map((stage) => [stage.id, stage]));
+  if (byId.size !== plan.length) return 'incomparable';
+  const aggregates = new Set(measured.filter((stage) =>
+    byId.get(stage.plannedStageId)?.kind === 'repeat').map((stage) => stage.plannedStageId));
+  let total = 0;
+  for (const stage of measured) {
+    if (!byId.has(stage.plannedStageId)) return 'incomparable';
+    const visited = new Set([stage.plannedStageId]);
+    let parentId = byId.get(stage.plannedStageId)!.parentStageId;
+    let representedByAncestor = false;
+    while (parentId !== null) {
+      if (visited.has(parentId) || !byId.has(parentId)) return 'incomparable';
+      visited.add(parentId);
+      if (aggregates.has(parentId)) representedByAncestor = true;
+      parentId = byId.get(parentId)!.parentStageId;
+    }
+    if (!representedByAncestor) total += stage[field]!;
+  }
+  return total;
 }
 
 function measure(definition: IndicatorDefinition, values: Observation[]): number {
@@ -238,18 +308,21 @@ export function calculateWeeklyTrainingEvolution(input: {
 
   for (const session of sessions) {
     if (!isTerminalPerformed(session.status) || !session.execution) continue;
-    const { sessionValues, items, plannedExercises } = session.execution;
+    const { sessionValues, items, plannedExercises, plannedCyclicStages } = session.execution;
     const stages = sessionValues.cyclicStages ?? [];
-    const eligibleStages = stages.filter((stage) => stage.outcome !== 'not_performed');
-    const stageDuration = eligibleStages.filter((stage) => stage.durationSec !== undefined && stage.durationSec !== null);
+    const stageDuration = sessionValues.durationSec == null
+      ? sumCapturedStageMeasurements(stages, plannedCyclicStages, 'durationSec') : null;
+    if (stageDuration === 'incomparable') incompatible.add('duration');
     const duration = sessionValues.durationSec ??
-      (stageDuration.length ? stageDuration.reduce((sum, stage) => sum + (stage.durationSec ?? 0), 0) : null);
+      (stageDuration === 'incomparable' ? null : stageDuration);
     if (duration !== null && duration !== undefined) {
       add(session, 'duration', finite(duration) ? duration / 60 : duration, 'session', 'Sessão', session.sessionId);
     }
-    const stageDistance = eligibleStages.filter((stage) => stage.distanceMeters !== undefined && stage.distanceMeters !== null);
+    const stageDistance = sessionValues.distanceKm == null
+      ? sumCapturedStageMeasurements(stages, plannedCyclicStages, 'distanceMeters') : null;
+    if (stageDistance === 'incomparable') incompatible.add('distance');
     const distance = sessionValues.distanceKm ??
-      (stageDistance.length ? stageDistance.reduce((sum, stage) => sum + (stage.distanceMeters ?? 0), 0) / 1000 : null);
+      (stageDistance === 'incomparable' || stageDistance === null ? null : stageDistance / 1000);
     // Legacy/invalid snapshots retain the measured reading, never a fabricated
     // comparable type. Current mutable WorkoutDay modalities cannot fill the gap.
     const cyclicOrUnclassified = session.modality?.split('+').includes('cyclic')

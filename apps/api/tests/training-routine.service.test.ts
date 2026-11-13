@@ -324,7 +324,7 @@ describe('training routine service (#387)', () => {
 
   it('#405 A-002: deriva método e topologia do snapshot, nunca do método atual do WorkoutDay', async () => {
     const captured = {
-      id: 'day-1', method: 'Intervalado',
+      id: 'day-1', method: 'Corrida intervalada',
       cyclicStages: [{ id: 'work-1', parentStageId: null, position: 1,
         kind: 'work', targetKind: 'pace_min_per_km', repeatCount: null }],
       exercises: [], resistanceGroups: [],
@@ -345,7 +345,7 @@ describe('training routine service (#387)', () => {
     expect(verified.weeklyEvolution?.metrics.find((item) => item.key === 'pace'))
       .toMatchObject({ status: 'available', value: 5 });
     expect(verified.weeklyEvolution?.series.find((item) => item.key === 'pace')?.scopeLabel)
-      .toContain('Intervalado');
+      .toContain('Corrida intervalada');
     expect(JSON.stringify(verified.weeklyEvolution)).not.toContain('Contínuo (valor atual)');
 
     // Legacy #401 snapshot with no captured type cannot borrow a mutable current method.
@@ -356,6 +356,43 @@ describe('training routine service (#387)', () => {
     expect(historical.weeklyEvolution?.metrics.find((item) => item.key === 'pace'))
       .toMatchObject({ status: 'incomparable', value: null, sampleCount: 1 });
     expect(historical.weeklyEvolution?.series.filter((item) => item.key === 'pace')).toHaveLength(1);
+  });
+
+  it('#405 A-008: usa o grafo do snapshot vinculado para evitar dupla contagem de repeat', async () => {
+    const captured = {
+      id: 'day-1', method: 'Corrida contínua', cyclicTimeMin: 30,
+      cyclicStages: [
+        { id: 'parent', kind: 'repeat', parentStageId: null, position: 1,
+          targetKind: null, repeatCount: 2 },
+        { id: 'work', kind: 'work', parentStageId: 'parent', position: 1,
+          targetKind: null, repeatCount: null },
+      ],
+      exercises: [], resistanceGroups: [],
+    };
+    const execution = {
+      workoutDayId: 'day-1', status: 'completed', version: 1,
+      updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+      startedAt: new Date('2026-10-01T11:00:00.000Z'),
+      finishedAt: new Date('2026-10-01T12:00:00.000Z'),
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1', plannedSnapshot: captured,
+      sessionValues: { cyclicStages: [
+        { plannedStageId: 'parent', outcome: 'full', durationSec: 600, distanceMeters: 5000 },
+        { plannedStageId: 'work', iteration: 1, outcome: 'full', durationSec: 300, distanceMeters: 2500 },
+        { plannedStageId: 'work', iteration: 2, outcome: 'full', durationSec: 300, distanceMeters: 2500 },
+      ] }, items: [],
+    };
+    // Current mutable method and stages deliberately disagree with the snapshot.
+    releasedRows = [makeRow({ method: 'Ciclismo atual', cyclicTimeMin: 60, execution })];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.weeklyEvolution?.metrics.find((m) => m.key === 'duration'))
+      .toMatchObject({ status: 'available', value: 10 });
+    expect(result.weeklyEvolution?.metrics.find((m) => m.key === 'distance'))
+      .toMatchObject({ status: 'available', value: 5 });
+    expect(JSON.stringify(result.weeklyEvolution)).not.toMatch(/Ciclismo atual|release-1|"sessionId"/);
   });
 
   it('#405 A-004: mantém modalidade capturada após edição do planejamento atual e isola snapshots inválidos', async () => {

@@ -588,9 +588,9 @@ a leitura é repetível, sem persistência nova nem alteração da prescrição.
 
 | Indicador | Regra e unidade | Fonte e condições |
 | --- | --- | --- |
-| Tempo executado | Soma de segundos registrados dividida por 60 (`min`) | `sessionValues.durationSec`; na ausência, soma das etapas cíclicas com tempo explícito, sem imputar etapas ausentes |
-| Distância | Soma de distâncias registradas (`km`) **somente no mesmo tipo cíclico** | `sessionValues.distanceKm`; na ausência, etapas cíclicas com distância explícita convertida de metros. Método e topologia do snapshot histórico definem o grupo; corrida e ciclismo não se fundem. Sem método histórico, a medição fica isolada e o resumo é `incomparable`. |
-| Ritmo (pace) | Média aritmética de ritmos de sessão registrados (`min/km`) **somente no mesmo contexto cíclico** | Apenas `sessionValues.pace` em `mm:ss` por km; método da sessão e topologia das etapas cíclicas capturados no snapshot histórico da #401. Sem tipo identificável ou entre tipos diferentes, medições isoladas e resumo `incomparable`; não deriva de velocidade |
+| Tempo executado | Soma de segundos registrados dividida por 60 (`min`) | `sessionValues.durationSec`; na ausência, reconciliar duração dos estágios do snapshot histórico: agregado explícito `repeat` representa seus descendentes, sem contagem dupla. Grafo histórico ambíguo não gera soma fictícia |
+| Distância | Soma de distâncias registradas (`km`) **somente no mesmo esporte e contexto cíclico** | `sessionValues.distanceKm`; na ausência, reconciliar etapas e agregados `repeat` do snapshot histórico, convertendo metros para km uma só vez. Método e topologia devem ter esporte explicitamente identificável; `CEXT`, genérico ou ambíguo não demonstra corrida versus ciclismo e retorna `incomparable` |
+| Ritmo (pace) | Média aritmética de ritmos de sessão registrados (`min/km`) **somente no mesmo esporte e contexto cíclico** | Apenas `sessionValues.pace` em `mm:ss` por km; esporte inequívoco, método e topologia históricos da #401 determinam a compatibilidade. Sem tipo identificável ou entre esportes diferentes, medições isoladas e resumo `incomparable`; não deriva de velocidade |
 | Volume resistido (tonelagem) | Soma de `loadKg × repetitions` (`kg × rep`) | Apenas séries com confirmação canônica (`full`, `partial`, `substituted` ou conclusão guiada persistida); rascunhos `outcome=null` sem `completedAt` não geram volume executado |
 | Carga e repetições | Última série confirmada no mesmo contexto da unidade de treino e número de série (`kg`, `rep`) | Exige confirmação canônica da execução; rascunhos não contam. Compara catálogo, seção, posição, sistema, blocos e grupo do snapshot da #401, além da série. Contexto incompleto ou unidades com assinatura duplicada geram medições isoladas; substituições não assumem identidade original |
 | PSE e PSR | Média das percepções vigentes (`0–10`) dentro do mesmo `scopeKey` | Apenas revisão mais recente por sessão e escopo da #390; campos clínicos, histórico substituído e revisões anteriores não compõem o cálculo |
@@ -607,9 +607,15 @@ parâmetros do WorkoutDay não reclassificam medições anteriores. Sem snapshot
 válido, manter medições explícitas isoladas com estado `incomparable`, sem
 forçar uma modalidade pelo planejamento atual. A identidade do exercício não pode ser
 reconstruída a partir de um planejamento atual mutável; contexto incompleto do
-snapshot histórico também gera `incomparable` em carga/repetições. O tipo de pace e distância exige o método capturado, com a topologia cíclica
-quando existente; topologia isolada não comprova o mesmo esporte. Nunca usar
-um método atual do WorkoutDay para reinterpretar sessões históricas. Quando há múltiplas séries sem base comum,
+snapshot histórico também gera `incomparable` em carga/repetições. O tipo de pace e distância exige identificação explícita e não ambígua do **esporte**
+no método capturado, além da identidade do método e da topologia cíclica quando
+existente; topologia ou nome de método genérico (`CEXT`, `intervalado`) isolado
+não comprova o mesmo esporte. Métodos que mencionam mais de um esporte também
+são ambíguos. Nesses casos, preservar leituras individuais, mas isolar por sessão
+e retornar `incomparable`, mesmo que o método genérico e a estrutura coincidam.
+Essa precaução também se aplica a modalidades cíclicas sem identificação
+histórica explícita. Nunca usar um método atual do WorkoutDay para reinterpretar
+sessões históricas. Quando há múltiplas séries sem base comum,
 o resumo retorna `incomparable` e `value: null`, preservando os grupos separados
 na história. Na ausência de qualquer medição retorna `insufficient_data` e `null`,
 jamais zero inventado; **zero explícito** registrado é preservado. Resultados
@@ -618,6 +624,18 @@ fora do numerador da aderência; um registro não confirmado não vira execuçã
 ser encerrada a sessão. Nenhuma direção de tendência é chamada de
 melhora/piora automaticamente; uma única observação não constitui evolução
 temporal. Dados com pace em outro formato são marcados `incomparable`.
+
+No fallback de tempo/distância por etapas cíclicas, o serviço transmite apenas
+para a projeção interna o grafo `id`/`parentStageId`/`kind` do snapshot #401
+associado à execução. Para cada medição, o valor registrado no pai `repeat`
+tem precedência sobre as medições de seus descendentes; sem valor no pai, as
+etapas filhas registradas são somadas. Etapas fora do agrupamento continuam
+contribuindo normalmente; `not_performed` nunca adiciona distância ou duração,
+e zero explícito permanece zero. Grafo ausente com IDs distintos, referências
+inválidas, ocorrências duplicadas ou valores inválidos são `incomparable` sem
+gerar totais artificiais. Um único estágio ou múltiplas iterações do mesmo ID
+sem grafo continuam legíveis, e `sessionValues` explícito tem precedência sobre
+qualquer fallback. Não há novas tabelas, migrations ou alteração da fonte canônica.
 
 Cada métrica inclui `key`, `label`, `status`, `unit`, `value`,
 `sampleCount`, `sourceLabel` legível e `lastSourceUpdateAt`; `period` aparece no
@@ -647,6 +665,10 @@ modalidade no WorkoutDay e snapshot de outra sessão; rascunho de série com
 carga e repetições não confirmado em sessão parcial; corrida versus ciclismo;
 métodos cíclicos
 contínuo/intervalado e estruturas divergentes; ausência de método no legado;
+mesmo método genérico `CEXT` para esportes potencialmente distintos; método
+textual com esportes conflitantes; pai `repeat` e filhos simultâneos, somente
+pai, somente filhos, etapas externas ao `repeat`, zero explícito e grafo legado
+ambíguo; preservação da leitura após alteração do WorkoutDay;
 unidades do mesmo exercício com seção, posição, blocos ou grupos distintos e
 posições duplicadas; séries de exercícios com catálogo/numeração distintos;
 revisão de feedback vigente sem duplicidade; professor sem permissão

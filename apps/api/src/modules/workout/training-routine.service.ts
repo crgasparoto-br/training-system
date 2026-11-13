@@ -634,6 +634,11 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
                 execution: {
                   sessionValues: execution.sessionValues,
                   items: execution.items,
+                  plannedCyclicStages: frozen?.cyclicStages.map((stage) => ({
+                    id: stage.id,
+                    kind: stage.kind,
+                    parentStageId: stage.parentStageId,
+                  })),
                   plannedExercises: frozen?.id === row.id
                     ? frozen.exercises.map((exercise) => {
                         const group = frozen.resistanceGroups.find((candidate) =>

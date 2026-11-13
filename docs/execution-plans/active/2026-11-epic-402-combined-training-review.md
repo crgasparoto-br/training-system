@@ -91,6 +91,16 @@ e heurísticas clínicas sem regra versionada e aprovada.
 - [x] A-006 (auditoria 13/11): distância e ritmo usam método/topologia do
       snapshot para agrupar tipo cíclico; corrida, ciclismo e tipo desconhecido
       não geram evolução cruzada.
+- [x] A-007 (auditoria 13/11): método genérico (`CEXT`) ou ambíguo não certifica
+      identidade esportiva. Somente indicação inequívoca do esporte no snapshot
+      permite séries de distância/pace comparáveis; medições desconhecidas
+      ficam isoladas sem herdar modalidade do planejamento mutável.
+- [x] A-008 (auditoria 13/11): reconciliar registros explícitos de pais `repeat`
+      com seus descendentes pelo grafo histórico de etapas, evitando dupla
+      contagem de duração/distância; manter valores somente de pais/filhos,
+      zero explícito e estados incomparáveis quando faltar vínculo confiável.
+- [x] Incluir controles negativos, positivos, regressão de domínio e cenário
+      de serviço com snapshot histórico; preservar separação de permissões.
 - [x] Adicionar regressões adversariais de domínio e serviço e sincronizar as
       regras documentadas no produto.
 - [ ] Revalidar `pnpm validate` no CI do HEAD material exato e obter auditoria
