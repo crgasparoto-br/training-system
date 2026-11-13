@@ -441,10 +441,10 @@ describe('evolução semanal canônica (#405)', () => {
     bike.method = ' CEXT ';
     run.cyclicStructure = '[["work",null,null,[]]]';
     bike.cyclicStructure = run.cyclicStructure;
-    run.execution!.sessionValues = { distanceKm: 5, pace: '05:00' };
-    bike.execution!.sessionValues = { distanceKm: 30, pace: '02:00' };
+    run.execution!.sessionValues = { distanceKm: 5, pace: '05:00', durationSec: 1800 };
+    bike.execution!.sessionValues = { distanceKm: 30, pace: '02:00', durationSec: 3600 };
     const student = calculateWeeklyTrainingEvolution({ period, sessions: [run, bike], audience: 'student' });
-    for (const key of ['distance', 'pace'] as const) {
+    for (const key of ['duration', 'distance', 'pace'] as const) {
       expect(student.metrics.find((metric) => metric.key === key))
         .toMatchObject({ status: 'incomparable', value: null, sampleCount: 2 });
       expect(student.series.filter((series) => series.key === key)).toHaveLength(2);

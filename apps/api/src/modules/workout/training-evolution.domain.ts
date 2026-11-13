@@ -316,7 +316,11 @@ export function calculateWeeklyTrainingEvolution(input: {
     const duration = sessionValues.durationSec ??
       (stageDuration === 'incomparable' ? null : stageDuration);
     if (duration !== null && duration !== undefined) {
-      add(session, 'duration', finite(duration) ? duration / 60 : duration, 'session', 'Sessão', session.sessionId);
+      const durationScope = session.modality?.split('+').includes('cyclic')
+        ? capturedCyclicContext(session) : { knownType: true, scope: 'session', label: 'Sessão' };
+      if (!durationScope.knownType) incompatible.add('duration');
+      add(session, 'duration', finite(duration) ? duration / 60 : duration,
+        durationScope.scope, durationScope.label, session.sessionId);
     }
     const stageDistance = sessionValues.distanceKm == null
       ? sumCapturedStageMeasurements(stages, plannedCyclicStages, 'distanceMeters') : null;
