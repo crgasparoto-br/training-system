@@ -451,6 +451,33 @@ describe('training routine HTTP boundaries (#387)', () => {
       }));
     });
 
+    it('A-013: HTTP student emits comparable stage pace without stage IDs or technical metadata', async () => {
+      const { calculateWeeklyTrainingEvolution } = require('../src/modules/workout/training-evolution.domain');
+      mockGetRoutine.mockImplementation(async ({ audience }: { audience: 'student' | 'professor' }) => ({
+        ...routine, audience,
+        weeklyEvolution: calculateWeeklyTrainingEvolution({
+          audience, period: { startDate: '2026-09-28', endDate: '2026-10-04' },
+          sessions: [{
+            sessionId: 'hidden-session', status: 'completed', date: '2026-10-01',
+            modality: 'cyclic', method: 'Corrida contínua', cyclicStructure: 'same-topology',
+            releaseId: 'hidden-release', sourceUpdatedAt: '2026-10-01T12:00:00.000Z',
+            execution: { plannedExercises: [], plannedCyclicStages: [
+              { id: 'hidden-stage', kind: 'work', parentStageId: null, position: 1 },
+            ], items: [], sessionValues: { cyclicStages: [{ plannedStageId: 'hidden-stage',
+              outcome: 'full', paceMinPerKm: 5.5 }] } },
+          }],
+        }),
+      }));
+      const response = await request(app).get('/student/me/training-routine').set('x-contract-id', 'contract-1');
+      expect(response.status).toBe(200);
+      expect(response.body.data.weeklyEvolution.metrics.find((m: any) => m.key === 'pace'))
+        .toMatchObject({ status: 'available', value: 5.5, sampleCount: 1 });
+      expect(JSON.stringify(response.body)).not.toMatch(/hidden-session|hidden-release|hidden-stage|training-evolution-v1/);
+      expect(mockGetRoutine).toHaveBeenCalledWith(expect.objectContaining({
+        alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student',
+      }));
+    });
+
     it('exige contexto contratual quando a conta possui mais de um vínculo', async () => {
       mockResolveActiveStudentMembership.mockRejectedValue(
         new StudentAccountContextError('Selecione o contrato', 'STUDENT_CONTRACT_CONTEXT_REQUIRED')

@@ -640,6 +640,7 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
                     id: stage.id,
                     kind: stage.kind,
                     parentStageId: stage.parentStageId,
+                    position: stage.position,
                   })),
                   plannedResistanceGroups: frozen?.resistanceGroups
                     .filter((group) => group && Array.isArray(group.members))

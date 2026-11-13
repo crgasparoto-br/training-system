@@ -134,3 +134,11 @@ detalhe do aluno/professor. Validar feedback e comparação sem mutação do pla
 A primeira implementação é incremental e **não encerra a epic nem a #405**.
 Não realizar merge ou encerramento de issues antes da implementação integral,
 CI e auditoria independente. Nenhuma regra clínica indefinida será inferida.
+
+### #405 — remediação A-013 (13/11/2026)
+
+- Recorte: recuperação das leituras cíclicas confirmadas em `cyclicStages[].paceMinPerKm` e em `items[].durationSec/distanceKm/pace`; conservar dados históricos isolados quando faltar semântica verificável.
+- Precedência: totais explícitos da sessão não são somados novamente com medições subordinadas; etapa `repeat` prevalece sobre filhos para o mesmo campo; etapa e item sem total não são combinados em soma fictícia.
+- Proveniência e segurança: IDs de etapas, séries e liberações apenas na visão técnica do professor; `contractId`, liberação consolidada, snapshots e permissões existentes sem alteração.
+- Cobertura adicionada: regressões A-013 no domínio, serviço e rota para comparabilidade, confirmação, método ambíguo, grafo inválido, zero, ordem de prioridade e duplicidade.
+- Critério de conclusão: `pnpm validate` e CI do HEAD material verde, auditoria independente posterior; sem merge ou encerramento automático da issue.

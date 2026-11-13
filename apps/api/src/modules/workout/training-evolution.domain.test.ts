@@ -719,4 +719,167 @@ describe('evolução semanal canônica (#405)', () => {
     run.execution!.plannedResistanceGroups = [{ id: 'group-a', memberUnitIds: ['unit-a'] }];
     expect(metric()).toMatchObject({ status: 'available', value: 1 });
   });
+
+  it('A-013: preserva pace cíclico confirmado em etapas historicamente equivalentes', () => {
+    const first = executed('first', '2026-11-02', 'cyclic');
+    const second = executed('second', '2026-11-04', 'cyclic', 'partial');
+    for (const session of [first, second]) {
+      session.execution!.plannedCyclicStages = [
+        { id: `stage-${session.sessionId}`, kind: 'work', parentStageId: null, position: 1 },
+      ];
+      session.cyclicStructure = '[["work",null,null,[]]]';
+    }
+    first.execution!.sessionValues.cyclicStages = [{ plannedStageId: 'stage-first', iteration: 1,
+      outcome: 'full', durationSec: 312, distanceMeters: 1000, paceMinPerKm: 5.2 }];
+    second.execution!.sessionValues.cyclicStages = [{ plannedStageId: 'stage-second', iteration: 1,
+      outcome: 'partial', durationSec: 336, distanceMeters: 1000, paceMinPerKm: 5.6 }];
+    const student = calculateWeeklyTrainingEvolution({ period, sessions: [second, first], audience: 'student' });
+    const professor = calculateWeeklyTrainingEvolution({ period, sessions: [second, first], audience: 'professor' });
+    expect(student.metrics.find((entry) => entry.key === 'pace'))
+      .toMatchObject({ status: 'available', value: 5.4, sampleCount: 2 });
+    expect(student.metrics.find((entry) => entry.key === 'duration')?.value).toBe(10.8);
+    expect(student.metrics.find((entry) => entry.key === 'distance')?.value).toBe(2);
+    expect(student.series.find((entry) => entry.key === 'pace')?.points)
+      .toEqual([{ date: '2026-11-02', value: 5.2 }, { date: '2026-11-04', value: 5.6 }]);
+    expect(student.adherence.value).toBe(50); // A partial session never counts as completed.
+    expect(JSON.stringify(student)).not.toMatch(/stage-first|stage-second|training-evolution-v1|release-1/);
+    expect(professor.technical?.indicators.find((entry) => entry.key === 'pace')?.observations)
+      .toMatchObject([
+        { sourceId: 'cyclic-stage:stage-first:iteration:1' },
+        { sourceId: 'cyclic-stage:stage-second:iteration:1' },
+      ]);
+  });
+
+  it('A-013: pai repeat com pace prevalece sobre filhos, sem duplicar a leitura', () => {
+    const run = executed('repeat-pace', '2026-11-03', 'cyclic');
+    run.execution!.plannedCyclicStages = [
+      { id: 'parent', kind: 'repeat', parentStageId: null, position: 1 },
+      { id: 'work', kind: 'work', parentStageId: 'parent', position: 1 },
+      { id: 'external', kind: 'cooldown', parentStageId: null, position: 2 },
+    ];
+    run.execution!.sessionValues.cyclicStages = [
+      { plannedStageId: 'parent', outcome: 'full', paceMinPerKm: 5.4 },
+      { plannedStageId: 'work', iteration: 1, outcome: 'full', paceMinPerKm: 5.2 },
+      { plannedStageId: 'work', iteration: 2, outcome: 'full', paceMinPerKm: 5.6 },
+    ];
+    const project = () => calculateWeeklyTrainingEvolution({ period, sessions: [run], audience: 'student' });
+    expect(project().metrics.find((entry) => entry.key === 'pace'))
+      .toMatchObject({ status: 'available', value: 5.4, sampleCount: 1 });
+    run.execution!.sessionValues.cyclicStages!.shift();
+    expect(project().metrics.find((entry) => entry.key === 'pace'))
+      .toMatchObject({ status: 'incomparable', value: null, sampleCount: 2 });
+    run.execution!.sessionValues.cyclicStages = [
+      { plannedStageId: 'work', iteration: 1, outcome: 'not_performed', paceMinPerKm: 7 },
+      { plannedStageId: 'work', iteration: 2, outcome: 'full', paceMinPerKm: 5.6 },
+    ];
+    expect(project().metrics.find((entry) => entry.key === 'pace'))
+      .toMatchObject({ status: 'available', value: 5.6, sampleCount: 1 });
+  });
+
+  it('A-013: metodo ambiguo e grafo invalido preservam ritmo sem inventar tendencia', () => {
+    const run = executed('ambiguous-pace', '2026-11-02', 'cyclic');
+    run.method = 'CEXT';
+    run.execution!.plannedCyclicStages = [{ id: 'stage', kind: 'work', parentStageId: null, position: 1 }];
+    run.execution!.sessionValues.cyclicStages = [{ plannedStageId: 'stage', outcome: 'full', paceMinPerKm: 5.5 }];
+    const metric = () => calculateWeeklyTrainingEvolution({ period, sessions: [run], audience: 'student' });
+    expect(metric().metrics.find((entry) => entry.key === 'pace'))
+      .toMatchObject({ status: 'incomparable', value: null, sampleCount: 1 });
+    expect(metric().series.filter((entry) => entry.key === 'pace')).toHaveLength(1);
+    run.method = 'Corrida contínua';
+    run.execution!.plannedCyclicStages![0].parentStageId = 'unlinked';
+    expect(metric().metrics.find((entry) => entry.key === 'pace')?.status).toBe('incomparable');
+    run.execution!.plannedCyclicStages![0].parentStageId = null;
+    run.execution!.sessionValues.cyclicStages!.push({
+      plannedStageId: 'stage', outcome: 'full', paceMinPerKm: 7,
+    });
+    expect(metric().metrics.find((entry) => entry.key === 'pace')?.status).toBe('incomparable');
+  });
+
+  it('A-013: itens confirmados preservam duracao, distancia e pace por identidade historica', () => {
+    const first = executed('item-a', '2026-11-02', 'cyclic+resistance');
+    const second = executed('item-b', '2026-11-04', 'cyclic+resistance');
+    for (const run of [first, second]) {
+      run.execution!.plannedExercises = [plannedUnit(`unit-${run.sessionId}`, 'treadmill', 'Esteira')];
+      run.cyclicStructure = '[]';
+      run.execution!.items = [{ plannedUnitId: `unit-${run.sessionId}`,
+        plannedSetId: `set-${run.sessionId}`, setNumber: 1, outcome: 'full',
+        durationSec: 1650, distanceKm: 5, pace: '05:30' }];
+    }
+    const student = calculateWeeklyTrainingEvolution({ period, sessions: [first, second], audience: 'student' });
+    const professor = calculateWeeklyTrainingEvolution({ period, sessions: [first, second], audience: 'professor' });
+    expect(student.metrics.find((entry) => entry.key === 'duration'))
+      .toMatchObject({ status: 'available', value: 55, sampleCount: 2 });
+    expect(student.metrics.find((entry) => entry.key === 'distance'))
+      .toMatchObject({ status: 'available', value: 10, sampleCount: 2 });
+    expect(student.metrics.find((entry) => entry.key === 'pace'))
+      .toMatchObject({ status: 'available', value: 5.5, sampleCount: 2 });
+    expect(student.series.find((entry) => entry.key === 'pace')?.points).toHaveLength(2);
+    expect(JSON.stringify(student)).not.toMatch(/unit-item|set-item|treadmill|training-evolution-v1/);
+    expect(professor.technical?.indicators.find((entry) => entry.key === 'pace')?.observations)
+      .toMatchObject([{ sourceId: 'execution-item:set-item-a' }, { sourceId: 'execution-item:set-item-b' }]);
+  });
+
+  it('A-013: historico de itens sem identidade segue visivel e nao comparavel', () => {
+    const first = executed('legacy-item-a', '2026-11-02', 'cyclic+resistance');
+    const second = executed('legacy-item-b', '2026-11-04', 'cyclic+resistance');
+    for (const run of [first, second]) {
+      run.execution!.items = [{ plannedUnitId: 'legacy', setNumber: 1, outcome: 'full',
+        durationSec: 1650, distanceKm: 5, pace: '05:30' }];
+    }
+    const result = calculateWeeklyTrainingEvolution({ period, sessions: [first, second], audience: 'student' });
+    for (const key of ['duration', 'distance', 'pace'] as const) {
+      expect(result.metrics.find((entry) => entry.key === key))
+        .toMatchObject({ status: 'incomparable', value: null, sampleCount: 2 });
+      expect(result.series.filter((entry) => entry.key === key)).toHaveLength(2);
+    }
+  });
+
+  it('A-013: rascunhos e valores invalidos nao viram execucao; zero explicitamente confirmado e preservado', () => {
+    const run = executed('item-draft', '2026-11-03', 'cyclic+resistance', 'partial');
+    run.execution!.plannedExercises = [plannedUnit('unit', 'exercise', 'Exercise')];
+    run.execution!.items = [{ plannedUnitId: 'unit', setNumber: 1,
+      durationSec: 1200, distanceKm: 4, pace: '05:00' }];
+    const project = () => calculateWeeklyTrainingEvolution({ period, sessions: [run], audience: 'student' });
+    for (const key of ['duration', 'distance', 'pace'] as const) {
+      expect(project().metrics.find((entry) => entry.key === key))
+        .toMatchObject({ status: 'insufficient_data', sampleCount: 0 });
+    }
+    run.execution!.items[0].outcome = 'full';
+    run.execution!.items[0].durationSec = 0;
+    run.execution!.items[0].distanceKm = 0;
+    run.execution!.items[0].pace = '00:00';
+    for (const key of ['duration', 'distance', 'pace'] as const) {
+      expect(project().metrics.find((entry) => entry.key === key))
+        .toMatchObject({ status: 'available', value: 0, sampleCount: 1 });
+    }
+    run.execution!.items[0].pace = '5.5';
+    expect(project().metrics.find((entry) => entry.key === 'pace')?.status).toBe('incomparable');
+  });
+
+  it('A-013: total de sessao prevalece e etapa + item permanecem isolados sem soma duplicada', () => {
+    const run = executed('same-session', '2026-11-03', 'cyclic+resistance');
+    run.execution!.plannedCyclicStages = [
+      { id: 'stage', kind: 'work', parentStageId: null, position: 1 },
+    ];
+    run.execution!.plannedExercises = [plannedUnit('unit', 'treadmill', 'Esteira')];
+    run.execution!.sessionValues = {
+      durationSec: 1800, distanceKm: 6, pace: '05:00',
+      cyclicStages: [{ plannedStageId: 'stage', outcome: 'full', durationSec: 1800,
+        distanceMeters: 6000, paceMinPerKm: 5 }],
+    };
+    run.execution!.items = [{ plannedUnitId: 'unit', setNumber: 1, outcome: 'full',
+      durationSec: 1800, distanceKm: 6, pace: '05:00' }];
+    const project = () => calculateWeeklyTrainingEvolution({ period, sessions: [run], audience: 'student' });
+    for (const [key, value] of [['duration', 30], ['distance', 6], ['pace', 5]] as const) {
+      expect(project().metrics.find((entry) => entry.key === key))
+        .toMatchObject({ status: 'available', value, sampleCount: 1 });
+    }
+    run.execution!.sessionValues.durationSec = null;
+    run.execution!.sessionValues.distanceKm = null;
+    run.execution!.sessionValues.pace = null;
+    for (const key of ['duration', 'distance', 'pace'] as const) {
+      expect(project().metrics.find((entry) => entry.key === key))
+        .toMatchObject({ status: 'incomparable', value: null, sampleCount: 2 });
+    }
+  });
 });

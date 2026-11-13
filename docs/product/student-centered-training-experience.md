@@ -591,13 +591,35 @@ a leitura é repetível, sem persistência nova nem alteração da prescrição.
 
 | Indicador | Regra e unidade | Fonte e condições |
 | --- | --- | --- |
-| Tempo executado | Soma de segundos registrados dividida por 60 (`min`) | `sessionValues.durationSec`; na ausência, reconciliar duração dos estágios do snapshot histórico: agregado explícito `repeat` representa seus descendentes, sem contagem dupla. Para séries cíclicas, esporte, método e topologia históricos devem ser compatíveis; grafo ou esporte ambíguo não gera soma fictícia |
-| Distância | Soma de distâncias registradas (`km`) **somente no mesmo esporte e contexto cíclico** | `sessionValues.distanceKm`; na ausência, reconciliar etapas e agregados `repeat` do snapshot histórico, convertendo metros para km uma só vez. Método e topologia devem ter esporte explicitamente identificável; `CEXT`, genérico ou ambíguo não demonstra corrida versus ciclismo e retorna `incomparable` |
-| Ritmo (pace) | Média aritmética de ritmos de sessão registrados (`min/km`) **somente no mesmo esporte e contexto cíclico** | Apenas `sessionValues.pace` em `mm:ss` por km; esporte inequívoco, método e topologia históricos da #401 determinam a compatibilidade. Sem tipo identificável ou entre esportes diferentes, medições isoladas e resumo `incomparable`; não deriva de velocidade |
+| Tempo executado | Soma de segundos registrados dividida por 60 (`min`) | Preferir `sessionValues.durationSec`; na ausência, considerar tempo de estágios cíclicos reconciliados e leituras de itens executados confirmados, **em escopos separados**, sem somá-los entre si quando puderem representar a mesma atividade. O agregado `repeat` representa seus descendentes e não duplica valores; o contexto histórico do item determina a comparabilidade |
+| Distância | Soma de distâncias registradas (`km`) **somente no mesmo esporte e contexto cíclico** | Preferir `sessionValues.distanceKm`; na ausência, reconciliar etapas e agregados `repeat` do snapshot histórico ou preservar distâncias (`distanceKm`) de itens confirmados em séries independentes. Não somar etapas e itens com possível sobreposição. Método e topologia devem identificar explicitamente o esporte; `CEXT` não comprova corrida versus ciclismo |
+| Ritmo (pace) | Média de medições registradas de mesmo escopo semântico (`min/km`) **somente no mesmo esporte e contexto cíclico** | `sessionValues.pace` em `mm:ss` por km tem precedência. Quando ausente, considerar `cyclicStages[].paceMinPerKm` (numérico, minutos/km) e `items[].pace` (`mm:ss`), somente confirmados e em **séries separadas por etapa/iteração ou item/série do snapshot**. `repeat` com pace declarado no pai prevalece sobre os filhos. Não fabricar ritmo médio de sessão a partir de etapas heterogêneas ou de velocidade; origens ambíguas permanecem isoladas |
 | Volume resistido (tonelagem) | Soma de `loadKg × repetitions` (`kg × rep`) | Apenas séries com confirmação canônica (`full`, `partial`, `substituted` ou conclusão guiada persistida); rascunhos `outcome=null` sem `completedAt` não geram volume executado |
 | Carga e repetições | Última série confirmada pela ordem temporal efetiva no mesmo contexto da unidade de treino e série (`kg`, `rep`) | Prioriza `completedAt` da série guiada e, nas confirmações manuais, `finishedAt` da execução canônica. IDs e datas planejadas não substituem a cronologia. Ausência ou empate de timestamps confiáveis entre registros gera `incomparable` e medições isoladas. Exige confirmação canônica, catálogo, seção, posição, sistema, blocos, grupo e série capturados. Rascunhos e substituições sem identidade original não geram tendência |
 | PSE e PSR | Média das percepções vigentes (`0–10`) dentro do mesmo `scopeKey` | Apenas revisão mais recente por sessão e escopo da #390; campos clínicos, histórico substituído e revisões anteriores não compõem o cálculo |
 | Substituições executadas | Soma das ocorrências distintas `substituted` (`ocorrências`) | Séries/exercícios, etapas cíclicas e agrupamentos resistidos da execução. Um pai `repeat` ou grupo substituído é agregado: quando houver registros substituídos nos filhos/membros, contar as ocorrências individuais, nunca o agregado também. Aprovação planejada isolada não equivale a execução |
+
+**Complemento A-013 (medição granular):** registros cíclicos executados podem existir
+na sessão, na etapa ou no item de exercício/série. Valores na sessão são a
+medição explícita do total; não se somam novamente com as etapas ou itens do
+mesmo tipo. Sem total de sessão, etapas e itens permanecem **fontes distintas**:
+quando ambos possuem valores possivelmente sobrepostos, o resumo é
+`incomparable` e apresenta as leituras isoladas, nunca uma soma inventada. Nas
+etapas, `position`/`kind`/ancestralidade do snapshot e a iteração identificam
+a unidade; IDs de etapas de sessões distintas não representam por si só
+igualdade semântica. Pace de `repeat` explícito exclui o pace de seus filhos
+para a mesma medição, mas não as etapas independentes. Itens com `full`,
+`partial`, `substituted` ou conclusão guiada persistida podem contribuir;
+rascunhos `outcome=null` sem `completedAt` e `not_performed` não contribuem.
+A identidade da unidade executada, número da série e o contexto de esporte,
+método e topologia capturados governam comparabilidade; substituição sem
+identidade do executado, método genérico, grafo inválido ou origem legada
+incompleta mantêm os valores como séries isoladas com `incomparable`. Pace de
+item exige o formato `mm:ss` e pace de etapa exige minutos por quilômetro
+numéricos finitos; ausência de campo nunca gera zero. A projeção é derivada,
+sem nova persistência, e a rastreabilidade por estágio/item fica disponível
+somente ao professor autorizado. Este refinamento da regra candidata
+`training-evolution-v1` ocorre antes de sua primeira integração à `develop`.
 
 A leitura de cada série identifica modalidade, unidade e escopo semântico (sessão,
 catálogo/unidade/série, tipo da sessão cíclica ou escopo de feedback). **Séries com
@@ -696,6 +718,11 @@ com sessões no mesmo dia, IDs invertidos, execução fora da ordem planejada,
 ausência e empate de timestamps; grafo cíclico vazio válido versus órfão;
 execução vinculada a outra liberação sem contaminar status e aderência;
 pai `repeat` e etapas substituidas, agrupamento resistido substituido sem serie,
+pace confirmado em etapas equivalentes de duas sessões, pai `repeat` com pace
+explícito e leituras dos filhos, pace isolado em grafo inválido, itens cíclicos
+confirmados com tempo/distância/pace em sessões sem total, item legado sem
+identidade, rascunhos não confirmados, precedência do total de sessão e
+séries de etapa + item com sobreposição incerta,
 grupo com series substituidas e substituicao externa ao grupo; contexto historico
 ausente ou invalido gera `incomparable`, sem duplicar ocorrencias.
 

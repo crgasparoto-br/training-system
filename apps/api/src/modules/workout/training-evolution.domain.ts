@@ -11,6 +11,7 @@ import type {
 } from '@corrida/types';
 import { ambiguousLatestOrder, observationOrder, measure } from './training-evolution-aggregation.domain.js';
 import { countDistinctExecutedSubstitutions } from './training-evolution-substitutions.domain.js';
+import { capturedStagePaces, type CapturedEvolutionStage } from './training-evolution-stage-pace.domain.js';
 
 /** All sources are scoped to an authenticated student, contract and consolidated release upstream. */
 export type WeeklyEvolutionSessionSource = {
@@ -29,11 +30,7 @@ export type WeeklyEvolutionSessionSource = {
     sessionValues: TrainingSessionExecutionSessionValues;
     items: TrainingSessionExecutionItemValue[];
     /** Historical stage graph from the execution snapshot, never the mutable WorkoutDay. */
-    plannedCyclicStages?: Array<{
-      id: string;
-      kind: string;
-      parentStageId: string | null;
-    }>;
+    plannedCyclicStages?: CapturedEvolutionStage[];
     /** Captured #401 plan only. Current mutable WorkoutDay cannot identify a historic exercise. */
     plannedResistanceGroups?: Array<{ id: string; memberUnitIds: string[] }>;
     plannedExercises: Array<{
@@ -83,13 +80,13 @@ type IndicatorDefinition = {
 
 const DEFINITIONS: readonly IndicatorDefinition[] = [
   { key: 'duration', label: 'Tempo executado', unit: 'min', aggregation: 'sum',
-    formula: 'session_duration_seconds or deduplicated captured cyclic stage duration / 60',
+    formula: 'confirmed session duration or deduplicated cyclic stages and separately scoped confirmed item duration in minutes',
     source: 'captured_plan_and_canonical_session_execution' },
   { key: 'distance', label: 'Distância executada', unit: 'km', aggregation: 'sum',
-    formula: 'session_distance_km or deduplicated captured cyclic stage distance within explicit sport, method and structure',
+    formula: 'confirmed session distance or deduplicated cyclic stages and separately scoped confirmed item distances within captured sport and context',
     source: 'captured_plan_and_canonical_session_execution' },
   { key: 'pace', label: 'Ritmo registrado', unit: 'min/km', aggregation: 'mean',
-    formula: 'mean(canonical_session_pace_min_per_km) within same explicit sport, captured method and cyclic structure',
+    formula: 'mean(recorded session pace, or separately scoped confirmed cyclic stage/item pace) within same captured sport, method, topology and unit',
     source: 'captured_plan_and_canonical_session_execution' },
   { key: 'tonnage', label: 'Volume resistido registrado', unit: 'kg × rep', aggregation: 'sum',
     formula: 'sum(confirmed_executed_load_kg * confirmed_executed_repetitions)',
@@ -343,6 +340,16 @@ export function calculateWeeklyTrainingEvolution(input: {
           if (!context.knownType) incompatible.add('pace');
           add(session, 'pace', converted, context.scope, context.label, session.sessionId);
         }
+      } else {
+        const stagePace = capturedStagePaces({
+          sessionId: session.sessionId, stages, plan: plannedCyclicStages,
+          cyclicScope: context.scope, cyclicLabel: context.label,
+          knownCyclicType: context.knownType,
+        });
+        if (stagePace.incomparable) incompatible.add('pace');
+        for (const reading of stagePace.readings) {
+          add(session, 'pace', reading.value, reading.scope, reading.scopeLabel, reading.sourceId);
+        }
       }
     }
 
@@ -359,7 +366,8 @@ export function calculateWeeklyTrainingEvolution(input: {
     let tonnageSamples = 0;
     const resistanceOrUnclassified = session.modality?.split('+').includes('resistance')
       || !knownModality(session.modality);
-    const executedItems = resistanceOrUnclassified ? items.filter(isConfirmedExecutedItem) : [];
+    const confirmedItems = items.filter(isConfirmedExecutedItem);
+    const executedItems = resistanceOrUnclassified ? confirmedItems : [];
     for (const item of executedItems) {
       if (item.loadKg !== null && item.loadKg !== undefined
         && item.repetitions !== null && item.repetitions !== undefined) {
@@ -391,6 +399,52 @@ export function calculateWeeklyTrainingEvolution(input: {
       add(session, 'load', item.loadKg, scope, label, sourceId, session.sourceUpdatedAt, performedAt);
       add(session, 'repetitions', item.repetitions, scope, label, sourceId, session.sourceUpdatedAt, performedAt);
     }
+    // A-013: item-level cyclic measurements are canonical execution readings too.
+    // They are never assumed to be whole-session totals, nor added to captured
+    // stage totals: independent scopes make overlapping sources incomparable.
+    const itemKeys = new Set<string>();
+    for (const item of confirmedItems) {
+      const hasItemDuration = item.durationSec !== null && item.durationSec !== undefined;
+      const hasItemDistance = item.distanceKm !== null && item.distanceKm !== undefined;
+      const hasItemPace = item.pace !== null && item.pace !== undefined;
+      if (!hasItemDuration && !hasItemDistance && !hasItemPace) continue;
+      const key = JSON.stringify([item.plannedUnitId, item.setNumber ?? null]);
+      const duplicate = itemKeys.has(key);
+      itemKeys.add(key);
+      const plan = planByUnit.get(item.plannedUnitId);
+      const context = plan ? exerciseContext(plan) : null;
+      const collision = context !== null && (contextUnits.get(context)?.size ?? 0) > 1;
+      const setValid = Number.isInteger(item.setNumber) && (item.setNumber ?? 0) > 0;
+      const itemComparable = Boolean(context) && !collision && !duplicate
+        && setValid && item.outcome !== 'substituted';
+      const itemScope = itemComparable
+        ? JSON.stringify(['captured-item', context, item.setNumber])
+        : JSON.stringify(['unclassified-item', session.sessionId, item.plannedUnitId, item.setNumber]);
+      const itemLabel = itemComparable
+        ? `${plan!.name} · ${plan!.section} · posição ${plan!.exerciseOrder} · série ${item.setNumber}`
+        : 'Item executado · contexto histórico não comparável';
+      const sourceId = `execution-item:${item.plannedSetId ?? `${item.plannedUnitId}:set:${item.setNumber ?? 'unknown'}`}`;
+      const contextCyclic = capturedCyclicContext(session);
+      const comparableCyclic = itemComparable && contextCyclic.knownType
+        && session.modality?.split('+').includes('cyclic');
+      const completedAt = item.completedAt ?? session.executionFinishedAt ?? null;
+      for (const [key, present, rawValue, allowed] of [
+        ['duration', hasItemDuration && sessionValues.durationSec == null,
+          hasItemDuration && typeof item.durationSec === 'number' ? item.durationSec / 60 : item.durationSec, true],
+        ['distance', hasItemDistance && sessionValues.distanceKm == null,
+          item.distanceKm, comparableCyclic],
+        ['pace', hasItemPace && sessionValues.pace == null,
+          hasItemPace && typeof item.pace === 'string' ? paceMinutes(item.pace) : null, comparableCyclic],
+      ] as const) {
+        if (!present) continue;
+        if (!allowed || !itemComparable || (key === 'pace' && rawValue === null)) incompatible.add(key);
+        const scope = allowed && itemComparable
+          ? JSON.stringify([itemScope, key === 'duration' ? 'duration' : contextCyclic.scope])
+          : JSON.stringify(['unclassified-item-measure', session.sessionId, itemScope, key]);
+        add(session, key, rawValue, scope, itemLabel, sourceId, session.sourceUpdatedAt, completedAt);
+      }
+    }
+
     if (tonnageSamples > 0) {
       add(session, 'tonnage', tonnage, 'session', 'Sessão', session.sessionId);
     }
