@@ -271,6 +271,19 @@ function capturedCyclicStructure(plan: TrainingComparisonSnapshot | null): strin
   return structure.length && visited.size === stages.length ? JSON.stringify(structure) : null;
 }
 
+/** Historical execution cannot inherit a modality from today's mutable WorkoutDay. */
+function resolveCapturedModalities(plan: TrainingComparisonSnapshot | null): TrainingRoutineModality[] {
+  if (!plan) return [];
+  const modalities: TrainingRoutineModality[] = [];
+  if (plan.exercises.length > 0) modalities.push('resistance');
+  if (plan.cyclicStages.length > 0 || plan.cyclicTimeMin != null
+    || plan.targetSpeedMin != null || plan.targetSpeedMax != null
+    || plan.paceMin != null || plan.paceMax != null) modalities.push('cyclic');
+  // Flexibility/balance had no historical unit capture in #401. Leave unknown;
+  // a current capacity block is not evidence for a previous execution.
+  return modalities;
+}
+
 function resolveModalities(row: SessionRow, capacities: string[]): TrainingRoutineModality[] {
   const modalities: TrainingRoutineModality[] = [];
   if (row.exercises.length > 0) modalities.push('resistance');
@@ -595,7 +608,8 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
               && row.execution.originReleaseId === release.id
               && row.execution.originWorkoutTemplateId === row.template.id
               && row.execution.originTrainingPlanId === row.template.plan.id;
-            const frozen = canonical ? readCapturedWorkoutComparisonPlan(row.execution?.plannedSnapshot) : null;
+            const captured = canonical ? readCapturedWorkoutComparisonPlan(row.execution?.plannedSnapshot) : null;
+            const frozen = captured?.id === row.id ? captured : null;
             const execution = canonical && row.execution ? projectWorkoutSessionExecution(row.execution) : null;
             const feedback = canProjectPostWorkoutFeedback
               ? latestFeedbackBySession.get(row.id) ?? [] : [];
@@ -609,7 +623,7 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
             return {
               sessionId: row.id,
               date: toDateOnly(row.workoutDate),
-              modality: resolveModalities(row, capacitiesByDay.get(row.id) ?? []).sort().join('+') || 'unknown',
+              modality: resolveCapturedModalities(frozen).sort().join('+') || 'unknown',
               // Historical comparison requires the captured training method, not today's mutable row.
               method: typeof frozen?.method === 'string' ? frozen.method : null,
               cyclicStructure: capturedCyclicStructure(frozen),

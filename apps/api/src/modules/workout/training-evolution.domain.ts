@@ -73,17 +73,19 @@ const DEFINITIONS: readonly IndicatorDefinition[] = [
   { key: 'duration', label: 'Tempo executado', unit: 'min', aggregation: 'sum',
     formula: 'sum(executed_duration_seconds) / 60', source: 'canonical_session_execution' },
   { key: 'distance', label: 'Distância executada', unit: 'km', aggregation: 'sum',
-    formula: 'sum(executed_distance_km)', source: 'canonical_session_execution' },
+    formula: 'sum(executed_distance_km) within same captured cyclic method and structure',
+    source: 'captured_plan_and_canonical_session_execution' },
   { key: 'pace', label: 'Ritmo registrado', unit: 'min/km', aggregation: 'mean',
     formula: 'mean(canonical_session_pace_min_per_km) within same captured session method and cyclic structure',
     source: 'captured_plan_and_canonical_session_execution' },
   { key: 'tonnage', label: 'Volume resistido registrado', unit: 'kg × rep', aggregation: 'sum',
-    formula: 'sum(executed_load_kg * executed_repetitions)', source: 'canonical_execution_items' },
+    formula: 'sum(confirmed_executed_load_kg * confirmed_executed_repetitions)',
+    source: 'canonical_execution_items' },
   { key: 'load', label: 'Carga por exercício e série', unit: 'kg', aggregation: 'last',
-    formula: 'latest(executed_load_kg) within same catalog, captured section, slot, system, blocks, group and set',
+    formula: 'latest(confirmed_executed_load_kg) within same catalog, captured section, slot, system, blocks, group and set',
     source: 'captured_plan_and_canonical_execution_items' },
   { key: 'repetitions', label: 'Repetições por exercício e série', unit: 'rep', aggregation: 'last',
-    formula: 'latest(executed_repetitions) within same catalog, captured section, slot, system, blocks, group and set',
+    formula: 'latest(confirmed_executed_repetitions) within same catalog, captured section, slot, system, blocks, group and set',
     source: 'captured_plan_and_canonical_execution_items' },
   { key: 'pse', label: 'PSE registrada', unit: '0–10', aggregation: 'mean',
     formula: 'mean(latest_revision_pse) within same feedback_scope',
@@ -115,6 +117,11 @@ const maxIso = (left: string | null, right: string | null) =>
   right !== null && (left === null || right > left) ? right : left;
 const isTerminalPerformed = (status: TrainingRoutineExecutionProjectionStatus) =>
   status === 'completed' || status === 'partial';
+
+/** #389: an unclassified draft is not proof of an executed set, even in a partial session. */
+const isConfirmedExecutedItem = (item: TrainingSessionExecutionItemValue): boolean =>
+  item.outcome === 'full' || item.outcome === 'partial' || item.outcome === 'substituted'
+  || (item.outcome == null && Boolean(item.completedAt));
 const KNOWN_MODALITIES = new Set(['cyclic', 'resistance', 'flexibility', 'balance']);
 
 function comparableText(value: string | null | undefined): string | null {
@@ -147,6 +154,24 @@ function exerciseContext(plan: PlannedExercise): string | null {
 function paceMinutes(value: string): number | null {
   const match = /^([0-9]{1,3}):([0-5][0-9])$/.exec(value.trim());
   return match ? Number(match[1]) + Number(match[2]) / 60 : null;
+}
+
+/**
+ * A stage topology can repeat across sports. Without a captured method, even
+ * identical stages cannot certify running versus cycling or other session types.
+ */
+function capturedCyclicContext(session: WeeklyEvolutionSessionSource) {
+  const method = comparableText(session.method);
+  const structure = comparableText(session.cyclicStructure);
+  const knownType = method !== null;
+  return {
+    knownType,
+    scope: knownType
+      ? JSON.stringify(['captured-cyclic', method, structure])
+      : JSON.stringify(['unclassified-cyclic', session.sessionId]),
+    label: knownType ? 'Sessão · ' + session.method!.trim()
+      : 'Sessão · tipo cíclico não identificado',
+  };
 }
 
 function measure(definition: IndicatorDefinition, values: Observation[]): number {
@@ -225,26 +250,23 @@ export function calculateWeeklyTrainingEvolution(input: {
     const stageDistance = eligibleStages.filter((stage) => stage.distanceMeters !== undefined && stage.distanceMeters !== null);
     const distance = sessionValues.distanceKm ??
       (stageDistance.length ? stageDistance.reduce((sum, stage) => sum + (stage.distanceMeters ?? 0), 0) / 1000 : null);
-    if (session.modality?.split('+').includes('cyclic')) {
-      add(session, 'distance', distance, 'session', 'Sessão', session.sessionId);
-    }
-
-    if (session.modality?.split('+').includes('cyclic')
-      && sessionValues.pace !== undefined && sessionValues.pace !== null) {
-      const converted = paceMinutes(sessionValues.pace);
-      if (converted === null) incompatible.add('pace');
-      else {
-        const method = comparableText(session.method);
-        const structure = comparableText(session.cyclicStructure);
-        // A recorded pace without a captured session type is an isolated reading,
-        // not a comparable progression (including when two types are both unknown).
-        const typeKnown = Boolean(method || structure);
-        if (!typeKnown) incompatible.add('pace');
-        add(session, 'pace', converted,
-          typeKnown ? JSON.stringify(['session-type', method, structure])
-            : JSON.stringify(['session-type-unknown', session.sessionId]),
-          typeKnown ? 'Sessão · ' + (session.method?.trim() || 'etapas cíclicas capturadas')
-            : 'Sessão · tipo de treino não identificado', session.sessionId);
+    // Legacy/invalid snapshots retain the measured reading, never a fabricated
+    // comparable type. Current mutable WorkoutDay modalities cannot fill the gap.
+    const cyclicOrUnclassified = session.modality?.split('+').includes('cyclic')
+      || !knownModality(session.modality);
+    if (cyclicOrUnclassified) {
+      const context = capturedCyclicContext(session);
+      if (distance !== null && distance !== undefined) {
+        if (!context.knownType) incompatible.add('distance');
+        add(session, 'distance', distance, context.scope, context.label, session.sessionId);
+      }
+      if (sessionValues.pace !== undefined && sessionValues.pace !== null) {
+        const converted = paceMinutes(sessionValues.pace);
+        if (converted === null) incompatible.add('pace');
+        else {
+          if (!context.knownType) incompatible.add('pace');
+          add(session, 'pace', converted, context.scope, context.label, session.sessionId);
+        }
       }
     }
 
@@ -259,8 +281,9 @@ export function calculateWeeklyTrainingEvolution(input: {
     }
     let tonnage = 0;
     let tonnageSamples = 0;
-    const executedItems = session.modality?.split('+').includes('resistance')
-      ? items.filter((item) => item.outcome !== 'not_performed') : [];
+    const resistanceOrUnclassified = session.modality?.split('+').includes('resistance')
+      || !knownModality(session.modality);
+    const executedItems = resistanceOrUnclassified ? items.filter(isConfirmedExecutedItem) : [];
     for (const item of executedItems) {
       if (item.loadKg !== null && item.loadKg !== undefined
         && item.repetitions !== null && item.repetitions !== undefined) {

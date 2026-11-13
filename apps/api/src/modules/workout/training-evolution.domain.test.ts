@@ -161,8 +161,8 @@ describe('evolução semanal canônica (#405)', () => {
       plannedUnit('p2', 'press', 'Supino', 'principal', 2),
     ];
     resistance.execution!.items = [
-      { plannedUnitId: 'p1', setNumber: 1, loadKg: 40, repetitions: 8 },
-      { plannedUnitId: 'p2', setNumber: 1, loadKg: 30, repetitions: 10 },
+      { plannedUnitId: 'p1', setNumber: 1, outcome: 'full', loadKg: 40, repetitions: 8 },
+      { plannedUnitId: 'p2', setNumber: 1, outcome: 'full', loadKg: 30, repetitions: 10 },
     ];
     const result = calculateWeeklyTrainingEvolution({ period, sessions: [cyclic, resistance], audience: 'student' });
     expect(result.metrics.find((item) => item.key === 'duration')).toMatchObject({
@@ -203,8 +203,8 @@ describe('evolução semanal canônica (#405)', () => {
     const b = executed('b', '2026-11-04', 'resistance');
     a.execution!.plannedExercises = [plannedUnit('a-main', 'squat', 'Agachamento', 'principal', 1)];
     b.execution!.plannedExercises = [plannedUnit('b-main', 'squat', 'Agachamento', 'principal', 1)];
-    a.execution!.items = [{ plannedUnitId: 'a-main', setNumber: 1, loadKg: 40, repetitions: 8 }];
-    b.execution!.items = [{ plannedUnitId: 'b-main', setNumber: 1, loadKg: 42, repetitions: 8 }];
+    a.execution!.items = [{ plannedUnitId: 'a-main', setNumber: 1, outcome: 'full', loadKg: 40, repetitions: 8 }];
+    b.execution!.items = [{ plannedUnitId: 'b-main', setNumber: 1, outcome: 'full', loadKg: 42, repetitions: 8 }];
     const result = calculateWeeklyTrainingEvolution({ period, audience: 'professor', sessions: [a, b] });
     expect(result.metrics.find((item) => item.key === 'load')).toMatchObject({
       status: 'available', value: 42, sampleCount: 2,
@@ -221,9 +221,9 @@ describe('evolução semanal canônica (#405)', () => {
       plannedUnit('duplicate-2', 'press', 'Supino'),
     ];
     workout.execution!.items = [
-      { plannedUnitId: 'old', setNumber: 1, loadKg: 20, repetitions: 8 },
-      { plannedUnitId: 'duplicate-1', setNumber: 1, loadKg: 30, repetitions: 8 },
-      { plannedUnitId: 'duplicate-2', setNumber: 1, loadKg: 35, repetitions: 8 },
+      { plannedUnitId: 'old', setNumber: 1, outcome: 'full', loadKg: 20, repetitions: 8 },
+      { plannedUnitId: 'duplicate-1', setNumber: 1, outcome: 'full', loadKg: 30, repetitions: 8 },
+      { plannedUnitId: 'duplicate-2', setNumber: 1, outcome: 'full', loadKg: 35, repetitions: 8 },
     ];
     const result = calculateWeeklyTrainingEvolution({ period, audience: 'student', sessions: [workout] });
     expect(result.series.filter((item) => item.key === 'load')).toHaveLength(3);
@@ -338,6 +338,100 @@ describe('evolução semanal canônica (#405)', () => {
     });
     expect(student.adherence.value).toBe(0);
     expect(student.metrics.map((item) => item.key)).not.toContain('consistency');
+  });
+
+
+  it('A-004: preserva leitura de carga com modalidade histórica desconhecida sem gerar agregação comparável', () => {
+    const historical = executed('legacy-resistance', '2026-11-02', 'unknown');
+    historical.execution!.plannedExercises = [plannedUnit('unit-1', 'squat', 'Agachamento')];
+    historical.execution!.items = [{
+      plannedUnitId: 'unit-1', setNumber: 1, outcome: 'full', loadKg: 40, repetitions: 10,
+    }];
+    const output = calculateWeeklyTrainingEvolution({ period, sessions: [historical], audience: 'student' });
+    expect(output.metrics.find((m) => m.key === 'tonnage'))
+      .toMatchObject({ status: 'incomparable', value: null, sampleCount: 1 });
+    expect(output.series.filter((entry) => entry.key === 'tonnage')).toMatchObject([
+      { modality: 'unknown', points: [{ date: '2026-11-02', value: 400 }] },
+    ]);
+    expect(output.metrics.find((m) => m.key === 'load'))
+      .toMatchObject({ status: 'incomparable', value: null, sampleCount: 1 });
+    expect(output.series.find((entry) => entry.key === 'load')?.technical).toBeUndefined();
+  });
+
+  it('A-005: não transforma rascunho em volume executado ao encerrar sessão parcial', () => {
+    const partial = executed('partial-1', '2026-11-03', 'resistance', 'partial');
+    partial.execution!.plannedExercises = [plannedUnit('unit-1', 'squat', 'Agachamento')];
+    partial.execution!.items = [
+      { plannedUnitId: 'unit-1', setNumber: 1, outcome: null, completedAt: null,
+        loadKg: 99, repetitions: 99 },
+      { plannedUnitId: 'unit-1', setNumber: 2, outcome: 'full', loadKg: 40, repetitions: 10 },
+      { plannedUnitId: 'unit-1', setNumber: 3, outcome: 'partial', loadKg: 20, repetitions: 5 },
+      { plannedUnitId: 'unit-1', setNumber: 4, completedAt: '2026-11-03T12:00:00.000Z',
+        loadKg: 30, repetitions: 6 },
+      { plannedUnitId: 'unit-1', setNumber: 5, outcome: 'not_performed' },
+    ];
+    const output = calculateWeeklyTrainingEvolution({ period, sessions: [partial], audience: 'professor' });
+    expect(output.counts.partialSessions).toBe(1);
+    expect(output.adherence.value).toBe(0);
+    expect(output.metrics.find((m) => m.key === 'tonnage'))
+      .toMatchObject({ status: 'available', value: 680, sampleCount: 1 });
+    const loads = output.series.filter((entry) => entry.key === 'load');
+    expect(loads).toHaveLength(3);
+    expect(loads.flatMap((entry) => entry.points.map((point) => point.value)).sort((a, b) => a - b))
+      .toEqual([20, 30, 40]);
+    expect(output.technical?.indicators.find((m) => m.key === 'repetitions')?.observations).toHaveLength(3);
+
+    const onlyDraft = executed('partial-draft', '2026-11-04', 'resistance', 'partial');
+    onlyDraft.execution!.plannedExercises = [plannedUnit('unit-2', 'squat', 'Agachamento')];
+    onlyDraft.execution!.items = [{ plannedUnitId: 'unit-2', setNumber: 1,
+      loadKg: 99, repetitions: 99, outcome: null, completedAt: null }];
+    const noVolume = calculateWeeklyTrainingEvolution({ period, sessions: [onlyDraft], audience: 'student' });
+    expect(noVolume.metrics.find((m) => m.key === 'tonnage'))
+      .toMatchObject({ status: 'insufficient_data', value: null, sampleCount: 0 });
+    expect(noVolume.series.filter((entry) => entry.key === 'load')).toEqual([]);
+  });
+
+  it('A-006: separa distâncias da corrida e do ciclismo, preservando somas somente do mesmo tipo', () => {
+    const run = executed('run', '2026-11-02', 'cyclic');
+    run.method = 'Corrida contínua';
+    run.execution!.sessionValues.distanceKm = 5;
+    const bike = executed('bike', '2026-11-04', 'cyclic');
+    bike.method = 'Ciclismo contínuo';
+    bike.execution!.sessionValues.distanceKm = 30;
+    const crossSport = calculateWeeklyTrainingEvolution({ period, sessions: [run, bike], audience: 'student' });
+    expect(crossSport.metrics.find((m) => m.key === 'distance'))
+      .toMatchObject({ status: 'incomparable', value: null, sampleCount: 2 });
+    expect(crossSport.series.filter((entry) => entry.key === 'distance')).toHaveLength(2);
+    expect(crossSport.series.filter((entry) => entry.key === 'distance')
+      .flatMap((entry) => entry.points.map((point) => point.value)).sort((a, b) => a - b))
+      .toEqual([5, 30]);
+
+    const anotherRun = executed('run-again', '2026-11-06', 'cyclic');
+    anotherRun.method = '  CORRIDA  CONTÍNUA ';
+    anotherRun.execution!.sessionValues.distanceKm = 3;
+    const compatible = calculateWeeklyTrainingEvolution({
+      period, sessions: [run, anotherRun], audience: 'student',
+    });
+    expect(compatible.metrics.find((m) => m.key === 'distance'))
+      .toMatchObject({ status: 'available', value: 8, sampleCount: 2 });
+    expect(compatible.series.filter((entry) => entry.key === 'distance')).toHaveLength(1);
+  });
+
+  it('A-006: topologia idêntica sem método não prova mesmo esporte', () => {
+    const a = executed('a', '2026-11-02', 'cyclic');
+    const b = executed('b', '2026-11-04', 'cyclic');
+    a.method = null;
+    b.method = null;
+    a.cyclicStructure = '[["work",null,1,[]]]';
+    b.cyclicStructure = a.cyclicStructure;
+    a.execution!.sessionValues = { distanceKm: 5, pace: '05:00' };
+    b.execution!.sessionValues = { distanceKm: 30, pace: '06:00' };
+    const output = calculateWeeklyTrainingEvolution({ period, sessions: [a, b], audience: 'student' });
+    for (const key of ['distance', 'pace'] as const) {
+      expect(output.metrics.find((m) => m.key === key))
+        .toMatchObject({ status: 'incomparable', value: null, sampleCount: 2 });
+      expect(output.series.filter((entry) => entry.key === key)).toHaveLength(2);
+    }
   });
 
 

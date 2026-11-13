@@ -83,6 +83,16 @@ e heurísticas clínicas sem regra versionada e aprovada.
       manter leituras rastreáveis e isoladas sem soma enganosa.
 - [x] Incluir controles negativos e regressões nas suítes de domínio, serviço e interface;
       sincronizar a documentação funcional da regra.
+- [x] A-004 (auditoria 13/11): modalidade de execução histórica deriva do
+      snapshot vinculado e não muda com alterações posteriores do WorkoutDay;
+      snapshot ausente/inválido mantém medições isoladas.
+- [x] A-005 (auditoria 13/11): somente séries confirmadas compõem tonelagem,
+      carga e repetições; rascunho em sessão parcial fica fora do cálculo.
+- [x] A-006 (auditoria 13/11): distância e ritmo usam método/topologia do
+      snapshot para agrupar tipo cíclico; corrida, ciclismo e tipo desconhecido
+      não geram evolução cruzada.
+- [x] Adicionar regressões adversariais de domínio e serviço e sincronizar as
+      regras documentadas no produto.
 - [ ] Revalidar `pnpm validate` no CI do HEAD material exato e obter auditoria
       independente da PR corrigida antes de marcar a issue como encerrada.
 
