@@ -214,7 +214,7 @@ describe('evolução semanal canônica (#405)', () => {
       status: 'available', value: 1, sampleCount: 1,
     });
     expect(student.adherence.value).toBe(0);
-    expect(student.metrics.some((item) => item.key === 'consistency')).toBe(false);
+    expect(student.metrics.map((item) => item.key)).not.toContain('consistency');
   });
 
 
