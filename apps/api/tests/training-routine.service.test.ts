@@ -270,7 +270,8 @@ describe('training routine service (#387)', () => {
 
   it('#405: mantém revisão de feedback vigente, tenant e permissão na projeção de métricas', async () => {
     releasedRows = [makeRow({
-      id: 'day-1', status: 'completed',
+      // A-003: the permitted feedback sample has an explicitly known modality.
+      id: 'day-1', status: 'completed', cyclicTimeMin: 30,
       execution: {
         workoutDayId: 'day-1', status: 'completed', version: 3,
         updatedAt: new Date('2026-10-01T12:00:00.000Z'),
