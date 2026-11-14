@@ -273,8 +273,12 @@ function capturedExerciseCatalogText(value: unknown, key: 'capacity' | 'category
 function resolveCapturedModalities(plan: TrainingComparisonSnapshot | null): TrainingRoutineModality[] {
   if (!plan) return [];
   const modalities: TrainingRoutineModality[] = [];
-  if (plan.exercises.length > 0) modalities.push('resistance');
-  if (plan.cyclicStages.length > 0 || plan.cyclicTimeMin != null
+  // WorkoutExercise can hold a cyclic catalog unit (e.g. treadmill) without
+  // a separate cyclic stage. Its immutable capacity determines the modality.
+  const itemCapacities = plan.exercises.map((exercise) =>
+    capturedExerciseCatalogText(exercise.releasedCatalog?.catalog, 'capacity'));
+  if (itemCapacities.some((capacity) => capacity !== 'cyclic')) modalities.push('resistance');
+  if (itemCapacities.includes('cyclic') || plan.cyclicStages.length > 0 || plan.cyclicTimeMin != null
     || plan.targetSpeedMin != null || plan.targetSpeedMax != null
     || plan.paceMin != null || plan.paceMax != null) modalities.push('cyclic');
   // Flexibility/balance had no historical unit capture in #401. Leave unknown;

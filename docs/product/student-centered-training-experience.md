@@ -632,7 +632,10 @@ alteração posterior do catálogo, do método ou do planejamento não reclassif
 a execução histórica. Etapas cíclicas confirmadas preservam seu tratamento
 anterior (inclusive precedência de `repeat`) e totais explícitos da sessão
 continuam prevalecendo sobre detalhes granulares. Não há backfill, alteração
-de schema nem nova fonte de verdade.
+de schema nem nova fonte de verdade. A modalidade histórica também reconhece
+itens explicitamente cíclicos do catálogo congelado mesmo quando não existem
+etapas estruturadas ou duração cíclica planejada; exercício genérico não herda
+essa modalidade apenas pelo nome.
 
 Este refinamento da regra candidata
 `training-evolution-v1` ocorre antes de sua primeira integração à `develop`.

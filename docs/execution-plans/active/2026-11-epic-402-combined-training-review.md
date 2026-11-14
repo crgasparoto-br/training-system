@@ -152,5 +152,6 @@ CI e auditoria independente. Nenhuma regra clínica indefinida será inferida.
   preservam as medições confirmadas em séries `incomparable`, sem média ou soma
   cíclica falsa. A precedência do total explícito e a deduplicação de `repeat`
   permanecem inalteradas.
-- [x] Casos positivos, adversariais e históricos adicionados a domínio e serviço.
+- [x] Casos positivos, adversariais e históricos adicionados a domínio e serviço,
+  incluindo exercício cíclico sem etapa ou duração cíclica planejada.
 - [ ] CI exata do novo commit e auditoria independente da correção A-014.

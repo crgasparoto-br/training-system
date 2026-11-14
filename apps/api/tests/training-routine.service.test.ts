@@ -523,6 +523,17 @@ describe('training routine service (#387)', () => {
     const verifiedCyclic = await service.getRoutine(query);
     expect(verifiedCyclic.weeklyEvolution?.metrics.find((metric) => metric.key === 'pace'))
       .toMatchObject({ status: 'available', value: 5.5 });
+    // A cyclic exercise needs no separate planned cyclic stage or duration.
+    const cyclicItemOnly = { ...cyclicCaptured, cyclicTimeMin: null };
+    releasedRows = [makeRow({ id: 'day-1', method: 'Treino atual mutável',
+      execution: { ...execution, plannedSnapshot: cyclicItemOnly } })];
+    const justItem = await service.getRoutine(query);
+    expect(justItem.weeklyEvolution?.metrics.find((metric) => metric.key === 'pace'))
+      .toMatchObject({ status: 'available', value: 5.5 });
+    expect(justItem.weeklyEvolution?.metrics.find((metric) => metric.key === 'distance'))
+      .toMatchObject({ status: 'available', value: 5 });
+    expect(justItem.weeklyEvolution?.series.find((entry) => entry.key === 'pace')?.modality)
+      .toBe('cyclic');
   });
 
   it('#405 A-011/A-012: projects historical groups and repeat parents without duplicate substitution totals', async () => {
