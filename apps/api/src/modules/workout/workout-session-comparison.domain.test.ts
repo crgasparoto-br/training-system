@@ -33,7 +33,7 @@ function planned(): TrainingComparisonSnapshot {
         targetValue: 12, targetMin: null, targetMax: null, repeatCount: null },
     ],
     exercises: [{
-      id: 'ex-1', section: 'principal', exerciseOrder: 1, sets: 2, reps: 10,
+      id: 'ex-1', exerciseId: 'catalog-ex-1', section: 'principal', exerciseOrder: 1, sets: 2, reps: 10,
       load: 20, intervalSec: 60, exercise: { name: 'Nome atual' },
       releasedCatalog: { catalog: { name: 'Nome liberado' } },
       resistanceBlocks: [{

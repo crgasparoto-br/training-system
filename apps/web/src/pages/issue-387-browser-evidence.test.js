@@ -84,6 +84,85 @@ const routine = (overrides = {}, audience = 'student') => ({
   ...overrides,
 });
 
+// Synthetic, contract-scoped API readings exercise the real student/professor UI.
+// Aggregation, revision deduplication and authorization are covered by API tests.
+function populatedEvolution(audience, updated) {
+  const time = updated ? '2026-09-30T16:30:00.000Z' : '2026-09-30T13:00:00.000Z';
+  const revision = updated ? 'feedback-revision-405-v2' : 'feedback-revision-405-v1';
+  const samples = [
+    { key: 'duration', label: 'Tempo executado', unit: 'min', value: 48, status: 'available', count: 2,
+      sourceLabel: 'Execução registrada da sessão' },
+    { key: 'distance', label: 'Distância executada', unit: 'km', value: 8, status: 'available', count: 2,
+      sourceLabel: 'Execução cíclica registrada' },
+    { key: 'pace', label: 'Ritmo registrado', unit: 'min/km', value: 5.5, status: 'available', count: 2,
+      sourceLabel: 'Ritmo cíclico registrado' },
+    { key: 'tonnage', label: 'Volume resistido registrado', unit: 'kg × rep', value: 1080, status: 'available', count: 2,
+      sourceLabel: 'Séries resistidas executadas' },
+    { key: 'load', label: 'Carga por exercício e série', unit: 'kg', value: null, status: 'incomparable', count: 2,
+      sourceLabel: 'Séries resistidas e planejamento histórico' },
+    { key: 'repetitions', label: 'Repetições por exercício e série', unit: 'rep', value: 10, status: 'available', count: 1,
+      sourceLabel: 'Séries resistidas e planejamento histórico' },
+    { key: 'pse', label: 'PSE registrada', unit: '0–10', value: updated ? 7 : 6, status: 'available', count: 1,
+      sourceLabel: 'Revisão vigente do feedback pós-treino' },
+    { key: 'psr', label: 'PSR registrada', unit: '0–10', value: 8, status: 'available', count: 1,
+      sourceLabel: 'Revisão vigente do feedback pós-treino' },
+    { key: 'substitutions', label: 'Substituições executadas', unit: 'ocorrências', value: 1, status: 'available', count: 1,
+      sourceLabel: 'Unidades efetivamente substituídas na execução' },
+  ];
+  const source = (sessionId, sourceId) => ({
+    sessionId, releaseId: 'release-405', sourceId, updatedAt: time,
+  });
+  const seriesData = [
+    { key: 'duration', label: 'Tempo executado', unit: 'min', modality: 'cyclic',
+      scopeLabel: 'Sessao · corrida continua',
+      points: [{ date: '2026-09-28', value: 20 }, { date: '2026-09-29', value: 28 }],
+      sources: [source('day-completed', 'duration-1'), source('day-partial', 'duration-2')] },
+    { key: 'distance', label: 'Distância executada', unit: 'km', modality: 'cyclic',
+      scopeLabel: 'Sessão · corrida contínua',
+      points: [{ date: '2026-09-28', value: 3 }, { date: '2026-09-29', value: 5 }],
+      sources: [source('day-completed', 'distance-1'), source('day-partial', 'distance-2')] },
+    { key: 'pace', label: 'Ritmo registrado', unit: 'min/km', modality: 'cyclic',
+      scopeLabel: 'Sessão · corrida contínua',
+      points: [{ date: '2026-09-28', value: 5.33 }, { date: '2026-09-29', value: 5.67 }],
+      sources: [source('day-completed', 'pace-1'), source('day-partial', 'pace-2')] },
+    { key: 'tonnage', label: 'Volume resistido registrado', unit: 'kg x rep', modality: 'resistance',
+      scopeLabel: 'Sessao', points: [{ date: '2026-09-28', value: 450 }, { date: '2026-09-29', value: 630 }],
+      sources: [source('day-completed', 'tonnage-1'), source('day-partial', 'tonnage-2')] },
+    { key: 'load', label: 'Carga por exercício e série', unit: 'kg', modality: 'resistance',
+      scopeLabel: 'Agachamento · série 1', points: [{ date: '2026-09-28', value: 30 }],
+      sources: [source('day-completed', 'exercise-set-1')] },
+    { key: 'load', label: 'Carga por exercício e série', unit: 'kg', modality: 'resistance',
+      scopeLabel: 'Leg press · série 1', points: [{ date: '2026-09-29', value: 50 }],
+      sources: [source('day-partial', 'exercise-set-2')] },
+    { key: 'repetitions', label: 'Repeticoes por exercicio e serie', unit: 'rep', modality: 'resistance',
+      scopeLabel: 'Agachamento · serie 1', points: [{ date: '2026-09-28', value: 10 }],
+      sources: [source('day-completed', 'repetitions-1')] },
+    { key: 'psr', label: 'PSR registrada', unit: '0–10', modality: 'cyclic+resistance',
+      scopeLabel: 'Sessao', points: [{ date: '2026-09-29', value: 8 }],
+      sources: [source('day-partial', 'feedback-psr-405-v1')] },
+    { key: 'substitutions', label: 'Substituicoes executadas', unit: 'ocorrencias', modality: 'cyclic+resistance',
+      scopeLabel: 'Sessao', points: [{ date: '2026-09-29', value: 1 }],
+      sources: [source('day-partial', 'substitution-405')] },
+    { key: 'pse', label: 'PSE registrada', unit: '0–10', modality: 'cyclic+resistance',
+      scopeLabel: 'Sessão', points: [{ date: '2026-09-29', value: updated ? 7 : 6 }],
+      sources: [source('day-partial', revision)] },
+  ];
+  return {
+    metrics: samples.map(({ count, ...metric }) => ({ ...metric, sampleCount: count, lastSourceUpdateAt: time })),
+    series: seriesData.map(({ sources, ...entry }) => ({ ...entry,
+      ...(audience === 'professor' ? { technical: { ruleVersion: 'training-evolution-v1', sources } } : {}),
+    })),
+    ...(audience === 'professor' ? { indicators: samples.map((sample) => ({
+      key: sample.key, ruleVersion: 'training-evolution-v1',
+      formula: sample.key === 'pse' ? 'mean(latest_revision_pse) within same feedback_scope'
+        : 'canonical confirmed observations, grouped by modality and scope',
+      source: sample.key === 'pse' ? 'canonical_post_workout_feedback_current_revision'
+        : 'captured_plan_and_canonical_session_execution',
+      observations: seriesData.filter((entry) => entry.key === sample.key).flatMap((entry) => entry.sources),
+    })) } : {}),
+  };
+}
+
 let mode = 'released';
 function identity() { let e = {}; try { if (process.env.GITHUB_EVENT_PATH) e = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')); } catch {} return { headSha: e?.pull_request?.head?.sha || process.env.GITHUB_SHA || process.env.EVIDENCE_HEAD_SHA || 'unknown' }; }
 function chromeExecutable() { for (const c of [process.env.CHROME_BIN, '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser'].filter(Boolean)) { try { accessSync(c, constants.X_OK); return c; } catch {} } return puppeteer.executablePath(); }
@@ -115,7 +194,7 @@ function routinePayload(audience = 'student') {
   const audienceDays = days.map((d) => (
     d.isToday ? { ...d, sessions: [audienceSummary] } : { ...d }
   ));
-  if (mode === 'adherence') {
+  if (['adherence', 'evolution', 'evolution_updated'].includes(mode)) {
     // A coherent synthetic contract-scoped week: completed, partial and pending.
     // This browser fixture verifies rendering, not the backend calculation.
     const origin = audience === 'professor' ? professorOrigin : session.origin;
@@ -144,12 +223,18 @@ function routinePayload(audience = 'student') {
           notPerformedSessions: 0, pendingSessions: 1,
         },
         adherence: { status: 'available', value: 33.33, unit: '%' },
-        lastSourceUpdateAt: '2026-09-30T13:00:00.000Z',
+        lastSourceUpdateAt: mode === 'evolution_updated' ? '2026-09-30T16:30:00.000Z' : '2026-09-30T13:00:00.000Z',
+        ...(['evolution', 'evolution_updated'].includes(mode) ? (() => {
+          const result = populatedEvolution(audience, mode === 'evolution_updated');
+          return { metrics: result.metrics, series: result.series };
+        })() : {}),
         ...(audience === 'professor' ? { technical: {
           ruleVersion: 'weekly-adherence-v1',
           source: 'consolidated_release_and_session_execution',
           formula: 'completedSessions / prescribedSessions * 100',
           sessions: technicalSessions,
+          ...(['evolution', 'evolution_updated'].includes(mode)
+            ? { indicators: populatedEvolution('professor', mode === 'evolution_updated').indicators } : {}),
         } } : {}),
       },
     }, audience);
@@ -213,6 +298,18 @@ async function shot(page, name) {
   mkdirSync(directory, { recursive: true });
   writeFileSync(path.join(directory, `${name}.png`), b);
   return { bytes: b.length, sha256: createHash('sha256').update(b).digest('hex') };
+}
+async function captureAccessibility(page, name) {
+  const session = await page.target().createCDPSession();
+  try {
+    await session.send('Accessibility.enable');
+    const { nodes } = await session.send('Accessibility.getFullAXTree');
+    const directory = process.env.EVIDENCE_SCREENSHOT_DIR || path.resolve(process.cwd(), '../../artifacts/issue-391');
+    mkdirSync(directory, { recursive: true });
+    const bytes = Buffer.from(JSON.stringify({ identity: identity(), nodes }));
+    writeFileSync(path.join(directory, `${name}.accessibility.json`), bytes);
+    return { nodes: nodes.length, sha256: createHash('sha256').update(bytes).digest('hex') };
+  } finally { await session.detach(); }
 }
 async function waitText(page, text) { try { await page.waitForFunction((t) => document.body?.innerText.toLocaleLowerCase('pt-BR').includes(t.toLocaleLowerCase('pt-BR')), { timeout: 12000 }, text); } catch (error) { console.log("WAIT_DEBUG", text, await page.evaluate(() => location.href + "\n" + document.body?.innerText)); throw error; } }
 async function layout(page) { return page.evaluate(() => { const scope = document.querySelector('main') || document.body; return { pathname: location.pathname, innerWidth, scrollWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth), buttons: [...scope.querySelectorAll('a,button')].filter((el) => el.getClientRects().length > 0).map((el) => { const r = el.getBoundingClientRect(); return { text: (el.textContent || el.getAttribute('aria-label') || '').trim(), left: r.left, right: r.right }; }) }; }); }
@@ -340,6 +437,145 @@ suite('Issue #387 - evidencia browser Treino de hoje', () => {
       await stopApi(api?.server).catch(() => {});
     }
   }, 150000);
+
+  it('issue #405: homologa visualmente series preenchidas, incomparaveis e revisao de feedback em Chrome', async () => {
+    let api, vite, browser;
+    const viewports = [
+      { name: 'desktop-1440x900', width: 1440, height: 900 },
+      { name: 'desktop-1366x768', width: 1366, height: 768 },
+      { name: 'mobile-390x844', width: 390, height: 844, isMobile: true, hasTouch: true },
+    ];
+    const shots = [];
+    try {
+      mode = 'evolution'; authUser = user;
+      api = await startApi(); vite = await startVite();
+      browser = await puppeteer.launch({ executablePath: chromeExecutable(), headless: true,
+        args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+      const page = await browser.newPage();
+      for (const viewport of viewports) {
+        await page.setViewport(viewport);
+        await setSession(page, user);
+        mode = 'evolution';
+        await gotoTraining(page);
+        await waitText(page, '8 km');
+        await waitText(page, 'Não comparável');
+        const student = await page.evaluate(() => {
+          const card = document.querySelector('section[aria-label="Indicadores de evolução"]');
+          return card?.textContent ?? '';
+        });
+        expect(student).toContain('6 0–10');
+        expect(student).toContain('5:30 min/km');
+        expect(student).toContain('Não comparável');
+        expect(student).toContain('Unidade: km');
+        expect(student).toContain('Fonte:');
+        expect(student).not.toContain('Regras técnicas e rastreabilidade');
+        expect(student).not.toContain('feedback-revision-405-v1');
+        await page.evaluate(() => {
+          const el = [...document.querySelectorAll('summary')]
+            .find((n) => n.textContent?.includes('Ver medições históricas'));
+          if (!el) throw new Error('series details missing');
+          el.focus();
+        });
+        await page.keyboard.press('Enter');
+        expect(await page.evaluate(() => [...document.querySelectorAll('summary')]
+          .find((el) => el.textContent?.includes('Ver medições históricas'))?.parentElement?.open)).toBe(true);
+        await waitText(page, '28/09/2026: 3 km');
+        await waitText(page, '29/09/2026: 5 km');
+        expect(await page.evaluate(() => document.activeElement?.tagName)).toBe('SUMMARY');
+        await assertNoOverflow(page);
+        shots.push({ viewport: viewport.name, audience: 'student', state: 'filled',
+          accessibility: await captureAccessibility(page, `issue-405-${viewport.name}-student-filled`),
+          screenshot: await shot(page, `issue-405-${viewport.name}-student-filled`) });
+
+        // Refresh via the same window-focus handler used after a persisted revision.
+        // The fixture changes the canonical current revision, not the number of feedback scopes.
+        mode = 'evolution_updated';
+        await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+        await waitText(page, '7 0–10');
+        const after = await page.evaluate(() => document.querySelector('section[aria-label="Indicadores de evolução"]')?.textContent ?? '');
+        expect(after).not.toContain('6 0–10');
+        const pse = await page.evaluate(() => [...document.querySelectorAll('section[aria-label="Indicadores de evolução"] article')]
+          .find((article) => article.querySelector('h3')?.textContent === 'PSE registrada')?.textContent ?? '');
+        expect(pse).toContain('1 medição');
+        expect(after).not.toContain('feedback-revision-405-v2');
+        expect(after).not.toContain('release-405');
+        await assertNoOverflow(page);
+        shots.push({ viewport: viewport.name, audience: 'student', state: 'feedback-revised',
+          screenshot: await shot(page, `issue-405-${viewport.name}-student-feedback-revised`) });
+
+        authUser = professorUser(true);
+        mode = 'evolution';
+        await setSession(page, authUser, null);
+        await gotoCentral(page);
+        await waitText(page, '8 km');
+        await waitText(page, 'Regras técnicas e rastreabilidade');
+        await page.evaluate(() => {
+          for (const text of ['Ver medições históricas', 'Regras técnicas e rastreabilidade']) {
+            const el = [...document.querySelectorAll('summary')].find((node) => node.textContent?.includes(text));
+            if (!el) throw new Error(`summary missing: ${text}`);
+            el.click();
+          }
+          const source = [...document.querySelectorAll('summary')]
+            .find((node) => node.textContent?.includes('Origem das medições')
+              && node.closest('div')?.textContent?.includes('PSE registrada'));
+          if (!source) throw new Error('technical source expander missing');
+          source.click();
+        });
+        await waitText(page, 'training-evolution-v1');
+        await waitText(page, 'feedback-revision-405-v1');
+        await waitText(page, 'release-405');
+        await assertNoOverflow(page);
+        shots.push({ viewport: viewport.name, audience: 'professor', state: 'filled-technical',
+          accessibility: await captureAccessibility(page, `issue-405-${viewport.name}-professor-technical`),
+          screenshot: await shot(page, `issue-405-${viewport.name}-professor-technical`) });
+
+        mode = 'evolution_updated';
+        await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+        await waitText(page, '7 0–10');
+        const professor = await page.evaluate(() => document.querySelector('section[aria-label="Indicadores de evolução"]')?.textContent ?? '');
+        expect(professor).not.toContain('feedback-revision-405-v1');
+        // The refetch remounts the card: expand the updated sources explicitly.
+        await page.evaluate(() => {
+          const outer = [...document.querySelectorAll('summary')].find((el) => el.textContent?.includes('Ver medições históricas'));
+          if (outer && !outer.parentElement?.open) outer.click();
+          const inner = [...document.querySelectorAll('summary')].find((el) => el.textContent?.includes('Origem das medições') && el.closest('div')?.textContent?.includes('PSE'));
+          if (inner && !inner.parentElement?.open) inner.click();
+        });
+        await waitText(page, 'feedback-revision-405-v2');
+        await assertNoOverflow(page);
+        shots.push({ viewport: viewport.name, audience: 'professor', state: 'feedback-revised',
+          screenshot: await shot(page, `issue-405-${viewport.name}-professor-feedback-revised`) });
+        authUser = user;
+      }
+      // API audience projection must not serialize sources into student payloads.
+      mode = 'evolution_updated';
+      const studentPayload = JSON.stringify(routinePayload('student').weeklyEvolution);
+      const professorPayload = JSON.stringify(routinePayload('professor').weeklyEvolution);
+      expect(studentPayload).not.toMatch(/feedback-revision-405|release-405|training-evolution-v1|technical/);
+      expect(professorPayload).toContain('feedback-revision-405-v2');
+      expect(professorPayload).not.toContain('feedback-revision-405-v1');
+      expect(api.requests.some((req) => req.path === '/api/v1/student/me/training-routine' && req.contractId === CONTRACT_ID)).toBe(true);
+      expect(api.requests.some((req) => req.path === `/api/v1/alunos/${centralStudent.id}/training-routine`)).toBe(true);
+      expect(api.requests.filter((req) => !['GET', 'OPTIONS'].includes(req.method))).toEqual([]);
+      const evidence = {
+        schemaVersion: 1, kind: 'issue-405-filled-browser-evidence', result: 'PASS',
+        identity: identity(), browser: await browser.version(), syntheticApiFixture: true,
+        scenarios: shots,
+        verified: ['student-professor', 'filled-series', 'historical-comparable-distance',
+          'incomparable-resistance', 'technical-only-professor', 'keyboard-details',
+          'feedback-refetch-without-duplicate', 'no-overflow', 'contract-header'],
+      };
+      const dir = process.env.EVIDENCE_SCREENSHOT_DIR || path.resolve(process.cwd(), '../../artifacts/issue-391');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(path.join(dir, 'issue-405-filled-evolution-evidence.json'), JSON.stringify(evidence, null, 2));
+      console.log(`BROWSER_EVIDENCE_405 ${JSON.stringify(evidence)}`);
+    } finally {
+      authUser = user; mode = 'released';
+      await browser?.close().catch(() => {});
+      await stopVite(vite).catch(() => {});
+      await stopApi(api?.server).catch(() => {});
+    }
+  }, 180000);
 
   it('valida a Central do Aluno do professor com estados, responsividade e teclado', async () => {
     let api, vite, browser;

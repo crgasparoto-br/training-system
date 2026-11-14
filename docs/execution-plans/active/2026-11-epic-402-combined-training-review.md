@@ -67,10 +67,74 @@ e heurísticas clínicas sem regra versionada e aprovada.
 - [x] A-003: segregar `ruleVersion`, `source`, `formula` e IDs no campo `technical` só do professor,
       mantendo fonte legível e contagens na resposta do aluno; adicionar testes de serviço e HTTP.
 - [x] Validar o HEAD da remediação A-003 (`5a266789`, CI #42619866441); auditoria independente identificou A-004.
-- [x] A-004: preservar o status de sessões legadas concluídas na aderência,
-      dar precedência à execução canônica, recuperar data de atualização legada
-      e cobrir perfil aluno/professor, histórico e ausência de liberação em testes.
+- [x] A-004: preservar status legados na apresentação da rotina,
+      dar precedência à execução canônica e recuperar data de atualização legada;
+      a correção A-015 impede usar esses status na aderência.
 - [ ] Confirmar CI no HEAD da remediação A-004 e obter nova auditoria independente.
+
+## Remediação dos achados da auditoria #405 — PR #547
+
+- [x] A-001: preservar o contexto da unidade de treino (catálogo, seção, posição,
+      sistema, blocos e grupo) extraído do snapshot da execução; séries ambíguas
+      permanecem isoladas, sem média ou tendência fictícia.
+- [x] A-002: separar o pace pelo método e topologia cíclica registrados no snapshot
+      imutável; ausência de ambos impede comparabilidade.
+- [x] A-003: rejeitar modalidade desconhecida/inválida como evidência de compatibilidade;
+      manter leituras rastreáveis e isoladas sem soma enganosa.
+- [x] Incluir controles negativos e regressões nas suítes de domínio, serviço e interface;
+      sincronizar a documentação funcional da regra.
+- [x] A-004 (auditoria 13/11): modalidade de execução histórica deriva do
+      snapshot vinculado e não muda com alterações posteriores do WorkoutDay;
+      snapshot ausente/inválido mantém medições isoladas.
+- [x] A-005 (auditoria 13/11): somente séries confirmadas compõem tonelagem,
+      carga e repetições; rascunho em sessão parcial fica fora do cálculo.
+- [x] A-006 (auditoria 13/11): distância e ritmo usam método/topologia do
+      snapshot para agrupar tipo cíclico; corrida, ciclismo e tipo desconhecido
+      não geram evolução cruzada.
+- [x] A-007 (auditoria 13/11): método genérico (`CEXT`) ou ambíguo não certifica
+      identidade esportiva. Somente indicação inequívoca do esporte no snapshot
+      permite séries de distância/pace comparáveis; medições desconhecidas
+      ficam isoladas sem herdar modalidade do planejamento mutável.
+- [x] A-008 (auditoria 13/11): reconciliar registros explícitos de pais `repeat`
+      com seus descendentes pelo grafo histórico de etapas, evitando dupla
+      contagem de duração/distância; manter valores somente de pais/filhos,
+      zero explícito e estados incomparáveis quando faltar vínculo confiável.
+- [x] Incluir controles negativos, positivos, regressão de domínio e cenário
+      de serviço com snapshot histórico; preservar separação de permissões.
+- [x] Adicionar regressões adversariais de domínio e serviço e sincronizar as
+      regras documentadas no produto.
+- [x] A-009: última carga/repetições pela cronologia da confirmação (`completedAt`
+      ou `finishedAt`), não por ID/data planejada; ausência ou empate isola
+      medições sem fabricar uma evolução.
+- [x] A-010: topologia cíclica legitimamente vazia difere de grafo histórico
+      inválido, órfão ou duplicado; método igual não comprova comparabilidade.
+- [x] RISK-001: execução de outra liberação não contamina status, aderência,
+      feedback, comparação ou próxima sessão.
+- [x] Testes positivos/negativos adicionados no domínio e serviço; documentação
+      sincronizada com cronologia, modalidades e origem canônica.
+- [x] A-011 (auditoria 13/11): eliminar dupla contagem de substituicoes em pais
+      `repeat` quando as etapas filhas registram a mesma substituicao; preservar
+      agregado isolado, filhos independentes e ausencia de topologia confiavel.
+- [x] A-012 (auditoria 13/11): contar agrupamentos resistidos substituidos,
+      conciliando as series/exercicios do snapshot para evitar duplicidade;
+      conjuntos sem vinculo historico ficam `incomparable`.
+- [x] Cobrir A-011/A-012 em testes de dominio e integracao e atualizar
+      regra documentada sem nova persistencia.
+- [ ] Revalidar `pnpm validate` no CI do HEAD material exato e obter auditoria
+      independente da PR corrigida antes de marcar a issue como encerrada.
+
+### Evidência visual de #405 (ressalva RISK-001 de 14/11/2026)
+
+- [x] Criar cenário Chrome de métricas preenchidas para aluno/professor,
+      1440x900, 1366x768 e 390x844, com fontes, período e unidades.
+- [x] Cobrir duas medições de distância comparáveis, cargas isoladas,
+      PSE vigente, detalhe técnico apenas do professor, teclado e overflow.
+- [x] Preparar revisão simulada v1 -> v2 com revalidação por foco;
+      salvar screenshots, AX-tree e manifesto com identidade/hash no CI.
+- [ ] Validar artefatos capturados no HEAD final e realizar homologação
+      operacional com fonte real, se exigida no aceite independente.
+- [ ] Registrar a revisão independente autenticada para o SHA final,
+      sem usar a própria entrega como prova independente.
 
 ## Validação manual
 
@@ -83,3 +147,39 @@ detalhe do aluno/professor. Validar feedback e comparação sem mutação do pla
 A primeira implementação é incremental e **não encerra a epic nem a #405**.
 Não realizar merge ou encerramento de issues antes da implementação integral,
 CI e auditoria independente. Nenhuma regra clínica indefinida será inferida.
+
+### #405 — remediação A-013 (13/11/2026)
+
+- Recorte: recuperação das leituras cíclicas confirmadas em `cyclicStages[].paceMinPerKm` e em `items[].durationSec/distanceKm/pace`; conservar dados históricos isolados quando faltar semântica verificável.
+- Precedência: totais explícitos da sessão não são somados novamente com medições subordinadas; etapa `repeat` prevalece sobre filhos para o mesmo campo; etapa e item sem total não são combinados em soma fictícia.
+- Proveniência e segurança: IDs de etapas, séries e liberações apenas na visão técnica do professor; `contractId`, liberação consolidada, snapshots e permissões existentes sem alteração.
+- Cobertura adicionada: regressões A-013 no domínio, serviço e rota para comparabilidade, confirmação, método ambíguo, grafo inválido, zero, ordem de prioridade e duplicidade.
+- Critério de conclusão: `pnpm validate` e CI do HEAD material verde, auditoria independente posterior; sem merge ou encerramento automático da issue.
+
+### Remediação A-014 da issue #405 (13/11/2026)
+
+- [x] Comparabilidade de pace/distância em itens exige `capacity=cyclic` e esporte
+  explicitamente correspondente no catálogo do exercício congelado na execução;
+  modalidade/método globais e nome do item não bastam.
+- [x] Itens resistidos, categoria conflitante e histórico sem identificação
+  preservam as medições confirmadas em séries `incomparable`, sem média ou soma
+  cíclica falsa. A precedência do total explícito e a deduplicação de `repeat`
+  permanecem inalteradas.
+- [x] Casos positivos, adversariais e históricos adicionados a domínio e serviço,
+  incluindo exercício cíclico sem etapa ou duração cíclica planejada.
+- [ ] CI exata do novo commit e auditoria independente da correção A-014.
+
+### Remediação da auditoria independente — 14/11/2026
+
+- [x] A-015: status legado continua legível na rotina, mas somente execução
+      vinculada ao release #389 confirma status terminal na aderência.
+- [x] A-016: modalidade reconhecida pelo `capacity` congelado nas quatro
+      categorias; campo histórico ausente/inválido permanece desconhecido.
+- [x] A-017: impedir agregação de distância/duração/pace de etapas
+      substituídas sob o esporte apenas planejado, sem perder leituras;
+      testes de `repeat`, total explícito, dados parciais e privacidade.
+- [ ] CI terminal verde no material SHA e auditoria independente posterior.
+- [x] CI-487 (14/11): eliminar a janela entre espera e clique no harness
+      real Chrome/API/PostgreSQL da issue #487; o botão permanece obrigatório
+      e habilitado, mas a interação ocorre na mesma avaliação do navegador.
+      O check exact-SHA precisa comprovar a regressão, sem remover o teste.

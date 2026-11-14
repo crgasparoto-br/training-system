@@ -27,9 +27,11 @@ import {
   projectWorkoutComparisonForAudience,
   projectWorkoutExecutionForAudience,
   readCapturedWorkoutComparisonPlan,
+  type TrainingComparisonSnapshot,
 } from './workout-session-comparison.domain.js';
 import { projectPostWorkoutFeedback } from '../post-workout-feedback/post-workout-feedback-persistence.service.js';
 import { calculateWeeklyTrainingEvolution } from './training-evolution.domain.js';
+import { capturedCyclicStructure } from './training-cyclic-identity.domain.js';
 
 /**
  * Leitura da rotina semanal e do Treino de hoje (issue #387).
@@ -174,6 +176,14 @@ type ReleaseRow = {
   releasedAssemblyVersion: number;
 };
 
+/** An execution from a previous release cannot confirm the current released session. */
+function hasCanonicalExecution(row: SessionRow, release: ReleaseRow): boolean {
+  const execution = row.execution;
+  return Boolean(execution && execution.originReleaseId === release.id
+    && execution.originWorkoutTemplateId === row.template.id
+    && execution.originTrainingPlanId === row.template.plan.id);
+}
+
 const SECTION_BLOCK: Record<string, TrainingRoutineBlockKey> = {
   mobilidade: 'warmup',
   aquecimento: 'warmup',
@@ -252,6 +262,32 @@ function buildCyclicTargets(row: SessionRow): TrainingRoutineCyclicTargets | nul
   return hasTargets ? targets : null;
 }
 
+/** Release-time attributes only: never fill missing snapshot fields from a mutable catalog. */
+function capturedExerciseCatalogText(value: unknown, key: 'capacity' | 'category' | 'movementPattern'): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const field = (value as Record<string, unknown>)[key];
+  return typeof field === 'string' ? field : null;
+}
+
+/** Historical execution cannot inherit a modality from today's mutable WorkoutDay. */
+function resolveCapturedModalities(plan: TrainingComparisonSnapshot | null): TrainingRoutineModality[] {
+  if (!plan) return [];
+  const modalities: TrainingRoutineModality[] = [];
+  // WorkoutExercise can hold a cyclic catalog unit (e.g. treadmill) without
+  // a separate cyclic stage. Its immutable capacity determines the modality.
+  const itemCapacities = plan.exercises.map((exercise) =>
+    capturedExerciseCatalogText(exercise.releasedCatalog?.catalog, 'capacity'));
+  if (itemCapacities.includes('resisted')) modalities.push('resistance');
+  if (itemCapacities.includes('cyclic') || plan.cyclicStages.length > 0 || plan.cyclicTimeMin != null
+    || plan.targetSpeedMin != null || plan.targetSpeedMax != null
+    || plan.paceMin != null || plan.paceMax != null) modalities.push('cyclic');
+  if (itemCapacities.includes('flexibility')) modalities.push('flexibility');
+  if (itemCapacities.includes('balance')) modalities.push('balance');
+  // Missing, legacy or invalid captured capacity is never proof of resistance.
+  // Current mutable capacity blocks cannot fill an unknown historical modality.
+  return modalities;
+}
+
 function resolveModalities(row: SessionRow, capacities: string[]): TrainingRoutineModality[] {
   const modalities: TrainingRoutineModality[] = [];
   if (row.exercises.length > 0) modalities.push('resistance');
@@ -300,10 +336,11 @@ function projectLegacyExecutionStatus(status: SessionRow['status']): TrainingRou
 }
 
 function buildExecution(row: SessionRow, release: ReleaseRow): TrainingSessionExecutionView {
-  if (row.execution) return projectWorkoutSessionExecution(row.execution);
+  if (hasCanonicalExecution(row, release)) return projectWorkoutSessionExecution(row.execution!);
   return {
     sessionId: row.id,
-    status: projectLegacyExecutionStatus(row.status),
+    // Never borrow the legacy terminal status from another execution/release.
+    status: row.execution ? 'not_started' : projectLegacyExecutionStatus(row.status),
     version: 0,
     startedAt: null,
     finishedAt: null,
@@ -473,6 +510,9 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
           ON execution."workoutDayId" = day."id"
          AND execution."alunoId" = ${query.alunoId}
          AND execution."contractId" = ${query.contractId}
+         AND execution."originReleaseId" = release."id"
+         AND execution."originWorkoutTemplateId" = template."id"
+         AND execution."originTrainingPlanId" = plan."id"
         WHERE plan."alunoId" = ${query.alunoId}
           AND student."contractId" = ${query.contractId}
           AND template."released" = true
@@ -504,6 +544,8 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
          AND release."workoutTemplateId" = template."id"
          AND release."alunoId" = execution."alunoId"
          AND release."contractId" = execution."contractId"
+         AND execution."originWorkoutTemplateId" = template."id"
+         AND execution."originTrainingPlanId" = plan."id"
         WHERE execution."alunoId" = ${query.alunoId}
           AND execution."contractId" = ${query.contractId}
           AND plan."alunoId" = ${query.alunoId}
@@ -547,22 +589,6 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
       // consolidado (por exemplo, liberação manual do Workout Builder) não
       // participa da rotina semanal nem do Treino de hoje.
       const visibleRows = rows.filter((row) => releaseByTemplate.has(row.template.id));
-      // #405 uses the same released, contract-scoped rows as the routine.
-      // A session is prescribed even when it has not yet been executed.
-      const weeklyEvolution = calculateWeeklyTrainingEvolution({
-        period: { startDate: toDateOnly(week.start), endDate: toDateOnly(week.days[6]) },
-        sessions: visibleRows
-          .filter((row) => row.workoutDate >= week.start && row.workoutDate < week.endExclusive)
-          .map((row) => ({
-            sessionId: row.id,
-            // Use the same canonical-first legacy fallback as toSummary/buildExecution.
-            status: row.execution?.status ?? projectLegacyExecutionStatus(row.status),
-            sourceUpdatedAt: row.execution?.updatedAt?.toISOString()
-              ?? row.updatedAt?.toISOString()
-              ?? row.template.releasedAt?.toISOString() ?? null,
-          })),
-        audience: query.audience,
-      });
       const canProjectPreWorkoutCheckIn =
         query.audience === 'student' || query.includePreWorkoutCheckIn === true;
       const canProjectPostWorkoutFeedback = query.audience === 'student' || query.includePostWorkoutFeedback === true;
@@ -576,9 +602,112 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
           })
         : [];
       const checkInBySession = new Map(checkInRows.map((checkIn) => [checkIn.workoutDayId, checkIn]));
-      const feedbackRows = canProjectPostWorkoutFeedback && visibleRows.length ? await client.postWorkoutFeedbackRevision.findMany({where:{workoutDayId:{in:visibleRows.map((row)=>row.id)},alunoId:query.alunoId,contractId:query.contractId},include:{execution:{select:{status:true}}},orderBy:[{workoutDayId:'asc'},{scopeKey:'asc'},{revisionNumber:'desc'}]}) : [];
+      const canonicalRows = visibleRows.filter((row) =>
+        hasCanonicalExecution(row, releaseByTemplate.get(row.template.id)!));
+      const feedbackRows = canProjectPostWorkoutFeedback && canonicalRows.length ? await client.postWorkoutFeedbackRevision.findMany({where:{workoutDayId:{in:canonicalRows.map((row)=>row.id)},alunoId:query.alunoId,contractId:query.contractId},include:{execution:{select:{status:true}}},orderBy:[{workoutDayId:'asc'},{scopeKey:'asc'},{revisionNumber:'desc'}]}) : [];
       const latestFeedbackBySession = new Map<string, typeof feedbackRows>(); const latestScopes = new Set<string>();
       for (const feedback of feedbackRows) { const key = `${feedback.workoutDayId}:${feedback.scopeKey}`; if (latestScopes.has(key)) continue; latestScopes.add(key); latestFeedbackBySession.set(feedback.workoutDayId,[...(latestFeedbackBySession.get(feedback.workoutDayId) ?? []),feedback]); }
+      // #405 reads the very same tenant-scoped release, canonical execution and
+      // latest feedback revisions as the routine. No counter or independent store.
+      // A professor without feedback permission never queries or receives PSE/PSR.
+      const weeklyEvolution = calculateWeeklyTrainingEvolution({
+        period: { startDate: toDateOnly(week.start), endDate: toDateOnly(week.days[6]) },
+        sessions: visibleRows
+          .filter((row) => row.workoutDate >= week.start && row.workoutDate < week.endExclusive)
+          .map((row) => {
+            const release = releaseByTemplate.get(row.template.id)!;
+            const canonical = hasCanonicalExecution(row, release);
+            const captured = canonical ? readCapturedWorkoutComparisonPlan(row.execution?.plannedSnapshot) : null;
+            const frozen = captured?.id === row.id ? captured : null;
+            const execution = canonical && row.execution ? projectWorkoutSessionExecution(row.execution) : null;
+            const feedback = canProjectPostWorkoutFeedback
+              ? latestFeedbackBySession.get(row.id) ?? [] : [];
+            const canonicalAt = canonical && row.execution
+              ? row.execution.updatedAt?.toISOString()
+                ?? row.updatedAt?.toISOString()
+                ?? row.template.releasedAt?.toISOString() ?? null
+              : row.execution
+                ? row.template.releasedAt?.toISOString() ?? row.updatedAt?.toISOString() ?? null
+                : row.updatedAt?.toISOString() ?? row.template.releasedAt?.toISOString() ?? null;
+            // Execution-based indicators must not inherit a newer feedback revision time.
+            // Feedback revisions are separate sources of PSE/PSR in the evolution domain.
+            return {
+              sessionId: row.id,
+              date: toDateOnly(row.workoutDate),
+              modality: resolveCapturedModalities(frozen).sort().join('+') || 'unknown',
+              // Historical comparison requires the captured training method, not today's mutable row.
+              method: typeof frozen?.method === 'string' ? frozen.method : null,
+              cyclicStructure: capturedCyclicStructure(frozen),
+              releaseId: release.id,
+              // A-015: only a #389 execution linked to this release can establish
+              // completed/partial/not_performed. The legacy status is display-only.
+              status: canonical ? row.execution!.status : 'not_started',
+              executionFinishedAt: canonical ? row.execution?.finishedAt?.toISOString() ?? null : null,
+              sourceUpdatedAt: canonicalAt,
+              ...(execution ? {
+                execution: {
+                  sessionValues: execution.sessionValues,
+                  items: execution.items,
+                  plannedCyclicStages: frozen?.cyclicStages.map((stage) => ({
+                    id: stage.id,
+                    kind: stage.kind,
+                    parentStageId: stage.parentStageId,
+                    position: stage.position,
+                  })),
+                  plannedResistanceGroups: frozen?.resistanceGroups
+                    .filter((group) => group && Array.isArray(group.members))
+                    .map((group) => ({
+                      id: group.id, memberUnitIds: group.members.map((member) => member.workoutExerciseId),
+                    })),
+                  plannedExercises: frozen?.id === row.id
+                    ? frozen.exercises.map((exercise) => {
+                        const group = frozen.resistanceGroups.find((candidate) =>
+                          Array.isArray(candidate.members)
+                          && candidate.members.some((member) => member.workoutExerciseId === exercise.id));
+                        const member = group?.members.find((item) => item.workoutExerciseId === exercise.id);
+                        const blocks = Array.isArray(exercise.resistanceBlocks)
+                          && exercise.resistanceBlocks.every((block) =>
+                            Number.isInteger(block.position) && typeof block.kind === 'string')
+                          ? JSON.stringify(exercise.resistanceBlocks.map((block) =>
+                              [block.position, block.kind.trim().toLowerCase()]))
+                          : undefined;
+                        return {
+                          plannedUnitId: exercise.id,
+                          catalogExerciseId: exercise.exerciseId ?? null,
+                          name: exercise.exercise.name,
+                          section: exercise.section,
+                          exerciseOrder: exercise.exerciseOrder,
+                          system: exercise.system,
+                          blockSignature: blocks,
+                          groupSignature: group && member
+                            ? typeof group.kind === 'string' && Number.isInteger(group.position)
+                              && Number.isInteger(member.position)
+                              ? JSON.stringify([group.kind.trim().toLowerCase(), group.position, member.position])
+                              : undefined
+                            : null,
+                          capturedCapacity: capturedExerciseCatalogText(exercise.releasedCatalog?.catalog, 'capacity'),
+                          capturedCategory: capturedExerciseCatalogText(exercise.releasedCatalog?.catalog, 'category'),
+                          capturedMovementPattern: capturedExerciseCatalogText(exercise.releasedCatalog?.catalog, 'movementPattern'),
+                        };
+                      }) : [],
+                },
+              } : {}),
+              feedback: execution && canProjectPostWorkoutFeedback
+                ? feedback.map((item) => {
+                    const values = item.values as { pse?: number | null; psr?: number | null };
+                    return {
+                      id: item.id,
+                      scopeKey: item.scopeKey,
+                      createdAt: item.createdAt.toISOString(),
+                      pse: values.pse ?? null,
+                      psr: values.psr ?? null,
+                    };
+                  })
+                : [],
+            };
+          }),
+        audience: query.audience,
+      });
       const pendingByDate = new Map<string, number>();
       for (const pending of pendingRows) {
         const key = toDateOnly(pending.workoutDate);
@@ -608,7 +737,7 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
       // no original plan was captured, the current WorkoutDay cannot supply a
       // historical denominator, names or series structure for comparison.
       const comparisonByDay = new Map<string, TrainingSessionComparison>();
-      for (const row of visibleRows.filter((entry) => Boolean(entry.execution))) {
+      for (const row of canonicalRows) {
         const execution = buildExecution(row, releaseByTemplate.get(row.template.id)!);
         const frozen = readCapturedWorkoutComparisonPlan(row.execution?.plannedSnapshot);
         const comparison = frozen && frozen.id === execution.sessionId
@@ -636,7 +765,8 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
         toDateOnly(row.workoutDate) <= today && toDateOnly(row.workoutDate) >= toDateOnly(week.start)
       );
       const feedbackEligible = weekRows.filter((row) =>
-        row.execution?.status === 'completed' || row.execution?.status === 'partial'
+        hasCanonicalExecution(row, releaseByTemplate.get(row.template.id)!)
+        && (row.execution?.status === 'completed' || row.execution?.status === 'partial')
       );
       const registeredCount = feedbackEligible.filter((row) =>
         (latestFeedbackBySession.get(row.id)?.length ?? 0) > 0

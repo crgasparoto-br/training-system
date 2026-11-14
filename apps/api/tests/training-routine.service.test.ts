@@ -191,7 +191,7 @@ describe('training routine service (#387)', () => {
     });
   });
 
-  it('A-004: alinha conclusão legada, estados pendentes e aderência da semana histórica', async () => {
+  it('A-015: preserva status legado na rotina, não na aderência canônica', async () => {
     releasedRows = [
       makeRow({ id: 'legacy-completed', status: 'completed',
         updatedAt: new Date('2026-10-01T16:00:00.000Z') }),
@@ -216,11 +216,11 @@ describe('training routine service (#387)', () => {
       { sessionId: 'legacy-planned', status: 'not_started' },
     ]);
     expect(student.weeklyEvolution?.counts).toEqual({
-      prescribedSessions: 3, completedSessions: 1, partialSessions: 0,
-      notPerformedSessions: 0, pendingSessions: 2,
+      prescribedSessions: 3, completedSessions: 0, partialSessions: 0,
+      notPerformedSessions: 0, pendingSessions: 3,
     });
     expect(student.weeklyEvolution?.adherence).toEqual({
-      status: 'available', value: 33.33, unit: '%',
+      status: 'available', value: 0, unit: '%',
     });
     expect(student.weeklyEvolution?.lastSourceUpdateAt).toBe('2026-10-02T12:00:00.000Z');
     expect(student.weeklyEvolution?.technical).toBeUndefined();
@@ -228,8 +228,8 @@ describe('training routine service (#387)', () => {
     const professor = await service.getRoutine({ ...query, audience: 'professor' });
     expect(professor.weeklyEvolution?.adherence).toEqual(student.weeklyEvolution?.adherence);
     expect(professor.weeklyEvolution?.technical?.sessions).toEqual([
-      { sessionId: 'legacy-completed', status: 'completed' },
-      { sessionId: 'legacy-in-progress', status: 'in_progress' },
+      { sessionId: 'legacy-completed', status: 'not_started' },
+      { sessionId: 'legacy-in-progress', status: 'not_started' },
       { sessionId: 'legacy-planned', status: 'not_started' },
     ]);
 
@@ -266,6 +266,623 @@ describe('training routine service (#387)', () => {
     });
     expect(student.weeklyEvolution?.adherence).toEqual({ status: 'available', value: 0, unit: '%' });
     expect(student.weeklyEvolution?.lastSourceUpdateAt).toBe('2026-10-01T12:00:00.000Z');
+  });
+
+  it('#405: mantém revisão de feedback vigente, tenant e permissão na projeção de métricas', async () => {
+    releasedRows = [makeRow({
+      // A-003: the permitted feedback sample has an explicitly known modality.
+      id: 'day-1', status: 'completed', cyclicTimeMin: 30,
+      execution: {
+        workoutDayId: 'day-1', status: 'completed', version: 3,
+        updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+        startedAt: new Date('2026-10-01T11:00:00.000Z'),
+        finishedAt: new Date('2026-10-01T12:00:00.000Z'),
+        currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+        originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+        originTrainingPlanId: 'plan-1', sessionValues: { durationSec: 3600 },
+        plannedSnapshot: { id: 'day-1', cyclicTimeMin: 30, cyclicStages: [], resistanceGroups: [], exercises: [] },
+        items: [],
+      },
+    })];
+    postWorkoutFeedbackFindMany.mockResolvedValue([
+      { id: 'fb-r2', workoutDayId: 'day-1', scopeKey: 'session', revisionNumber: 2,
+        values: { pse: 6, psr: 7, painAfter: 9, professorTechnicalNotes: 'sigiloso' },
+        createdAt: new Date('2026-10-02T10:00:00.000Z') },
+      { id: 'fb-r1', workoutDayId: 'day-1', scopeKey: 'session', revisionNumber: 1,
+        values: { pse: 2, psr: 3 },
+        createdAt: new Date('2026-10-01T13:00:00.000Z') },
+    ]);
+    const query = { alunoId: 'aluno-1', contractId: 'contract-1',
+      date: '2026-10-01', now: new Date('2026-10-08T15:00:00.000Z') };
+    const student = await service.getRoutine({ ...query, audience: 'student' });
+    expect(student.weeklyEvolution?.metrics.find((item) => item.key === 'pse')).toMatchObject({
+      status: 'available', value: 6, sampleCount: 1,
+      lastSourceUpdateAt: '2026-10-02T10:00:00.000Z',
+    });
+    expect(student.weeklyEvolution?.metrics.find((item) => item.key === 'psr')?.value).toBe(7);
+    // A-018: feedback review is fresher than execution, but cannot date execution metrics.
+    expect(student.weeklyEvolution?.lastSourceUpdateAt).toBe('2026-10-02T10:00:00.000Z');
+    expect(student.weeklyEvolution?.metrics.find((item) => item.key === 'duration')).toMatchObject({
+      sampleCount: 1, lastSourceUpdateAt: '2026-10-01T12:00:00.000Z',
+    });
+    expect(JSON.stringify(student.weeklyEvolution)).not.toMatch(/fb-r2|fb-r1|sigiloso|painAfter|release-1/);
+    expect(postWorkoutFeedbackFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { workoutDayId: { in: ['day-1'] }, alunoId: 'aluno-1', contractId: 'contract-1' },
+    }));
+
+    postWorkoutFeedbackFindMany.mockClear();
+    const professorWithoutGrant = await service.getRoutine({ ...query, audience: 'professor' });
+    expect(postWorkoutFeedbackFindMany).not.toHaveBeenCalled();
+    expect(professorWithoutGrant.weeklyEvolution?.metrics.find((item) => item.key === 'pse'))
+      .toMatchObject({ status: 'insufficient_data', value: null });
+    expect(professorWithoutGrant.weeklyEvolution?.lastSourceUpdateAt)
+      .toBe('2026-10-01T12:00:00.000Z');
+    expect(professorWithoutGrant.weeklyEvolution?.technical?.indicators.find((item) => item.key === 'pse')?.observations)
+      .toEqual([]);
+
+    const authorized = await service.getRoutine({
+      ...query, audience: 'professor', includePostWorkoutFeedback: true,
+    });
+    expect(authorized.weeklyEvolution?.metrics.find((item) => item.key === 'pse')?.value).toBe(6);
+    expect(authorized.weeklyEvolution?.technical?.indicators.find((item) => item.key === 'pse')?.observations)
+      .toMatchObject([{ sessionId: 'day-1', releaseId: 'release-1', sourceId: 'fb-r2' }]);
+    expect(authorized.weeklyEvolution?.adherence.value).toBe(student.weeklyEvolution?.adherence.value);
+    expect(authorized.weeklyEvolution?.technical?.indicators.find((item) => item.key === 'duration')?.observations)
+      .toMatchObject([{ sessionId: 'day-1', updatedAt: '2026-10-01T12:00:00.000Z' }]);
+
+    // The same persisted execution is read again after a newer feedback revision.
+    // It must not be relabelled as newly executed when only PSE/PSR changed.
+    postWorkoutFeedbackFindMany.mockResolvedValue([{ id: 'fb-r3', workoutDayId: 'day-1',
+      scopeKey: 'session', revisionNumber: 3, values: { pse: 8, psr: 9 },
+      createdAt: new Date('2026-10-03T15:00:00.000Z') }]);
+    const refreshed = await service.getRoutine({ ...query, audience: 'student' });
+    expect(refreshed.weeklyEvolution?.metrics.find((item) => item.key === 'duration'))
+      .toEqual(student.weeklyEvolution?.metrics.find((item) => item.key === 'duration'));
+    expect(refreshed.weeklyEvolution?.metrics.find((item) => item.key === 'pse')).toMatchObject({
+      value: 8, lastSourceUpdateAt: '2026-10-03T15:00:00.000Z',
+    });
+    expect(refreshed.weeklyEvolution?.metrics.find((item) => item.key === 'psr')).toMatchObject({
+      value: 9, lastSourceUpdateAt: '2026-10-03T15:00:00.000Z',
+    });
+    expect(refreshed.weeklyEvolution?.lastSourceUpdateAt).toBe('2026-10-03T15:00:00.000Z');
+    expect(refreshed.weeklyEvolution?.technical).toBeUndefined();
+  });
+
+  it('#405 A-002: deriva método e topologia do snapshot, nunca do método atual do WorkoutDay', async () => {
+    const captured = {
+      id: 'day-1', method: 'Corrida intervalada',
+      cyclicStages: [{ id: 'work-1', parentStageId: null, position: 1,
+        kind: 'work', targetKind: 'pace_min_per_km', repeatCount: null }],
+      exercises: [], resistanceGroups: [],
+    };
+    const execution = {
+      workoutDayId: 'day-1', status: 'completed', version: 1,
+      updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+      startedAt: new Date('2026-10-01T11:00:00.000Z'),
+      finishedAt: new Date('2026-10-01T12:00:00.000Z'),
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1', sessionValues: { pace: '05:00' },
+      plannedSnapshot: captured, items: [],
+    };
+    releasedRows = [makeRow({ method: 'Contínuo (valor atual)', cyclicTimeMin: 30, execution })];
+    const query = { alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student' as const, now };
+    const verified = await service.getRoutine(query);
+    expect(verified.weeklyEvolution?.metrics.find((item) => item.key === 'pace'))
+      .toMatchObject({ status: 'available', value: 5 });
+    expect(verified.weeklyEvolution?.series.find((item) => item.key === 'pace')?.scopeLabel)
+      .toContain('Corrida intervalada');
+    expect(JSON.stringify(verified.weeklyEvolution)).not.toContain('Contínuo (valor atual)');
+
+    // Legacy #401 snapshot with no captured type cannot borrow a mutable current method.
+    releasedRows = [makeRow({ method: 'Contínuo (valor atual)', cyclicTimeMin: 30,
+      execution: { ...execution, plannedSnapshot: { ...captured, method: null, cyclicStages: [] } },
+    })];
+    const historical = await service.getRoutine(query);
+    expect(historical.weeklyEvolution?.metrics.find((item) => item.key === 'pace'))
+      .toMatchObject({ status: 'incomparable', value: null, sampleCount: 1 });
+    expect(historical.weeklyEvolution?.series.filter((item) => item.key === 'pace')).toHaveLength(1);
+  });
+
+  it('#405 A-008: usa o grafo do snapshot vinculado para evitar dupla contagem de repeat', async () => {
+    const captured = {
+      id: 'day-1', method: 'Corrida contínua', cyclicTimeMin: 30,
+      cyclicStages: [
+        { id: 'parent', kind: 'repeat', parentStageId: null, position: 1,
+          targetKind: null, repeatCount: 2 },
+        { id: 'work', kind: 'work', parentStageId: 'parent', position: 1,
+          targetKind: null, repeatCount: null },
+      ],
+      exercises: [], resistanceGroups: [],
+    };
+    const execution = {
+      workoutDayId: 'day-1', status: 'completed', version: 1,
+      updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+      startedAt: new Date('2026-10-01T11:00:00.000Z'),
+      finishedAt: new Date('2026-10-01T12:00:00.000Z'),
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1', plannedSnapshot: captured,
+      sessionValues: { cyclicStages: [
+        { plannedStageId: 'parent', outcome: 'full', durationSec: 600, distanceMeters: 5000 },
+        { plannedStageId: 'work', iteration: 1, outcome: 'full', durationSec: 300, distanceMeters: 2500 },
+        { plannedStageId: 'work', iteration: 2, outcome: 'full', durationSec: 300, distanceMeters: 2500 },
+      ] }, items: [],
+    };
+    // Current mutable method and stages deliberately disagree with the snapshot.
+    releasedRows = [makeRow({ method: 'Ciclismo atual', cyclicTimeMin: 60, execution })];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.weeklyEvolution?.metrics.find((m) => m.key === 'duration'))
+      .toMatchObject({ status: 'available', value: 10 });
+    expect(result.weeklyEvolution?.metrics.find((m) => m.key === 'distance'))
+      .toMatchObject({ status: 'available', value: 5 });
+    expect(JSON.stringify(result.weeklyEvolution)).not.toMatch(/Ciclismo atual|release-1|"sessionId"/);
+  });
+
+  it('#405 A-013: stage pace is projected from the frozen graph for both audiences', async () => {
+    const execution = (id: string, pace: number) => ({
+      workoutDayId: id, status: 'completed', version: 1,
+      updatedAt: new Date('2026-10-03T12:00:00.000Z'),
+      startedAt: new Date('2026-10-03T11:00:00.000Z'),
+      finishedAt: new Date('2026-10-03T12:00:00.000Z'),
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1',
+      plannedSnapshot: {
+        id, method: 'Corrida contínua', cyclicTimeMin: 30,
+        cyclicStages: [{ id: `stage-${id}`, kind: 'work', parentStageId: null,
+          position: 1, repeatCount: null, targetKind: null }],
+        exercises: [], resistanceGroups: [],
+      },
+      sessionValues: { cyclicStages: [{ plannedStageId: `stage-${id}`, outcome: 'full',
+        paceMinPerKm: pace, durationSec: pace * 60, distanceMeters: 1000 }] },
+      items: [],
+    });
+    releasedRows = [
+      makeRow({ id: 'day-1', method: 'Alteração atual: ciclismo', execution: execution('day-1', 5.2) }),
+      makeRow({ id: 'day-2', workoutDate: new Date('2026-10-03T00:00:00.000Z'),
+        method: 'Alteração atual: ciclismo', execution: execution('day-2', 5.6) }),
+    ];
+    const query = { alunoId: 'aluno-1', contractId: 'contract-1', now };
+    const student = await service.getRoutine({ ...query, audience: 'student' });
+    expect(student.weeklyEvolution?.metrics.find((m) => m.key === 'pace'))
+      .toMatchObject({ status: 'available', sampleCount: 2, value: 5.4 });
+    expect(student.weeklyEvolution?.metrics.find((m) => m.key === 'distance'))
+      .toMatchObject({ status: 'available', sampleCount: 2, value: 2 });
+    expect(JSON.stringify(student.weeklyEvolution)).not.toMatch(/stage-day|release-1|training-evolution-v1/);
+    const professor = await service.getRoutine({ ...query, audience: 'professor' });
+    expect(professor.weeklyEvolution?.technical?.indicators.find((m) => m.key === 'pace')?.observations)
+      .toEqual([
+        expect.objectContaining({ sessionId: 'day-1', sourceId: 'cyclic-stage:stage-day-1:iteration:1' }),
+        expect.objectContaining({ sessionId: 'day-2', sourceId: 'cyclic-stage:stage-day-2:iteration:1' }),
+      ]);
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({
+      template: { released: true, plan: { alunoId: 'aluno-1', aluno: { contractId: 'contract-1' } } },
+    }) }));
+  });
+
+  it('#405 A-013: executed item measurements require frozen origin and keep technical IDs private', async () => {
+    const captured = {
+      id: 'day-1', method: 'Corrida contínua', cyclicTimeMin: 30, cyclicStages: [],
+      resistanceGroups: [], exercises: [{ id: 'unit-a', exerciseId: 'catalog-a',
+        section: 'principal', exerciseOrder: 1, system: null, resistanceBlocks: [],
+        exercise: { name: 'Esteira' },
+        releasedCatalog: { catalog: { name: 'Esteira', capacity: 'cyclic',
+          category: 'cyclic', movementPattern: 'running' } } }],
+    };
+    const execution = {
+      workoutDayId: 'day-1', status: 'completed', version: 1,
+      updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+      startedAt: new Date('2026-10-01T11:00:00.000Z'),
+      finishedAt: new Date('2026-10-01T12:00:00.000Z'),
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1', plannedSnapshot: captured, sessionValues: {},
+      items: [{ plannedUnitId: 'unit-a', plannedSetId: 'set-a', setNumber: 1,
+        completedAt: null, outcome: 'full', durationSec: 1650, distanceKm: 5, pace: '05:30',
+        repetitions: null, loadKg: null }],
+    };
+    releasedRows = [makeRow({ id: 'day-1', method: 'Current mutable method', execution })];
+    const query = { alunoId: 'aluno-1', contractId: 'contract-1', now };
+    const student = await service.getRoutine({ ...query, audience: 'student' });
+    for (const [key, value] of [['duration', 27.5], ['distance', 5], ['pace', 5.5]] as const) {
+      expect(student.weeklyEvolution?.metrics.find((m) => m.key === key))
+        .toMatchObject({ status: 'available', value, sampleCount: 1 });
+    }
+    expect(JSON.stringify(student.weeklyEvolution)).not.toMatch(/unit-a|set-a|catalog-a|release-1|training-evolution-v1/);
+    const professor = await service.getRoutine({ ...query, audience: 'professor' });
+    expect(professor.weeklyEvolution?.technical?.indicators.find((m) => m.key === 'pace')?.observations)
+      .toMatchObject([{ sessionId: 'day-1', sourceId: 'execution-item:set-a' }]);
+    releasedRows = [makeRow({ id: 'day-1', execution: {
+      ...execution, originReleaseId: 'another-release',
+    } })];
+    const wrongOrigin = await service.getRoutine({ ...query, audience: 'student' });
+    expect(wrongOrigin.weeklyEvolution?.metrics.find((m) => m.key === 'pace'))
+      .toMatchObject({ status: 'insufficient_data', sampleCount: 0 });
+  });
+
+
+  it('#405 A-014: snapshot da unidade resistida prevalece sobre nome/método atuais', async () => {
+    const captured = {
+      id: 'day-1', method: 'Corrida contínua', cyclicTimeMin: 30, cyclicStages: [],
+      resistanceGroups: [], exercises: [{ id: 'unit-a', exerciseId: 'squat',
+        section: 'principal', exerciseOrder: 1, system: null, resistanceBlocks: [],
+        exercise: { name: 'Esteira atual' },
+        releasedCatalog: { catalog: { name: 'Agachamento histórico',
+          capacity: 'resisted', category: 'resisted', movementPattern: 'squat' } },
+      }],
+    };
+    const execution = {
+      workoutDayId: 'day-1', status: 'completed', version: 1,
+      updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+      startedAt: new Date('2026-10-01T11:00:00.000Z'),
+      finishedAt: new Date('2026-10-01T12:00:00.000Z'),
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1', plannedSnapshot: captured, sessionValues: {},
+      items: [{ plannedUnitId: 'unit-a', plannedSetId: 'set-a', setNumber: 1,
+        outcome: 'full', distanceKm: 5, pace: '05:30' }],
+    };
+    releasedRows = [makeRow({ id: 'day-1', method: 'Corrida nova - planejado hoje', execution })];
+    const query = { alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student' as const, now };
+    const result = await service.getRoutine(query);
+    for (const key of ['pace', 'distance'] as const) {
+      expect(result.weeklyEvolution?.metrics.find((metric) => metric.key === key))
+        .toMatchObject({ status: 'incomparable', value: null, sampleCount: 1 });
+      expect(result.weeklyEvolution?.series.filter((series) => series.key === key)).toHaveLength(1);
+    }
+    expect(JSON.stringify(result.weeklyEvolution)).not.toMatch(/squat|unit-a|set-a|release-1/);
+    // Subsequent edits to the live workout/catalog are not borrowed by history.
+    releasedRows = [makeRow({ id: 'day-1', method: 'Ciclismo atual',
+      exercises: [{ ...exercise('unit-a', 'principal', 1),
+        exercise: { name: 'Corrida nova', capacity: 'cyclic', category: 'running' } }], execution })];
+    expect((await service.getRoutine(query)).weeklyEvolution?.metrics.find((metric) => metric.key === 'pace')?.status)
+      .toBe('incomparable');
+    // A distinct execution with explicit frozen cyclic catalog metadata is valid.
+    const cyclicCaptured = { ...captured, exercises: [{ ...captured.exercises[0],
+      releasedCatalog: { catalog: { name: 'Esteira histórica', capacity: 'cyclic',
+        category: 'running', movementPattern: 'running' } } }] };
+    releasedRows = [makeRow({ id: 'day-1', method: 'Ciclismo atual',
+      execution: { ...execution, plannedSnapshot: cyclicCaptured } })];
+    const verifiedCyclic = await service.getRoutine(query);
+    expect(verifiedCyclic.weeklyEvolution?.metrics.find((metric) => metric.key === 'pace'))
+      .toMatchObject({ status: 'available', value: 5.5 });
+    // A cyclic exercise needs no separate planned cyclic stage or duration.
+    const cyclicItemOnly = { ...cyclicCaptured, cyclicTimeMin: null };
+    releasedRows = [makeRow({ id: 'day-1', method: 'Treino atual mutável',
+      execution: { ...execution, plannedSnapshot: cyclicItemOnly } })];
+    const justItem = await service.getRoutine(query);
+    expect(justItem.weeklyEvolution?.metrics.find((metric) => metric.key === 'pace'))
+      .toMatchObject({ status: 'available', value: 5.5 });
+    expect(justItem.weeklyEvolution?.metrics.find((metric) => metric.key === 'distance'))
+      .toMatchObject({ status: 'available', value: 5 });
+    expect(justItem.weeklyEvolution?.series.find((entry) => entry.key === 'pace')?.modality)
+      .toBe('cyclic');
+  });
+
+  it('#405 A-011/A-012: projects historical groups and repeat parents without duplicate substitution totals', async () => {
+    const captured = {
+      id: 'day-1', method: 'Corrida continua', cyclicTimeMin: 10,
+      cyclicStages: [
+        { id: 'parent', kind: 'repeat', parentStageId: null, position: 1, targetKind: null, repeatCount: 2 },
+        { id: 'stage', kind: 'work', parentStageId: 'parent', position: 1, targetKind: null, repeatCount: null },
+      ],
+      resistanceGroups: [{ id: 'group-a', kind: 'bi_set', position: 1,
+        members: [{ workoutExerciseId: 'unit-a', position: 1 }] }],
+      exercises: [{ id: 'unit-a', exerciseId: 'catalog-a', section: 'principal', exerciseOrder: 1,
+        system: null, resistanceBlocks: [], exercise: { name: 'Exercise A' } }],
+    };
+    const execution = {
+      workoutDayId: 'day-1', status: 'partial', version: 1,
+      updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+      startedAt: new Date('2026-10-01T11:00:00.000Z'),
+      finishedAt: new Date('2026-10-01T12:00:00.000Z'),
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1', plannedSnapshot: captured,
+      sessionValues: {
+        cyclicStages: [
+          { plannedStageId: 'parent', outcome: 'substituted' },
+          { plannedStageId: 'stage', iteration: 1, outcome: 'substituted' },
+          { plannedStageId: 'stage', iteration: 2, outcome: 'substituted' },
+        ],
+        resistanceGroups: [{ plannedGroupId: 'group-a', outcome: 'substituted' }],
+      },
+      items: [{ plannedUnitId: 'unit-a', plannedSetId: null, setNumber: 1,
+        outcome: 'substituted', completedAt: null, loadKg: null, repetitions: null }],
+    };
+    releasedRows = [makeRow({ method: 'Changed current method', execution })];
+    const query = { alunoId: 'aluno-1', contractId: 'contract-1',
+      audience: 'student' as const, now };
+    const student = await service.getRoutine(query);
+    expect(student.weeklyEvolution?.metrics.find((item) => item.key === 'substitutions'))
+      .toMatchObject({ status: 'available', value: 3, sampleCount: 1 });
+    expect(student.weeklyEvolution?.adherence.value).toBe(0);
+    expect(JSON.stringify(student.weeklyEvolution)).not.toMatch(/group-a|unit-a|release-1|"sessionId"/);
+    releasedRows = [makeRow({ method: 'Other current method', execution })];
+    const unchanged = await service.getRoutine(query);
+    expect(unchanged.weeklyEvolution?.metrics).toEqual(student.weeklyEvolution?.metrics);
+    const professor = await service.getRoutine({ ...query, audience: 'professor' });
+    expect(professor.weeklyEvolution?.metrics.find((item) => item.key === 'substitutions')?.value).toBe(3);
+  });
+
+  it('#405 A-004: mantém modalidade capturada após edição do planejamento atual e isola snapshots inválidos', async () => {
+    const captured = {
+      id: 'day-1', method: 'Corrida contínua', cyclicTimeMin: 30,
+      cyclicStages: [], exercises: [], resistanceGroups: [],
+    };
+    const execution = {
+      workoutDayId: 'day-1', status: 'completed', version: 1,
+      updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+      startedAt: new Date('2026-10-01T11:00:00.000Z'),
+      finishedAt: new Date('2026-10-01T12:00:00.000Z'),
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1',
+      sessionValues: { distanceKm: 5, pace: '05:00' },
+      plannedSnapshot: captured, items: [],
+    };
+    const query = { alunoId: 'aluno-1', contractId: 'contract-1',
+      audience: 'student' as const, now };
+    releasedRows = [makeRow({
+      method: 'Musculação atual', cyclicTimeMin: null,
+      exercises: [exercise('current-exercise', 'principal', 1)], execution,
+    })];
+    const before = await service.getRoutine(query);
+    expect(before.weeklyEvolution?.metrics.find((m) => m.key === 'distance'))
+      .toMatchObject({ status: 'available', value: 5 });
+    expect(before.weeklyEvolution?.series.find((s) => s.key === 'distance')?.modality).toBe('cyclic');
+
+    // Deliberately replace the current modality without touching the immutable execution.
+    releasedRows = [makeRow({ method: 'Ciclismo atual', cyclicTimeMin: 60, exercises: [], execution })];
+    const after = await service.getRoutine(query);
+    expect(after.weeklyEvolution?.metrics).toEqual(before.weeklyEvolution?.metrics);
+    expect(after.weeklyEvolution?.series).toEqual(before.weeklyEvolution?.series);
+    expect(JSON.stringify(after.weeklyEvolution)).not.toContain('Ciclismo atual');
+
+    releasedRows = [makeRow({ method: 'Ciclismo atual', cyclicTimeMin: 60,
+      execution: { ...execution, plannedSnapshot: { ...captured, id: 'foreign-day' } },
+    })];
+    const mismatched = await service.getRoutine(query);
+    expect(mismatched.weeklyEvolution?.metrics.find((m) => m.key === 'distance'))
+      .toMatchObject({ status: 'incomparable', value: null, sampleCount: 1 });
+    expect(mismatched.weeklyEvolution?.series.find((s) => s.key === 'distance'))
+      .toMatchObject({ modality: 'unknown', points: [{ date: '2026-10-01', value: 5 }] });
+    expect(mismatched.weeklyEvolution?.metrics.find((m) => m.key === 'pace')?.status)
+      .toBe('incomparable');
+
+    const resistanceSnapshot = {
+      id: 'day-1', method: 'Seriado', cyclicTimeMin: null, cyclicStages: [], resistanceGroups: [],
+      exercises: [{
+        id: 'historical-unit', exerciseId: 'catalog-squat', section: 'principal',
+        exerciseOrder: 1, system: null, resistanceBlocks: [],
+        exercise: { name: 'Agachamento' },
+        releasedCatalog: { catalog: { capacity: 'resisted', category: 'resisted' } },
+      }],
+    };
+    releasedRows = [makeRow({ method: 'Corrida atual', cyclicTimeMin: 60, exercises: [],
+      execution: {
+        ...execution, sessionValues: {}, plannedSnapshot: resistanceSnapshot,
+        items: [{ plannedUnitId: 'historical-unit', plannedSetId: null, setNumber: 1,
+          outcome: 'full', completedAt: null, loadKg: 40, repetitions: 10 }],
+      },
+    })];
+    const resistance = await service.getRoutine(query);
+    expect(resistance.weeklyEvolution?.metrics.find((m) => m.key === 'tonnage'))
+      .toMatchObject({ status: 'available', value: 400, sampleCount: 1 });
+    expect(resistance.weeklyEvolution?.series.find((s) => s.key === 'tonnage')?.modality)
+      .toBe('resistance');
+    expect(resistance.weeklyEvolution?.metrics.find((m) => m.key === 'distance'))
+      .toMatchObject({ status: 'insufficient_data', value: null });
+  });
+
+
+
+  it.each([
+    ['resisted', 'resistance'],
+    ['cyclic', 'cyclic'],
+    ['flexibility', 'flexibility'],
+    ['balance', 'balance'],
+    ['unknown', 'unknown'],
+    [null, 'unknown'],
+  ])('A-016: capacidade congelada %s é projetada como %s', async (capacity, expected) => {
+    const snapshot = {
+      id: 'day-1', method: 'Corrida contínua', cyclicTimeMin: null,
+      cyclicStages: [], resistanceGroups: [],
+      exercises: [{
+        id: 'unit-a', exerciseId: 'catalog-a', section: 'principal',
+        exerciseOrder: 1, system: null, resistanceBlocks: [],
+        exercise: { name: 'Exercício registrado' },
+        releasedCatalog: capacity === null ? null : { catalog: { capacity } },
+      }],
+    };
+    releasedRows = [makeRow({ execution: {
+      workoutDayId: 'day-1', status: 'completed', version: 1,
+      updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+      startedAt: new Date('2026-10-01T11:00:00.000Z'),
+      finishedAt: new Date('2026-10-01T12:00:00.000Z'),
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1', plannedSnapshot: snapshot,
+      sessionValues: { durationSec: 600 }, items: [],
+    } })];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.weeklyEvolution?.series.find((series) => series.key === 'duration')?.modality)
+      .toBe(expected);
+    expect(result.weeklyEvolution?.metrics.find((metric) => metric.key === 'duration'))
+      .toMatchObject({ status: expected === 'unknown' ? 'incomparable' : 'available',
+        value: expected === 'unknown' ? null : 10, sampleCount: 1 });
+    expect(JSON.stringify(result.weeklyEvolution)).not.toMatch(/unit-a|catalog-a|release-1/);
+  });
+
+
+  it('A-017: etapa cíclica substituída preserva medições sem tendência esportiva', async () => {
+    const snapshot = {
+      id: 'day-1', method: 'Corrida contínua', cyclicTimeMin: 30,
+      cyclicStages: [{ id: 'stage-a', kind: 'work', parentStageId: null, position: 1,
+        targetKind: null, repeatCount: null }],
+      exercises: [], resistanceGroups: [],
+    };
+    releasedRows = [makeRow({ execution: {
+      workoutDayId: 'day-1', status: 'partial', version: 1,
+      updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+      startedAt: new Date('2026-10-01T11:00:00.000Z'),
+      finishedAt: new Date('2026-10-01T12:00:00.000Z'),
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1', plannedSnapshot: snapshot,
+      sessionValues: { cyclicStages: [
+        { plannedStageId: 'stage-a', outcome: 'substituted',
+          durationSec: 600, distanceMeters: 3000, paceMinPerKm: 5.3 },
+      ] }, items: [],
+    } })];
+    const query = { alunoId: 'aluno-1', contractId: 'contract-1',
+      audience: 'student' as const, now };
+    const student = await service.getRoutine(query);
+    for (const [key, value] of [['duration', 10], ['distance', 3], ['pace', 5.3]] as const) {
+      expect(student.weeklyEvolution?.metrics.find((metric) => metric.key === key))
+        .toMatchObject({ status: 'incomparable', value: null, sampleCount: 1 });
+      expect(student.weeklyEvolution?.series.find((series) => series.key === key)?.points[0]?.value)
+        .toBe(value);
+    }
+    expect(student.weeklyEvolution?.adherence.value).toBe(0);
+    expect(JSON.stringify(student.weeklyEvolution)).not.toMatch(/stage-a|release-1|"sessionId"/);
+    const professor = await service.getRoutine({ ...query, audience: 'professor' });
+    expect(professor.weeklyEvolution?.technical?.indicators.find((metric) => metric.key === 'distance')
+      ?.observations[0]?.sourceId).toBe('cyclic-stage:stage-a:iteration:1');
+  });
+
+  it('#405 A-010: snapshot de estágios órfãos não se funde com topologia vazia válida', async () => {
+    const execution = (id: string, stages: Row[]) => ({
+      workoutDayId: id, status: 'completed', version: 1,
+      updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+      startedAt: new Date('2026-10-01T11:00:00.000Z'),
+      finishedAt: new Date('2026-10-01T12:00:00.000Z'),
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1',
+      sessionValues: { durationSec: 1800, distanceKm: id === 'valid' ? 5 : 8, pace: '05:00' },
+      plannedSnapshot: { id, method: 'Corrida contínua', cyclicTimeMin: 30,
+        cyclicStages: stages, resistanceGroups: [], exercises: [] },
+      items: [],
+    });
+    releasedRows = [
+      makeRow({ id: 'valid', execution: execution('valid', []) }),
+      makeRow({ id: 'orphan', dayOfWeek: 4, workoutDate: new Date('2026-10-02T00:00:00.000Z'),
+        execution: execution('orphan', [{ id: 'orphan-stage', parentStageId: 'not-present',
+          position: 1, kind: 'work', targetKind: null, repeatCount: null }]) }),
+    ];
+    const query = { alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student' as const, now };
+    const result = await service.getRoutine(query);
+    for (const key of ['duration', 'distance', 'pace'] as const) {
+      expect(result.weeklyEvolution?.metrics.find((metric) => metric.key === key))
+        .toMatchObject({ status: 'incomparable', value: null, sampleCount: 2 });
+      expect(result.weeklyEvolution?.series.filter((series) => series.key === key)).toHaveLength(2);
+    }
+    releasedRows[1].execution.plannedSnapshot.cyclicStages = [];
+    const valid = await service.getRoutine(query);
+    expect(valid.weeklyEvolution?.metrics.find((m) => m.key === 'distance'))
+      .toMatchObject({ status: 'available', value: 13, sampleCount: 2 });
+  });
+
+  it('#405 A-009: hora da execução supera IDs invertidos na mesma data', async () => {
+    const makeResistanceRow = (
+      id: string, templateId: string, planId: string, releaseId: string, time: string, kg: number,
+    ) => makeRow({
+      id,
+      template: { ...makeRow().template, id: templateId, planId,
+        plan: { id: planId, name: 'Plano original' } },
+      execution: {
+        workoutDayId: id, status: 'completed', version: 1,
+        updatedAt: new Date(time), startedAt: new Date('2026-10-01T07:00:00.000Z'),
+        finishedAt: new Date(time), currentPauseStartedAt: null,
+        pausedDurationMs: BigInt(0), interruptionReason: null,
+        originReleaseId: releaseId, originWorkoutTemplateId: templateId,
+        originTrainingPlanId: planId, sessionValues: {},
+        plannedSnapshot: { id, method: 'Seriado', cyclicStages: [], resistanceGroups: [],
+          exercises: [{ id: 'unit-' + id, exerciseId: 'catalog-squat',
+            section: 'principal', exerciseOrder: 1, system: null,
+            resistanceBlocks: [], exercise: { name: 'Agachamento' },
+            releasedCatalog: { catalog: { capacity: 'resisted' } } }] },
+        items: [{ plannedUnitId: 'unit-' + id, plannedSetId: null, setNumber: 1,
+          outcome: 'full', completedAt: null, loadKg: kg, repetitions: kg === 30 ? 8 : 5 }],
+      },
+    });
+    releaseRows = [makeRelease(), makeRelease({ id: 'release-2', workoutTemplateId: 'template-2' })];
+    releasedRows = [
+      makeResistanceRow('z-early', 'template-1', 'plan-1', 'release-1', '2026-10-01T08:00:00.000Z', 30),
+      makeResistanceRow('a-late', 'template-2', 'plan-2', 'release-2', '2026-10-01T18:00:00.000Z', 50),
+    ];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.weeklyEvolution?.metrics.find((m) => m.key === 'load'))
+      .toMatchObject({ status: 'available', value: 50, sampleCount: 2 });
+    expect(result.weeklyEvolution?.metrics.find((m) => m.key === 'repetitions'))
+      .toMatchObject({ status: 'available', value: 5, sampleCount: 2 });
+
+    // A-016 negative: removing the immutable catalog identity must not turn
+    // matching exercise names and sets into comparable resistance trends.
+    releasedRows = releasedRows.map((row) => ({
+      ...row,
+      execution: {
+        ...row.execution,
+        plannedSnapshot: {
+          ...row.execution.plannedSnapshot,
+          exercises: row.execution.plannedSnapshot.exercises.map((item: Row) => ({
+            ...item, releasedCatalog: null,
+          })),
+        },
+      },
+    }));
+    const legacy = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    for (const key of ['load', 'repetitions'] as const) {
+      expect(legacy.weeklyEvolution?.metrics.find((m) => m.key === key))
+        .toMatchObject({ status: 'incomparable', value: null, sampleCount: 2 });
+      expect(legacy.weeklyEvolution?.series.filter((series) => series.key === key))
+        .toHaveLength(2);
+      expect(legacy.weeklyEvolution?.series.filter((series) => series.key === key)
+        .every((series) => series.modality === 'unknown')).toBe(true);
+    }
+  });
+
+  it('#405 RISK-001: execução de outra liberação não altera aderência, status nem feedback', async () => {
+    releasedRows = [makeRow({ status: 'completed',
+      execution: {
+        workoutDayId: 'day-1', status: 'completed', version: 2,
+        updatedAt: new Date('2026-10-01T18:00:00.000Z'),
+        startedAt: new Date('2026-10-01T10:00:00.000Z'),
+        finishedAt: new Date('2026-10-01T18:00:00.000Z'),
+        currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+        originReleaseId: 'release-previous', originWorkoutTemplateId: 'template-1',
+        originTrainingPlanId: 'plan-1',
+        plannedSnapshot: { id: 'day-1', method: 'Corrida contínua', cyclicTimeMin: 30,
+          cyclicStages: [], resistanceGroups: [], exercises: [] },
+        sessionValues: { durationSec: 3600, distanceKm: 10 }, items: [],
+      },
+    })];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.weeklyEvolution?.counts)
+      .toMatchObject({ prescribedSessions: 1, completedSessions: 0, pendingSessions: 1 });
+    expect(result.weeklyEvolution?.adherence).toEqual({ status: 'available', value: 0, unit: '%' });
+    expect(result.weeklyEvolution?.metrics.find((metric) => metric.key === 'distance'))
+      .toMatchObject({ status: 'insufficient_data', value: null, sampleCount: 0 });
+    expect(result.weeklyEvolution?.lastSourceUpdateAt).toBe('2026-09-28T12:00:00.000Z');
+    expect(result.today.sessions[0].status).toBe('not_started');
+    expect(postWorkoutFeedbackFindMany).not.toHaveBeenCalled();
+    const nextSessionSql = queryRaw.mock.calls
+      .map(([strings]) => strings.join('?'))
+      .find((sql: string) => sql.includes('FROM "WorkoutDay" day'));
+    expect(nextSessionSql).toContain('execution."originReleaseId" = release."id"');
+    expect(nextSessionSql).toContain('execution."originTrainingPlanId" = plan."id"');
   });
 
   it('projeta o próximo treino de outra semana apenas com liberação consolidada e escopo contratual', async () => {
