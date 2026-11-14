@@ -326,9 +326,14 @@ describe('evolução semanal canônica (#405)', () => {
     const noData = executed('pending', '2026-11-05', 'cyclic', 'not_started');
     noData.execution!.sessionValues = { durationSec: 600 };
     const student = calculateWeeklyTrainingEvolution({ period, sessions: [run, noData], audience: 'student' });
+    // A-017: explicit zero remains a recorded reading, but a substituted
+    // stage does not certify the sport of that session for comparison.
     expect(student.metrics.find((item) => item.key === 'duration')).toMatchObject({
-      status: 'available', value: 0, sampleCount: 1,
+      status: 'incomparable', value: null, sampleCount: 1,
     });
+    expect(student.series.filter((item) => item.key === 'duration')).toMatchObject([
+      { points: [{ date: '2026-11-04', value: 0 }] },
+    ]);
     expect(student.metrics.find((item) => item.key === 'distance')).toMatchObject({
       status: 'insufficient_data', value: null, sampleCount: 0,
     });
