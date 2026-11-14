@@ -629,10 +629,8 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
               : row.execution
                 ? row.template.releasedAt?.toISOString() ?? row.updatedAt?.toISOString() ?? null
                 : row.updatedAt?.toISOString() ?? row.template.releasedAt?.toISOString() ?? null;
-            const sourceUpdatedAt = feedback.reduce<string | null>((latest, item) => {
-              const next = item.createdAt.toISOString();
-              return latest === null || next > latest ? next : latest;
-            }, canonicalAt);
+            // Execution-based indicators must not inherit a newer feedback revision time.
+            // Feedback revisions are separate sources of PSE/PSR in the evolution domain.
             return {
               sessionId: row.id,
               date: toDateOnly(row.workoutDate),
@@ -645,7 +643,7 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
               // completed/partial/not_performed. The legacy status is display-only.
               status: canonical ? row.execution!.status : 'not_started',
               executionFinishedAt: canonical ? row.execution?.finishedAt?.toISOString() ?? null : null,
-              sourceUpdatedAt,
+              sourceUpdatedAt: canonicalAt,
               ...(execution ? {
                 execution: {
                   sessionValues: execution.sessionValues,

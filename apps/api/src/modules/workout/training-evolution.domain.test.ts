@@ -94,6 +94,53 @@ describe('evolução semanal canônica (#405)', () => {
   ) => ({ plannedUnitId, catalogExerciseId, name, section, exerciseOrder,
     system: null, blockSignature, groupSignature });
 
+  it('A-018: revisão de PSE/PSR atualiza apenas timestamps das próprias fontes, não da execução', () => {
+    const executionAt = '2026-11-03T12:00:00.000Z';
+    const revisionAt = '2026-11-05T13:00:00.000Z';
+    const session = executed('res-feedback', '2026-11-03', 'resistance');
+    session.sourceUpdatedAt = executionAt;
+    session.execution!.sessionValues = { durationSec: 1800 };
+    session.execution!.plannedExercises = [plannedUnit('unit-1', 'squat', 'Agachamento')];
+    session.execution!.items = [{
+      plannedUnitId: 'unit-1', plannedSetId: 'set-1', setNumber: 1,
+      outcome: 'full', completedAt: executionAt, loadKg: 40, repetitions: 8,
+    }];
+    const earlier = calculateWeeklyTrainingEvolution({
+      period, audience: 'professor', sessions: [session],
+    });
+    const revised = calculateWeeklyTrainingEvolution({
+      period, audience: 'professor',
+      sessions: [{ ...session, feedback: [{
+        id: 'feedback-v2', scopeKey: 'session', createdAt: revisionAt, pse: 7, psr: 8,
+      }] }],
+    });
+    expect(earlier.lastSourceUpdateAt).toBe(executionAt);
+    expect(revised.lastSourceUpdateAt).toBe(revisionAt);
+    for (const key of ['duration', 'load', 'repetitions', 'tonnage', 'substitutions'] as const) {
+      const original = earlier.metrics.find((metric) => metric.key === key);
+      const afterFeedback = revised.metrics.find((metric) => metric.key === key);
+      expect(afterFeedback).toMatchObject({
+        status: 'available', value: original?.value, lastSourceUpdateAt: executionAt,
+      });
+      expect(revised.technical?.indicators.find((item) => item.key === key)?.observations)
+        .toEqual(earlier.technical?.indicators.find((item) => item.key === key)?.observations);
+    }
+    expect(revised.metrics.find((metric) => metric.key === 'pse')).toMatchObject({
+      value: 7, lastSourceUpdateAt: revisionAt,
+    });
+    expect(revised.metrics.find((metric) => metric.key === 'psr')).toMatchObject({
+      value: 8, lastSourceUpdateAt: revisionAt,
+    });
+    expect(revised.technical?.indicators.find((item) => item.key === 'pse')?.observations)
+      .toEqual([{ sessionId: 'res-feedback', releaseId: 'release-1',
+        sourceId: 'feedback-v2', updatedAt: revisionAt }]);
+    const restricted = calculateWeeklyTrainingEvolution({
+      period, audience: 'student', sessions: [{ ...session, feedback: [] }],
+    });
+    expect(restricted.lastSourceUpdateAt).toBe(executionAt);
+    expect(restricted.technical).toBeUndefined();
+  });
+
   it('agrega medições cíclicas compatíveis, inclusive parciais, sem pontuá-las como concluídas', () => {
     const first = executed('cyclic-1', '2026-11-02', 'cyclic');
     first.execution!.sessionValues = { durationSec: 1800, distanceKm: 5, pace: '05:30' };

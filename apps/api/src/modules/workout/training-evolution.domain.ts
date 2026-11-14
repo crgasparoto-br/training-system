@@ -308,8 +308,15 @@ export function calculateWeeklyTrainingEvolution(input: {
   const pendingSessions = prescribedSessions - completedSessions - partialSessions - notPerformedSessions;
   const adherencePct = prescribedSessions === 0
     ? null : round(completedSessions / prescribedSessions * 100);
-  const latestSource = sessions.reduce<string | null>(
-    (latest, session) => maxIso(latest, session.sourceUpdatedAt), null);
+  // The overall freshness includes the newest authorized feedback revision, while
+  // execution metrics retain their own source timestamp (not the feedback's).
+  const latestSource = sessions.reduce<string | null>((latest, session) => {
+    const latestFeedback = isTerminalPerformed(session.status) && session.execution
+      ? (session.feedback ?? []).reduce<string | null>(
+          (feedbackLatest, revision) => maxIso(feedbackLatest, revision.createdAt), null)
+      : null;
+    return maxIso(maxIso(latest, session.sourceUpdatedAt), latestFeedback);
+  }, null);
 
   const observations: Observation[] = [];
   const incompatible = new Set<TrainingEvolutionMetricKey>();

@@ -300,6 +300,11 @@ describe('training routine service (#387)', () => {
       lastSourceUpdateAt: '2026-10-02T10:00:00.000Z',
     });
     expect(student.weeklyEvolution?.metrics.find((item) => item.key === 'psr')?.value).toBe(7);
+    // A-018: feedback review is fresher than execution, but cannot date execution metrics.
+    expect(student.weeklyEvolution?.lastSourceUpdateAt).toBe('2026-10-02T10:00:00.000Z');
+    expect(student.weeklyEvolution?.metrics.find((item) => item.key === 'duration')).toMatchObject({
+      sampleCount: 1, lastSourceUpdateAt: '2026-10-01T12:00:00.000Z',
+    });
     expect(JSON.stringify(student.weeklyEvolution)).not.toMatch(/fb-r2|fb-r1|sigiloso|painAfter|release-1/);
     expect(postWorkoutFeedbackFindMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { workoutDayId: { in: ['day-1'] }, alunoId: 'aluno-1', contractId: 'contract-1' },
@@ -310,6 +315,8 @@ describe('training routine service (#387)', () => {
     expect(postWorkoutFeedbackFindMany).not.toHaveBeenCalled();
     expect(professorWithoutGrant.weeklyEvolution?.metrics.find((item) => item.key === 'pse'))
       .toMatchObject({ status: 'insufficient_data', value: null });
+    expect(professorWithoutGrant.weeklyEvolution?.lastSourceUpdateAt)
+      .toBe('2026-10-01T12:00:00.000Z');
     expect(professorWithoutGrant.weeklyEvolution?.technical?.indicators.find((item) => item.key === 'pse')?.observations)
       .toEqual([]);
 
@@ -320,6 +327,25 @@ describe('training routine service (#387)', () => {
     expect(authorized.weeklyEvolution?.technical?.indicators.find((item) => item.key === 'pse')?.observations)
       .toMatchObject([{ sessionId: 'day-1', releaseId: 'release-1', sourceId: 'fb-r2' }]);
     expect(authorized.weeklyEvolution?.adherence.value).toBe(student.weeklyEvolution?.adherence.value);
+    expect(authorized.weeklyEvolution?.technical?.indicators.find((item) => item.key === 'duration')?.observations)
+      .toMatchObject([{ sessionId: 'day-1', updatedAt: '2026-10-01T12:00:00.000Z' }]);
+
+    // The same persisted execution is read again after a newer feedback revision.
+    // It must not be relabelled as newly executed when only PSE/PSR changed.
+    postWorkoutFeedbackFindMany.mockResolvedValue([{ id: 'fb-r3', workoutDayId: 'day-1',
+      scopeKey: 'session', revisionNumber: 3, values: { pse: 8, psr: 9 },
+      createdAt: new Date('2026-10-03T15:00:00.000Z') }]);
+    const refreshed = await service.getRoutine({ ...query, audience: 'student' });
+    expect(refreshed.weeklyEvolution?.metrics.find((item) => item.key === 'duration'))
+      .toMatchObject(student.weeklyEvolution?.metrics.find((item) => item.key === 'duration'));
+    expect(refreshed.weeklyEvolution?.metrics.find((item) => item.key === 'pse')).toMatchObject({
+      value: 8, lastSourceUpdateAt: '2026-10-03T15:00:00.000Z',
+    });
+    expect(refreshed.weeklyEvolution?.metrics.find((item) => item.key === 'psr')).toMatchObject({
+      value: 9, lastSourceUpdateAt: '2026-10-03T15:00:00.000Z',
+    });
+    expect(refreshed.weeklyEvolution?.lastSourceUpdateAt).toBe('2026-10-03T15:00:00.000Z');
+    expect(refreshed.weeklyEvolution?.technical).toBeUndefined();
   });
 
   it('#405 A-002: deriva método e topologia do snapshot, nunca do método atual do WorkoutDay', async () => {

@@ -451,6 +451,37 @@ describe('training routine HTTP boundaries (#387)', () => {
       }));
     });
 
+    it('A-018: resposta HTTP preserva atualização individual da execução após revisão de PSE', async () => {
+      const { calculateWeeklyTrainingEvolution } = require('../src/modules/workout/training-evolution.domain');
+      const executionAt = '2026-10-01T12:00:00.000Z';
+      const feedbackAt = '2026-10-03T15:00:00.000Z';
+      mockGetRoutine.mockImplementation(async ({ audience }: { audience: 'student' | 'professor' }) => ({
+        ...routine, audience,
+        weeklyEvolution: calculateWeeklyTrainingEvolution({
+          period: { startDate: '2026-09-28', endDate: '2026-10-04' }, audience,
+          sessions: [{
+            sessionId: 'hidden-session', status: 'completed', date: '2026-10-01',
+            modality: 'resistance', releaseId: 'hidden-release', sourceUpdatedAt: executionAt,
+            execution: { plannedExercises: [], items: [], sessionValues: { durationSec: 1800 } },
+            feedback: [{ id: 'hidden-feedback', scopeKey: 'session',
+              createdAt: feedbackAt, pse: 8, psr: 7 }],
+          }],
+        }),
+      }));
+      const response = await request(app).get('/student/me/training-routine').set('x-contract-id', 'contract-1');
+      expect(response.status).toBe(200);
+      const weekly = response.body.data.weeklyEvolution;
+      expect(weekly.lastSourceUpdateAt).toBe(feedbackAt);
+      expect(weekly.metrics.find((metric: any) => metric.key === 'duration'))
+        .toMatchObject({ value: 30, lastSourceUpdateAt: executionAt });
+      expect(weekly.metrics.find((metric: any) => metric.key === 'pse'))
+        .toMatchObject({ value: 8, lastSourceUpdateAt: feedbackAt });
+      expect(weekly.metrics.find((metric: any) => metric.key === 'psr'))
+        .toMatchObject({ value: 7, lastSourceUpdateAt: feedbackAt });
+      expect(weekly.technical).toBeUndefined();
+      expect(JSON.stringify(response.body)).not.toMatch(/hidden-session|hidden-feedback|hidden-release/);
+    });
+
     it('A-013: HTTP student emits comparable stage pace without stage IDs or technical metadata', async () => {
       const { calculateWeeklyTrainingEvolution } = require('../src/modules/workout/training-evolution.domain');
       mockGetRoutine.mockImplementation(async ({ audience }: { audience: 'student' | 'professor' }) => ({

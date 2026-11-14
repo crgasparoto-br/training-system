@@ -545,9 +545,18 @@ vigente. Sem essa origem canônica, a sessão liberada ainda compõe o
 denominador, mas conta como `not_started` no indicador, mesmo quando a
 apresentação legada da rotina traduz `WorkoutDay.status` `completed` para
 `completed`. O status legado nunca certifica uma execução concluída.
-A data de atualização usa a execução canônica vinculada quando existe;
+A data da fonte operacional usa a execução canônica vinculada quando existe;
 no histórico legado usa `WorkoutDay.updatedAt`, com a liberação do
-template como último fallback. Isso não cria contadores nem reescreve histórico.
+template como último fallback. Cada `metrics[].lastSourceUpdateAt` corresponde
+à própria origem: execução para tempo, distância, pace, carga, repetições,
+tonelagem e substituições; `PostWorkoutFeedbackRevision.createdAt` da revisão
+vigente para PSE/PSR. O `weeklyEvolution.lastSourceUpdateAt` geral é o instante
+mais recente entre as fontes **autorizadas** da semana, inclusive feedback.
+Revisar apenas PSE/PSR pode atualizar o timestamp geral e dessas percepções,
+mas não altera os timestamps das métricas de execução nem suas referências
+`technical.indicators[].observations[].updatedAt`. Professor sem permissão de
+feedback não recebe nem utiliza a data desse registro. Isso não cria
+contadores nem reescreve histórico.
 
 - `prescribedSessions`: todas as sessões liberadas no período, inclusive as
   que ainda não foram executadas; sessões não liberadas não entram no denominador.
