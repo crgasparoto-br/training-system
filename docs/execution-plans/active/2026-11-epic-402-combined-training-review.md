@@ -166,3 +166,7 @@ CI e auditoria independente. Nenhuma regra clínica indefinida será inferida.
       substituídas sob o esporte apenas planejado, sem perder leituras;
       testes de `repeat`, total explícito, dados parciais e privacidade.
 - [ ] CI terminal verde no material SHA e auditoria independente posterior.
+- [x] CI-487 (14/11): eliminar a janela entre espera e clique no harness
+      real Chrome/API/PostgreSQL da issue #487; o botão permanece obrigatório
+      e habilitado, mas a interação ocorre na mesma avaliação do navegador.
+      O check exact-SHA precisa comprovar a regressão, sem remover o teste.
