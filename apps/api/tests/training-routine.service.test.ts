@@ -191,7 +191,7 @@ describe('training routine service (#387)', () => {
     });
   });
 
-  it('A-004: alinha conclusão legada, estados pendentes e aderência da semana histórica', async () => {
+  it('A-015: preserva status legado na rotina, não na aderência canônica', async () => {
     releasedRows = [
       makeRow({ id: 'legacy-completed', status: 'completed',
         updatedAt: new Date('2026-10-01T16:00:00.000Z') }),
@@ -216,11 +216,11 @@ describe('training routine service (#387)', () => {
       { sessionId: 'legacy-planned', status: 'not_started' },
     ]);
     expect(student.weeklyEvolution?.counts).toEqual({
-      prescribedSessions: 3, completedSessions: 1, partialSessions: 0,
-      notPerformedSessions: 0, pendingSessions: 2,
+      prescribedSessions: 3, completedSessions: 0, partialSessions: 0,
+      notPerformedSessions: 0, pendingSessions: 3,
     });
     expect(student.weeklyEvolution?.adherence).toEqual({
-      status: 'available', value: 33.33, unit: '%',
+      status: 'available', value: 0, unit: '%',
     });
     expect(student.weeklyEvolution?.lastSourceUpdateAt).toBe('2026-10-02T12:00:00.000Z');
     expect(student.weeklyEvolution?.technical).toBeUndefined();
@@ -228,8 +228,8 @@ describe('training routine service (#387)', () => {
     const professor = await service.getRoutine({ ...query, audience: 'professor' });
     expect(professor.weeklyEvolution?.adherence).toEqual(student.weeklyEvolution?.adherence);
     expect(professor.weeklyEvolution?.technical?.sessions).toEqual([
-      { sessionId: 'legacy-completed', status: 'completed' },
-      { sessionId: 'legacy-in-progress', status: 'in_progress' },
+      { sessionId: 'legacy-completed', status: 'not_started' },
+      { sessionId: 'legacy-in-progress', status: 'not_started' },
       { sessionId: 'legacy-planned', status: 'not_started' },
     ]);
 
@@ -633,6 +633,7 @@ describe('training routine service (#387)', () => {
         id: 'historical-unit', exerciseId: 'catalog-squat', section: 'principal',
         exerciseOrder: 1, system: null, resistanceBlocks: [],
         exercise: { name: 'Agachamento' },
+        releasedCatalog: { catalog: { capacity: 'resisted', category: 'resisted' } },
       }],
     };
     releasedRows = [makeRow({ method: 'Corrida atual', cyclicTimeMin: 60, exercises: [],
@@ -651,6 +652,46 @@ describe('training routine service (#387)', () => {
       .toMatchObject({ status: 'insufficient_data', value: null });
   });
 
+
+
+  it.each([
+    ['resisted', 'resistance'],
+    ['cyclic', 'cyclic'],
+    ['flexibility', 'flexibility'],
+    ['balance', 'balance'],
+    ['unknown', 'unknown'],
+    [null, 'unknown'],
+  ])('A-016: capacidade congelada %s é projetada como %s', async (capacity, expected) => {
+    const snapshot = {
+      id: 'day-1', method: 'Corrida contínua', cyclicTimeMin: null,
+      cyclicStages: [], resistanceGroups: [],
+      exercises: [{
+        id: 'unit-a', exerciseId: 'catalog-a', section: 'principal',
+        exerciseOrder: 1, system: null, resistanceBlocks: [],
+        exercise: { name: 'Exercício registrado' },
+        releasedCatalog: capacity === null ? null : { catalog: { capacity } },
+      }],
+    };
+    releasedRows = [makeRow({ execution: {
+      workoutDayId: 'day-1', status: 'completed', version: 1,
+      updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+      startedAt: new Date('2026-10-01T11:00:00.000Z'),
+      finishedAt: new Date('2026-10-01T12:00:00.000Z'),
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1', plannedSnapshot: snapshot,
+      sessionValues: { durationSec: 600 }, items: [],
+    } })];
+    const result = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    expect(result.weeklyEvolution?.series.find((series) => series.key === 'duration')?.modality)
+      .toBe(expected);
+    expect(result.weeklyEvolution?.metrics.find((metric) => metric.key === 'duration'))
+      .toMatchObject({ status: expected === 'unknown' ? 'incomparable' : 'available',
+        value: expected === 'unknown' ? null : 10, sampleCount: 1 });
+    expect(JSON.stringify(result.weeklyEvolution)).not.toMatch(/unit-a|catalog-a|release-1/);
+  });
 
   it('#405 A-010: snapshot de estágios órfãos não se funde com topologia vazia válida', async () => {
     const execution = (id: string, stages: Row[]) => ({

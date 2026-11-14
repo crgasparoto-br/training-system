@@ -581,8 +581,11 @@ valores numéricos. A API mantém o isolamento de `contractId` e a separação p
 O serviço lê o mesmo grafo autorizado de Montagem Consolidada da rotina e
 usa como fonte **somente** a execução #389 cujo vínculo imutável de origem
 (`originReleaseId`, `originWorkoutTemplateId`, `originTrainingPlanId`) corresponde
-à sessão liberada. Registros históricos **sem linha de execução** seguem contando
-para aderência via compatibilidade legada, mas **não geram valores executados**.
+à sessão liberada. Registros históricos **sem execução #389 vinculada** continuam no denominador
+quando liberados, mas não confirmam conclusão, execução parcial ou não realização:
+o status legado de `WorkoutDay` permanece visível na rotina para compatibilidade,
+porém entra como `not_started` na aderência. Somente o lifecycle canônico
+confirma `completed`, `partial` e `not_performed` e fornece valores executados.
 Se houver execução com origem divergente da liberação vigente, seu status,
 medições, feedback e data de atualização não são reutilizados: a nova liberação
 permanece `not_started` até existir execução canônica correspondente.
@@ -636,6 +639,12 @@ de schema nem nova fonte de verdade. A modalidade histórica também reconhece
 itens explicitamente cíclicos do catálogo congelado mesmo quando não existem
 etapas estruturadas ou duração cíclica planejada; exercício genérico não herda
 essa modalidade apenas pelo nome.
+
+**Correção A-016:** o snapshot histórico classifica `resisted` como
+`resistance`, além de `cyclic`, `flexibility` e `balance` quando declarados.
+Capacidade ausente, legado sem catálogo e nomes não reconhecidos nunca viram
+automaticamente modalidade resistida. A fonte de classificação é exclusivamente
+o catálogo congelado, sem tomar atributos mutáveis do WorkoutDay.
 
 Este refinamento da regra candidata
 `training-evolution-v1` ocorre antes de sua primeira integração à `develop`.

@@ -67,9 +67,9 @@ e heurísticas clínicas sem regra versionada e aprovada.
 - [x] A-003: segregar `ruleVersion`, `source`, `formula` e IDs no campo `technical` só do professor,
       mantendo fonte legível e contagens na resposta do aluno; adicionar testes de serviço e HTTP.
 - [x] Validar o HEAD da remediação A-003 (`5a266789`, CI #42619866441); auditoria independente identificou A-004.
-- [x] A-004: preservar o status de sessões legadas concluídas na aderência,
-      dar precedência à execução canônica, recuperar data de atualização legada
-      e cobrir perfil aluno/professor, histórico e ausência de liberação em testes.
+- [x] A-004: preservar status legados na apresentação da rotina,
+      dar precedência à execução canônica e recuperar data de atualização legada;
+      a correção A-015 impede usar esses status na aderência.
 - [ ] Confirmar CI no HEAD da remediação A-004 e obter nova auditoria independente.
 
 ## Remediação dos achados da auditoria #405 — PR #547
@@ -155,3 +155,13 @@ CI e auditoria independente. Nenhuma regra clínica indefinida será inferida.
 - [x] Casos positivos, adversariais e históricos adicionados a domínio e serviço,
   incluindo exercício cíclico sem etapa ou duração cíclica planejada.
 - [ ] CI exata do novo commit e auditoria independente da correção A-014.
+
+### Remediação da auditoria independente — 14/11/2026
+
+- [x] A-015: status legado continua legível na rotina, mas somente execução
+      vinculada ao release #389 confirma status terminal na aderência.
+- [x] A-016: modalidade reconhecida pelo `capacity` congelado nas quatro
+      categorias; campo histórico ausente/inválido permanece desconhecido.
+- [ ] A-017: impedir agregação de distância/duração/pace de etapas
+      substituídas sob o esporte apenas planejado, sem perder leituras.
+- [ ] CI terminal verde no material SHA e auditoria independente posterior.

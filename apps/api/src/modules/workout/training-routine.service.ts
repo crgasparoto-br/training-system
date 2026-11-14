@@ -277,12 +277,14 @@ function resolveCapturedModalities(plan: TrainingComparisonSnapshot | null): Tra
   // a separate cyclic stage. Its immutable capacity determines the modality.
   const itemCapacities = plan.exercises.map((exercise) =>
     capturedExerciseCatalogText(exercise.releasedCatalog?.catalog, 'capacity'));
-  if (itemCapacities.some((capacity) => capacity !== 'cyclic')) modalities.push('resistance');
+  if (itemCapacities.includes('resisted')) modalities.push('resistance');
   if (itemCapacities.includes('cyclic') || plan.cyclicStages.length > 0 || plan.cyclicTimeMin != null
     || plan.targetSpeedMin != null || plan.targetSpeedMax != null
     || plan.paceMin != null || plan.paceMax != null) modalities.push('cyclic');
-  // Flexibility/balance had no historical unit capture in #401. Leave unknown;
-  // a current capacity block is not evidence for a previous execution.
+  if (itemCapacities.includes('flexibility')) modalities.push('flexibility');
+  if (itemCapacities.includes('balance')) modalities.push('balance');
+  // Missing, legacy or invalid captured capacity is never proof of resistance.
+  // Current mutable capacity blocks cannot fill an unknown historical modality.
   return modalities;
 }
 
@@ -639,8 +641,9 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
               method: typeof frozen?.method === 'string' ? frozen.method : null,
               cyclicStructure: capturedCyclicStructure(frozen),
               releaseId: release.id,
-              status: canonical ? row.execution!.status
-                : row.execution ? 'not_started' : projectLegacyExecutionStatus(row.status),
+              // A-015: only a #389 execution linked to this release can establish
+              // completed/partial/not_performed. The legacy status is display-only.
+              status: canonical ? row.execution!.status : 'not_started',
               executionFinishedAt: canonical ? row.execution?.finishedAt?.toISOString() ?? null : null,
               sourceUpdatedAt,
               ...(execution ? {
