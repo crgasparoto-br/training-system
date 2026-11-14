@@ -262,6 +262,13 @@ function buildCyclicTargets(row: SessionRow): TrainingRoutineCyclicTargets | nul
   return hasTargets ? targets : null;
 }
 
+/** Release-time attributes only: never fill missing snapshot fields from a mutable catalog. */
+function capturedExerciseCatalogText(value: unknown, key: 'capacity' | 'category' | 'movementPattern'): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const field = (value as Record<string, unknown>)[key];
+  return typeof field === 'string' ? field : null;
+}
+
 /** Historical execution cannot inherit a modality from today's mutable WorkoutDay. */
 function resolveCapturedModalities(plan: TrainingComparisonSnapshot | null): TrainingRoutineModality[] {
   if (!plan) return [];
@@ -673,6 +680,9 @@ export function createTrainingRoutineService(client: PrismaClient = prisma) {
                               ? JSON.stringify([group.kind.trim().toLowerCase(), group.position, member.position])
                               : undefined
                             : null,
+                          capturedCapacity: capturedExerciseCatalogText(exercise.releasedCatalog?.catalog, 'capacity'),
+                          capturedCategory: capturedExerciseCatalogText(exercise.releasedCatalog?.catalog, 'category'),
+                          capturedMovementPattern: capturedExerciseCatalogText(exercise.releasedCatalog?.catalog, 'movementPattern'),
                         };
                       }) : [],
                 },

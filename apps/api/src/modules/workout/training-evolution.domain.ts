@@ -43,6 +43,10 @@ export type WeeklyEvolutionSessionSource = {
       system?: string | null;
       blockSignature?: string;
       groupSignature?: string | null;
+      /** Immutable #401 release catalog identity; absent on older snapshots. */
+      capturedCapacity?: string | null;
+      capturedCategory?: string | null;
+      capturedMovementPattern?: string | null;
     }>;
   };
   /** Only latest, authorized #390 revisions; no clinical fields reach this aggregation. */
@@ -166,18 +170,39 @@ function paceMinutes(value: string): number | null {
   return match ? Number(match[1]) + Number(match[2]) / 60 : null;
 }
 
-/** An exercise method is not a sport: e.g. CEXT can mean running or cycling. */
-function explicitCapturedSport(method: string | null | undefined): string | null {
-  const label = comparableText(method)?.normalize('NFKD').replace(/\p{M}/gu, '') ?? '';
+/** A label can name multiple sports. Preserve all of them to detect ambiguity. */
+function capturedSportMarkers(value: string | null | undefined): string[] {
+  const label = comparableText(value)?.normalize('NFKD').replace(/\p{M}/gu, '') ?? '';
   const sportMarkers: Array<[string, RegExp]> = [
     ['running', /\b(corrida|correr|running|run)\b/u],
     ['cycling', /\b(ciclismo|pedalada|bicicleta|bike|cycling)\b/u],
     ['walking', /\b(caminhada|walking)\b/u],
     ['swimming', /\b(natacao|swimming)\b/u],
   ];
-  const matches = sportMarkers.filter(([, expression]) => expression.test(label));
-  // Ambiguous or generic methods cannot establish comparable sport identity.
-  return matches.length === 1 ? matches[0][0] : null;
+  return sportMarkers.filter(([, expression]) => expression.test(label)).map(([sport]) => sport);
+}
+
+/** An exercise method is not a sport: e.g. CEXT can mean running or cycling. */
+function explicitCapturedSport(method: string | null | undefined): string | null {
+  const matches = capturedSportMarkers(method);
+  return matches.length === 1 ? matches[0] : null;
+}
+
+/**
+ * A session's sport is not an exercise's sport. Only the historical, immutable
+ * catalog can certify that an item is cyclic and belongs to that sport.
+ * A name, mutable library row or generic category never establishes it.
+ */
+function capturedItemSport(plan: PlannedExercise | undefined): string | null {
+  if (comparableText(plan?.capturedCapacity) !== 'cyclic') return null;
+  const category = comparableText(plan?.capturedCategory);
+  if (category && ['resistance', 'resisted', 'resistido', 'resistida', 'flexibility', 'balance']
+    .includes(category)) return null;
+  const declaredSports = [
+    ...capturedSportMarkers(plan?.capturedCategory),
+    ...capturedSportMarkers(plan?.capturedMovementPattern),
+  ];
+  return new Set(declaredSports).size === 1 ? declaredSports[0] : null;
 }
 
 /** A captured method and topology never prove the sport without an explicit identifier. */
@@ -188,6 +213,7 @@ function capturedCyclicContext(session: WeeklyEvolutionSessionSource) {
   const knownType = sport !== null && structure !== null;
   return {
     knownType,
+    sport,
     scope: knownType
       ? JSON.stringify(['captured-cyclic', sport, method, structure])
       : JSON.stringify(['unclassified-cyclic', session.sessionId]),
@@ -425,8 +451,10 @@ export function calculateWeeklyTrainingEvolution(input: {
         : 'Item executado · contexto histórico não comparável';
       const sourceId = `execution-item:${item.plannedSetId ?? `${item.plannedUnitId}:set:${item.setNumber ?? 'unknown'}`}`;
       const contextCyclic = capturedCyclicContext(session);
+      const itemSport = capturedItemSport(plan);
       const comparableCyclic = itemComparable && contextCyclic.knownType
-        && session.modality?.split('+').includes('cyclic');
+        && session.modality?.split('+').includes('cyclic')
+        && itemSport !== null && itemSport === contextCyclic.sport;
       const completedAt = item.completedAt ?? session.executionFinishedAt ?? null;
       for (const [key, present, rawValue, allowed] of [
         ['duration', hasItemDuration && sessionValues.durationSec == null,

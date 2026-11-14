@@ -799,7 +799,10 @@ describe('evolução semanal canônica (#405)', () => {
     const first = executed('item-a', '2026-11-02', 'cyclic+resistance');
     const second = executed('item-b', '2026-11-04', 'cyclic+resistance');
     for (const run of [first, second]) {
-      run.execution!.plannedExercises = [plannedUnit(`unit-${run.sessionId}`, 'treadmill', 'Esteira')];
+      run.execution!.plannedExercises = [{
+        ...plannedUnit(`unit-${run.sessionId}`, 'treadmill', 'Esteira'),
+        capturedCapacity: 'cyclic', capturedCategory: 'running',
+      }];
       run.cyclicStructure = '[]';
       run.execution!.items = [{ plannedUnitId: `unit-${run.sessionId}`,
         plannedSetId: `set-${run.sessionId}`, setNumber: 1, outcome: 'full',
@@ -836,7 +839,10 @@ describe('evolução semanal canônica (#405)', () => {
 
   it('A-013: rascunhos e valores invalidos nao viram execucao; zero explicitamente confirmado e preservado', () => {
     const run = executed('item-draft', '2026-11-03', 'cyclic+resistance', 'partial');
-    run.execution!.plannedExercises = [plannedUnit('unit', 'exercise', 'Exercise')];
+    run.execution!.plannedExercises = [{
+      ...plannedUnit('unit', 'exercise', 'Esteira'),
+      capturedCapacity: 'cyclic', capturedMovementPattern: 'running',
+    }];
     run.execution!.items = [{ plannedUnitId: 'unit', setNumber: 1,
       durationSec: 1200, distanceKm: 4, pace: '05:00' }];
     const project = () => calculateWeeklyTrainingEvolution({ period, sessions: [run], audience: 'student' });
@@ -861,7 +867,10 @@ describe('evolução semanal canônica (#405)', () => {
     run.execution!.plannedCyclicStages = [
       { id: 'stage', kind: 'work', parentStageId: null, position: 1 },
     ];
-    run.execution!.plannedExercises = [plannedUnit('unit', 'treadmill', 'Esteira')];
+    run.execution!.plannedExercises = [{
+      ...plannedUnit('unit', 'treadmill', 'Esteira'),
+      capturedCapacity: 'cyclic', capturedCategory: 'running',
+    }];
     run.execution!.sessionValues = {
       durationSec: 1800, distanceKm: 6, pace: '05:00',
       cyclicStages: [{ plannedStageId: 'stage', outcome: 'full', durationSec: 1800,
@@ -882,4 +891,78 @@ describe('evolução semanal canônica (#405)', () => {
         .toMatchObject({ status: 'incomparable', value: null, sampleCount: 2 });
     }
   });
+
+
+  it('A-014: exercício resistido em sessão combinada não gera pace ou distância cíclicos', () => {
+    const first = executed('squat-a', '2026-11-02', 'cyclic+resistance');
+    const second = executed('squat-b', '2026-11-04', 'cyclic+resistance');
+    for (const run of [first, second]) {
+      run.execution!.plannedExercises = [{
+        ...plannedUnit(`squat-unit-${run.sessionId}`, 'squat', 'Agachamento'),
+        capturedCapacity: 'resisted', capturedCategory: 'resisted',
+      }];
+      run.execution!.items = [{
+        plannedUnitId: `squat-unit-${run.sessionId}`, setNumber: 1, outcome: 'full',
+        durationSec: 900, distanceKm: 5, pace: run === first ? '05:30' : '05:50',
+      }];
+    }
+    const student = calculateWeeklyTrainingEvolution({ period, sessions: [first, second], audience: 'student' });
+    const professor = calculateWeeklyTrainingEvolution({ period, sessions: [first, second], audience: 'professor' });
+    for (const key of ['pace', 'distance'] as const) {
+      expect(student.metrics.find((metric) => metric.key === key))
+        .toMatchObject({ status: 'incomparable', value: null, sampleCount: 2 });
+      expect(student.series.filter((series) => series.key === key)).toHaveLength(2);
+      expect(professor.technical?.indicators.find((indicator) => indicator.key === key)?.observations)
+        .toHaveLength(2);
+    }
+    // Duration is a legitimate execution value independent of sport identity.
+    expect(student.metrics.find((metric) => metric.key === 'duration'))
+      .toMatchObject({ status: 'available', value: 30 });
+    expect(JSON.stringify(student)).not.toMatch(/squat-unit|training-evolution-v1|release-1/);
+  });
+
+  it('A-014: categoria genérica, capacidade ausente ou esporte divergente não bastam', () => {
+    const run = executed('legacy-cyclic', '2026-11-02', 'cyclic+resistance');
+    run.execution!.plannedExercises = [{
+      ...plannedUnit('unit', 'catalog', 'Esteira'), capturedCategory: 'running',
+    }];
+    run.execution!.items = [{ plannedUnitId: 'unit', setNumber: 1, outcome: 'partial',
+      pace: '05:00', distanceKm: 3 }];
+    const result = () => calculateWeeklyTrainingEvolution({ period, sessions: [run], audience: 'student' });
+    for (const key of ['pace', 'distance'] as const) {
+      expect(result().metrics.find((metric) => metric.key === key))
+        .toMatchObject({ status: 'incomparable', value: null, sampleCount: 1 });
+    }
+    const plan = run.execution!.plannedExercises[0];
+    plan.capturedCapacity = 'cyclic';
+    plan.capturedCategory = 'cyclic';
+    expect(result().metrics.find((metric) => metric.key === 'pace')?.status).toBe('incomparable');
+    plan.capturedMovementPattern = 'cycling'; // Different sport from the frozen running session.
+    expect(result().metrics.find((metric) => metric.key === 'pace')?.status).toBe('incomparable');
+    plan.capturedCategory = 'running'; // Explicit contradictory historical fields.
+    expect(result().metrics.find((metric) => metric.key === 'pace')?.status).toBe('incomparable');
+    plan.capturedCategory = 'resisted';
+    plan.capturedMovementPattern = 'running';
+    expect(result().metrics.find((metric) => metric.key === 'pace')?.status).toBe('incomparable');
+    plan.capturedCategory = 'running';
+    plan.capturedMovementPattern = 'running or cycling';
+    expect(result().metrics.find((metric) => metric.key === 'pace')?.status).toBe('incomparable');
+  });
+
+  it('A-014: item cíclico comprovado é comparável; movimento em outro esporte não se mistura', () => {
+    const run = executed('treadmill-1', '2026-11-02', 'cyclic+resistance');
+    run.execution!.plannedExercises = [{ ...plannedUnit('unit', 'treadmill', 'Esteira'),
+      capturedCapacity: 'cyclic', capturedCategory: 'cyclic', capturedMovementPattern: 'running' }];
+    run.execution!.items = [{ plannedUnitId: 'unit', setNumber: 1, outcome: 'full',
+      pace: '05:30', distanceKm: 5 }];
+    const result = () => calculateWeeklyTrainingEvolution({ period, sessions: [run], audience: 'student' });
+    expect(result().metrics.find((metric) => metric.key === 'pace'))
+      .toMatchObject({ status: 'available', value: 5.5 });
+    expect(result().metrics.find((metric) => metric.key === 'distance'))
+      .toMatchObject({ status: 'available', value: 5 });
+    run.execution!.plannedExercises[0].capturedMovementPattern = 'cycling';
+    expect(result().metrics.find((metric) => metric.key === 'pace'))
+      .toMatchObject({ status: 'incomparable', value: null });
+  });
+
 });

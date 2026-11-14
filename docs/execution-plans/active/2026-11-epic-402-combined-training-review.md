@@ -142,3 +142,15 @@ CI e auditoria independente. Nenhuma regra clínica indefinida será inferida.
 - Proveniência e segurança: IDs de etapas, séries e liberações apenas na visão técnica do professor; `contractId`, liberação consolidada, snapshots e permissões existentes sem alteração.
 - Cobertura adicionada: regressões A-013 no domínio, serviço e rota para comparabilidade, confirmação, método ambíguo, grafo inválido, zero, ordem de prioridade e duplicidade.
 - Critério de conclusão: `pnpm validate` e CI do HEAD material verde, auditoria independente posterior; sem merge ou encerramento automático da issue.
+
+### Remediação A-014 da issue #405 (13/11/2026)
+
+- [x] Comparabilidade de pace/distância em itens exige `capacity=cyclic` e esporte
+  explicitamente correspondente no catálogo do exercício congelado na execução;
+  modalidade/método globais e nome do item não bastam.
+- [x] Itens resistidos, categoria conflitante e histórico sem identificação
+  preservam as medições confirmadas em séries `incomparable`, sem média ou soma
+  cíclica falsa. A precedência do total explícito e a deduplicação de `repeat`
+  permanecem inalteradas.
+- [x] Casos positivos, adversariais e históricos adicionados a domínio e serviço.
+- [ ] CI exata do novo commit e auditoria independente da correção A-014.

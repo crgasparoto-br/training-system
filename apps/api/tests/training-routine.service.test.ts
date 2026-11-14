@@ -442,7 +442,9 @@ describe('training routine service (#387)', () => {
       id: 'day-1', method: 'Corrida contínua', cyclicTimeMin: 30, cyclicStages: [],
       resistanceGroups: [], exercises: [{ id: 'unit-a', exerciseId: 'catalog-a',
         section: 'principal', exerciseOrder: 1, system: null, resistanceBlocks: [],
-        exercise: { name: 'Esteira' } }],
+        exercise: { name: 'Esteira' },
+        releasedCatalog: { catalog: { name: 'Esteira', capacity: 'cyclic',
+          category: 'cyclic', movementPattern: 'running' } } }],
     };
     const execution = {
       workoutDayId: 'day-1', status: 'completed', version: 1,
@@ -473,6 +475,54 @@ describe('training routine service (#387)', () => {
     const wrongOrigin = await service.getRoutine({ ...query, audience: 'student' });
     expect(wrongOrigin.weeklyEvolution?.metrics.find((m) => m.key === 'pace'))
       .toMatchObject({ status: 'insufficient_data', sampleCount: 0 });
+  });
+
+
+  it('#405 A-014: snapshot da unidade resistida prevalece sobre nome/método atuais', async () => {
+    const captured = {
+      id: 'day-1', method: 'Corrida contínua', cyclicTimeMin: 30, cyclicStages: [],
+      resistanceGroups: [], exercises: [{ id: 'unit-a', exerciseId: 'squat',
+        section: 'principal', exerciseOrder: 1, system: null, resistanceBlocks: [],
+        exercise: { name: 'Esteira atual' },
+        releasedCatalog: { catalog: { name: 'Agachamento histórico',
+          capacity: 'resisted', category: 'resisted', movementPattern: 'squat' } },
+      }],
+    };
+    const execution = {
+      workoutDayId: 'day-1', status: 'completed', version: 1,
+      updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+      startedAt: new Date('2026-10-01T11:00:00.000Z'),
+      finishedAt: new Date('2026-10-01T12:00:00.000Z'),
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1', plannedSnapshot: captured, sessionValues: {},
+      items: [{ plannedUnitId: 'unit-a', plannedSetId: 'set-a', setNumber: 1,
+        outcome: 'full', distanceKm: 5, pace: '05:30' }],
+    };
+    releasedRows = [makeRow({ id: 'day-1', method: 'Corrida nova - planejado hoje', execution })];
+    const query = { alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student' as const, now };
+    const result = await service.getRoutine(query);
+    for (const key of ['pace', 'distance'] as const) {
+      expect(result.weeklyEvolution?.metrics.find((metric) => metric.key === key))
+        .toMatchObject({ status: 'incomparable', value: null, sampleCount: 1 });
+      expect(result.weeklyEvolution?.series.filter((series) => series.key === key)).toHaveLength(1);
+    }
+    expect(JSON.stringify(result.weeklyEvolution)).not.toMatch(/squat|unit-a|set-a|release-1/);
+    // Subsequent edits to the live workout/catalog are not borrowed by history.
+    releasedRows = [makeRow({ id: 'day-1', method: 'Ciclismo atual',
+      exercises: [{ ...exercise('unit-a', 'principal', 1),
+        exercise: { name: 'Corrida nova', capacity: 'cyclic', category: 'running' } }], execution })];
+    expect((await service.getRoutine(query)).weeklyEvolution?.metrics.find((metric) => metric.key === 'pace')?.status)
+      .toBe('incomparable');
+    // A distinct execution with explicit frozen cyclic catalog metadata is valid.
+    const cyclicCaptured = { ...captured, exercises: [{ ...captured.exercises[0],
+      releasedCatalog: { catalog: { name: 'Esteira histórica', capacity: 'cyclic',
+        category: 'running', movementPattern: 'running' } } }] };
+    releasedRows = [makeRow({ id: 'day-1', method: 'Ciclismo atual',
+      execution: { ...execution, plannedSnapshot: cyclicCaptured } })];
+    const verifiedCyclic = await service.getRoutine(query);
+    expect(verifiedCyclic.weeklyEvolution?.metrics.find((metric) => metric.key === 'pace'))
+      .toMatchObject({ status: 'available', value: 5.5 });
   });
 
   it('#405 A-011/A-012: projects historical groups and repeat parents without duplicate substitution totals', async () => {

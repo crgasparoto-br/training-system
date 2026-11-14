@@ -618,7 +618,23 @@ incompleta mantêm os valores como séries isoladas com `incomparable`. Pace de
 item exige o formato `mm:ss` e pace de etapa exige minutos por quilômetro
 numéricos finitos; ausência de campo nunca gera zero. A projeção é derivada,
 sem nova persistência, e a rastreabilidade por estágio/item fica disponível
-somente ao professor autorizado. Este refinamento da regra candidata
+somente ao professor autorizado. **Correção A-014 (origem cíclica do item):** em sessões combinadas a
+modalidade e o método da sessão, sozinhos, não certificam um item como cíclico.
+Para tornar `items[].distanceKm` ou `items[].pace` comparável, a projeção exige
+`capacity=cyclic` **e** identidade do esporte (`running`, `cycling`, `walking`
+ou `swimming`) declaradas no catálogo **congelado** da unidade, em `category`
+ou `movementPattern`, e correspondentes ao esporte do método congelado da
+sessão. Declarações de esporte conflitantes, categoria resistida, campo ausente,
+catálogo legado sem `capacity` ou identificação apenas pelo nome do exercício
+(inclusive `Esteira`) são insuficientes: o valor confirmado permanece em série
+isolada com estado `incomparable`, sem soma ou tendência cíclica fictícia. Uma
+alteração posterior do catálogo, do método ou do planejamento não reclassifica
+a execução histórica. Etapas cíclicas confirmadas preservam seu tratamento
+anterior (inclusive precedência de `repeat`) e totais explícitos da sessão
+continuam prevalecendo sobre detalhes granulares. Não há backfill, alteração
+de schema nem nova fonte de verdade.
+
+Este refinamento da regra candidata
 `training-evolution-v1` ocorre antes de sua primeira integração à `develop`.
 
 A leitura de cada série identifica modalidade, unidade e escopo semântico (sessão,
