@@ -337,7 +337,7 @@ describe('training routine service (#387)', () => {
       createdAt: new Date('2026-10-03T15:00:00.000Z') }]);
     const refreshed = await service.getRoutine({ ...query, audience: 'student' });
     expect(refreshed.weeklyEvolution?.metrics.find((item) => item.key === 'duration'))
-      .toMatchObject(student.weeklyEvolution?.metrics.find((item) => item.key === 'duration'));
+      .toEqual(student.weeklyEvolution?.metrics.find((item) => item.key === 'duration'));
     expect(refreshed.weeklyEvolution?.metrics.find((item) => item.key === 'pse')).toMatchObject({
       value: 8, lastSourceUpdateAt: '2026-10-03T15:00:00.000Z',
     });
