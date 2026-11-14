@@ -780,7 +780,8 @@ describe('training routine service (#387)', () => {
         plannedSnapshot: { id, method: 'Seriado', cyclicStages: [], resistanceGroups: [],
           exercises: [{ id: 'unit-' + id, exerciseId: 'catalog-squat',
             section: 'principal', exerciseOrder: 1, system: null,
-            resistanceBlocks: [], exercise: { name: 'Agachamento' } }] },
+            resistanceBlocks: [], exercise: { name: 'Agachamento' },
+            releasedCatalog: { catalog: { capacity: 'resisted' } } }] },
         items: [{ plannedUnitId: 'unit-' + id, plannedSetId: null, setNumber: 1,
           outcome: 'full', completedAt: null, loadKg: kg, repetitions: kg === 30 ? 8 : 5 }],
       },
@@ -797,6 +798,32 @@ describe('training routine service (#387)', () => {
       .toMatchObject({ status: 'available', value: 50, sampleCount: 2 });
     expect(result.weeklyEvolution?.metrics.find((m) => m.key === 'repetitions'))
       .toMatchObject({ status: 'available', value: 5, sampleCount: 2 });
+
+    // A-016 negative: removing the immutable catalog identity must not turn
+    // matching exercise names and sets into comparable resistance trends.
+    releasedRows = releasedRows.map((row) => ({
+      ...row,
+      execution: {
+        ...row.execution,
+        plannedSnapshot: {
+          ...row.execution.plannedSnapshot,
+          exercises: row.execution.plannedSnapshot.exercises.map((item: Row) => ({
+            ...item, releasedCatalog: null,
+          })),
+        },
+      },
+    }));
+    const legacy = await service.getRoutine({
+      alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student', now,
+    });
+    for (const key of ['load', 'repetitions'] as const) {
+      expect(legacy.weeklyEvolution?.metrics.find((m) => m.key === key))
+        .toMatchObject({ status: 'incomparable', value: null, sampleCount: 2 });
+      expect(legacy.weeklyEvolution?.series.filter((series) => series.key === key))
+        .toHaveLength(2);
+      expect(legacy.weeklyEvolution?.series.filter((series) => series.key === key)
+        .every((series) => series.modality === 'unknown')).toBe(true);
+    }
   });
 
   it('#405 RISK-001: execução de outra liberação não altera aderência, status nem feedback', async () => {
