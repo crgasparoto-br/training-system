@@ -123,6 +123,19 @@ e heurísticas clínicas sem regra versionada e aprovada.
 - [ ] Revalidar `pnpm validate` no CI do HEAD material exato e obter auditoria
       independente da PR corrigida antes de marcar a issue como encerrada.
 
+### Evidência visual de #405 (ressalva RISK-001 de 14/11/2026)
+
+- [x] Criar cenário Chrome de métricas preenchidas para aluno/professor,
+      1440x900, 1366x768 e 390x844, com fontes, período e unidades.
+- [x] Cobrir duas medições de distância comparáveis, cargas isoladas,
+      PSE vigente, detalhe técnico apenas do professor, teclado e overflow.
+- [x] Preparar revisão simulada v1 -> v2 com revalidação por foco;
+      salvar screenshots, AX-tree e manifesto com identidade/hash no CI.
+- [ ] Validar artefatos capturados no HEAD final e realizar homologação
+      operacional com fonte real, se exigida no aceite independente.
+- [ ] Registrar a revisão independente autenticada para o SHA final,
+      sem usar a própria entrega como prova independente.
+
 ## Validação manual
 
 Consultar uma semana com sessões completas, parciais, não realizadas e futuras

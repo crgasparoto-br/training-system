@@ -539,12 +539,14 @@ efetivamente liberadas pela Montagem Consolidada para o aluno e contrato autoriz
 A versão inicial `weekly-adherence-v1` usa o período civil de segunda a domingo
 selecionado na rotina e a execução canônica da #389, sem tabela de contadores.
 
-O status vem de `WorkoutSessionExecution` sempre que a execução canônica existir.
-Para sessões históricas sem essa execução, aplica-se a mesma compatibilidade da
-rotina: `WorkoutDay.status` `planned` → `not_started`, `in_progress` →
-`in_progress` e `completed` → `completed`. O estado legado jamais sobrepõe uma
-execução canônica. A data de atualização usa a execução canônica quando existe;
-para histórico legado, usa `WorkoutDay.updatedAt`, com a data de liberação do
+Para os indicadores da #405, `completed`, `partial` e `not_performed` vêm
+**somente** de `WorkoutSessionExecution` vinculada à liberação consolidada
+vigente. Sem essa origem canônica, a sessão liberada ainda compõe o
+denominador, mas conta como `not_started` no indicador, mesmo quando a
+apresentação legada da rotina traduz `WorkoutDay.status` `completed` para
+`completed`. O status legado nunca certifica uma execução concluída.
+A data de atualização usa a execução canônica vinculada quando existe;
+no histórico legado usa `WorkoutDay.updatedAt`, com a liberação do
 template como último fallback. Isso não cria contadores nem reescreve histórico.
 
 - `prescribedSessions`: todas as sessões liberadas no período, inclusive as
@@ -575,6 +577,31 @@ O aluno recebe somente indicadores práticos; somente o professor autorizado pod
 com versão da regra, fórmula, código da fonte e IDs/status das sessões. A separação é feita na
 projeção da API por audiência, não apenas na interface, mantendo a mesma semântica e os mesmos
 valores numéricos. A API mantém o isolamento de `contractId` e a separação por audiência.
+
+### Evidência visual reproduzível dos indicadores preenchidos (#405)
+
+O teste de navegador `apps/web/src/pages/issue-387-browser-evidence.test.js`
+exercita o componente real nas rotas de aluno e professor, em Chrome,
+nas larguras 1440, 1366 e 390 pixels. O cenário `evolution` apresenta
+medições confirmadas de tempo, distância, pace, tonelagem, carga,
+repetições, PSE, PSR e substituições; inclui duas distâncias
+comparáveis, cargas isoladas e um estado `incomparable`. A navegação
+por teclado, ausência de overflow, escopos técnicos exclusivos do
+professor, fonte, data, período e unidades são verificados na UI.
+
+Em `evolution_updated`, a API sintética passa da revisão de feedback
+`v1` para `v2`, a interface revalida no foco e exibe PSE atualizada sem
+somar duas revisões. Capturas PNG, árvores de acessibilidade e
+`issue-405-filled-evolution-evidence.json` são salvos no caminho
+`artifacts/issue-391/issue-405-*`, existente no artifact do CI crítico.
+A identidade (`headSha`) e os hashes SHA-256 das imagens acompanham o
+manifesto; não reutilizar capturas de commits anteriores.
+
+**Limite da evidência:** o navegador usa respostas sintéticas controladas
+da API apenas para testar a apresentação. Cálculos, permissões e deduplicação
+reais são verificados em testes de domínio, serviço e rotas. A captura
+sintética não certifica homologação manual com banco operacional nem
+constitui aprovação independente da PR.
 
 ### Indicadores executados, séries e comparabilidade — training-evolution-v1
 
