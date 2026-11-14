@@ -646,6 +646,18 @@ Capacidade ausente, legado sem catálogo e nomes não reconhecidos nunca viram
 automaticamente modalidade resistida. A fonte de classificação é exclusivamente
 o catálogo congelado, sem tomar atributos mutáveis do WorkoutDay.
 
+**Correção A-017:** em execução com `cyclicStages[].outcome=substituted`,
+o esporte do método planejado não prova o esporte efetivamente executado.
+Valores explícitos da sessão continuam legíveis, porém em escopo isolado e
+`incomparable`, mesmo quando o método e a topologia planejados são idênticos
+a outras sessões. Na ausência de total explícito, preservar cada medição de
+etapa separadamente (minutos, quilômetros e pace), reconciliando `repeat`
+para não duplicar agregado e descendentes. Quando o grafo não permite
+reconciliação, preservar leituras brutas isoladas, nunca uma soma inventada.
+A ausência de informação sobre o esporte executado impede a tendência,
+mas não descarta fatos confirmados; a contagem de substituições permanece
+distinta e a visão do aluno não recebe IDs técnicos.
+
 Este refinamento da regra candidata
 `training-evolution-v1` ocorre antes de sua primeira integração à `develop`.
 

@@ -537,6 +537,62 @@ describe('evolução semanal canônica (#405)', () => {
   });
 
 
+
+  it('A-017: substituição cíclica não cria série de corrida e preserva repeat', () => {
+    const normal = executed('normal-run', '2026-11-02', 'cyclic');
+    normal.cyclicStructure = 'same-captured-method-and-topology';
+    normal.execution!.plannedCyclicStages = [
+      { id: 'normal-stage', kind: 'work', parentStageId: null, position: 1 },
+    ];
+    normal.execution!.sessionValues.cyclicStages = [
+      { plannedStageId: 'normal-stage', outcome: 'full',
+        durationSec: 600, distanceMeters: 1000, paceMinPerKm: 5 },
+    ];
+    const replaced = executed('replaced-run', '2026-11-04', 'cyclic', 'partial');
+    replaced.cyclicStructure = normal.cyclicStructure;
+    replaced.execution!.plannedCyclicStages = [
+      { id: 'repeat-parent', kind: 'repeat', parentStageId: null, position: 1 },
+      { id: 'repeat-child', kind: 'work', parentStageId: 'repeat-parent', position: 1 },
+      { id: 'external', kind: 'cooldown', parentStageId: null, position: 2 },
+    ];
+    replaced.execution!.sessionValues.cyclicStages = [
+      { plannedStageId: 'repeat-parent', outcome: 'substituted',
+        durationSec: 600, distanceMeters: 1500, paceMinPerKm: 5.5 },
+      { plannedStageId: 'repeat-child', iteration: 1, outcome: 'full',
+        durationSec: 600, distanceMeters: 1500, paceMinPerKm: 5.5 },
+      { plannedStageId: 'external', outcome: 'full',
+        durationSec: 120, distanceMeters: 100, paceMinPerKm: 6.5 },
+    ];
+    const project = () => calculateWeeklyTrainingEvolution({
+      period, sessions: [normal, replaced], audience: 'student',
+    });
+    const student = project();
+    for (const key of ['duration', 'distance', 'pace'] as const) {
+      expect(student.metrics.find((metric) => metric.key === key))
+        .toMatchObject({ status: 'incomparable', value: null, sampleCount: 3 });
+      expect(student.series.filter((series) => series.key === key)).toHaveLength(3);
+    }
+    const replacementDistances = student.series.filter((series) => series.key === 'distance'
+      && series.points[0]?.date === '2026-11-04')
+      .map((series) => series.points[0]?.value).sort((a, b) => a - b);
+    expect(replacementDistances).toEqual([0.1, 1.5]); // Parent total replaces child.
+    expect(student.adherence.value).toBe(50); // Partial remains separate.
+    expect(JSON.stringify(student)).not.toMatch(/normal-stage|repeat-parent|replaced-run|release-1/);
+
+    // A recorded total is a single observation, not evidence of the performed sport.
+    replaced.execution!.sessionValues.durationSec = 840;
+    replaced.execution!.sessionValues.distanceKm = 1.6;
+    replaced.execution!.sessionValues.pace = '05:40';
+    const explicit = project();
+    for (const key of ['duration', 'distance', 'pace'] as const) {
+      expect(explicit.metrics.find((metric) => metric.key === key))
+        .toMatchObject({ status: 'incomparable', value: null, sampleCount: 2 });
+      expect(explicit.series.filter((series) => series.key === key)).toHaveLength(2);
+    }
+    expect(explicit.series.find((series) => series.key === 'distance'
+      && series.points[0]?.date === '2026-11-04')?.points[0]?.value).toBe(1.6);
+  });
+
   it('A-009: última carga/repetições seguem a execução cronológica, não o ID', () => {
     const early = executed('z-early', '2026-11-02', 'resistance');
     const late = executed('a-late', '2026-11-02', 'resistance');

@@ -162,6 +162,7 @@ CI e auditoria independente. Nenhuma regra clínica indefinida será inferida.
       vinculada ao release #389 confirma status terminal na aderência.
 - [x] A-016: modalidade reconhecida pelo `capacity` congelado nas quatro
       categorias; campo histórico ausente/inválido permanece desconhecido.
-- [ ] A-017: impedir agregação de distância/duração/pace de etapas
-      substituídas sob o esporte apenas planejado, sem perder leituras.
+- [x] A-017: impedir agregação de distância/duração/pace de etapas
+      substituídas sob o esporte apenas planejado, sem perder leituras;
+      testes de `repeat`, total explícito, dados parciais e privacidade.
 - [ ] CI terminal verde no material SHA e auditoria independente posterior.

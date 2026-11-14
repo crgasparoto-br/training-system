@@ -231,13 +231,14 @@ type CapturedCyclicStages = NonNullable<NonNullable<WeeklyEvolutionSessionSource
  * present; otherwise sum the measured children. A missing historical graph
  * cannot safely distinguish distinct leaves from parent/child aggregates.
  */
-function sumCapturedStageMeasurements(
+/** Select actual recorded stage observations once, respecting repeat aggregates. */
+function selectedCapturedStageMeasurements(
   stages: RecordedCyclicStage[], plan: CapturedCyclicStages | undefined,
   field: 'durationSec' | 'distanceMeters',
-): number | null | 'incomparable' {
+): RecordedCyclicStage[] | 'incomparable' {
   const measured = stages.filter((stage) => stage.outcome !== 'not_performed'
     && stage[field] !== null && stage[field] !== undefined);
-  if (!measured.length) return null;
+  if (!measured.length) return [];
   const occurrences = new Set<string>();
   for (const stage of measured) {
     const iteration = stage.iteration ?? 1;
@@ -250,13 +251,13 @@ function sumCapturedStageMeasurements(
     // One stage with several iterations can be summed; distinct stage IDs
     // might instead be a parent aggregate and its leaves.
     if (new Set(measured.map((stage) => stage.plannedStageId)).size > 1) return 'incomparable';
-    return measured.reduce((total, stage) => total + stage[field]!, 0);
+    return measured;
   }
   const byId = new Map(plan.map((stage) => [stage.id, stage]));
   if (byId.size !== plan.length) return 'incomparable';
   const aggregates = new Set(measured.filter((stage) =>
     byId.get(stage.plannedStageId)?.kind === 'repeat').map((stage) => stage.plannedStageId));
-  let total = 0;
+  const selected: RecordedCyclicStage[] = [];
   for (const stage of measured) {
     if (!byId.has(stage.plannedStageId)) return 'incomparable';
     const visited = new Set([stage.plannedStageId]);
@@ -268,9 +269,18 @@ function sumCapturedStageMeasurements(
       if (aggregates.has(parentId)) representedByAncestor = true;
       parentId = byId.get(parentId)!.parentStageId;
     }
-    if (!representedByAncestor) total += stage[field]!;
+    if (!representedByAncestor) selected.push(stage);
   }
-  return total;
+  return selected;
+}
+
+function sumCapturedStageMeasurements(
+  stages: RecordedCyclicStage[], plan: CapturedCyclicStages | undefined,
+  field: 'durationSec' | 'distanceMeters',
+): number | null | 'incomparable' {
+  const selected = selectedCapturedStageMeasurements(stages, plan, field);
+  return selected === 'incomparable' ? 'incomparable'
+    : selected.length ? selected.reduce((total, stage) => total + stage[field]!, 0) : null;
 }
 
 /**
@@ -332,19 +342,50 @@ export function calculateWeeklyTrainingEvolution(input: {
     if (!isTerminalPerformed(session.status) || !session.execution) continue;
     const { sessionValues, items, plannedExercises, plannedCyclicStages, plannedResistanceGroups } = session.execution;
     const stages = sessionValues.cyclicStages ?? [];
-    const stageDuration = sessionValues.durationSec == null
+    // A-017: no execution-level sport identity accompanies a substituted stage.
+    // A planned method does not prove the sport actually executed.
+    const unclassifiedStageSubstitution = stages.some((stage) => stage.outcome === 'substituted');
+    const plannedCyclicContext = capturedCyclicContext(session);
+    const recordedCyclicContext = unclassifiedStageSubstitution
+      ? {
+          knownType: false,
+          scope: JSON.stringify(['unclassified-cyclic-substitution', session.sessionId]),
+          label: 'Sessão · esporte executado após substituição não confirmado',
+        } : plannedCyclicContext;
+    const retainUnclassifiedStages = (
+      key: 'duration' | 'distance', field: 'durationSec' | 'distanceMeters', divisor: number,
+    ) => {
+      const selected = selectedCapturedStageMeasurements(stages, plannedCyclicStages, field);
+      // Corrupt or legacy graphs retain raw readings; never infer their sum.
+      const readings = selected === 'incomparable'
+        ? stages.filter((stage) => stage.outcome !== 'not_performed' && stage[field] != null)
+        : selected;
+      if (readings.length || selected === 'incomparable') incompatible.add(key);
+      for (const stage of readings) {
+        const iteration = stage.iteration ?? 1;
+        const raw = stage[field];
+        add(session, key, finite(raw) ? raw / divisor : raw,
+          JSON.stringify(['unclassified-cyclic-stage', session.sessionId, stage.plannedStageId, iteration]),
+          'Etapa executada · esporte após substituição não confirmado',
+          `cyclic-stage:${stage.plannedStageId}:iteration:${iteration}`);
+      }
+    };
+    const stageDuration = sessionValues.durationSec == null && !unclassifiedStageSubstitution
       ? sumCapturedStageMeasurements(stages, plannedCyclicStages, 'durationSec') : null;
     if (stageDuration === 'incomparable') incompatible.add('duration');
     const duration = sessionValues.durationSec ??
       (stageDuration === 'incomparable' ? null : stageDuration);
     if (duration !== null && duration !== undefined) {
       const durationScope = session.modality?.split('+').includes('cyclic')
-        ? capturedCyclicContext(session) : { knownType: true, scope: 'session', label: 'Sessão' };
+        ? recordedCyclicContext : { knownType: true, scope: 'session', label: 'Sessão' };
       if (!durationScope.knownType) incompatible.add('duration');
       add(session, 'duration', finite(duration) ? duration / 60 : duration,
         durationScope.scope, durationScope.label, session.sessionId);
     }
-    const stageDistance = sessionValues.distanceKm == null
+    if (unclassifiedStageSubstitution && sessionValues.durationSec == null) {
+      retainUnclassifiedStages('duration', 'durationSec', 60);
+    }
+    const stageDistance = sessionValues.distanceKm == null && !unclassifiedStageSubstitution
       ? sumCapturedStageMeasurements(stages, plannedCyclicStages, 'distanceMeters') : null;
     if (stageDistance === 'incomparable') incompatible.add('distance');
     const distance = sessionValues.distanceKm ??
@@ -354,7 +395,10 @@ export function calculateWeeklyTrainingEvolution(input: {
     const cyclicOrUnclassified = session.modality?.split('+').includes('cyclic')
       || !knownModality(session.modality);
     if (cyclicOrUnclassified) {
-      const context = capturedCyclicContext(session);
+      const context = recordedCyclicContext;
+      if (unclassifiedStageSubstitution && sessionValues.distanceKm == null) {
+        retainUnclassifiedStages('distance', 'distanceMeters', 1000);
+      }
       if (distance !== null && distance !== undefined) {
         if (!context.knownType) incompatible.add('distance');
         add(session, 'distance', distance, context.scope, context.label, session.sessionId);
