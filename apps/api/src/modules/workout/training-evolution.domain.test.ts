@@ -1127,7 +1127,7 @@ describe('evolução semanal canônica (#405)', () => {
     second.execution!.plannedExercises = [plannedUnit('second-unit', 'squat', 'Agachamento')];
     second.execution!.items = [{ plannedUnitId: 'second-unit', setNumber: 1,
       outcome: 'full', completedAt: '2026-11-04T12:00:00.000Z', loadKg: 42, repetitions: 10 },
-    { plannedUnitId: 'second-unit', setNumber: 2, outcome: null, loadKg: 100, repetitions: 100 }];
+    { plannedUnitId: 'second-unit', setNumber: 2, outcome: undefined, loadKg: 100, repetitions: 100 }];
     const result = calculateWeeklyTrainingEvolution({ period, sessions: [first, second], audience: 'professor' });
     expect(result.metrics.find((m) => m.key === 'tonnage'))
       .toMatchObject({ status: 'available', value: 820, sampleCount: 2 });
