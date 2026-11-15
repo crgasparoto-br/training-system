@@ -608,6 +608,63 @@ describe('training routine service (#387)', () => {
     expect(professor.weeklyEvolution?.metrics.find((item) => item.key === 'substitutions')?.value).toBe(3);
   });
 
+  it('#405 A-019: a projeção do serviço usa a capacidade histórica de cada unidade combinada', async () => {
+    const snapshot = {
+      id: 'day-1', method: 'Ciclismo contínuo', cyclicTimeMin: 30,
+      cyclicStages: [], resistanceGroups: [],
+      exercises: [
+        { id: 'res-unit', exerciseId: 'catalog-squat', section: 'principal', exerciseOrder: 1,
+          system: null, resistanceBlocks: [], exercise: { name: 'Agachamento' },
+          releasedCatalog: { catalog: { capacity: 'resisted', category: 'resisted' } } },
+        { id: 'bike-unit', exerciseId: 'catalog-bike', section: 'principal', exerciseOrder: 2,
+          system: null, resistanceBlocks: [], exercise: { name: 'Bicicleta' },
+          releasedCatalog: { catalog: { capacity: 'cyclic', category: 'cycling', movementPattern: 'cycling' } } },
+      ],
+    };
+    const execution = {
+      workoutDayId: 'day-1', status: 'completed', version: 1,
+      updatedAt: new Date('2026-10-01T12:00:00.000Z'),
+      startedAt: new Date('2026-10-01T10:00:00.000Z'),
+      finishedAt: new Date('2026-10-01T12:00:00.000Z'),
+      currentPauseStartedAt: null, pausedDurationMs: BigInt(0), interruptionReason: null,
+      originReleaseId: 'release-1', originWorkoutTemplateId: 'template-1',
+      originTrainingPlanId: 'plan-1', plannedSnapshot: snapshot, sessionValues: {},
+      items: [
+        { plannedUnitId: 'res-unit', plannedSetId: 'res-set', setNumber: 1,
+          outcome: 'full', completedAt: null, loadKg: 40, repetitions: 10 },
+        { plannedUnitId: 'bike-unit', plannedSetId: 'bike-set', setNumber: 1,
+          outcome: 'full', completedAt: null, loadKg: 50, repetitions: 10 },
+      ],
+    };
+    const query = { alunoId: 'aluno-1', contractId: 'contract-1', now };
+    releasedRows = [makeRow({ execution })];
+    const student = await service.getRoutine({ ...query, audience: 'student' });
+    const professor = await service.getRoutine({ ...query, audience: 'professor' });
+    for (const routine of [student, professor]) {
+      expect(routine.weeklyEvolution?.metrics.find((m) => m.key === 'tonnage'))
+        .toMatchObject({ status: 'available', value: 400, sampleCount: 1 });
+      expect(routine.weeklyEvolution?.metrics.find((m) => m.key === 'load'))
+        .toMatchObject({ status: 'available', value: 40, sampleCount: 1 });
+      expect(routine.weeklyEvolution?.metrics.find((m) => m.key === 'repetitions'))
+        .toMatchObject({ status: 'available', value: 10, sampleCount: 1 });
+    }
+    expect(student.weeklyEvolution?.technical).toBeUndefined();
+    expect(JSON.stringify(student.weeklyEvolution)).not.toMatch(/res-unit|bike-unit|res-set|bike-set/);
+    expect(professor.weeklyEvolution?.technical?.indicators.find((m) => m.key === 'load')?.observations)
+      .toMatchObject([{ sourceId: 'res-set', sessionId: 'day-1' }]);
+    // A current workout change cannot reclassify a captured historical unit.
+    releasedRows = [makeRow({ method: 'Seriado atual', execution,
+      exercises: [{ ...exercise('bike-unit', 'principal', 1),
+        exercise: { name: 'Agachamento novo', capacity: 'resisted' } }] })];
+    const later = await service.getRoutine({ ...query, audience: 'student' });
+    expect(later.weeklyEvolution?.metrics).toEqual(student.weeklyEvolution?.metrics);
+    // Removing capacity from the frozen catalog makes that quantity incomparable.
+    execution.plannedSnapshot.exercises[0].releasedCatalog = { catalog: { capacity: 'unknown', category: 'resisted' } };
+    const legacy = await service.getRoutine({ ...query, audience: 'student' });
+    expect(legacy.weeklyEvolution?.metrics.find((m) => m.key === 'tonnage'))
+      .toMatchObject({ status: 'incomparable', value: null, sampleCount: 1 });
+  });
+
   it('#405 A-004: mantém modalidade capturada após edição do planejamento atual e isola snapshots inválidos', async () => {
     const captured = {
       id: 'day-1', method: 'Corrida contínua', cyclicTimeMin: 30,

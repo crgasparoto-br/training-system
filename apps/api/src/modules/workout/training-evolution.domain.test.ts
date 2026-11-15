@@ -92,7 +92,9 @@ describe('evolução semanal canônica (#405)', () => {
     plannedUnitId: string, catalogExerciseId: string, name: string,
     section = 'principal', exerciseOrder = 1, blockSignature = '[]', groupSignature: string | null = null,
   ) => ({ plannedUnitId, catalogExerciseId, name, section, exerciseOrder,
-    system: null, blockSignature, groupSignature });
+    system: null, blockSignature, groupSignature,
+    capturedCapacity: 'resisted' as string | null | undefined,
+    capturedCategory: 'resisted' as string | null | undefined });
 
   it('A-018: revisão de PSE/PSR atualiza apenas timestamps das próprias fontes, não da execução', () => {
     const executionAt = '2026-11-03T12:00:00.000Z';
@@ -1032,7 +1034,8 @@ describe('evolução semanal canônica (#405)', () => {
   it('A-014: categoria genérica, capacidade ausente ou esporte divergente não bastam', () => {
     const run = executed('legacy-cyclic', '2026-11-02', 'cyclic+resistance');
     run.execution!.plannedExercises = [{
-      ...plannedUnit('unit', 'catalog', 'Esteira'), capturedCategory: 'running',
+      ...plannedUnit('unit', 'catalog', 'Esteira'),
+      capturedCapacity: undefined, capturedCategory: 'running',
     }];
     run.execution!.items = [{ plannedUnitId: 'unit', setNumber: 1, outcome: 'partial',
       pace: '05:00', distanceKm: 3 }];
@@ -1071,6 +1074,98 @@ describe('evolução semanal canônica (#405)', () => {
     run.execution!.plannedExercises[0].capturedMovementPattern = 'cycling';
     expect(result().metrics.find((metric) => metric.key === 'pace'))
       .toMatchObject({ status: 'incomparable', value: null });
+  });
+
+  it('A-019: não incorpora carga, repetições ou tonelagem cíclica ao volume resistido de sessão combinada', () => {
+    const mixed = executed('mixed', '2026-11-04', 'cyclic+resistance');
+    mixed.execution!.plannedExercises = [
+      plannedUnit('squat-unit', 'squat', 'Agachamento'),
+      { ...plannedUnit('bike-unit', 'bike', 'Bicicleta', 'principal', 2),
+        capturedCapacity: 'cyclic', capturedCategory: 'cycling', capturedMovementPattern: 'cycling' },
+    ];
+    mixed.execution!.items = [
+      { plannedUnitId: 'squat-unit', plannedSetId: 'squat-set', setNumber: 1,
+        outcome: 'full', loadKg: 40, repetitions: 10 },
+      { plannedUnitId: 'bike-unit', plannedSetId: 'bike-set', setNumber: 1,
+        outcome: 'full', loadKg: 50, repetitions: 10 },
+    ];
+    for (const audience of ['student', 'professor'] as const) {
+      const result = calculateWeeklyTrainingEvolution({ period, sessions: [mixed], audience });
+      expect(result.metrics.find((m) => m.key === 'tonnage'))
+        .toMatchObject({ status: 'available', value: 400, sampleCount: 1 });
+      expect(result.metrics.find((m) => m.key === 'load'))
+        .toMatchObject({ status: 'available', value: 40, sampleCount: 1 });
+      expect(result.metrics.find((m) => m.key === 'repetitions'))
+        .toMatchObject({ status: 'available', value: 10, sampleCount: 1 });
+      expect(result.series.filter((row) => ['tonnage', 'load', 'repetitions'].includes(row.key)))
+        .toHaveLength(3);
+      expect(result.series.find((row) => row.key === 'load')?.modality).toBe('resistance');
+      expect(result.technical?.indicators.find((row) => row.key === 'load')?.observations)
+        .toEqual(audience === 'professor'
+          ? [{ sessionId: 'mixed', releaseId: 'release-1',
+            sourceId: 'squat-set', updatedAt: mixed.sourceUpdatedAt }] : undefined);
+      if (audience === 'student') {
+        expect(JSON.stringify(result)).not.toMatch(/squat-unit|bike-unit|squat-set|bike-set|training-evolution-v1/);
+      }
+    }
+    mixed.execution!.items = mixed.execution!.items.slice(1); // Only cyclic recording left.
+    const cyclicOnly = calculateWeeklyTrainingEvolution({ period, sessions: [mixed], audience: 'professor' });
+    for (const key of ['tonnage', 'load', 'repetitions'] as const) {
+      expect(cyclicOnly.metrics.find((m) => m.key === key))
+        .toMatchObject({ status: 'insufficient_data', value: null, sampleCount: 0 });
+      expect(cyclicOnly.series.filter((row) => row.key === key)).toEqual([]);
+    }
+    expect(cyclicOnly.counts.completedSessions).toBe(1);
+  });
+
+  it('A-019: mede somente séries resistidas confirmadas, inclusive parciais, entre sessões puras e combinadas', () => {
+    const first = executed('resisted', '2026-11-02', 'resistance', 'partial');
+    first.execution!.plannedExercises = [plannedUnit('first-unit', 'squat', 'Agachamento')];
+    first.execution!.items = [{ plannedUnitId: 'first-unit', setNumber: 1,
+      outcome: 'partial', completedAt: '2026-11-02T12:00:00.000Z', loadKg: 40, repetitions: 10 }];
+    const second = executed('combined', '2026-11-04', 'cyclic+resistance');
+    second.execution!.plannedExercises = [plannedUnit('second-unit', 'squat', 'Agachamento')];
+    second.execution!.items = [{ plannedUnitId: 'second-unit', setNumber: 1,
+      outcome: 'full', completedAt: '2026-11-04T12:00:00.000Z', loadKg: 42, repetitions: 10 },
+    { plannedUnitId: 'second-unit', setNumber: 2, outcome: null, loadKg: 100, repetitions: 100 }];
+    const result = calculateWeeklyTrainingEvolution({ period, sessions: [first, second], audience: 'professor' });
+    expect(result.metrics.find((m) => m.key === 'tonnage'))
+      .toMatchObject({ status: 'available', value: 820, sampleCount: 2 });
+    expect(result.metrics.find((m) => m.key === 'load'))
+      .toMatchObject({ status: 'available', value: 42, sampleCount: 2 });
+    expect(result.metrics.find((m) => m.key === 'repetitions'))
+      .toMatchObject({ status: 'available', value: 10, sampleCount: 2 });
+    expect(result.series.filter((row) => row.key === 'load')).toMatchObject([
+      { modality: 'resistance', points: [{ date: '2026-11-02', value: 40 },
+        { date: '2026-11-04', value: 42 }] },
+    ]);
+  });
+
+  it('A-019: legado sem capacidade, substituição sem catálogo executado e slot ambíguo isolam os valores', () => {
+    const historical = executed('legacy', '2026-11-03', 'cyclic+resistance');
+    const captured = plannedUnit('unit', 'squat', 'Agachamento');
+    historical.execution!.plannedExercises = [{ ...captured, capturedCapacity: undefined }];
+    historical.execution!.items = [{ plannedUnitId: 'unit', setNumber: 1,
+      outcome: 'full', completedAt: '2026-11-03T12:00:00.000Z', loadKg: 40, repetitions: 10 }];
+    const project = () => calculateWeeklyTrainingEvolution({ period, sessions: [historical], audience: 'professor' });
+    for (const key of ['tonnage', 'load', 'repetitions'] as const) {
+      expect(project().metrics.find((m) => m.key === key))
+        .toMatchObject({ status: 'incomparable', value: null, sampleCount: 1 });
+      expect(project().series.filter((row) => row.key === key)).toHaveLength(1);
+      expect(project().series.find((row) => row.key === key)?.modality).toBe('unknown');
+    }
+    expect(project().series.find((row) => row.key === 'tonnage')?.points)
+      .toEqual([{ date: '2026-11-03', value: 400 }]);
+    historical.execution!.plannedExercises = [captured];
+    historical.execution!.items[0].outcome = 'substituted';
+    for (const key of ['tonnage', 'load', 'repetitions'] as const) {
+      expect(project().metrics.find((m) => m.key === key)?.status).toBe('incomparable');
+    }
+    historical.execution!.items[0].outcome = 'full';
+    historical.execution!.plannedExercises = [captured, { ...captured, capturedCapacity: 'cyclic' }];
+    expect(project().metrics.find((m) => m.key === 'tonnage')?.status).toBe('incomparable');
+    historical.execution!.plannedExercises = [{ ...captured, capturedCapacity: 'unknown' }];
+    expect(project().metrics.find((m) => m.key === 'load')?.status).toBe('incomparable');
   });
 
 });

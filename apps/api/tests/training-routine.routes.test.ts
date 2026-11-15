@@ -482,6 +482,48 @@ describe('training routine HTTP boundaries (#387)', () => {
       expect(JSON.stringify(response.body)).not.toMatch(/hidden-session|hidden-feedback|hidden-release/);
     });
 
+    it('A-019: rota do aluno só publica tonelagem resistida certificada no treino combinado', async () => {
+      const { calculateWeeklyTrainingEvolution } = require('../src/modules/workout/training-evolution.domain');
+      mockGetRoutine.mockImplementation(async ({ audience }: { audience: 'student' | 'professor' }) => ({
+        ...routine, audience,
+        weeklyEvolution: calculateWeeklyTrainingEvolution({
+          period: { startDate: '2026-09-28', endDate: '2026-10-04' }, audience,
+          sessions: [{
+            sessionId: 'hidden-session', status: 'completed', date: '2026-10-01',
+            modality: 'cyclic+resistance', method: 'Ciclismo contínuo', cyclicStructure: '[]',
+            releaseId: 'hidden-release', sourceUpdatedAt: '2026-10-01T12:00:00.000Z',
+            execution: { sessionValues: {}, plannedExercises: [
+              { plannedUnitId: 'hidden-res-unit', catalogExerciseId: 'squat', name: 'Agachamento',
+                section: 'principal', exerciseOrder: 1, system: null,
+                blockSignature: '[]', groupSignature: null, capturedCapacity: 'resisted' },
+              { plannedUnitId: 'hidden-bike-unit', catalogExerciseId: 'bike', name: 'Bicicleta',
+                section: 'principal', exerciseOrder: 2, system: null,
+                blockSignature: '[]', groupSignature: null, capturedCapacity: 'cyclic' },
+            ], items: [
+              { plannedUnitId: 'hidden-res-unit', plannedSetId: 'hidden-res-set', setNumber: 1,
+                outcome: 'full', loadKg: 40, repetitions: 10 },
+              { plannedUnitId: 'hidden-bike-unit', plannedSetId: 'hidden-bike-set', setNumber: 1,
+                outcome: 'full', loadKg: 50, repetitions: 10 },
+            ] },
+          }],
+        }),
+      }));
+      const response = await request(app).get('/student/me/training-routine').set('x-contract-id', 'contract-1');
+      expect(response.status).toBe(200);
+      const evolution = response.body.data.weeklyEvolution;
+      expect(evolution.metrics.find((m: any) => m.key === 'tonnage'))
+        .toMatchObject({ status: 'available', value: 400, sampleCount: 1 });
+      expect(evolution.metrics.find((m: any) => m.key === 'load'))
+        .toMatchObject({ status: 'available', value: 40, sampleCount: 1 });
+      expect(evolution.technical).toBeUndefined();
+      expect(JSON.stringify(response.body)).not.toMatch(
+        /hidden-session|hidden-release|hidden-res-unit|hidden-bike-unit|hidden-res-set|hidden-bike-set|training-evolution-v1/
+      );
+      expect(mockGetRoutine).toHaveBeenCalledWith(expect.objectContaining({
+        alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student',
+      }));
+    });
+
     it('A-013: HTTP student emits comparable stage pace without stage IDs or technical metadata', async () => {
       const { calculateWeeklyTrainingEvolution } = require('../src/modules/workout/training-evolution.domain');
       mockGetRoutine.mockImplementation(async ({ audience }: { audience: 'student' | 'professor' }) => ({

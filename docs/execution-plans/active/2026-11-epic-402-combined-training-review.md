@@ -120,6 +120,12 @@ e heurísticas clínicas sem regra versionada e aprovada.
       conjuntos sem vinculo historico ficam `incomparable`.
 - [x] Cobrir A-011/A-012 em testes de dominio e integracao e atualizar
       regra documentada sem nova persistencia.
+- [x] A-019 (auditoria independente de 15/11): proteger volume, carga e
+      repetições resistidas por `capturedCapacity=resisted` e identidade de
+      unidade do snapshot; não somar medições cíclicas em sessão combinada,
+      preservar valores ambíguos isolados e continuidade entre treinos resistidos
+      puros/combinados. Acrescentar controles de domínio, serviço e HTTP para
+      aluno/professor e atualizar contrato documentado.
 - [ ] Revalidar `pnpm validate` no CI do HEAD material exato e obter auditoria
       independente da PR corrigida antes de marcar a issue como encerrada.
 

@@ -93,13 +93,13 @@ const DEFINITIONS: readonly IndicatorDefinition[] = [
     formula: 'mean(recorded session pace, or separately scoped confirmed cyclic stage/item pace) within same captured sport, method, topology and unit',
     source: 'captured_plan_and_canonical_session_execution' },
   { key: 'tonnage', label: 'Volume resistido registrado', unit: 'kg × rep', aggregation: 'sum',
-    formula: 'sum(confirmed_executed_load_kg * confirmed_executed_repetitions)',
+    formula: 'sum(confirmed_resisted_set_load_kg * confirmed_resisted_set_repetitions) for verified captured resisted units only',
     source: 'canonical_execution_items' },
   { key: 'load', label: 'Carga por exercício e série', unit: 'kg', aggregation: 'last',
-    formula: 'latest(confirmed_executed_load_kg) within same catalog, captured section, slot, system, blocks, group and set',
+    formula: 'latest(confirmed_resisted_load_kg) within same captured resisted catalog, section, slot, system, blocks, group and set',
     source: 'captured_plan_and_canonical_execution_items' },
   { key: 'repetitions', label: 'Repetições por exercício e série', unit: 'rep', aggregation: 'last',
-    formula: 'latest(confirmed_executed_repetitions) within same catalog, captured section, slot, system, blocks, group and set',
+    formula: 'latest(confirmed_resisted_repetitions) within same captured resisted catalog, section, slot, system, blocks, group and set',
     source: 'captured_plan_and_canonical_execution_items' },
   { key: 'pse', label: 'PSE registrada', unit: '0–10', aggregation: 'mean',
     formula: 'mean(latest_revision_pse) within same feedback_scope',
@@ -326,6 +326,7 @@ export function calculateWeeklyTrainingEvolution(input: {
     value: unknown, scope: string, scopeLabel: string, sourceId: string,
     updatedAt: string | null = session.sourceUpdatedAt,
     performedAt: string | null = null,
+    modality: string | undefined = session.modality,
   ) => {
     if (value === undefined || value === null) return;
     if (!finite(value)) { incompatible.add(key); return; }
@@ -334,13 +335,13 @@ export function calculateWeeklyTrainingEvolution(input: {
     if (recordedSources.has(identity)) return;
     recordedSources.add(identity);
     // A missing/unrecognized modality is not evidence of compatibility.
-    const hasModality = knownModality(session.modality);
+    const hasModality = knownModality(modality);
     if (!hasModality) incompatible.add(key);
     observations.push({
       key, value,
       scope: hasModality ? scope : JSON.stringify([scope, 'unclassified', session.sessionId]),
       scopeLabel: hasModality ? scopeLabel : scopeLabel + ' · modalidade não identificada',
-      modality: hasModality ? session.modality! : 'unknown', date: session.date,
+      modality: hasModality ? modality! : 'unknown', date: session.date,
       sessionId: session.sessionId, releaseId: session.releaseId, sourceId, updatedAt, performedAt,
     });
   };
@@ -430,9 +431,13 @@ export function calculateWeeklyTrainingEvolution(input: {
       }
     }
 
-    const planByUnit = new Map(plannedExercises.map((item) => [item.plannedUnitId, item]));
+    const planByUnit = new Map<string, PlannedExercise>();
+    const duplicateUnitIds = new Set<string>();
     const contextUnits = new Map<string, Set<string>>();
     for (const plan of plannedExercises) {
+      // An ambiguous snapshot cannot certify which capacity was executed.
+      if (planByUnit.has(plan.plannedUnitId)) duplicateUnitIds.add(plan.plannedUnitId);
+      planByUnit.set(plan.plannedUnitId, plan);
       const context = exerciseContext(plan);
       if (!context) continue;
       const units = contextUnits.get(context) ?? new Set<string>();
@@ -441,40 +446,72 @@ export function calculateWeeklyTrainingEvolution(input: {
     }
     let tonnage = 0;
     let tonnageSamples = 0;
-    const resistanceOrUnclassified = session.modality?.split('+').includes('resistance')
-      || !knownModality(session.modality);
+    const sessionHasResistance = knownModality(session.modality)
+      && session.modality!.split('+').includes('resistance');
     const confirmedItems = items.filter(isConfirmedExecutedItem);
-    const executedItems = resistanceOrUnclassified ? confirmedItems : [];
-    for (const item of executedItems) {
-      if (item.loadKg !== null && item.loadKg !== undefined
-        && item.repetitions !== null && item.repetitions !== undefined) {
+    for (const item of confirmedItems) {
+      const plan = planByUnit.get(item.plannedUnitId);
+      const capacity = comparableText(plan?.capturedCapacity);
+      // Known cyclic/flexibility/balance values are not resisted readings,
+      // even when a combined session happens to contain resistance elsewhere.
+      if (!duplicateUnitIds.has(item.plannedUnitId)
+        && (capacity === 'cyclic' || capacity === 'flexibility' || capacity === 'balance')) continue;
+      const hasLoad = item.loadKg !== null && item.loadKg !== undefined;
+      const hasRepetitions = item.repetitions !== null && item.repetitions !== undefined;
+      if (!hasLoad && !hasRepetitions) continue;
+      const context = plan ? exerciseContext(plan) : null;
+      const hasCollision = context !== null && (contextUnits.get(context)?.size ?? 0) > 1;
+      const setValid = Number.isInteger(item.setNumber) && (item.setNumber ?? 0) > 0;
+      const incompatibleCatalog = capturedSportMarkers(plan?.capturedCategory).length > 0
+        || capturedSportMarkers(plan?.capturedMovementPattern).length > 0
+        || ['cyclic', 'flexibility', 'balance'].includes(comparableText(plan?.capturedCategory) ?? '');
+      const resisted = sessionHasResistance && capacity === 'resisted' && !incompatibleCatalog
+        && plan?.catalogExerciseId && context !== null && !hasCollision
+        && !duplicateUnitIds.has(item.plannedUnitId) && setValid
+        // The replacement's executed catalog/capacity is not certified by the original slot.
+        && item.outcome !== 'substituted';
+      const sourceId = item.plannedSetId ?? item.plannedUnitId + ':set:' + String(item.setNumber);
+      const performedAt = item.completedAt ?? session.executionFinishedAt ?? null;
+      if (!resisted) {
+        // Legacy/ambiguous or substituted measurements remain readable as isolated
+        // evidence. They cannot create a resisted trend or inflate its total.
+        const scope = JSON.stringify(['unclassified-resistance', session.sessionId,
+          item.plannedUnitId, item.setNumber, sourceId]);
+        const label = 'Medida executada · capacidade resistida não comprovada';
+        if (hasLoad) {
+          incompatible.add('load');
+          add(session, 'load', item.loadKg, scope, label, sourceId,
+            session.sourceUpdatedAt, performedAt, 'unknown');
+        }
+        if (hasRepetitions) {
+          incompatible.add('repetitions');
+          add(session, 'repetitions', item.repetitions, scope, label, sourceId,
+            session.sourceUpdatedAt, performedAt, 'unknown');
+        }
+        if (hasLoad && hasRepetitions) {
+          incompatible.add('tonnage');
+          if (finite(item.loadKg) && finite(item.repetitions)) {
+            add(session, 'tonnage', item.loadKg * item.repetitions, scope, label, sourceId,
+              session.sourceUpdatedAt, performedAt, 'unknown');
+          }
+        }
+        continue;
+      }
+      if (hasLoad && hasRepetitions) {
         if (finite(item.loadKg) && finite(item.repetitions)) {
           tonnage += item.loadKg * item.repetitions;
           tonnageSamples += 1;
         } else incompatible.add('tonnage');
       }
-      // The original exercise is not the identity of an explicitly substituted item.
-      if (item.outcome === 'substituted') continue;
-      const plan = planByUnit.get(item.plannedUnitId);
-      if (!plan?.catalogExerciseId || !Number.isInteger(item.setNumber) || (item.setNumber ?? 0) < 1) continue;
-      const context = exerciseContext(plan);
-      const hasCollision = context !== null && (contextUnits.get(context)?.size ?? 0) > 1;
-      const comparable = context !== null && !hasCollision;
-      if (!comparable) {
-        if (item.loadKg !== null && item.loadKg !== undefined) incompatible.add('load');
-        if (item.repetitions !== null && item.repetitions !== undefined) incompatible.add('repetitions');
-      }
-      const scope = comparable
-        ? JSON.stringify([context, item.setNumber])
-        : JSON.stringify(['unclassified-unit', session.sessionId, item.plannedUnitId, item.setNumber]);
-      const label = comparable
-        ? plan.name + ' · ' + plan.section + ' · posição ' + plan.exerciseOrder
-          + ' · série ' + String(item.setNumber)
-        : plan.name + ' · unidade histórica não comparável · série ' + String(item.setNumber);
-      const sourceId = item.plannedSetId ?? item.plannedUnitId + ':set:' + String(item.setNumber);
-      const performedAt = item.completedAt ?? session.executionFinishedAt ?? null;
-      add(session, 'load', item.loadKg, scope, label, sourceId, session.sourceUpdatedAt, performedAt);
-      add(session, 'repetitions', item.repetitions, scope, label, sourceId, session.sourceUpdatedAt, performedAt);
+      const scope = JSON.stringify([context, item.setNumber]);
+      const label = plan!.name + ' · ' + plan!.section + ' · posição ' + plan!.exerciseOrder
+        + ' · série ' + String(item.setNumber);
+      // A verified resisted unit is comparable across both resistance-only and
+      // combined sessions, regardless of their other modality's measurements.
+      add(session, 'load', item.loadKg, scope, label, sourceId,
+        session.sourceUpdatedAt, performedAt, 'resistance');
+      add(session, 'repetitions', item.repetitions, scope, label, sourceId,
+        session.sourceUpdatedAt, performedAt, 'resistance');
     }
     // A-013: item-level cyclic measurements are canonical execution readings too.
     // They are never assumed to be whole-session totals, nor added to captured
@@ -525,7 +562,8 @@ export function calculateWeeklyTrainingEvolution(input: {
     }
 
     if (tonnageSamples > 0) {
-      add(session, 'tonnage', tonnage, 'session', 'Sessão', session.sessionId);
+      add(session, 'tonnage', tonnage, 'session', 'Sessão', session.sessionId,
+        session.sourceUpdatedAt, null, 'resistance');
     }
 
     const substitutionCount = countDistinctExecutedSubstitutions(

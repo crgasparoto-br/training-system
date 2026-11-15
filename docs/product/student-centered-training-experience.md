@@ -633,8 +633,8 @@ a leitura é repetível, sem persistência nova nem alteração da prescrição.
 | Tempo executado | Soma de segundos registrados dividida por 60 (`min`) | Preferir `sessionValues.durationSec`; na ausência, considerar tempo de estágios cíclicos reconciliados e leituras de itens executados confirmados, **em escopos separados**, sem somá-los entre si quando puderem representar a mesma atividade. O agregado `repeat` representa seus descendentes e não duplica valores; o contexto histórico do item determina a comparabilidade |
 | Distância | Soma de distâncias registradas (`km`) **somente no mesmo esporte e contexto cíclico** | Preferir `sessionValues.distanceKm`; na ausência, reconciliar etapas e agregados `repeat` do snapshot histórico ou preservar distâncias (`distanceKm`) de itens confirmados em séries independentes. Não somar etapas e itens com possível sobreposição. Método e topologia devem identificar explicitamente o esporte; `CEXT` não comprova corrida versus ciclismo |
 | Ritmo (pace) | Média de medições registradas de mesmo escopo semântico (`min/km`) **somente no mesmo esporte e contexto cíclico** | `sessionValues.pace` em `mm:ss` por km tem precedência. Quando ausente, considerar `cyclicStages[].paceMinPerKm` (numérico, minutos/km) e `items[].pace` (`mm:ss`), somente confirmados e em **séries separadas por etapa/iteração ou item/série do snapshot**. `repeat` com pace declarado no pai prevalece sobre os filhos. Não fabricar ritmo médio de sessão a partir de etapas heterogêneas ou de velocidade; origens ambíguas permanecem isoladas |
-| Volume resistido (tonelagem) | Soma de `loadKg × repetitions` (`kg × rep`) | Apenas séries com confirmação canônica (`full`, `partial`, `substituted` ou conclusão guiada persistida); rascunhos `outcome=null` sem `completedAt` não geram volume executado |
-| Carga e repetições | Última série confirmada pela ordem temporal efetiva no mesmo contexto da unidade de treino e série (`kg`, `rep`) | Prioriza `completedAt` da série guiada e, nas confirmações manuais, `finishedAt` da execução canônica. IDs e datas planejadas não substituem a cronologia. Ausência ou empate de timestamps confiáveis entre registros gera `incomparable` e medições isoladas. Exige confirmação canônica, catálogo, seção, posição, sistema, blocos, grupo e série capturados. Rascunhos e substituições sem identidade original não geram tendência |
+| Volume resistido (tonelagem) | Soma de `loadKg × repetitions` (`kg × rep`) | Apenas séries confirmadas de unidades historicamente certificadas como `capturedCapacity=resisted`, com vínculo de catálogo e posição/série do snapshot. Séries cíclicas, de flexibilidade ou equilíbrio não entram no volume resistido, mesmo em sessão combinada; substituição sem identidade executada comprovada, capacidade desconhecida e slot ambíguo permanecem incomparáveis. Rascunhos não geram volume |
+| Carga e repetições | Última série confirmada pela ordem temporal efetiva no mesmo contexto da unidade de treino e série (`kg`, `rep`) | Prioriza `completedAt` da série guiada e, nas confirmações manuais, `finishedAt` da execução canônica. IDs e datas planejadas não substituem a cronologia. Ausência ou empate de timestamps confiáveis entre registros gera `incomparable` e medições isoladas. Exige confirmação canônica, `capturedCapacity=resisted`, catálogo, seção, posição, sistema, blocos, grupo e série capturados. Capacidade cíclica não vira carga ou repetições resistidas; capacidade incerta ou substituição sem identidade executada comprovada preserva a leitura isolada, com estado `incomparable`. Rascunhos não geram tendência |
 | PSE e PSR | Média das percepções vigentes (`0–10`) dentro do mesmo `scopeKey` | Apenas revisão mais recente por sessão e escopo da #390; campos clínicos, histórico substituído e revisões anteriores não compõem o cálculo |
 | Substituições executadas | Soma das ocorrências distintas `substituted` (`ocorrências`) | Séries/exercícios, etapas cíclicas e agrupamentos resistidos da execução. Um pai `repeat` ou grupo substituído é agregado: quando houver registros substituídos nos filhos/membros, contar as ocorrências individuais, nunca o agregado também. Aprovação planejada isolada não equivale a execução |
 
@@ -681,6 +681,22 @@ essa modalidade apenas pelo nome.
 Capacidade ausente, legado sem catálogo e nomes não reconhecidos nunca viram
 automaticamente modalidade resistida. A fonte de classificação é exclusivamente
 o catálogo congelado, sem tomar atributos mutáveis do WorkoutDay.
+
+**Correção A-019 (volume resistido em treino combinado):** cada item confirmado
+é vinculado pelo `plannedUnitId` à sua unidade de treino no snapshot da execução.
+Somente `capturedCapacity=resisted`, contexto histórico íntegro e sessão cuja
+modalidade capturada contém resistência permitem calcular `load`, `repetitions`
+e `tonnage`. Uma unidade `cyclic`, `flexibility` ou `balance` não contribui
+para esses indicadores mesmo quando a sessão também é resistida. O agregado
+de tonelagem considera apenas séries resistidas certificadas, enquanto a
+comparação por carga/repetições reconhece unidades resistidas equivalentes em
+sessões exclusivamente resistidas e combinadas. Capacidade não identificada,
+catálogo/slot histórico ambíguo, duplicação de unidade e substituição sem prova
+da capacidade realmente executada conservam valores apenas em séries isoladas
+com `incomparable` — nunca são convertidos em zero ou somados ao volume resistido.
+A referência e data do cálculo continuam sendo as da execução canônica, sem
+persistência adicional. Para o aluno, a projeção não inclui IDs nem fórmulas
+internas; a trilha de fontes permanece exclusiva do professor autorizado.
 
 **Correção A-017:** em execução com `cyclicStages[].outcome=substituted`,
 o esporte do método planejado não prova o esporte efetivamente executado.
