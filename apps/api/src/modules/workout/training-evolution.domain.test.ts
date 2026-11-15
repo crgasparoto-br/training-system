@@ -951,7 +951,7 @@ describe('evolução semanal canônica (#405)', () => {
     const run = executed('item-draft', '2026-11-03', 'cyclic+resistance', 'partial');
     run.execution!.plannedExercises = [{
       ...plannedUnit('unit', 'exercise', 'Esteira'),
-      capturedCapacity: 'cyclic', capturedMovementPattern: 'running',
+      capturedCapacity: 'cyclic', capturedCategory: 'running', capturedMovementPattern: 'running',
     }];
     run.execution!.items = [{ plannedUnitId: 'unit', setNumber: 1,
       durationSec: 1200, distanceKm: 4, pace: '05:00' }];
