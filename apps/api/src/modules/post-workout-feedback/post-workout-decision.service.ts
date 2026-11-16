@@ -151,8 +151,9 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
       return client.$transaction(async(tx) => {
         await authorize(tx,c,'view');
         const rows = await tx.postWorkoutFeedbackRevision.findMany({
-          where: { contractId: c.contractId, alunoId: c.alunoId },
-          orderBy: { createdAt: 'desc' }, take: 100,
+          where: { contractId: c.contractId, alunoId: c.alunoId,
+            execution: {status: {in: ['completed','partial']}}, },
+          orderBy: [{ createdAt: 'desc' }, { revisionNumber: 'desc' }], take: 100,
         });
         const seen = new Set<string>();
         return rows.flatMap(row => {
@@ -175,8 +176,8 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
         action: payload.action, rationale, studentMessage, exposeToStudent: payload.exposeToStudent === true });
       return client.$transaction(async(tx) => {
         await authorize(tx,c,'suggest');
-        const locked = await tx.$queryRawUnsafe<Array<{id:string}>>(
-          'SELECT "id" FROM "WorkoutSessionExecution" WHERE "workoutDayId"=$1 AND "alunoId"=$2 AND "contractId"=$3 AND "status" IN (\'completed\',\'partial\') FOR UPDATE',
+        const locked = await tx.$queryRawUnsafe<Array<{id:string;originReleaseId:string;originWorkoutTemplateId:string;originTrainingPlanId:string}>>(
+          'SELECT "id","originReleaseId","originWorkoutTemplateId","originTrainingPlanId" FROM "WorkoutSessionExecution" WHERE "workoutDayId"=$1 AND "alunoId"=$2 AND "contractId"=$3 AND "status" IN (\'completed\',\'partial\') FOR UPDATE',
           payload.workoutDayId,c.alunoId,c.contractId,
         );
         if (!locked.length) fail('NOT_FOUND','Sessão executada não encontrada.');
@@ -194,6 +195,11 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
             alunoId:c.alunoId,contractId:c.contractId,executionId:locked[0].id },
         });
         if (!feedback) fail('NOT_FOUND','Feedback canônico não encontrado.');
+        if (feedback.originReleaseId !== locked[0].originReleaseId ||
+            feedback.originWorkoutTemplateId !== locked[0].originWorkoutTemplateId ||
+            feedback.originTrainingPlanId !== locked[0].originTrainingPlanId) {
+          fail('CONFLICT','O feedback não corresponde à liberação e plano executados.');
+        }
         const latest = await tx.postWorkoutFeedbackRevision.findFirst({
           where: { workoutDayId:feedback.workoutDayId,scopeKey:feedback.scopeKey },
           orderBy: {revisionNumber:'desc'}, select:{id:true},
