@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { ContractType, PrismaClient, ProfessorRole, UserType } from '@prisma/client';
 import { createPostWorkoutDecisionService, PostWorkoutDecisionError } from '../src/modules/post-workout-feedback/post-workout-decision.service.js';
 import { createWorkoutSessionExecutionService } from '../src/modules/workout/workout-session-execution.service.js';
+import { createPostWorkoutFeedbackPersistenceService } from '../src/modules/post-workout-feedback/post-workout-feedback-persistence.service.js';
 import { syncAccessPermissionsForFunction } from '../src/modules/access-control/access-control.service.js';
 
 const integration = process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true' ? describe : describe.skip;
@@ -90,15 +91,12 @@ integration('issue #406: canonical decision persistence and review in PostgreSQL
       actorUserId:studentUser.id,payload:{operationKey:'issue406-complete-'+uuid(),
         expectedVersion:1,targetStatus:'completed'}});
     const execution=await db.workoutSessionExecution.findUniqueOrThrow({where:{workoutDayId:day.id}});
-    const feedback=await db.postWorkoutFeedbackRevision.create({data:{
-      workoutDayId:day.id,executionId:execution.id,alunoId:aluno.id,contractId,
-      scopeKey:'session',revisionNumber:1,perceptionAuthorActor:'student',
-      perceptionAuthorUserId:studentUser.id,revisedByActor:'student',revisedByUserId:studentUser.id,
-      values:{pse:6,observations:'Aluno relatou esforço'},
-      signals:[{code:'effort_review',severity:'warning',message:'Revisar esforço'}],
-      ruleSetVersion:'issue406-test',originReleaseId:execution.originReleaseId,
-      originWorkoutTemplateId:template.id,originTrainingPlanId:plan.id,
-    }});
+    // Feedback also enters through the canonical #390 persistence boundary.
+    const feedback=await createPostWorkoutFeedbackPersistenceService(db).createForStudent({
+      sessionId:day.id,alunoId:aluno.id,contractId,actorUserId:studentUser.id,
+      payload:{operationKey:'issue406-feedback-'+uuid(),
+        values:{pse:6,psr:6,painDuring:3,observations:'Aluno relatou esforço'}},
+    });
     await syncAccessPermissionsForFunction(fn.id,'manager',db);
     const grants=['students.details.postWorkoutFeedback','students.details.trainingDecisions.view',
       'students.details.trainingDecisions.suggest','students.details.trainingDecisions.approve',
