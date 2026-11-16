@@ -7,6 +7,7 @@ import type {
   TransitionPostWorkoutDecisionPayload,
 } from '@corrida/types';
 import { canProfessorAccessBlock, getEffectiveDataScopeForProfessor } from '../access-control/access-control.service.js';
+import { canTransitionDecision, canExposePostWorkoutDecision, isFuturePlanningDate } from './post-workout-decision.domain.js';
 
 const prisma = new PrismaClient();
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -251,8 +252,7 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
           if (prior.action !== kind || prior.requestFingerprint !== fp) fail('CONFLICT','Operação reutilizada com outro conteúdo.');
           return project(current);
         }
-        if (current.status !== (kind==='apply' ? 'approved':'suggested') ||
-          current.version !== payload.expectedVersion) {
+        if (!canTransitionDecision(current.status as PostWorkoutDecisionView['status'],current.version,kind,payload.expectedVersion)) {
           fail('CONFLICT','A decisão foi modificada. Atualize a página.');
         }
         let planning: number | null = null;
@@ -263,10 +263,7 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
           if (!planLock.length) fail('NOT_FOUND','Plano não encontrado.');
           const currentPlanVersion = await planningVersion(tx,current.trainingPlanId);
           if (currentPlanVersion !== apply.expectedPlanningVersion) fail('CONFLICT','O planejamento mudou. Recarregue-o.');
-          const tomorrow = new Date();
-          tomorrow.setUTCHours(0,0,0,0);
-          tomorrow.setUTCDate(tomorrow.getUTCDate()+1);
-          if (apply.effectiveFrom < tomorrow) fail('INVALID_INPUT','Início deve ser futuro.');
+          if (!isFuturePlanningDate(apply.effectiveFrom,new Date())) fail('INVALID_INPUT','Início deve ser futuro.');
           planning = currentPlanVersion + 1;
           await tx.trainingPlanAdjustment.create({data:{
             decisionId:id,trainingPlanId:current.trainingPlanId,contractId:c.contractId,alunoId:c.alunoId,
@@ -296,7 +293,7 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
         where:{alunoId,contractId,status:'applied',exposeToStudent:true,studentMessage:{not:null}},
         orderBy:{appliedAt:'desc'},take:30,
       });
-      return rows.flatMap(row => row.studentMessage && row.appliedAt ? [{
+      return rows.flatMap(row => canExposePostWorkoutDecision(row.status as PostWorkoutDecisionView['status'],row.exposeToStudent,row.studentMessage) && row.appliedAt ? [{
         id:row.id,action:row.action as PostWorkoutDecisionAction,
         message:row.studentMessage,appliedAt:row.appliedAt.toISOString(),
       }] : []);
