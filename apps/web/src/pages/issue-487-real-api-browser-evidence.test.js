@@ -228,14 +228,15 @@ async function startVite(apiOrigin, token) {
   return { vite, origin: 'http://127.0.0.1:' + vite.httpServer.address().port };
 }
 async function clickButton(page, label) {
-  await page.waitForFunction((wanted) => [...document.querySelectorAll('button')].some((button) =>
-    button.textContent?.includes(wanted) && !button.disabled), { timeout: 20000 }, label);
-  await page.evaluate((wanted) => {
+  // CI-487: React can re-render between a separate wait and click. Select and
+  // click the enabled button in one browser evaluation; keep the real 20s gate.
+  await page.waitForFunction((wanted) => {
     const button = [...document.querySelectorAll('button')].find((item) =>
       item.textContent?.includes(wanted) && !item.disabled);
-    if (!button) throw new Error('Button not actionable: ' + wanted);
+    if (!button) return false;
     button.click();
-  }, label);
+    return true;
+  }, { timeout: 20000 }, label);
 }
 async function waitText(page, value) {
   await page.waitForFunction((wanted) =>

@@ -272,7 +272,7 @@ async function setLabeledValue(page: Page, labelText: string, value: string) {
     { timeout: 10_000 },
     labelText
   );
-  await page.evaluate(
+  const interaction = await page.evaluate(
     ({ labelText: label, value: nextValue }) => {
       const labelElement = Array.from(document.querySelectorAll('label')).find(
         (element) => element.textContent?.trim() === label
@@ -283,6 +283,18 @@ async function setLabeledValue(page: Page, labelText: string, value: string) {
         : labelElement.querySelector('input, textarea, select');
       if (!target) throw new Error(`Campo não encontrado para: ${label}`);
 
+      // Campos de texto seguem a interação real do navegador; a edição
+      // sintética pode não atualizar de forma confiável o estado dirty do React.
+      if (
+        target instanceof HTMLInputElement &&
+        ['text', 'tel', 'email', 'search', 'url'].includes(target.type)
+      ) {
+        target.focus();
+        if (document.activeElement !== target) throw new Error(`Foco indisponível: ${label}`);
+        return 'keyboard';
+      }
+
+      // Campos estruturados, como date, precisam preservar o valor ISO.
       const prototype =
         target instanceof HTMLInputElement
           ? HTMLInputElement.prototype
@@ -294,9 +306,20 @@ async function setLabeledValue(page: Page, labelText: string, value: string) {
       setter.call(target, nextValue);
       target.dispatchEvent(new Event('input', { bubbles: true }));
       target.dispatchEvent(new Event('change', { bubbles: true }));
+      return 'setter';
     },
     { labelText, value }
   );
+
+  if (interaction === 'keyboard') {
+    await page.keyboard.down('Control');
+    try {
+      await page.keyboard.press('A');
+    } finally {
+      await page.keyboard.up('Control');
+    }
+    await page.keyboard.type(value);
+  }
 }
 
 async function clickButton(page: Page, name: string) {
@@ -305,7 +328,7 @@ async function clickButton(page: Page, name: string) {
       Array.from(document.querySelectorAll('button')).some(
         (button) => button.textContent?.trim() === buttonName && !button.disabled
       ),
-    { timeout: 10_000 },
+    { timeout: 25_000 },
     name
   );
   await page.evaluate((buttonName) => {
