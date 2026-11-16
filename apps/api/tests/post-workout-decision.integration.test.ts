@@ -191,4 +191,50 @@ integration('issue #406: canonical decision persistence and review in PostgreSQL
     expect(outcomes.filter(x=>x.status==='rejected')).toHaveLength(1);
     expect(await db.trainingPlanAdjustment.count({where:{trainingPlanId:f.planId}})).toBe(1);
   });
+  it('uses a single transition event for two concurrent clients retrying one approval',async()=>{
+    const f=await fixture(),decision=await service.suggest(f.c,suggestion(f));
+    const command=operation(1);
+    const [a,b]=await Promise.all([
+      service.transition(f.c,decision.id,'approve',command),
+      peerService.transition(f.c,decision.id,'approve',command),
+    ]);
+    expect(a.id).toBe(b.id);
+    expect(a.version).toBe(2);
+    expect(await db.postWorkoutDecisionOperation.count({where:{decisionId:decision.id}})).toBe(1);
+    expect(await db.studentLifecycleEvent.count({where:{
+      alunoId:f.alunoId,metadata:{path:['decisionId'],equals:decision.id},
+    }})).toBe(2);
+  });
+  it('rolls back the decision and audit if creating the target plan version fails',async()=>{
+    const f=await fixture(),decision=await service.suggest(f.c,suggestion(f));
+    await service.transition(f.c,decision.id,'approve',operation(1));
+    const beforeEvents=await db.studentLifecycleEvent.count({where:{
+      alunoId:f.alunoId,metadata:{path:['decisionId'],equals:decision.id},
+    }});
+    // A NOT VALID constraint still checks new inserts; other tenants are unaffected.
+    const constraint='issue406_block_'+uuid().replace(/-/g,'').slice(0,12);
+    await db.$executeRawUnsafe(
+      'ALTER TABLE "TrainingPlanAdjustment" ADD CONSTRAINT "'+constraint+'" CHECK ("contractId" <> $1) NOT VALID',f.contractId,
+    ).catch(async()=>{
+      // PostgreSQL does not allow parameter placeholders in ALTER TABLE DDL.
+      await db.$executeRawUnsafe(
+        'ALTER TABLE "TrainingPlanAdjustment" ADD CONSTRAINT "'+constraint+'" CHECK ("contractId" <> \''+f.contractId+'\') NOT VALID'
+      );
+    });
+    try {
+      await expect(service.transition(f.c,decision.id,'apply',{
+        ...operation(2),expectedPlanningVersion:0,effectiveFrom:future(),
+        instruction:'Alteração de planejamento a ser rejeitada pelo banco',
+      })).rejects.toThrow();
+      expect((await service.listForProfessor(f.c)).decisions.find(x=>x.id===decision.id)?.status).toBe('approved');
+      expect(await db.trainingPlanAdjustment.count({where:{decisionId:decision.id}})).toBe(0);
+      expect(await db.postWorkoutDecisionOperation.count({where:{decisionId:decision.id}})).toBe(1);
+      expect(await db.studentLifecycleEvent.count({where:{
+        alunoId:f.alunoId,metadata:{path:['decisionId'],equals:decision.id},
+      }})).toBe(beforeEvents);
+    } finally {
+      await db.$executeRawUnsafe('ALTER TABLE "TrainingPlanAdjustment" DROP CONSTRAINT "'+constraint+'"');
+    }
+  });
+
 });
