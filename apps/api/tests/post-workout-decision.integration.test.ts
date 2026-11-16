@@ -158,7 +158,9 @@ integration('issue #406: canonical decision persistence and review in PostgreSQL
     expect(await db.postWorkoutDecisionOperation.count({where:{decisionId:suggested.id}})).toBe(2);
     expect((await service.notices(f.alunoId,f.contractId)).map(x=>x.message))
       .toEqual(['Converse com seu professor antes de mudar sua rotina.']);
-    await expect(service.transition(f.c,suggested.id,'reject',operation(3)))
+    await expect(service.transition(f.c,suggested.id,'reject',{
+      ...operation(3),reason:'Decisão já aplicada; rejeição tardia não é permitida.',
+    }))
       .rejects.toMatchObject({code:'CONFLICT'});
   });
   it('rejects permanently with reason and forbids direct SQL rewrite or deletion',async()=>{
