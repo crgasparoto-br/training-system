@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostWorkoutDecisionView } from '@corrida/types';
 import { postWorkoutDecisionService } from '../services/post-workout-decision.service';
@@ -180,6 +180,86 @@ describe('professional post-workout decision panel', () => {
         instruction:'Instrucoes exclusivas da segunda',
       }),
     );
+  });
+
+
+  it('discards an older pending student response after changing student and contract', async () => {
+    type DecisionPage = Awaited<ReturnType<typeof postWorkoutDecisionService.list>>;
+    let resolveOlder!: (page: DecisionPage) => void;
+    const older = new Promise<DecisionPage>(resolve => { resolveOlder = resolve; });
+    vi.mocked(postWorkoutDecisionService.list)
+      .mockReturnValueOnce(older)
+      .mockResolvedValueOnce({
+        decisions: [{...decision('new'), alunoId: 'student-b', contractId: 'contract-b'}],
+        planningVersions: {}, nextCursor: null,
+      });
+    const view = render(<PostWorkoutDecisionPanel {...props} />);
+    await waitFor(() => expect(postWorkoutDecisionService.list).toHaveBeenCalledTimes(1));
+    view.rerender(<PostWorkoutDecisionPanel {...props}
+      alunoId="student-b" contractId="contract-b" authorizationKey="granted-b" />);
+    expect(await screen.findByText('Justificativa new')).toBeInTheDocument();
+    await act(async () => {
+      resolveOlder({decisions:[decision('older')], planningVersions:{}, nextCursor:null});
+    });
+    expect(screen.queryByText('Justificativa older')).toBeNull();
+    expect(postWorkoutDecisionService.list).toHaveBeenNthCalledWith(2,'student-b');
+  });
+
+  it('discards pending clinical data when permission is revoked during a request', async () => {
+    type DecisionPage = Awaited<ReturnType<typeof postWorkoutDecisionService.list>>;
+    let resolvePending!: (page: DecisionPage) => void;
+    vi.mocked(postWorkoutDecisionService.list).mockReturnValueOnce(
+      new Promise<DecisionPage>(resolve => { resolvePending = resolve; }),
+    );
+    const view = render(<PostWorkoutDecisionPanel {...props} />);
+    await waitFor(() => expect(postWorkoutDecisionService.list).toHaveBeenCalledTimes(1));
+    view.rerender(<PostWorkoutDecisionPanel {...props}
+      canView={false} canSuggest={false} canApprove={false} canApply={false}
+      authorizationKey="revoked-during-load" />);
+    await act(async () => {
+      resolvePending({decisions:[decision('private')], planningVersions:{}, nextCursor:null});
+    });
+    expect(screen.queryByText('Justificativa private')).toBeNull();
+    expect(screen.queryByRole('region', {name:'Decisões pós-treino'})).toBeNull();
+  });
+
+  it('clears stale clinical data on a failed refresh and can retry safely', async () => {
+    vi.mocked(postWorkoutDecisionService.list)
+      .mockResolvedValueOnce({decisions:[decision('first')],planningVersions:{},nextCursor:null})
+      .mockRejectedValueOnce(new Error('temporary network outage'))
+      .mockResolvedValueOnce({decisions:[decision('recovered')],planningVersions:{},nextCursor:null});
+    render(<PostWorkoutDecisionPanel {...props} />);
+    expect(await screen.findByText('Justificativa first')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'Atualizar'}));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível concluir esta operação');
+    expect(screen.queryByText('Justificativa first')).toBeNull();
+    fireEvent.click(screen.getByRole('button',{name:'Atualizar'}));
+    expect(await screen.findByText('Justificativa recovered')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(postWorkoutDecisionService.list).toHaveBeenCalledTimes(3);
+  });
+
+  it('retries a failed approval with the same operation key, without duplicating the intention', async () => {
+    vi.mocked(postWorkoutDecisionService.transition)
+      .mockRejectedValueOnce(new Error('response lost after commit'))
+      .mockResolvedValueOnce(approvedDecision('first'));
+    render(<PostWorkoutDecisionPanel {...props} />);
+    expect(await screen.findByText('Justificativa first')).toBeInTheDocument();
+    fireEvent.change(article('first').getByRole('textbox',{name:/Motivo/}),{
+      target:{value:'Aprovação mantida no retry'},
+    });
+    fireEvent.click(article('first').getByRole('button',{name:'Aprovar'}));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível concluir esta operação');
+    fireEvent.click(article('first').getByRole('button',{name:'Aprovar'}));
+    await waitFor(() => expect(postWorkoutDecisionService.transition).toHaveBeenCalledTimes(2));
+    const calls=vi.mocked(postWorkoutDecisionService.transition).mock.calls;
+    expect(calls[0]?.[0]).toBe(props.alunoId);
+    expect(calls[0]?.[1]).toBe('first');
+    expect(calls[0]?.[2]).toBe('approve');
+    expect(calls[0]?.[3]).toMatchObject({
+      reason:'Aprovação mantida no retry',expectedVersion:1,
+    });
+    expect(calls[0]?.[3].operationKey).toBe(calls[1]?.[3].operationKey);
   });
 
   it('hides cached clinical decisions immediately after permission revocation', async () => {

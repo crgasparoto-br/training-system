@@ -22,6 +22,11 @@
 - Auditoria independente do diff, controles negativos e ausência de regressões.
 - PR para develop sem merge.
 
+## Ressalvas operacionais — PR #548 (16/11/2026)
+- **RISK-001:** roteiro de homologação física em `docs/quality/issue-406-post-workout-decision-homologation.md`, com 14 cenários por dispositivo, dados fictícios, evidências obrigatórias e critério de aceite fail-closed. Os testes do painel incluem troca rápida de aluno/contrato, revogação com requisição pendente, recuperação após falha de rede e retry com a mesma chave idempotente. A execução física e seu registro ainda são externos, não homologados por CI.
+- **LIM-001:** contrato GitHub-native confiável em `docs/audit/github-native-contract.json` e roteiro de auditoria independente exact-SHA no documento operacional. CI, automação e esta implementação não emitem nem substituem o parecer de contexto separado.
+- **Fechamento:** não retirar Draft/merge nem fechar a issue antes de 28 PASS em dispositivos físicos, CI exato verde e recibo de reauditoria independente no HEAD corrente.
+
 ## Limites
 - Orientação futura não substitui revisão de prescrição e liberação operacional.
 - Ativação de regras clínicas combinadas segue fluxo de homologação separado.
