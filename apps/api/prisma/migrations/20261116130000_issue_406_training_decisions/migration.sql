@@ -63,7 +63,9 @@ CREATE TABLE "PostWorkoutDecisionOperation" (
   "lifecycleEventId" TEXT NOT NULL,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "PostWorkoutDecisionOperation_decisionId_fkey"
-    FOREIGN KEY ("decisionId") REFERENCES "PostWorkoutDecision"("id") ON DELETE RESTRICT
+    FOREIGN KEY ("decisionId") REFERENCES "PostWorkoutDecision"("id") ON DELETE RESTRICT,
+  CONSTRAINT "PostWorkoutDecisionOperation_lifecycleEventId_fkey"
+    FOREIGN KEY ("lifecycleEventId") REFERENCES "StudentLifecycleEvent"("id") ON DELETE RESTRICT
 );
 CREATE UNIQUE INDEX "PostWorkoutDecisionOperation_decisionId_operationKey_key"
   ON "PostWorkoutDecisionOperation"("decisionId","operationKey");
@@ -164,3 +166,53 @@ CREATE CONSTRAINT TRIGGER "PostWorkoutDecision_requires_effect"
   AFTER INSERT OR UPDATE ON "PostWorkoutDecision"
   DEFERRABLE INITIALLY DEFERRED
   FOR EACH ROW EXECUTE FUNCTION "guard_applied_decision_effect"();
+
+
+-- Every effect must belong to an applied decision at commit and retain exact provenance.
+CREATE FUNCTION "guard_planning_adjustment_owner"() RETURNS trigger AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM "PostWorkoutDecision" d
+    WHERE d."id"=NEW."decisionId" AND d."contractId"=NEW."contractId"
+      AND d."alunoId"=NEW."alunoId" AND d."trainingPlanId"=NEW."trainingPlanId"
+      AND d."action"=NEW."action" AND d."sourceSnapshot"=NEW."sourceSnapshot"
+  ) THEN RAISE EXCEPTION 'Planning adjustment does not match decision origin' USING ERRCODE='23514'; END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER "TrainingPlanAdjustment_same_subject"
+  BEFORE INSERT ON "TrainingPlanAdjustment"
+  FOR EACH ROW EXECUTE FUNCTION "guard_planning_adjustment_owner"();
+
+CREATE FUNCTION "guard_planning_adjustment_final_state"() RETURNS trigger AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM "PostWorkoutDecision" d
+    WHERE d."id"=NEW."decisionId" AND d."status"='applied'
+      AND d."appliedByProfessorId"=NEW."appliedByProfessorId"
+      AND d."appliedAt" IS NOT NULL
+  ) THEN RAISE EXCEPTION 'Planning adjustment requires applied decision' USING ERRCODE='23514'; END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+CREATE CONSTRAINT TRIGGER "TrainingPlanAdjustment_requires_applied"
+  AFTER INSERT ON "TrainingPlanAdjustment"
+  DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION "guard_planning_adjustment_final_state"();
+
+-- A confirmed audit event may not be changed or removed, including by SQL.
+CREATE FUNCTION "guard_decision_lifecycle_event"() RETURNS trigger AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM "PostWorkoutDecisionOperation" op WHERE op."lifecycleEventId"=OLD."id")
+     OR EXISTS (SELECT 1 FROM "PostWorkoutDecision" d WHERE OLD."metadata"->>'domain'='training_decision'
+        AND OLD."metadata"->>'decisionId'=d."id" AND OLD."metadata"->>'version'='1') THEN
+    IF TG_OP='DELETE' OR to_jsonb(NEW) IS DISTINCT FROM to_jsonb(OLD) THEN
+      RAISE EXCEPTION 'Decision lifecycle evidence is immutable' USING ERRCODE='23514';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER "StudentLifecycleEvent_decision_immutable"
+  BEFORE UPDATE OR DELETE ON "StudentLifecycleEvent"
+  FOR EACH ROW EXECUTE FUNCTION "guard_decision_lifecycle_event"();
