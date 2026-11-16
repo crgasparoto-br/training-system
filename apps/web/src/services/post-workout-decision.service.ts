@@ -1,0 +1,43 @@
+import type {
+  ApplyPostWorkoutDecisionPayload, CreatePostWorkoutDecisionPayload,
+  PostWorkoutDecisionSource, PostWorkoutDecisionStudentNotice,
+  PostWorkoutDecisionView, TransitionPostWorkoutDecisionPayload,
+} from '@corrida/types';
+import api from './api';
+
+type ApiEnvelope<T> = { success:boolean;data:T;message?:string };
+const root='/training-decisions';
+export const postWorkoutDecisionService={
+  async list(alunoId:string) {
+    const response=await api.get<ApiEnvelope<{
+      decisions:PostWorkoutDecisionView[];
+      planningVersions:Record<string,number>;
+    }>>(root+'/alunos/'+encodeURIComponent(alunoId));
+    return response.data.data;
+  },
+  async sources(alunoId:string) {
+    const response=await api.get<ApiEnvelope<PostWorkoutDecisionSource[]>>(
+      root+'/alunos/'+encodeURIComponent(alunoId)+'/sources'
+    );
+    return response.data.data;
+  },
+  async suggest(alunoId:string,payload:CreatePostWorkoutDecisionPayload) {
+    const response=await api.post<ApiEnvelope<PostWorkoutDecisionView>>(
+      root+'/alunos/'+encodeURIComponent(alunoId),payload
+    );
+    return response.data.data;
+  },
+  async transition(alunoId:string,decisionId:string,action:'approve'|'reject'|'apply',
+    payload:TransitionPostWorkoutDecisionPayload|ApplyPostWorkoutDecisionPayload) {
+    const response=await api.post<ApiEnvelope<PostWorkoutDecisionView>>(
+      root+'/alunos/'+encodeURIComponent(alunoId)+'/'+encodeURIComponent(decisionId)+'/'+action,payload
+    );
+    return response.data.data;
+  },
+  async notices(contractId?:string) {
+    const response=await api.get<ApiEnvelope<PostWorkoutDecisionStudentNotice[]>>(
+      root+'/student/me',contractId?{headers:{'x-contract-id':contractId}}:undefined
+    );
+    return response.data.data;
+  },
+};
