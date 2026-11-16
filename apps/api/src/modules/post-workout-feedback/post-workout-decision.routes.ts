@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware, alunoMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
@@ -27,6 +28,10 @@ const applySchema = reviewSchema.extend({
 
 function report(res:Response,error:unknown) {
   if (error instanceof z.ZodError) return sendError(res,'Dados inválidos',400,error.errors);
+  if (error instanceof Prisma.PrismaClientKnownRequestError &&
+    (error.code === 'P2002' || error.code === 'P2034')) {
+    return sendError(res,'O registro foi alterado por outra operação. Atualize antes de continuar.',409,{code:'CONFLICT'});
+  }
   if (error instanceof StudentAccountContextError) {
     return sendError(res,error.message,error.code==='STUDENT_CONTRACT_CONTEXT_REQUIRED'?409:404);
   }
