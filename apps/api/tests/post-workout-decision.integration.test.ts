@@ -179,6 +179,41 @@ integration('issue #406: canonical decision persistence and review in PostgreSQL
     await expect(db.$executeRawUnsafe('DELETE FROM "PostWorkoutDecision" WHERE "id"=$1',decision.id)).rejects.toThrow();
     expect(await service.notices(f.alunoId,f.contractId)).toHaveLength(0);
   });
+  it('rejects SQL-level rejection without a reason, preserving state and audit, then allows a valid review',async()=>{
+    const f=await fixture(),decision=await service.suggest(f.c,suggestion(f));
+    const before=await db.postWorkoutDecision.findUniqueOrThrow({where:{id:decision.id}});
+    const eventFilter={alunoId:f.alunoId,metadata:{path:['decisionId'],equals:decision.id}};
+    const initialEvents=await db.studentLifecycleEvent.count({where:eventFilter});
+    expect(initialEvents).toBe(1);
+
+    for(const invalidReason of [null,'','   ']){
+      await expect(db.$executeRaw`
+        UPDATE "PostWorkoutDecision"
+        SET "status"='rejected',"version"=2,
+            "rejectedByProfessorId"=${f.c.actorProfessorId},
+            "rejectedAt"=CURRENT_TIMESTAMP,"rejectionReason"=${invalidReason}
+        WHERE "id"=${decision.id}
+      `).rejects.toThrow(/Invalid rejection reason/);
+      expect(await db.postWorkoutDecision.findUniqueOrThrow({where:{id:decision.id}})).toEqual(before);
+      expect(await db.studentLifecycleEvent.count({where:eventFilter})).toBe(initialEvents);
+      expect(await db.postWorkoutDecisionOperation.count({where:{decisionId:decision.id}})).toBe(0);
+      expect(await db.trainingPlanAdjustment.count({where:{decisionId:decision.id}})).toBe(0);
+    }
+
+    const reason='Feedback insuficiente para justificar uma nova orientação.';
+    const approvedByApi=await service.transition(f.c,decision.id,'reject',{
+      ...operation(1),reason,
+    });
+    expect(approvedByApi).toMatchObject({status:'rejected',version:2,
+      rejectionReason:reason,rejectedByProfessorId:f.c.actorProfessorId});
+    const persisted=await db.postWorkoutDecision.findUniqueOrThrow({where:{id:decision.id}});
+    expect(persisted).toMatchObject({status:'rejected',version:2,
+      rejectionReason:reason,rejectedByProfessorId:f.c.actorProfessorId});
+    expect(persisted.rejectedAt).not.toBeNull();
+    expect(await db.studentLifecycleEvent.count({where:eventFilter})).toBe(initialEvents+1);
+    expect(await db.postWorkoutDecisionOperation.count({where:{decisionId:decision.id,action:'reject'}})).toBe(1);
+    expect(await db.trainingPlanAdjustment.count({where:{decisionId:decision.id}})).toBe(0);
+  });
   it('enforces live permission and contract scope, including application permission',async()=>{
     const f=await fixture(),decision=await service.suggest(f.c,suggestion(f));
     await db.accessPermission.updateMany({where:{collaboratorFunctionId:f.fnId,

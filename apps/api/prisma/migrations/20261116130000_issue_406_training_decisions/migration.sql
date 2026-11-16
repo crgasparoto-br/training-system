@@ -36,7 +36,8 @@ CREATE TABLE "PostWorkoutDecision" (
       OR ("status"='approved' AND "approvedByProfessorId" IS NOT NULL
         AND "approvedAt" IS NOT NULL AND "rejectedAt" IS NULL AND "appliedAt" IS NULL)
       OR ("status"='rejected' AND "rejectedByProfessorId" IS NOT NULL
-        AND "rejectedAt" IS NOT NULL AND length(btrim("rejectionReason"))>0
+        AND "rejectedAt" IS NOT NULL AND "rejectionReason" IS NOT NULL
+        AND length(btrim("rejectionReason"))>0
         AND "approvedAt" IS NULL AND "appliedAt" IS NULL)
       OR ("status"='applied' AND "approvedByProfessorId" IS NOT NULL AND "approvedAt" IS NOT NULL
         AND "appliedByProfessorId" IS NOT NULL AND "appliedAt" IS NOT NULL AND "rejectedAt" IS NULL))
@@ -115,6 +116,11 @@ BEGIN
       RAISE EXCEPTION 'Invalid initial decision state' USING ERRCODE='23514';
     END IF;
     RETURN NEW;
+  END IF;
+  -- CHECK constraints accept UNKNOWN, so guard rejection reason nullability explicitly.
+  IF NEW."status"='rejected' AND
+     (NEW."rejectionReason" IS NULL OR length(btrim(NEW."rejectionReason"))=0) THEN
+    RAISE EXCEPTION 'Invalid rejection reason' USING ERRCODE='23514';
   END IF;
   IF OLD."id" IS DISTINCT FROM NEW."id"
     OR OLD."contractId" IS DISTINCT FROM NEW."contractId"
