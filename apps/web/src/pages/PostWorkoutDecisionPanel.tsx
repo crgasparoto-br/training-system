@@ -19,6 +19,8 @@ type Data={
   decisions:PostWorkoutDecisionView[];planningVersions:Record<string,number>;
   nextCursor:string|null;sources:PostWorkoutDecisionSource[];sourceNextCursor:string|null;
 };
+type DecisionDraft={reviewReason:string;effectiveFrom:string;instruction:string};
+const emptyDecisionDraft:DecisionDraft={reviewReason:'',effectiveFrom:'',instruction:''};
 const actionLabels:Record<PostWorkoutDecisionAction,string>={
   maintain:'Manter',progress:'Progredir',reduce:'Reduzir',replace:'Substituir',
   suspend:'Suspender',reassess:'Reavaliar',
@@ -46,9 +48,7 @@ export function PostWorkoutDecisionPanel({
   const [rationale,setRationale]=useState('');
   const [studentMessage,setStudentMessage]=useState('');
   const [exposeToStudent,setExposeToStudent]=useState(false);
-  const [reviewReason,setReviewReason]=useState('');
-  const [effectiveFrom,setEffectiveFrom]=useState('');
-  const [instruction,setInstruction]=useState('');
+  const [decisionDrafts,setDecisionDrafts]=useState<Record<string,DecisionDraft>>({});
   const generation=useRef(0);
   const createKey=useRef<string|null>(null);
   const transitionKeys=useRef<Record<string,string>>({});
@@ -73,7 +73,7 @@ export function PostWorkoutDecisionPanel({
   },[alunoId,contractId,canView,authorizationKey]);
   useEffect(()=>{
     generation.current++;
-    setData(null);setError(null);setSourceId('');
+    setData(null);setError(null);setSourceId('');setDecisionDrafts({});
     createKey.current=null;transitionKeys.current={};
     if(canView && contractId)void load();
     return ()=>{generation.current++;};
@@ -115,6 +115,15 @@ export function PostWorkoutDecisionPanel({
     finally{if(token===generation.current)setLoadingSources(false);}
   };
   const resetCreateKey=()=>{createKey.current=null;};
+  const updateDecisionDraft=(decisionId:string,patch:Partial<DecisionDraft>)=>{
+    setDecisionDrafts(current=>({...current,
+      [decisionId]:{...emptyDecisionDraft,...current[decisionId],...patch},
+    }));
+    // Changing one decision must not invalidate retries of another decision.
+    for(const kind of ['approve','reject','apply'] as const){
+      delete transitionKeys.current[decisionId+':'+kind];
+    }
+  };
   const suggest=async()=>{
     const source=data?.sources.find(x=>x.feedbackRevisionId===sourceId);
     if(!canSuggest||!source || saving)return;
@@ -133,6 +142,7 @@ export function PostWorkoutDecisionPanel({
   };
   const transition=async(row:PostWorkoutDecisionView,kind:'approve'|'reject'|'apply')=>{
     if(saving)return;
+    const draft=decisionDrafts[row.id]??emptyDecisionDraft;
     setSaving(true);setError(null);
     const k=row.id+':'+kind;
     transitionKeys.current[k] ||=nextKey();
@@ -141,15 +151,20 @@ export function PostWorkoutDecisionPanel({
       if(kind==='apply'){
         await postWorkoutDecisionService.transition(alunoId,row.id,kind,{
           ...payload,expectedPlanningVersion:data?.planningVersions[row.trainingPlanId]??0,
-          effectiveFrom,instruction,
+          effectiveFrom:draft.effectiveFrom,instruction:draft.instruction,
         });
       }else{
         await postWorkoutDecisionService.transition(alunoId,row.id,kind,{
-          ...payload,reason:reviewReason.trim()||undefined,
+          ...payload,reason:draft.reviewReason.trim()||undefined,
         });
       }
-      delete transitionKeys.current[k];
-      setReviewReason('');setInstruction('');setEffectiveFrom('');
+      for(const action of ['approve','reject','apply'] as const){
+        delete transitionKeys.current[row.id+':'+action];
+      }
+      setDecisionDrafts(current=>{
+        if(!(row.id in current))return current;
+        const next={...current};delete next[row.id];return next;
+      });
       await load();
     }catch(e){setError(errorMessage(e));}
     finally{setSaving(false);}
@@ -237,13 +252,14 @@ export function PostWorkoutDecisionPanel({
         {row.status==='suggested'&&canApprove&&<div className="space-y-2 border-t border-border pt-2">
           <label className="block space-y-1"><span>Motivo (obrigatório para rejeitar)</span>
             <textarea rows={2} maxLength={1000} className="w-full rounded border border-border bg-background p-2"
-              value={reviewReason} onChange={e=>{setReviewReason(e.target.value);transitionKeys.current={};}}/>
+              value={decisionDrafts[row.id]?.reviewReason??''}
+              onChange={e=>updateDecisionDraft(row.id,{reviewReason:e.target.value})}/>
           </label>
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" disabled={saving} onClick={()=>{void transition(row,'approve');}}>
               <Check size={15} aria-hidden="true"/>Aprovar
             </Button>
-            <Button type="button" size="sm" variant="outline" disabled={saving||!reviewReason.trim()}
+            <Button type="button" size="sm" variant="outline" disabled={saving||!decisionDrafts[row.id]?.reviewReason?.trim()}
               onClick={()=>{void transition(row,'reject');}}>
               <X size={15} aria-hidden="true"/>Rejeitar
             </Button>
@@ -253,16 +269,18 @@ export function PostWorkoutDecisionPanel({
           <p className="text-xs text-muted-foreground">A aplicação cria uma versão de orientação para o planejamento futuro; não altera treinos já liberados.</p>
           <label className="block space-y-1"><span>Início futuro</span>
             <input type="date" className="w-full rounded border border-border bg-background p-2"
-              value={effectiveFrom} onChange={e=>{setEffectiveFrom(e.target.value);transitionKeys.current={};}}/>
+              value={decisionDrafts[row.id]?.effectiveFrom??''}
+              onChange={e=>updateDecisionDraft(row.id,{effectiveFrom:e.target.value})}/>
           </label>
           <label className="block space-y-1"><span>Alteração de planejamento</span>
             <textarea rows={2} maxLength={2000} className="w-full rounded border border-border bg-background p-2"
-              value={instruction} onChange={e=>{setInstruction(e.target.value);transitionKeys.current={};}}/>
+              value={decisionDrafts[row.id]?.instruction??''}
+              onChange={e=>updateDecisionDraft(row.id,{instruction:e.target.value})}/>
           </label>
           <p className="text-xs text-muted-foreground">
             Versão atual de ajustes do plano: {data.planningVersions[row.trainingPlanId]??0}
           </p>
-          <Button type="button" size="sm" disabled={saving||!effectiveFrom||!instruction.trim()}
+          <Button type="button" size="sm" disabled={saving||!decisionDrafts[row.id]?.effectiveFrom||!decisionDrafts[row.id]?.instruction?.trim()}
             onClick={()=>{void transition(row,'apply');}}>Aplicar ao planejamento futuro</Button>
         </div>}
       </article>)}

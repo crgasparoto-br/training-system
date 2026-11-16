@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostWorkoutDecisionView } from '@corrida/types';
 import { postWorkoutDecisionService } from '../services/post-workout-decision.service';
@@ -34,6 +34,16 @@ const decision = (id: string): PostWorkoutDecisionView => ({
     }, signals: [],
   },
 });
+
+const approvedDecision=(id:string):PostWorkoutDecisionView=>({
+  ...decision(id),status:'approved',version:2,
+  approvedAt:'2026-11-16T13:00:00Z',approvedByProfessorId:'professor-406',
+});
+const article=(id:string)=>{
+  const element=screen.getByText('Justificativa '+id).closest('article');
+  if(!element)throw new Error('Decisao '+id+' sem formulario');
+  return within(element);
+};
 
 beforeEach(() => {
   vi.mocked(postWorkoutDecisionService.list).mockReset();
@@ -78,6 +88,98 @@ describe('professional post-workout decision panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Carregar mais sessões com feedback' }));
     expect(await screen.findByRole('option', { name: /revisão 2/ })).toBeInTheDocument();
     expect(postWorkoutDecisionService.sources).toHaveBeenCalledWith('student-406', 'revision-a');
+  });
+
+  it('keeps rejection reasons isolated and sends only the selected decision reason',async()=>{
+    vi.mocked(postWorkoutDecisionService.list).mockResolvedValue({
+      decisions:[decision('first'),decision('second')],planningVersions:{},nextCursor:null,
+    });
+    vi.mocked(postWorkoutDecisionService.transition).mockResolvedValue(decision('second'));
+    render(<PostWorkoutDecisionPanel {...props}/>);
+    expect(await screen.findByText('Justificativa second')).toBeInTheDocument();
+    const first=article('first'),second=article('second');
+    const firstReason=first.getByRole('textbox',{name:/Motivo/});
+    const secondReason=second.getByRole('textbox',{name:/Motivo/});
+    fireEvent.change(firstReason,{target:{value:'Motivo apenas da primeira decisao'}});
+    expect(secondReason).toHaveValue('');
+    expect(second.getByRole('button',{name:'Rejeitar'})).toBeDisabled();
+    fireEvent.change(secondReason,{target:{value:'Motivo exclusivo da segunda decisao'}});
+    expect(firstReason).toHaveValue('Motivo apenas da primeira decisao');
+    fireEvent.click(second.getByRole('button',{name:'Rejeitar'}));
+    await waitFor(()=>expect(postWorkoutDecisionService.transition).toHaveBeenCalledTimes(1));
+    expect(postWorkoutDecisionService.transition).toHaveBeenCalledWith(
+      props.alunoId,'second','reject',expect.objectContaining({
+        expectedVersion:1,reason:'Motivo exclusivo da segunda decisao',
+      }),
+    );
+  });
+
+  it('preserves the other approval draft after submitting the first decision',async()=>{
+    vi.mocked(postWorkoutDecisionService.list).mockResolvedValue({
+      decisions:[decision('first'),decision('second')],planningVersions:{},nextCursor:null,
+    });
+    vi.mocked(postWorkoutDecisionService.transition).mockResolvedValue(approvedDecision('first'));
+    render(<PostWorkoutDecisionPanel {...props}/>);
+    expect(await screen.findByText('Justificativa second')).toBeInTheDocument();
+    fireEvent.change(article('first').getByRole('textbox',{name:/Motivo/}),{
+      target:{value:'Aprovacao da primeira'},
+    });
+    fireEvent.change(article('second').getByRole('textbox',{name:/Motivo/}),{
+      target:{value:'Aprovacao da segunda'},
+    });
+    fireEvent.click(article('first').getByRole('button',{name:'Aprovar'}));
+    await waitFor(()=>expect(postWorkoutDecisionService.transition).toHaveBeenCalledWith(
+      props.alunoId,'first','approve',expect.objectContaining({
+        expectedVersion:1,reason:'Aprovacao da primeira',
+      }),
+    ));
+    await waitFor(()=>expect(article('second').getByRole('textbox',{name:/Motivo/}))
+      .toHaveValue('Aprovacao da segunda'));
+    await waitFor(()=>expect(article('second').getByRole('button',{name:'Aprovar'}))
+      .not.toBeDisabled());
+    fireEvent.click(article('second').getByRole('button',{name:'Aprovar'}));
+    await waitFor(()=>expect(postWorkoutDecisionService.transition).toHaveBeenCalledTimes(2));
+    expect(postWorkoutDecisionService.transition).toHaveBeenLastCalledWith(
+      props.alunoId,'second','approve',expect.objectContaining({
+        expectedVersion:1,reason:'Aprovacao da segunda',
+      }),
+    );
+  });
+
+  it('never applies the date and instruction of one approved decision to another',async()=>{
+    vi.mocked(postWorkoutDecisionService.list).mockResolvedValue({
+      decisions:[approvedDecision('first'),approvedDecision('second')],
+      planningVersions:{'plan-406':3},nextCursor:null,
+    });
+    vi.mocked(postWorkoutDecisionService.transition).mockResolvedValue(approvedDecision('second'));
+    render(<PostWorkoutDecisionPanel {...props}/>);
+    expect(await screen.findByText('Justificativa second')).toBeInTheDocument();
+    fireEvent.change(article('first').getByLabelText(/In.cio futuro/),{
+      target:{value:'2026-12-20'},
+    });
+    fireEvent.change(article('first').getByLabelText(/Altera..o de planejamento/),{
+      target:{value:'Instrucoes exclusivas da primeira'},
+    });
+    expect(article('second').getByLabelText(/In.cio futuro/)).toHaveValue('');
+    expect(article('second').getByRole('button',{name:'Aplicar ao planejamento futuro'}))
+      .toBeDisabled();
+    fireEvent.change(article('second').getByLabelText(/In.cio futuro/),{
+      target:{value:'2026-12-25'},
+    });
+    fireEvent.change(article('second').getByLabelText(/Altera..o de planejamento/),{
+      target:{value:'Instrucoes exclusivas da segunda'},
+    });
+    expect(article('first').getByLabelText(/In.cio futuro/)).toHaveValue('2026-12-20');
+    expect(article('first').getByLabelText(/Altera..o de planejamento/))
+      .toHaveValue('Instrucoes exclusivas da primeira');
+    fireEvent.click(article('second').getByRole('button',{name:'Aplicar ao planejamento futuro'}));
+    await waitFor(()=>expect(postWorkoutDecisionService.transition).toHaveBeenCalledTimes(1));
+    expect(postWorkoutDecisionService.transition).toHaveBeenCalledWith(
+      props.alunoId,'second','apply',expect.objectContaining({
+        expectedVersion:2,expectedPlanningVersion:3,effectiveFrom:'2026-12-25',
+        instruction:'Instrucoes exclusivas da segunda',
+      }),
+    );
   });
 
   it('hides cached clinical decisions immediately after permission revocation', async () => {
