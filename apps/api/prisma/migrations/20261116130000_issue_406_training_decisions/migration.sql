@@ -213,7 +213,7 @@ BEGIN
   IF TG_OP='DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 CREATE TRIGGER "StudentLifecycleEvent_decision_immutable"
   BEFORE UPDATE OR DELETE ON "StudentLifecycleEvent"
   FOR EACH ROW EXECUTE FUNCTION "guard_decision_lifecycle_event"();
