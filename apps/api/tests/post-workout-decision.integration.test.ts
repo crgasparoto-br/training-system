@@ -279,7 +279,7 @@ integration('issue #406: canonical decision persistence and review in PostgreSQL
     await db.postWorkoutDecision.createMany({data:Array.from({length:100},(_,i)=>({
       contractId:f.contractId,alunoId:f.alunoId,workoutDayId:f.dayId,
       sourceFeedbackRevisionId:f.feedbackId,trainingPlanId:f.planId,
-      sourceSnapshot:first.sourceSnapshot as Prisma.InputJsonValue,
+      sourceSnapshot:first.sourceSnapshot as unknown as Prisma.InputJsonValue,
       action:'maintain',rationale:'Registro histórico '+i,
       studentMessage:null,exposeToStudent:false,suggestedByProfessorId:f.c.actorProfessorId,
       suggestionKey:'history-'+uuid(),requestFingerprint:'test-'+uuid(),
