@@ -210,9 +210,10 @@ BEGIN
       RAISE EXCEPTION 'Decision lifecycle evidence is immutable' USING ERRCODE='23514';
     END IF;
   END IF;
+  IF TG_OP='DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$ LANGUAGE plpgsql;
 CREATE TRIGGER "StudentLifecycleEvent_decision_immutable"
   BEFORE UPDATE OR DELETE ON "StudentLifecycleEvent"
   FOR EACH ROW EXECUTE FUNCTION "guard_decision_lifecycle_event"();
