@@ -367,7 +367,12 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
               currentPlan.endDate.getTime() !== targetPlan.endDate.getTime()) {
             fail('CONFLICT','A vigência do plano foi alterada. Recarregue o planejamento.');
           }
-          if (apply.effectiveFrom < currentPlan.startDate || apply.effectiveFrom > currentPlan.endDate) {
+          // The public request is a UTC civil date, not an instant. An effective
+          // date equal to the plan start is valid even if startDate has a time-of-day.
+          const chosenDay = apply.effectiveFrom.toISOString().slice(0,10);
+          const firstDay = currentPlan.startDate.toISOString().slice(0,10);
+          const lastDay = currentPlan.endDate.toISOString().slice(0,10);
+          if (chosenDay < firstDay || chosenDay > lastDay) {
             fail('INVALID_INPUT','O início está fora da vigência atual do plano.');
           }
           planning = currentPlanVersion + 1;

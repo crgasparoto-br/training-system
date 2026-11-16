@@ -356,6 +356,22 @@ integration('issue #406: canonical decision persistence and review in PostgreSQL
     throw new Error('A operação não chegou ao bloqueio esperado: '+fragment);
   }
 
+  it('accepts the first UTC civil day of a plan even when the stored date has a time',async()=>{
+    const f=await fixture(),decision=await service.suggest(f.c,suggestion(f));
+    await service.transition(f.c,decision.id,'approve',operation(1));
+    const startDate=new Date(Date.now()+20*86400_000);
+    await db.trainingPlan.update({where:{id:f.planId},data:{
+      startDate,endDate:new Date(Date.now()+80*86400_000),
+    }});
+    const result=await service.transition(f.c,decision.id,'apply',{
+      ...operation(2),expectedPlanningVersion:0,
+      effectiveFrom:startDate.toISOString().slice(0,10),
+      instruction:'Aplicar no primeiro dia civil do planejamento',
+    });
+    expect(result).toMatchObject({status:'applied',adjustment:{version:1}});
+    expect(result.adjustment?.effectiveFrom).toBe(startDate.toISOString().slice(0,10));
+  });
+
   it('re-reads a plan period changed by another transaction while waiting for its lock',async()=>{
     const f=await fixture(),decision=await service.suggest(f.c,suggestion(f));
     await service.transition(f.c,decision.id,'approve',operation(1));
