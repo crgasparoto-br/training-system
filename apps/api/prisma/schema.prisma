@@ -154,6 +154,7 @@ model CompanyContract {
   alunos                                Aluno[]                                @relation("AlunoContract")
   studentOnboardingProcesses            StudentOnboardingProcess[]
   studentLifecycleEvents                StudentLifecycleEvent[]
+  postWorkoutDecisions                  PostWorkoutDecision[]
   preWorkoutCheckIns                    PreWorkoutCheckIn[]
   preRegistrationInvites                PreRegistrationInvite[]
   preRegistrationGuardianAuthorizations PreRegistrationGuardianAuthorization[]
@@ -525,6 +526,7 @@ model Aluno {
   progressMetrics                       ProgressMetric[]
   executions                            TrainingExecution[]
   trainingPlans                         TrainingPlan[]
+  postWorkoutDecisions                  PostWorkoutDecision[]
   workoutExecutions                     WorkoutExecution[]
   preWorkoutCheckIns                    PreWorkoutCheckIn[]
   studentProfile                        StudentProfile?
@@ -1422,6 +1424,8 @@ model TrainingPlan {
   aluno            Aluno                @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "TrainingPlan_athleteId_fkey")
   professor        Professor            @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "TrainingPlan_educatorId_fkey")
   workoutTemplates WorkoutTemplate[]
+  postWorkoutDecisions PostWorkoutDecision[]
+  planningAdjustments TrainingPlanAdjustment[]
 
   @@index([alunoId], map: "TrainingPlan_athleteId_idx")
   @@index([professorId], map: "TrainingPlan_educatorId_idx")
@@ -2335,6 +2339,7 @@ model PostWorkoutFeedbackRevision {
   previousRevision        PostWorkoutFeedbackRevision?  @relation("PostWorkoutFeedbackRevisionChain", fields: [previousRevisionId], references: [id], onDelete: Restrict)
   nextRevisions           PostWorkoutFeedbackRevision[] @relation("PostWorkoutFeedbackRevisionChain")
   operations              PostWorkoutFeedbackOperation[]
+  decisions               PostWorkoutDecision[]
 
   @@unique([workoutDayId, scopeKey, revisionNumber])
   @@index([workoutDayId, scopeKey, createdAt])
@@ -2358,6 +2363,80 @@ model PostWorkoutFeedbackOperation {
   @@unique([workoutDayId, scopeKey, operationKey])
   @@index([resultingRevisionId])
   @@index([createdAt])
+}
+
+
+model PostWorkoutDecision {
+  id                       String                      @id @default(cuid())
+  contractId               String
+  alunoId                  String
+  workoutDayId             String
+  sourceFeedbackRevisionId String
+  trainingPlanId           String
+  sourceSnapshot           Json
+  action                   String
+  rationale                String
+  studentMessage           String?
+  exposeToStudent          Boolean                     @default(false)
+  suggestedByProfessorId   String
+  suggestedAt              DateTime                    @default(now())
+  suggestionKey            String
+  requestFingerprint       String
+  status                   String                      @default("suggested")
+  version                  Int                         @default(1)
+  approvedByProfessorId    String?
+  approvedAt               DateTime?
+  approvalReason           String?
+  rejectedByProfessorId    String?
+  rejectedAt               DateTime?
+  rejectionReason          String?
+  appliedByProfessorId     String?
+  appliedAt                DateTime?
+  createdAt                DateTime                    @default(now())
+  contract                 CompanyContract             @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  aluno                    Aluno                       @relation(fields: [alunoId], references: [id], onDelete: Restrict)
+  sourceFeedbackRevision   PostWorkoutFeedbackRevision @relation(fields: [sourceFeedbackRevisionId], references: [id], onDelete: Restrict)
+  trainingPlan             TrainingPlan                @relation(fields: [trainingPlanId], references: [id], onDelete: Restrict)
+  adjustment               TrainingPlanAdjustment?
+  operations               PostWorkoutDecisionOperation[]
+
+  @@unique([contractId, alunoId, suggestionKey])
+  @@index([contractId, alunoId, createdAt])
+  @@index([workoutDayId, status])
+}
+model PostWorkoutDecisionOperation {
+  id                 String              @id @default(cuid())
+  decisionId         String
+  operationKey       String
+  action             String
+  requestFingerprint String
+  resultingVersion   Int
+  lifecycleEventId   String
+  createdAt          DateTime            @default(now())
+  decision           PostWorkoutDecision @relation(fields: [decisionId], references: [id], onDelete: Restrict)
+
+  @@unique([decisionId, operationKey])
+  @@index([createdAt])
+}
+/// Append-only future plan instruction version, not an edited released session.
+model TrainingPlanAdjustment {
+  id                   String              @id @default(cuid())
+  decisionId           String              @unique
+  trainingPlanId       String
+  contractId           String
+  alunoId              String
+  version              Int
+  effectiveFrom        DateTime
+  instruction          String
+  action               String
+  appliedByProfessorId String
+  sourceSnapshot       Json
+  createdAt            DateTime            @default(now())
+  decision             PostWorkoutDecision @relation(fields: [decisionId], references: [id], onDelete: Restrict)
+  trainingPlan         TrainingPlan        @relation(fields: [trainingPlanId], references: [id], onDelete: Restrict)
+
+  @@unique([trainingPlanId, version])
+  @@index([contractId, alunoId, createdAt])
 }
 
 model StudentProfile {

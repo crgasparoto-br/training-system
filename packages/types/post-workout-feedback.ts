@@ -178,3 +178,30 @@ export interface CorrectCanonicalPostWorkoutFeedbackPayload {
   reason: string;
   values: Partial<CanonicalPostWorkoutFeedbackValues>;
 }
+
+
+/** Canonical durable decision contract (#406). */
+export const POST_WORKOUT_DECISION_ACTIONS = ['maintain','progress','reduce','replace','suspend','reassess'] as const;
+export type PostWorkoutDecisionAction = (typeof POST_WORKOUT_DECISION_ACTIONS)[number];
+export type PostWorkoutDecisionStatus = 'suggested'|'approved'|'rejected'|'applied';
+export interface PostWorkoutDecisionView {
+  id:string;alunoId:string;contractId:string;workoutDayId:string;sourceFeedbackRevisionId:string;
+  trainingPlanId:string;action:PostWorkoutDecisionAction;rationale:string;status:PostWorkoutDecisionStatus;version:number;
+  suggestedAt:string;suggestedByProfessorId:string;approvedAt:string|null;approvedByProfessorId:string|null;
+  approvalReason:string|null;rejectedAt:string|null;rejectedByProfessorId:string|null;rejectionReason:string|null;
+  appliedAt:string|null;appliedByProfessorId:string|null;studentMessage:string|null;exposeToStudent:boolean;
+  sourceSnapshot:{feedbackRevisionNumber:number;scopeKey:string;ruleSetVersion:string;recordedAt:string;originReleaseId:string;values:CanonicalPostWorkoutFeedbackValues;signals:PostWorkoutFeedbackSignal[]};
+  adjustment:{id:string;version:number;effectiveFrom:string;instruction:string}|null;
+}
+export interface CreatePostWorkoutDecisionPayload {
+  operationKey:string;workoutDayId:string;sourceFeedbackRevisionId:string;action:PostWorkoutDecisionAction;
+  rationale:string;studentMessage?:string|null;exposeToStudent?:boolean;
+}
+export interface TransitionPostWorkoutDecisionPayload {operationKey:string;expectedVersion:number;reason?:string;}
+export interface ApplyPostWorkoutDecisionPayload extends TransitionPostWorkoutDecisionPayload {
+  expectedPlanningVersion:number;effectiveFrom:string;instruction:string;
+}
+export interface PostWorkoutDecisionSource {
+  workoutDayId:string;feedbackRevisionId:string;revisionNumber:number;recordedAt:string;scopeKey:string;signals:PostWorkoutFeedbackSignal[];
+}
+export interface PostWorkoutDecisionStudentNotice {id:string;action:PostWorkoutDecisionAction;message:string;appliedAt:string;}
