@@ -103,9 +103,10 @@ async function authorize(db: Db, c: DecisionContext, permission: 'view' | 'sugge
 async function ensurePlan(db: Db, c: DecisionContext, planId: string) {
   const plan = await db.trainingPlan.findFirst({
     where: { id: planId, alunoId: c.alunoId, professor: { contractId: c.contractId } },
-    select: { id: true },
+    select: { id: true, endDate: true },
   });
   if (!plan) fail('NOT_FOUND', 'Plano do aluno não encontrado.');
+  return plan;
 }
 async function planningVersion(db: Db, planId: string) {
   return (await db.trainingPlanAdjustment.findFirst({
@@ -244,7 +245,7 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
         if (!locked.length) fail('NOT_FOUND','Decisão não encontrada.');
         const current = await tx.postWorkoutDecision.findUnique({where:{id},include});
         if (!current) fail('NOT_FOUND','Decisão não encontrada.');
-        await ensurePlan(tx,c,current.trainingPlanId);
+        const targetPlan = await ensurePlan(tx,c,current.trainingPlanId);
         const prior = await tx.postWorkoutDecisionOperation.findUnique({
           where:{ decisionId_operationKey:{decisionId:id,operationKey} },
         });
@@ -255,6 +256,24 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
         if (!canTransitionDecision(current.status as PostWorkoutDecisionView['status'],current.version,kind,payload.expectedVersion)) {
           fail('CONFLICT','A decisão foi modificada. Atualize a página.');
         }
+        // Recheck canonical source under the same session lock used by feedback corrections.
+        // Historical snapshots remain readable, but stale evidence cannot authorize new effects.
+        if (kind !== 'reject') {
+          const executionLock = await tx.$queryRawUnsafe<Array<{id:string}>>(
+            'SELECT "id" FROM "WorkoutSessionExecution" WHERE "workoutDayId"=$1 AND "alunoId"=$2 AND "contractId"=$3 AND "status" IN (\'completed\',\'partial\') FOR UPDATE',
+            current.workoutDayId,c.alunoId,c.contractId,
+          );
+          if (!executionLock.length) fail('CONFLICT','Sessão de origem deixou de ser válida.');
+          const evidence = current.sourceSnapshot as unknown as { scopeKey: string };
+          const currentFeedback = await tx.postWorkoutFeedbackRevision.findFirst({
+            where: { workoutDayId: current.workoutDayId, scopeKey: evidence.scopeKey,
+              alunoId: c.alunoId, contractId: c.contractId },
+            orderBy: {revisionNumber: 'desc'}, select: {id:true},
+          });
+          if (currentFeedback?.id !== current.sourceFeedbackRevisionId) {
+            fail('CONFLICT','O feedback de origem mudou. Registre nova sugestão.');
+          }
+        }
         let planning: number | null = null;
         if (apply) {
           const planLock = await tx.$queryRawUnsafe<Array<{id:string}>>(
@@ -264,6 +283,7 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
           const currentPlanVersion = await planningVersion(tx,current.trainingPlanId);
           if (currentPlanVersion !== apply.expectedPlanningVersion) fail('CONFLICT','O planejamento mudou. Recarregue-o.');
           if (!isFuturePlanningDate(apply.effectiveFrom,new Date())) fail('INVALID_INPUT','Início deve ser futuro.');
+          if (apply.effectiveFrom > targetPlan.endDate) fail('INVALID_INPUT','O início está fora da vigência do plano.');
           planning = currentPlanVersion + 1;
           await tx.trainingPlanAdjustment.create({data:{
             decisionId:id,trainingPlanId:current.trainingPlanId,contractId:c.contractId,alunoId:c.alunoId,
