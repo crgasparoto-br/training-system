@@ -3,7 +3,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { POST_WORKOUT_DECISION_ACTIONS } from '@corrida/types';
 import type {
   ApplyPostWorkoutDecisionPayload, CreatePostWorkoutDecisionPayload, PostWorkoutDecisionAction,
-  PostWorkoutDecisionSource, PostWorkoutDecisionStudentNotice, PostWorkoutDecisionView,
+  PostWorkoutDecisionSource, PostWorkoutDecisionSourcePage, PostWorkoutDecisionStudentNotice, PostWorkoutDecisionView,
   TransitionPostWorkoutDecisionPayload,
 } from '@corrida/types';
 import { canProfessorAccessBlock, getEffectiveDataScopeForProfessor } from '../access-control/access-control.service.js';
@@ -64,6 +64,15 @@ function project(row: Row): PostWorkoutDecisionView {
   };
 }
 async function authorize(db: Db, c: DecisionContext, permission: 'view' | 'suggest' | 'approve' | 'apply') {
+  // A concurrent dismissal or deactivation cannot take effect between authorization and commit.
+  await db.$queryRaw(Prisma.sql`
+    SELECT p."id" FROM "Professor" p
+    JOIN "User" u ON u."id"=p."userId"
+    JOIN "CollaboratorFunctionOption" f ON f."id"=p."collaboratorFunctionId"
+    WHERE p."id"=${c.actorProfessorId} AND p."contractId"=${c.contractId}
+      AND p."userId"=${c.actorUserId}
+    FOR SHARE OF p,u,f
+  `);
   const actor = await db.professor.findFirst({
     where: { id: c.actorProfessorId, contractId: c.contractId, userId: c.actorUserId },
     include: { user: { select: { isActive: true } }, collaboratorFunction: true },
@@ -75,26 +84,51 @@ async function authorize(db: Db, c: DecisionContext, permission: 'view' | 'sugge
   }
   const blockKey = 'students.details.trainingDecisions.' + permission;
   if (!(await canProfessorAccessBlock(actor, blockKey, db))) fail('FORBIDDEN', 'Operação não autorizada.');
-  // A grant must be persisted for application, even for a master professor.
-  if (permission === 'apply' && !(await db.accessPermission.findFirst({
-    where: { collaboratorFunctionId: actor.collaboratorFunctionId,
-      screenKey: 'students.details', blockKey, canView: true },
-    select: { id: true },
-  }))) fail('FORBIDDEN', 'Aplicação exige permissão distinta.');
-  // The feedback is a sensitive domain: generic plan access does not expose it.
-  if (!(await db.accessPermission.findFirst({
-    where: { collaboratorFunctionId: actor.collaboratorFunctionId,
-      screenKey: 'students.details', blockKey: 'students.details.postWorkoutFeedback', canView: true },
-    select: { id: true },
-  }))) fail('FORBIDDEN', 'Acesso ao feedback não autorizado.');
+  // FOR SHARE conflicts with UPDATE/DELETE: a revocation waits until this operation commits.
+  // Lock the exact rows after permission sync, then recheck their current values.
+  const required = [
+    { screenKey: 'students.details', blockKey: 'students.details.postWorkoutFeedback' },
+    ...(permission === 'apply' ? [{ screenKey: 'students.details', blockKey }] : []),
+    ...(actor.role === 'master' ? [] : [
+      { screenKey: 'students.details', blockKey: '' },
+      { screenKey: 'students.details', blockKey },
+      { screenKey: 'plans', blockKey: '' },
+    ]),
+  ];
+  const grants = await db.$queryRaw<Array<{screenKey:string;blockKey:string;canView:boolean}>>(Prisma.sql`
+    SELECT "screenKey","blockKey","canView" FROM "AccessPermission"
+    WHERE "collaboratorFunctionId"=${actor.collaboratorFunctionId}
+      AND (${Prisma.join(required.map(({screenKey,blockKey}) =>
+        Prisma.sql`("screenKey"=${screenKey} AND "blockKey"=${blockKey})`), ' OR ')})
+    ORDER BY "screenKey","blockKey" FOR SHARE
+  `);
+  const permitted = (screenKey:string,key:string) =>
+    grants.some(row => row.screenKey === screenKey && row.blockKey === key && row.canView);
+  if (permission === 'apply' && !permitted('students.details',blockKey)) {
+    fail('FORBIDDEN','Aplicação exige permissão distinta.');
+  }
+  if (!permitted('students.details','students.details.postWorkoutFeedback')) {
+    fail('FORBIDDEN','Acesso ao feedback não autorizado.');
+  }
+  if (actor.role !== 'master' && (!permitted('students.details','') ||
+      !permitted('students.details',blockKey) || !permitted('plans',''))) {
+    fail('FORBIDDEN','Concessões de acesso revogadas.');
+  }
   const scope = await getEffectiveDataScopeForProfessor(actor, 'plans', db);
   if (!scope) fail('FORBIDDEN', 'Escopo de planejamento indisponível.');
+  await db.$queryRaw(Prisma.sql`
+    SELECT "id" FROM "Aluno" WHERE "id"=${c.alunoId} AND "contractId"=${c.contractId} FOR SHARE
+  `);
   const aluno = await db.aluno.findFirst({
     where: { id: c.alunoId, contractId: c.contractId }, select: { professorId: true },
   });
   if (!aluno) fail('NOT_FOUND', 'Recurso não encontrado.');
   if (scope === 'contract' || aluno.professorId === actor.id) return;
   if (scope !== 'managed' || !aluno.professorId) fail('NOT_FOUND', 'Recurso não encontrado.');
+  await db.$queryRaw(Prisma.sql`
+    SELECT "id" FROM "Professor" WHERE "id"=${aluno.professorId}
+      AND "contractId"=${c.contractId} FOR SHARE
+  `);
   const responsible = await db.professor.findFirst({
     where: { id: aluno.professorId, contractId: c.contractId }, select: { responsibleManagerId: true },
   });
@@ -103,7 +137,7 @@ async function authorize(db: Db, c: DecisionContext, permission: 'view' | 'sugge
 async function ensurePlan(db: Db, c: DecisionContext, planId: string) {
   const plan = await db.trainingPlan.findFirst({
     where: { id: planId, alunoId: c.alunoId, professor: { contractId: c.contractId } },
-    select: { id: true, endDate: true },
+    select: { id: true, startDate: true, endDate: true },
   });
   if (!plan) fail('NOT_FOUND', 'Plano do aluno não encontrado.');
   return plan;
@@ -154,23 +188,54 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
         return { decisions: page.map(project), planningVersions, nextCursor };
       });
     },
-    async sources(c: DecisionContext): Promise<PostWorkoutDecisionSource[]> {
+    async sources(c: DecisionContext, cursor?: string): Promise<PostWorkoutDecisionSourcePage> {
       return client.$transaction(async(tx) => {
         await authorize(tx,c,'view');
-        const rows = await tx.postWorkoutFeedbackRevision.findMany({
-          where: { contractId: c.contractId, alunoId: c.alunoId,
-            execution: {status: {in: ['completed','partial']}}, },
-          orderBy: [{ createdAt: 'desc' }, { revisionNumber: 'desc' }], take: 100,
-        });
-        const seen = new Set<string>();
-        return rows.flatMap(row => {
-          const scope = row.workoutDayId + ':' + row.scopeKey;
-          if (seen.has(scope)) return [];
-          seen.add(scope);
-          return [{ workoutDayId: row.workoutDayId, feedbackRevisionId: row.id,
-            revisionNumber: row.revisionNumber, scopeKey: row.scopeKey, recordedAt: row.createdAt.toISOString(),
-            signals: row.signals as unknown as PostWorkoutDecisionSource['signals'] }];
-        });
+        // Validate the cursor against this contract and the CURRENT revision of its scope.
+        const cursorRow = cursor ? await tx.postWorkoutFeedbackRevision.findFirst({
+          where: { id:cursor, contractId:c.contractId, alunoId:c.alunoId,
+            execution:{status:{in:['completed','partial']}} },
+          select: { id:true, workoutDayId:true, scopeKey:true, createdAt:true },
+        }) : null;
+        if (cursor) {
+          if (!cursorRow) fail('INVALID_INPUT','Cursor de fontes inválido.');
+          const latest = await tx.postWorkoutFeedbackRevision.findFirst({
+            where: { workoutDayId:cursorRow.workoutDayId, scopeKey:cursorRow.scopeKey,
+              alunoId:c.alunoId, contractId:c.contractId },
+            orderBy: [{revisionNumber:'desc'},{id:'desc'}],select:{id:true},
+          });
+          if (latest?.id !== cursorRow.id) fail('INVALID_INPUT','Cursor de fontes desatualizado.');
+        }
+        // Rank all revisions BEFORE applying the page limit. A frequently corrected
+        // session cannot hide other sessions or scopes from the source selector.
+        const rows = await tx.$queryRaw<Array<{
+          id:string;workoutDayId:string;scopeKey:string;revisionNumber:number;
+          createdAt:Date;signals:Prisma.JsonValue;
+        }>>(Prisma.sql`
+          WITH ranked AS (
+            SELECT r."id",r."workoutDayId",r."scopeKey",r."revisionNumber",r."createdAt",r."signals",
+              ROW_NUMBER() OVER (PARTITION BY r."workoutDayId",r."scopeKey"
+                ORDER BY r."revisionNumber" DESC,r."id" DESC) AS rn
+            FROM "PostWorkoutFeedbackRevision" r
+            JOIN "WorkoutSessionExecution" e ON e."id"=r."executionId"
+            WHERE r."contractId"=${c.contractId} AND r."alunoId"=${c.alunoId}
+              AND e."status"::text IN ('completed','partial')
+          )
+          SELECT "id","workoutDayId","scopeKey","revisionNumber","createdAt","signals"
+          FROM ranked WHERE rn=1
+            ${cursorRow ? Prisma.sql`AND ("createdAt","id") < (${cursorRow.createdAt},${cursorRow.id})` : Prisma.empty}
+          ORDER BY "createdAt" DESC,"id" DESC LIMIT 101
+        `);
+        const page = rows.slice(0,100);
+        return {
+          sources:page.map(row => ({
+            workoutDayId:row.workoutDayId,feedbackRevisionId:row.id,
+            revisionNumber:row.revisionNumber,scopeKey:row.scopeKey,
+            recordedAt:row.createdAt.toISOString(),
+            signals:row.signals as unknown as PostWorkoutDecisionSource['signals'],
+          })),
+          nextCursor:rows.length>100 ? page[page.length-1]?.id ?? null : null,
+        };
       });
     },
     async suggest(c: DecisionContext, payload: CreatePostWorkoutDecisionPayload): Promise<PostWorkoutDecisionView> {
@@ -258,7 +323,7 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
         if (!locked.length) fail('NOT_FOUND','Decisão não encontrada.');
         const current = await tx.postWorkoutDecision.findUnique({where:{id},include});
         if (!current) fail('NOT_FOUND','Decisão não encontrada.');
-        const targetPlan = await ensurePlan(tx,c,current.trainingPlanId);
+        await ensurePlan(tx,c,current.trainingPlanId);
         const prior = await tx.postWorkoutDecisionOperation.findUnique({
           where:{ decisionId_operationKey:{decisionId:id,operationKey} },
         });
@@ -296,7 +361,11 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
           const currentPlanVersion = await planningVersion(tx,current.trainingPlanId);
           if (currentPlanVersion !== apply.expectedPlanningVersion) fail('CONFLICT','O planejamento mudou. Recarregue-o.');
           if (!isFuturePlanningDate(apply.effectiveFrom,new Date())) fail('INVALID_INPUT','Início deve ser futuro.');
-          if (apply.effectiveFrom > targetPlan.endDate) fail('INVALID_INPUT','O início está fora da vigência do plano.');
+          // The plan can change while we wait for its row lock. Re-read under the lock.
+          const currentPlan = await ensurePlan(tx,c,current.trainingPlanId);
+          if (apply.effectiveFrom < currentPlan.startDate || apply.effectiveFrom > currentPlan.endDate) {
+            fail('INVALID_INPUT','O início está fora da vigência atual do plano.');
+          }
           planning = currentPlanVersion + 1;
           await tx.trainingPlanAdjustment.create({data:{
             decisionId:id,trainingPlanId:current.trainingPlanId,contractId:c.contractId,alunoId:c.alunoId,

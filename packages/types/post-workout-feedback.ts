@@ -204,4 +204,7 @@ export interface ApplyPostWorkoutDecisionPayload extends TransitionPostWorkoutDe
 export interface PostWorkoutDecisionSource {
   workoutDayId:string;feedbackRevisionId:string;revisionNumber:number;recordedAt:string;scopeKey:string;signals:PostWorkoutFeedbackSignal[];
 }
+export interface PostWorkoutDecisionSourcePage {
+  sources:PostWorkoutDecisionSource[];nextCursor:string|null;
+}
 export interface PostWorkoutDecisionStudentNotice {id:string;action:PostWorkoutDecisionAction;message:string;appliedAt:string;}

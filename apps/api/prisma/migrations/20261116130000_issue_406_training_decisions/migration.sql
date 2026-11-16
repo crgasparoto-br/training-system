@@ -103,6 +103,19 @@ BEGIN
   IF TG_OP='DELETE' THEN
     RAISE EXCEPTION 'Decision history is immutable' USING ERRCODE='23514';
   END IF;
+  -- A transition can only originate from an actual, persisted suggestion.
+  -- Reject direct INSERTs of approved/rejected/applied rows even if their CHECK passes.
+  IF TG_OP='INSERT' THEN
+    IF NEW."status" <> 'suggested' OR NEW."version" <> 1
+      OR NEW."approvedByProfessorId" IS NOT NULL OR NEW."approvedAt" IS NOT NULL
+      OR NEW."approvalReason" IS NOT NULL OR NEW."rejectedByProfessorId" IS NOT NULL
+      OR NEW."rejectedAt" IS NOT NULL OR NEW."rejectionReason" IS NOT NULL
+      OR NEW."appliedByProfessorId" IS NOT NULL OR NEW."appliedAt" IS NOT NULL
+    THEN
+      RAISE EXCEPTION 'Invalid initial decision state' USING ERRCODE='23514';
+    END IF;
+    RETURN NEW;
+  END IF;
   IF OLD."id" IS DISTINCT FROM NEW."id"
     OR OLD."contractId" IS DISTINCT FROM NEW."contractId"
     OR OLD."alunoId" IS DISTINCT FROM NEW."alunoId"
@@ -134,7 +147,7 @@ END;
 $$ LANGUAGE plpgsql;
 CREATE TRIGGER "PostWorkoutDecision_no_delete" BEFORE DELETE ON "PostWorkoutDecision"
   FOR EACH ROW EXECUTE FUNCTION "guard_post_workout_decision_transition"();
-CREATE TRIGGER "PostWorkoutDecision_guard_update" BEFORE UPDATE ON "PostWorkoutDecision"
+CREATE TRIGGER "PostWorkoutDecision_guard_write" BEFORE INSERT OR UPDATE ON "PostWorkoutDecision"
   FOR EACH ROW EXECUTE FUNCTION "guard_post_workout_decision_transition"();
 
 CREATE FUNCTION "guard_post_workout_decision_append_only"() RETURNS trigger AS $$

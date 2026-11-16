@@ -66,8 +66,11 @@ function context(req:Request){
   };
 }
 router.get('/alunos/:alunoId/sources',async(req:Request,res:Response)=>{
-  try {return sendSuccess(res,await postWorkoutDecisionService.sources(context(req)),'Fontes de feedback carregadas');}
-  catch(error){return report(res,error);}
+  try {
+    const query=z.object({cursor:id.optional()}).strict().parse(req.query);
+    return sendSuccess(res,await postWorkoutDecisionService.sources(context(req),query.cursor),
+      'Fontes de feedback carregadas');
+  } catch(error){return report(res,error);}
 });
 router.get('/alunos/:alunoId',async(req:Request,res:Response)=>{
   try {
