@@ -15,7 +15,7 @@ type Props={
   canApprove:boolean;
   canApply:boolean;
 };
-type Data={decisions:PostWorkoutDecisionView[];planningVersions:Record<string,number>;sources:PostWorkoutDecisionSource[]};
+type Data={decisions:PostWorkoutDecisionView[];planningVersions:Record<string,number>;nextCursor:string|null;sources:PostWorkoutDecisionSource[]};
 const actionLabels:Record<PostWorkoutDecisionAction,string>={
   maintain:'Manter',progress:'Progredir',reduce:'Reduzir',replace:'Substituir',
   suspend:'Suspender',reassess:'Reavaliar',
@@ -34,6 +34,7 @@ export function PostWorkoutDecisionPanel({
 }:Props){
   const [data,setData]=useState<Data|null>(null);
   const [loading,setLoading]=useState(false);
+  const [loadingMore,setLoadingMore]=useState(false);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState<string|null>(null);
   const [sourceId,setSourceId]=useState('');
@@ -71,6 +72,24 @@ export function PostWorkoutDecisionPanel({
     if(canView && contractId)void load();
     return ()=>{generation.current++;};
   },[load,canView,contractId]);
+  const loadMore=async()=>{
+    const cursor=data?.nextCursor;
+    if(!cursor||loading||loadingMore||saving)return;
+    const token=generation.current;
+    setLoadingMore(true);setError(null);
+    try{
+      const page=await postWorkoutDecisionService.list(alunoId,cursor);
+      if(token===generation.current){
+        setData(current=>current?{
+          ...current,
+          decisions:[...current.decisions,...page.decisions.filter(row=>!current.decisions.some(old=>old.id===row.id))],
+          planningVersions:{...current.planningVersions,...page.planningVersions},
+          nextCursor:page.nextCursor,
+        }:null);
+      }
+    }catch(e){if(token===generation.current)setError(errorMessage(e));}
+    finally{if(token===generation.current)setLoadingMore(false);}
+  };
   const resetCreateKey=()=>{createKey.current=null;};
   const suggest=async()=>{
     const source=data?.sources.find(x=>x.feedbackRevisionId===sourceId);
@@ -219,6 +238,11 @@ export function PostWorkoutDecisionPanel({
             onClick={()=>{void transition(row,'apply');}}>Aplicar ao planejamento futuro</Button>
         </div>}
       </article>)}
+      {data.nextCursor&&<Button type="button" size="sm" variant="outline"
+        disabled={loading||loadingMore||saving}
+        onClick={()=>{void loadMore();}}>
+        {loadingMore?'Carregando decisões anteriores…':'Carregar decisões anteriores'}
+      </Button>}
     </div>}
     <p className="flex items-start gap-2 text-xs text-muted-foreground">
       <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true"/>

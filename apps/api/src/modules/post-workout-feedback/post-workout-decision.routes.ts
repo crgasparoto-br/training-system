@@ -70,8 +70,11 @@ router.get('/alunos/:alunoId/sources',async(req:Request,res:Response)=>{
   catch(error){return report(res,error);}
 });
 router.get('/alunos/:alunoId',async(req:Request,res:Response)=>{
-  try {return sendSuccess(res,await postWorkoutDecisionService.listForProfessor(context(req)),'Decisões carregadas');}
-  catch(error){return report(res,error);}
+  try {
+    const query=z.object({cursor:id.optional()}).strict().parse(req.query);
+    return sendSuccess(res,await postWorkoutDecisionService.listForProfessor(context(req),query.cursor),
+      'Decisões carregadas');
+  } catch(error){return report(res,error);}
 });
 router.post('/alunos/:alunoId',async(req:Request,res:Response)=>{
   try {return sendSuccess(res,await postWorkoutDecisionService.suggest(context(req),suggestSchema.parse(req.body)),

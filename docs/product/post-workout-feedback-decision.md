@@ -35,6 +35,8 @@ O serviço valida novamente ator ativo, bloco de acesso, escopo e pertencimento 
 
 O banco impede exclusões e alterações retroativas do histórico, mudanças fora da máquina de estados e aplicação sem registro de efeito antes do commit. Erros em qualquer etapa revertem a transação inteira.
 
+A consulta profissional de histórico é paginada (até 100 decisões por página) pelo parâmetro opcional de cursor; a resposta inclui nextCursor para continuar sem ocultar decisões antigas. O backend valida se o cursor pertence ao aluno e contrato autorizados.
+
 ## Permissões e exposição ao aluno
 
 Blocos específicos: students.details.trainingDecisions.view, .suggest, .approve e .apply. A aplicação exige **concessão persistida distinta inclusive para professor master**. Operações técnicas também requerem o grant explícito de students.details.postWorkoutFeedback, mais escopo válido de plans e acesso aluno/contrato. O histórico de auditoria genérico não concede acesso clínico.

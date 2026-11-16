@@ -8,11 +8,14 @@ import api from './api';
 type ApiEnvelope<T> = { success:boolean;data:T;message?:string };
 const root='/training-decisions';
 export const postWorkoutDecisionService={
-  async list(alunoId:string) {
+  async list(alunoId:string,cursor?:string) {
+    const url=root+'/alunos/'+encodeURIComponent(alunoId)
+      +(cursor?'?cursor='+encodeURIComponent(cursor):'');
     const response=await api.get<ApiEnvelope<{
       decisions:PostWorkoutDecisionView[];
       planningVersions:Record<string,number>;
-    }>>(root+'/alunos/'+encodeURIComponent(alunoId));
+      nextCursor:string|null;
+    }>>(url);
     return response.data.data;
   },
   async sources(alunoId:string) {

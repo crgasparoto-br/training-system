@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { ContractType, PrismaClient, ProfessorRole, UserType } from '@prisma/client';
+import { ContractType, Prisma, PrismaClient, ProfessorRole, UserType } from '@prisma/client';
 import { createPostWorkoutDecisionService, PostWorkoutDecisionError } from '../src/modules/post-workout-feedback/post-workout-decision.service.js';
 import { createWorkoutSessionExecutionService } from '../src/modules/workout/workout-session-execution.service.js';
 import { createPostWorkoutFeedbackPersistenceService } from '../src/modules/post-workout-feedback/post-workout-feedback-persistence.service.js';
@@ -271,6 +271,30 @@ integration('issue #406: canonical decision persistence and review in PostgreSQL
     } finally {
       await db.$executeRawUnsafe('ALTER TABLE "TrainingPlanAdjustment" DROP CONSTRAINT "'+constraint+'"');
     }
+  });
+
+
+  it('paginates every older decision and rejects foreign or missing cursors',async()=>{
+    const f=await fixture(),first=await service.suggest(f.c,suggestion(f));
+    await db.postWorkoutDecision.createMany({data:Array.from({length:100},(_,i)=>({
+      contractId:f.contractId,alunoId:f.alunoId,workoutDayId:f.dayId,
+      sourceFeedbackRevisionId:f.feedbackId,trainingPlanId:f.planId,
+      sourceSnapshot:first.sourceSnapshot as Prisma.InputJsonValue,
+      action:'maintain',rationale:'Registro histórico '+i,
+      studentMessage:null,exposeToStudent:false,suggestedByProfessorId:f.c.actorProfessorId,
+      suggestionKey:'history-'+uuid(),requestFingerprint:'test-'+uuid(),
+      createdAt:new Date(Date.now()-(i+1)*60_000),
+    }))});
+    const page1=await service.listForProfessor(f.c);
+    expect(page1.decisions).toHaveLength(100);
+    expect(page1.nextCursor).toBeTruthy();
+    const page2=await peerService.listForProfessor(f.c,page1.nextCursor!);
+    expect(page2.decisions).toHaveLength(1);
+    expect(page2.nextCursor).toBeNull();
+    expect(new Set([...page1.decisions,...page2.decisions].map(x=>x.id)).size).toBe(101);
+    expect(page1.decisions[0].id).toBe(first.id);
+    await expect(service.listForProfessor(f.c,'unknown-tenant-cursor'))
+      .rejects.toMatchObject({code:'INVALID_INPUT'});
   });
 
 });

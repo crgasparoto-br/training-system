@@ -133,18 +133,25 @@ async function addEvent(
 }
 export function createPostWorkoutDecisionService(client: PrismaClient = prisma) {
   return {
-    async listForProfessor(c: DecisionContext) {
+    async listForProfessor(c: DecisionContext, cursor?: string) {
       return client.$transaction(async(tx) => {
         await authorize(tx,c,'view');
+        if (cursor && !(await tx.postWorkoutDecision.findFirst({
+          where: { id: cursor, alunoId: c.alunoId, contractId: c.contractId },
+          select: { id: true },
+        }))) fail('INVALID_INPUT', 'Cursor do histórico inválido.');
         const rows = await tx.postWorkoutDecision.findMany({
           where: { alunoId: c.alunoId, contractId: c.contractId },
-          include, orderBy: { createdAt: 'desc' }, take: 100,
+          include, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 101,
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
         });
+        const page = rows.slice(0, 100);
+        const nextCursor = rows.length > 100 ? page[page.length - 1]?.id ?? null : null;
         const planningVersions: Record<string,number> = {};
-        for (const planId of new Set(rows.map(x => x.trainingPlanId))) {
+        for (const planId of new Set(page.map(x => x.trainingPlanId))) {
           planningVersions[planId] = await planningVersion(tx,planId);
         }
-        return { decisions: rows.map(project), planningVersions };
+        return { decisions: page.map(project), planningVersions, nextCursor };
       });
     },
     async sources(c: DecisionContext): Promise<PostWorkoutDecisionSource[]> {
