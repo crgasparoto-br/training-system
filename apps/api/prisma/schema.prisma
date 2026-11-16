@@ -724,6 +724,7 @@ model StudentLifecycleEvent {
   metadata         Json?
   createdAt        DateTime                  @default(now())
   guidedExecutionOperations WorkoutSessionExecutionOperation[] @relation("GuidedExecutionLifecycleEvent")
+  postWorkoutDecisionOperations PostWorkoutDecisionOperation[]
   aluno            Aluno                     @relation(fields: [alunoId], references: [id], onDelete: Cascade)
   contract         CompanyContract           @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
@@ -2414,6 +2415,7 @@ model PostWorkoutDecisionOperation {
   lifecycleEventId   String
   createdAt          DateTime            @default(now())
   decision           PostWorkoutDecision @relation(fields: [decisionId], references: [id], onDelete: Restrict)
+  lifecycleEvent     StudentLifecycleEvent @relation(fields: [lifecycleEventId], references: [id], onDelete: Restrict)
 
   @@unique([decisionId, operationKey])
   @@index([createdAt])
