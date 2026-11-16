@@ -315,7 +315,7 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
       });
       return rows.flatMap(row => canExposePostWorkoutDecision(row.status as PostWorkoutDecisionView['status'],row.exposeToStudent,row.studentMessage) && row.appliedAt ? [{
         id:row.id,action:row.action as PostWorkoutDecisionAction,
-        message:row.studentMessage,appliedAt:row.appliedAt.toISOString(),
+        message:row.studentMessage!,appliedAt:row.appliedAt.toISOString(),
       }] : []);
     },
   };
