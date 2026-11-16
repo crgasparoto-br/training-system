@@ -1,6 +1,6 @@
 import type {
   ApplyPostWorkoutDecisionPayload, CreatePostWorkoutDecisionPayload,
-  PostWorkoutDecisionSource, PostWorkoutDecisionStudentNotice,
+  PostWorkoutDecisionSourcePage, PostWorkoutDecisionStudentNotice,
   PostWorkoutDecisionView, TransitionPostWorkoutDecisionPayload,
 } from '@corrida/types';
 import api from './api';
@@ -18,10 +18,10 @@ export const postWorkoutDecisionService={
     }>>(url);
     return response.data.data;
   },
-  async sources(alunoId:string) {
-    const response=await api.get<ApiEnvelope<PostWorkoutDecisionSource[]>>(
-      root+'/alunos/'+encodeURIComponent(alunoId)+'/sources'
-    );
+  async sources(alunoId:string,cursor?:string) {
+    const url=root+'/alunos/'+encodeURIComponent(alunoId)+'/sources'
+      +(cursor?'?cursor='+encodeURIComponent(cursor):'');
+    const response=await api.get<ApiEnvelope<PostWorkoutDecisionSourcePage>>(url);
     return response.data.data;
   },
   async suggest(alunoId:string,payload:CreatePostWorkoutDecisionPayload) {

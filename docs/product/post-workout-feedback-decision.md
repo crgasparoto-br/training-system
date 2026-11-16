@@ -23,7 +23,7 @@ Base: /api/v1/training-decisions.
 
 | Rota | Método | Finalidade |
 | --- | --- | --- |
-| /alunos/:alunoId/sources | GET | Fontes atuais do feedback |
+| /alunos/:alunoId/sources | GET | Fontes atuais do feedback paginadas; cursor opcional |
 | /alunos/:alunoId | GET | Histórico técnico e versões de planejamento |
 | /alunos/:alunoId | POST | Criar sugestão com operationKey, workoutDayId, sourceFeedbackRevisionId, action, rationale e mensagem opcional |
 | /alunos/:alunoId/:decisionId/approve | POST | Aprovar com operationKey, expectedVersion, reason opcional |
@@ -31,11 +31,11 @@ Base: /api/v1/training-decisions.
 | /alunos/:alunoId/:decisionId/apply | POST | Aplicar com operationKey, expectedVersion, expectedPlanningVersion, effectiveFrom (AAAA-MM-DD futura) e instruction |
 | /student/me | GET | Mensagens práticas já aplicadas e explicitamente expostas |
 
-O serviço valida novamente ator ativo, bloco de acesso, escopo e pertencimento ao contrato **dentro da transação**. A criação bloqueia a sessão de execução; a revisão bloqueia a decisão; a aplicação bloqueia também o plano. A mesma chave e o mesmo payload não geram eventos, operações ou versões duplicadas. Reutilização de chave com conteúdo diferente, versão esperada desatualizada e conflito no planejamento retornam HTTP 409.
+O serviço valida novamente ator ativo, bloco de acesso, escopo e pertencimento ao contrato **dentro da transação**, com bloqueios compartilhados dos vínculos, concessões e atribuições para que revogações concorrentes aguardem a conclusão da operação autorizada. A criação bloqueia a sessão de execução; a revisão bloqueia a decisão; a aplicação bloqueia também o plano. A mesma chave e o mesmo payload não geram eventos, operações ou versões duplicadas. Reutilização de chave com conteúdo diferente, versão esperada desatualizada e conflito no planejamento retornam HTTP 409.
 
-O banco impede exclusões e alterações retroativas do histórico, mudanças fora da máquina de estados e aplicação sem registro de efeito antes do commit. Erros em qualquer etapa revertem a transação inteira.
+O banco impede inclusões que não comecem em `suggested`/versão 1, exclusões e alterações retroativas do histórico, mudanças fora da máquina de estados e aplicação sem registro de efeito antes do commit. Erros em qualquer etapa revertem a transação inteira. A aplicação valida a data futura **dentro da vigência atual do plano** (início e fim), após adquirir o bloqueio e reler o plano, não usando o período consultado antes da trava.
 
-A consulta profissional de histórico é paginada (até 100 decisões por página) pelo parâmetro opcional de cursor; a resposta inclui nextCursor para continuar sem ocultar decisões antigas. O backend valida se o cursor pertence ao aluno e contrato autorizados.
+A consulta profissional de histórico é paginada (até 100 decisões por página) pelo parâmetro opcional de cursor; a resposta inclui nextCursor para continuar sem ocultar decisões antigas. O backend valida se o cursor pertence ao aluno e contrato autorizados. A consulta de fontes também usa lotes de até 100 **sessões/escopos distintos**, ordenando as últimas revisões antes de paginar; responde `{sources, nextCursor}` e rejeita cursors de outros contratos, inexistentes ou que deixaram de apontar para a revisão atual.
 
 ## Permissões e exposição ao aluno
 

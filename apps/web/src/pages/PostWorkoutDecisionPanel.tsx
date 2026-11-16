@@ -15,7 +15,10 @@ type Props={
   canApprove:boolean;
   canApply:boolean;
 };
-type Data={decisions:PostWorkoutDecisionView[];planningVersions:Record<string,number>;nextCursor:string|null;sources:PostWorkoutDecisionSource[]};
+type Data={
+  decisions:PostWorkoutDecisionView[];planningVersions:Record<string,number>;
+  nextCursor:string|null;sources:PostWorkoutDecisionSource[];sourceNextCursor:string|null;
+};
 const actionLabels:Record<PostWorkoutDecisionAction,string>={
   maintain:'Manter',progress:'Progredir',reduce:'Reduzir',replace:'Substituir',
   suspend:'Suspender',reassess:'Reavaliar',
@@ -35,6 +38,7 @@ export function PostWorkoutDecisionPanel({
   const [data,setData]=useState<Data|null>(null);
   const [loading,setLoading]=useState(false);
   const [loadingMore,setLoadingMore]=useState(false);
+  const [loadingSources,setLoadingSources]=useState(false);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState<string|null>(null);
   const [sourceId,setSourceId]=useState('');
@@ -52,14 +56,15 @@ export function PostWorkoutDecisionPanel({
     if(!canView || !contractId)return;
     const token=++generation.current;
     setLoadingMore(false);
+    setLoadingSources(false);
     setLoading(true);
     try{
-      const [list,sources]=await Promise.all([
+      const [list,sourcePage]=await Promise.all([
         postWorkoutDecisionService.list(alunoId),
         postWorkoutDecisionService.sources(alunoId),
       ]);
       if(token===generation.current){
-        setData({...list,sources});
+        setData({...list,sources:sourcePage.sources,sourceNextCursor:sourcePage.nextCursor});
         setError(null);
       }
     }catch(e){
@@ -90,6 +95,24 @@ export function PostWorkoutDecisionPanel({
       }
     }catch(e){if(token===generation.current)setError(errorMessage(e));}
     finally{if(token===generation.current)setLoadingMore(false);}
+  };
+  const loadMoreSources=async()=>{
+    const cursor=data?.sourceNextCursor;
+    if(!cursor||loading||loadingSources||saving)return;
+    const token=generation.current;
+    setLoadingSources(true);setError(null);
+    try{
+      const page=await postWorkoutDecisionService.sources(alunoId,cursor);
+      if(token===generation.current){
+        setData(current=>current?{
+          ...current,
+          sources:[...current.sources,...page.sources.filter(source=>
+            !current.sources.some(previous=>previous.feedbackRevisionId===source.feedbackRevisionId))],
+          sourceNextCursor:page.nextCursor,
+        }:null);
+      }
+    }catch(e){if(token===generation.current)setError(errorMessage(e));}
+    finally{if(token===generation.current)setLoadingSources(false);}
   };
   const resetCreateKey=()=>{createKey.current=null;};
   const suggest=async()=>{
@@ -158,6 +181,10 @@ export function PostWorkoutDecisionPanel({
           </option>)}
         </select>
       </label>
+      {data.sourceNextCursor&&<Button type="button" size="sm" variant="outline"
+        disabled={loading||loadingSources||saving} onClick={()=>{void loadMoreSources();}}>
+        {loadingSources?'Carregando fontes anteriores…':'Carregar mais sessões com feedback'}
+      </Button>}
       <label className="block space-y-1">
         <span>Ação sugerida</span>
         <select className="w-full rounded border border-border bg-background p-2" value={action}

@@ -11,6 +11,7 @@ if (process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true') jest.setTimeout(60_00
 integration('issue #406: canonical decision persistence and review in PostgreSQL',()=>{
   const db=new PrismaClient();
   const peer=new PrismaClient();
+  const admin=new PrismaClient();
   const service=createPostWorkoutDecisionService(db);
   const peerService=createPostWorkoutDecisionService(peer);
   const uuid=()=>randomUUID();
@@ -118,7 +119,7 @@ integration('issue #406: canonical decision persistence and review in PostgreSQL
   });
   const operation=(expectedVersion:number)=>({operationKey:'review-'+uuid(),expectedVersion});
 
-  afterAll(async()=>{await Promise.all([db.$disconnect(),peer.$disconnect()]);});
+  afterAll(async()=>{await Promise.all([db.$disconnect(),peer.$disconnect(),admin.$disconnect()]);});
   it('freezes origin; retry across clients does not duplicate a decision, event or version',async()=>{
     const f=await fixture(),payload=suggestion(f);
     const before=await db.workoutDay.findUniqueOrThrow({where:{id:f.dayId}});
@@ -294,6 +295,153 @@ integration('issue #406: canonical decision persistence and review in PostgreSQL
     expect(new Set([...page1.decisions,...page2.decisions].map(x=>x.id)).size).toBe(101);
     expect(page1.decisions[0].id).toBe(first.id);
     await expect(service.listForProfessor(f.c,'unknown-tenant-cursor'))
+      .rejects.toMatchObject({code:'INVALID_INPUT'});
+  });
+  it('rejects direct SQL-level creation of non-suggested decisions',async()=>{
+    const f=await fixture(),baseline=await service.suggest(f.c,suggestion(f));
+    const now=new Date();
+    for(const state of ['approved','rejected','applied'] as const){
+      const fields=state==='approved'
+        ? {status:state,version:2,approvedByProfessorId:f.c.actorProfessorId,approvedAt:now}
+        : state==='rejected'
+        ? {status:state,version:2,rejectedByProfessorId:f.c.actorProfessorId,
+          rejectedAt:now,rejectionReason:'Sem evidência suficiente'}
+        : {status:state,version:3,approvedByProfessorId:f.c.actorProfessorId,approvedAt:now,
+          appliedByProfessorId:f.c.actorProfessorId,appliedAt:now};
+      await expect(db.postWorkoutDecision.create({data:{
+        contractId:f.contractId,alunoId:f.alunoId,workoutDayId:f.dayId,
+        sourceFeedbackRevisionId:f.feedbackId,trainingPlanId:f.planId,
+        sourceSnapshot:baseline.sourceSnapshot as unknown as Prisma.InputJsonValue,
+        action:'maintain',rationale:'Tentativa de pular a transição obrigatória',
+        suggestionKey:'direct-'+uuid(),requestFingerprint:'direct-'+uuid(),
+        suggestedByProfessorId:f.c.actorProfessorId,...fields,
+      }})).rejects.toThrow(/Invalid initial decision state/);
+    }
+    expect(await db.postWorkoutDecision.count({where:{alunoId:f.alunoId}})).toBe(1);
+    expect(await db.studentLifecycleEvent.count({where:{
+      alunoId:f.alunoId,metadata:{path:['decisionId'],equals:baseline.id},
+    }})).toBe(1);
+  });
+
+  it('checks both planning period boundaries before writing an adjustment',async()=>{
+    const f=await fixture(),decision=await service.suggest(f.c,suggestion(f));
+    await service.transition(f.c,decision.id,'approve',operation(1));
+    const days=(n:number)=>new Date(Date.now()+n*86400_000);
+    await db.trainingPlan.update({where:{id:f.planId},data:{
+      startDate:days(40),endDate:days(120),
+    }});
+    const request=()=>({...operation(2),expectedPlanningVersion:0,
+      effectiveFrom:future(),instruction:'Aplicação fora da vigência'});
+    await expect(service.transition(f.c,decision.id,'apply',request()))
+      .rejects.toMatchObject({code:'INVALID_INPUT'});
+    await db.trainingPlan.update({where:{id:f.planId},data:{
+      startDate:days(-90),endDate:days(10),
+    }});
+    await expect(service.transition(f.c,decision.id,'apply',request()))
+      .rejects.toMatchObject({code:'INVALID_INPUT'});
+    expect(await db.trainingPlanAdjustment.count({where:{decisionId:decision.id}})).toBe(0);
+    expect((await service.listForProfessor(f.c)).decisions.find(x=>x.id===decision.id)?.status)
+      .toBe('approved');
+  });
+
+  async function waitForBlockedStatement(fragment:string){
+    for(let attempt=0;attempt<140;attempt++){
+      const waiting=await admin.$queryRaw<Array<{pid:number}>>(Prisma.sql`
+        SELECT pid FROM pg_stat_activity WHERE pid<>pg_backend_pid()
+          AND wait_event_type='Lock' AND state='active' AND position(${fragment} in query)>0
+      `);
+      if(waiting.length)return;
+      await new Promise(resolve=>setTimeout(resolve,50));
+    }
+    throw new Error('A operação não chegou ao bloqueio esperado: '+fragment);
+  }
+
+  it('re-reads a plan period changed by another transaction while waiting for its lock',async()=>{
+    const f=await fixture(),decision=await service.suggest(f.c,suggestion(f));
+    await service.transition(f.c,decision.id,'approve',operation(1));
+    let notify!:()=>void,release!:()=>void;
+    const held=new Promise<void>(resolve=>{notify=resolve;});
+    const hold=peer.$transaction(async tx=>{
+      await tx.trainingPlan.update({where:{id:f.planId},
+        data:{endDate:new Date(Date.now()+10*86400_000)}});
+      notify();
+      await new Promise<void>(resolve=>{release=resolve;});
+    });
+    await held;
+    const applied=service.transition(f.c,decision.id,'apply',{
+      ...operation(2),expectedPlanningVersion:0,effectiveFrom:future(),
+      instruction:'Período concorrente inválido',
+    });
+    try {
+      await waitForBlockedStatement('TrainingPlan');
+    } finally {
+      release();
+      await hold;
+    }
+    await expect(applied).rejects.toMatchObject({code:'INVALID_INPUT'});
+    expect(await db.trainingPlanAdjustment.count({where:{decisionId:decision.id}})).toBe(0);
+  });
+
+  it('serializes permission revocation after an already authorized operation',async()=>{
+    const f=await fixture(),decision=await service.suggest(f.c,suggestion(f));
+    await service.transition(f.c,decision.id,'approve',operation(1));
+    let notify!:()=>void,release!:()=>void;
+    const held=new Promise<void>(resolve=>{notify=resolve;});
+    const hold=peer.$transaction(async tx=>{
+      await tx.$queryRaw(Prisma.sql`
+        SELECT "id" FROM "PostWorkoutDecision" WHERE "id"=${decision.id} FOR UPDATE
+      `);
+      notify();
+      await new Promise<void>(resolve=>{release=resolve;});
+    });
+    await held;
+    const applied=service.transition(f.c,decision.id,'apply',{
+      ...operation(2),expectedPlanningVersion:0,effectiveFrom:future(),
+      instruction:'Operação linearizada antes da revogação',
+    });
+    let revoked=false;
+    let revoke:Promise<unknown>|null=null;
+    try {
+      await waitForBlockedStatement('PostWorkoutDecision');
+      revoke=admin.accessPermission.updateMany({where:{
+        collaboratorFunctionId:f.fnId,blockKey:'students.details.trainingDecisions.apply',
+      },data:{canView:false}}).then(result=>{revoked=true;return result;});
+      await new Promise(resolve=>setTimeout(resolve,150));
+      expect(revoked).toBe(false);
+    } finally {
+      release();
+      await hold;
+    }
+    await expect(applied).resolves.toMatchObject({status:'applied',version:3});
+    await revoke;
+    expect(revoked).toBe(true);
+    expect(await db.trainingPlanAdjustment.count({where:{decisionId:decision.id}})).toBe(1);
+  });
+
+  it('selects the latest revision of each scope before limiting or paging sources',async()=>{
+    const f=await fixture();
+    const origin=await db.postWorkoutFeedbackRevision.findUniqueOrThrow({where:{id:f.feedbackId}});
+    const second=await createPostWorkoutFeedbackPersistenceService(db).createForStudent({
+      sessionId:f.dayId,alunoId:f.alunoId,contractId:f.contractId,actorUserId:f.studentUserId,
+      payload:{operationKey:'other-scope-'+uuid(),capacity:'resisted',values:{pse:7}},
+    });
+    await db.postWorkoutFeedbackRevision.createMany({data:Array.from({length:105},(_,i)=>({
+      workoutDayId:f.dayId,executionId:f.executionId,alunoId:f.alunoId,contractId:f.contractId,
+      scopeKey:'session',revisionNumber:i+2,previousRevisionId:f.feedbackId,
+      perceptionAuthorActor:'student',revisedByActor:'professor',correctionReason:'Revisão histórica',
+      values:{pse:8},signals:[],ruleSetVersion:origin.ruleSetVersion,
+      originReleaseId:origin.originReleaseId,originWorkoutTemplateId:origin.originWorkoutTemplateId,
+      originTrainingPlanId:origin.originTrainingPlanId,
+      createdAt:new Date(Date.now()+(i+1)*1000),
+    }))});
+    const page=await service.sources(f.c);
+    expect(page.nextCursor).toBeNull();
+    expect(page.sources).toHaveLength(2);
+    expect(page.sources.find(x=>x.scopeKey==='session')?.revisionNumber).toBe(106);
+    expect(page.sources.find(x=>x.scopeKey==='capacity:resisted')?.feedbackRevisionId).toBe(second.id);
+    await expect(service.sources(f.c,'invalid-other-tenant-cursor'))
+      .rejects.toMatchObject({code:'INVALID_INPUT'});
+    await expect(service.sources(f.c,f.feedbackId))
       .rejects.toMatchObject({code:'INVALID_INPUT'});
   });
 

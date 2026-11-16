@@ -13,6 +13,7 @@
 
 ## Validação
 - Testes de matriz de estados, dados clínicos privados, concorrência, rollback e idempotência.
+- Regressões da auditoria PR #548: INSERT direto aprovado/rejeitado/aplicado, início fora da vigência após bloqueio, revogação concorrente e fontes paginadas sem starvation por revisões repetidas.
 - Migration PostgreSQL em teste, prisma generate, type-check, lint, build, pnpm validate.
 - Auditoria independente do diff, controles negativos e ausência de regressões.
 - PR para develop sem merge.
