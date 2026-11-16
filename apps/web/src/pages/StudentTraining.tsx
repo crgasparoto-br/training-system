@@ -6,6 +6,7 @@ import { getStudentContractId, withStudentContractContext } from '../services/st
 import { trainingRoutineService } from '../services/training-routine.service';
 import { preWorkoutCheckInService } from '../services/pre-workout-check-in.service';
 import { postWorkoutFeedbackService } from '../services/post-workout-feedback.service';
+import { PostWorkoutDecisionNotice } from '../components/training/PostWorkoutDecisionNotice';
 
 /** Treino de hoje, rotina semanal e lifecycle canônico da sessão (#387/#389). */
 export function StudentTraining() {
@@ -69,6 +70,7 @@ export function StudentTraining() {
           Ver todos os treinos liberados
         </Link>
       </div>
+      <PostWorkoutDecisionNotice contractId={contractId} />
       <TrainingRoutinePanel
         key={contractId ?? 'sem-contrato-explicito'}
         audience="student"
