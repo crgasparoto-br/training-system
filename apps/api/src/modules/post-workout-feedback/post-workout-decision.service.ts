@@ -8,6 +8,7 @@ import type {
 } from '@corrida/types';
 import { canProfessorAccessBlock, getEffectiveDataScopeForProfessor } from '../access-control/access-control.service.js';
 import { canTransitionDecision, canExposePostWorkoutDecision, isFuturePlanningDate } from './post-workout-decision.domain.js';
+import { withPostWorkoutDecisionTransactionRetry } from './post-workout-decision.errors.js';
 
 const prisma = new PrismaClient();
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -62,6 +63,20 @@ function project(row: Row): PostWorkoutDecisionView {
       instruction: row.adjustment.instruction,
     } : null,
   };
+}
+/**
+ * Serialize student mutations BEFORE authorization and row locks. Two simultaneous
+ * transitions can otherwise hold compatible parent SHARE locks, then deadlock
+ * between a decision FOR UPDATE and a lifecycle event's referential checks.
+ * This transaction-scoped lock is released automatically at commit/rollback.
+ */
+async function lockDecisionMutationScope(db: Db, c: DecisionContext) {
+  await db.$queryRaw(Prisma.sql`
+    SELECT 1::integer AS "acquired"
+    FROM pg_advisory_xact_lock(
+      hashtext(${'training-decision:'+c.contractId}), hashtext(${c.alunoId})
+    )
+  `);
 }
 async function authorize(db: Db, c: DecisionContext, permission: 'view' | 'suggest' | 'approve' | 'apply') {
   // A concurrent dismissal or deactivation cannot take effect between authorization and commit.
@@ -246,7 +261,8 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
       if (!allowedActions.has(payload.action)) fail('INVALID_INPUT','Ação inválida.');
       const fp = fingerprint({ workoutDayId: payload.workoutDayId, sourceFeedbackRevisionId: payload.sourceFeedbackRevisionId,
         action: payload.action, rationale, studentMessage, exposeToStudent: payload.exposeToStudent === true });
-      return client.$transaction(async(tx) => {
+      return withPostWorkoutDecisionTransactionRetry(() => client.$transaction(async(tx) => {
+        await lockDecisionMutationScope(tx,c);
         await authorize(tx,c,'suggest');
         const locked = await tx.$queryRawUnsafe<Array<{id:string;originReleaseId:string;originWorkoutTemplateId:string;originTrainingPlanId:string}>>(
           'SELECT "id","originReleaseId","originWorkoutTemplateId","originTrainingPlanId" FROM "WorkoutSessionExecution" WHERE "workoutDayId"=$1 AND "alunoId"=$2 AND "contractId"=$3 AND "status" IN (\'completed\',\'partial\') FOR UPDATE',
@@ -292,7 +308,7 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
         });
         await addEvent(tx,c,row,'suggested');
         return project(row);
-      });
+      }));
     },
     async transition(
       c: DecisionContext, id: string, kind: DecisionAction,
@@ -314,7 +330,8 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
       const fp = fingerprint({ kind,expectedVersion:payload.expectedVersion,reason,
         ...(apply ? { expectedPlanningVersion:apply.expectedPlanningVersion,
           effectiveFrom:apply.effectiveFrom.toISOString(),instruction:apply.instruction } : {}) });
-      return client.$transaction(async(tx) => {
+      return withPostWorkoutDecisionTransactionRetry(() => client.$transaction(async(tx) => {
+        await lockDecisionMutationScope(tx,c);
         await authorize(tx,c,kind === 'apply' ? 'apply' : 'approve');
         const locked = await tx.$queryRawUnsafe<Array<{id:string}>>(
           'SELECT "id" FROM "PostWorkoutDecision" WHERE "id"=$1 AND "contractId"=$2 AND "alunoId"=$3 FOR UPDATE',
@@ -397,7 +414,7 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
           resultingVersion:updated.version,lifecycleEventId:eventId,
         }});
         return project(updated);
-      },{isolationLevel:Prisma.TransactionIsolationLevel.ReadCommitted});
+      },{isolationLevel:Prisma.TransactionIsolationLevel.ReadCommitted}));
     },
     async notices(alunoId:string,contractId:string):Promise<PostWorkoutDecisionStudentNotice[]> {
       const rows = await client.postWorkoutDecision.findMany({

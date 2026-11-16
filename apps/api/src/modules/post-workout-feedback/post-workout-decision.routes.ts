@@ -1,10 +1,10 @@
 import { Router, type Request, type Response } from 'express';
-import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware, alunoMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import { resolveActiveStudentMembership, StudentAccountContextError } from '../alunos/student-account-context.service.js';
 import { PostWorkoutDecisionError, postWorkoutDecisionService } from './post-workout-decision.service.js';
+import { isPostWorkoutDecisionDatabaseConflict } from './post-workout-decision.errors.js';
 
 const router: Router = Router();
 const key = z.string().trim().min(8).max(128);
@@ -28,8 +28,7 @@ const applySchema = reviewSchema.extend({
 
 function report(res:Response,error:unknown) {
   if (error instanceof z.ZodError) return sendError(res,'Dados inválidos',400,error.errors);
-  if (error instanceof Prisma.PrismaClientKnownRequestError &&
-    (error.code === 'P2002' || error.code === 'P2034')) {
+  if (isPostWorkoutDecisionDatabaseConflict(error)) {
     return sendError(res,'O registro foi alterado por outra operação. Atualize antes de continuar.',409,{code:'CONFLICT'});
   }
   if (error instanceof StudentAccountContextError) {
