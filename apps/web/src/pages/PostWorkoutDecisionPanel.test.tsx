@@ -27,9 +27,13 @@ const decision = (id: string): PostWorkoutDecisionView => ({
   sourceSnapshot: {
     feedbackRevisionNumber: 1, scopeKey: 'session', ruleSetVersion: 'v1',
     recordedAt: '2026-11-16T12:00:00Z', originReleaseId: 'release-406',
-    values: {}, signals: [],
+    values: {
+      pse: null, psr: null, painBefore: null, painDuring: null, painAfter: null,
+      painLocation: null, difficulty: null, fatigueLevel: null, energyLevel: null,
+      sleepQuality: null, dizziness: null, observations: null, professorTechnicalNotes: null,
+    }, signals: [],
   },
-} as PostWorkoutDecisionView);
+});
 
 beforeEach(() => {
   vi.mocked(postWorkoutDecisionService.list).mockReset();
