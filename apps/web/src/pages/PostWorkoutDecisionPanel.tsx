@@ -51,6 +51,7 @@ export function PostWorkoutDecisionPanel({
   const load=useCallback(async()=>{
     if(!canView || !contractId)return;
     const token=++generation.current;
+    setLoadingMore(false);
     setLoading(true);
     try{
       const [list,sources]=await Promise.all([
