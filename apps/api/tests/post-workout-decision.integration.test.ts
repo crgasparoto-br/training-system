@@ -378,7 +378,7 @@ integration('issue #406: canonical decision persistence and review in PostgreSQL
       release();
       await hold;
     }
-    await expect(applied).rejects.toMatchObject({code:'INVALID_INPUT'});
+    await expect(applied).rejects.toMatchObject({code:'CONFLICT'});
     expect(await db.trainingPlanAdjustment.count({where:{decisionId:decision.id}})).toBe(0);
   });
 

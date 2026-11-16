@@ -323,7 +323,7 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
         if (!locked.length) fail('NOT_FOUND','Decisão não encontrada.');
         const current = await tx.postWorkoutDecision.findUnique({where:{id},include});
         if (!current) fail('NOT_FOUND','Decisão não encontrada.');
-        await ensurePlan(tx,c,current.trainingPlanId);
+        const targetPlan = await ensurePlan(tx,c,current.trainingPlanId);
         const prior = await tx.postWorkoutDecisionOperation.findUnique({
           where:{ decisionId_operationKey:{decisionId:id,operationKey} },
         });
@@ -363,6 +363,10 @@ export function createPostWorkoutDecisionService(client: PrismaClient = prisma) 
           if (!isFuturePlanningDate(apply.effectiveFrom,new Date())) fail('INVALID_INPUT','Início deve ser futuro.');
           // The plan can change while we wait for its row lock. Re-read under the lock.
           const currentPlan = await ensurePlan(tx,c,current.trainingPlanId);
+          if (currentPlan.startDate.getTime() !== targetPlan.startDate.getTime() ||
+              currentPlan.endDate.getTime() !== targetPlan.endDate.getTime()) {
+            fail('CONFLICT','A vigência do plano foi alterada. Recarregue o planejamento.');
+          }
           if (apply.effectiveFrom < currentPlan.startDate || apply.effectiveFrom > currentPlan.endDate) {
             fail('INVALID_INPUT','O início está fora da vigência atual do plano.');
           }
