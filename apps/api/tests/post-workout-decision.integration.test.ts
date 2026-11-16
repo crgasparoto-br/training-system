@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { ContractType, PrismaClient, ProfessorRole, UserType } from '@prisma/client';
 import { createPostWorkoutDecisionService, PostWorkoutDecisionError } from '../src/modules/post-workout-feedback/post-workout-decision.service.js';
+import { createWorkoutSessionExecutionService } from '../src/modules/workout/workout-session-execution.service.js';
 import { syncAccessPermissionsForFunction } from '../src/modules/access-control/access-control.service.js';
 
 const integration = process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true' ? describe : describe.skip;
@@ -49,11 +50,46 @@ integration('issue #406: canonical decision persistence and review in PostgreSQL
       templateId:template.id,dayOfWeek:2,workoutDate:new Date('2026-11-03T00:00:00.000Z'),
       method:'continuous',
     }});
-    const execution=await db.workoutSessionExecution.create({data:{
-      workoutDayId:day.id,alunoId:aluno.id,contractId,
-      originReleaseId:'issue406-release-'+uuid(),originWorkoutTemplateId:template.id,
-      originTrainingPlanId:plan.id,status:'completed',
+    // Use the real release + session lifecycle (#389/#399). Directly inserting
+    // a completed execution is prohibited by the canonical PostgreSQL guard.
+    const assembly=await db.consolidatedPrescription.create({data:{
+      contractId,alunoId:aluno.id,currentVersion:2,currentStatus:'released',
+      createdByProfessorId:prof.id,updatedByProfessorId:prof.id,
     }});
+    const approvedVersion=await db.consolidatedPrescriptionVersion.create({data:{
+      assemblyId:assembly.id,contractId,alunoId:aluno.id,version:1,status:'approved',
+      responsibleProfessorId:prof.id,professorJustification:'Treino autorizado para teste da issue 406.',
+      approvedByProfessorId:prof.id,approvedAt:new Date('2026-11-01T12:00:00.000Z'),
+      createdByProfessorId:prof.id,conflicts:[],
+    }});
+    const releasedVersion=await db.consolidatedPrescriptionVersion.create({data:{
+      assemblyId:assembly.id,contractId,alunoId:aluno.id,version:2,
+      previousVersionId:approvedVersion.id,status:'released',
+      responsibleProfessorId:prof.id,professorJustification:approvedVersion.professorJustification,
+      approvedByProfessorId:prof.id,approvedAt:approvedVersion.approvedAt,
+      createdByProfessorId:prof.id,conflicts:[],
+    }});
+    const releaseId='issue406-release-'+uuid();
+    const releasedAt=new Date('2026-11-02T12:00:00.000Z');
+    await db.$executeRawUnsafe(
+      'INSERT INTO "ConsolidatedPrescriptionOperationalRelease" (' +
+      '"id","assemblyId","sourceAssemblyVersionId","sourceAssemblyVersion",' +
+      '"releasedAssemblyVersionId","releasedAssemblyVersion","contractId","alunoId",' +
+      '"trainingPlanId","workoutTemplateId","requestFingerprint",' +
+      '"releasedByProfessorId","releasedAt","createdAt") VALUES (' +
+      '$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)',
+      releaseId,assembly.id,approvedVersion.id,1,releasedVersion.id,2,
+      contractId,aluno.id,plan.id,template.id,uuid(),prof.id,releasedAt,releasedAt,
+    );
+    await db.workoutTemplate.update({where:{id:template.id},data:{released:true,releasedAt}});
+    const execService=createWorkoutSessionExecutionService(db);
+    await execService.transition({sessionId:day.id,alunoId:aluno.id,contractId,
+      actorUserId:studentUser.id,payload:{operationKey:'issue406-start-'+uuid(),
+        expectedVersion:0,targetStatus:'in_progress'}});
+    await execService.transition({sessionId:day.id,alunoId:aluno.id,contractId,
+      actorUserId:studentUser.id,payload:{operationKey:'issue406-complete-'+uuid(),
+        expectedVersion:1,targetStatus:'completed'}});
+    const execution=await db.workoutSessionExecution.findUniqueOrThrow({where:{workoutDayId:day.id}});
     const feedback=await db.postWorkoutFeedbackRevision.create({data:{
       workoutDayId:day.id,executionId:execution.id,alunoId:aluno.id,contractId,
       scopeKey:'session',revisionNumber:1,perceptionAuthorActor:'student',
@@ -73,7 +109,7 @@ integration('issue #406: canonical decision persistence and review in PostgreSQL
     return {
       c:{contractId,alunoId:aluno.id,actorProfessorId:prof.id,actorUserId:user.id},
       contractId,alunoId:aluno.id,fnId:fn.id,planId:plan.id,dayId:day.id,feedbackId:feedback.id,
-      executionId:execution.id,studentUserId:studentUser.id,
+      executionId:execution.id,studentUserId:studentUser.id,templateId:template.id,
     };
   }
   const suggestion=(f:Fixture,override:Record<string,unknown>={})=>({
@@ -168,7 +204,7 @@ integration('issue #406: canonical decision persistence and review in PostgreSQL
       perceptionAuthorActor:'student',revisedByActor:'professor',correctionReason:'Dados corrigidos',
       values:{pse:8},signals:[],ruleSetVersion:'issue406-test',
       originReleaseId:decision.sourceSnapshot.originReleaseId,
-      originWorkoutTemplateId:'unchanged-template',originTrainingPlanId:f.planId,
+      originWorkoutTemplateId:f.templateId,originTrainingPlanId:f.planId,
     }});
     await expect(service.transition(f.c,decision.id,'approve',operation(1)))
       .rejects.toMatchObject({code:'CONFLICT'});
