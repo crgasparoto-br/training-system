@@ -532,22 +532,16 @@ integration('issue #406: canonical decision persistence and review in PostgreSQL
     const initialEvents=await events();
     expect(initialEvents).toBe(1);
     for(const kind of ['approve','reject'] as const){
-      await expect(db.$transaction(async tx=>{
-        if(kind==='approve'){
-          await tx.$executeRawUnsafe(
-            'UPDATE "PostWorkoutDecision" SET "status"=\'approved\',"version"=2,'+
-            '"approvedByProfessorId"=$1,"approvedAt"=CURRENT_TIMESTAMP WHERE "id"=$2',
-            f.c.actorProfessorId,decision.id,
-          );
-        }else{
-          await tx.$executeRawUnsafe(
-            'UPDATE "PostWorkoutDecision" SET "status"=\'rejected\',"version"=2,'+
-            '"rejectedByProfessorId"=$1,"rejectedAt"=CURRENT_TIMESTAMP,'+
-            '"rejectionReason"=\'Revisão sem trilha\' WHERE "id"=$2',
-            f.c.actorProfessorId,decision.id,
-          );
-        }
-      })).rejects.toThrow(/Decision state requires matching lifecycle audit event/);
+      // Use an autocommit SQL statement: deferred COMMIT errors from an
+      // interactive Prisma transaction can be logged without rejecting its Promise.
+      const sql=kind==='approve'
+        ? 'UPDATE "PostWorkoutDecision" SET "status"=\'approved\',"version"=2,'+
+          '"approvedByProfessorId"=$1,"approvedAt"=CURRENT_TIMESTAMP WHERE "id"=$2'
+        : 'UPDATE "PostWorkoutDecision" SET "status"=\'rejected\',"version"=2,'+
+          '"rejectedByProfessorId"=$1,"rejectedAt"=CURRENT_TIMESTAMP,'+
+          '"rejectionReason"=\'Revisão sem trilha\' WHERE "id"=$2';
+      await expect(db.$executeRawUnsafe(sql,f.c.actorProfessorId,decision.id))
+        .rejects.toThrow(/Decision state requires matching lifecycle audit event/);
       expect(await db.postWorkoutDecision.findUniqueOrThrow({where:{id:decision.id}})).toEqual(before);
       expect(await events()).toBe(initialEvents);
       expect(await db.postWorkoutDecisionOperation.count({where:{decisionId:decision.id}})).toBe(0);
