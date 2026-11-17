@@ -30,3 +30,12 @@
 ## Limites
 - Orientação futura não substitui revisão de prescrição e liberação operacional.
 - Ativação de regras clínicas combinadas segue fluxo de homologação separado.
+
+## Pendências da auditoria de 17/11/2026 — PR #548
+
+- **A-004 (bloqueador de integridade):** restringir a constraint SQL por estado e versão; validar no commit evento/operacão de cada transição, com índices únicos. Controles: SQL direto para sugestão sem evento, aprovação/rejeição sem operação e timeline, estados com atores incompatíveis; fluxo autorizado positivo. Arquivos: migration, integração PostgreSQL e documentação funcional. Fechamento exige CI verde do novo SHA.
+- **R-001 (recomendação acionável):** limpar rascunho de nova sugestão ao trocar aluno/contrato/permissão e descartar conclusão de POST tardio; regressões Vitest/jsdom.
+- **A-005 (aceite operacional externo):** executar os cenários H406-01 a H406-14 em desktop e telefone físicos, totalizando 28 PASS com evidência por SHA em ambiente isolado. **PENDENTE — execução física não realizada por este contexto, sem PASS presumido.**
+- **LIM-001 (limitação do parecer):** a auditoria anterior não reproduziu SQL adversarial em banco próprio; os testes PostgreSQL da implementação não substituem nova auditoria independente.
+
+Preservar a PR em Draft, não realizar merge e não fechar #406 antes dos gates obrigatórios.

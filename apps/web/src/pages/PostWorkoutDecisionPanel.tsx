@@ -52,6 +52,10 @@ export function PostWorkoutDecisionPanel({
   const generation=useRef(0);
   const createKey=useRef<string|null>(null);
   const transitionKeys=useRef<Record<string,string>>({});
+  const currentContext=JSON.stringify([alunoId,contractId,authorizationKey,
+    canView,canSuggest,canApprove,canApply]);
+  const latestContext=useRef(currentContext);
+  latestContext.current=currentContext;
   const load=useCallback(async()=>{
     if(!canView || !contractId)return;
     const token=++generation.current;
@@ -74,6 +78,8 @@ export function PostWorkoutDecisionPanel({
   useEffect(()=>{
     generation.current++;
     setData(null);setError(null);setSourceId('');setDecisionDrafts({});
+    setAction('reassess');setRationale('');setStudentMessage('');setExposeToStudent(false);
+    setSaving(false);
     createKey.current=null;transitionKeys.current={};
     if(canView && contractId)void load();
     return ()=>{generation.current++;};
@@ -127,6 +133,7 @@ export function PostWorkoutDecisionPanel({
   const suggest=async()=>{
     const source=data?.sources.find(x=>x.feedbackRevisionId===sourceId);
     if(!canSuggest||!source || saving)return;
+    const submittedContext=currentContext;
     setSaving(true);setError(null);
     try{
       createKey.current ||=nextKey();
@@ -135,13 +142,15 @@ export function PostWorkoutDecisionPanel({
         sourceFeedbackRevisionId:source.feedbackRevisionId,action,
         rationale,studentMessage:studentMessage.trim()||null,exposeToStudent,
       });
+      if(latestContext.current!==submittedContext)return;
       resetCreateKey();setRationale('');setStudentMessage('');setExposeToStudent(false);
       await load();
-    }catch(e){setError(errorMessage(e));}
-    finally{setSaving(false);}
+    }catch(e){if(latestContext.current===submittedContext)setError(errorMessage(e));}
+    finally{if(latestContext.current===submittedContext)setSaving(false);}
   };
   const transition=async(row:PostWorkoutDecisionView,kind:'approve'|'reject'|'apply')=>{
     if(saving)return;
+    const submittedContext=currentContext;
     const draft=decisionDrafts[row.id]??emptyDecisionDraft;
     setSaving(true);setError(null);
     const k=row.id+':'+kind;
@@ -158,6 +167,7 @@ export function PostWorkoutDecisionPanel({
           ...payload,reason:draft.reviewReason.trim()||undefined,
         });
       }
+      if(latestContext.current!==submittedContext)return;
       for(const action of ['approve','reject','apply'] as const){
         delete transitionKeys.current[row.id+':'+action];
       }
@@ -166,8 +176,8 @@ export function PostWorkoutDecisionPanel({
         const next={...current};delete next[row.id];return next;
       });
       await load();
-    }catch(e){setError(errorMessage(e));}
-    finally{setSaving(false);}
+    }catch(e){if(latestContext.current===submittedContext)setError(errorMessage(e));}
+    finally{if(latestContext.current===submittedContext)setSaving(false);}
   };
   if(!canView||!contractId)return null;
   return <section className="mt-4 space-y-4 rounded-lg border border-border bg-background p-4 text-sm"

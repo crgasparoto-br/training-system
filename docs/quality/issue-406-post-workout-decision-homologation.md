@@ -52,3 +52,9 @@ Esses testes são **controles preventivos**, não substituem as observações re
 A auditoria de implementação não pode assinar a própria aprovação no mesmo contexto. O revisor deve abrir **contexto realmente separado**, congelar PR #548, issue #406, base `develop`, HEAD e merge preview, observar o run `Validate repository` desse HEAD, confrontar diff, fonte, testes, contrato GitHub-native confiável e ledger de findings A-001/A-002/A-003. Deve comprovar controles negativos e regressões do código atual; uma mensagem de PR ou este documento não são prova suficiente. Seguir o procedimento de `crgasparoto-br/skill` na branch `develop` ([auditar-issue/SKILL.md](https://github.com/crgasparoto-br/skill/blob/develop/auditar-issue/SKILL.md) e [WEB_INDEPENDENT_AUDIT.md](https://github.com/crgasparoto-br/skill/blob/develop/docs/WEB_INDEPENDENT_AUDIT.md)) e publicar recibo/parecer auditável com identidade exata, sem inventar sessões, assinaturas ou dispositivos.
 
 **Estado:** roteiro e controles automatizados preparados. Homologação em dispositivos físicos **não executada**; auditoria independente do **próximo SHA material** **não executada**. A PR deve continuar Draft, sem merge nem fechamento da issue até estes gates serem satisfeitos.
+
+## Rastreamento da remediação — 17/11/2026
+
+A-004 reforça as invariantes de persistência e inclui regressões SQL de operações e eventos ausentes. R-001 inclui regressões de rascunhos por aluno/contrato e requisições POST pendentes após mudança de contexto. Essas correções demandam CI no novo HEAD e auditoria independente posterior.
+
+**A-005 continua PENDENTE:** nenhum cenário físico foi realizado por esta remediação. O aceite exige 28 PASS comprovados nos dois dispositivos com deploys correspondentes ao SHA, credenciais e dados de teste isolados e aprovação do responsável. CI, testes unitários e capturas sintéticas não são substitutos.

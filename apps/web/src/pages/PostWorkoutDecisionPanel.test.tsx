@@ -272,4 +272,84 @@ describe('professional post-workout decision panel', () => {
     expect(screen.queryByRole('region', { name: 'Decisões pós-treino' })).toBeNull();
     await waitFor(() => expect(postWorkoutDecisionService.list).toHaveBeenCalledTimes(1));
   });
+
+  it('clears a clinical suggestion draft when student or contract changes',async()=>{
+    vi.mocked(postWorkoutDecisionService.sources).mockResolvedValue({
+      sources:[{workoutDayId:'day-406',feedbackRevisionId:'revision-406',
+        scopeKey:'session',revisionNumber:1,recordedAt:'2026-11-16T12:00:00Z',signals:[]}],
+      nextCursor:null,
+    });
+    const view=render(<PostWorkoutDecisionPanel {...props}/>);
+    expect(await screen.findByRole('option',{name:/revisão 1/})).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox',{name:'Feedback de origem'}),{
+      target:{value:'revision-406'},
+    });
+    fireEvent.change(screen.getByRole('combobox',{name:'Ação sugerida'}),{
+      target:{value:'reduce'},
+    });
+    fireEvent.change(screen.getByRole('textbox',{name:'Justificativa profissional'}),{
+      target:{value:'Justificativa clínica do aluno anterior'},
+    });
+    fireEvent.change(screen.getByRole('textbox',{name:/Orientação prática ao aluno/}),{
+      target:{value:'Mensagem do aluno anterior'},
+    });
+    fireEvent.click(screen.getByRole('checkbox',{
+      name:/Mostrar a orientação ao aluno somente depois da aplicação/,
+    }));
+    view.rerender(<PostWorkoutDecisionPanel {...props}
+      alunoId="student-b" contractId="contract-b" authorizationKey="granted-b"/>);
+    await waitFor(()=>expect(postWorkoutDecisionService.list)
+      .toHaveBeenCalledWith('student-b'));
+    expect(screen.getByRole('combobox',{name:'Feedback de origem'})).toHaveValue('');
+    expect(screen.getByRole('combobox',{name:'Ação sugerida'})).toHaveValue('reassess');
+    expect(screen.getByRole('textbox',{name:'Justificativa profissional'})).toHaveValue('');
+    expect(screen.getByRole('textbox',{name:/Orientação prática ao aluno/})).toHaveValue('');
+    expect(screen.getByRole('checkbox',{
+      name:/Mostrar a orientação ao aluno somente depois da aplicação/,
+    })).not.toBeChecked();
+  });
+
+  it('discards a pending approval completion after navigating to another student',async()=>{
+    let resolvePrevious!:(row:PostWorkoutDecisionView)=>void;
+    vi.mocked(postWorkoutDecisionService.transition).mockReturnValueOnce(
+      new Promise(resolve=>{resolvePrevious=resolve;}),
+    );
+    const view=render(<PostWorkoutDecisionPanel {...props}/>);
+    expect(await screen.findByText('Justificativa first')).toBeInTheDocument();
+    fireEvent.click(article('first').getByRole('button',{name:'Aprovar'}));
+    await waitFor(()=>expect(postWorkoutDecisionService.transition).toHaveBeenCalledTimes(1));
+    view.rerender(<PostWorkoutDecisionPanel {...props}
+      alunoId="student-b" contractId="contract-b" authorizationKey="granted-b"/>);
+    await waitFor(()=>expect(postWorkoutDecisionService.list).toHaveBeenCalledTimes(2));
+    await act(async()=>{resolvePrevious(approvedDecision('first'));});
+    expect(postWorkoutDecisionService.list).toHaveBeenCalledTimes(2);
+  });
+
+  it('discards a pending failed suggestion after permission changes',async()=>{
+    let rejectPrevious!:(error:Error)=>void;
+    vi.mocked(postWorkoutDecisionService.sources).mockResolvedValue({
+      sources:[{workoutDayId:'day-406',feedbackRevisionId:'revision-406',
+        scopeKey:'session',revisionNumber:1,recordedAt:'2026-11-16T12:00:00Z',signals:[]}],
+      nextCursor:null,
+    });
+    vi.mocked(postWorkoutDecisionService.suggest).mockReturnValueOnce(
+      new Promise((_resolve,reject)=>{rejectPrevious=reject;}),
+    );
+    const view=render(<PostWorkoutDecisionPanel {...props}/>);
+    expect(await screen.findByRole('option',{name:/revisão 1/})).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox',{name:'Feedback de origem'}),{
+      target:{value:'revision-406'},
+    });
+    fireEvent.change(screen.getByRole('textbox',{name:'Justificativa profissional'}),{
+      target:{value:'Rever treino com base no feedback'},
+    });
+    fireEvent.click(screen.getByRole('button',{name:'Registrar sugestão'}));
+    await waitFor(()=>expect(postWorkoutDecisionService.suggest).toHaveBeenCalledTimes(1));
+    view.rerender(<PostWorkoutDecisionPanel {...props}
+      canView={false} canSuggest={false} canApprove={false} canApply={false}
+      authorizationKey="revoked-after-post"/>);
+    await act(async()=>{rejectPrevious(new Error('timeout for old context'));});
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('region',{name:'Decisões pós-treino'})).toBeNull();
+  });
 });

@@ -30,17 +30,25 @@ CREATE TABLE "PostWorkoutDecision" (
     "action" IN ('maintain','progress','reduce','replace','suspend','reassess')
     AND length(btrim("rationale")) > 0
     AND length(btrim("suggestionKey")) BETWEEN 8 AND 128
-    AND "version" > 0
-    AND (("status" = 'suggested' AND "version"=1
-      AND "approvedAt" IS NULL AND "rejectedAt" IS NULL AND "appliedAt" IS NULL)
-      OR ("status"='approved' AND "approvedByProfessorId" IS NOT NULL
-        AND "approvedAt" IS NOT NULL AND "rejectedAt" IS NULL AND "appliedAt" IS NULL)
-      OR ("status"='rejected' AND "rejectedByProfessorId" IS NOT NULL
-        AND "rejectedAt" IS NOT NULL AND "rejectionReason" IS NOT NULL
-        AND length(btrim("rejectionReason"))>0
-        AND "approvedAt" IS NULL AND "appliedAt" IS NULL)
-      OR ("status"='applied' AND "approvedByProfessorId" IS NOT NULL AND "approvedAt" IS NOT NULL
-        AND "appliedByProfessorId" IS NOT NULL AND "appliedAt" IS NOT NULL AND "rejectedAt" IS NULL))
+    AND (
+      ("status"='suggested' AND "version"=1
+        AND "approvedByProfessorId" IS NULL AND "approvedAt" IS NULL AND "approvalReason" IS NULL
+        AND "rejectedByProfessorId" IS NULL AND "rejectedAt" IS NULL AND "rejectionReason" IS NULL
+        AND "appliedByProfessorId" IS NULL AND "appliedAt" IS NULL)
+      OR ("status"='approved' AND "version"=2
+        AND "approvedByProfessorId" IS NOT NULL AND "approvedAt" IS NOT NULL
+        AND "rejectedByProfessorId" IS NULL AND "rejectedAt" IS NULL AND "rejectionReason" IS NULL
+        AND "appliedByProfessorId" IS NULL AND "appliedAt" IS NULL)
+      OR ("status"='rejected' AND "version"=2
+        AND "rejectedByProfessorId" IS NOT NULL AND "rejectedAt" IS NOT NULL
+        AND "rejectionReason" IS NOT NULL AND length(btrim("rejectionReason"))>0
+        AND "approvedByProfessorId" IS NULL AND "approvedAt" IS NULL AND "approvalReason" IS NULL
+        AND "appliedByProfessorId" IS NULL AND "appliedAt" IS NULL)
+      OR ("status"='applied' AND "version"=3
+        AND "approvedByProfessorId" IS NOT NULL AND "approvedAt" IS NOT NULL
+        AND "appliedByProfessorId" IS NOT NULL AND "appliedAt" IS NOT NULL
+        AND "rejectedByProfessorId" IS NULL AND "rejectedAt" IS NULL AND "rejectionReason" IS NULL)
+    )
   ),
   CONSTRAINT "PostWorkoutDecision_contractId_fkey" FOREIGN KEY ("contractId") REFERENCES "Contract"("id") ON DELETE RESTRICT,
   CONSTRAINT "PostWorkoutDecision_alunoId_fkey" FOREIGN KEY ("alunoId") REFERENCES "Aluno"("id") ON DELETE RESTRICT,
@@ -236,3 +244,81 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER "StudentLifecycleEvent_decision_immutable"
   BEFORE UPDATE OR DELETE ON "StudentLifecycleEvent"
   FOR EACH ROW EXECUTE FUNCTION "guard_decision_lifecycle_event"();
+
+-- A-004: enforce the timeline and idempotent operation ledger at COMMIT.
+-- Deferral permits the service to insert the row, event and operation atomically.
+CREATE UNIQUE INDEX "PostWorkoutDecisionOperation_decisionId_resultingVersion_key"
+  ON "PostWorkoutDecisionOperation"("decisionId","resultingVersion");
+CREATE UNIQUE INDEX "StudentLifecycleEvent_trainingDecision_version_key"
+  ON "StudentLifecycleEvent"(("metadata"->>'decisionId'),("metadata"->>'version'))
+  WHERE "metadata"->>'domain'='training_decision';
+
+CREATE FUNCTION "guard_post_workout_decision_audit"() RETURNS trigger AS $$
+DECLARE
+  step INTEGER;
+  event_action TEXT;
+  operation_action TEXT;
+  event_actor TEXT;
+  matching_events BIGINT;
+BEGIN
+  FOR step IN 1..NEW."version" LOOP
+    IF step=1 THEN
+      event_action := 'suggested';
+      event_actor := NEW."suggestedByProfessorId";
+    ELSIF step=2 AND NEW."status"='rejected' THEN
+      event_action := 'rejected';
+      operation_action := 'reject';
+      event_actor := NEW."rejectedByProfessorId";
+    ELSIF step=2 THEN
+      event_action := 'approved';
+      operation_action := 'approve';
+      event_actor := NEW."approvedByProfessorId";
+    ELSE
+      event_action := 'applied';
+      operation_action := 'apply';
+      event_actor := NEW."appliedByProfessorId";
+    END IF;
+
+    IF step=1 THEN
+      SELECT COUNT(*) INTO matching_events
+      FROM "StudentLifecycleEvent" ev
+      WHERE ev."alunoId"=NEW."alunoId" AND ev."contractId"=NEW."contractId"
+        AND ev."actorProfessorId"=event_actor
+        AND ev."metadata"->>'domain'='training_decision'
+        AND ev."metadata"->>'decisionId'=NEW."id"
+        AND ev."metadata"->>'version'=step::text
+        AND ev."metadata"->>'action'=event_action
+        AND ev."metadata"->>'eventKey'=('post-workout-decision:'||NEW."id"||':v'||step::text)
+        AND ev."metadata"->>'workoutDayId'=NEW."workoutDayId"
+        AND ev."metadata"->>'feedbackRevisionId'=NEW."sourceFeedbackRevisionId"
+        AND ev."metadata"->>'trainingPlanId'=NEW."trainingPlanId";
+    ELSE
+      SELECT COUNT(*) INTO matching_events
+      FROM "PostWorkoutDecisionOperation" op
+      JOIN "StudentLifecycleEvent" ev ON ev."id"=op."lifecycleEventId"
+      WHERE op."decisionId"=NEW."id"
+        AND op."resultingVersion"=step AND op."action"=operation_action
+        AND ev."alunoId"=NEW."alunoId" AND ev."contractId"=NEW."contractId"
+        AND ev."actorProfessorId"=event_actor
+        AND ev."metadata"->>'domain'='training_decision'
+        AND ev."metadata"->>'decisionId'=NEW."id"
+        AND ev."metadata"->>'version'=step::text
+        AND ev."metadata"->>'action'=event_action
+        AND ev."metadata"->>'eventKey'=('post-workout-decision:'||NEW."id"||':v'||step::text)
+        AND ev."metadata"->>'workoutDayId'=NEW."workoutDayId"
+        AND ev."metadata"->>'feedbackRevisionId'=NEW."sourceFeedbackRevisionId"
+        AND ev."metadata"->>'trainingPlanId'=NEW."trainingPlanId";
+    END IF;
+
+    IF matching_events<>1 THEN
+      RAISE EXCEPTION 'Decision state requires matching lifecycle audit event and operation at version %',step
+        USING ERRCODE='23514';
+    END IF;
+  END LOOP;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+CREATE CONSTRAINT TRIGGER "PostWorkoutDecision_requires_audit"
+  AFTER INSERT OR UPDATE ON "PostWorkoutDecision"
+  DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION "guard_post_workout_decision_audit"();

@@ -46,3 +46,9 @@ A rota do aluno consulta apenas sua associação ativa, exige contrato explícit
 ## Execução e validação
 
 Migration: apps/api/prisma/migrations/20261116130000_issue_406_training_decisions. Schema: apps/api/prisma/schema.prisma. Executar pnpm validate e o workflow Validate PR no SHA final, com PostgreSQL real para os cenários críticos, validações de acesso, segurança, arquitetura e documentação. O histórico imutável é intencional.
+
+## Integridade do ledger no PostgreSQL — remediação A-004
+
+A constraint de estados limita versão, atores e campos exclusivos para cada estado. No commit, um trigger de auditoria diferido verifica o evento da timeline de toda sugestão e, para cada aprovação, rejeição e aplicação, a operação idempotente ligada ao evento. A verificação cruza aluno, contrato, versão, ator, sessão, plano e revisão de origem. Inserções SQL de sugestões sem evento, atualizações SQL de revisão sem evento/operação e estados com campos incompatíveis abortam a transação. Índices únicos evitam duplicidade de operação por versão e de evento de decisão por versão.
+
+As validações SQL complementam a autorização transacional do serviço, sem substituir a verificação de permissões. Testes de integração PostgreSQL exercitam os controles negativos e o caminho canônico válido. A homologação presencial em desktop e telefone físicos permanece uma obrigação distinta, não demonstrável pelo CI.

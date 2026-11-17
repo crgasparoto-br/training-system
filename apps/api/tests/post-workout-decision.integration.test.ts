@@ -312,15 +312,28 @@ integration('issue #406: canonical decision persistence and review in PostgreSQL
 
   it('paginates every older decision and rejects foreign or missing cursors',async()=>{
     const f=await fixture(),first=await service.suggest(f.c,suggestion(f));
-    await db.postWorkoutDecision.createMany({data:Array.from({length:100},(_,i)=>({
-      contractId:f.contractId,alunoId:f.alunoId,workoutDayId:f.dayId,
+    // Test-only historic decisions must satisfy the production SQL audit invariant.
+    const history=Array.from({length:100},(_,i)=>({
+      id:uuid(),contractId:f.contractId,alunoId:f.alunoId,workoutDayId:f.dayId,
       sourceFeedbackRevisionId:f.feedbackId,trainingPlanId:f.planId,
       sourceSnapshot:first.sourceSnapshot as unknown as Prisma.InputJsonValue,
       action:'maintain',rationale:'Registro histórico '+i,
       studentMessage:null,exposeToStudent:false,suggestedByProfessorId:f.c.actorProfessorId,
       suggestionKey:'history-'+uuid(),requestFingerprint:'test-'+uuid(),
       createdAt:new Date(Date.now()-(i+1)*60_000),
-    }))});
+    }));
+    await db.$transaction(async tx=>{
+      await tx.postWorkoutDecision.createMany({data:history});
+      await tx.studentLifecycleEvent.createMany({data:history.map(row=>({
+        alunoId:f.alunoId,contractId:f.contractId,eventType:'STATUS_CHANGED',
+        actorUserId:f.c.actorUserId,actorProfessorId:f.c.actorProfessorId,
+        metadata:{
+          eventKey:'post-workout-decision:'+row.id+':v1',domain:'training_decision',
+          action:'suggested',decisionId:row.id,version:1,workoutDayId:f.dayId,
+          feedbackRevisionId:f.feedbackId,trainingPlanId:f.planId,
+        },
+      }))});
+    });
     const page1=await service.listForProfessor(f.c);
     expect(page1.decisions).toHaveLength(100);
     expect(page1.nextCursor).toBeTruthy();
@@ -496,4 +509,78 @@ integration('issue #406: canonical decision persistence and review in PostgreSQL
       .rejects.toMatchObject({code:'INVALID_INPUT'});
   });
 
+
+  it('blocks SQL-level insertion of a suggested row without its audit event',async()=>{
+    const f=await fixture(),baseline=await service.suggest(f.c,suggestion(f));
+    await expect(db.postWorkoutDecision.create({data:{
+      contractId:f.contractId,alunoId:f.alunoId,workoutDayId:f.dayId,
+      sourceFeedbackRevisionId:f.feedbackId,trainingPlanId:f.planId,
+      sourceSnapshot:baseline.sourceSnapshot as unknown as Prisma.InputJsonValue,
+      action:'maintain',rationale:'Registro sem auditoria',
+      suggestionKey:'unaudited-'+uuid(),requestFingerprint:'unaudited-'+uuid(),
+      suggestedByProfessorId:f.c.actorProfessorId,
+    }})).rejects.toThrow(/Decision state requires matching lifecycle audit event/);
+    expect(await db.postWorkoutDecision.count({where:{alunoId:f.alunoId}})).toBe(1);
+  });
+
+  it('blocks SQL-level approvals and rejections with no matching event or operation',async()=>{
+    const f=await fixture(),decision=await service.suggest(f.c,suggestion(f));
+    const before=await db.postWorkoutDecision.findUniqueOrThrow({where:{id:decision.id}});
+    const events=()=>db.studentLifecycleEvent.count({where:{
+      alunoId:f.alunoId,metadata:{path:['decisionId'],equals:decision.id},
+    }});
+    const initialEvents=await events();
+    expect(initialEvents).toBe(1);
+    for(const kind of ['approve','reject'] as const){
+      await expect(db.$transaction(async tx=>{
+        if(kind==='approve'){
+          await tx.$executeRawUnsafe(
+            'UPDATE "PostWorkoutDecision" SET "status"=\'approved\',"version"=2,'+
+            '"approvedByProfessorId"=$1,"approvedAt"=CURRENT_TIMESTAMP WHERE "id"=$2',
+            f.c.actorProfessorId,decision.id,
+          );
+        }else{
+          await tx.$executeRawUnsafe(
+            'UPDATE "PostWorkoutDecision" SET "status"=\'rejected\',"version"=2,'+
+            '"rejectedByProfessorId"=$1,"rejectedAt"=CURRENT_TIMESTAMP,'+
+            '"rejectionReason"=\'Revisão sem trilha\' WHERE "id"=$2',
+            f.c.actorProfessorId,decision.id,
+          );
+        }
+      })).rejects.toThrow(/Decision state requires matching lifecycle audit event/);
+      expect(await db.postWorkoutDecision.findUniqueOrThrow({where:{id:decision.id}})).toEqual(before);
+      expect(await events()).toBe(initialEvents);
+      expect(await db.postWorkoutDecisionOperation.count({where:{decisionId:decision.id}})).toBe(0);
+      expect(await db.trainingPlanAdjustment.count({where:{decisionId:decision.id}})).toBe(0);
+    }
+    const approved=await service.transition(f.c,decision.id,'approve',operation(1));
+    expect(approved).toMatchObject({status:'approved',version:2});
+    expect(await events()).toBe(initialEvents+1);
+    expect(await db.postWorkoutDecisionOperation.count({where:{
+      decisionId:decision.id,resultingVersion:2,action:'approve',
+    }})).toBe(1);
+  });
+
+  it('blocks SQL-level states with incompatible actor and reason fields',async()=>{
+    const f=await fixture(),approval=await service.suggest(f.c,suggestion(f));
+    await expect(db.$executeRawUnsafe(
+      'UPDATE "PostWorkoutDecision" SET "status"=\'approved\',"version"=2,'+
+      '"approvedByProfessorId"=$1,"approvedAt"=CURRENT_TIMESTAMP,'+
+      '"rejectedByProfessorId"=$1 WHERE "id"=$2',
+      f.c.actorProfessorId,approval.id,
+    )).rejects.toThrow();
+    const rejection=await service.suggest(f.c,suggestion(f));
+    await expect(db.$executeRawUnsafe(
+      'UPDATE "PostWorkoutDecision" SET "status"=\'rejected\',"version"=2,'+
+      '"rejectedByProfessorId"=$1,"rejectedAt"=CURRENT_TIMESTAMP,'+
+      '"rejectionReason"=\'Motivo válido\',"approvedByProfessorId"=$1 WHERE "id"=$2',
+      f.c.actorProfessorId,rejection.id,
+    )).rejects.toThrow();
+    expect(await db.postWorkoutDecision.count({where:{
+      alunoId:f.alunoId,status:'suggested',
+    }})).toBe(2);
+    expect(await db.postWorkoutDecisionOperation.count({where:{
+      decisionId:{in:[approval.id,rejection.id]},
+    }})).toBe(0);
+  });
 });
