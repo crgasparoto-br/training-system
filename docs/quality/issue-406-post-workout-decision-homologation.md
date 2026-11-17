@@ -39,6 +39,42 @@ Para **cada** linha H406-01 a H406-14 e **cada** dispositivo, registrar em artef
 
 O aceite operacional exige **28 resultados PASS**, zero `FAIL`/`BLOCKED`, correspondência autenticada dos dois deploys com o SHA final, evidências verificáveis e sanitizadas, aprovação do responsável designado, CI verde no mesmo SHA e reexecução após quaisquer correções. Qualquer alteração de código invalida o aceite do SHA anterior. Os artefatos privados podem ficar em repositório de evidências apropriado, referenciados no comentário da PR com hashes, sem divulgação de dados pessoais.
 
+## Verificação estrutural do pacote privado de homologação
+
+A validação automatizada do **formato dos registros** está em
+[`scripts/verify-issue-406-homologation.mjs`](../../scripts/verify-issue-406-homologation.mjs),
+com controles positivos e negativos em
+[`scripts/verify-issue-406-homologation.test.mjs`](../../scripts/verify-issue-406-homologation.test.mjs).
+Ela não cria observações de dispositivos, não faz login no ambiente, não autentica
+links/assinaturas e **não pode transformar testes sintéticos em homologação**.
+
+Após executar os 28 cenários reais em dispositivos físicos, o responsável deverá
+produzir um JSON privado (fora do Git), com `schema_version=1`, `repository`,
+`issue=406`, `pr=548`, `head_sha`, `environment` (identificando homologação),
+`environment_isolated=true`, `fictitious_data_only=true`,
+`frontend_deployment_evidence_url`, `api_deployment_evidence_url` (HTTPS)
+e `approval={responsible_person,approved_at_utc,approval_evidence_ref}`.
+O campo `records` contém **exatamente 28 registros**; cada registro usa os
+campos definidos em **Modelo de registro e critérios de saída**, acrescentando
+`physical_device_confirmed=true` e `observed_behavior` (relato separado da
+expectativa). `device_kind` aceita `desktop` e `phone`; `scenario_id` aceita
+`H406-01` a `H406-14`. `result` deve ser `PASS` em todos os registros. Os campos
+`frontend_sha` e `api_sha` de **cada** registro devem coincidir com o HEAD.
+
+O responsável, com acesso a evidências privadas verificáveis, poderá executar:
+
+```bash
+node scripts/verify-issue-406-homologation.mjs /caminho/privado/issue-406-evidence.json --head "$(git rev-parse HEAD)"
+```
+
+Um resultado válido comprova **apenas a consistência estrutural** do pacote;
+antes do aceite é obrigatório confrontar os links com os deploys verdadeiros,
+inspecionar as capturas/logs sanitizados, confirmar fisicamente os dois
+aparelhos, validar a aprovação profissional e conferir CI exact-SHA.
+Não versionar o pacote, dados de identificação, tokens ou capturas clínicas.
+O pacote de teste gerado *em memória* pela suíte Node é fictício e nunca
+constitui um dos 28 PASS de homologação.
+
 ## Cobertura automática disponível e limites
 
 - `apps/api/tests/post-workout-decision.integration.test.ts` (PostgreSQL real via `RUN_DATABASE_INTEGRATION_TESTS=true`) exercita máquina de estados, 409, replay, autorização, escopo, revogação concorrente, histórico, vigência, rollback e guardas SQL.

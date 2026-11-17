@@ -39,3 +39,21 @@
 - **LIM-001 (limitação do parecer):** a auditoria anterior não reproduziu SQL adversarial em banco próprio; os testes PostgreSQL da implementação não substituem nova auditoria independente.
 
 Preservar a PR em Draft, não realizar merge e não fechar #406 antes dos gates obrigatórios.
+
+## Tentativa de fechamento dos bloqueios da auditoria — 17/11/2026
+
+- **A-005 (bloqueio externo):** implementado um **validador estrutural**
+  reutilizável do pacote de evidências H406 (28 cenários, 2 dispositivos,
+  2 deploys, SHA, aprovação e não duplicação), coberto por testes negativos.
+  Isso não executa os cenários físicos, não autentica assinatura nem prova
+  identidade de dispositivo. A-005 **continua bloqueado** enquanto não existirem
+  28 resultados reais PASS auditáveis em ambiente isolado, obtidos por
+  responsável designado com acesso aos aparelhos.
+- **A-006 (dependências):** #390 encerrada. As issues #403, #404 e #405
+  continuam abertas; trabalhos de implementação já mesclados em develop **não**
+  equivalem a encerramento nem a homologação. #403 depende da validação clínica
+  #534, ainda aberta; nenhum limiar clínico pode ser ativado por esta PR.
+  Manter o bloqueio sem remover o `Depends on` da #406 nem forçar fechamento.
+- **CI e auditoria:** o novo material HEAD requer pnpm validate/CI CRITICAL
+  exact-SHA; eventual teste verde não fecha A-005/A-006 nem substitui auditoria
+  independente posterior. PR #548 permanece Draft, sem merge.
