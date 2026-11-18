@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { handleTabListKeyDown } from '../../utils/tabKeyboard';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -518,13 +519,28 @@ export default function SettingsCollaboratorFunctions() {
                   </div>
                   {saveSuccess && <div role="status" className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"><CheckCircle2 size={13} aria-hidden="true" />{copy.saveSuccess}</div>}
                 </div>
-                <div role="tablist" aria-label="Seções da configuração" className="cf-tabs flex gap-1 overflow-x-auto">
-                  {tabs.map((tab) => <button key={tab.id} id={`collaborator-function-tab-${tab.id}`} type="button" role="tab" aria-selected={activeTab === tab.id} aria-controls={`collaborator-function-panel-${tab.id}`} onClick={() => setActiveTab(tab.id)} className={`min-h-11 shrink-0 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${activeTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{tab.label}</button>)}
+                <div role="tablist" aria-label="Seções da configuração" className="cf-tabs ts-tabs-bar">
+                  {tabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      id={`collaborator-function-tab-${tab.id}`}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeTab === tab.id}
+                      aria-controls={`collaborator-function-panel-${tab.id}`}
+                      tabIndex={activeTab === tab.id ? 0 : -1}
+                      onClick={() => setActiveTab(tab.id)}
+                      onKeyDown={handleTabListKeyDown}
+                      className={`ts-tab-button min-h-11 ${activeTab === tab.id ? 'ts-tab-button-active' : 'ts-tab-button-inactive'}`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
               <div className="cf-editor-scroll flex-1 overflow-y-auto">
-                <div className="mx-auto w-full max-w-5xl p-6">
+                <div className={`p-6 ${activeTab === 'access' ? 'ts-content-fluid' : 'ts-content-readable'}`}>
                   {activeTab === 'details' && (
                     <section id="collaborator-function-panel-details" role="tabpanel" aria-labelledby="collaborator-function-tab-details" className="space-y-5">
                       <Card><CardContent className="space-y-5 pt-6">
