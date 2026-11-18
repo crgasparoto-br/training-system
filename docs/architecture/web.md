@@ -20,6 +20,32 @@ O frontend web fica em `apps/web`.
 
 O frontend pode usar permissoes para experiencia de usuario, mas a API continua sendo a fonte de seguranca. Nunca exponha dados sensiveis assumindo que ocultar componente e suficiente.
 
+## Central do Aluno: carregamento progressivo da ficha (#555)
+
+A rota `/central-do-aluno/:id` (tambem utilizada por `/alunos/:id`) primeiro confirma
+a identidade do aluno via `GET /api/v1/alunos/:id` e libera o cabecalho. Essa
+requisicao e a unica dependencia inicial do carregamento global da ficha;
+o carregamento do Resumo e o de cada aba possuem estados independentes.
+
+- A aba Resumo solicita apenas os dados necessarios aos seus cartoes, conforme permissoes:
+  indicadores segmentados, avaliacoes, planos e contrato ativo. Enquanto o conjunto
+  ainda nao terminou, exibe carregamento, nunca ausencia definitiva de dados.
+- Cadastro, Saude, Financeiro, Plano de avaliacoes, Avaliacoes fisicas e Integracoes
+  solicitam seus dados na primeira abertura autorizada. Alternar para outra aba ja
+  carregada nao repete essas requisicoes para o mesmo aluno.
+- A aba Auditoria mantem sua propria leitura sob demanda, revalidacao por foco,
+  paginacao e controle de geracoes. Ela nao participa da consulta inicial.
+- Falhas das leituras complementares mantem o cabecalho disponivel e exibem
+  retry local; respostas tardias de aluno anterior sao descartadas por identidade
+  e geracao. A falha da leitura principal continua usando o tratamento e retry
+  ja existentes.
+- O frontend respeita as mesmas `blockKey` e `screenKey` de cada area; a API
+  continua responsavel pela verificacao real de permissao, contrato e escopo.
+
+O beneficio estrutural verificavel e retirar da espera inicial as chamadas das
+abas que ainda nao foram abertas; tempos absolutos de producao exigem medicao
+autenticada de rede e backend antes de qualquer afirmacao quantitativa.
+
 ## Fluxo web do aluno: revisao cadastral
 
 A implementacao web responsiva e a experiencia canonica atual para a revisao cadastral do aluno; um futuro app mobile deve reutilizar o mesmo contrato `/api/v1/student/me`, sem criar regras paralelas.
