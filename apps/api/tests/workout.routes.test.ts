@@ -323,6 +323,44 @@ describe('Issue #399 - route protection and contract isolation', () => {
   });
 });
 
+describe('#551 - erro recuperável no salvamento semanal', () => {
+  const app = express();
+  app.use(express.json());
+  app.use('/workout', workoutRouter);
+  beforeEach(() => jest.clearAllMocks());
+
+  it.each(['P2028', 'P2024'])('retorna 503 seguro para timeout transacional %s', async (code) => {
+    (workoutService.saveTemplateWeek as jest.Mock).mockRejectedValueOnce(
+      Object.assign(new Error('postgres://private-host password=secret'), { code }),
+    );
+    const response = await request(app).put('/workout/templates/template-1/save-week').send({ template: {} });
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({
+      code: 'WORKOUT_SAVE_TEMPORARILY_UNAVAILABLE',
+      error: 'O salvamento demorou mais do que o esperado. Seu rascunho foi preservado; tente novamente.',
+    });
+    expect(JSON.stringify(response.body)).not.toMatch(/postgres|password|secret/);
+  });
+
+  it('mantém o conflito genuíno como HTTP 409, sem alterar o estado', async () => {
+    (workoutService.saveTemplateWeek as jest.Mock).mockRejectedValueOnce(
+      Object.assign(new Error('conflict'), { code: 'WORKOUT_PLANNING_VERSION_CONFLICT' }),
+    );
+    const response = await request(app).put('/workout/templates/template-1/save-week')
+      .send({ baseUpdatedAt: '2026-11-18T12:00:00.000Z' });
+    expect(response.status).toBe(409);
+    expect(response.body.code).toBe('WORKOUT_PLANNING_VERSION_CONFLICT');
+  });
+
+  it('não expõe erros internos não classificados', async () => {
+    (workoutService.saveTemplateWeek as jest.Mock).mockRejectedValueOnce(new Error('SQL credentials=secret'));
+    const response = await request(app).put('/workout/templates/template-1/save-week').send({ template: {} });
+    expect(response.status).toBe(500);
+    expect(response.body.code).toBe('WORKOUT_OPERATION_FAILED');
+    expect(JSON.stringify(response.body)).not.toMatch(/SQL|secret/);
+  });
+});
+
 describe('Issue #399 - strict copy and reorder envelopes', () => {
   const app = express();
   app.use(express.json());

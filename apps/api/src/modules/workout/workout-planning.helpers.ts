@@ -325,7 +325,8 @@ export async function withWorkoutDayPlanningMutation<T>(
 export async function withWorkoutTemplatePlanningMutation<T>(
   client: PrismaClient,
   templateId: string,
-  mutation: (tx: Prisma.TransactionClient) => Promise<T>
+  mutation: (tx: Prisma.TransactionClient) => Promise<T>,
+  transactionOptions: { maxWait?: number; timeout?: number } = {},
 ) {
   let retries = 0;
   while (true) {
@@ -333,7 +334,7 @@ export async function withWorkoutTemplatePlanningMutation<T>(
       return await client.$transaction(async (tx) => {
         await lockWorkoutTemplatePlanningMutable(tx, templateId);
         return mutation(tx);
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, ...transactionOptions });
     } catch (error) {
       if (!isSerializableTransactionConflict(error)) {
         throw error;

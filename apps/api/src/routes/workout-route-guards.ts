@@ -16,6 +16,20 @@ export function sendSafeWorkoutError(res: Response, error: unknown) {
 }
 
 
+/** A slow or exhausted weekly Prisma transaction is recoverable, not a data-validation error. */
+export function sendSafeWorkoutWeekSaveError(res: Response, error: unknown) {
+  const code = error && typeof error === 'object' && 'code' in error
+    ? (error as { code?: unknown }).code
+    : undefined;
+  if (code === 'P2024' || code === 'P2028') {
+    return res.status(503).json({
+      code: 'WORKOUT_SAVE_TEMPORARILY_UNAVAILABLE',
+      error: 'O salvamento demorou mais do que o esperado. Seu rascunho foi preservado; tente novamente.',
+    });
+  }
+  return sendSafeWorkoutError(res, error);
+}
+
 /**
  * Protect every Workout Builder route, including the legacy exercise API.
  * Route parameters and body ids never grant access across contracts.

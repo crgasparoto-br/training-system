@@ -20,6 +20,12 @@ O projeto usa Prisma para modelagem e acesso ao banco.
 - Nao usar `Promise.all` para fan-out amplo de consultas independentes em telas que tambem disparam varias requisicoes HTTP. Prefira consulta agregada, sequencia controlada ou concorrencia limitada.
 - Esgotamento ou timeout do pool deve retornar HTTP `503` com mensagem segura. Nome de usuario do banco, papel, host, URL e detalhes internos do Prisma ficam somente nos logs da API.
 
+## Salvamento semanal do Workout Builder (#551)
+
+O salvamento `PUT /api/v1/workout/templates/:id/save-week` reconcilia uma semana inteira em uma transacao serializavel. Como a operacao pode incluir multiplos dias, exercicios, series e agrupamentos, somente esse fluxo configura `maxWait: 15000` ms e `timeout: 30000` ms. Os demais comandos conservam o orcamento transacional padrao.
+
+Um timeout de transacao (`P2028`) ou espera de conexao (`P2024`) retorna HTTP 503 com mensagem publica recuperavel. O cliente preserva a versao do rascunho; nenhum retry deve remover o controle `baseUpdatedAt` ou sobrescrever edicoes de outra sessao. O autosave da mesma aba processa uma semana por vez para reduzir a disputa pelo pool.
+
 ## Multi-tenant
 
 O `contractId` e a barreira principal entre clientes/contratos. Rotas, services e consultas devem preservar esse filtro.
