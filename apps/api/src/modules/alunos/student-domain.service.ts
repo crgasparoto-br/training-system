@@ -386,7 +386,7 @@ const buildContractTimelineEvents = (contracts: any[]) => {
 const buildTrainingTimelineEvents = (lifecycleEvents: any[]) => lifecycleEvents.flatMap((event) => {
   const metadata = toRecord(event.metadata);
   const domain = typeof metadata?.domain === 'string' ? metadata.domain : null;
-  if (!['pre_workout_check_in', 'workout_session_execution', 'post_workout_feedback'].includes(domain ?? '')) {
+  if (!['pre_workout_check_in', 'workout_session_execution', 'post_workout_feedback', 'training_decision'].includes(domain ?? '')) {
     return [];
   }
 
@@ -410,6 +410,29 @@ const buildTrainingTimelineEvents = (lifecycleEvents: any[]) => lifecycleEvents.
       source,
       details: {
         workoutDayId: metadata?.workoutDayId ?? null,
+      },
+    }];
+  }
+
+  if (domain === 'training_decision') {
+    const labels: Record<string, string> = {
+      suggested: 'Sugestão de revisão registrada',
+      approved: 'Revisão aprovada pelo professor',
+      rejected: 'Revisão rejeitada pelo professor',
+      applied: 'Orientação de planejamento futuro registrada',
+    };
+    if (!action || !labels[action]) return [];
+    return [{
+      id: 'training-decision-' + event.id,
+      type: 'training_decision_' + action,
+      title: labels[action],
+      occurredAt: event.createdAt,
+      source,
+      details: {
+        workoutDayId: metadata?.workoutDayId ?? null,
+        decisionId: metadata?.decisionId ?? null,
+        version: metadata?.version ?? null,
+        planningVersion: metadata?.planningVersion ?? null,
       },
     }];
   }
@@ -1213,7 +1236,7 @@ export const studentDomainService = {
       event, key: timelineKey(event, 'clinical'),
     })).filter(({ key }) => !cursorKey || compareTimelineKeys(key, cursorKey) > 0);
 
-    const trainingDomains = ['pre_workout_check_in', 'workout_session_execution', 'post_workout_feedback'];
+    const trainingDomains = ['pre_workout_check_in', 'workout_session_execution', 'post_workout_feedback', 'training_decision'];
     const scopedDomain = { OR: trainingDomains.map((domain) => ({
       metadata: { path: ['domain'], equals: domain },
     })) };

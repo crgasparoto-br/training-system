@@ -1,35 +1,54 @@
-# Feedback pos-treino e decisao sugerida
+# Feedback pós-treino e decisão profissional (#138, #390, #406)
 
-Este documento registra o primeiro recorte tecnico da issue #138. O feedback pos-treino amplia a execucao atual sem substituir `WorkoutDay`, `WorkoutExercise` ou `WorkoutExecution`.
+## Separação das responsabilidades
 
-## Responsabilidades
+O feedback canônico da issue #390 é armazenado em revisões imutáveis por sessão e por capacidade. Uma correção cria uma nova revisão e não altera silenciosamente a percepção original. A issue #406 cria um domínio de **decisão profissional separado**, usando a revisão canônica do feedback como origem.
 
-- Vincular feedback ao Treino de hoje executado.
-- Preservar relacao com aluno, contrato, professor responsavel e montagem consolidada quando existir.
-- Registrar feedback unico por sessao, separado por capacidade quando aplicavel.
-- Consolidar PSE, PSR, dor, desconforto, dificuldade, carga usada, repeticoes realizadas, aderencia e observacoes.
-- Criar decisao sugerida: manter, progredir, reduzir, trocar, suspender ou reavaliar.
-- Exigir validacao final do professor antes de aplicar qualquer decisao.
-- Alimentar linha do tempo e relatorios evolutivos.
+A decisão grava aluno, contrato, sessão, plano, revisão de origem, regra, ação, justificativa, autor, data e um snapshot congelado dos sinais e valores do feedback. Uma correção posterior do feedback não reescreve o histórico.
 
-## Separacao professor/aluno
+## Fluxo e efeitos
 
-A visao do professor pode conter origem dos dados, indicadores, justificativa tecnica, alertas e historico. A visao do aluno deve manter linguagem pratica, clara e segura, sem expor justificativa tecnica completa.
+- **suggested, versão 1:** professor registra sugestão de manter, progredir, reduzir, substituir, suspender ou reavaliar; nenhuma prescrição é modificada.
+- **approved, versão 2:** professor aprova explicitamente; registra identidade, data e motivo opcional.
+- **rejected, versão 2:** professor rejeita com identidade, data e motivo obrigatório; estado terminal.
+- **applied, versão 3:** professor com permissão de aplicação registra uma nova versão imutável de orientação técnica do plano, para início futuro, no mesmo commit transacional da decisão, evento da timeline e operação idempotente; estado terminal.
 
-## Regras de seguranca
+Somente a decisão aprovada pode ser aplicada. A aplicação cria um registro de **alteração de planejamento futuro** vinculado ao TrainingPlan: versão, período de vigência, ação, instrução, professor e evidências. Não modifica automaticamente exercícios, cargas, prescrição consolidada nem sessões já liberadas. Para alterar um treino operacional, é preciso o fluxo explícito de edição e liberação existente. A avaliação clínica combinada da issue #403 continua não homologada; não gera decisões automáticas.
 
-- Decisao sugerida nasce sempre com status `suggested`.
-- Uma decisao so pode virar `applied` apos status `approved`, professor aprovador e data de aprovacao.
-- Mesmo aplicada, a decisao nao altera prescricao automaticamente neste recorte.
-- Dor relevante, tontura, fadiga alta ou falta devem marcar necessidade de acompanhamento no PRNT.
+A nomenclatura antiga de sugestão em memória usa a ação swap, enquanto a API persistida usa replace (substituir). Esses contratos não são intercambiáveis.
 
-## Limites deste recorte
+## API e contratos
 
-- Nao cria migration nem persistencia nova.
-- Nao substitui execucoes atuais.
-- Nao implementa decisao autonoma, IA ou smartwatch.
-- Nao altera prescricao ou treino liberado automaticamente.
+Base: /api/v1/training-decisions.
 
-## Proxima evolucao
+| Rota | Método | Finalidade |
+| --- | --- | --- |
+| /alunos/:alunoId/sources | GET | Fontes atuais do feedback paginadas; cursor opcional |
+| /alunos/:alunoId | GET | Histórico técnico e versões de planejamento |
+| /alunos/:alunoId | POST | Criar sugestão com operationKey, workoutDayId, sourceFeedbackRevisionId, action, rationale e mensagem opcional |
+| /alunos/:alunoId/:decisionId/approve | POST | Aprovar com operationKey, expectedVersion, reason opcional |
+| /alunos/:alunoId/:decisionId/reject | POST | Rejeitar com operationKey, expectedVersion, reason obrigatório |
+| /alunos/:alunoId/:decisionId/apply | POST | Aplicar com operationKey, expectedVersion, expectedPlanningVersion, effectiveFrom (AAAA-MM-DD futura) e instruction |
+| /student/me | GET | Mensagens práticas já aplicadas e explicitamente expostas |
 
-A proxima etapa deve persistir feedback e decisoes, conectar permissao por visao professor/aluno e expor a linha do tempo de evolucao por periodo.
+O serviço valida novamente ator ativo, bloco de acesso, escopo e pertencimento ao contrato **dentro da transação**, com bloqueios compartilhados dos vínculos, concessões e atribuições para que revogações concorrentes aguardem a conclusão da operação autorizada. A criação bloqueia a sessão de execução; a revisão bloqueia a decisão; a aplicação bloqueia também o plano. As mutações de decisão para o mesmo aluno/contrato obtêm um advisory lock transacional **antes** dos locks de autorização e domínio, impedindo a inversão de bloqueios entre aprovações simultâneas e eventos de lifecycle. Repetições de transações completamente revertidas por deadlock PostgreSQL (SQLSTATE `40P01`) ou falha de serialização (`40001`, Prisma `P2034`) são limitadas a três tentativas, com nova validação de autorização e dos dados a cada tentativa. A mesma chave e o mesmo payload não geram eventos, operações ou versões duplicadas. Reutilização de chave com conteúdo diferente, versão esperada desatualizada e conflito no planejamento retornam HTTP 409; mesmo após esgotar retries de concorrência, a API responde 409 sem expor detalhes internos.
+
+O banco impede inclusões que não comecem em `suggested`/versão 1, exclusões e alterações retroativas do histórico, mudanças fora da máquina de estados e aplicação sem registro de efeito antes do commit. Uma transição SQL para `rejected` exige justificativa presente (`IS NOT NULL`) e não vazia, mesmo quando ignora a validação da API; o `CHECK` e o trigger rejeitam motivo nulo, vazio ou somente espaços. Erros em qualquer etapa revertem a transação inteira. A aplicação valida a data civil UTC futura **dentro da vigência atual do plano** (início e fim inclusivos), após adquirir o bloqueio e reler o plano, não usando o período consultado antes da trava. Se a vigência mudar durante a espera pelo bloqueio, a operação falha com HTTP 409 sem efeito parcial.
+
+A consulta profissional de histórico é paginada (até 100 decisões por página) pelo parâmetro opcional de cursor; a resposta inclui nextCursor para continuar sem ocultar decisões antigas. O backend valida se o cursor pertence ao aluno e contrato autorizados. A consulta de fontes também usa lotes de até 100 **sessões/escopos distintos**, ordenando as últimas revisões antes de paginar; responde `{sources, nextCursor}` e rejeita cursors de outros contratos, inexistentes ou que deixaram de apontar para a revisão atual.
+
+## Permissões e exposição ao aluno
+
+Blocos específicos: students.details.trainingDecisions.view, .suggest, .approve e .apply. A aplicação exige **concessão persistida distinta inclusive para professor master**. Operações técnicas também requerem o grant explícito de students.details.postWorkoutFeedback, mais escopo válido de plans e acesso aluno/contrato. O histórico de auditoria genérico não concede acesso clínico.
+
+A rota do aluno consulta apenas sua associação ativa, exige contrato explícito quando houver múltiplos, e expõe somente mensagem prática de decisão com status applied e exposeToStudent verdadeiro. Justificativa técnica, snapshot clínico, sugestões pendentes e rejeições permanecem ocultos. Eventos na timeline têm status, versão, vínculos e data, sem evidência clínica.
+
+## Execução e validação
+
+Migration: apps/api/prisma/migrations/20261116130000_issue_406_training_decisions. Schema: apps/api/prisma/schema.prisma. Executar pnpm validate e o workflow Validate PR no SHA final, com PostgreSQL real para os cenários críticos, validações de acesso, segurança, arquitetura e documentação. O histórico imutável é intencional.
+
+## Integridade do ledger no PostgreSQL — remediação A-004
+
+A constraint de estados limita versão, atores e campos exclusivos para cada estado. No commit, um trigger de auditoria diferido verifica o evento da timeline de toda sugestão e, para cada aprovação, rejeição e aplicação, a operação idempotente ligada ao evento. A verificação cruza aluno, contrato, versão, ator, sessão, plano e revisão de origem. Inserções SQL de sugestões sem evento, atualizações SQL de revisão sem evento/operação e estados com campos incompatíveis abortam a transação. Índices únicos evitam duplicidade de operação por versão e de evento de decisão por versão.
+
+As validações SQL complementam a autorização transacional do serviço, sem substituir a verificação de permissões. Testes de integração PostgreSQL exercitam os controles negativos e o caminho canônico válido. A homologação presencial em desktop e telefone físicos permanece uma obrigação distinta, não demonstrável pelo CI.
