@@ -21,6 +21,8 @@ test('telas densas não têm limites arbitrários de largura', () => {
   assert.doesNotMatch(library, /max-w-7xl/);
   assert.doesNotMatch(workout, /max-w-\[1800px\]/);
   assert.ok((workout.match(/ts-content-fluid/g) || []).length >= 3);
+  assert.match(workout, /overflow-x-auto rounded-lg border border-gray-200/);
+  assert.match(workout, /min-w-\[760px\] w-full divide-y divide-gray-200/);
   assert.match(collaborator, /activeTab === 'access' \? 'ts-content-fluid' : 'ts-content-readable'/);
 });
 

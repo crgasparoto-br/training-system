@@ -1243,7 +1243,7 @@ export default function WorkoutBuilder2() {
     <div className="min-w-0 bg-background">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="px-4 py-4 sm:px-6">
+        <div className="py-4">
           <div className="flex flex-wrap items-center gap-6">
             <div className="flex items-center gap-4">
               <button
@@ -1756,8 +1756,8 @@ export default function WorkoutBuilder2() {
                 {/* Tempo de Sessão por Dia */}
                 <div className={visibility.session ? '' : 'hidden'}>
                   <h3 className="text-base font-semibold text-gray-800 mb-3">Tempo da Sessão</h3>
-                  <div className="overflow-hidden rounded-lg border border-gray-200">
-                    <table className="min-w-full divide-y divide-gray-200">
+                  <div className="overflow-x-auto rounded-lg border border-gray-200">
+                    <table className="min-w-[760px] w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-3 py-2 text-sm font-medium text-gray-700 text-left">
