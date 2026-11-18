@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { AxiosError } from 'axios';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
+import { canAccessBlock } from '../access/access-control';
 
 const navigateMock = vi.fn();
 let routeAlunoId = 'aluno-1';
@@ -98,13 +99,24 @@ vi.mock('../components/ProfessorManualContextPanel', () => ({
 }));
 
 vi.mock('../components/alunos/AlunoDetailsTabs', () => ({
-  AlunoDetailsTabs: ({ onChange }: { onChange: (tab: 'cadastro' | 'resumo') => void }) => (
+  AlunoDetailsTabs: ({
+    onChange,
+    visibleTabs,
+  }: {
+    onChange: (tab: 'cadastro' | 'resumo') => void;
+    visibleTabs: string[];
+  }) => (
     <div>
-      <button type="button" onClick={() => onChange('cadastro')}>Mostrar aba Cadastro</button>
-      <button type="button" onClick={() => onChange('resumo')}>Mostrar aba Resumo</button>
+      {visibleTabs.includes('cadastro') && (
+        <button type="button" onClick={() => onChange('cadastro')}>Mostrar aba Cadastro</button>
+      )}
+      {visibleTabs.includes('resumo') && (
+        <button type="button" onClick={() => onChange('resumo')}>Mostrar aba Resumo</button>
+      )}
     </div>
   ),
-  getTabBlockKey: () => undefined,
+  getTabBlockKey: (tab: string) =>
+    tab === 'cadastro' ? 'students.details.profile' : undefined,
 }));
 
 vi.mock('../components/alunos/AlunoResumoHubTab', () => ({
@@ -146,6 +158,7 @@ describe('AlunoDetails resiliencia de carregamento', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     routeAlunoId = 'aluno-1';
+    vi.mocked(canAccessBlock).mockImplementation(() => true);
     vi.spyOn(console, 'error').mockImplementation(() => {});
 
     getByIdMock.mockResolvedValue({
@@ -320,6 +333,23 @@ describe('AlunoDetails resiliencia de carregamento', () => {
     await waitFor(() => expect(getSegmentedProfileMock).toHaveBeenCalledTimes(2));
     expect(await screen.findByTestId('perfil-carregado')).toHaveTextContent('aluno-1');
     expect(getByIdMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('nao consulta Cadastro quando o bloco esta negado', async () => {
+    vi.mocked(canAccessBlock).mockImplementation(
+      (_user, blockKey) => blockKey !== 'students.details.profile'
+    );
+
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+
+    expect(screen.queryByRole('button', { name: 'Mostrar aba Cadastro' })).not.toBeInTheDocument();
+    expect(getSegmentedProfileMock).not.toHaveBeenCalled();
+    expect(getSegmentedTimelineMock).not.toHaveBeenCalled();
   });
 
   it('descarta a resposta tardia da aba do aluno anterior', async () => {
