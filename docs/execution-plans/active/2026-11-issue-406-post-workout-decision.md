@@ -57,3 +57,10 @@ Preservar a PR em Draft, não realizar merge e não fechar #406 antes dos gates 
 - **CI e auditoria:** o novo material HEAD requer pnpm validate/CI CRITICAL
   exact-SHA; eventual teste verde não fecha A-005/A-006 nem substitui auditoria
   independente posterior. PR #548 permanece Draft, sem merge.
+
+## Apoio à coleta operacional — 18/11/2026
+
+- O gerador `scripts/create-issue-406-homologation-template.mjs` oferece 28 posições vazias para homologação privada no SHA informado, com `NOT_RUN` e `physical_device_confirmed=false` em todas; o validador **deve** rejeitar o arquivo inicial. Os testes do gerador são executados pelo `pnpm test`.
+- A-005 permanece **BLOQUEADA EXTERNAMENTE**: executar 28 cenários reais em desktop/telefone físicos e confirmar autenticidade dos dispositivos, deploys e aprovação do responsável. O gerador não transforma ausência de observação em PASS.
+- A-006 permanece **BLOQUEADA POR ACEITE DAS DEPENDÊNCIAS**: #403/#404/#405 abertas. #534 exige sete decisões clínicas assinadas por profissional habilitado. Não alterar regras clínicas nem fechar issues apenas por CI ou merge anterior.
+- A entrega permanece Draft e a issue #406 aberta. Exigir CI exato verde no novo HEAD e reauditoria independente após a coleta final de evidências.

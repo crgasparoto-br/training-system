@@ -48,6 +48,23 @@ com controles positivos e negativos em
 Ela não cria observações de dispositivos, não faz login no ambiente, não autentica
 links/assinaturas e **não pode transformar testes sintéticos em homologação**.
 
+Para preparar os 28 campos sem inserir resultados presumidos, o operador pode
+criar **um modelo vazio** (nunca versionar ou anexar este arquivo ao Git):
+
+```bash
+node scripts/create-issue-406-homologation-template.mjs --head "$(git rev-parse HEAD)" > /caminho/privado/issue-406-evidence.json
+```
+
+O gerador em
+[`scripts/create-issue-406-homologation-template.mjs`](../../scripts/create-issue-406-homologation-template.mjs)
+cria somente os 14 cenários para cada dispositivo, todos com `result=NOT_RUN`,
+`physical_device_confirmed=false`, evidências vazias e aprovação ausente.
+Ele **deve falhar** no verificador até que o responsável execute cada cenário,
+preencha dados verdadeiros e valide as referências externas. Editar um campo
+para `PASS` sem observação real não representa homologação. O arquivo deve
+permanecer em local privado, fora do repositório, contendo apenas dados de
+homologação fictícios e evidências desidentificadas.
+
 Após executar os 28 cenários reais em dispositivos físicos, o responsável deverá
 produzir um JSON privado (fora do Git), com `schema_version=1`, `repository`,
 `issue=406`, `pr=548`, `head_sha`, `environment` (identificando homologação),
