@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 
 const navigateMock = vi.fn();
+let routeAlunoId = 'aluno-1';
 const getByIdMock = vi.fn();
 const listByAlunoMock = vi.fn();
 const getSummaryMock = vi.fn();
@@ -23,7 +24,7 @@ vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   return {
     ...actual,
-    useParams: () => ({ id: 'aluno-1' }),
+    useParams: () => ({ id: routeAlunoId }),
     useNavigate: () => navigateMock,
     useLocation: () => ({ state: null }),
   };
@@ -97,7 +98,12 @@ vi.mock('../components/ProfessorManualContextPanel', () => ({
 }));
 
 vi.mock('../components/alunos/AlunoDetailsTabs', () => ({
-  AlunoDetailsTabs: () => null,
+  AlunoDetailsTabs: ({ onChange }: { onChange: (tab: 'cadastro' | 'resumo') => void }) => (
+    <div>
+      <button type="button" onClick={() => onChange('cadastro')}>Mostrar aba Cadastro</button>
+      <button type="button" onClick={() => onChange('resumo')}>Mostrar aba Resumo</button>
+    </div>
+  ),
   getTabBlockKey: () => undefined,
 }));
 
@@ -105,7 +111,11 @@ vi.mock('../components/alunos/AlunoResumoHubTab', () => ({
   AlunoResumoHubTab: () => null,
 }));
 vi.mock('../components/alunos/AlunoCadastroTab', () => ({
-  AlunoCadastroTab: () => null,
+  AlunoCadastroTab: ({
+    segmentedProfile,
+  }: {
+    segmentedProfile: { alunoId?: string } | null;
+  }) => <div data-testid="perfil-carregado">{segmentedProfile?.alunoId ?? 'sem perfil'}</div>,
 }));
 vi.mock('../components/alunos/AlunoSaudeAnamneseTab', () => ({
   AlunoSaudeAnamneseTab: () => null,
@@ -135,6 +145,7 @@ describe('AlunoDetails resiliencia de carregamento', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    routeAlunoId = 'aluno-1';
     vi.spyOn(console, 'error').mockImplementation(() => {});
 
     getByIdMock.mockResolvedValue({
@@ -239,4 +250,117 @@ describe('AlunoDetails resiliencia de carregamento', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('ALUNO_READ_INTERNAL_ERROR');
     expect(screen.queryByRole('button', { name: 'Tentar novamente' })).not.toBeInTheDocument();
   });
+  it('renderiza a identidade sem aguardar o Resumo e nao consulta abas fechadas', async () => {
+    let resolveSummary: ((value: null) => void) | undefined;
+    getSegmentedSummaryMock.mockImplementationOnce(
+      () => new Promise<null>((resolve) => { resolveSummary = resolve; })
+    );
+
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Aluno Teste')).toBeInTheDocument();
+    await waitFor(() => expect(getSegmentedSummaryMock).toHaveBeenCalledWith('aluno-1'));
+    expect(screen.getByRole('status')).toHaveTextContent('Carregando dados desta seção');
+    expect(getSegmentedProfileMock).not.toHaveBeenCalled();
+    expect(getSegmentedIntakeMock).not.toHaveBeenCalled();
+    expect(getSegmentedFinancialProfileMock).not.toHaveBeenCalled();
+    expect(getSegmentedIntegrationsMock).not.toHaveBeenCalled();
+    expect(listSegmentedActivitiesMock).not.toHaveBeenCalled();
+    expect(getSegmentedTimelineMock).not.toHaveBeenCalled();
+    expect(assessmentTypeListMock).not.toHaveBeenCalled();
+
+    resolveSummary?.(null);
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
+  });
+
+  it('busca Cadastro so ao entrar na aba e reutiliza os dados ao retornar', async () => {
+    getSegmentedProfileMock.mockResolvedValue({ alunoId: 'aluno-1' });
+
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+
+    expect(getSegmentedProfileMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Cadastro' }));
+    await waitFor(() => expect(getSegmentedProfileMock).toHaveBeenCalledTimes(1));
+    expect(await screen.findByTestId('perfil-carregado')).toHaveTextContent('aluno-1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Resumo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Cadastro' }));
+    expect(getSegmentedProfileMock).toHaveBeenCalledTimes(1);
+    expect(getSegmentedTimelineMock).not.toHaveBeenCalled();
+  });
+
+  it('mantem a ficha acessivel e permite retry da aba sem refazer o aluno', async () => {
+    getSegmentedProfileMock
+      .mockRejectedValueOnce(new Error('Erro de rede na aba'))
+      .mockResolvedValueOnce({ alunoId: 'aluno-1' });
+
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Cadastro' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Não foi possível carregar esta seção.'
+    );
+    expect(screen.getByText('Aluno Teste')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+
+    await waitFor(() => expect(getSegmentedProfileMock).toHaveBeenCalledTimes(2));
+    expect(await screen.findByTestId('perfil-carregado')).toHaveTextContent('aluno-1');
+    expect(getByIdMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('descarta a resposta tardia da aba do aluno anterior', async () => {
+    let resolveOldProfile: ((value: { alunoId: string }) => void) | undefined;
+    getSegmentedProfileMock
+      .mockImplementationOnce(
+        () => new Promise((resolve) => { resolveOldProfile = resolve; })
+      )
+      .mockResolvedValueOnce({ alunoId: 'aluno-2' });
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Cadastro' }));
+    await waitFor(() => expect(getSegmentedProfileMock).toHaveBeenCalledTimes(1));
+
+    routeAlunoId = 'aluno-2';
+    getByIdMock.mockResolvedValueOnce({
+      id: 'aluno-2',
+      userId: 'user-2',
+      professorId: 'prof-1',
+      age: 26,
+      schedulePlan: 'free',
+      user: { email: 'novo@test.com', profile: { name: 'Outro Aluno' } },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    rerender(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Outro Aluno')).toBeInTheDocument();
+    resolveOldProfile?.({ alunoId: 'aluno-1' });
+    await waitFor(() => expect(getSegmentedProfileMock).toHaveBeenCalledTimes(2));
+    expect(await screen.findByTestId('perfil-carregado')).toHaveTextContent('aluno-2');
+    expect(screen.queryByText('Aluno Teste')).not.toBeInTheDocument();
+  });
+
 });
