@@ -60,6 +60,16 @@ type AlunoAssessmentPlanSnapshot = {
 
 type AlunoLoadErrorKind = 'transient' | 'application' | null;
 
+const STUDENT_DETAIL_DEFERRED_TABS: AlunoDetailsTab[] = [
+  'resumo',
+  'cadastro',
+  'saude-anamnese',
+  'financeiro',
+  'plano-avaliacoes',
+  'avaliacoes-fisicas',
+  'integracoes',
+];
+
 type AlunoDetailsFormResponses = {
   identification?: {
     cpf?: string;
@@ -276,8 +286,10 @@ export function AlunoDetails() {
   const [timelineLoadingMore, setTimelineLoadingMore] = useState(false);
   const timelineGenerationRef = useRef(0);
   const alunoLoadRequestRef = useRef(0);
+  const loadingTabsRef = useRef<Set<AlunoDetailsTab>>(new Set());
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadErrorKind, setLoadErrorKind] = useState<AlunoLoadErrorKind>(null);
+  const [tabErrors, setTabErrors] = useState<Partial<Record<AlunoDetailsTab, string>>>({});
   const [loading, setLoading] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
   const [tempPassword, setTempPassword] = useState<string | null>(initialTempPassword);
@@ -301,6 +313,7 @@ export function AlunoDetails() {
   const [previewName, setPreviewName] = useState<string>('');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<AlunoDetailsTab>('resumo');
+  const [loadedTabs, setLoadedTabs] = useState<AlunoDetailsTab[]>([]);
   const [editingAssessment, setEditingAssessment] = useState<Assessment | null>(null);
   const [editForm, setEditForm] = useState({
     typeId: '',
@@ -529,98 +542,37 @@ export function AlunoDetails() {
   }, [assessmentForm.typeId]);
 
   const loadAluno = async (alunoId: string) => {
-    // O mesmo aluno pode ser recarregado mais de uma vez (permissoes, retry).
-    // A geracao protege dados antigos sem bloquear revalidacoes localizadas.
+    // A identidade do request invalida respostas antigas e caches de outro aluno.
     const loadRequest = ++alunoLoadRequestRef.current;
-    const timelineGeneration = ++timelineGenerationRef.current;
+    ++timelineGenerationRef.current;
+    loadingTabsRef.current.clear();
+    setLoadedTabs([]);
+    setTabErrors({});
+    setTimelineRefreshFailed(false);
     setTimelineLoadingMore(false);
+    setSegmentedSummary(null);
+    setSegmentedProfile(null);
+    setSegmentedIntake(null);
+    setSegmentedFinancialProfile(null);
+    setSegmentedIntegrations(null);
+    setSegmentedActivities(null);
+    setSegmentedTimeline(null);
+    setAssessments([]);
+    setAssessmentSummary([]);
+    setAssessmentTypes([]);
+    setPlans([]);
+    setActiveStudentContract(null);
+    setAssessmentPlanActiveTypeIds([]);
     setLoading(true);
     setLoadError(null);
     setLoadErrorKind(null);
-    try {
-      const [
-        data,
-        assessmentsData,
-        summaryData,
-        typesData,
-        plansData,
-        assessmentPlanData,
-        contractsData,
-        segmentedSummaryData,
-        segmentedProfileData,
-        segmentedIntakeData,
-        segmentedFinancialProfileData,
-        segmentedIntegrationsData,
-        segmentedActivitiesData,
-        segmentedTimelineData,
-      ] = await Promise.all([
-        alunoService.getById(alunoId),
-        canViewAssessmentsTab
-          ? assessmentService.listByAluno(alunoId).catch(() => [])
-          : Promise.resolve([]),
-        canViewAssessmentsTab
-          ? assessmentService.getSummary(alunoId).catch(() => [])
-          : Promise.resolve([]),
-        canViewAssessmentsTab || canViewAssessmentPlanTab
-          ? assessmentTypeService.list().catch(() => [])
-          : Promise.resolve([]),
-        canViewTrainingPlansTab
-          ? planService.listByAluno(alunoId).catch(() => ({ plans: [] }))
-          : Promise.resolve({ plans: [] }),
-        canUseAssessmentPlanForMutations
-          ? (alunoService.getAssessmentPlan(alunoId) as Promise<AlunoAssessmentPlanSnapshot>).catch(
-              () => ({ items: [] as AlunoAssessmentPlanSnapshot['items'] })
-            )
-          : Promise.resolve({ items: [] as AlunoAssessmentPlanSnapshot['items'] }),
-        canViewFinancialData
-          ? alunoService
-              .listStudentContracts(alunoId)
-              .catch(() => ({ alunoId, activeContract: null, contracts: [] }))
-          : Promise.resolve({ alunoId, activeContract: null, contracts: [] }),
-        canViewSummaryTab
-          ? alunoService.getSegmentedSummary(alunoId).catch(() => null)
-          : Promise.resolve(null),
-        canViewProfileTab
-          ? alunoService.getSegmentedProfile(alunoId).catch(() => null)
-          : Promise.resolve(null),
-        canViewHealthTab
-          ? alunoService.getSegmentedIntake(alunoId).catch(() => null)
-          : Promise.resolve(null),
-        canViewFinancialContractTab
-          ? alunoService.getSegmentedFinancialProfile(alunoId).catch(() => null)
-          : Promise.resolve(null),
-        canViewIntegrationsTab
-          ? alunoService.getSegmentedIntegrations(alunoId).catch(() => null)
-          : Promise.resolve(null),
-        canViewIntegrationsTab
-          ? alunoService.listSegmentedActivities(alunoId).catch(() => null)
-          : Promise.resolve(null),
-        canViewAuditTab
-          ? alunoService.getSegmentedTimeline(alunoId).catch(() => null)
-          : Promise.resolve(null),
-      ]);
 
+    try {
+      // A ficha pode aparecer assim que a identidade do aluno for confirmada.
+      // Historico, integracoes e demais secoes nao fazem parte desse caminho critico.
+      const data = await alunoService.getById(alunoId);
       if (activeAlunoIdRef.current !== alunoId || loadRequest !== alunoLoadRequestRef.current) return;
       setAluno(data);
-      setSegmentedSummary(segmentedSummaryData);
-      setSegmentedProfile(segmentedProfileData);
-      setSegmentedIntake(segmentedIntakeData);
-      setSegmentedFinancialProfile(segmentedFinancialProfileData);
-      setSegmentedIntegrations(segmentedIntegrationsData);
-      setSegmentedActivities(segmentedActivitiesData);
-      // Uma revalidacao posterior da timeline nunca pode ser revertida pelo carregamento inicial.
-      if (timelineGeneration === timelineGenerationRef.current) setSegmentedTimeline(segmentedTimelineData);
-      setAssessments(assessmentsData);
-      setAssessmentSummary(summaryData);
-      setAssessmentTypes(typesData);
-      setPlans(plansData.plans);
-      setActiveStudentContract(contractsData.activeContract);
-      setAssessmentPlanActiveTypeIds(
-        assessmentPlanData.items
-          .filter((item) => item.isActive)
-          .map((item) => item.assessmentTypeId)
-      );
-
     } catch (error) {
       if (activeAlunoIdRef.current !== alunoId || loadRequest !== alunoLoadRequestRef.current) return;
       console.error('Erro ao carregar aluno:', error);
@@ -632,15 +584,10 @@ export function AlunoDetails() {
       setLoadError(message);
       setLoadErrorKind(isTransientFailure ? 'transient' : 'application');
       setAluno(null);
-      setSegmentedSummary(null);
-      setSegmentedProfile(null);
-      setSegmentedIntake(null);
-      setSegmentedFinancialProfile(null);
-      setSegmentedIntegrations(null);
-      setSegmentedActivities(null);
-      setSegmentedTimeline(null);
     } finally {
-      if (activeAlunoIdRef.current === alunoId && loadRequest === alunoLoadRequestRef.current) setLoading(false);
+      if (activeAlunoIdRef.current === alunoId && loadRequest === alunoLoadRequestRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -1109,6 +1056,161 @@ export function AlunoDetails() {
   }, [activeTab, visibleTabs]);
 
   useEffect(() => {
+    if (
+      !id ||
+      loading ||
+      aluno?.id !== id ||
+      !visibleTabs.includes(activeTab) ||
+      !STUDENT_DETAIL_DEFERRED_TABS.includes(activeTab) ||
+      loadedTabs.includes(activeTab) ||
+      tabErrors[activeTab] ||
+      loadingTabsRef.current.has(activeTab)
+    ) {
+      return;
+    }
+
+    const alunoId = id;
+    const tab = activeTab;
+    const request = alunoLoadRequestRef.current;
+    const isCurrentAluno = () =>
+      activeAlunoIdRef.current === alunoId && request === alunoLoadRequestRef.current;
+
+    loadingTabsRef.current.add(tab);
+
+    const loadTab = async () => {
+      try {
+        switch (tab) {
+          case 'resumo': {
+            const [assessmentsData, summaryData, plansData, contractsData, summary] = await Promise.all([
+              canViewAssessmentsTab ? assessmentService.listByAluno(alunoId) : Promise.resolve([]),
+              canViewAssessmentsTab ? assessmentService.getSummary(alunoId) : Promise.resolve([]),
+              canViewTrainingPlansTab
+                ? planService.listByAluno(alunoId)
+                : Promise.resolve({ plans: [] as TrainingPlan[] }),
+              canViewFinancialData
+                ? alunoService.listStudentContracts(alunoId)
+                : Promise.resolve({ alunoId, activeContract: null, contracts: [] }),
+              canViewSummaryTab
+                ? alunoService.getSegmentedSummary(alunoId)
+                : Promise.resolve(null),
+            ]);
+            if (!isCurrentAluno()) return;
+            setAssessments(assessmentsData);
+            setAssessmentSummary(summaryData);
+            setPlans(plansData.plans);
+            setActiveStudentContract(contractsData.activeContract);
+            setSegmentedSummary(summary);
+            break;
+          }
+          case 'cadastro': {
+            const profile = canViewProfileTab
+              ? await alunoService.getSegmentedProfile(alunoId)
+              : null;
+            if (!isCurrentAluno()) return;
+            setSegmentedProfile(profile);
+            break;
+          }
+          case 'saude-anamnese': {
+            const intake = canViewHealthTab
+              ? await alunoService.getSegmentedIntake(alunoId)
+              : null;
+            if (!isCurrentAluno()) return;
+            setSegmentedIntake(intake);
+            break;
+          }
+          case 'financeiro': {
+            const [contractsData, financialProfile] = await Promise.all([
+              canViewFinancialData
+                ? alunoService.listStudentContracts(alunoId)
+                : Promise.resolve({ alunoId, activeContract: null, contracts: [] }),
+              canViewFinancialContractTab
+                ? alunoService.getSegmentedFinancialProfile(alunoId)
+                : Promise.resolve(null),
+            ]);
+            if (!isCurrentAluno()) return;
+            setActiveStudentContract(contractsData.activeContract);
+            setSegmentedFinancialProfile(financialProfile);
+            break;
+          }
+          case 'plano-avaliacoes':
+          case 'avaliacoes-fisicas': {
+            const needsAssessments = tab === 'avaliacoes-fisicas' && canViewAssessmentsTab;
+            const [assessmentsData, summaryData, typesData, assessmentPlanData] = await Promise.all([
+              needsAssessments ? assessmentService.listByAluno(alunoId) : Promise.resolve([]),
+              needsAssessments ? assessmentService.getSummary(alunoId) : Promise.resolve([]),
+              canViewAssessmentsTab || canViewAssessmentPlanTab
+                ? assessmentTypeService.list()
+                : Promise.resolve([]),
+              canUseAssessmentPlanForMutations
+                ? (alunoService.getAssessmentPlan(alunoId) as Promise<AlunoAssessmentPlanSnapshot>)
+                : Promise.resolve({ items: [] as AlunoAssessmentPlanSnapshot['items'] }),
+            ]);
+            if (!isCurrentAluno()) return;
+            if (needsAssessments) {
+              setAssessments(assessmentsData);
+              setAssessmentSummary(summaryData);
+            }
+            setAssessmentTypes(typesData);
+            setAssessmentPlanActiveTypeIds(
+              assessmentPlanData.items
+                .filter((item) => item.isActive)
+                .map((item) => item.assessmentTypeId)
+            );
+            break;
+          }
+          case 'integracoes': {
+            const [integrations, activities] = await Promise.all([
+              canViewIntegrationsTab
+                ? alunoService.getSegmentedIntegrations(alunoId)
+                : Promise.resolve(null),
+              canViewIntegrationsTab
+                ? alunoService.listSegmentedActivities(alunoId)
+                : Promise.resolve(null),
+            ]);
+            if (!isCurrentAluno()) return;
+            setSegmentedIntegrations(integrations);
+            setSegmentedActivities(activities);
+            break;
+          }
+        }
+        if (!isCurrentAluno()) return;
+        setLoadedTabs((current) => current.includes(tab) ? current : [...current, tab]);
+      } catch (error) {
+        if (!isCurrentAluno()) return;
+        console.error('Erro ao carregar secao do aluno:', error);
+        setTabErrors((current) => ({
+          ...current,
+          [tab]: 'Não foi possível carregar esta seção. Tente novamente.',
+        }));
+      } finally {
+        if (isCurrentAluno()) {
+          loadingTabsRef.current.delete(tab);
+        }
+      }
+    };
+
+    void loadTab();
+  }, [
+    id,
+    aluno?.id,
+    loading,
+    activeTab,
+    loadedTabs,
+    tabErrors,
+    visibleTabs,
+    canViewAssessmentsTab,
+    canViewAssessmentPlanTab,
+    canUseAssessmentPlanForMutations,
+    canViewFinancialData,
+    canViewSummaryTab,
+    canViewProfileTab,
+    canViewHealthTab,
+    canViewFinancialContractTab,
+    canViewIntegrationsTab,
+    canViewTrainingPlansTab,
+  ]);
+
+  useEffect(() => {
     if (!id || !canViewAuditTab || activeTab !== 'auditoria') return;
 
     let cancelled = false;
@@ -1477,7 +1579,35 @@ export function AlunoDetails() {
 
       <AlunoDetailsTabs activeTab={activeTab} onChange={setActiveTab} visibleTabs={visibleTabs} />
 
-      {visibleTabs.includes('resumo') && activeTab === 'resumo' && (
+      {STUDENT_DETAIL_DEFERRED_TABS.includes(activeTab) && !loadedTabs.includes(activeTab) && (
+        <Card>
+          <CardContent className="py-8">
+            {tabErrors[activeTab] ? (
+              <div role="alert" className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">{tabErrors[activeTab]}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setTabErrors((current) => {
+                    const next = { ...current };
+                    delete next[activeTab];
+                    return next;
+                  })}
+                >
+                  Tentar novamente
+                </Button>
+              </div>
+            ) : (
+              <div role="status" className="flex items-center gap-3 text-sm text-muted-foreground">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                Carregando dados desta seção...
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {visibleTabs.includes('resumo') && activeTab === 'resumo' && loadedTabs.includes('resumo') && (
         <AlunoResumoHubTab
           aluno={aluno}
           segmentedSummary={segmentedSummary}
@@ -1489,7 +1619,7 @@ export function AlunoDetails() {
         />
       )}
 
-      {visibleTabs.includes('cadastro') && activeTab === 'cadastro' && (
+      {visibleTabs.includes('cadastro') && activeTab === 'cadastro' && loadedTabs.includes('cadastro') && (
         <AlunoCadastroTab
           aluno={aluno}
           segmentedProfile={segmentedProfile}
@@ -1501,7 +1631,7 @@ export function AlunoDetails() {
         />
       )}
 
-      {visibleTabs.includes('saude-anamnese') && activeTab === 'saude-anamnese' && (
+      {visibleTabs.includes('saude-anamnese') && activeTab === 'saude-anamnese' && loadedTabs.includes('saude-anamnese') && (
         <AlunoSaudeAnamneseTab
           aluno={aluno}
           parqPositiveCount={parqPositiveCount}
@@ -1509,7 +1639,7 @@ export function AlunoDetails() {
         />
       )}
 
-      {visibleTabs.includes('financeiro') && activeTab === 'financeiro' && (
+      {visibleTabs.includes('financeiro') && activeTab === 'financeiro' && loadedTabs.includes('financeiro') && (
         <AlunoFinanceiroTab
           aluno={aluno}
           alunoId={id ?? ''}
@@ -1522,7 +1652,7 @@ export function AlunoDetails() {
         />
       )}
 
-      {visibleTabs.includes('plano-avaliacoes') && activeTab === 'plano-avaliacoes' && (
+      {visibleTabs.includes('plano-avaliacoes') && activeTab === 'plano-avaliacoes' && loadedTabs.includes('plano-avaliacoes') && (
         <AlunoPlanoAvaliacoesTab
           alunoId={id ?? ''}
           assessmentTypes={assessmentTypes}
@@ -1530,7 +1660,7 @@ export function AlunoDetails() {
         />
       )}
 
-      {visibleTabs.includes('avaliacoes-fisicas') && activeTab === 'avaliacoes-fisicas' && (
+      {visibleTabs.includes('avaliacoes-fisicas') && activeTab === 'avaliacoes-fisicas' && loadedTabs.includes('avaliacoes-fisicas') && (
         <>
           <Card>
             <CardHeader>
@@ -2304,7 +2434,7 @@ export function AlunoDetails() {
         />
       )}
 
-      {visibleTabs.includes('integracoes') && activeTab === 'integracoes' && (
+      {visibleTabs.includes('integracoes') && activeTab === 'integracoes' && loadedTabs.includes('integracoes') && (
         <AlunoIntegracoesTab
           integrations={segmentedIntegrations}
           activities={segmentedActivities}
