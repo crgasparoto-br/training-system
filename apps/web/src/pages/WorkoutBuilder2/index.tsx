@@ -791,10 +791,12 @@ export default function WorkoutBuilder2() {
           const next = result.pending;
           if (next.planId) {
             const cacheKey = buildCacheKey(next.planId, resolvedMesocycle, resolvedWeek, next.planUpdatedAt, next.baseTemplateUpdatedAt);
-            try {
-              localStorage.setItem(cacheKey, JSON.stringify({ schemaVersion: 2, status: 'pending-draft', data: next }));
-            } catch {
-              // localStorage is only a recovery buffer.
+            if (cacheKey) {
+              try {
+                localStorage.setItem(cacheKey, JSON.stringify({ schemaVersion: 2, status: 'pending-draft', data: next }));
+              } catch {
+                // localStorage is only a recovery buffer.
+              }
             }
           }
         }
@@ -814,12 +816,12 @@ export default function WorkoutBuilder2() {
         console.error('Erro ao salvar:', error);
         const serverMessage = (error as { response?: { data?: { error?: unknown } } })?.response?.data?.error;
         if (isCurrentBuilderContext(snapshot.planId, resolvedMesocycle)
-          && pendingSaveRef.current[saveKey] === snapshot) {
+          && pendingSaveRef.current[saveKey]?.id === snapshot.id) {
           const responseData = (error as { response?: { status?: number; data?: { code?: unknown } } })?.response?.data;
           if (responseData?.code === 'WORKOUT_PLANNING_VERSION_CONFLICT' && snapshot.id) {
+            conflictedSaveKeysRef.current.add(saveKey);
             try {
               const authoritative = await workoutService.getTemplate(snapshot.id);
-              conflictedSaveKeysRef.current.add(saveKey);
               setTemplateDataByWeek((prev) => ({
                 ...prev,
                 [resolvedWeek]: {
