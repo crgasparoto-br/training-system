@@ -121,6 +121,7 @@ describe('#551 - coalescência e revisão de rascunhos semanais', () => {
     const first = serializeWorkoutWeekSave(Promise.resolve(), firstTask);
     const second = serializeWorkoutWeekSave(first, secondTask);
     await Promise.resolve();
+    await Promise.resolve();
     expect(firstTask).toHaveBeenCalledTimes(1);
     expect(secondTask).not.toHaveBeenCalled();
     finish();
