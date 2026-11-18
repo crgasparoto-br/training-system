@@ -789,11 +789,13 @@ export default function WorkoutBuilder2() {
           // Keep the newer edit recoverable under its new optimistic-lock base.
           clearDraftCacheForWeek(snapshot.planId, resolvedMesocycle, resolvedWeek);
           const next = result.pending;
-          const cacheKey = buildCacheKey(next.planId, resolvedMesocycle, resolvedWeek, next.planUpdatedAt, next.baseTemplateUpdatedAt);
-          try {
-            localStorage.setItem(cacheKey, JSON.stringify({ schemaVersion: 2, status: 'pending-draft', data: next }));
-          } catch {
-            // localStorage is only a recovery buffer.
+          if (next.planId) {
+            const cacheKey = buildCacheKey(next.planId, resolvedMesocycle, resolvedWeek, next.planUpdatedAt, next.baseTemplateUpdatedAt);
+            try {
+              localStorage.setItem(cacheKey, JSON.stringify({ schemaVersion: 2, status: 'pending-draft', data: next }));
+            } catch {
+              // localStorage is only a recovery buffer.
+            }
           }
         }
         if (snapshot.id && result.savedUpdatedAt
