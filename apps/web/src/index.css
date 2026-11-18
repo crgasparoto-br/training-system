@@ -127,7 +127,16 @@
 
 @layer utilities {
   .ts-container {
-    @apply mx-auto w-full max-w-[1600px] px-4 sm:px-6;
+    @apply mx-auto w-full min-w-0 max-w-none px-4 sm:px-6 xl:px-8;
+  }
+
+  /* Fluxo fluido para consultas; medida legível para formulários. */
+  .ts-content-fluid {
+    @apply w-full min-w-0 max-w-none;
+  }
+
+  .ts-content-readable {
+    @apply mx-auto w-full min-w-0 max-w-5xl;
   }
 
   .ts-page-heading {
@@ -142,12 +151,13 @@
     @apply h-10 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground;
   }
 
+  /* Navegação em abas: uso explícito das classes preserva grades e fluxos públicos. */
   .ts-tabs-bar {
-    @apply flex min-w-max gap-2 overflow-x-auto pb-1;
+    @apply flex w-full min-w-0 items-center gap-1 overflow-x-auto py-1;
   }
 
   .ts-tab-button {
-    @apply inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-input bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
+    @apply inline-flex h-9 min-h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md border-0 bg-transparent px-3 py-1 text-sm font-medium text-muted-foreground shadow-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
   }
 
   .ts-tab-button:hover {
@@ -155,45 +165,33 @@
   }
 
   .ts-tab-button-active {
-    @apply border-primary bg-primary text-primary-foreground;
+    @apply border-0 bg-primary/10 text-foreground shadow-none;
   }
 
   .ts-tab-button-active:hover {
-    @apply bg-primary-hover text-primary-foreground;
+    @apply bg-primary/10 text-foreground;
   }
 
   .ts-tab-button-inactive {
-    @apply border-input bg-card text-foreground;
+    @apply border-0 bg-transparent text-muted-foreground shadow-none;
   }
 
-  [role='tablist'] {
-    @apply flex min-w-max gap-2 overflow-x-auto pb-1;
+  .ts-tab-tile {
+    @apply block h-auto w-full min-w-0 rounded-lg border border-border bg-card p-4 text-left text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
   }
 
-  [role='tablist'] > [role='tab'] {
-    @apply inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-input bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
-  }
-
-  [role='tablist'] > [role='tab']:hover {
+  .ts-tab-tile:hover {
     @apply bg-accent text-accent-foreground;
   }
 
-  [role='tablist'] > [role='tab'][aria-selected='true'] {
-    @apply border-primary bg-primary text-primary-foreground;
+  .ts-tab-tile-active {
+    @apply border-primary/30 bg-primary/10 text-foreground;
   }
 
-  [role='tablist'] > [role='tab'][aria-selected='true']:hover {
-    @apply bg-primary-hover text-primary-foreground;
+  .ts-tab-tile-active:hover {
+    @apply bg-primary/10 text-foreground;
   }
-
-  [role='tablist'] > [role='tab'][aria-selected='false'] {
-    @apply border-input bg-card text-foreground;
-  }
-
-  /* Padrão de navegação em abas documentado em docs/visual-guidelines.md
-     (referência: AlunoDetailsTabs.tsx). Sobrescreve a regra genérica de
-     [role='tablist'] acima, que ainda usa o estilo legado (borda + fundo
-     sólido no item ativo). */
+  /* Abas do cadastro: preservar a variante canônica aprovada. */
   #aluno-form-tablist > [role='tab'] {
     @apply h-9 rounded-md border-0 bg-transparent px-3 text-muted-foreground shadow-none;
   }
