@@ -24,7 +24,9 @@ import {
   clearWorkoutDraftCacheForWeek,
   normalizeWorkoutDays,
   parseWorkoutSaveKey,
+  persistPendingWorkoutWeekSnapshot,
   rehydrateDraftFromApi,
+  serializeWorkoutWeekSave,
   resolveWorkoutWeekStartDate,
 } from './workout-builder-structure';
 
@@ -118,6 +120,8 @@ export default function WorkoutBuilder2() {
   const autoSaveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const pendingSaveRef = useRef<Record<string, any>>({});
   const saveChainsRef = useRef(new Map<string, Promise<void>>());
+  // Production's Prisma pool is small; do not run multiple week saves in parallel.
+  const allSaveChainRef = useRef<Promise<void>>(Promise.resolve());
   const conflictedSaveKeysRef = useRef(new Set<string>());
   const pagehideFlushRef = useRef<Promise<void> | null>(null);
   const pagehideDeliveryRef = useRef(new Map<string, { snapshot: any; status: 'pending' | 'completed' | 'failed' }>());
@@ -759,9 +763,11 @@ export default function WorkoutBuilder2() {
       }
       throw new Error('WORKOUT_PLANNING_CONFLICT_REVIEW_REQUIRED');
     }
-    const previous = saveChainsRef.current.get(saveKey) ?? Promise.resolve();
-    const operation = previous.catch(() => undefined).then(async () => {
-      const snapshot = pendingSaveRef.current[saveKey] ?? data;
+    const operation = serializeWorkoutWeekSave(allSaveChainRef.current, async () => {
+      if (conflictedSaveKeysRef.current.has(saveKey)) {
+        throw new Error('WORKOUT_PLANNING_CONFLICT_REVIEW_REQUIRED');
+      }
+      const snapshot = pendingSaveRef.current[saveKey];
       if (!snapshot || snapshot.released) return;
       beginOperation();
       if (isCurrentBuilderContext(snapshot.planId, resolvedMesocycle)) {
@@ -769,24 +775,38 @@ export default function WorkoutBuilder2() {
         setSaveErrorKey(null);
       }
       try {
-        if (snapshot.id) {
-          const saved = await workoutService.saveTemplateWeek(snapshot.id, buildWeekSavePayload(snapshot));
-          if (isCurrentBuilderContext(snapshot.planId, resolvedMesocycle)
-            && pendingSaveRef.current[saveKey] === snapshot) {
-            setTemplateDataByWeek((prev) => ({
-              ...prev,
-              [resolvedWeek]: {
-                ...prev[resolvedWeek],
-                updatedAt: saved.updatedAt,
-                baseTemplateUpdatedAt: saved.updatedAt,
-              },
-            }));
+        const result = await persistPendingWorkoutWeekSnapshot(
+          pendingSaveRef.current,
+          saveKey,
+          (pending) => pending.id
+            ? workoutService.saveTemplateWeek(pending.id, buildWeekSavePayload(pending))
+            : Promise.resolve({ updatedAt: pending.updatedAt ?? '' }),
+        );
+        if (result.status === 'cleared') {
+          conflictedSaveKeysRef.current.delete(saveKey);
+          clearDraftCacheForWeek(snapshot.planId, resolvedMesocycle, resolvedWeek);
+        } else if (result.status === 'rebased') {
+          // Keep the newer edit recoverable under its new optimistic-lock base.
+          clearDraftCacheForWeek(snapshot.planId, resolvedMesocycle, resolvedWeek);
+          const next = result.pending;
+          const cacheKey = buildCacheKey(next.planId, resolvedMesocycle, resolvedWeek, next.planUpdatedAt, next.baseTemplateUpdatedAt);
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify({ schemaVersion: 2, status: 'pending-draft', data: next }));
+          } catch {
+            // localStorage is only a recovery buffer.
           }
         }
-        if (pendingSaveRef.current[saveKey] === snapshot) {
-          conflictedSaveKeysRef.current.delete(saveKey);
-          delete pendingSaveRef.current[saveKey];
-          clearDraftCacheForWeek(snapshot.planId, resolvedMesocycle, resolvedWeek);
+        if (snapshot.id && result.savedUpdatedAt
+          && (result.status === 'cleared' || result.status === 'rebased')
+          && isCurrentBuilderContext(snapshot.planId, resolvedMesocycle)) {
+          setTemplateDataByWeek((prev) => ({
+            ...prev,
+            [resolvedWeek]: {
+              ...prev[resolvedWeek],
+              updatedAt: result.savedUpdatedAt,
+              baseTemplateUpdatedAt: result.savedUpdatedAt,
+            },
+          }));
         }
       } catch (error) {
         console.error('Erro ao salvar:', error);
@@ -830,6 +850,7 @@ export default function WorkoutBuilder2() {
       }
     });
     saveChainsRef.current.set(saveKey, operation);
+    allSaveChainRef.current = operation.catch(() => undefined);
     try {
       await operation;
     } finally {

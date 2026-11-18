@@ -206,6 +206,41 @@ export const parseWorkoutSaveKey = (key: string) => {
     : null;
 };
 
+
+/** Serialize week saves across this tab to avoid exhausting a small Prisma pool. */
+export function serializeWorkoutWeekSave(previous: Promise<void>, operation: () => Promise<void>) {
+  return previous.catch(() => undefined).then(operation);
+}
+
+/**
+ * Consume only the latest unsaved snapshot. A second queued flush is a no-op
+ * once the first request succeeds; newer local edits retain the acknowledged
+ * server revision instead of triggering a false optimistic-lock conflict.
+ * Failed writes leave the pending draft untouched for explicit retry.
+ */
+export async function persistPendingWorkoutWeekSnapshot<
+  T extends { id?: string; released?: boolean; updatedAt?: string; baseTemplateUpdatedAt?: string }
+>(
+  pending: Record<string, T | undefined>,
+  key: string,
+  persist: (snapshot: T) => Promise<{ updatedAt: string }>,
+) {
+  const snapshot = pending[key];
+  if (!snapshot || snapshot.released) return { status: 'empty' } as const;
+  const saved = await persist(snapshot);
+  const latest = pending[key];
+  if (latest === snapshot) {
+    delete pending[key];
+    return { status: 'cleared', savedUpdatedAt: saved.updatedAt } as const;
+  }
+  if (latest && !latest.released && snapshot.id && latest.id === snapshot.id) {
+    const rebased = { ...latest, updatedAt: saved.updatedAt, baseTemplateUpdatedAt: saved.updatedAt };
+    pending[key] = rebased;
+    return { status: 'rebased', savedUpdatedAt: saved.updatedAt, pending: rebased } as const;
+  }
+  return { status: 'superseded', savedUpdatedAt: saved.updatedAt } as const;
+}
+
 export function resolveWorkoutWeekStartDate(planStartDate: string | undefined, weeksPerMesocycle: number, mesocycle: number, week: number) {
   if (!planStartDate) return null;
   const start = parseDateOnly(planStartDate);
