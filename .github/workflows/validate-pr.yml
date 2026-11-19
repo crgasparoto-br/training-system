@@ -413,8 +413,9 @@ jobs:
         run: pnpm access:check
       - name: Documentation checks
         run: pnpm docs:check
-      - name: Audit source proof checks (pnpm validate parity)
-        run: pnpm audit:source-proofs
+      # Run the exact repository contract after database/browser-specific critical gates.
+      - name: Complete mandatory validation (pnpm validate)
+        run: pnpm validate
       - name: Retain issue-399 exact-head evidence
         if: always()
         env:
