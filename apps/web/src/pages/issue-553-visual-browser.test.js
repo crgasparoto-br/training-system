@@ -121,9 +121,9 @@ async function testTabKeyboard(page, id) {
     const tabs = [...document.querySelectorAll(sel)];
     const focused = document.activeElement;
     return { index: tabs.indexOf(focused), selected: focused?.getAttribute('aria-selected'),
-      style: focused ? { outline: getComputedStyle(focused).outlineStyle, background: getComputedStyle(focused).backgroundColor } : null };
+      style: focused ? { focusVisible: focused.matches(':focus-visible'), outline: getComputedStyle(focused).outlineStyle, boxShadow: getComputedStyle(focused).boxShadow, background: getComputedStyle(focused).backgroundColor } : null };
   }, selector);
-  if (next.index !== 1 || next.selected !== 'true') {
+  if (next.index !== 1 || next.selected !== 'true' || !next.style?.focusVisible || (next.style?.boxShadow === 'none' && next.style?.outline === 'none')) {
     throw new Error(`${id}: ArrowRight did not focus and select second tab: ${JSON.stringify(next)}`);
   }
   await page.keyboard.press('End');
@@ -156,6 +156,37 @@ async function inspectFilter(page) {
   }
   return observed;
 }
+async function inspectHoverAndFocus(page, id, viewport) {
+  const preferred = '[role="tablist"] [role="tab"]';
+  const selector = await page.$(preferred) ? preferred : 'button:not([disabled])';
+  const target = await page.$(selector);
+  if (!target) throw new Error(`${id}: no interactive control available for hover/focus check`);
+  const resting = await page.$eval(selector, (element) => ({
+    background: getComputedStyle(element).backgroundColor,
+    text: getComputedStyle(element).color,
+  }));
+  await page.hover(selector);
+  const hovered = await page.$eval(selector, (element) => ({
+    isHovered: element.matches(':hover'),
+    background: getComputedStyle(element).backgroundColor,
+    text: getComputedStyle(element).color,
+  }));
+  if (!hovered.isHovered && !viewport.isMobile) throw new Error(`${id}: hover state cannot be reached`);
+  await target.focus();
+  await page.keyboard.press('Tab');
+  const keyboardFocus = await page.evaluate(() => {
+    const element = document.activeElement;
+    if (!element || element === document.body) return null;
+    return {
+      tag: element.tagName,
+      text: element.textContent?.trim().slice(0, 80),
+      visible: element.matches(':focus-visible'),
+      boxShadow: getComputedStyle(element).boxShadow,
+    };
+  });
+  if (!keyboardFocus?.visible) throw new Error(`${id}: keyboard focus is not visible`);
+  return { resting, hovered, keyboardFocus };
+}
 async function diagnostics(page, id, viewport) {
   const dimensions = await page.evaluate(() => {
     const root = document.documentElement;
@@ -166,6 +197,10 @@ async function diagnostics(page, id, viewport) {
       viewportHeight: root.clientHeight, documentScrollHeight: root.scrollHeight,
       shellWidth: document.querySelector('header .ts-container')?.getBoundingClientRect().width || null,
       activeActions: actions.length,
+      visibleActions: actions.filter((button) => {
+        const bounds = button.getBoundingClientRect();
+        return bounds.width > 0 && bounds.height > 0 && bounds.bottom > 0 && bounds.right > 0 && bounds.top < root.clientHeight && bounds.left < root.clientWidth;
+      }).length,
       tables: tables.map((table) => ({ width: table.scrollWidth, parentWidth: table.parentElement?.clientWidth,
         parentOverflowX: table.parentElement ? getComputedStyle(table.parentElement).overflowX : null })),
       alerts: [...document.querySelectorAll('[role="alert"]')].map((x) => x.textContent?.trim().slice(0, 200)),
@@ -178,7 +213,7 @@ async function diagnostics(page, id, viewport) {
     (!dimensions.shellWidth || dimensions.shellWidth < viewport.width - 64)) {
     throw new Error(`${id}@1920: authenticated shell remains constrained (${dimensions.shellWidth})`);
   }
-  if (dimensions.activeActions === 0) throw new Error(`${id}: no actionable buttons rendered`);
+  if (dimensions.activeActions === 0 || dimensions.visibleActions === 0) throw new Error(`${id}: no visible actionable buttons rendered`);
   return dimensions;
 }
 
@@ -254,6 +289,7 @@ suite('Issue #553 - matrix of real Chromium UI layouts', () => {
                 }
               }
             }
+            const hover = await inspectHoverAndFocus(page, scenario.id, viewport);
             if (scenario.id === 'library') {
               if (!((await page.evaluate(() => document.body.innerText)).includes(sampleExercise.name))) {
                 throw new Error('Library data did not render');
@@ -265,10 +301,6 @@ suite('Issue #553 - matrix of real Chromium UI layouts', () => {
               await page.evaluate(() => [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('Novo serviço'))?.click());
               await page.waitForFunction(() => document.body.innerText?.includes('Voltar ao catálogo'));
             }
-            const hover = await page.evaluate(() => {
-              const target = document.querySelector('[role="tablist"] [role="tab"]') || document.querySelector('button:not([disabled])');
-              return target ? { text: target.textContent?.trim(), background: getComputedStyle(target).backgroundColor } : null;
-            });
             const dimension = await diagnostics(page, scenario.id, viewport);
             const img = await page.screenshot({ path: path.join(outputDir, `${scenario.id}-${viewport.width}x${viewport.height}.png`), fullPage: true });
             observations.push({ route: scenario.route, scenario: scenario.id, viewport, sha: subjectSha,
