@@ -4,10 +4,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { AlunoDetailsTabs, getTabBlockKey } from './AlunoDetailsTabs';
 
-vi.mock('./AlunoAdipometryEvolutionTabSection', () => ({
-  AlunoAdipometryEvolutionTabSection: () => null,
-}));
-
 describe('Acesso ao treinamento na Central', () => {
   it('vincula a aba de treino à permissão por bloco e permite sua navegação', async () => {
     const onChange = vi.fn();

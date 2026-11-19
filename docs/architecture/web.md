@@ -31,16 +31,23 @@ o carregamento do Resumo e o de cada aba possuem estados independentes.
   indicadores segmentados, avaliacoes, planos e contrato ativo. Enquanto o conjunto
   ainda nao terminou, exibe carregamento, nunca ausencia definitiva de dados.
 - Cadastro, Saude, Financeiro, Plano de avaliacoes, Avaliacoes fisicas e Integracoes
-  solicitam seus dados na primeira abertura autorizada. Financeiro e Plano de avaliacoes
-  permanecem montados (mas ocultos) apos a primeira abertura para conservar rascunhos
-  e evitar novas leituras ao voltar; sao desmontados quando a permissao ou o aluno muda.
+  solicitam seus dados na primeira abertura autorizada. Resumo, Financeiro, Plano
+  de avaliacoes e Avaliacoes fisicas permanecem montados, mas ocultos durante
+  a alternancia, para conservar filtros, selecoes e rascunhos e evitar novos GETs.
+  Revisoes cadastrais e Treinos tambem sao montados somente na primeira visita
+  autorizada e retidos durante a alternancia. Todos esses contextos sao desmontados
+  quando a identidade do aluno ou a permissao pertinente muda.
+  Na Avaliacao fisica, o painel de evolucao recebe aluno e historico ja carregados
+  pela pagina: nao inicia outro GET de identidade ou de historico. A leitura
+  estruturada ADPT permanece independente e conserva filtros e comparacoes locais.
   No Financeiro, o componente da aba e o unico responsavel por listar contratos,
   evita falso `Sem contrato ativo` apos falha dessa leitura, e oferece retry
   independente para historico/contrato ativo e contratos disponiveis.
   No Plano de avaliacoes, a propria aba consulta seu planejamento. As consultas
   independentes do Resumo nao ficam bloqueadas pelas abas nao visitadas.
-- A aba Auditoria mantem sua propria leitura sob demanda, revalidacao por foco,
-  paginacao e controle de geracoes. Ela nao participa da consulta inicial.
+- A aba Auditoria mantem sua propria leitura sob demanda, revalidacao por foco
+  e ao retornar a aba, paginacao e controle de geracoes. Ela nao participa da
+  consulta inicial e nao usa o cache de montagem das outras abas.
 - Falhas das leituras complementares mantem o cabecalho disponivel e exibem
   retry local; respostas tardias de aluno anterior sao descartadas por identidade
   e geracao. O Plano de avaliacoes nao confunde erro de leitura com ausencia

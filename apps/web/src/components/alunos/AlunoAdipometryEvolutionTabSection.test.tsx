@@ -40,10 +40,10 @@ const aluno: Aluno = {
   updatedAt: '2026-08-05T12:00:00.000Z',
 };
 
-function renderSection() {
+function renderSection(assessments: Assessment[] = []) {
   return render(
     <MemoryRouter>
-      <AlunoAdipometryEvolutionTabSection alunoId="aluno-1" />
+      <AlunoAdipometryEvolutionTabSection aluno={aluno} assessments={assessments} />
     </MemoryRouter>
   );
 }
@@ -83,20 +83,21 @@ describe('AlunoAdipometryEvolutionTabSection', () => {
         user: { profile: { name: 'Professora Responsável' } },
       },
     } as Assessment;
-    listAssessmentsMock.mockResolvedValue([anthropometryAssessment]);
-
-    renderSection();
+    renderSection([anthropometryAssessment]);
 
     await waitFor(() => expect(screen.getByRole('link', { name: 'Registrar nova antropometria' })).toBeInTheDocument());
     expect(screen.getByText(/Última antropometria em/i)).toBeInTheDocument();
   });
 
-  it('preserva o card ADPT quando o cadastro do aluno falha isoladamente', async () => {
+  it('nao refaz consulta de identidade ou de historico ja confirmados pela Central', async () => {
     getAlunoMock.mockRejectedValue(new Error('network'));
+    listAssessmentsMock.mockRejectedValue(new Error('network'));
 
     renderSection();
 
     await waitFor(() => expect(screen.getByTestId('adpt-card')).toBeInTheDocument());
-    expect(screen.queryByRole('link', { name: /antropometria/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Iniciar antropometria' })).toBeInTheDocument();
+    expect(getAlunoMock).not.toHaveBeenCalled();
+    expect(listAssessmentsMock).not.toHaveBeenCalled();
   });
 });

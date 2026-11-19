@@ -30,7 +30,7 @@ Revisões substituídas, canceladas ou invalidadas permanecem preservadas pelo b
 
 Quando a avaliação finalizada possui `revisionNumber > 1`, o resumo e o histórico exibem **Avaliação corrigida — revisão N vigente**. A informação é derivada dos campos estruturados de revisão; a interface não tenta inferir correção pelo formato do código da avaliação.
 
-A ordenação usa data da avaliação, data de criação e identificador estável como desempate. Depois que o usuário retorna do fluxo ADPT ou a aba volta a ficar visível, o bloco recarrega apenas o contexto de adipometria e remove seleções que deixaram de estar disponíveis.
+A ordenação usa data da avaliação, data de criação e identificador estável como desempate. Depois que o usuário retorna do fluxo ADPT (nova montagem da rota) ou a janela volta a receber foco, o bloco revalida o contexto de adipometria e remove seleções que deixaram de estar disponíveis. Alternar entre abas já visitadas na mesma ficha preserva o bloco montado, seus filtros e seleções, sem nova consulta por remontagem.
 
 ## Histórico e origem
 
@@ -82,7 +82,7 @@ A mesma regra é compartilhada pela Central e pela tela dedicada, alinhada ao mi
 - Falhas de ADPT ficam contidas no bloco e oferecem nova tentativa.
 - Somente a carga ADPT mais recente pode atualizar o estado; respostas anteriores do mesmo aluno são descartadas quando chegam fora de ordem.
 - Uma comparação pendente é invalidada quando a seleção muda ou uma recarga começa, impedindo que resultado obsoleto reapareça na tabela.
-- Falha ao carregar o cadastro necessário para a entrada de Antropometria não remove o bloco ADPT.
+- A entrada de Antropometria e o histórico legado recebem o aluno e as avaliações já confirmados pela Central, sem um segundo GET; falha localizada na leitura ADPT não remove a Antropometria.
 - Seções extensas usam controles colapsáveis nativos.
 - Seleção usa checkboxes e o filtro usa `select`, ambos operáveis por teclado.
 - A comparação possui tabela semântica com `caption`, cabeçalhos de coluna e linha.
@@ -99,6 +99,7 @@ pnpm --filter @corrida/web test -- \
   AlunoAdipometryEvolutionCard.test.tsx \
   AlunoAdipometryEvolutionCard.race-regression.test.tsx \
   AlunoAdipometryEvolutionTabSection.test.tsx \
+  AlunoAdipometryEvolutionTabSection.context-isolation.test.tsx \
   AlunoDetailsTabs.adipometry.test.tsx
 pnpm --filter @corrida/web type-check
 pnpm --filter @corrida/web lint

@@ -24,6 +24,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/Accordion';
 import { ProfessorManualContextPanel } from '../components/ProfessorManualContextPanel';
 import { AlunoDetailsTabs, getTabBlockKey, type AlunoDetailsTab } from '../components/alunos/AlunoDetailsTabs';
+import { AlunoAdipometryEvolutionTabSection } from '../components/alunos/AlunoAdipometryEvolutionTabSection';
 import { AlunoResumoHubTab } from '../components/alunos/AlunoResumoHubTab';
 import { AlunoTrainingTab } from '../components/alunos/AlunoTrainingTab';
 import { AlunoCadastroTab } from '../components/alunos/AlunoCadastroTab';
@@ -314,6 +315,7 @@ export function AlunoDetails() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<AlunoDetailsTab>('resumo');
   const [loadedTabs, setLoadedTabs] = useState<AlunoDetailsTab[]>([]);
+  const [retainedDirectTabs, setRetainedDirectTabs] = useState<AlunoDetailsTab[]>([]);
   const [editingAssessment, setEditingAssessment] = useState<Assessment | null>(null);
   const [editForm, setEditForm] = useState({
     typeId: '',
@@ -547,6 +549,7 @@ export function AlunoDetails() {
     ++timelineGenerationRef.current;
     loadingTabsRef.current.clear();
     setLoadedTabs([]);
+    setRetainedDirectTabs([]);
     setTabErrors({});
     setTimelineRefreshFailed(false);
     setTimelineLoadingMore(false);
@@ -1054,6 +1057,24 @@ export function AlunoDetails() {
       setActiveTab(visibleTabs[0] ?? 'resumo');
     }
   }, [activeTab, visibleTabs]);
+
+  // Abas com leitura propria so montam depois do primeiro acesso autorizado.
+  // Mantemos os componentes para preservar filtros e rascunhos sem novos GETs na alternancia.
+  useEffect(() => {
+    if (
+      !id ||
+      loading ||
+      aluno?.id !== id ||
+      !visibleTabs.includes(activeTab) ||
+      (activeTab !== 'revisoes-cadastrais' && activeTab !== 'treinos')
+    ) {
+      return;
+    }
+
+    setRetainedDirectTabs((current) =>
+      current.includes(activeTab) ? current : [...current, activeTab]
+    );
+  }, [activeTab, aluno?.id, id, loading, visibleTabs]);
 
   useEffect(() => {
     if (
@@ -1577,6 +1598,16 @@ export function AlunoDetails() {
 
       <AlunoDetailsTabs activeTab={activeTab} onChange={setActiveTab} visibleTabs={visibleTabs} />
 
+      {visibleTabs.includes('avaliacoes-fisicas') && loadedTabs.includes('avaliacoes-fisicas') && (
+        <div hidden={activeTab !== 'avaliacoes-fisicas'} className="mt-6">
+          <AlunoAdipometryEvolutionTabSection
+            key={id}
+            aluno={aluno}
+            assessments={assessments}
+          />
+        </div>
+      )}
+
       {STUDENT_DETAIL_DEFERRED_TABS.includes(activeTab) && !loadedTabs.includes(activeTab) && (
         <Card>
           <CardContent className="py-8">
@@ -1605,8 +1636,9 @@ export function AlunoDetails() {
         </Card>
       )}
 
-      {visibleTabs.includes('resumo') && activeTab === 'resumo' && loadedTabs.includes('resumo') && (
-        <AlunoResumoHubTab
+      {visibleTabs.includes('resumo') && loadedTabs.includes('resumo') && (
+        <div hidden={activeTab !== 'resumo'}>
+          <AlunoResumoHubTab
           aluno={aluno}
           segmentedSummary={segmentedSummary}
           assessments={assessments}
@@ -1614,7 +1646,8 @@ export function AlunoDetails() {
           plans={plans}
           activeStudentContract={activeStudentContract}
           canViewTraining={canViewTrainingPlansTab}
-        />
+          />
+        </div>
       )}
 
       {visibleTabs.includes('cadastro') && activeTab === 'cadastro' && loadedTabs.includes('cadastro') && (
@@ -2428,13 +2461,17 @@ export function AlunoDetails() {
         </>
       )}
 
-      {visibleTabs.includes('revisoes-cadastrais') && activeTab === 'revisoes-cadastrais' && id && (
-        <AlunoRevisoesCadastraisTab
-          alunoId={id}
-          onToast={showToast}
-          canManageActions={canManageProfileReviewsAction}
-        />
-      )}
+      {visibleTabs.includes('revisoes-cadastrais') && id &&
+        (activeTab === 'revisoes-cadastrais' || retainedDirectTabs.includes('revisoes-cadastrais')) && (
+          <div hidden={activeTab !== 'revisoes-cadastrais'}>
+            <AlunoRevisoesCadastraisTab
+              key={id}
+              alunoId={id}
+              onToast={showToast}
+              canManageActions={canManageProfileReviewsAction}
+            />
+          </div>
+        )}
 
       {visibleTabs.includes('integracoes') && activeTab === 'integracoes' && loadedTabs.includes('integracoes') && (
         <AlunoIntegracoesTab
@@ -2443,9 +2480,12 @@ export function AlunoDetails() {
         />
       )}
 
-      {visibleTabs.includes('treinos') && activeTab === 'treinos' && id && (
-        <AlunoTrainingTab key={id} alunoId={id} />
-      )}
+      {visibleTabs.includes('treinos') && id &&
+        (activeTab === 'treinos' || retainedDirectTabs.includes('treinos')) && (
+          <div hidden={activeTab !== 'treinos'}>
+            <AlunoTrainingTab key={id} alunoId={id} />
+          </div>
+        )}
 
       {visibleTabs.includes('auditoria') && activeTab === 'auditoria' && (
         <div className="space-y-3">
