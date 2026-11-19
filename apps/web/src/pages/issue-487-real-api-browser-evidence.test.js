@@ -9,10 +9,15 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const apiRequire = createRequire(path.resolve(process.cwd(), '../api/package.json'));
-const { PrismaClient } = apiRequire('@prisma/client');
+// FAST may collect this suite without generating Prisma Client. Import the
+// database client only when the authenticated CRITICAL journey will execute.
+const realBrowserEvidenceEnabled = process.env.ISSUE_487_REAL_API_BROWSER_EVIDENCE === '1';
+const PrismaClient = realBrowserEvidenceEnabled
+  ? apiRequire('@prisma/client').PrismaClient
+  : null;
 const puppeteer = apiRequire('puppeteer');
 const jwt = apiRequire('jsonwebtoken');
-const suite = process.env.ISSUE_487_REAL_API_BROWSER_EVIDENCE === '1' ? describe : describe.skip;
+const suite = realBrowserEvidenceEnabled ? describe : describe.skip;
 const repoRoot = path.resolve(process.cwd(), '../..');
 const outputDir = path.join(repoRoot, 'artifacts/issue-487');
 
