@@ -1,12 +1,15 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { AxiosError } from 'axios';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
-import { canAccessBlock } from '../access/access-control';
+import { canAccessBlock, canAccessScreen } from '../access/access-control';
 
 const navigateMock = vi.fn();
 let routeAlunoId = 'aluno-1';
 const getByIdMock = vi.fn();
+const resetPasswordMock = vi.fn();
+const reprocessAssessmentMock = vi.fn();
+const getAssessmentLogsMock = vi.fn();
 const listByAlunoMock = vi.fn();
 const getSummaryMock = vi.fn();
 const assessmentTypeListMock = vi.fn();
@@ -70,6 +73,7 @@ vi.mock('../access/access-control', () => ({
 vi.mock('../services/aluno.service', () => ({
   alunoService: {
     getById: (...args: unknown[]) => getByIdMock(...args),
+    resetPassword: (...args: unknown[]) => resetPasswordMock(...args),
     getAssessmentPlan: (...args: unknown[]) => getAssessmentPlanMock(...args),
     listStudentContracts: (...args: unknown[]) => listStudentContractsMock(...args),
     getSegmentedSummary: (...args: unknown[]) => getSegmentedSummaryMock(...args),
@@ -87,6 +91,8 @@ vi.mock('../services/aluno.service', () => ({
 vi.mock('../services/assessment.service', () => ({
   assessmentService: {
     listByAluno: (...args: unknown[]) => listByAlunoMock(...args),
+    reprocessAssessment: (...args: unknown[]) => reprocessAssessmentMock(...args),
+    getLogs: (...args: unknown[]) => getAssessmentLogsMock(...args),
     getSummary: (...args: unknown[]) => getSummaryMock(...args),
   },
 }));
@@ -201,6 +207,27 @@ vi.mock('../components/alunos/AlunoIntegracoesTab', () => ({
 }));
 import { AlunoDetails } from './AlunoDetails';
 
+const assessmentFor = (studentId: string, name: string) => ({
+  id: 'assessment-' + studentId,
+  alunoId: studentId,
+  typeId: 'type-1',
+  assessmentDate: '2026-11-01T12:00:00.000Z',
+  originalFileName: studentId + '.pdf',
+  type: { id: 'type-1', name },
+  extractedData: { metrics: {} },
+});
+
+const nextAluno = {
+  id: 'aluno-2',
+  userId: 'user-2',
+  professorId: 'prof-1',
+  age: 26,
+  schedulePlan: 'free',
+  user: { email: 'novo@test.com', profile: { name: 'Outro Aluno' } },
+  createdAt: '2026-11-19T12:00:00.000Z',
+  updatedAt: '2026-11-19T12:00:00.000Z',
+};
+
 describe('AlunoDetails resiliencia de carregamento', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -209,6 +236,10 @@ describe('AlunoDetails resiliencia de carregamento', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     routeAlunoId = 'aluno-1';
+    resetPasswordMock.mockReset().mockResolvedValue({ tempPassword: 'TEMP-A' });
+    reprocessAssessmentMock.mockReset().mockResolvedValue(undefined);
+    getAssessmentLogsMock.mockReset().mockResolvedValue([]);
+    vi.mocked(canAccessScreen).mockImplementation(() => true);
     vi.mocked(canAccessBlock).mockImplementation(() => true);
     vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -700,6 +731,123 @@ describe('AlunoDetails resiliencia de carregamento', () => {
     expect(listAdipometryAssessmentsMock).not.toHaveBeenCalled();
     expect(getProfileReviewSettingsMock).not.toHaveBeenCalled();
     expect(getTrainingRoutineMock).not.toHaveBeenCalled();
+  });
+
+
+  it('nao aplica refresh de avaliacao atrasado do aluno anterior na ficha atual', async () => {
+    const first = assessmentFor('aluno-1', 'Avaliação A');
+    const second = assessmentFor('aluno-2', 'Avaliação B');
+    let resolveOldRefresh: ((value: typeof first[]) => void) | undefined;
+    let firstReads = 0;
+    listByAlunoMock.mockImplementation((studentId: string) => {
+      if (studentId === 'aluno-2') return Promise.resolve([second]);
+      firstReads += 1;
+      if (firstReads === 3) {
+        return new Promise((resolve) => { resolveOldRefresh = resolve; });
+      }
+      return Promise.resolve([first]);
+    });
+
+    const { rerender } = render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Aluno Teste');
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Avaliações' }));
+    await screen.findByText('Avaliação A');
+    fireEvent.click(screen.getByRole('button', { name: 'Reprocessar' }));
+    await waitFor(() => expect(resolveOldRefresh).toBeDefined());
+
+    routeAlunoId = 'aluno-2';
+    getByIdMock.mockResolvedValueOnce(nextAluno);
+    rerender(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Outro Aluno');
+    await screen.findByText('Avaliação B');
+
+    await act(async () => { resolveOldRefresh?.([first]); });
+    expect(screen.getByText('Avaliação B')).toBeInTheDocument();
+    expect(screen.queryByText('Avaliação A')).not.toBeInTheDocument();
+  });
+
+  it('nao inicia refresh ou sucesso no aluno novo quando mutacao antiga conclui tarde', async () => {
+    const first = assessmentFor('aluno-1', 'Avaliação A');
+    const second = assessmentFor('aluno-2', 'Avaliação B');
+    let finishMutation: (() => void) | undefined;
+    reprocessAssessmentMock.mockImplementationOnce(() =>
+      new Promise<void>((resolve) => { finishMutation = resolve; })
+    );
+    listByAlunoMock.mockImplementation((studentId: string) =>
+      Promise.resolve(studentId === 'aluno-1' ? [first] : [second])
+    );
+    const { rerender } = render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Aluno Teste');
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Avaliações' }));
+    await screen.findByText('Avaliação A');
+    fireEvent.click(screen.getByRole('button', { name: 'Reprocessar' }));
+    await waitFor(() => expect(finishMutation).toBeDefined());
+
+    routeAlunoId = 'aluno-2';
+    getByIdMock.mockResolvedValueOnce(nextAluno);
+    rerender(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Outro Aluno');
+    await screen.findByText('Avaliação B');
+    await act(async () => { finishMutation?.(); });
+    expect(listByAlunoMock.mock.calls.filter(([id]) => id === 'aluno-1')).toHaveLength(2);
+    expect(screen.queryByText('Avaliação A')).not.toBeInTheDocument();
+    expect(screen.getByText('Avaliação B')).toBeInTheDocument();
+  });
+
+  it('nao permite que um refresh mais antigo sobrescreva outro do mesmo aluno', async () => {
+    const original = assessmentFor('aluno-1', 'Avaliação original');
+    const updated = assessmentFor('aluno-1', 'Avaliação atualizada');
+    let resolveStale: ((value: typeof original[]) => void) | undefined;
+    let reads = 0;
+    listByAlunoMock.mockImplementation(() => {
+      reads += 1;
+      if (reads === 3) return new Promise((resolve) => { resolveStale = resolve; });
+      return Promise.resolve(reads >= 4 ? [updated] : [original]);
+    });
+    render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Aluno Teste');
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Avaliações' }));
+    await screen.findByText('Avaliação original');
+    fireEvent.click(screen.getByRole('button', { name: 'Reprocessar' }));
+    await waitFor(() => expect(resolveStale).toBeDefined());
+    fireEvent.click(screen.getByRole('button', { name: 'Reprocessar' }));
+    expect(await screen.findByText('Avaliação atualizada')).toBeInTheDocument();
+    await act(async () => { resolveStale?.([original]); });
+    expect(screen.getByText('Avaliação atualizada')).toBeInTheDocument();
+    expect(screen.queryByText('Avaliação original')).not.toBeInTheDocument();
+  });
+
+  it('nao publica senha temporaria de outro aluno apos resposta atrasada', async () => {
+    let resolvePassword: ((value: {tempPassword: string}) => void) | undefined;
+    resetPasswordMock.mockImplementationOnce(() =>
+      new Promise((resolve) => { resolvePassword = resolve; })
+    );
+    const { rerender } = render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Aluno Teste');
+    fireEvent.click(screen.getByRole('button', { name: /redefinir senha|resetar senha/i }));
+    await waitFor(() => expect(resolvePassword).toBeDefined());
+
+    routeAlunoId = 'aluno-2';
+    getByIdMock.mockResolvedValueOnce(nextAluno);
+    rerender(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Outro Aluno');
+    await act(async () => { resolvePassword?.({ tempPassword: 'SENHA-ANTIGA-EXCLUSIVA' }); });
+    expect(screen.queryByText('SENHA-ANTIGA-EXCLUSIVA')).not.toBeInTheDocument();
+    expect(screen.getByText('Outro Aluno')).toBeInTheDocument();
+  });
+
+  it('nao solicita contratos quando a tela financeira e as permissoes de contrato estao negadas', async () => {
+    vi.mocked(canAccessScreen).mockImplementation((_user, key) =>
+      !['students.contracts.view', 'students.contracts.manage', 'students.contracts.cancel', 'students.contracts.renew'].includes(key)
+    );
+    vi.mocked(canAccessBlock).mockImplementation((_user, key) =>
+      key !== 'students.details.financialContract'
+    );
+    render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Aluno Teste');
+    await waitFor(() => expect(getSegmentedSummaryMock).toHaveBeenCalledWith('aluno-1'));
+    expect(listStudentContractsMock).not.toHaveBeenCalled();
+    expect(getSegmentedFinancialProfileMock).not.toHaveBeenCalled();
   });
 
   it('não abre abas sensíveis nem faz suas leituras sem permissão', async () => {

@@ -51,6 +51,13 @@ o carregamento do Resumo e o de cada aba possuem estados independentes.
 - A aba Auditoria mantem sua propria leitura sob demanda, revalidacao por foco
   e ao retornar a aba, paginacao e controle de geracoes. Ela nao participa da
   consulta inicial e nao usa o cache de montagem das outras abas.
+- Leituras apos gravacao de avaliacoes (envio, edicao, exclusao, reprocessamento e
+  historico) so atualizam a ficha se o aluno e a geracao de carregamento
+  ainda corresponderem a quem iniciou a operacao; respostas concorrentes antigas
+  perdem para o refresh mais recente. Ao trocar aluno, rascunhos, modais e
+  mensagens transitorias do contexto anterior sao invalidados, incluindo
+  previsualizacao e senha temporaria. Respostas tardias de arquivo, logs e
+  redefinicao de senha nao podem repovoar o novo contexto.
 - Falhas das leituras complementares mantem o cabecalho disponivel e exibem
   retry local; respostas tardias de aluno anterior sao descartadas por identidade
   e geracao. O Plano de avaliacoes nao confunde erro de leitura com ausencia

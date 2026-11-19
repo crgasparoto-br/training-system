@@ -287,6 +287,9 @@ export function AlunoDetails() {
   const [timelineLoadingMore, setTimelineLoadingMore] = useState(false);
   const timelineGenerationRef = useRef(0);
   const alunoLoadRequestRef = useRef(0);
+  const assessmentRefreshRequestRef = useRef(0);
+  const assessmentLogsRequestRef = useRef(0);
+  const studentContextIdRef = useRef(id);
   const loadingTabsRef = useRef<Set<AlunoDetailsTab>>(new Set());
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadErrorKind, setLoadErrorKind] = useState<AlunoLoadErrorKind>(null);
@@ -543,10 +546,22 @@ export function AlunoDetails() {
     }
   }, [assessmentForm.typeId]);
 
+  const isCurrentAlunoRequest = (alunoId: string, request: number) =>
+    activeAlunoIdRef.current === alunoId && request === alunoLoadRequestRef.current;
+
   const loadAluno = async (alunoId: string) => {
     // A identidade do request invalida respostas antigas e caches de outro aluno.
     const loadRequest = ++alunoLoadRequestRef.current;
     ++timelineGenerationRef.current;
+    ++assessmentRefreshRequestRef.current;
+    ++assessmentLogsRequestRef.current;
+    if (studentContextIdRef.current !== alunoId) {
+      studentContextIdRef.current = alunoId;
+      setTempPassword(null);
+      setCopied(false);
+      setMessageCopied(false);
+      setIsResetting(false);
+    }
     loadingTabsRef.current.clear();
     setLoadedTabs([]);
     setRetainedDirectTabs([]);
@@ -566,6 +581,24 @@ export function AlunoDetails() {
     setPlans([]);
     setActiveStudentContract(null);
     setAssessmentPlanActiveTypeIds([]);
+    setEditingAssessment(null);
+    setEditForm({ typeId: '', assessmentDate: '' });
+    setHistoryEditOpen(false);
+    setHistoryEditSectionTitle('');
+    setHistoryEditAssessmentId('');
+    setHistoryEditValues({});
+    setAuditLogs([]);
+    setLogsLoading(false);
+    setAssessmentForm({ typeId: '', assessmentDate: '', file: null });
+    setAssessmentUploadFeedback(null);
+    setUploadingAssessment(false);
+    setAssessmentGuideActive(false);
+    if (previewUrl) window.URL.revokeObjectURL(previewUrl);
+    setPreviewOpen(false);
+    setPreviewUrl(null);
+    setPreviewName('');
+    setPreviewLoading(false);
+    setToast(null);
     setLoading(true);
     setLoadError(null);
     setLoadErrorKind(null);
@@ -594,7 +627,11 @@ export function AlunoDetails() {
     }
   };
 
-  const refreshAssessmentData = async (alunoId: string) => {
+  // O commit de dados de avaliacao exige a mesma identidade/geracao da mutacao.
+  // A chamada mais nova prevalece mesmo se uma resposta anterior chegar por ultimo.
+  const refreshAssessmentData = async (alunoId: string, loadRequest: number): Promise<boolean> => {
+    if (!isCurrentAlunoRequest(alunoId, loadRequest)) return false;
+    const refreshRequest = ++assessmentRefreshRequestRef.current;
     const [assessmentsData, summaryData, assessmentPlanData] = await Promise.all([
       assessmentService.listByAluno(alunoId),
       assessmentService.getSummary(alunoId),
@@ -603,6 +640,8 @@ export function AlunoDetails() {
         : Promise.resolve({ items: [] as AlunoAssessmentPlanSnapshot['items'] }),
     ]);
 
+    if (!isCurrentAlunoRequest(alunoId, loadRequest) ||
+        refreshRequest !== assessmentRefreshRequestRef.current) return false;
     setAssessments(assessmentsData);
     setAssessmentSummary(summaryData);
     setAssessmentPlanActiveTypeIds(
@@ -610,6 +649,7 @@ export function AlunoDetails() {
         .filter((item) => item.isActive)
         .map((item) => item.assessmentTypeId)
     );
+    return true;
   };
 
   const handleDelete = async () => {
@@ -621,11 +661,15 @@ export function AlunoDetails() {
       return;
     }
 
+    const studentId = id;
+    const studentRequest = alunoLoadRequestRef.current;
     try {
-      await alunoService.delete(id);
+      await alunoService.delete(studentId);
+      if (!isCurrentAlunoRequest(studentId, studentRequest)) return;
       alert(alunoDetailsCopy.deleteSuccess);
       navigate('/alunos');
     } catch (error) {
+      if (!isCurrentAlunoRequest(studentId, studentRequest)) return;
       console.error('Erro ao excluir aluno:', error);
       alert(alunoDetailsCopy.deleteError);
     }
@@ -641,20 +685,24 @@ export function AlunoDetails() {
       return;
     }
 
+    const studentId = id;
+    const studentRequest = alunoLoadRequestRef.current;
     setIsResetting(true);
     setCopied(false);
     setMessageCopied(false);
     try {
-      const result = await alunoService.resetPassword(id);
+      const result = await alunoService.resetPassword(studentId);
+      if (!isCurrentAlunoRequest(studentId, studentRequest)) return;
       setTempPassword(result.tempPassword);
       const phoneDigits = aluno?.user.profile.phone?.replace(/\D/g, '') || '';
       if (phoneDigits.startsWith('55')) {
         setCountryCode('55');
       }
     } catch (error: any) {
-      alert(error.response?.data?.error || alunoDetailsCopy.resetPasswordError);
+      if (isCurrentAlunoRequest(studentId, studentRequest))
+        alert(error.response?.data?.error || alunoDetailsCopy.resetPasswordError);
     } finally {
-      setIsResetting(false);
+      if (isCurrentAlunoRequest(studentId, studentRequest)) setIsResetting(false);
     }
   };
 
@@ -732,18 +780,21 @@ export function AlunoDetails() {
       }
     }
 
+    const studentId = id;
+    const studentRequest = alunoLoadRequestRef.current;
     setUploadingAssessment(true);
     try {
       const uploadedTypeName =
         assessmentTypes.find((type) => type.id === assessmentForm.typeId)?.name ||
         alunoDetailsCopy.assessmentNextStepFallbackType;
       const uploadedAssessmentDate = assessmentForm.assessmentDate || null;
-      await assessmentService.uploadAssessment(id, {
+      await assessmentService.uploadAssessment(studentId, {
         typeId: assessmentForm.typeId,
         assessmentDate: assessmentForm.assessmentDate || undefined,
         file: assessmentForm.file,
       });
-      await refreshAssessmentData(id);
+      if (!isCurrentAlunoRequest(studentId, studentRequest) ||
+          !await refreshAssessmentData(studentId, studentRequest)) return;
       setAssessmentForm({ typeId: '', assessmentDate: '', file: null });
       setAssessmentGuideActive(false);
       setShowAssessmentGuideBanner(false);
@@ -755,9 +806,10 @@ export function AlunoDetails() {
       });
       showToast(alunoDetailsCopy.uploadAssessmentSuccess);
     } catch (error: any) {
-      alert(error.response?.data?.error || alunoDetailsCopy.uploadAssessmentError);
+      if (isCurrentAlunoRequest(studentId, studentRequest))
+        alert(error.response?.data?.error || alunoDetailsCopy.uploadAssessmentError);
     } finally {
-      setUploadingAssessment(false);
+      if (isCurrentAlunoRequest(studentId, studentRequest)) setUploadingAssessment(false);
     }
   };
 
@@ -793,8 +845,11 @@ export function AlunoDetails() {
 
   const handleDownloadAssessment = async (assessment: Assessment) => {
     if (!id) return;
+    const studentId = id;
+    const studentRequest = alunoLoadRequestRef.current;
     try {
-      const blob = await assessmentService.downloadFile(id, assessment.id);
+      const blob = await assessmentService.downloadFile(studentId, assessment.id);
+      if (!isCurrentAlunoRequest(studentId, studentRequest)) return;
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -804,23 +859,28 @@ export function AlunoDetails() {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (error: any) {
-      alert(error.response?.data?.error || alunoDetailsCopy.downloadError);
+      if (isCurrentAlunoRequest(studentId, studentRequest))
+        alert(error.response?.data?.error || alunoDetailsCopy.downloadError);
     }
   };
 
   const handlePreviewAssessment = async (assessment: Assessment) => {
     if (!id) return;
+    const studentId = id;
+    const studentRequest = alunoLoadRequestRef.current;
     setPreviewLoading(true);
     try {
-      const blob = await assessmentService.downloadFile(id, assessment.id);
+      const blob = await assessmentService.downloadFile(studentId, assessment.id);
+      if (!isCurrentAlunoRequest(studentId, studentRequest)) return;
       const url = window.URL.createObjectURL(blob);
       setPreviewUrl(url);
       setPreviewName(assessment.originalFileName || 'Avaliação');
       setPreviewOpen(true);
     } catch (error: any) {
-      alert(error.response?.data?.error || alunoDetailsCopy.previewError);
+      if (isCurrentAlunoRequest(studentId, studentRequest))
+        alert(error.response?.data?.error || alunoDetailsCopy.previewError);
     } finally {
-      setPreviewLoading(false);
+      if (isCurrentAlunoRequest(studentId, studentRequest)) setPreviewLoading(false);
     }
   };
 
@@ -864,12 +924,19 @@ export function AlunoDetails() {
       assessmentDate: assessment.assessmentDate ? formatDateForInput(assessment.assessmentDate) : '',
     });
     if (id) {
+      const studentId = id;
+      const studentRequest = alunoLoadRequestRef.current;
+      const logsRequest = ++assessmentLogsRequestRef.current;
+      const stillCurrent = () =>
+        isCurrentAlunoRequest(studentId, studentRequest) &&
+        logsRequest === assessmentLogsRequestRef.current;
+      setAuditLogs([]);
       setLogsLoading(true);
       assessmentService
-        .getLogs(id, assessment.id)
-        .then(setAuditLogs)
-        .catch(() => setAuditLogs([]))
-        .finally(() => setLogsLoading(false));
+        .getLogs(studentId, assessment.id)
+        .then((logs) => { if (stillCurrent()) setAuditLogs(logs); })
+        .catch(() => { if (stillCurrent()) setAuditLogs([]); })
+        .finally(() => { if (stillCurrent()) setLogsLoading(false); });
     }
   };
 
@@ -896,16 +963,20 @@ export function AlunoDetails() {
       }
     }
 
+    const studentId = id;
+    const studentRequest = alunoLoadRequestRef.current;
     try {
-      await assessmentService.updateAssessment(id, editingAssessment.id, {
+      await assessmentService.updateAssessment(studentId, editingAssessment.id, {
         typeId: editForm.typeId,
         assessmentDate: editForm.assessmentDate || undefined,
       });
-      await refreshAssessmentData(id);
+      if (!isCurrentAlunoRequest(studentId, studentRequest) ||
+          !await refreshAssessmentData(studentId, studentRequest)) return;
       setEditingAssessment(null);
       showToast(alunoDetailsCopy.updateAssessmentSuccess, 'success');
     } catch (error: any) {
-      showToast(error.response?.data?.error || alunoDetailsCopy.updateAssessmentError, 'error');
+      if (isCurrentAlunoRequest(studentId, studentRequest))
+        showToast(error.response?.data?.error || alunoDetailsCopy.updateAssessmentError, 'error');
     }
   };
 
@@ -916,12 +987,16 @@ export function AlunoDetails() {
     }
     if (!id) return;
     if (!confirm(alunoDetailsCopy.deleteAssessmentConfirm)) return;
+    const studentId = id;
+    const studentRequest = alunoLoadRequestRef.current;
     try {
-      await assessmentService.deleteAssessment(id, assessment.id);
-      await refreshAssessmentData(id);
+      await assessmentService.deleteAssessment(studentId, assessment.id);
+      if (!isCurrentAlunoRequest(studentId, studentRequest) ||
+          !await refreshAssessmentData(studentId, studentRequest)) return;
       showToast(alunoDetailsCopy.deleteAssessmentSuccess, 'success');
     } catch (error: any) {
-      showToast(error.response?.data?.error || alunoDetailsCopy.deleteAssessmentError, 'error');
+      if (isCurrentAlunoRequest(studentId, studentRequest))
+        showToast(error.response?.data?.error || alunoDetailsCopy.deleteAssessmentError, 'error');
     }
   };
 
@@ -931,12 +1006,16 @@ export function AlunoDetails() {
       return;
     }
     if (!id) return;
+    const studentId = id;
+    const studentRequest = alunoLoadRequestRef.current;
     try {
-      await assessmentService.reprocessAssessment(id, assessment.id);
-      await refreshAssessmentData(id);
+      await assessmentService.reprocessAssessment(studentId, assessment.id);
+      if (!isCurrentAlunoRequest(studentId, studentRequest) ||
+          !await refreshAssessmentData(studentId, studentRequest)) return;
       showToast(alunoDetailsCopy.reprocessAssessmentSuccess, 'success');
     } catch (error: any) {
-      showToast(error.response?.data?.error || alunoDetailsCopy.reprocessAssessmentError, 'error');
+      if (isCurrentAlunoRequest(studentId, studentRequest))
+        showToast(error.response?.data?.error || alunoDetailsCopy.reprocessAssessmentError, 'error');
     }
   };
 
@@ -1093,6 +1172,7 @@ export function AlunoDetails() {
     const alunoId = id;
     const tab = activeTab;
     const request = alunoLoadRequestRef.current;
+    const assessmentReadVersion = assessmentRefreshRequestRef.current;
     const isCurrentAluno = () =>
       activeAlunoIdRef.current === alunoId && request === alunoLoadRequestRef.current;
 
@@ -1116,8 +1196,10 @@ export function AlunoDetails() {
                 : Promise.resolve(null),
             ]);
             if (!isCurrentAluno()) return;
-            setAssessments(assessmentsData);
-            setAssessmentSummary(summaryData);
+            if (assessmentReadVersion === assessmentRefreshRequestRef.current) {
+              setAssessments(assessmentsData);
+              setAssessmentSummary(summaryData);
+            }
             setPlans(plansData.plans);
             setActiveStudentContract(contractsData.activeContract);
             setSegmentedSummary(summary);
@@ -1163,12 +1245,12 @@ export function AlunoDetails() {
                 : Promise.resolve({ items: [] as AlunoAssessmentPlanSnapshot['items'] }),
             ]);
             if (!isCurrentAluno()) return;
-            if (needsAssessments) {
+            if (needsAssessments && assessmentReadVersion === assessmentRefreshRequestRef.current) {
               setAssessments(assessmentsData);
               setAssessmentSummary(summaryData);
             }
             setAssessmentTypes(typesData);
-            if (needsAssessmentPlan) {
+            if (needsAssessmentPlan && assessmentReadVersion === assessmentRefreshRequestRef.current) {
               setAssessmentPlanActiveTypeIds(
                 assessmentPlanData.items
                   .filter((item) => item.isActive)
@@ -1330,6 +1412,8 @@ export function AlunoDetails() {
 
   const handleSaveHistoryEdit = async () => {
     if (!id || !historyEditAssessmentId || !historyEditSectionTitle) return;
+    const studentId = id;
+    const studentRequest = alunoLoadRequestRef.current;
     const targetAssessment = assessments.find((item) => item.id === historyEditAssessmentId);
     if (targetAssessment?.extractedData?.parseOk === false) {
       showToast(alunoDetailsCopy.corruptedPdf, 'error');
@@ -1346,19 +1430,16 @@ export function AlunoDetails() {
       }
     });
     try {
-      await assessmentService.updateAssessment(id, historyEditAssessmentId, {
+      await assessmentService.updateAssessment(studentId, historyEditAssessmentId, {
         variables: payload,
       });
-      const [assessmentsData, summaryData] = await Promise.all([
-        assessmentService.listByAluno(id),
-        assessmentService.getSummary(id),
-      ]);
-      setAssessments(assessmentsData);
-      setAssessmentSummary(summaryData);
+      if (!isCurrentAlunoRequest(studentId, studentRequest) ||
+          !await refreshAssessmentData(studentId, studentRequest)) return;
       setHistoryEditOpen(false);
       showToast(alunoDetailsCopy.updateHistorySuccess, 'success');
     } catch (error: any) {
-      showToast(error.response?.data?.error || alunoDetailsCopy.updateHistoryError, 'error');
+      if (isCurrentAlunoRequest(studentId, studentRequest))
+        showToast(error.response?.data?.error || alunoDetailsCopy.updateHistoryError, 'error');
     }
   };
 
