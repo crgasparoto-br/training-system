@@ -159,14 +159,19 @@ async function inspectFilter(page) {
 async function inspectHoverAndFocus(page, id, viewport) {
   const preferred = '[role="tablist"] [role="tab"]';
   const selector = await page.$(preferred) ? preferred : 'button:not([disabled])';
-  const target = await page.$(selector);
-  if (!target) throw new Error(`${id}: no interactive control available for hover/focus check`);
-  const resting = await page.$eval(selector, (element) => ({
+  const candidates = await page.$(selector);
+  const visible = await Promise.all(candidates.map((candidate) => candidate.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    return bounds.width > 0 && bounds.height > 0 && getComputedStyle(element).visibility !== 'hidden';
+  })));
+  const target = candidates[visible.indexOf(true)];
+  if (!target) throw new Error(`${id}: no visible control available for hover/focus check`);
+  const resting = await target.evaluate((element) => ({
     background: getComputedStyle(element).backgroundColor,
     text: getComputedStyle(element).color,
   }));
-  await page.hover(selector);
-  const hovered = await page.$eval(selector, (element) => ({
+  await target.hover();
+  const hovered = await target.evaluate((element) => ({
     isHovered: element.matches(':hover'),
     background: getComputedStyle(element).backgroundColor,
     text: getComputedStyle(element).color,
