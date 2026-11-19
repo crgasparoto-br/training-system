@@ -75,3 +75,21 @@ test('filtro de permissoes usa tom suave e foco explicito, nunca fundo solido', 
   assert.doesNotMatch(editor, /permFilter === filter \? 'bg-primary text-primary-foreground/);
   assert.match(editor, /focus-visible:ring-2/);
 });
+
+// Regressao A-003: remover o CSS global de role=tablist nao pode quebrar os dias da Montagem 2.
+test('dias resistidos mantêm rolagem interna horizontal e não dependem da regra global removida', () => {
+  const css = read('apps/web/src/index.css');
+  const component = read('apps/web/src/pages/WorkoutBuilder2/WorkoutBuilderResistance.tsx');
+  const harness = read('apps/web/src/pages/WorkoutBuilder2/issue-399-full-page-browser-evidence.test.js');
+  const listRule = css.match(/\[role='tablist'\]\[data-tabs='resistance-days'\]\s*\{([^}]*)\}/)?.[1];
+  const itemRule = css.match(/\[role='tablist'\]\[data-tabs='resistance-days'\]\s*>\s*\[role='tab'\]\s*\{([^}]*)\}/)?.[1];
+  assert.ok(listRule, 'o seletor de dias deve ter regra especifica');
+  assert.match(listRule, /\bflex\b.*\bw-max\b.*\bmin-w-full\b.*\bflex-nowrap\b/s);
+  assert.match(itemRule, /inline-flex.*shrink-0.*whitespace-nowrap/s);
+  assert.match(component, /overflow-x-auto[^\n]*>\s*\n\s*<div role="tablist"[^>]*data-tabs="resistance-days"/);
+  assert.match(harness, /tabsSameRow/);
+  assert.match(harness, /wrapperScrollWidth > wrapperClientWidth/);
+  assert.match(harness, /page\.keyboard\.press\('ArrowRight'\)/);
+  assert.match(harness, /page\.keyboard\.press\('End'\)/);
+  assert.match(harness, /page\.keyboard\.press\('Home'\)/);
+});

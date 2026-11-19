@@ -36,6 +36,7 @@ Visitar Biblioteca, Montagem de Treinos 2, permissões de colaboradores, Catálo
 ## Fechamento de achados da auditoria de 19/11/2026
 - **A-001 / AC-03:** filtro de permissões ajustado para cor primária suave, foco explícito e semântica de grupo; regressão JSDOM verifica `aria-pressed`, três alternativas e tabulação.
 - **A-002 / AC-04/AC-05:** harness Vite/Chromium adiciona matriz de rotas, cenários, estado, SHA, viewport, screenshots e diagnóstico de overflow. O harness do Workout Builder 2 existente foi estendido às resoluções restantes. Resultado final depende da execução/inspeção no CI do HEAD publicado, sem tratar teste de fonte como prova de navegador.
+- **A-003 / AC-03 (reauditoria):** corrigida a quebra em três linhas dos dias resistidos introduzida pela retirada do estilo global de tablists: CSS limitado a `data-tabs='resistance-days'`, layout horizontal sem encolhimento, rolagem no contêiner existente, foco e navegação preservados. O teste de contrato reproduz a falha antes da correção e o harness Chromium observa geometria, scroll e teclado; aceite final depende de evidência visual e CI no novo HEAD.
 - **Rejeição independente:** `audit-rejection:2b811154-fbd4-4c20-bbfc-b9aecfc3b30e`; novo parecer deve comprovar ambos os achados sobre o SHA corrigido.
 
 ## Decisões e pendências

@@ -58,6 +58,7 @@ Referência canônica: `apps/web/src/components/alunos/AlunoDetailsTabs.tsx` (ba
 - `PublicPreRegistration/PublicPreRegistration.tsx` usa os mesmos estados na escolha entre entrada e criação de acesso, sem alterar o conteúdo do fluxo público.
 - `PhysicalAssessment/CapacityPrescriptionScreen.tsx` adota `ts-tab-tile` e `ts-tab-tile-active`, variante de seleção em grade com textos e status multilinha e fundo primário suave.
 - O estilo genérico `[role='tablist'] > [role='tab']` foi removido do CSS global. Não adicionar CSS sem escopo por role: a variante em grade e o pré-cadastro público têm composições próprias.
+- **Montagem de Treinos 2 — dias do treino resistido:** `[data-tabs='resistance-days']` define a própria barra `flex-nowrap` e botões `shrink-0`/`whitespace-nowrap`; em 390 px os sete dias permanecem numa linha e a rolagem horizontal acontece **somente** no contêiner `overflow-x-auto`, sem alargar o documento. O harness `issue-399-full-page-browser-evidence.test.js` verifica linha única, CSS computado, rolagem local e seleção por ArrowRight/End/Home em cada viewport (regressão A-003 da PR #554).
 - Nas abas sequenciais, `ArrowLeft`, `ArrowRight`, `Home` e `End` mudam foco e seleção por `handleTabListKeyDown` em `apps/web/src/utils/tabKeyboard.ts`. Grades com regras específicas preservam seu manipulador próprio.
 
 ## Padrão de largura fluida e respiro lateral (issue #553)
