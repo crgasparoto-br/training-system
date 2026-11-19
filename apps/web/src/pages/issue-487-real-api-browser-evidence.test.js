@@ -797,9 +797,43 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
         await centralPage.waitForSelector('#aluno-details-tab-treinos', { visible: true });
         await centralPage.click('#aluno-details-tab-treinos');
         await waitText(centralPage, 'Rotina da semana');
-        await centralPage.waitForSelector('section[aria-label="Planejado e executado"]',
-          { visible: true, timeout: 25000 });
-        const actualDetailsCount = await centralPage.$$eval(
+        try {
+          await centralPage.waitForSelector('section[aria-label="Planejado e executado"]',
+            { visible: true, timeout: 25000 });
+        } catch (error) {
+          // Never weaken the real-browser oracle. Capture the actual tab,
+          // authenticated request, server projection and DOM on a timeout.
+          const browserState = await centralPage.evaluate(() => ({
+            route: location.pathname,
+            selectedTab: document.querySelector('#aluno-details-tab-treinos')?.getAttribute('aria-current'),
+            sections: [...document.querySelectorAll('section[aria-label]')]
+              .map((section) => ({
+                label: section.getAttribute('aria-label'),
+                visible: Boolean(section.getClientRects().length),
+              })).slice(-30),
+            visibleText: document.body?.innerText?.slice(-5000) || '',
+          }));
+          const actualRoutine = await apiRequest(
+            apiOrigin, professorToken, fixture.contractId, 'GET',
+            '/alunos/' + encodeURIComponent(fixture.alunoId) + '/training-routine?date=' + today
+          );
+          const session = actualRoutine.body?.data?.today?.sessions?.find(
+            (item) => item.sessionId === fixture.dayId
+          );
+          console.error('ISSUE_487_CENTRAL_COMPARISON_DIAGNOSTICS', JSON.stringify({
+            viewport: viewport.name,
+            browserState,
+            actualRoutineStatus: actualRoutine.status,
+            serverDate: actualRoutine.body?.data?.today?.date,
+            serverState: actualRoutine.body?.data?.today?.state,
+            serverSession: session
+              ? { status: session.status, hasComparison: Boolean(session.comparison) }
+              : null,
+            browserErrors,
+          }));
+          throw error;
+        }
+        const actualDetailsCount = await centralPage.$eval(
           'section[aria-label="Planejado e executado"] details', (items) => {
             items.forEach((element) => { element.open = true; });
             return items.length;
