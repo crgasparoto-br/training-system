@@ -167,8 +167,8 @@ export function AlunoFinanceiroTab({
   };
 
   useEffect(() => {
-    loadContracts();
-  }, [alunoId, activeStudentContract?.id]);
+    void loadContracts();
+  }, [alunoId]);
 
   useEffect(() => {
     loadAvailableContracts();

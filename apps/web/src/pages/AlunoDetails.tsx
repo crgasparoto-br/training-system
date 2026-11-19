@@ -1119,29 +1119,25 @@ export function AlunoDetails() {
             break;
           }
           case 'financeiro': {
-            const [contractsData, financialProfile] = await Promise.all([
-              canViewFinancialData
-                ? alunoService.listStudentContracts(alunoId)
-                : Promise.resolve({ alunoId, activeContract: null, contracts: [] }),
-              canViewFinancialContractTab
-                ? alunoService.getSegmentedFinancialProfile(alunoId)
-                : Promise.resolve(null),
-            ]);
+            // A listagem de contratos pertence ao componente da aba Financeiro.
+            const financialProfile = canViewFinancialContractTab
+              ? await alunoService.getSegmentedFinancialProfile(alunoId)
+              : null;
             if (!isCurrentAluno()) return;
-            setActiveStudentContract(contractsData.activeContract);
             setSegmentedFinancialProfile(financialProfile);
             break;
           }
           case 'plano-avaliacoes':
           case 'avaliacoes-fisicas': {
             const needsAssessments = tab === 'avaliacoes-fisicas' && canViewAssessmentsTab;
+            const needsAssessmentPlan = tab === 'avaliacoes-fisicas' && canUseAssessmentPlanForMutations;
             const [assessmentsData, summaryData, typesData, assessmentPlanData] = await Promise.all([
               needsAssessments ? assessmentService.listByAluno(alunoId) : Promise.resolve([]),
               needsAssessments ? assessmentService.getSummary(alunoId) : Promise.resolve([]),
               canViewAssessmentsTab || canViewAssessmentPlanTab
                 ? assessmentTypeService.list()
                 : Promise.resolve([]),
-              canUseAssessmentPlanForMutations
+              needsAssessmentPlan
                 ? (alunoService.getAssessmentPlan(alunoId) as Promise<AlunoAssessmentPlanSnapshot>)
                 : Promise.resolve({ items: [] as AlunoAssessmentPlanSnapshot['items'] }),
             ]);
@@ -1151,11 +1147,13 @@ export function AlunoDetails() {
               setAssessmentSummary(summaryData);
             }
             setAssessmentTypes(typesData);
-            setAssessmentPlanActiveTypeIds(
-              assessmentPlanData.items
-                .filter((item) => item.isActive)
-                .map((item) => item.assessmentTypeId)
-            );
+            if (needsAssessmentPlan) {
+              setAssessmentPlanActiveTypeIds(
+                assessmentPlanData.items
+                  .filter((item) => item.isActive)
+                  .map((item) => item.assessmentTypeId)
+              );
+            }
             break;
           }
           case 'integracoes': {
@@ -1639,8 +1637,9 @@ export function AlunoDetails() {
         />
       )}
 
-      {visibleTabs.includes('financeiro') && activeTab === 'financeiro' && loadedTabs.includes('financeiro') && (
-        <AlunoFinanceiroTab
+      {visibleTabs.includes('financeiro') && loadedTabs.includes('financeiro') && (
+        <div hidden={activeTab !== 'financeiro'}>
+          <AlunoFinanceiroTab key={id}
           aluno={aluno}
           alunoId={id ?? ''}
           financialInfo={financialInfo}
@@ -1649,15 +1648,18 @@ export function AlunoDetails() {
           canCancelContracts={canCancelFinancialContracts && canManageFinancialContractAction}
           canRenewContracts={canRenewFinancialContracts && canManageFinancialContractAction}
           segmentedFinancialProfile={segmentedFinancialProfile}
-        />
+          />
+        </div>
       )}
 
-      {visibleTabs.includes('plano-avaliacoes') && activeTab === 'plano-avaliacoes' && loadedTabs.includes('plano-avaliacoes') && (
-        <AlunoPlanoAvaliacoesTab
+      {visibleTabs.includes('plano-avaliacoes') && loadedTabs.includes('plano-avaliacoes') && (
+        <div hidden={activeTab !== 'plano-avaliacoes'}>
+          <AlunoPlanoAvaliacoesTab key={id}
           alunoId={id ?? ''}
           assessmentTypes={assessmentTypes}
           canManageActions={canManageAssessmentPlanAction}
-        />
+          />
+        </div>
       )}
 
       {visibleTabs.includes('avaliacoes-fisicas') && activeTab === 'avaliacoes-fisicas' && loadedTabs.includes('avaliacoes-fisicas') && (
