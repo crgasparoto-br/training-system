@@ -17,26 +17,6 @@
   display: none;
 }
 
-.collaborator-functions-page .cf-tabs > [role='tab'] {
-  height: auto;
-  border-width: 0 0 2px;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.collaborator-functions-page .cf-tabs > [role='tab'][aria-selected='true'] {
-  border-color: hsl(var(--primary));
-  background: transparent;
-  color: hsl(var(--primary));
-}
-
-.collaborator-functions-page .cf-tabs > [role='tab'][aria-selected='false'] {
-  border-color: transparent;
-  background: transparent;
-  color: hsl(var(--muted-foreground));
-}
-
 .collaborator-functions-page .cf-group-actions[open] > summary,
 .collaborator-functions-page .cf-bulk-actions[open] > summary {
   background: hsl(var(--accent));

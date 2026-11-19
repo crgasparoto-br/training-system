@@ -295,6 +295,8 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
       };
       const viewports = [
         { width: 1440, height: 900 },
+        { width: 1920, height: 1080 },
+        { width: 1366, height: 768 },
         { width: 768, height: 1024 },
         { width: 390, height: 844, isMobile: true, hasTouch: true },
       ];
@@ -370,6 +372,55 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
         expect(cyclicMissingLabels).toBe(0);
         await clickText('Treinamento Resistido');
         await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Agachamento browser #399'), { timeout: 15000 });
+        // A-003: os sete dias nunca podem quebrar em linhas; a rolagem e local ao card.
+        const dayTabLayout = await page.evaluate(() =>
+          [...document.querySelectorAll('[role="tablist"][data-tabs="resistance-days"]')].map((tablist) => {
+            const tabs = [...tablist.querySelectorAll(':scope > [role="tab"]')];
+            const wrapper = tablist.parentElement;
+            const firstTop = tabs[0]?.getBoundingClientRect().top ?? 0;
+            return {
+              tabCount: tabs.length,
+              display: getComputedStyle(tablist).display,
+              flexWrap: getComputedStyle(tablist).flexWrap,
+              tabsSameRow: tabs.every((tab) => Math.abs(tab.getBoundingClientRect().top - firstTop) < 2),
+              tabsNoShrink: tabs.every((tab) => getComputedStyle(tab).flexShrink === '0'),
+              noTextWrap: tabs.every((tab) => getComputedStyle(tab).whiteSpace === 'nowrap'),
+              wrapperOverflowX: getComputedStyle(wrapper).overflowX,
+              wrapperScrollWidth: wrapper.scrollWidth,
+              wrapperClientWidth: wrapper.clientWidth,
+            };
+          }));
+        expect(dayTabLayout.length).toBeGreaterThan(0);
+        for (const layout of dayTabLayout) {
+          expect(layout.tabCount).toBe(7);
+          expect(layout.display).toBe('flex');
+          expect(layout.flexWrap).toBe('nowrap');
+          expect(layout.tabsSameRow).toBe(true);
+          expect(layout.tabsNoShrink).toBe(true);
+          expect(layout.noTextWrap).toBe(true);
+          expect(layout.wrapperOverflowX).toBe('auto');
+        }
+        if (viewport.width === 390) {
+          expect(dayTabLayout.some(({ wrapperScrollWidth, wrapperClientWidth }) => wrapperScrollWidth > wrapperClientWidth)).toBe(true);
+        }
+        // A rolagem nativa ao receber foco deve preservar setas, End e Home.
+        const firstDayTab = '[role="tablist"][data-tabs="resistance-days"] > [role="tab"]';
+        await page.focus(firstDayTab);
+        await page.keyboard.press('ArrowRight');
+        await page.waitForFunction((selector) => {
+          const tabs = [...document.querySelectorAll(selector)];
+          return tabs[1]?.getAttribute('aria-selected') === 'true' && document.activeElement === tabs[1];
+        }, {}, firstDayTab);
+        await page.keyboard.press('End');
+        await page.waitForFunction((selector) => {
+          const tabs = [...document.querySelectorAll(selector)];
+          return tabs[6]?.getAttribute('aria-selected') === 'true' && document.activeElement === tabs[6];
+        }, {}, firstDayTab);
+        await page.keyboard.press('Home');
+        await page.waitForFunction((selector) => {
+          const tabs = [...document.querySelectorAll(selector)];
+          return tabs[0]?.getAttribute('aria-selected') === 'true' && document.activeElement === tabs[0];
+        }, {}, firstDayTab);
         const observed = await page.evaluate(() => ({
           text: document.querySelector('main')?.innerText || '',
           width: innerWidth,
@@ -387,7 +438,8 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
         expect(observed.releasedReadOnlyFieldset).toBe(true);
         expect(observed.releasedEditableFields).toBe(0);
         const screenshot = await page.screenshot({ path: path.join(outputDir, `${viewport.width}-full-page.png`), fullPage: true });
-        observations.push({ viewport, observed, screenshot: { sha256: createHash('sha256').update(screenshot).digest('hex') }, passed: true });
+        observations.push({ viewport, observed, dayTabLayout, dayTabKeyboard: ['ArrowRight', 'End', 'Home'],
+          screenshot: { sha256: createHash('sha256').update(screenshot).digest('hex') }, passed: true });
       }
       expect(requests.some((request) => request.path.endsWith('/save-week'))).toBe(true);
       expect(requests.filter((request) => request.path.endsWith('/save-week')).length).toBeGreaterThanOrEqual(2);

@@ -1265,10 +1265,10 @@ export default function WorkoutBuilder2() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-w-0 bg-background">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="px-6 py-4">
+        <div className="py-4">
           <div className="flex flex-wrap items-center gap-6">
             <div className="flex items-center gap-4">
               <button
@@ -1311,8 +1311,8 @@ export default function WorkoutBuilder2() {
       </div>
 
       {/* Content */}
-      <div className="px-6 py-6">
-        <div ref={workoutGuideBannerRef} className="mb-6 max-w-[1800px] space-y-4">
+      <div className="py-6">
+        <div ref={workoutGuideBannerRef} className="mb-6 ts-content-fluid space-y-4">
           {showWorkoutGuideBanner && (
             <div className="rounded-2xl border border-sky-200 bg-sky-50/90 p-5 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1517,7 +1517,7 @@ export default function WorkoutBuilder2() {
         </div>
 
         {/* Parâmetros Únicos: Meso e Semana (Micro) */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 max-w-[1800px]">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 ts-content-fluid">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Parâmetros do Treino
           </h2>
@@ -1619,7 +1619,7 @@ export default function WorkoutBuilder2() {
             <div
               key={weekNumber}
               data-workout-week={weekNumber}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 max-w-[1800px]"
+              className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 ts-content-fluid"
             >
               <div
                 ref={registerWorkoutGuideContainerRef('weekHeader', weekNumber)}
@@ -1781,8 +1781,8 @@ export default function WorkoutBuilder2() {
                 {/* Tempo de Sessão por Dia */}
                 <div className={visibility.session ? '' : 'hidden'}>
                   <h3 className="text-base font-semibold text-gray-800 mb-3">Tempo da Sessão</h3>
-                  <div className="overflow-hidden rounded-lg border border-gray-200">
-                    <table className="min-w-full divide-y divide-gray-200">
+                  <div className="overflow-x-auto rounded-lg border border-gray-200">
+                    <table className="min-w-[760px] w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-3 py-2 text-sm font-medium text-gray-700 text-left">

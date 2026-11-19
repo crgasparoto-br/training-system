@@ -1,0 +1,43 @@
+# Plano: Issue #553 — largura fluida e consistência visual web
+
+## Objetivo
+Aproveitar a largura dos monitores em telas densas, manter formulários legíveis e padronizar abas com evidências de quatro resoluções.
+
+## Contexto
+- Issue: https://github.com/crgasparoto-br/training-system/issues/553
+- Fontes: `docs/visual-guidelines.md` e `design-interface/SKILL.md` no repositório `crgasparoto-br/skill` branch `develop`.
+- Base: `develop`; não fazer merge sem autorização.
+
+## Fora de escopo
+- Mudar autorização, persistência, APIs, contratos e regras de negócio.
+- Expandir formulários estreitos indiscriminadamente ou remover arquivos.
+- Declarar auditoria independente no contexto da implementação.
+
+## Arquivos e módulos principais
+- `apps/web/src/index.css` e `apps/web/src/layouts/DashboardLayout.tsx`.
+- Biblioteca, Workout Builder 2, funções de colaboradores e cinco superfícies de abas documentadas.
+- `apps/web/src/utils/tabKeyboard.ts`, testes e `apps/api/scripts/visual-audit-settings-parameters.mjs`.
+
+## Passos de implementação
+- [x] Inventariar limites horizontais e conflitos de aba.
+- [x] Aplicar largura fluida no shell e nas telas densas mantendo formulários legíveis.
+- [x] Migrar os cinco grupos de seleção e criar tratamento de teclado compartilhado.
+- [x] Atualizar documentação e ampliar harness para 1920x1080.
+- [ ] Obter `pnpm validate`/build verdes na CI para o SHA material.
+- [ ] Conferir em CI o novo harness Chromium da issue #553 e as capturas nas quatro resoluções, inclusive Montagem 2 (issue #399).
+- [ ] Obter auditoria independente sobre SHA congelado antes de aprovação operacional.
+
+## Critérios de aceite
+Confrontar individualmente AC-01 a AC-07 da issue com prova verificável; marcar cada checkbox somente quando atendido. Verificação estática de classes não prova aparência real da rota.
+
+## Validação manual
+Visitar Biblioteca, Montagem de Treinos 2, permissões de colaboradores, Catálogo, cadastro, pré-cadastro e prescrição de capacidades em 390x844, 1366x768, 1440x900 e 1920x1080. Verificar foco e seleção com setas/Home/End, botões, longos conteúdos, modais, rolagem de tabelas e ausência de overflow do documento.
+
+## Fechamento de achados da auditoria de 19/11/2026
+- **A-001 / AC-03:** filtro de permissões ajustado para cor primária suave, foco explícito e semântica de grupo; regressão JSDOM verifica `aria-pressed`, três alternativas e tabulação.
+- **A-002 / AC-04/AC-05:** harness Vite/Chromium adiciona matriz de rotas, cenários, estado, SHA, viewport, screenshots e diagnóstico de overflow. O harness do Workout Builder 2 existente foi estendido às resoluções restantes. Resultado final depende da execução/inspeção no CI do HEAD publicado, sem tratar teste de fonte como prova de navegador.
+- **A-003 / AC-03 (reauditoria):** corrigida a quebra em três linhas dos dias resistidos introduzida pela retirada do estilo global de tablists: CSS limitado a `data-tabs='resistance-days'`, layout horizontal sem encolhimento, rolagem no contêiner existente, foco e navegação preservados. O teste de contrato reproduz a falha antes da correção e o harness Chromium observa geometria, scroll e teclado; aceite final depende de evidência visual e CI no novo HEAD.
+- **Rejeição independente:** `audit-rejection:2b811154-fbd4-4c20-bbfc-b9aecfc3b30e`; novo parecer deve comprovar ambos os achados sobre o SHA corrigido.
+
+## Decisões e pendências
+Preservar a composição própria das telas públicas e a variante em grade de capacidades; apenas o estado visual selecionado é compartilhado. Inspeção visual de rotas autenticadas e aprovação independente são gates distintos dos testes estáticos.

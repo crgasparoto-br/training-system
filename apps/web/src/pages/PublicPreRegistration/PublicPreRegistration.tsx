@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { handleTabListKeyDown } from '../../utils/tabKeyboard';
 import {
   ArrowLeft,
   ArrowRight,
@@ -458,13 +459,15 @@ function PublicLanding({ token }: { token: string }) {
             <strong>Seus dados ficam protegidos.</strong> O link serve apenas para iniciar e vincular o processo. Depois, o acesso exige sua conta.
           </div>
 
-          <div className="mt-6 grid grid-cols-2 rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Escolha como continuar">
+          <div className="mt-6 flex w-full min-w-0 gap-1 rounded-lg border border-border bg-card p-1" role="tablist" aria-label="Escolha como continuar">
             <button
               type="button"
               role="tab"
               aria-selected={mode === 'login'}
+              tabIndex={mode === 'login' ? 0 : -1}
+              onKeyDown={handleTabListKeyDown}
               onClick={() => setMode('login')}
-              className={`rounded-lg px-3 py-2 text-sm font-medium ${mode === 'login' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-600'}`}
+              className={`ts-tab-button min-w-0 flex-1 ${mode === 'login' ? 'ts-tab-button-active' : 'ts-tab-button-inactive'}`}
             >
               Já tenho conta
             </button>
@@ -472,8 +475,10 @@ function PublicLanding({ token }: { token: string }) {
               type="button"
               role="tab"
               aria-selected={mode === 'register'}
+              tabIndex={mode === 'register' ? 0 : -1}
+              onKeyDown={handleTabListKeyDown}
               onClick={() => setMode('register')}
-              className={`rounded-lg px-3 py-2 text-sm font-medium ${mode === 'register' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-600'}`}
+              className={`ts-tab-button min-w-0 flex-1 ${mode === 'register' ? 'ts-tab-button-active' : 'ts-tab-button-inactive'}`}
             >
               Criar acesso
             </button>

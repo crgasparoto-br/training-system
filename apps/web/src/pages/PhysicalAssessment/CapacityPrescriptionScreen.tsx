@@ -916,11 +916,7 @@ export function CapacityPrescriptionScreen() {
                       onKeyDown={(event) =>
                         handleCapacityKeyDown(event, capacity)
                       }
-                      className={
-                        active
-                          ? "rounded-lg border border-primary bg-primary/10 p-4 text-left text-primary"
-                          : "rounded-lg border border-border bg-card p-4 text-left text-foreground hover:bg-muted"
-                      }
+                      className={`ts-tab-tile ${active ? "ts-tab-tile-active" : ""}`}
                     >
                       <span className="block font-semibold">
                         {capacityLabels[capacity]}
