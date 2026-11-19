@@ -31,14 +31,21 @@ o carregamento do Resumo e o de cada aba possuem estados independentes.
   indicadores segmentados, avaliacoes, planos e contrato ativo. Enquanto o conjunto
   ainda nao terminou, exibe carregamento, nunca ausencia definitiva de dados.
 - Cadastro, Saude, Financeiro, Plano de avaliacoes, Avaliacoes fisicas e Integracoes
-  solicitam seus dados na primeira abertura autorizada. Alternar para outra aba ja
-  carregada nao repete essas requisicoes para o mesmo aluno.
+  solicitam seus dados na primeira abertura autorizada. Financeiro e Plano de avaliacoes
+  permanecem montados (mas ocultos) apos a primeira abertura para conservar rascunhos
+  e evitar novas leituras ao voltar; sao desmontados quando a permissao ou o aluno muda.
+  No Financeiro, o componente da aba e o unico responsavel por listar contratos;
+  no Plano de avaliacoes, a propria aba consulta seu planejamento. As consultas
+  independentes do Resumo nao ficam bloqueadas pelas abas nao visitadas.
 - A aba Auditoria mantem sua propria leitura sob demanda, revalidacao por foco,
   paginacao e controle de geracoes. Ela nao participa da consulta inicial.
 - Falhas das leituras complementares mantem o cabecalho disponivel e exibem
   retry local; respostas tardias de aluno anterior sao descartadas por identidade
-  e geracao. A falha da leitura principal continua usando o tratamento e retry
-  ja existentes.
+  e geracao. O Plano de avaliacoes nao confunde erro de leitura com ausencia
+  de itens e oferece nova tentativa. O resumo de desconfortos do PRNT exibe
+  estados pendente/indisponivel ate uma resposta confirmada, com retry local,
+  sem afirmar ausencia de registros. A falha da leitura principal continua
+  usando o tratamento e retry ja existentes.
 - O frontend respeita as mesmas `blockKey` e `screenKey` de cada area; a API
   continua responsavel pela verificacao real de permissao, contrato e escopo.
 

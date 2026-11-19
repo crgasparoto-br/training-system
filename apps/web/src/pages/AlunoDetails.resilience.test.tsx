@@ -94,6 +94,12 @@ vi.mock('../services/plan.service', () => ({
   },
 }));
 
+vi.mock('../services/contract.service', () => ({
+  contractService: {
+    listAvailableForStudent: vi.fn().mockResolvedValue([]),
+  },
+}));
+
 vi.mock('../components/ProfessorManualContextPanel', () => ({
   ProfessorManualContextPanel: () => null,
 }));
@@ -103,7 +109,7 @@ vi.mock('../components/alunos/AlunoDetailsTabs', () => ({
     onChange,
     visibleTabs,
   }: {
-    onChange: (tab: 'cadastro' | 'resumo') => void;
+    onChange: (tab: 'cadastro' | 'resumo' | 'financeiro' | 'plano-avaliacoes') => void;
     visibleTabs: string[];
   }) => (
     <div>
@@ -113,10 +119,22 @@ vi.mock('../components/alunos/AlunoDetailsTabs', () => ({
       {visibleTabs.includes('resumo') && (
         <button type="button" onClick={() => onChange('resumo')}>Mostrar aba Resumo</button>
       )}
+      {visibleTabs.includes('financeiro') && (
+        <button type="button" onClick={() => onChange('financeiro')}>Mostrar aba Financeiro</button>
+      )}
+      {visibleTabs.includes('plano-avaliacoes') && (
+        <button type="button" onClick={() => onChange('plano-avaliacoes')}>Mostrar aba Plano</button>
+      )}
     </div>
   ),
   getTabBlockKey: (tab: string) =>
-    tab === 'cadastro' ? 'students.details.profile' : undefined,
+    tab === 'cadastro'
+      ? 'students.details.profile'
+      : tab === 'financeiro'
+        ? 'students.details.financialContract'
+        : tab === 'plano-avaliacoes'
+          ? 'students.details.assessmentPlan'
+          : undefined,
 }));
 
 vi.mock('../components/alunos/AlunoResumoHubTab', () => ({
@@ -132,17 +150,11 @@ vi.mock('../components/alunos/AlunoCadastroTab', () => ({
 vi.mock('../components/alunos/AlunoSaudeAnamneseTab', () => ({
   AlunoSaudeAnamneseTab: () => null,
 }));
-vi.mock('../components/alunos/AlunoFinanceiroTab', () => ({
-  AlunoFinanceiroTab: () => null,
-}));
 vi.mock('../components/alunos/AlunoHistoricoTab', () => ({
   AlunoHistoricoTab: () => null,
 }));
 vi.mock('../components/alunos/AlunoIntegracoesTab', () => ({
   AlunoIntegracoesTab: () => null,
-}));
-vi.mock('../components/alunos/AlunoPlanoAvaliacoesTab', () => ({
-  AlunoPlanoAvaliacoesTab: () => null,
 }));
 vi.mock('../components/alunos/AlunoRevisoesCadastraisTab', () => ({
   AlunoRevisoesCadastraisTab: () => null,
@@ -391,6 +403,101 @@ describe('AlunoDetails resiliencia de carregamento', () => {
     await waitFor(() => expect(getSegmentedProfileMock).toHaveBeenCalledTimes(2));
     expect(await screen.findByTestId('perfil-carregado')).toHaveTextContent('aluno-2');
     expect(screen.queryByText('Aluno Teste')).not.toBeInTheDocument();
+  });
+
+
+  it('carrega Financeiro uma vez por abertura e preserva o estado ao alternar', async () => {
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+    await waitFor(() => expect(listStudentContractsMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Financeiro' }));
+    await waitFor(() => expect(getSegmentedFinancialProfileMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(listStudentContractsMock).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('Contrato ativo')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Resumo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Financeiro' }));
+    expect(listStudentContractsMock).toHaveBeenCalledTimes(2);
+    expect(getSegmentedFinancialProfileMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserva o rascunho do Plano de avaliações sem fazer novo GET ao retornar', async () => {
+    getAssessmentPlanMock.mockResolvedValue({
+      items: [{
+        assessmentTypeId: 'type-1',
+        assessmentType: { id: 'type-1', name: 'Avaliação de teste', code: 'TEST', isActive: true },
+        isActive: true,
+        isRequired: true,
+        cadenceMonths: 2,
+        startDate: null,
+        nextDueDate: null,
+        notes: 'Original',
+        summary: { lastAssessmentDate: null },
+      }],
+    });
+
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+    expect(getAssessmentPlanMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Plano' }));
+    await screen.findByText('Avaliação de teste');
+    expect(getAssessmentPlanMock).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Observações' }), {
+      target: { value: 'Rascunho preservado' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Resumo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Plano' }));
+    expect(screen.getByRole('textbox', { name: 'Observações' })).toHaveValue('Rascunho preservado');
+    expect(getAssessmentPlanMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('na falha do Plano não afirma ausência e oferece retry local', async () => {
+    getAssessmentPlanMock
+      .mockRejectedValueOnce(new Error('Serviço indisponível'))
+      .mockResolvedValueOnce({ items: [] });
+
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Plano' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar o plano');
+    expect(screen.queryByText(/Não há tipos de avaliação ativos/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    await waitFor(() => expect(getAssessmentPlanMock).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText(/Não há tipos de avaliação ativos/)).toBeInTheDocument();
+  });
+
+  it('não abre abas sensíveis nem faz suas leituras sem permissão', async () => {
+    vi.mocked(canAccessBlock).mockImplementation(
+      (_user, blockKey) =>
+        blockKey !== 'students.details.financialContract' &&
+        blockKey !== 'students.details.assessmentPlan'
+    );
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+    expect(screen.queryByRole('button', { name: 'Mostrar aba Financeiro' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mostrar aba Plano' })).not.toBeInTheDocument();
+    expect(getSegmentedFinancialProfileMock).not.toHaveBeenCalled();
+    expect(getAssessmentPlanMock).not.toHaveBeenCalled();
   });
 
 });
