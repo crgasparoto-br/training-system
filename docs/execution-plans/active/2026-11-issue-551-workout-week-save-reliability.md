@@ -40,6 +40,7 @@ Mudanca de schema, regra clinica, historico de execucao, permissao, merge ou dep
 - [x] Adicionar controles de falha de escopo, tenant negado, retry de draft e semana com dois dias.
 - [x] Corrigir classificacao de risco de guards de autorizacao (A-552-02) com controles positivos e negativos para variantes do nome do arquivo.
 - [x] Incluir o comando literal `pnpm validate` no gate `CRITICAL` do GitHub Actions (A-552-01), sem retirar testes de banco, browser ou build.
+- [x] Endurecer a regressao Chromium da issue #399 para aguardar a requisicao com blocos resistidos editados, nao apenas o primeiro autosave da fila global. Validacao critica no SHA atualizado pendente.
 - [ ] Conferir gates criticos e `pnpm validate` no SHA final e marcar o criterio de aceite da issue somente depois de sucesso verificavel.
 
 ## Criterios de aceite

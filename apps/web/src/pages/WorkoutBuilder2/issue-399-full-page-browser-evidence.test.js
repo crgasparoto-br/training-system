@@ -115,6 +115,10 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
       });
       res.end(JSON.stringify(body));
     };
+    const containsResistanceBlocks = (body) => Object.values(body?.resistedExercises || {})
+      .some((sections) => Object.values(sections || {}).some((exercises) =>
+        Array.isArray(exercises) && exercises.some((exercise) =>
+          Array.isArray(exercise.resistanceBlocks) && exercise.resistanceBlocks.length > 0)));
     const findTemplate = (id) => [...templates.values()].find((template) => template.id === id);
     const findDay = (id) => [...templates.values()].flatMap((template) => template.workoutDays).find((day) => day.id === id);
     const readBody = async (req) => {
@@ -157,9 +161,7 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
         if (req.method === 'PUT' && /^\/api\/v1\/workout\/templates\/[^/]+\/save-week$/.test(pathname)) {
           const template = findTemplate(pathname.split('/')[5]);
           if (!template) return json(res, 404, { error: 'template not found' }, origin);
-          const hasStructuredEdit = Object.values(body.resistedExercises || {})
-            .some((sections) => Object.values(sections || {}).some((exercises) =>
-              Array.isArray(exercises) && exercises.some((exercise) => (exercise.resistanceBlocks || []).length > 0)));
+          const hasStructuredEdit = containsResistanceBlocks(body);
           if (!saveConflictTriggered && hasStructuredEdit && body.baseUpdatedAt) {
             saveConflictTriggered = true;
             template.workoutDays[0].detailNotes = 'alteração remota preservada #399';
@@ -332,8 +334,12 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
           await new Promise((resolve, reject) => {
             const deadline = Date.now() + 20000;
             const check = () => {
-              if (requests.some((request) => request.path.endsWith('/save-week'))) return resolve();
-              if (Date.now() >= deadline) return reject(new Error('pagehide save-week request was not observed'));
+              // The tab-wide queue may first flush other weeks or older
+              // snapshots. Observe the specific edit, not any save-week request.
+              if (requests.some((request) =>
+                request.path === '/api/v1/workout/templates/template-browser-399-1/save-week'
+                && containsResistanceBlocks(request.body))) return resolve();
+              if (Date.now() >= deadline) return reject(new Error('pagehide edited resistance-block save-week request was not observed'));
               setTimeout(check, 50);
             };
             check();
