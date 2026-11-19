@@ -89,6 +89,7 @@ export function AlunoPlanoAvaliacoesTab({
   const [saving, setSaving] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
   const [items, setItems] = useState<PlanFormItem[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(
     null
   );
@@ -105,6 +106,7 @@ export function AlunoPlanoAvaliacoesTab({
 
   const loadPlan = async () => {
     setLoading(true);
+    setLoadError(null);
     setFeedback(null);
 
     try {
@@ -112,10 +114,7 @@ export function AlunoPlanoAvaliacoesTab({
       hydrateFromPlan(plan);
     } catch (error) {
       console.error('Erro ao carregar plano de avaliações:', error);
-      setFeedback({
-        type: 'error',
-        message: 'Não foi possível carregar o plano de avaliações deste aluno.',
-      });
+      setLoadError('Não foi possível carregar o plano de avaliações deste aluno.');
     } finally {
       setLoading(false);
     }
@@ -201,6 +200,24 @@ export function AlunoPlanoAvaliacoesTab({
           <CardTitle>Plano de Avaliações</CardTitle>
           <CardDescription>Carregando dados do planejamento...</CardDescription>
         </CardHeader>
+      </Card>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Plano de Avaliações</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-destructive">{loadError}</p>
+            <Button type="button" variant="outline" onClick={() => void loadPlan()}>
+              Tentar novamente
+            </Button>
+          </div>
+        </CardContent>
       </Card>
     );
   }

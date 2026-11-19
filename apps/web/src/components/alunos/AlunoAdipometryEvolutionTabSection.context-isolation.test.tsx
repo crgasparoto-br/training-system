@@ -6,7 +6,7 @@ import type {
   AdipometryAssessmentSummary,
 } from '@corrida/types';
 import { adipometryService } from '../../services/adipometry.service';
-import { alunoService } from '../../services/aluno.service';
+import { alunoService, type Aluno } from '../../services/aluno.service';
 import { assessmentService } from '../../services/assessment.service';
 import { AlunoAdipometryEvolutionTabSection } from './AlunoAdipometryEvolutionTabSection';
 
@@ -154,7 +154,10 @@ describe('AlunoAdipometryEvolutionTabSection context isolation', () => {
 
     const view = render(
       <MemoryRouter>
-        <AlunoAdipometryEvolutionTabSection alunoId="aluno-a" />
+        <AlunoAdipometryEvolutionTabSection
+          aluno={{ id: 'aluno-a' } as Aluno}
+          assessments={[]}
+        />
       </MemoryRouter>
     );
 
@@ -164,7 +167,10 @@ describe('AlunoAdipometryEvolutionTabSection context isolation', () => {
 
     view.rerender(
       <MemoryRouter>
-        <AlunoAdipometryEvolutionTabSection alunoId="aluno-b" />
+        <AlunoAdipometryEvolutionTabSection
+          aluno={{ id: 'aluno-b' } as Aluno}
+          assessments={[]}
+        />
       </MemoryRouter>
     );
 
@@ -194,6 +200,8 @@ describe('AlunoAdipometryEvolutionTabSection context isolation', () => {
 
     expect(getAssessmentMock).not.toHaveBeenCalledWith('assessment-a');
     expect(getAssessmentMock).toHaveBeenCalledTimes(1);
+    expect(getAlunoMock).not.toHaveBeenCalled();
+    expect(listGeneralAssessmentsMock).not.toHaveBeenCalled();
     expect(screen.queryAllByText(/ADPT-A/)).toHaveLength(0);
     expect(screen.getAllByText(/ADPT-B/).length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: 'Abrir detalhe' })).toHaveAttribute(

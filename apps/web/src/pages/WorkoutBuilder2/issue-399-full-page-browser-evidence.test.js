@@ -283,16 +283,6 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
         }, text);
         expect(clicked).toBe(true);
       };
-      const clickTextAt = async (text, targetIndex) => {
-        const clicked = await page.evaluate(({ wanted, index }) => {
-          const matches = [...document.querySelectorAll('button')]
-            .filter((candidate) => candidate.textContent?.trim().includes(wanted));
-          if (!matches[index]) return false;
-          matches[index].click();
-          return true;
-        }, { wanted: text, index: targetIndex });
-        expect(clicked).toBe(true);
-      };
       const viewports = [
         { width: 1440, height: 900 },
         { width: 1920, height: 1080 },
@@ -361,8 +351,20 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
           // page. The negative alert disappearing is the deterministic DOM
           // observation that the retry completed without another copy error.
           await page.waitForFunction(() => !document.querySelector('[role="alert"]')?.innerText.includes('Erro ao copiar semana'), { timeout: 20000 });
-          await clickTextAt('Liberar', 1);
-          await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Treino liberado com sucesso') || document.querySelector('main')?.innerText.includes('Erro ao liberar treino'), { timeout: 20000 }).catch(() => {});
+          await page.waitForFunction(() => {
+            const release = document.querySelector('[data-workout-week="2"] button[title="Liberar treino para o aluno"]');
+            return Boolean(release && !release.disabled);
+          }, { timeout: 20000 });
+          await page.click('[data-workout-week="2"] button[title="Liberar treino para o aluno"]');
+          // Um clique em botao desabilitado nao comprova release; o backend e a autoridade.
+          await page.waitForFunction(async () => {
+            const response = await fetch('/api/v1/workout/templates/template-browser-399-2');
+            return response.ok && (await response.json()).released === true;
+          }, { timeout: 20000, polling: 200 });
+          await page.waitForFunction(
+            () => document.querySelector('[data-workout-week="2"]')?.textContent?.includes('Liberado'),
+            { timeout: 20000 }
+          );
           await page.goto(`${webOrigin}/plans/plan-browser-399/workout-builder/1/2`, { waitUntil: 'domcontentloaded' });
           await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Parâmetros do Treino'), { timeout: 20000 });
         }
@@ -446,7 +448,7 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
       expect(requests.filter((request) => request.path.endsWith('/save-week'))
         .some((request) => typeof request.body?.baseUpdatedAt === 'string')).toBe(true);
       expect(requests.filter((request) => request.path.endsWith('/copy')).length).toBeGreaterThanOrEqual(2);
-      expect(requests.some((request) => request.path.endsWith('/release'))).toBe(true);
+      expect(requests.some((request) => request.path.endsWith('/template-browser-399-2/release'))).toBe(true);
       expect(browserErrors).toEqual([]);
     } finally {
       const evidence = {

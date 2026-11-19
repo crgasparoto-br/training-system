@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { AlunoDetailsTabs } from './AlunoDetailsTabs';
@@ -29,10 +29,12 @@ function renderTabs(activeTab: 'resumo' | 'avaliacoes-fisicas') {
 }
 
 describe('AlunoDetailsTabs ADPT integration', () => {
-  it('monta a evolucao ADPT somente na aba Avaliacao Fisica e preserva o aluno da rota', () => {
+  it('delega a montagem da evolucao ADPT para a pagina sem disparar fetch pela navegacao', () => {
     renderTabs('avaliacoes-fisicas');
+    fireEvent.click(screen.getByRole('menuitem', { name: /Fluxo técnico/i }));
 
-    expect(screen.getByTestId('adpt-central-section')).toHaveTextContent('ADPT aluno-1');
+    expect(screen.getByRole('menuitem', { name: /Avaliação Física/i })).toBeInTheDocument();
+    expect(screen.queryByTestId('adpt-central-section')).not.toBeInTheDocument();
   });
 
   it('nao duplica a evolucao ADPT no Aluno 360', () => {
