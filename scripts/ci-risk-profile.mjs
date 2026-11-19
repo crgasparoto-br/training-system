@@ -16,7 +16,7 @@ const CORE_CRITICAL_PATTERNS = [
 
 const CORE_SENSITIVE_ENTRYPOINT_PATTERNS = [
   /(^|\/)(login|logout|signin|sign-in|signout|sign-out)(?:[._-]|$)/,
-  /(^|\/)[^/]*(authstore|authprovider|authcontext|protectedroute|routeguard|sessionstore|identityprovider|permissionadapter|accesscontrol|credential|secret)[^/]*$/
+  /(^|\/)[^/]*(authstore|authprovider|authcontext|protectedroute|route[-_]?guards?|sessionstore|identityprovider|permissionadapter|accesscontrol|credential|secret)[^/]*$/
 ];
 
 function normalizePath(value) {

@@ -38,6 +38,9 @@ Mudanca de schema, regra clinica, historico de execucao, permissao, merge ou dep
 - [x] Corrigir tipagem circular TS2502 do teste transacional (AUD-552-01).
 - [x] Tratar P2024/P2028 no middleware multi-tenant anterior ao handler semanal, sem alterar as demais rotas (AUD-552-02).
 - [x] Adicionar controles de falha de escopo, tenant negado, retry de draft e semana com dois dias.
+- [x] Corrigir classificacao de risco de guards de autorizacao (A-552-02) com controles positivos e negativos para variantes do nome do arquivo.
+- [x] Incluir o comando literal `pnpm validate` no gate `CRITICAL` do GitHub Actions (A-552-01), sem retirar testes de banco, browser ou build.
+- [ ] Conferir gates criticos e `pnpm validate` no SHA final e marcar o criterio de aceite da issue somente depois de sucesso verificavel.
 
 ## Criterios de aceite
 
@@ -57,3 +60,4 @@ Em ambiente homologado, salvar semana com varios dias e exercicios; editar novam
 - Sem alterar `PRISMA_CONNECTION_LIMIT` ou credenciais de producao.
 - As correcoes da auditoria da PR #552 preservam a checagem de contrato antes do handler e somente convertem a indisponibilidade transiente do salvamento semanal em 503; acesso negado continua 404.
 - A aprovacao exige validar o SHA material final na CI do GitHub, registrar fechamento dos criterios de aceite na issue e solicitar nova auditoria independente; homologacao operacional depende de release autorizado.
+- Auditoria independente de 19/11/2026: A-552-01 exige execucao literal de `pnpm validate`; A-552-02 exige perfil `CRITICAL` para `workout-route-guards.ts`. A remediacao de codigo so sera considerada verificada apos os jobs exatos concluirem com sucesso.
