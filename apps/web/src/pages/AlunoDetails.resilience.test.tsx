@@ -179,9 +179,9 @@ vi.mock('../components/alunos/AlunoDetailsTabs', () => ({
 }));
 
 // O Hub e o cartao PRNT permanecem reais; apenas o layout base, nao afetado,
- // e isolado para nao acionar outras leituras nesta regressao.
+// e isolado para nao acionar outras leituras nesta regressao.
 vi.mock('../components/alunos/AlunoResumoHubTabBase', () => ({
-  AlunoResumoHubTabBase: () => null,
+  AlunoResumoHubTab: () => null,
 }));
 vi.mock('../components/alunos/AlunoCadastroTab', () => ({
   AlunoCadastroTab: ({
@@ -627,6 +627,29 @@ describe('AlunoDetails resiliencia de carregamento', () => {
     expect(screen.getByLabelText('Filtrar por tipo')).toHaveValue('other');
     expect(listAdipometryAssessmentsMock).toHaveBeenCalledTimes(1);
     expect(listByAlunoMock).toHaveBeenCalledTimes(2);
+    expect(getByIdMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('mantem ADPT disponivel quando o historico geral falha e recupera sem remontar', async () => {
+    listByAlunoMock
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('Falha no historico geral'))
+      .mockResolvedValueOnce([]);
+
+    render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Aluno Teste');
+    await waitFor(() => expect(listByAlunoMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Avaliações' }));
+    expect(await screen.findByText('Adipometria e evolução ADPT')).toBeInTheDocument();
+    await waitFor(() => expect(listAdipometryAssessmentsMock).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('Nenhum item corresponde ao filtro selecionado.')).not.toBeInTheDocument();
+    expect(await screen.findByText('Não foi possível carregar esta seção. Tente novamente.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    await waitFor(() => expect(listByAlunoMock).toHaveBeenCalledTimes(3));
+    expect(await screen.findByRole('link', { name: 'Iniciar antropometria' })).toBeInTheDocument();
+    expect(listAdipometryAssessmentsMock).toHaveBeenCalledTimes(1);
     expect(getByIdMock).toHaveBeenCalledTimes(1);
   });
 

@@ -1066,7 +1066,7 @@ export function AlunoDetails() {
       loading ||
       aluno?.id !== id ||
       !visibleTabs.includes(activeTab) ||
-      (activeTab !== 'revisoes-cadastrais' && activeTab !== 'treinos')
+      (activeTab !== 'revisoes-cadastrais' && activeTab !== 'treinos' && activeTab !== 'avaliacoes-fisicas')
     ) {
       return;
     }
@@ -1598,15 +1598,23 @@ export function AlunoDetails() {
 
       <AlunoDetailsTabs activeTab={activeTab} onChange={setActiveTab} visibleTabs={visibleTabs} />
 
-      {visibleTabs.includes('avaliacoes-fisicas') && loadedTabs.includes('avaliacoes-fisicas') && (
-        <div hidden={activeTab !== 'avaliacoes-fisicas'} className="mt-6">
-          <AlunoAdipometryEvolutionTabSection
-            key={id}
-            aluno={aluno}
-            assessments={assessments}
-          />
-        </div>
-      )}
+      {visibleTabs.includes('avaliacoes-fisicas') &&
+        (activeTab === 'avaliacoes-fisicas' || retainedDirectTabs.includes('avaliacoes-fisicas')) && (
+          <div hidden={activeTab !== 'avaliacoes-fisicas'} className="mt-6">
+            <AlunoAdipometryEvolutionTabSection
+              key={id}
+              aluno={aluno}
+              assessments={loadedTabs.includes('avaliacoes-fisicas') ? assessments : null}
+              assessmentHistoryState={
+                loadedTabs.includes('avaliacoes-fisicas')
+                  ? 'ready'
+                  : tabErrors['avaliacoes-fisicas']
+                    ? 'error'
+                    : 'loading'
+              }
+            />
+          </div>
+        )}
 
       {STUDENT_DETAIL_DEFERRED_TABS.includes(activeTab) && !loadedTabs.includes(activeTab) && (
         <Card>

@@ -20,6 +20,8 @@ type HistoryFilter = 'all' | 'adpt' | 'other';
 type AlunoAdipometryEvolutionCardProps = {
   alunoId: string;
   assessments: Assessment[];
+  /** Estado da leitura geral feita pela Central; ADPT permanece independente. */
+  legacyAssessmentsState?: 'ready' | 'loading' | 'error';
 };
 
 type UnifiedHistoryItem = {
@@ -176,6 +178,7 @@ function MetricCard({ label, value }: { label: string; value: string }) {
 export function AlunoAdipometryEvolutionCard({
   alunoId,
   assessments,
+  legacyAssessmentsState = 'ready',
 }: AlunoAdipometryEvolutionCardProps) {
   const user = useAuthStore((state) => state.user);
   const canViewAssessments = canAccessBlock(user, 'students.details.assessments');
@@ -190,7 +193,7 @@ export function AlunoAdipometryEvolutionCard({
   const [adipometryAssessments, setAdipometryAssessments] = useState<AdipometryAssessmentSummary[]>([]);
   const [latestDetail, setLatestDetail] = useState<AdipometryAssessmentDetail | null>(null);
   const [responsibleNames, setResponsibleNames] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(canLoadAdipometry);
   const [error, setError] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>('all');
@@ -348,6 +351,9 @@ export function AlunoAdipometryEvolutionCard({
   const filteredHistory = historyFilter === 'all'
     ? unifiedHistory
     : unifiedHistory.filter((item) => item.kind === historyFilter);
+  const historyIsConfirmed =
+    (historyFilter === 'adpt' || legacyAssessmentsState === 'ready') &&
+    (historyFilter === 'other' || !canViewAdipometry || (!loading && !error));
 
   const latestSummary = completedAssessments[0] ?? null;
   const latestResponsible = latestSummary
@@ -522,6 +528,16 @@ export function AlunoAdipometryEvolutionCard({
                 <option value="other">Outras avaliações e uploads</option>
               </select>
             </div>
+            {historyFilter !== 'adpt' && legacyAssessmentsState !== 'ready' && (
+              <p
+                role={legacyAssessmentsState === 'error' ? 'alert' : 'status'}
+                className="mb-3 rounded-lg border border-border bg-muted/20 p-3 text-sm text-muted-foreground"
+              >
+                {legacyAssessmentsState === 'loading'
+                  ? 'Carregando histórico geral de avaliações...'
+                  : 'Histórico geral de avaliações indisponível. Use Tentar novamente na seção.'}
+              </p>
+            )}
             {filteredHistory.length > 0 ? (
               <div className="space-y-3">
                 {filteredHistory.map((item) => (
@@ -548,7 +564,9 @@ export function AlunoAdipometryEvolutionCard({
               </div>
             ) : (
               <p className="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-                Nenhum item corresponde ao filtro selecionado.
+                {historyIsConfirmed
+                  ? 'Nenhum item corresponde ao filtro selecionado.'
+                  : 'O histórico ainda não foi confirmado; aguarde ou tente novamente.'}
               </p>
             )}
           </div>

@@ -82,7 +82,7 @@ A mesma regra é compartilhada pela Central e pela tela dedicada, alinhada ao mi
 - Falhas de ADPT ficam contidas no bloco e oferecem nova tentativa.
 - Somente a carga ADPT mais recente pode atualizar o estado; respostas anteriores do mesmo aluno são descartadas quando chegam fora de ordem.
 - Uma comparação pendente é invalidada quando a seleção muda ou uma recarga começa, impedindo que resultado obsoleto reapareça na tabela.
-- A entrada de Antropometria e o histórico legado recebem o aluno e as avaliações já confirmados pela Central, sem um segundo GET; falha localizada na leitura ADPT não remove a Antropometria.
+- A entrada de Antropometria e o histórico legado recebem o aluno e as avaliações já confirmados pela Central, sem um segundo GET. Enquanto o histórico legado estiver pendente ou falhar, o bloco ADPT segue independente e o histórico não afirma vazio definitivo. Falha localizada na leitura ADPT não remove a Antropometria após confirmação dos dados gerais.
 - Seções extensas usam controles colapsáveis nativos.
 - Seleção usa checkboxes e o filtro usa `select`, ambos operáveis por teclado.
 - A comparação possui tabela semântica com `caption`, cabeçalhos de coluna e linha.

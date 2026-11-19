@@ -37,9 +37,12 @@ o carregamento do Resumo e o de cada aba possuem estados independentes.
   Revisoes cadastrais e Treinos tambem sao montados somente na primeira visita
   autorizada e retidos durante a alternancia. Todos esses contextos sao desmontados
   quando a identidade do aluno ou a permissao pertinente muda.
-  Na Avaliacao fisica, o painel de evolucao recebe aluno e historico ja carregados
-  pela pagina: nao inicia outro GET de identidade ou de historico. A leitura
-  estruturada ADPT permanece independente e conserva filtros e comparacoes locais.
+  Na Avaliacao fisica, o painel de evolucao reutiliza identidade e historico
+  geral fornecidos pela pagina quando confirmados: nao inicia outro GET dessas
+  fontes. A leitura estruturada ADPT e independente e permanece utilizavel
+  mesmo se o historico geral estiver pendente ou falhar; o historico incompleto
+  nao e apresentado como vazio, e o retry da secao nao remonta o painel ADPT.
+  Filtros e comparacoes locais sao preservados durante a alternancia.
   No Financeiro, o componente da aba e o unico responsavel por listar contratos,
   evita falso `Sem contrato ativo` apos falha dessa leitura, e oferece retry
   independente para historico/contrato ativo e contratos disponiveis.
