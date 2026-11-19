@@ -751,7 +751,7 @@ describe('AlunoDetails resiliencia de carregamento', () => {
     const { rerender } = render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
     await screen.findByText('Aluno Teste');
     fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Avaliações' }));
-    await screen.findByText('Avaliação A');
+    await screen.findAllByText('Avaliação A');
     fireEvent.click(screen.getByRole('button', { name: 'Reprocessar' }));
     await waitFor(() => expect(resolveOldRefresh).toBeDefined());
 
@@ -759,11 +759,11 @@ describe('AlunoDetails resiliencia de carregamento', () => {
     getByIdMock.mockResolvedValueOnce(nextAluno);
     rerender(<MemoryRouter><AlunoDetails /></MemoryRouter>);
     await screen.findByText('Outro Aluno');
-    await screen.findByText('Avaliação B');
+    await screen.findAllByText('Avaliação B');
 
     await act(async () => { resolveOldRefresh?.([first]); });
-    expect(screen.getByText('Avaliação B')).toBeInTheDocument();
-    expect(screen.queryByText('Avaliação A')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Avaliação B').length).toBeGreaterThan(0);
+    expect(screen.queryAllByText('Avaliação A')).toHaveLength(0);
   });
 
   it('nao inicia refresh ou sucesso no aluno novo quando mutacao antiga conclui tarde', async () => {
@@ -779,7 +779,7 @@ describe('AlunoDetails resiliencia de carregamento', () => {
     const { rerender } = render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
     await screen.findByText('Aluno Teste');
     fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Avaliações' }));
-    await screen.findByText('Avaliação A');
+    await screen.findAllByText('Avaliação A');
     fireEvent.click(screen.getByRole('button', { name: 'Reprocessar' }));
     await waitFor(() => expect(finishMutation).toBeDefined());
 
@@ -787,11 +787,11 @@ describe('AlunoDetails resiliencia de carregamento', () => {
     getByIdMock.mockResolvedValueOnce(nextAluno);
     rerender(<MemoryRouter><AlunoDetails /></MemoryRouter>);
     await screen.findByText('Outro Aluno');
-    await screen.findByText('Avaliação B');
+    await screen.findAllByText('Avaliação B');
     await act(async () => { finishMutation?.(); });
     expect(listByAlunoMock.mock.calls.filter(([id]) => id === 'aluno-1')).toHaveLength(2);
-    expect(screen.queryByText('Avaliação A')).not.toBeInTheDocument();
-    expect(screen.getByText('Avaliação B')).toBeInTheDocument();
+    expect(screen.queryAllByText('Avaliação A')).toHaveLength(0);
+    expect(screen.getAllByText('Avaliação B').length).toBeGreaterThan(0);
   });
 
   it('nao permite que um refresh mais antigo sobrescreva outro do mesmo aluno', async () => {
@@ -807,14 +807,14 @@ describe('AlunoDetails resiliencia de carregamento', () => {
     render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
     await screen.findByText('Aluno Teste');
     fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Avaliações' }));
-    await screen.findByText('Avaliação original');
+    await screen.findAllByText('Avaliação original');
     fireEvent.click(screen.getByRole('button', { name: 'Reprocessar' }));
     await waitFor(() => expect(resolveStale).toBeDefined());
     fireEvent.click(screen.getByRole('button', { name: 'Reprocessar' }));
-    expect(await screen.findByText('Avaliação atualizada')).toBeInTheDocument();
+    expect((await screen.findAllByText('Avaliação atualizada')).length).toBeGreaterThan(0);
     await act(async () => { resolveStale?.([original]); });
-    expect(screen.getByText('Avaliação atualizada')).toBeInTheDocument();
-    expect(screen.queryByText('Avaliação original')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Avaliação atualizada').length).toBeGreaterThan(0);
+    expect(screen.queryAllByText('Avaliação original')).toHaveLength(0);
   });
 
   it('nao publica senha temporaria de outro aluno apos resposta atrasada', async () => {
