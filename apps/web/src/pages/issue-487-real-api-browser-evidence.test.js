@@ -844,7 +844,7 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
           }));
           throw error;
         }
-        const actualDetailsCount = await centralPage.$eval(
+        const actualDetailsCount = await centralPage.$$eval(
           `${activeComparisonSelector} details`, (items) => {
             items.forEach((element) => { element.open = true; });
             return items.length;
