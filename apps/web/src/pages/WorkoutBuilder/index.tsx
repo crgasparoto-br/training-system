@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { handleTabListKeyDown } from '../../utils/tabKeyboard';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
@@ -265,6 +266,8 @@ export function WorkoutBuilder() {
                   role="tab"
                   id={`workout-builder-day-tab-${day.value}`}
                   aria-selected={selected}
+                  tabIndex={selected ? 0 : -1}
+                  onKeyDown={handleTabListKeyDown}
                   onClick={() => setSelectedDay(day.value)}
                   className={`ts-tab-button ${selected ? 'ts-tab-button-active' : 'ts-tab-button-inactive'}`}
                 >

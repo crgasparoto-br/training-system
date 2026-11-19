@@ -24,7 +24,9 @@ import {
   clearWorkoutDraftCacheForWeek,
   normalizeWorkoutDays,
   parseWorkoutSaveKey,
+  persistPendingWorkoutWeekSnapshot,
   rehydrateDraftFromApi,
+  serializeWorkoutWeekSave,
   resolveWorkoutWeekStartDate,
 } from './workout-builder-structure';
 
@@ -118,6 +120,8 @@ export default function WorkoutBuilder2() {
   const autoSaveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const pendingSaveRef = useRef<Record<string, any>>({});
   const saveChainsRef = useRef(new Map<string, Promise<void>>());
+  // Production's Prisma pool is small; do not run multiple week saves in parallel.
+  const allSaveChainRef = useRef<Promise<void>>(Promise.resolve());
   const conflictedSaveKeysRef = useRef(new Set<string>());
   const pagehideFlushRef = useRef<Promise<void> | null>(null);
   const pagehideDeliveryRef = useRef(new Map<string, { snapshot: any; status: 'pending' | 'completed' | 'failed' }>());
@@ -759,9 +763,11 @@ export default function WorkoutBuilder2() {
       }
       throw new Error('WORKOUT_PLANNING_CONFLICT_REVIEW_REQUIRED');
     }
-    const previous = saveChainsRef.current.get(saveKey) ?? Promise.resolve();
-    const operation = previous.catch(() => undefined).then(async () => {
-      const snapshot = pendingSaveRef.current[saveKey] ?? data;
+    const operation = serializeWorkoutWeekSave(allSaveChainRef.current, async () => {
+      if (conflictedSaveKeysRef.current.has(saveKey)) {
+        throw new Error('WORKOUT_PLANNING_CONFLICT_REVIEW_REQUIRED');
+      }
+      const snapshot = pendingSaveRef.current[saveKey];
       if (!snapshot || snapshot.released) return;
       beginOperation();
       if (isCurrentBuilderContext(snapshot.planId, resolvedMesocycle)) {
@@ -769,35 +775,53 @@ export default function WorkoutBuilder2() {
         setSaveErrorKey(null);
       }
       try {
-        if (snapshot.id) {
-          const saved = await workoutService.saveTemplateWeek(snapshot.id, buildWeekSavePayload(snapshot));
-          if (isCurrentBuilderContext(snapshot.planId, resolvedMesocycle)
-            && pendingSaveRef.current[saveKey] === snapshot) {
-            setTemplateDataByWeek((prev) => ({
-              ...prev,
-              [resolvedWeek]: {
-                ...prev[resolvedWeek],
-                updatedAt: saved.updatedAt,
-                baseTemplateUpdatedAt: saved.updatedAt,
-              },
-            }));
+        const result = await persistPendingWorkoutWeekSnapshot(
+          pendingSaveRef.current,
+          saveKey,
+          (pending) => pending.id
+            ? workoutService.saveTemplateWeek(pending.id, buildWeekSavePayload(pending))
+            : Promise.resolve({ updatedAt: pending.updatedAt ?? '' }),
+        );
+        if (result.status === 'cleared') {
+          conflictedSaveKeysRef.current.delete(saveKey);
+          clearDraftCacheForWeek(snapshot.planId, resolvedMesocycle, resolvedWeek);
+        } else if (result.status === 'rebased') {
+          // Keep the newer edit recoverable under its new optimistic-lock base.
+          clearDraftCacheForWeek(snapshot.planId, resolvedMesocycle, resolvedWeek);
+          const next = result.pending;
+          if (next.planId) {
+            const cacheKey = buildCacheKey(next.planId, resolvedMesocycle, resolvedWeek, next.planUpdatedAt, next.baseTemplateUpdatedAt);
+            if (cacheKey) {
+              try {
+                localStorage.setItem(cacheKey, JSON.stringify({ schemaVersion: 2, status: 'pending-draft', data: next }));
+              } catch {
+                // localStorage is only a recovery buffer.
+              }
+            }
           }
         }
-        if (pendingSaveRef.current[saveKey] === snapshot) {
-          conflictedSaveKeysRef.current.delete(saveKey);
-          delete pendingSaveRef.current[saveKey];
-          clearDraftCacheForWeek(snapshot.planId, resolvedMesocycle, resolvedWeek);
+        if (snapshot.id && result.savedUpdatedAt
+          && (result.status === 'cleared' || result.status === 'rebased')
+          && isCurrentBuilderContext(snapshot.planId, resolvedMesocycle)) {
+          setTemplateDataByWeek((prev) => ({
+            ...prev,
+            [resolvedWeek]: {
+              ...prev[resolvedWeek],
+              updatedAt: result.savedUpdatedAt,
+              baseTemplateUpdatedAt: result.savedUpdatedAt,
+            },
+          }));
         }
       } catch (error) {
         console.error('Erro ao salvar:', error);
         const serverMessage = (error as { response?: { data?: { error?: unknown } } })?.response?.data?.error;
         if (isCurrentBuilderContext(snapshot.planId, resolvedMesocycle)
-          && pendingSaveRef.current[saveKey] === snapshot) {
+          && pendingSaveRef.current[saveKey]?.id === snapshot.id) {
           const responseData = (error as { response?: { status?: number; data?: { code?: unknown } } })?.response?.data;
           if (responseData?.code === 'WORKOUT_PLANNING_VERSION_CONFLICT' && snapshot.id) {
+            conflictedSaveKeysRef.current.add(saveKey);
             try {
               const authoritative = await workoutService.getTemplate(snapshot.id);
-              conflictedSaveKeysRef.current.add(saveKey);
               setTemplateDataByWeek((prev) => ({
                 ...prev,
                 [resolvedWeek]: {
@@ -830,6 +854,7 @@ export default function WorkoutBuilder2() {
       }
     });
     saveChainsRef.current.set(saveKey, operation);
+    allSaveChainRef.current = operation.catch(() => undefined);
     try {
       await operation;
     } finally {
@@ -1240,10 +1265,10 @@ export default function WorkoutBuilder2() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-w-0 bg-background">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="px-6 py-4">
+        <div className="py-4">
           <div className="flex flex-wrap items-center gap-6">
             <div className="flex items-center gap-4">
               <button
@@ -1286,8 +1311,8 @@ export default function WorkoutBuilder2() {
       </div>
 
       {/* Content */}
-      <div className="px-6 py-6">
-        <div ref={workoutGuideBannerRef} className="mb-6 max-w-[1800px] space-y-4">
+      <div className="py-6">
+        <div ref={workoutGuideBannerRef} className="mb-6 ts-content-fluid space-y-4">
           {showWorkoutGuideBanner && (
             <div className="rounded-2xl border border-sky-200 bg-sky-50/90 p-5 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1492,7 +1517,7 @@ export default function WorkoutBuilder2() {
         </div>
 
         {/* Parâmetros Únicos: Meso e Semana (Micro) */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 max-w-[1800px]">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 ts-content-fluid">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Parâmetros do Treino
           </h2>
@@ -1594,7 +1619,7 @@ export default function WorkoutBuilder2() {
             <div
               key={weekNumber}
               data-workout-week={weekNumber}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 max-w-[1800px]"
+              className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 ts-content-fluid"
             >
               <div
                 ref={registerWorkoutGuideContainerRef('weekHeader', weekNumber)}
@@ -1756,8 +1781,8 @@ export default function WorkoutBuilder2() {
                 {/* Tempo de Sessão por Dia */}
                 <div className={visibility.session ? '' : 'hidden'}>
                   <h3 className="text-base font-semibold text-gray-800 mb-3">Tempo da Sessão</h3>
-                  <div className="overflow-hidden rounded-lg border border-gray-200">
-                    <table className="min-w-full divide-y divide-gray-200">
+                  <div className="overflow-x-auto rounded-lg border border-gray-200">
+                    <table className="min-w-[760px] w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-3 py-2 text-sm font-medium text-gray-700 text-left">

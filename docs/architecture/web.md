@@ -101,6 +101,10 @@ A matriz de regressao do fluxo esta em `docs/profile-review-e2e-validation.md`. 
 - `pnpm test`
 - `pnpm access:check`
 
+## Autosave do construtor de treinos (#551)
+
+O Workout Builder mantem um rascunho local por plano/mesociclo/semana e serializa os envios pendentes, inclusive entre semanas da mesma aba. Um flush duplicado nao reenvia um snapshot ja confirmado. Quando o servidor confirma uma revisao e a pessoa editou novamente durante o envio, o rascunho mais recente conserva suas alteracoes e passa a usar essa revisao como `baseUpdatedAt` da proxima tentativa. Erros 503 preservam o rascunho para nova tentativa. Em conflito real HTTP 409, a interface deve preservar o rascunho e exigir conciliacao explicita, nunca substituir silenciosamente a versao do servidor. Para a validacao em homologacao, salvar uma semana com varios dias e exercicios; editar durante o envio e alternar semanas; conferir o GET posterior, a revisao confirmada, a ausencia de duplicacoes e o rascunho recuperavel apos 503. Simular falha de conexao tanto na checagem do contrato quanto na transacao; negar outros contratos sem chamar o servico; provocar um 409 com uma segunda sessao sem sobrescrever o estado autoritativo.
+
 ## Treino de hoje e rotina semanal
 
 `components/training/TrainingRoutinePanel.tsx` renderiza a rotina semanal e o Treino de hoje para o aluno (`/student/training`) e para o professor na aba Aluno 360 da Central. O painel recebe a função de carregamento e trata localmente carregamento, vazio, sessão não liberada, permissão negada e erro com nova tentativa, sem derrubar os demais blocos da Central. Na Central ele só consulta a API quando o perfil possui `students.details.trainingPlans`.

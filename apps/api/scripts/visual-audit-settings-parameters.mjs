@@ -292,6 +292,7 @@ async function enterCreateEditorForMobile(page) {
 async function collectDiagnostics(page) {
   return page.evaluate((expectedLongDescription) => {
     const root = document.documentElement;
+    const dashboardShell = document.querySelector('header .ts-container');
     const table = document.querySelector('table');
     const tableContainer = table?.parentElement;
     const accordion = Array.from(document.querySelectorAll('button')).find(
@@ -308,6 +309,7 @@ async function collectDiagnostics(page) {
       viewportHeight: root.clientHeight,
       documentScrollWidth: root.scrollWidth,
       documentScrollHeight: root.scrollHeight,
+      dashboardShellWidth: dashboardShell?.getBoundingClientRect().width ?? null,
       tablePresent: Boolean(table),
       tableAriaRowcount: table?.getAttribute('aria-rowcount') || null,
       tableContainerOverflowX: tableContainer ? getComputedStyle(tableContainer).overflowX : null,
@@ -335,6 +337,10 @@ function validateDiagnostics(name, diagnostics, { expectTable = true, expectInte
   }
   if (diagnostics.documentScrollWidth > diagnostics.viewportWidth + 1) {
     throw new Error(`${name}: overflow horizontal acidental no documento`);
+  }
+  if (diagnostics.viewportWidth >= 1800 &&
+      (!diagnostics.dashboardShellWidth || diagnostics.dashboardShellWidth < diagnostics.viewportWidth - 64)) {
+    throw new Error(`${name}: shell desktop amplo ainda limitado por largura máxima fixa`);
   }
   if (expectTable && !diagnostics.tablePresent) {
     throw new Error(`${name}: tabela esperada não está visível`);
@@ -460,6 +466,10 @@ try {
 
   const scenarios = [
     {
+      name: 'parameters-wide-list',
+      viewport: { width: 1920, height: 1080 },
+    },
+    {
       name: 'parameters-desktop-keyboard',
       viewport: { width: 1440, height: 900 },
       exerciseKeyboard: true,
@@ -491,7 +501,7 @@ try {
     routes: [
       {
         route,
-        viewports: ['1440x900', '1366x768', '390x844'],
+        viewports: ['1920x1080', '1440x900', '1366x768', '390x844'],
         long_content_or_zoom: true,
         keyboard_only: true,
         accessibility_tree: {

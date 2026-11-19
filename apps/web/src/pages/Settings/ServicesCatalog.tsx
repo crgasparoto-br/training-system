@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { handleTabListKeyDown } from '../../utils/tabKeyboard';
 import type {
   ServiceCatalogDetail,
   ServiceCatalogSummary,
@@ -670,9 +671,9 @@ export default function ServicesCatalog() {
       {error && <div role="alert" className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
       {notice && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</div>}
 
-      <div role="tablist" aria-label="Áreas do catálogo" className="flex gap-2 border-b">
-        <button type="button" role="tab" aria-selected={tab === 'catalog'} className={`border-b-2 px-4 py-3 text-sm font-medium ${tab === 'catalog' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`} onClick={() => setTab('catalog')}>Catálogo</button>
-        <button type="button" role="tab" aria-selected={tab === 'pricing'} className={`border-b-2 px-4 py-3 text-sm font-medium ${tab === 'pricing' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`} onClick={() => setTab('pricing')}>Combinações e valores</button>
+      <div role="tablist" aria-label="Áreas do catálogo" className="ts-tabs-bar border-b border-border px-2">
+        <button type="button" role="tab" aria-selected={tab === 'catalog'} tabIndex={tab === 'catalog' ? 0 : -1} onKeyDown={handleTabListKeyDown} className={`ts-tab-button ${tab === 'catalog' ? 'ts-tab-button-active' : 'ts-tab-button-inactive'}`} onClick={() => setTab('catalog')}>Catálogo</button>
+        <button type="button" role="tab" aria-selected={tab === 'pricing'} tabIndex={tab === 'pricing' ? 0 : -1} onKeyDown={handleTabListKeyDown} className={`ts-tab-button ${tab === 'pricing' ? 'ts-tab-button-active' : 'ts-tab-button-inactive'}`} onClick={() => setTab('pricing')}>Combinações e valores</button>
       </div>
 
       {tab === 'catalog' ? (

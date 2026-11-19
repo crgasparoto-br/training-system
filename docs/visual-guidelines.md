@@ -51,11 +51,33 @@ Referência canônica: `apps/web/src/components/alunos/AlunoDetailsTabs.tsx` (ba
 - **Submenu (quando houver agrupamento):** painel `absolute … rounded-lg border border-border bg-popover p-1 shadow-[var(--shadow-card)]`; item selecionado usa o mesmo `bg-primary/10 text-foreground` do nível 1; não selecionado usa `text-popover-foreground` com hover `hover:bg-accent hover:text-accent-foreground`. Indicador de seleção: quadrado `h-5 w-5 rounded border border-border bg-card` com ícone `text-primary` quando marcado.
 - **Regra de cor:** estado ativo/selecionado sempre em tom suave (`bg-primary/10`), nunca `bg-primary` sólido com texto invertido, para manter consistência com o padrão desta tela.
 
-**Status de migração:** as classes utilitárias legadas `ts-tab-button` / `ts-tab-button-active` / `ts-tab-button-inactive`, além da regra genérica `[role='tablist'] > [role='tab']` (`apps/web/src/index.css`), ainda usam o padrão antigo (borda + fundo sólido `bg-primary` no estado ativo). Esse padrão é considerado legado: novas telas não devem usá-lo.
+**Migração para o padrão vigente (issue #553):**
 
-- ✅ Migrado: `apps/web/src/pages/AlunoForm.tsx` (guias do cadastro do aluno, `/alunos/new` e `/alunos/:id/edit`). Como a regra genérica `[role='tablist'] > [role='tab']` tem especificidade maior que utilitárias Tailwind de uma classe só (ex.: `bg-primary/10`), a migração precisou de um seletor com especificidade equivalente para vencer o cascade: `#aluno-form-tablist > [role='tab']` em `index.css`, escopado pelo `id="aluno-form-tablist"` do contêiner `role="tablist"`. Esse é o padrão a repetir ao migrar as demais telas.
-- ✅ Migrado: `apps/web/src/pages/WorkoutBuilder2/WorkoutBuilderResistance.tsx` (seletor de dias do Treinamento Resistido no Workout Builder). Como o componente se repete por semana e não pode usar `id` fixo, o escopo usa atributo: `[role='tablist'][data-tabs='resistance-days'] > [role='tab']` em `index.css`, com a mesma especificidade da regra genérica mais um atributo. Novas abas repetíveis devem seguir esse formato com um valor próprio de `data-tabs`.
-- ⏳ Pendente: `CollaboratorFunctions.tsx`, `ServicesCatalog.tsx`, `WorkoutBuilder/index.tsx`, `PublicPreRegistration.tsx`, `CapacityPrescriptionScreen.tsx` — ainda no padrão legado.
+- `AlunoForm.tsx` e `WorkoutBuilder2/WorkoutBuilderResistance.tsx` continuam usando a variante canônica já aprovada.
+- `Settings/CollaboratorFunctions.tsx`, `Settings/ServicesCatalog.tsx` e `WorkoutBuilder/index.tsx` adotaram `ts-tabs-bar`, `ts-tab-button` e as variantes `ts-tab-button-active` / `ts-tab-button-inactive`.
+- `PublicPreRegistration/PublicPreRegistration.tsx` usa os mesmos estados na escolha entre entrada e criação de acesso, sem alterar o conteúdo do fluxo público.
+- `PhysicalAssessment/CapacityPrescriptionScreen.tsx` adota `ts-tab-tile` e `ts-tab-tile-active`, variante de seleção em grade com textos e status multilinha e fundo primário suave.
+- O estilo genérico `[role='tablist'] > [role='tab']` foi removido do CSS global. Não adicionar CSS sem escopo por role: a variante em grade e o pré-cadastro público têm composições próprias.
+- **Montagem de Treinos 2 — dias do treino resistido:** `[data-tabs='resistance-days']` define a própria barra `flex-nowrap` e botões `shrink-0`/`whitespace-nowrap`; em 390 px os sete dias permanecem numa linha e a rolagem horizontal acontece **somente** no contêiner `overflow-x-auto`, sem alargar o documento. O harness `issue-399-full-page-browser-evidence.test.js` verifica linha única, CSS computado, rolagem local e seleção por ArrowRight/End/Home em cada viewport (regressão A-003 da PR #554).
+- Nas abas sequenciais, `ArrowLeft`, `ArrowRight`, `Home` e `End` mudam foco e seleção por `handleTabListKeyDown` em `apps/web/src/utils/tabKeyboard.ts`. Grades com regras específicas preservam seu manipulador próprio.
+
+## Padrão de largura fluida e respiro lateral (issue #553)
+
+- **Shell autenticado:** `ts-container` não tem limite máximo fixo. Mantém margens internas responsivas de **16 px no mobile, 24 px a partir de `sm` e 32 px a partir de `xl`**; menu lateral e `main` usam `min-w-0` para caberem no mesmo fluxo.
+- **Consultas e telas densas:** listas, tabelas, painéis analíticos, montagens e editores multicoluna usam `ts-content-fluid` (100% da largura disponível). Não impor `max-w-*` arbitrário só por estética.
+- **Formulários de leitura sequencial:** manter limite coerente como `ts-content-readable` (`max-w-5xl`), ou largura menor quando necessário. Essa restrição intencional não deve ser confundida com espaço desperdiçado.
+- **Exemplos migrados:** Biblioteca de Exercícios, Montagem de Treinos 2 e editor de permissões de funções de colaboradores aproveitam o espaço disponível; abas de dados/visão continuam em layout responsivo.
+- **Tabelas no mobile:** rolagem horizontal, quando inevitável, dentro do contêiner da tabela; não causar rolagem horizontal acidental no documento.
+- **Critérios visuais de aceite:** validar mudanças em `390x844`, `1366x768`, `1440x900` e `1920x1080`, incluindo conteúdo longo, hover, foco por teclado, estados selecionado/desabilitado, menus, formulários e diálogos pertinentes.
+- **Auditoria:** por critério, registrar rota, estado, SHA, viewport, ação e evidência verificável. Teste estático e CI verde não substituem inspeção visual no navegador quando exigida. Não marcar checkbox de aceite apenas por declaração textual.
+
+## Evidência visual da issue #553 — largura e navegação
+
+A CI CRITICAL executa `apps/web/src/pages/issue-553-visual-browser.test.js` com Chromium real e fixtures de API isoladas, autenticando um professor sintético e mantendo o pré-cadastro como rota pública. O teste coleta as quatro resoluções `390x844`, `1366x768`, `1440x900` e `1920x1080` para Biblioteca (incluindo editor), Funções/Permissões, Catálogo (incluindo criação), pré-cadastro, prescrição por capacidades e Workout Builder legado. O componente legado, que não possui rota ativa em `App.tsx`, é montado em uma fixture Vite exclusiva de testes; nenhuma rota pública é acrescentada à aplicação.
+
+O fluxo de Montagem de Treinos 2 é validado na mesma CI pelo harness existente `issue-399-full-page-browser-evidence.test.js`, ampliado também para 1366 e 1920 pixels. As evidências exatas da issue #553 são publicadas em `artifacts/issue-553/visual-matrix.json` com rota, cenário, SHA do commit, dados sintéticos, viewport, ações de teclado, estados de filtro e captura PNG com SHA-256; o Workout Builder 2 publica adicionalmente `artifacts/issue-399/full-page-browser.json` e as respectivas capturas.
+
+A prova usa UI real do frontend no Vite e simula respostas na fronteira HTTP, portanto **não** comprova integração com a API real nem substitui homologação humana de aparência, contraste e operações persistidas. Falha de renderização, overflow horizontal do documento, navegação, filtros ou erro de JavaScript reprova o teste. É obrigatório conferir o artefato no HEAD da PR antes de marcar AC-04/AC-05.
 
 ## Validação permanente — parâmetros de treino
 
@@ -63,7 +85,7 @@ A rota `/settings/parameters` possui um validador permanente em navegador real: 
 
 O contrato visual da rota cobre:
 
-- viewports `1440x900`, `1366x768` e `390x844`;
+- viewports `1920x1080`, `1440x900`, `1366x768` e `390x844`;
 - conteúdo longo e ausência de overflow horizontal acidental no documento;
 - scroll horizontal deliberado restrito ao contêiner da tabela em mobile;
 - fluxo de criação e cancelamento de edição por teclado, incluindo restauração lógica de foco;
@@ -101,3 +123,5 @@ Componente: `apps/web/src/pages/WorkoutBuilder2/WorkoutBuilderResistance.tsx`.
 4. Manter textos e labels em pt-BR.
 5. Não alterar regras de negócio ao fazer ajustes visuais.
 6. Para qualquer navegação em abas/menu segmentado, seguir o padrão descrito em "Navegação em abas/menu segmentado (padrão vigente)", usando `AlunoDetailsTabs.tsx` como referência de cor e estado.
+7. Preferir largura fluida para telas de dados densos e largura de leitura para formulários; evitar `max-w-*` desnecessário.
+8. Auditar alterações visuais em viewport ampla, desktop comum e mobile, com foco por teclado e evidência do HEAD exato.

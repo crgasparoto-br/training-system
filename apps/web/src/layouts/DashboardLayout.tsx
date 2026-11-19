@@ -91,9 +91,9 @@ export function DashboardLayout() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen min-w-0 bg-background">
       <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/90">
-        <div className="ts-container flex h-16 min-w-0 max-w-full items-center gap-2">
+        <div className="ts-container flex h-16 items-center gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4">
             <button
               onClick={() => setIsSidebarOpen((prev) => !prev)}
@@ -151,7 +151,7 @@ export function DashboardLayout() {
         <div className="fixed inset-0 z-20 bg-black/50 lg:hidden" onClick={() => setIsSidebarOpen(false)} />
       )}
 
-      <div className="ts-container flex max-w-full">
+      <div className="ts-container flex min-w-0">
         <AppSidebar
           items={visibleMenuItems}
           currentPath={location.pathname}
