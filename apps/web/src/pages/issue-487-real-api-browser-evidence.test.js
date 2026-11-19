@@ -802,14 +802,20 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
         await centralPage.waitForSelector('#aluno-details-tab-treinos', { visible: true });
         await centralPage.click('#aluno-details-tab-treinos');
         await waitText(centralPage, 'Rotina da semana');
+        // O Resumo retido possui uma segunda instancia do mesmo card, mas oculta.
+        // Exigir o resultado visivel da aba Treinos, nunca o DOM do Resumo.
+        const activeComparisonSelector =
+          '[data-testid="aluno-training-tab-panel"] section[aria-label="Planejado e executado"]';
         try {
-          await centralPage.waitForSelector('section[aria-label="Planejado e executado"]',
+          await centralPage.waitForSelector(activeComparisonSelector,
             { visible: true, timeout: 25000 });
         } catch (error) {
           // Never weaken the real-browser oracle. Capture the actual tab,
           // authenticated request, server projection and DOM on a timeout.
           const browserState = await centralPage.evaluate(() => ({
             route: location.pathname,
+            activeTrainingPanelHidden:
+              document.querySelector('[data-testid="aluno-training-tab-panel"]')?.hasAttribute('hidden'),
             selectedTab: document.querySelector('#aluno-details-tab-treinos')?.getAttribute('aria-current'),
             sections: [...document.querySelectorAll('section[aria-label]')]
               .map((section) => ({
@@ -839,12 +845,12 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
           throw error;
         }
         const actualDetailsCount = await centralPage.$eval(
-          'section[aria-label="Planejado e executado"] details', (items) => {
+          `${activeComparisonSelector} details`, (items) => {
             items.forEach((element) => { element.open = true; });
             return items.length;
           });
         expect(actualDetailsCount).toBeGreaterThan(0);
-        const centralText = await centralPage.$eval('section[aria-label="Planejado e executado"]',
+        const centralText = await centralPage.$eval(activeComparisonSelector,
           (element) => element.innerText);
         expect(centralText).toContain('Planejado × executado');
         expect(centralText).toContain('Série 1');

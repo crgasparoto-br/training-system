@@ -2577,7 +2577,7 @@ export function AlunoDetails() {
 
       {visibleTabs.includes('treinos') && id &&
         (activeTab === 'treinos' || retainedDirectTabs.includes('treinos')) && (
-          <div hidden={activeTab !== 'treinos'}>
+          <div data-testid="aluno-training-tab-panel" hidden={activeTab !== 'treinos'}>
             <AlunoTrainingTab key={id} alunoId={id} />
           </div>
         )}

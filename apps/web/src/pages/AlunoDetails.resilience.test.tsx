@@ -706,9 +706,13 @@ describe('AlunoDetails resiliencia de carregamento', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Treinos' }));
     await waitFor(() => expect(getTrainingRoutineMock).toHaveBeenCalledTimes(1));
+    const trainingPanel = screen.getByTestId('aluno-training-tab-panel');
+    expect(trainingPanel).not.toHaveAttribute('hidden');
     fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Cadastro' }));
     await screen.findByTestId('perfil-carregado');
+    expect(trainingPanel).toHaveAttribute('hidden');
     fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Treinos' }));
+    expect(screen.getByTestId('aluno-training-tab-panel')).not.toHaveAttribute('hidden');
 
     expect(getTrainingRoutineMock).toHaveBeenCalledTimes(1);
     expect(getByIdMock).toHaveBeenCalledTimes(1);

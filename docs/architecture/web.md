@@ -48,6 +48,12 @@ o carregamento do Resumo e o de cada aba possuem estados independentes.
   independente para historico/contrato ativo e contratos disponiveis.
   No Plano de avaliacoes, a propria aba consulta seu planejamento. As consultas
   independentes do Resumo nao ficam bloqueadas pelas abas nao visitadas.
+- O Resumo e a aba Treinos possuem instancias distintas do
+  `TrainingRoutinePanel`. Como o Resumo permanece montado, mas oculto,
+  o DOM pode conter dois cartoes de comparacao ao navegar para Treinos.
+  Testes de navegador devem selecionar a comparacao visivel dentro do painel
+  ativo (`data-testid="aluno-training-tab-panel"`), sem aceitar como prova um
+  cartao oculto do Resumo; conteudo e resultado autenticado continuam obrigatorios.
 - A aba Auditoria mantem sua propria leitura sob demanda, revalidacao por foco
   e ao retornar a aba, paginacao e controle de geracoes. Ela nao participa da
   consulta inicial e nao usa o cache de montagem das outras abas.
