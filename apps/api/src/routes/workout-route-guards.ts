@@ -16,6 +16,24 @@ export function sendSafeWorkoutError(res: Response, error: unknown) {
 }
 
 
+function isTransientWorkoutWeekSaveError(error: unknown): boolean {
+  const code = error && typeof error === 'object' && 'code' in error
+    ? (error as { code?: unknown }).code
+    : undefined;
+  return code === 'P2024' || code === 'P2028';
+}
+
+/** A slow or exhausted weekly Prisma transaction is recoverable, not a data-validation error. */
+export function sendSafeWorkoutWeekSaveError(res: Response, error: unknown) {
+  if (isTransientWorkoutWeekSaveError(error)) {
+    return res.status(503).json({
+      code: 'WORKOUT_SAVE_TEMPORARILY_UNAVAILABLE',
+      error: 'O salvamento demorou mais do que o esperado. Seu rascunho foi preservado; tente novamente.',
+    });
+  }
+  return sendSafeWorkoutError(res, error);
+}
+
 /**
  * Protect every Workout Builder route, including the legacy exercise API.
  * Route parameters and body ids never grant access across contracts.
@@ -83,6 +101,12 @@ export async function workoutContractScopeMiddleware(req: Request, res: Response
     next();
   } catch (error) {
     console.error('Error validating workout contract scope:', error);
+    // The tenant check runs before the weekly handler: connection exhaustion
+    // must remain recoverable here too, without granting access to a tenant.
+    if (req.method === 'PUT' && /^\/templates\/[^/]+\/save-week\/?$/.test(req.path)
+      && isTransientWorkoutWeekSaveError(error)) {
+      return sendSafeWorkoutWeekSaveError(res, error);
+    }
     return res.status(500).json({ code: 'WORKOUT_SCOPE_CHECK_FAILED', error: 'Não foi possível verificar o acesso.' });
   }
 }

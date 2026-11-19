@@ -291,7 +291,7 @@ export async function saveTemplateWeek(prisma: PrismaClient, id: string, data: S
       },
     });
     return serializeWorkoutTemplate(saved);
-  });
+  }, { maxWait: 15_000, timeout: 30_000 });
 }
 
 export async function replaceDayResistanceExercises(prisma: PrismaClient, workoutDayId: string, exercises: CreateWorkoutExerciseDTO[], contractId?: string) {
