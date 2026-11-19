@@ -35,6 +35,9 @@ Mudanca de schema, regra clinica, historico de execucao, permissao, merge ou dep
 - [x] Eliminar flush redundante e propagar revisao confirmada ao rascunho mais recente.
 - [x] Retornar erro recuperavel para timeout sem expor infraestrutura.
 - [x] Adicionar testes e atualizar a documentacao.
+- [x] Corrigir tipagem circular TS2502 do teste transacional (AUD-552-01).
+- [x] Tratar P2024/P2028 no middleware multi-tenant anterior ao handler semanal, sem alterar as demais rotas (AUD-552-02).
+- [x] Adicionar controles de falha de escopo, tenant negado, retry de draft e semana com dois dias.
 
 ## Criterios de aceite
 
@@ -52,4 +55,5 @@ Em ambiente homologado, salvar semana com varios dias e exercicios; editar novam
 
 - Mudanca limitada ao par `maxWait: 15000`/`timeout: 30000` ms na transacao semanal; demais caminhos mantem limites existentes.
 - Sem alterar `PRISMA_CONNECTION_LIMIT` ou credenciais de producao.
-- Permanecem pendentes a validacao CI exata, auditoria separada e homologacao em producao; nenhuma aprovacao e presumida.
+- As correcoes da auditoria da PR #552 preservam a checagem de contrato antes do handler e somente convertem a indisponibilidade transiente do salvamento semanal em 503; acesso negado continua 404.
+- A aprovacao exige validar o SHA material final na CI do GitHub, registrar fechamento dos criterios de aceite na issue e solicitar nova auditoria independente; homologacao operacional depende de release autorizado.

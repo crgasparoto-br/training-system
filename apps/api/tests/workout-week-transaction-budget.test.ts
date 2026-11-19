@@ -20,9 +20,12 @@ function dbFixture(released = false) {
     },
     workoutSessionExecution: { findFirst: jest.fn().mockResolvedValue(null) },
     workoutExecution: { findFirst: jest.fn().mockResolvedValue(null) },
-    workoutDay: { findMany: jest.fn().mockResolvedValue([]) },
+    workoutDay: {
+      findMany: jest.fn().mockResolvedValue([]),
+      upsert: jest.fn().mockResolvedValue({ id: 'day-1' }),
+    },
   };
-  const db = { $transaction: jest.fn(async (mutate: (tx: typeof tx) => Promise<unknown>) => mutate(tx)) };
+  const db = { $transaction: jest.fn(async (mutate: (transactionClient: typeof tx) => Promise<unknown>) => mutate(tx)) };
   return { db: db as unknown as PrismaClient, transaction: db.$transaction, tx };
 }
 
@@ -41,6 +44,30 @@ describe('#551 - orçamento transacional específico do salvamento semanal', () 
       where: { id: 'template-1', plan: { aluno: { contractId: 'contract-test' } } },
       select: { id: true },
     });
+  });
+
+  it('salva dois dias na mesma transação serializável e preserva a revisão', async () => {
+    const { db, tx, transaction } = dbFixture();
+    await saveTemplateWeek(db, 'template-1', {
+      baseUpdatedAt: updatedAt.toISOString(),
+      workoutDays: [
+        { dayOfWeek: 1, detailNotes: 'Treino de segunda' },
+        { dayOfWeek: 2, detailNotes: 'Treino de terça' },
+      ],
+    }, 'contract-test');
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), expect.objectContaining({
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      maxWait: 15_000,
+      timeout: 30_000,
+    }));
+    expect(tx.workoutDay.upsert).toHaveBeenCalledTimes(2);
+    expect(tx.workoutDay.upsert).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      where: { templateId_dayOfWeek: { templateId: 'template-1', dayOfWeek: 1 } },
+    }));
+    expect(tx.workoutDay.upsert).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      where: { templateId_dayOfWeek: { templateId: 'template-1', dayOfWeek: 2 } },
+    }));
   });
 
   it('preserva limites padrão em outras mutações do helper e rejeita treino liberado', async () => {

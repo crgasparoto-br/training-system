@@ -342,6 +342,57 @@ describe('#551 - erro recuperável no salvamento semanal', () => {
     expect(JSON.stringify(response.body)).not.toMatch(/postgres|password|secret/);
   });
 
+  it.each(['P2024', 'P2028'])('retorna 503 seguro quando o middleware de escopo sofre %s', async (code) => {
+    (prismaRuntimeClient.workoutTemplate.findFirst as jest.Mock).mockRejectedValueOnce(
+      Object.assign(new Error('postgres://private-host SQL password=secret'), { code }),
+    );
+    const response = await request(app).put('/workout/templates/template-1/save-week').send({ template: {} });
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({
+      code: 'WORKOUT_SAVE_TEMPORARILY_UNAVAILABLE',
+      error: 'O salvamento demorou mais do que o esperado. Seu rascunho foi preservado; tente novamente.',
+    });
+    expect(JSON.stringify(response.body)).not.toMatch(/postgres|private-host|SQL|password|secret/);
+    expect(prismaRuntimeClient.workoutTemplate.findFirst).toHaveBeenCalledWith({
+      where: { id: 'template-1', plan: { aluno: { contractId: 'contract-test' } } },
+      select: { id: true },
+    });
+    expect(workoutService.saveTemplateWeek).not.toHaveBeenCalled();
+  });
+
+  it('não permite salvar template fora do contrato durante a validação de escopo', async () => {
+    (prismaRuntimeClient.workoutTemplate.findFirst as jest.Mock).mockResolvedValueOnce(null);
+    const response = await request(app).put('/workout/templates/template-1/save-week').send({ template: {} });
+    expect(response.status).toBe(404);
+    expect(response.body.code).toBe('RESISTANCE_DAY_NOT_FOUND');
+    expect(workoutService.saveTemplateWeek).not.toHaveBeenCalled();
+  });
+
+  it('não transforma falha de escopo em 503 fora da rota semanal', async () => {
+    (prismaRuntimeClient.workoutTemplate.findFirst as jest.Mock).mockRejectedValueOnce(
+      Object.assign(new Error('postgres://private-host password=secret'), { code: 'P2024' }),
+    );
+    const response = await request(app).get('/workout/templates/template-1');
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({
+      code: 'WORKOUT_SCOPE_CHECK_FAILED',
+      error: 'Não foi possível verificar o acesso.',
+    });
+    expect(JSON.stringify(response.body)).not.toMatch(/postgres|password|secret/);
+    expect(workoutService.getTemplateById).not.toHaveBeenCalled();
+  });
+
+  it('não expõe erro inesperado da checagem de escopo nem chama o serviço', async () => {
+    (prismaRuntimeClient.workoutTemplate.findFirst as jest.Mock).mockRejectedValueOnce(
+      new Error('SQL credentials=secret'),
+    );
+    const response = await request(app).put('/workout/templates/template-1/save-week').send({ template: {} });
+    expect(response.status).toBe(500);
+    expect(response.body.code).toBe('WORKOUT_SCOPE_CHECK_FAILED');
+    expect(JSON.stringify(response.body)).not.toMatch(/SQL|secret/);
+    expect(workoutService.saveTemplateWeek).not.toHaveBeenCalled();
+  });
+
   it('mantém o conflito genuíno como HTTP 409, sem alterar o estado', async () => {
     (workoutService.saveTemplateWeek as jest.Mock).mockRejectedValueOnce(
       Object.assign(new Error('conflict'), { code: 'WORKOUT_PLANNING_VERSION_CONFLICT' }),

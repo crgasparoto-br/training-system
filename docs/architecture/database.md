@@ -24,7 +24,7 @@ O projeto usa Prisma para modelagem e acesso ao banco.
 
 O salvamento `PUT /api/v1/workout/templates/:id/save-week` reconcilia uma semana inteira em uma transacao serializavel. Como a operacao pode incluir multiplos dias, exercicios, series e agrupamentos, somente esse fluxo configura `maxWait: 15000` ms e `timeout: 30000` ms. Os demais comandos conservam o orcamento transacional padrao.
 
-Um timeout de transacao (`P2028`) ou espera de conexao (`P2024`) retorna HTTP 503 com mensagem publica recuperavel. O cliente preserva a versao do rascunho; nenhum retry deve remover o controle `baseUpdatedAt` ou sobrescrever edicoes de outra sessao. O autosave da mesma aba processa uma semana por vez para reduzir a disputa pelo pool.
+Um timeout de transacao (`P2028`) ou espera de conexao (`P2024`) retorna HTTP 503 com mensagem publica recuperavel, inclusive quando a falha ocorre na consulta multi-tenant do middleware anterior ao handler semanal. Essa classificacao e restrita a `PUT /templates/:id/save-week`: acesso negado permanece 403/404, erros inesperados de escopo permanecem 500 seguro, e os demais endpoints nao mudam sua semantica. O cliente preserva a versao do rascunho; nenhum retry deve remover o controle `baseUpdatedAt` ou sobrescrever edicoes de outra sessao. O autosave da mesma aba processa uma semana por vez para reduzir a disputa pelo pool.
 
 ## Multi-tenant
 

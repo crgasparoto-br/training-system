@@ -114,6 +114,24 @@ describe('#551 - coalescência e revisão de rascunhos semanais', () => {
     expect(pending.week).toMatchObject({ id: 'other-template', baseTemplateUpdatedAt: 'v1' });
   });
 
+  it('preserva o mesmo draft em 503 e só o remove após retry confirmado', async () => {
+    const draft = { ...base };
+    const pending = { week: draft };
+    const save = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error('connection exhausted'), { code: 'P2024' }))
+      .mockResolvedValueOnce({ updatedAt: 'v2' });
+    await expect(persistPendingWorkoutWeekSnapshot(pending, 'week', save))
+      .rejects.toMatchObject({ code: 'P2024' });
+    expect(pending.week).toBe(draft);
+    expect(pending.week.baseTemplateUpdatedAt).toBe('v1');
+    const result = await persistPendingWorkoutWeekSnapshot(pending, 'week', save);
+    expect(result).toEqual({ status: 'cleared', savedUpdatedAt: 'v2' });
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save.mock.calls[0][0]).toBe(draft);
+    expect(save.mock.calls[1][0]).toBe(draft);
+    expect(Object.hasOwn(pending, 'week')).toBe(false);
+  });
+
   it('serializa escritas de semanas diferentes e avança após falha anterior', async () => {
     let finish!: () => void;
     const firstTask = vi.fn(async () => new Promise<void>((resolve) => { finish = resolve; }));
