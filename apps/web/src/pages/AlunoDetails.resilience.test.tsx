@@ -13,6 +13,7 @@ const assessmentTypeListMock = vi.fn();
 const planListByAlunoMock = vi.fn();
 const getAssessmentPlanMock = vi.fn();
 const listStudentContractsMock = vi.fn();
+const availableContractsMock = vi.fn();
 const getSegmentedSummaryMock = vi.fn();
 const getSegmentedProfileMock = vi.fn();
 const getSegmentedIntakeMock = vi.fn();
@@ -96,7 +97,7 @@ vi.mock('../services/plan.service', () => ({
 
 vi.mock('../services/contract.service', () => ({
   contractService: {
-    listAvailableForStudent: vi.fn().mockResolvedValue([]),
+    listAvailableForStudent: (...args: unknown[]) => availableContractsMock(...args),
   },
 }));
 
@@ -199,6 +200,7 @@ describe('AlunoDetails resiliencia de carregamento', () => {
       activeContract: null,
       contracts: [],
     });
+    availableContractsMock.mockResolvedValue([]);
     getSegmentedSummaryMock.mockResolvedValue(null);
     getSegmentedProfileMock.mockResolvedValue(null);
     getSegmentedIntakeMock.mockResolvedValue(null);
@@ -419,11 +421,13 @@ describe('AlunoDetails resiliencia de carregamento', () => {
     await waitFor(() => expect(getSegmentedFinancialProfileMock).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(listStudentContractsMock).toHaveBeenCalledTimes(2));
     expect(await screen.findByText('Contrato ativo')).toBeInTheDocument();
+    expect(availableContractsMock).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Resumo' }));
     fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Financeiro' }));
     expect(listStudentContractsMock).toHaveBeenCalledTimes(2);
     expect(getSegmentedFinancialProfileMock).toHaveBeenCalledTimes(1);
+    expect(availableContractsMock).toHaveBeenCalledTimes(1);
   });
 
   it('preserva o rascunho do Plano de avaliações sem fazer novo GET ao retornar', async () => {
