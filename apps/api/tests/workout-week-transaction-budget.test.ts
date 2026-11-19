@@ -11,6 +11,7 @@ function dbFixture(released = false) {
   };
   const tx = {
     $queryRaw: jest.fn().mockResolvedValue([]),
+    $executeRaw: jest.fn().mockResolvedValue(1),
     workoutTemplate: {
       findUnique: jest.fn()
         .mockResolvedValueOnce({ released })
@@ -62,6 +63,7 @@ describe('#551 - orçamento transacional específico do salvamento semanal', () 
       timeout: 30_000,
     }));
     expect(tx.workoutDay.upsert).toHaveBeenCalledTimes(2);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
     expect(tx.workoutDay.upsert).toHaveBeenNthCalledWith(1, expect.objectContaining({
       where: { templateId_dayOfWeek: { templateId: 'template-1', dayOfWeek: 1 } },
     }));
