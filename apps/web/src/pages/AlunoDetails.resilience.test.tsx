@@ -430,6 +430,57 @@ describe('AlunoDetails resiliencia de carregamento', () => {
     expect(availableContractsMock).toHaveBeenCalledTimes(1);
   });
 
+
+  it('na falha do Financeiro não afirma ausência de contrato e permite retry local', async () => {
+    listStudentContractsMock
+      .mockResolvedValueOnce({ alunoId: 'aluno-1', activeContract: null, contracts: [] })
+      .mockRejectedValueOnce(new Error('falha transitória'))
+      .mockResolvedValueOnce({ alunoId: 'aluno-1', activeContract: null, contracts: [] });
+
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+    await waitFor(() => expect(listStudentContractsMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Financeiro' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Os dados contratuais ainda não foram confirmados.');
+    expect(screen.queryByText('Sem contrato ativo')).not.toBeInTheDocument();
+    expect(screen.queryByText('Contrato ativo')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    await waitFor(() => expect(listStudentContractsMock).toHaveBeenCalledTimes(3));
+    expect(await screen.findByText('Contrato ativo')).toBeInTheDocument();
+    expect(screen.getByText('Sem contrato ativo')).toBeInTheDocument();
+    expect(getByIdMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('recupera separadamente a consulta de contratos disponíveis', async () => {
+    availableContractsMock
+      .mockRejectedValueOnce(new Error('Serviço de contratos temporariamente indisponível'))
+      .mockResolvedValueOnce([]);
+
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Financeiro' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Não foi possível consultar os contratos disponíveis.'
+    );
+    expect(availableContractsMock).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar consultar contratos disponíveis' }));
+    await waitFor(() => expect(availableContractsMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+    expect(listStudentContractsMock).toHaveBeenCalledTimes(2);
+    expect(getByIdMock).toHaveBeenCalledTimes(1);
+  });
+
   it('preserva o rascunho do Plano de avaliações sem fazer novo GET ao retornar', async () => {
     getAssessmentPlanMock.mockResolvedValue({
       items: [{
@@ -502,6 +553,7 @@ describe('AlunoDetails resiliencia de carregamento', () => {
     expect(screen.queryByRole('button', { name: 'Mostrar aba Plano' })).not.toBeInTheDocument();
     expect(getSegmentedFinancialProfileMock).not.toHaveBeenCalled();
     expect(getAssessmentPlanMock).not.toHaveBeenCalled();
+    expect(availableContractsMock).not.toHaveBeenCalled();
   });
 
 });

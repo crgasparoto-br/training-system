@@ -34,8 +34,10 @@ o carregamento do Resumo e o de cada aba possuem estados independentes.
   solicitam seus dados na primeira abertura autorizada. Financeiro e Plano de avaliacoes
   permanecem montados (mas ocultos) apos a primeira abertura para conservar rascunhos
   e evitar novas leituras ao voltar; sao desmontados quando a permissao ou o aluno muda.
-  No Financeiro, o componente da aba e o unico responsavel por listar contratos;
-  no Plano de avaliacoes, a propria aba consulta seu planejamento. As consultas
+  No Financeiro, o componente da aba e o unico responsavel por listar contratos,
+  evita falso `Sem contrato ativo` apos falha dessa leitura, e oferece retry
+  independente para historico/contrato ativo e contratos disponiveis.
+  No Plano de avaliacoes, a propria aba consulta seu planejamento. As consultas
   independentes do Resumo nao ficam bloqueadas pelas abas nao visitadas.
 - A aba Auditoria mantem sua propria leitura sob demanda, revalidacao por foco,
   paginacao e controle de geracoes. Ela nao participa da consulta inicial.
