@@ -129,7 +129,7 @@ describe('#551 - coalescência e revisão de rascunhos semanais', () => {
     expect(save).toHaveBeenCalledTimes(2);
     expect(save.mock.calls[0][0]).toBe(draft);
     expect(save.mock.calls[1][0]).toBe(draft);
-    expect(Object.hasOwn(pending, 'week')).toBe(false);
+    expect('week' in pending).toBe(false);
   });
 
   it('serializa escritas de semanas diferentes e avança após falha anterior', async () => {
