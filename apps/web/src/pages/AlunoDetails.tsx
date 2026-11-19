@@ -629,26 +629,32 @@ export function AlunoDetails() {
 
   // O commit de dados de avaliacao exige a mesma identidade/geracao da mutacao.
   // A chamada mais nova prevalece mesmo se uma resposta anterior chegar por ultimo.
-  const refreshAssessmentData = async (alunoId: string, loadRequest: number): Promise<boolean> => {
+  const refreshAssessmentData = async (
+    alunoId: string,
+    loadRequest: number,
+    refreshAssessmentPlan = true
+  ): Promise<boolean> => {
     if (!isCurrentAlunoRequest(alunoId, loadRequest)) return false;
     const refreshRequest = ++assessmentRefreshRequestRef.current;
     const [assessmentsData, summaryData, assessmentPlanData] = await Promise.all([
       assessmentService.listByAluno(alunoId),
       assessmentService.getSummary(alunoId),
-      canUseAssessmentPlanForMutations
+      refreshAssessmentPlan && canUseAssessmentPlanForMutations
         ? (alunoService.getAssessmentPlan(alunoId) as Promise<AlunoAssessmentPlanSnapshot>)
-        : Promise.resolve({ items: [] as AlunoAssessmentPlanSnapshot['items'] }),
+        : Promise.resolve(null),
     ]);
 
     if (!isCurrentAlunoRequest(alunoId, loadRequest) ||
         refreshRequest !== assessmentRefreshRequestRef.current) return false;
     setAssessments(assessmentsData);
     setAssessmentSummary(summaryData);
-    setAssessmentPlanActiveTypeIds(
-      assessmentPlanData.items
-        .filter((item) => item.isActive)
-        .map((item) => item.assessmentTypeId)
-    );
+    if (refreshAssessmentPlan) {
+      setAssessmentPlanActiveTypeIds(
+        assessmentPlanData?.items
+          .filter((item) => item.isActive)
+          .map((item) => item.assessmentTypeId) ?? []
+      );
+    }
     return true;
   };
 
@@ -1434,7 +1440,7 @@ export function AlunoDetails() {
         variables: payload,
       });
       if (!isCurrentAlunoRequest(studentId, studentRequest) ||
-          !await refreshAssessmentData(studentId, studentRequest)) return;
+          !await refreshAssessmentData(studentId, studentRequest, false)) return;
       setHistoryEditOpen(false);
       showToast(alunoDetailsCopy.updateHistorySuccess, 'success');
     } catch (error: any) {

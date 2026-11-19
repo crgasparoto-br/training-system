@@ -57,7 +57,9 @@ o carregamento do Resumo e o de cada aba possuem estados independentes.
   perdem para o refresh mais recente. Ao trocar aluno, rascunhos, modais e
   mensagens transitorias do contexto anterior sao invalidados, incluindo
   previsualizacao e senha temporaria. Respostas tardias de arquivo, logs e
-  redefinicao de senha nao podem repovoar o novo contexto.
+  redefinicao de senha nao podem repovoar o novo contexto. A edicao de dados
+  historicos revalida somente avaliacoes e resumo, sem requisitar o plano
+  avaliativo quando esse dominio nao foi alterado.
 - Falhas das leituras complementares mantem o cabecalho disponivel e exibem
   retry local; respostas tardias de aluno anterior sao descartadas por identidade
   e geracao. O Plano de avaliacoes nao confunde erro de leitura com ausencia
