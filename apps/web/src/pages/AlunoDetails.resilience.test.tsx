@@ -839,7 +839,7 @@ describe('AlunoDetails resiliencia de carregamento', () => {
 
   it('nao solicita contratos quando a tela financeira e as permissoes de contrato estao negadas', async () => {
     vi.mocked(canAccessScreen).mockImplementation((_user, key) =>
-      !['students.contracts.view', 'students.contracts.manage', 'students.contracts.cancel', 'students.contracts.renew'].includes(key)
+      !['students.contracts.view', 'students.contracts.manage', 'students.contracts.cancel', 'students.contracts.renew'].includes(key ?? '')
     );
     vi.mocked(canAccessBlock).mockImplementation((_user, key) =>
       key !== 'students.details.financialContract'
