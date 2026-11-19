@@ -72,6 +72,28 @@ describe('SettingsCollaboratorFunctions', () => {
     expect(screen.getByText('Cobertura de acesso')).toBeInTheDocument();
   });
 
+  it('mantem filtro segmentado suave e foco acessivel ao alternar selecao', async () => {
+    const user = userEvent.setup();
+    render(<SettingsCollaboratorFunctions />);
+    await user.click(await screen.findByRole('button', { name: 'Abrir função: Professor' }));
+    await user.click(screen.getByRole('tab', { name: 'Acessos' }));
+
+    const filters = screen.getByRole('group', { name: 'Filtro de permissões' });
+    const buttons = Array.from(filters.querySelectorAll('button'));
+    expect(buttons).toHaveLength(3);
+    const first = buttons[0];
+    expect(first).toHaveAttribute('aria-pressed', 'true');
+    expect(first).toHaveClass('bg-primary/10', 'text-foreground', 'focus-visible:ring-2');
+    expect(first).not.toHaveClass('bg-primary', 'text-primary-foreground');
+
+    await user.click(buttons[1]);
+    expect(buttons[1]).toHaveAttribute('aria-pressed', 'true');
+    expect(buttons[1]).toHaveClass('bg-primary/10', 'text-foreground');
+    expect(first).toHaveAttribute('aria-pressed', 'false');
+    await user.tab();
+    expect(document.activeElement).toBe(buttons[2]);
+  });
+
   it('mostra permissoes agrupadas e busca por permissao funciona', async () => {
     const user = userEvent.setup();
     render(<SettingsCollaboratorFunctions />);

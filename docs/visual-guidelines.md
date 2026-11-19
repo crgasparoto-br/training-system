@@ -70,6 +70,14 @@ Referência canônica: `apps/web/src/components/alunos/AlunoDetailsTabs.tsx` (ba
 - **Critérios visuais de aceite:** validar mudanças em `390x844`, `1366x768`, `1440x900` e `1920x1080`, incluindo conteúdo longo, hover, foco por teclado, estados selecionado/desabilitado, menus, formulários e diálogos pertinentes.
 - **Auditoria:** por critério, registrar rota, estado, SHA, viewport, ação e evidência verificável. Teste estático e CI verde não substituem inspeção visual no navegador quando exigida. Não marcar checkbox de aceite apenas por declaração textual.
 
+## Evidência visual da issue #553 — largura e navegação
+
+A CI CRITICAL executa `apps/web/src/pages/issue-553-visual-browser.test.js` com Chromium real e fixtures de API isoladas, autenticando um professor sintético e mantendo o pré-cadastro como rota pública. O teste coleta as quatro resoluções `390x844`, `1366x768`, `1440x900` e `1920x1080` para Biblioteca (incluindo editor), Funções/Permissões, Catálogo (incluindo criação), pré-cadastro, prescrição por capacidades e Workout Builder legado. O componente legado, que não possui rota ativa em `App.tsx`, é montado em uma fixture Vite exclusiva de testes; nenhuma rota pública é acrescentada à aplicação.
+
+O fluxo de Montagem de Treinos 2 é validado na mesma CI pelo harness existente `issue-399-full-page-browser-evidence.test.js`, ampliado também para 1366 e 1920 pixels. As evidências exatas da issue #553 são publicadas em `artifacts/issue-553/visual-matrix.json` com rota, cenário, SHA do commit, dados sintéticos, viewport, ações de teclado, estados de filtro e captura PNG com SHA-256; o Workout Builder 2 publica adicionalmente `artifacts/issue-399/full-page-browser.json` e as respectivas capturas.
+
+A prova usa UI real do frontend no Vite e simula respostas na fronteira HTTP, portanto **não** comprova integração com a API real nem substitui homologação humana de aparência, contraste e operações persistidas. Falha de renderização, overflow horizontal do documento, navegação, filtros ou erro de JavaScript reprova o teste. É obrigatório conferir o artefato no HEAD da PR antes de marcar AC-04/AC-05.
+
 ## Validação permanente — parâmetros de treino
 
 A rota `/settings/parameters` possui um validador permanente em navegador real: `apps/api/scripts/visual-audit-settings-parameters.mjs`. No workflow `.github/workflows/validate-pr.yml`, esse harness roda somente no perfil `CRITICAL`, depois do build e com o Chrome instalado via Puppeteer. Screenshots, árvore de acessibilidade, diagnósticos, `visual-metrics.json` e a evidência exact-head `orquestrador-artifact.json` são publicados juntos no artefato `validate-pr-critical-${head_sha}`; os arquivos visuais ficam sob `artifacts/settings-parameters-visual/**` dentro desse artefato.

@@ -47,3 +47,31 @@ test('harness de navegador cobre quatro viewports e detecta shell limitado', () 
   }
   assert.match(harness, /dashboardShellWidth < diagnostics\.viewportWidth - 64/);
 });
+
+test('issue #553 registra rotas reais, estados, SHA, teclado e quatro viewports no navegador', () => {
+  const harness = read('apps/web/src/pages/issue-553-visual-browser.test.js');
+  const workflow = read('.github/workflows/validate-pr.yml');
+  for (const route of [
+    '/library', '/settings/collaborator-functions', '/settings/services',
+    '/pre-cadastro/visual-invite-553', '/protocolo-avaliacao-fisica/prescricao-capacidades',
+    '/__issue-553-legacy.html',
+  ]) assert.ok(harness.includes(route), route);
+  for (const width of [390, 1366, 1440, 1920]) {
+    assert.match(harness, new RegExp(`width: ${width}, height: (844|768|900|1080)`));
+  }
+  assert.match(harness, /documentScrollWidth > dimensions\.viewportWidth \+ 1/);
+  assert.match(harness, /ArrowRight.*End.*Home/s);
+  assert.match(harness, /screenshotSha256/);
+  assert.match(harness, /sha: subjectSha/);
+  assert.match(harness, /inspectFilter\(page\)/);
+  assert.match(workflow, /ISSUE_553_BROWSER_EVIDENCE: '1'/);
+  assert.match(workflow, /artifacts\/issue-553\/\*\*/);
+});
+
+test('filtro de permissoes usa tom suave e foco explicito, nunca fundo solido', () => {
+  const editor = read('apps/web/src/pages/Settings/CollaboratorFunctions.tsx');
+  assert.match(editor, /aria-label="Filtro de permissões"/);
+  assert.match(editor, /permFilter === filter \? 'bg-primary\/10 text-foreground/);
+  assert.doesNotMatch(editor, /permFilter === filter \? 'bg-primary text-primary-foreground/);
+  assert.match(editor, /focus-visible:ring-2/);
+});

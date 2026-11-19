@@ -364,6 +364,11 @@ jobs:
           ISSUE_399_BROWSER_EVIDENCE: '1'
           VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: pnpm --filter @corrida/web exec vitest run --no-file-parallelism src/pages/WorkoutBuilder2/issue-399-full-page-browser-evidence.test.js
+      - name: Issue #553 layout, tabs and permission filter browser matrix
+        env:
+          ISSUE_553_BROWSER_EVIDENCE: '1'
+          VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: pnpm --filter @corrida/web exec vitest run --no-file-parallelism src/pages/issue-553-visual-browser.test.js
       - name: Issue #399 real API browser evidence
         env:
           ISSUE_399_REAL_API_BROWSER_EVIDENCE: '1'
@@ -461,6 +466,7 @@ jobs:
             artifacts/issue-391/**
             artifacts/issue-394/**
             artifacts/issue-399/**
+            artifacts/issue-553/**
             artifacts/issue-400/**
             artifacts/issue-401/**
             artifacts/issue-404/**

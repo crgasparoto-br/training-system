@@ -564,8 +564,18 @@ export default function SettingsCollaboratorFunctions() {
                       <div className="cf-access-toolbar sticky top-0 z-10 space-y-3 rounded-xl border border-border bg-background/95 p-4 shadow-sm backdrop-blur">
                         <div className="flex flex-wrap gap-3">
                           <div className="relative min-w-56 flex-1"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" /><input type="search" placeholder={copy.searchPermissions} value={permSearch} onChange={(event) => setPermSearch(event.target.value)} className="h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-                          <div className="inline-flex overflow-hidden rounded-lg border border-border" aria-label="Filtro de permissões">
-                            {(['all', 'enabled', 'disabled'] as PermissionFilter[]).map((filter) => <button key={filter} type="button" aria-pressed={permFilter === filter} onClick={() => setPermFilter(filter)} className={`min-h-10 px-3 text-xs font-medium transition-colors ${permFilter === filter ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-accent'}`}>{filter === 'all' ? copy.filterAll : filter === 'enabled' ? copy.filterEnabled : copy.filterDisabled}</button>)}
+                          <div className="inline-flex overflow-hidden rounded-lg border border-border" role="group" aria-label="Filtro de permissões">
+                            {(['all', 'enabled', 'disabled'] as PermissionFilter[]).map((filter) => (
+                              <button
+                                key={filter}
+                                type="button"
+                                aria-pressed={permFilter === filter}
+                                onClick={() => setPermFilter(filter)}
+                                className={`min-h-10 px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${permFilter === filter ? 'bg-primary/10 text-foreground hover:bg-primary/10' : 'bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground'}`}
+                              >
+                                {filter === 'all' ? copy.filterAll : filter === 'enabled' ? copy.filterEnabled : copy.filterDisabled}
+                              </button>
+                            ))}
                           </div>
                           <details className="cf-bulk-actions relative"><summary className="inline-flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-lg border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm hover:bg-accent"><MoreHorizontal size={16} aria-hidden="true" />{layoutCopy.groupActions}</summary><div className="absolute right-0 z-20 mt-2 w-52 rounded-lg border border-border bg-popover p-1 shadow-lg"><button type="button" onClick={selectAllPermissions} className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-accent">{copy.selectAll}</button><button type="button" onClick={clearAllPermissions} className="w-full rounded-md px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10">{copy.clearAll}</button></div></details>
                         </div>

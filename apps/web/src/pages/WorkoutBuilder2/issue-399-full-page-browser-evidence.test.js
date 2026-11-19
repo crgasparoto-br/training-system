@@ -293,6 +293,8 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
       };
       const viewports = [
         { width: 1440, height: 900 },
+        { width: 1920, height: 1080 },
+        { width: 1366, height: 768 },
         { width: 768, height: 1024 },
         { width: 390, height: 844, isMobile: true, hasTouch: true },
       ];
