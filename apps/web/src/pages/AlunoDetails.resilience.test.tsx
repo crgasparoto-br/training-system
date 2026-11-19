@@ -199,10 +199,6 @@ vi.mock('../components/alunos/AlunoHistoricoTab', () => ({
 vi.mock('../components/alunos/AlunoIntegracoesTab', () => ({
   AlunoIntegracoesTab: () => null,
 }));
-vi.mock('../components/alunos/AlunoRevisoesCadastraisTab', () => ({
-  AlunoRevisoesCadastraisTab: () => null,
-}));
-
 import { AlunoDetails } from './AlunoDetails';
 
 describe('AlunoDetails resiliencia de carregamento', () => {
