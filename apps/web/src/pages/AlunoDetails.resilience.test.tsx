@@ -818,6 +818,7 @@ describe('AlunoDetails resiliencia de carregamento', () => {
   });
 
   it('nao publica senha temporaria de outro aluno apos resposta atrasada', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     let resolvePassword: ((value: {tempPassword: string}) => void) | undefined;
     resetPasswordMock.mockImplementationOnce(() =>
       new Promise((resolve) => { resolvePassword = resolve; })
