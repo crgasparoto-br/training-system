@@ -86,6 +86,8 @@ export function AlunoFinanceiroTab({
 }: AlunoFinanceiroTabProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [availableContractsError, setAvailableContractsError] = useState<string | null>(null);
+  const [availableContractsLoading, setAvailableContractsLoading] = useState(canManageContracts);
   const [contracts, setContracts] = useState<StudentContractLink[]>([]);
   const [currentContract, setCurrentContract] = useState<StudentContractLink | null>(activeStudentContract ?? null);
   const [availableContracts, setAvailableContracts] = useState<AvailableStudentContract[]>([]);
@@ -139,8 +141,6 @@ export function AlunoFinanceiroTab({
     } catch (loadError: any) {
       console.error('Erro ao carregar contratos do aluno:', loadError);
       setError(loadError?.response?.data?.error || 'Erro ao carregar contratos do aluno');
-      setContracts([]);
-      setCurrentContract(null);
     } finally {
       setLoading(false);
     }
@@ -148,9 +148,14 @@ export function AlunoFinanceiroTab({
 
   const loadAvailableContracts = async () => {
     if (!canManageContracts) {
+      setAvailableContracts([]);
+      setAvailableContractsError(null);
+      setAvailableContractsLoading(false);
       return;
     }
 
+    setAvailableContractsLoading(true);
+    setAvailableContractsError(null);
     try {
       const response = await contractService.listAvailableForStudent({
         alunoId,
@@ -162,13 +167,16 @@ export function AlunoFinanceiroTab({
       setRenewContractId((current) => current || response[0]?.id || '');
     } catch (availableError: any) {
       console.error('Erro ao carregar contratos disponíveis:', availableError);
+      setAvailableContractsError('Não foi possível consultar os contratos disponíveis.');
       setAvailableContracts([]);
+    } finally {
+      setAvailableContractsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadContracts();
-  }, [alunoId, activeStudentContract?.id]);
+    void loadContracts();
+  }, [alunoId]);
 
   useEffect(() => {
     loadAvailableContracts();
@@ -381,8 +389,11 @@ export function AlunoFinanceiroTab({
         )}
 
         {error && (
-          <div className="rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-            {error}
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            <span>{error} Os dados contratuais ainda não foram confirmados.</span>
+            <Button type="button" variant="outline" onClick={() => void loadContracts()}>
+              Tentar novamente
+            </Button>
           </div>
         )}
 
@@ -390,7 +401,7 @@ export function AlunoFinanceiroTab({
           <div className="rounded-lg border border-gray-200 px-4 py-6 text-sm text-muted-foreground">
             Carregando contratos do aluno...
           </div>
-        ) : (
+        ) : error ? null : (
           <>
             <div className="rounded-lg border border-gray-200 p-4">
               <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -570,6 +581,19 @@ export function AlunoFinanceiroTab({
 
             <div className="rounded-lg border border-gray-200 p-4">
               <h3 className="mb-3 text-base font-semibold text-gray-900">Área de ações</h3>
+              {canManageContracts && availableContractsLoading && (
+                <p role="status" className="mb-3 text-sm text-muted-foreground">
+                  Consultando contratos disponíveis...
+                </p>
+              )}
+              {canManageContracts && availableContractsError && (
+                <div role="alert" className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                  <span>{availableContractsError}</span>
+                  <Button type="button" variant="outline" onClick={() => void loadAvailableContracts()}>
+                    Tentar consultar contratos disponíveis
+                  </Button>
+                </div>
+              )}
               {!canManageContracts && !canCancelContracts && !canRenewContracts ? (
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-muted-foreground">
                   Você possui permissão de visualização. As ações de vínculo e gestão contratual exigem perfil financeiro/gestão.

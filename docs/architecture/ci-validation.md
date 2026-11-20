@@ -17,6 +17,7 @@ The `Validate PR` workflow uses deterministic risk classification to keep small 
 - `docs/audit/` is a sensitive trust-boundary root: audit contracts and their guidance always require `CRITICAL`, even though ordinary `docs/` remains FAST. A candidate cannot use its own contract to waive prior handoff requirements.
 - `FAST` is an explicit allowlist, not an extension-based default. Static/image/style extensions only inherit `FAST` when the path is already inside a trusted web/documentation root; an unknown `.svg`, `.png`, `.css` or similar path remains `CRITICAL`.
 - Known frontend authentication/access/session entrypoints are checked before the general web allowlists. Sensitive filenames such as route guards, login/sign-in pages and auth/session stores remain `CRITICAL` even when they live under `components`, `pages` or `stores`.
+- Backend route guards (including hyphenated or underscored `route-guard`/`route-guards` names) enforce tenant authorization and must also be `CRITICAL`, even if generic API modules would otherwise be `STANDARD`.
 - `CI_RISK_PROFILE` may promote a PR to a higher level but never downgrades observed risk.
 - Pull requests validate merge-preview compatibility separately from the exact PR head.
 - Push events covered by the workflow always execute `CRITICAL` validation.
@@ -31,6 +32,8 @@ For `FAST` web changes, changed test files are executed directly and Vitest `rel
 ## Full regression safety net
 
 The complete database/browser/migration suite is not deleted. It remains mandatory for `CRITICAL` pull requests and for pushes covered by the workflow, so interactions that are not justified on every small PR are still exercised before promotion through the main development flow.
+
+After the CRITICAL database, browser and dedicated build gates, the job executes the literal `pnpm validate` command at the exact checkout SHA (including `audit:source-proofs`). This repeats some checks intentionally: a green `STANDARD` job or separate successful steps cannot be treated as evidence that the required aggregate command ran. Preserve the `Validate repository` check name.
 
 ## Repository ownership and rollback
 

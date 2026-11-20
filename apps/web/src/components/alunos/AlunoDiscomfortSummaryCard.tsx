@@ -33,16 +33,21 @@ export function AlunoDiscomfortSummaryCard({ alunoId }: AlunoDiscomfortSummaryCa
   const [cases, setCases] = useState<ProntuarioPainCase[]>([]);
   const [loading, setLoading] = useState(canViewDiscomfortSummary);
   const [error, setError] = useState<string | null>(null);
+  const [confirmedAlunoId, setConfirmedAlunoId] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     if (!canViewDiscomfortSummary) {
       setCases([]);
+      setConfirmedAlunoId(null);
       setLoading(false);
       setError(null);
       return;
     }
 
     let active = true;
+    setCases([]);
+    setConfirmedAlunoId(null);
     setLoading(true);
     setError(null);
 
@@ -52,6 +57,7 @@ export function AlunoDiscomfortSummaryCard({ alunoId }: AlunoDiscomfortSummaryCa
         if (!active) return;
         const record = overview.currentRecord ?? overview.records[0] ?? null;
         setCases(record?.painCases || []);
+        setConfirmedAlunoId(alunoId);
       })
       .catch(() => {
         if (!active) return;
@@ -64,7 +70,7 @@ export function AlunoDiscomfortSummaryCard({ alunoId }: AlunoDiscomfortSummaryCa
     return () => {
       active = false;
     };
-  }, [alunoId, canViewDiscomfortSummary]);
+  }, [alunoId, canViewDiscomfortSummary, retryKey]);
 
   const activeCases = useMemo(() => cases.filter(isActiveCase), [cases]);
   const latestFollowUp = useMemo(() => latestFollowUpFrom(cases), [cases]);
@@ -78,13 +84,16 @@ export function AlunoDiscomfortSummaryCard({ alunoId }: AlunoDiscomfortSummaryCa
     [activeCases]
   );
 
+  const isPending = loading || (!error && confirmedAlunoId !== alunoId);
+  const hasConfirmedData = !isPending && !error && confirmedAlunoId === alunoId;
+
   if (!canViewDiscomfortSummary) return null;
 
   const prontuarioPath =
     `/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento?alunoId=${alunoId}`;
 
   return (
-    <Card className={activeCases.length > 0 ? 'border-amber-300' : undefined}>
+    <Card className={hasConfirmedData && activeCases.length > 0 ? 'border-amber-300' : undefined}>
       <CardHeader>
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
@@ -95,19 +104,24 @@ export function AlunoDiscomfortSummaryCard({ alunoId }: AlunoDiscomfortSummaryCa
           </div>
           <span
             className={`w-fit rounded-full border px-3 py-1 text-xs font-medium ${
-              activeCases.length > 0
+              hasConfirmedData && activeCases.length > 0
                 ? 'border-amber-300 bg-amber-100 text-amber-800'
-                : 'border-emerald-200 bg-emerald-100 text-emerald-700'
+                : hasConfirmedData
+                  ? 'border-emerald-200 bg-emerald-100 text-emerald-700'
+                  : 'border-border bg-muted text-muted-foreground'
             }`}
           >
-            {loading ? 'Carregando' : `${activeCases.length} ativo(s)`}
+            {isPending ? 'Carregando' : hasConfirmedData ? `${activeCases.length} ativo(s)` : 'Indisponível'}
           </span>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {error} A Central continua disponível; tente abrir o PRNT novamente.
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <p>{error} A Central continua disponível.</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => setRetryKey((value) => value + 1)}>
+              Tentar novamente
+            </Button>
           </div>
         ) : null}
 
@@ -117,7 +131,7 @@ export function AlunoDiscomfortSummaryCard({ alunoId }: AlunoDiscomfortSummaryCa
               Casos ativos
             </div>
             <div className="mt-1 text-lg font-semibold text-foreground">
-              {loading ? '—' : activeCases.length}
+              {hasConfirmedData ? activeCases.length : '—'}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               Casos ativos ou em acompanhamento no prontuário.
@@ -129,33 +143,45 @@ export function AlunoDiscomfortSummaryCard({ alunoId }: AlunoDiscomfortSummaryCa
               Último acompanhamento
             </div>
             <div className="mt-1 text-sm font-semibold text-foreground">
-              {latestFollowUp ? formatDateBR(latestFollowUp.followUpAt) : 'Não registrado'}
+              {hasConfirmedData
+                ? latestFollowUp ? formatDateBR(latestFollowUp.followUpAt) : 'Não registrado'
+                : '—'}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {latestFollowUp?.intensity != null
+              {hasConfirmedData && latestFollowUp?.intensity != null
                 ? `Intensidade informada: ${latestFollowUp.intensity}/10.`
-                : 'Registre a evolução para manter a conduta rastreável.'}
+                : hasConfirmedData
+                  ? 'Registre a evolução para manter a conduta rastreável.'
+                  : 'Informação pendente de confirmação.'}
             </p>
           </div>
 
           <div
             className={`rounded-lg border p-4 ${
-              activeCases.length > 0
+              hasConfirmedData && activeCases.length > 0
                 ? 'border-amber-200 bg-amber-50/60'
-                : 'border-emerald-200 bg-emerald-50/50'
+                : hasConfirmedData
+                  ? 'border-emerald-200 bg-emerald-50/50'
+                  : 'border-border bg-muted/20'
             }`}
           >
             <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {activeCases.length > 0 ? <AlertTriangle size={14} /> : <Activity size={14} />}
+              {hasConfirmedData && activeCases.length > 0 ? <AlertTriangle size={14} /> : <Activity size={14} />}
               Situação técnica
             </div>
             <div className="mt-1 text-sm font-semibold text-foreground">
-              {activeCases.length > 0 ? 'Revisar antes da próxima conduta' : 'Sem desconforto ativo'}
+              {hasConfirmedData
+                ? activeCases.length > 0 ? 'Revisar antes da próxima conduta' : 'Sem desconforto ativo'
+                : isPending ? 'Carregando dados...' : 'Informação indisponível'}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {latestActiveCase
-                ? `${latestActiveCase.title}${latestActiveCase.region ? ` • ${latestActiveCase.region}` : ''}`
-                : 'Nenhum caso ativo foi encontrado no PRNT carregado.'}
+              {hasConfirmedData
+                ? latestActiveCase
+                  ? `${latestActiveCase.title}${latestActiveCase.region ? ` • ${latestActiveCase.region}` : ''}`
+                  : 'Nenhum caso ativo foi encontrado no PRNT carregado.'
+                : isPending
+                  ? 'Aguardando a consulta ao prontuário.'
+                  : 'Tente novamente para confirmar os dados.'}
             </p>
           </div>
         </div>
@@ -163,7 +189,9 @@ export function AlunoDiscomfortSummaryCard({ alunoId }: AlunoDiscomfortSummaryCa
         <div className="flex flex-col gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-semibold text-foreground">
-              {activeCases.length > 0 ? 'Acompanhar ou encerrar desconforto' : 'Registrar novo desconforto'}
+              {hasConfirmedData
+                ? activeCases.length > 0 ? 'Acompanhar ou encerrar desconforto' : 'Registrar novo desconforto'
+                : 'Consultar desconfortos'}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               O PRNT preserva aluno, histórico, datas e acompanhamentos vinculados ao caso.

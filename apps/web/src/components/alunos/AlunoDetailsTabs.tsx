@@ -1,8 +1,6 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
 import { Check, ChevronDown } from 'lucide-react';
 import type { AccessBlockKey } from '@corrida/types';
-import { AlunoAdipometryEvolutionTabSection } from './AlunoAdipometryEvolutionTabSection';
 
 type AlunoDetailsTab =
   | 'resumo'
@@ -135,7 +133,6 @@ export function getTabBlockKey(tab: AlunoDetailsTab): AccessBlockKey | undefined
 }
 
 export function AlunoDetailsTabs({ activeTab, onChange, visibleTabs }: AlunoDetailsTabsProps) {
-  const { id: alunoId } = useParams<{ id: string }>();
   const [openGroupId, setOpenGroupId] = useState<AlunoDetailsTabGroup | null>(null);
   const tabsToRender = visibleTabs
     ? tabs.filter((tab) => visibleTabs.includes(tab.id))
@@ -157,8 +154,7 @@ export function AlunoDetailsTabs({ activeTab, onChange, visibleTabs }: AlunoDeta
   }
 
   return (
-    <>
-      <nav
+    <nav
         id="aluno-details-tabs"
         aria-label="Menu da consulta do aluno"
         className="relative z-20 rounded-lg border border-border bg-card shadow-[var(--shadow-soft)]"
@@ -241,14 +237,7 @@ export function AlunoDetailsTabs({ activeTab, onChange, visibleTabs }: AlunoDeta
             );
           })}
         </div>
-      </nav>
-
-      {activeTab === 'avaliacoes-fisicas' && alunoId && (
-        <div className="mt-6">
-          <AlunoAdipometryEvolutionTabSection alunoId={alunoId} />
-        </div>
-      )}
-    </>
+    </nav>
   );
 }
 

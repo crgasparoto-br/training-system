@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AlunoDiscomfortSummaryCard } from './AlunoDiscomfortSummaryCard';
@@ -160,6 +160,52 @@ describe('AlunoDiscomfortSummaryCard', () => {
 
     expect(container).toBeEmptyDOMElement();
     expect(overviewMock).not.toHaveBeenCalled();
+  });
+
+
+  it('nao informa ausencia de desconfortos enquanto a leitura esta pendente', async () => {
+    type Overview = Awaited<ReturnType<typeof prontuarioService.overview>>;
+    let resolveOverview: ((value: Overview) => void) | undefined;
+    overviewMock.mockImplementationOnce(
+      () => new Promise<Overview>((resolve) => { resolveOverview = resolve; })
+    );
+
+    renderCard();
+    expect(screen.getByText('Carregando dados...')).toBeInTheDocument();
+    expect(screen.queryByText('Sem desconforto ativo')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nenhum caso ativo foi encontrado/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Registrar novo desconforto')).not.toBeInTheDocument();
+
+    resolveOverview?.({
+      records: [],
+      currentRecord: null,
+      latestParqSubmission: null,
+      parqSubmissions: [],
+      parqState: 'NOT_STARTED',
+      parqLegacy: { preserved: false, needsRepeat: false },
+    });
+    expect(await screen.findByText('Sem desconforto ativo')).toBeInTheDocument();
+  });
+
+  it('recupera erro sem exibir falso estado vazio e permite tentar novamente', async () => {
+    overviewMock
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce({
+        records: [],
+        currentRecord: null,
+        latestParqSubmission: null,
+        parqSubmissions: [],
+        parqState: 'NOT_STARTED',
+        parqLegacy: { preserved: false, needsRepeat: false },
+      });
+
+    renderCard();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar');
+    expect(screen.queryByText('Sem desconforto ativo')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nenhum caso ativo foi encontrado/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    await waitFor(() => expect(overviewMock).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('Sem desconforto ativo')).toBeInTheDocument();
   });
 
   it('isola erro do prontuario sem quebrar a Central', async () => {

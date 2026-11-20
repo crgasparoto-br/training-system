@@ -24,6 +24,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/Accordion';
 import { ProfessorManualContextPanel } from '../components/ProfessorManualContextPanel';
 import { AlunoDetailsTabs, getTabBlockKey, type AlunoDetailsTab } from '../components/alunos/AlunoDetailsTabs';
+import { AlunoAdipometryEvolutionTabSection } from '../components/alunos/AlunoAdipometryEvolutionTabSection';
 import { AlunoResumoHubTab } from '../components/alunos/AlunoResumoHubTab';
 import { AlunoTrainingTab } from '../components/alunos/AlunoTrainingTab';
 import { AlunoCadastroTab } from '../components/alunos/AlunoCadastroTab';
@@ -59,6 +60,16 @@ type AlunoAssessmentPlanSnapshot = {
 };
 
 type AlunoLoadErrorKind = 'transient' | 'application' | null;
+
+const STUDENT_DETAIL_DEFERRED_TABS: AlunoDetailsTab[] = [
+  'resumo',
+  'cadastro',
+  'saude-anamnese',
+  'financeiro',
+  'plano-avaliacoes',
+  'avaliacoes-fisicas',
+  'integracoes',
+];
 
 type AlunoDetailsFormResponses = {
   identification?: {
@@ -276,8 +287,13 @@ export function AlunoDetails() {
   const [timelineLoadingMore, setTimelineLoadingMore] = useState(false);
   const timelineGenerationRef = useRef(0);
   const alunoLoadRequestRef = useRef(0);
+  const assessmentRefreshRequestRef = useRef(0);
+  const assessmentLogsRequestRef = useRef(0);
+  const studentContextIdRef = useRef(id);
+  const loadingTabsRef = useRef<Set<AlunoDetailsTab>>(new Set());
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadErrorKind, setLoadErrorKind] = useState<AlunoLoadErrorKind>(null);
+  const [tabErrors, setTabErrors] = useState<Partial<Record<AlunoDetailsTab, string>>>({});
   const [loading, setLoading] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
   const [tempPassword, setTempPassword] = useState<string | null>(initialTempPassword);
@@ -301,6 +317,8 @@ export function AlunoDetails() {
   const [previewName, setPreviewName] = useState<string>('');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<AlunoDetailsTab>('resumo');
+  const [loadedTabs, setLoadedTabs] = useState<AlunoDetailsTab[]>([]);
+  const [retainedDirectTabs, setRetainedDirectTabs] = useState<AlunoDetailsTab[]>([]);
   const [editingAssessment, setEditingAssessment] = useState<Assessment | null>(null);
   const [editForm, setEditForm] = useState({
     typeId: '',
@@ -528,99 +546,69 @@ export function AlunoDetails() {
     }
   }, [assessmentForm.typeId]);
 
+  const isCurrentAlunoRequest = (alunoId: string, request: number) =>
+    activeAlunoIdRef.current === alunoId && request === alunoLoadRequestRef.current;
+
   const loadAluno = async (alunoId: string) => {
-    // O mesmo aluno pode ser recarregado mais de uma vez (permissoes, retry).
-    // A geracao protege dados antigos sem bloquear revalidacoes localizadas.
+    // A identidade do request invalida respostas antigas e caches de outro aluno.
     const loadRequest = ++alunoLoadRequestRef.current;
-    const timelineGeneration = ++timelineGenerationRef.current;
+    ++timelineGenerationRef.current;
+    ++assessmentRefreshRequestRef.current;
+    ++assessmentLogsRequestRef.current;
+    if (studentContextIdRef.current !== alunoId) {
+      studentContextIdRef.current = alunoId;
+      setTempPassword(null);
+      setCopied(false);
+      setMessageCopied(false);
+      setIsResetting(false);
+    }
+    loadingTabsRef.current.clear();
+    setLoadedTabs([]);
+    setRetainedDirectTabs([]);
+    setTabErrors({});
+    setTimelineRefreshFailed(false);
     setTimelineLoadingMore(false);
+    setSegmentedSummary(null);
+    setSegmentedProfile(null);
+    setSegmentedIntake(null);
+    setSegmentedFinancialProfile(null);
+    setSegmentedIntegrations(null);
+    setSegmentedActivities(null);
+    setSegmentedTimeline(null);
+    setAssessments([]);
+    setAssessmentSummary([]);
+    setAssessmentTypes([]);
+    setPlans([]);
+    setActiveStudentContract(null);
+    setAssessmentPlanActiveTypeIds([]);
+    setEditingAssessment(null);
+    setEditForm({ typeId: '', assessmentDate: '' });
+    setHistoryEditOpen(false);
+    setHistoryEditSectionTitle('');
+    setHistoryEditAssessmentId('');
+    setHistoryEditValues({});
+    setAuditLogs([]);
+    setLogsLoading(false);
+    setAssessmentForm({ typeId: '', assessmentDate: '', file: null });
+    setAssessmentUploadFeedback(null);
+    setUploadingAssessment(false);
+    setAssessmentGuideActive(false);
+    if (previewUrl) window.URL.revokeObjectURL(previewUrl);
+    setPreviewOpen(false);
+    setPreviewUrl(null);
+    setPreviewName('');
+    setPreviewLoading(false);
+    setToast(null);
     setLoading(true);
     setLoadError(null);
     setLoadErrorKind(null);
-    try {
-      const [
-        data,
-        assessmentsData,
-        summaryData,
-        typesData,
-        plansData,
-        assessmentPlanData,
-        contractsData,
-        segmentedSummaryData,
-        segmentedProfileData,
-        segmentedIntakeData,
-        segmentedFinancialProfileData,
-        segmentedIntegrationsData,
-        segmentedActivitiesData,
-        segmentedTimelineData,
-      ] = await Promise.all([
-        alunoService.getById(alunoId),
-        canViewAssessmentsTab
-          ? assessmentService.listByAluno(alunoId).catch(() => [])
-          : Promise.resolve([]),
-        canViewAssessmentsTab
-          ? assessmentService.getSummary(alunoId).catch(() => [])
-          : Promise.resolve([]),
-        canViewAssessmentsTab || canViewAssessmentPlanTab
-          ? assessmentTypeService.list().catch(() => [])
-          : Promise.resolve([]),
-        canViewTrainingPlansTab
-          ? planService.listByAluno(alunoId).catch(() => ({ plans: [] }))
-          : Promise.resolve({ plans: [] }),
-        canUseAssessmentPlanForMutations
-          ? (alunoService.getAssessmentPlan(alunoId) as Promise<AlunoAssessmentPlanSnapshot>).catch(
-              () => ({ items: [] as AlunoAssessmentPlanSnapshot['items'] })
-            )
-          : Promise.resolve({ items: [] as AlunoAssessmentPlanSnapshot['items'] }),
-        canViewFinancialData
-          ? alunoService
-              .listStudentContracts(alunoId)
-              .catch(() => ({ alunoId, activeContract: null, contracts: [] }))
-          : Promise.resolve({ alunoId, activeContract: null, contracts: [] }),
-        canViewSummaryTab
-          ? alunoService.getSegmentedSummary(alunoId).catch(() => null)
-          : Promise.resolve(null),
-        canViewProfileTab
-          ? alunoService.getSegmentedProfile(alunoId).catch(() => null)
-          : Promise.resolve(null),
-        canViewHealthTab
-          ? alunoService.getSegmentedIntake(alunoId).catch(() => null)
-          : Promise.resolve(null),
-        canViewFinancialContractTab
-          ? alunoService.getSegmentedFinancialProfile(alunoId).catch(() => null)
-          : Promise.resolve(null),
-        canViewIntegrationsTab
-          ? alunoService.getSegmentedIntegrations(alunoId).catch(() => null)
-          : Promise.resolve(null),
-        canViewIntegrationsTab
-          ? alunoService.listSegmentedActivities(alunoId).catch(() => null)
-          : Promise.resolve(null),
-        canViewAuditTab
-          ? alunoService.getSegmentedTimeline(alunoId).catch(() => null)
-          : Promise.resolve(null),
-      ]);
 
+    try {
+      // A ficha pode aparecer assim que a identidade do aluno for confirmada.
+      // Historico, integracoes e demais secoes nao fazem parte desse caminho critico.
+      const data = await alunoService.getById(alunoId);
       if (activeAlunoIdRef.current !== alunoId || loadRequest !== alunoLoadRequestRef.current) return;
       setAluno(data);
-      setSegmentedSummary(segmentedSummaryData);
-      setSegmentedProfile(segmentedProfileData);
-      setSegmentedIntake(segmentedIntakeData);
-      setSegmentedFinancialProfile(segmentedFinancialProfileData);
-      setSegmentedIntegrations(segmentedIntegrationsData);
-      setSegmentedActivities(segmentedActivitiesData);
-      // Uma revalidacao posterior da timeline nunca pode ser revertida pelo carregamento inicial.
-      if (timelineGeneration === timelineGenerationRef.current) setSegmentedTimeline(segmentedTimelineData);
-      setAssessments(assessmentsData);
-      setAssessmentSummary(summaryData);
-      setAssessmentTypes(typesData);
-      setPlans(plansData.plans);
-      setActiveStudentContract(contractsData.activeContract);
-      setAssessmentPlanActiveTypeIds(
-        assessmentPlanData.items
-          .filter((item) => item.isActive)
-          .map((item) => item.assessmentTypeId)
-      );
-
     } catch (error) {
       if (activeAlunoIdRef.current !== alunoId || loadRequest !== alunoLoadRequestRef.current) return;
       console.error('Erro ao carregar aluno:', error);
@@ -632,34 +620,42 @@ export function AlunoDetails() {
       setLoadError(message);
       setLoadErrorKind(isTransientFailure ? 'transient' : 'application');
       setAluno(null);
-      setSegmentedSummary(null);
-      setSegmentedProfile(null);
-      setSegmentedIntake(null);
-      setSegmentedFinancialProfile(null);
-      setSegmentedIntegrations(null);
-      setSegmentedActivities(null);
-      setSegmentedTimeline(null);
     } finally {
-      if (activeAlunoIdRef.current === alunoId && loadRequest === alunoLoadRequestRef.current) setLoading(false);
+      if (activeAlunoIdRef.current === alunoId && loadRequest === alunoLoadRequestRef.current) {
+        setLoading(false);
+      }
     }
   };
 
-  const refreshAssessmentData = async (alunoId: string) => {
+  // O commit de dados de avaliacao exige a mesma identidade/geracao da mutacao.
+  // A chamada mais nova prevalece mesmo se uma resposta anterior chegar por ultimo.
+  const refreshAssessmentData = async (
+    alunoId: string,
+    loadRequest: number,
+    refreshAssessmentPlan = true
+  ): Promise<boolean> => {
+    if (!isCurrentAlunoRequest(alunoId, loadRequest)) return false;
+    const refreshRequest = ++assessmentRefreshRequestRef.current;
     const [assessmentsData, summaryData, assessmentPlanData] = await Promise.all([
       assessmentService.listByAluno(alunoId),
       assessmentService.getSummary(alunoId),
-      canUseAssessmentPlanForMutations
+      refreshAssessmentPlan && canUseAssessmentPlanForMutations
         ? (alunoService.getAssessmentPlan(alunoId) as Promise<AlunoAssessmentPlanSnapshot>)
-        : Promise.resolve({ items: [] as AlunoAssessmentPlanSnapshot['items'] }),
+        : Promise.resolve(null),
     ]);
 
+    if (!isCurrentAlunoRequest(alunoId, loadRequest) ||
+        refreshRequest !== assessmentRefreshRequestRef.current) return false;
     setAssessments(assessmentsData);
     setAssessmentSummary(summaryData);
-    setAssessmentPlanActiveTypeIds(
-      assessmentPlanData.items
-        .filter((item) => item.isActive)
-        .map((item) => item.assessmentTypeId)
-    );
+    if (refreshAssessmentPlan) {
+      setAssessmentPlanActiveTypeIds(
+        assessmentPlanData?.items
+          .filter((item) => item.isActive)
+          .map((item) => item.assessmentTypeId) ?? []
+      );
+    }
+    return true;
   };
 
   const handleDelete = async () => {
@@ -671,11 +667,15 @@ export function AlunoDetails() {
       return;
     }
 
+    const studentId = id;
+    const studentRequest = alunoLoadRequestRef.current;
     try {
-      await alunoService.delete(id);
+      await alunoService.delete(studentId);
+      if (!isCurrentAlunoRequest(studentId, studentRequest)) return;
       alert(alunoDetailsCopy.deleteSuccess);
       navigate('/alunos');
     } catch (error) {
+      if (!isCurrentAlunoRequest(studentId, studentRequest)) return;
       console.error('Erro ao excluir aluno:', error);
       alert(alunoDetailsCopy.deleteError);
     }
@@ -691,20 +691,24 @@ export function AlunoDetails() {
       return;
     }
 
+    const studentId = id;
+    const studentRequest = alunoLoadRequestRef.current;
     setIsResetting(true);
     setCopied(false);
     setMessageCopied(false);
     try {
-      const result = await alunoService.resetPassword(id);
+      const result = await alunoService.resetPassword(studentId);
+      if (!isCurrentAlunoRequest(studentId, studentRequest)) return;
       setTempPassword(result.tempPassword);
       const phoneDigits = aluno?.user.profile.phone?.replace(/\D/g, '') || '';
       if (phoneDigits.startsWith('55')) {
         setCountryCode('55');
       }
     } catch (error: any) {
-      alert(error.response?.data?.error || alunoDetailsCopy.resetPasswordError);
+      if (isCurrentAlunoRequest(studentId, studentRequest))
+        alert(error.response?.data?.error || alunoDetailsCopy.resetPasswordError);
     } finally {
-      setIsResetting(false);
+      if (isCurrentAlunoRequest(studentId, studentRequest)) setIsResetting(false);
     }
   };
 
@@ -782,18 +786,21 @@ export function AlunoDetails() {
       }
     }
 
+    const studentId = id;
+    const studentRequest = alunoLoadRequestRef.current;
     setUploadingAssessment(true);
     try {
       const uploadedTypeName =
         assessmentTypes.find((type) => type.id === assessmentForm.typeId)?.name ||
         alunoDetailsCopy.assessmentNextStepFallbackType;
       const uploadedAssessmentDate = assessmentForm.assessmentDate || null;
-      await assessmentService.uploadAssessment(id, {
+      await assessmentService.uploadAssessment(studentId, {
         typeId: assessmentForm.typeId,
         assessmentDate: assessmentForm.assessmentDate || undefined,
         file: assessmentForm.file,
       });
-      await refreshAssessmentData(id);
+      if (!isCurrentAlunoRequest(studentId, studentRequest) ||
+          !await refreshAssessmentData(studentId, studentRequest)) return;
       setAssessmentForm({ typeId: '', assessmentDate: '', file: null });
       setAssessmentGuideActive(false);
       setShowAssessmentGuideBanner(false);
@@ -805,9 +812,10 @@ export function AlunoDetails() {
       });
       showToast(alunoDetailsCopy.uploadAssessmentSuccess);
     } catch (error: any) {
-      alert(error.response?.data?.error || alunoDetailsCopy.uploadAssessmentError);
+      if (isCurrentAlunoRequest(studentId, studentRequest))
+        alert(error.response?.data?.error || alunoDetailsCopy.uploadAssessmentError);
     } finally {
-      setUploadingAssessment(false);
+      if (isCurrentAlunoRequest(studentId, studentRequest)) setUploadingAssessment(false);
     }
   };
 
@@ -843,8 +851,11 @@ export function AlunoDetails() {
 
   const handleDownloadAssessment = async (assessment: Assessment) => {
     if (!id) return;
+    const studentId = id;
+    const studentRequest = alunoLoadRequestRef.current;
     try {
-      const blob = await assessmentService.downloadFile(id, assessment.id);
+      const blob = await assessmentService.downloadFile(studentId, assessment.id);
+      if (!isCurrentAlunoRequest(studentId, studentRequest)) return;
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -854,23 +865,28 @@ export function AlunoDetails() {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (error: any) {
-      alert(error.response?.data?.error || alunoDetailsCopy.downloadError);
+      if (isCurrentAlunoRequest(studentId, studentRequest))
+        alert(error.response?.data?.error || alunoDetailsCopy.downloadError);
     }
   };
 
   const handlePreviewAssessment = async (assessment: Assessment) => {
     if (!id) return;
+    const studentId = id;
+    const studentRequest = alunoLoadRequestRef.current;
     setPreviewLoading(true);
     try {
-      const blob = await assessmentService.downloadFile(id, assessment.id);
+      const blob = await assessmentService.downloadFile(studentId, assessment.id);
+      if (!isCurrentAlunoRequest(studentId, studentRequest)) return;
       const url = window.URL.createObjectURL(blob);
       setPreviewUrl(url);
       setPreviewName(assessment.originalFileName || 'Avaliação');
       setPreviewOpen(true);
     } catch (error: any) {
-      alert(error.response?.data?.error || alunoDetailsCopy.previewError);
+      if (isCurrentAlunoRequest(studentId, studentRequest))
+        alert(error.response?.data?.error || alunoDetailsCopy.previewError);
     } finally {
-      setPreviewLoading(false);
+      if (isCurrentAlunoRequest(studentId, studentRequest)) setPreviewLoading(false);
     }
   };
 
@@ -914,12 +930,19 @@ export function AlunoDetails() {
       assessmentDate: assessment.assessmentDate ? formatDateForInput(assessment.assessmentDate) : '',
     });
     if (id) {
+      const studentId = id;
+      const studentRequest = alunoLoadRequestRef.current;
+      const logsRequest = ++assessmentLogsRequestRef.current;
+      const stillCurrent = () =>
+        isCurrentAlunoRequest(studentId, studentRequest) &&
+        logsRequest === assessmentLogsRequestRef.current;
+      setAuditLogs([]);
       setLogsLoading(true);
       assessmentService
-        .getLogs(id, assessment.id)
-        .then(setAuditLogs)
-        .catch(() => setAuditLogs([]))
-        .finally(() => setLogsLoading(false));
+        .getLogs(studentId, assessment.id)
+        .then((logs) => { if (stillCurrent()) setAuditLogs(logs); })
+        .catch(() => { if (stillCurrent()) setAuditLogs([]); })
+        .finally(() => { if (stillCurrent()) setLogsLoading(false); });
     }
   };
 
@@ -946,16 +969,20 @@ export function AlunoDetails() {
       }
     }
 
+    const studentId = id;
+    const studentRequest = alunoLoadRequestRef.current;
     try {
-      await assessmentService.updateAssessment(id, editingAssessment.id, {
+      await assessmentService.updateAssessment(studentId, editingAssessment.id, {
         typeId: editForm.typeId,
         assessmentDate: editForm.assessmentDate || undefined,
       });
-      await refreshAssessmentData(id);
+      if (!isCurrentAlunoRequest(studentId, studentRequest) ||
+          !await refreshAssessmentData(studentId, studentRequest)) return;
       setEditingAssessment(null);
       showToast(alunoDetailsCopy.updateAssessmentSuccess, 'success');
     } catch (error: any) {
-      showToast(error.response?.data?.error || alunoDetailsCopy.updateAssessmentError, 'error');
+      if (isCurrentAlunoRequest(studentId, studentRequest))
+        showToast(error.response?.data?.error || alunoDetailsCopy.updateAssessmentError, 'error');
     }
   };
 
@@ -966,12 +993,16 @@ export function AlunoDetails() {
     }
     if (!id) return;
     if (!confirm(alunoDetailsCopy.deleteAssessmentConfirm)) return;
+    const studentId = id;
+    const studentRequest = alunoLoadRequestRef.current;
     try {
-      await assessmentService.deleteAssessment(id, assessment.id);
-      await refreshAssessmentData(id);
+      await assessmentService.deleteAssessment(studentId, assessment.id);
+      if (!isCurrentAlunoRequest(studentId, studentRequest) ||
+          !await refreshAssessmentData(studentId, studentRequest)) return;
       showToast(alunoDetailsCopy.deleteAssessmentSuccess, 'success');
     } catch (error: any) {
-      showToast(error.response?.data?.error || alunoDetailsCopy.deleteAssessmentError, 'error');
+      if (isCurrentAlunoRequest(studentId, studentRequest))
+        showToast(error.response?.data?.error || alunoDetailsCopy.deleteAssessmentError, 'error');
     }
   };
 
@@ -981,12 +1012,16 @@ export function AlunoDetails() {
       return;
     }
     if (!id) return;
+    const studentId = id;
+    const studentRequest = alunoLoadRequestRef.current;
     try {
-      await assessmentService.reprocessAssessment(id, assessment.id);
-      await refreshAssessmentData(id);
+      await assessmentService.reprocessAssessment(studentId, assessment.id);
+      if (!isCurrentAlunoRequest(studentId, studentRequest) ||
+          !await refreshAssessmentData(studentId, studentRequest)) return;
       showToast(alunoDetailsCopy.reprocessAssessmentSuccess, 'success');
     } catch (error: any) {
-      showToast(error.response?.data?.error || alunoDetailsCopy.reprocessAssessmentError, 'error');
+      if (isCurrentAlunoRequest(studentId, studentRequest))
+        showToast(error.response?.data?.error || alunoDetailsCopy.reprocessAssessmentError, 'error');
     }
   };
 
@@ -1108,6 +1143,180 @@ export function AlunoDetails() {
     }
   }, [activeTab, visibleTabs]);
 
+  // Abas com leitura propria so montam depois do primeiro acesso autorizado.
+  // Mantemos os componentes para preservar filtros e rascunhos sem novos GETs na alternancia.
+  useEffect(() => {
+    if (
+      !id ||
+      loading ||
+      aluno?.id !== id ||
+      !visibleTabs.includes(activeTab) ||
+      (activeTab !== 'revisoes-cadastrais' && activeTab !== 'treinos' && activeTab !== 'avaliacoes-fisicas')
+    ) {
+      return;
+    }
+
+    setRetainedDirectTabs((current) =>
+      current.includes(activeTab) ? current : [...current, activeTab]
+    );
+  }, [activeTab, aluno?.id, id, loading, visibleTabs]);
+
+  useEffect(() => {
+    if (
+      !id ||
+      loading ||
+      aluno?.id !== id ||
+      !visibleTabs.includes(activeTab) ||
+      !STUDENT_DETAIL_DEFERRED_TABS.includes(activeTab) ||
+      loadedTabs.includes(activeTab) ||
+      tabErrors[activeTab] ||
+      loadingTabsRef.current.has(activeTab)
+    ) {
+      return;
+    }
+
+    const alunoId = id;
+    const tab = activeTab;
+    const request = alunoLoadRequestRef.current;
+    const assessmentReadVersion = assessmentRefreshRequestRef.current;
+    const isCurrentAluno = () =>
+      activeAlunoIdRef.current === alunoId && request === alunoLoadRequestRef.current;
+
+    loadingTabsRef.current.add(tab);
+
+    const loadTab = async () => {
+      try {
+        switch (tab) {
+          case 'resumo': {
+            const [assessmentsData, summaryData, plansData, contractsData, summary] = await Promise.all([
+              canViewAssessmentsTab ? assessmentService.listByAluno(alunoId) : Promise.resolve([]),
+              canViewAssessmentsTab ? assessmentService.getSummary(alunoId) : Promise.resolve([]),
+              canViewTrainingPlansTab
+                ? planService.listByAluno(alunoId)
+                : Promise.resolve({ plans: [] as TrainingPlan[] }),
+              canViewFinancialData
+                ? alunoService.listStudentContracts(alunoId)
+                : Promise.resolve({ alunoId, activeContract: null, contracts: [] }),
+              canViewSummaryTab
+                ? alunoService.getSegmentedSummary(alunoId)
+                : Promise.resolve(null),
+            ]);
+            if (!isCurrentAluno()) return;
+            if (assessmentReadVersion === assessmentRefreshRequestRef.current) {
+              setAssessments(assessmentsData);
+              setAssessmentSummary(summaryData);
+            }
+            setPlans(plansData.plans);
+            setActiveStudentContract(contractsData.activeContract);
+            setSegmentedSummary(summary);
+            break;
+          }
+          case 'cadastro': {
+            const profile = canViewProfileTab
+              ? await alunoService.getSegmentedProfile(alunoId)
+              : null;
+            if (!isCurrentAluno()) return;
+            setSegmentedProfile(profile);
+            break;
+          }
+          case 'saude-anamnese': {
+            const intake = canViewHealthTab
+              ? await alunoService.getSegmentedIntake(alunoId)
+              : null;
+            if (!isCurrentAluno()) return;
+            setSegmentedIntake(intake);
+            break;
+          }
+          case 'financeiro': {
+            // A listagem de contratos pertence ao componente da aba Financeiro.
+            const financialProfile = canViewFinancialContractTab
+              ? await alunoService.getSegmentedFinancialProfile(alunoId)
+              : null;
+            if (!isCurrentAluno()) return;
+            setSegmentedFinancialProfile(financialProfile);
+            break;
+          }
+          case 'plano-avaliacoes':
+          case 'avaliacoes-fisicas': {
+            const needsAssessments = tab === 'avaliacoes-fisicas' && canViewAssessmentsTab;
+            const needsAssessmentPlan = tab === 'avaliacoes-fisicas' && canUseAssessmentPlanForMutations;
+            const [assessmentsData, summaryData, typesData, assessmentPlanData] = await Promise.all([
+              needsAssessments ? assessmentService.listByAluno(alunoId) : Promise.resolve([]),
+              needsAssessments ? assessmentService.getSummary(alunoId) : Promise.resolve([]),
+              canViewAssessmentsTab || canViewAssessmentPlanTab
+                ? assessmentTypeService.list()
+                : Promise.resolve([]),
+              needsAssessmentPlan
+                ? (alunoService.getAssessmentPlan(alunoId) as Promise<AlunoAssessmentPlanSnapshot>)
+                : Promise.resolve({ items: [] as AlunoAssessmentPlanSnapshot['items'] }),
+            ]);
+            if (!isCurrentAluno()) return;
+            if (needsAssessments && assessmentReadVersion === assessmentRefreshRequestRef.current) {
+              setAssessments(assessmentsData);
+              setAssessmentSummary(summaryData);
+            }
+            setAssessmentTypes(typesData);
+            if (needsAssessmentPlan && assessmentReadVersion === assessmentRefreshRequestRef.current) {
+              setAssessmentPlanActiveTypeIds(
+                assessmentPlanData.items
+                  .filter((item) => item.isActive)
+                  .map((item) => item.assessmentTypeId)
+              );
+            }
+            break;
+          }
+          case 'integracoes': {
+            const [integrations, activities] = await Promise.all([
+              canViewIntegrationsTab
+                ? alunoService.getSegmentedIntegrations(alunoId)
+                : Promise.resolve(null),
+              canViewIntegrationsTab
+                ? alunoService.listSegmentedActivities(alunoId)
+                : Promise.resolve(null),
+            ]);
+            if (!isCurrentAluno()) return;
+            setSegmentedIntegrations(integrations);
+            setSegmentedActivities(activities);
+            break;
+          }
+        }
+        if (!isCurrentAluno()) return;
+        setLoadedTabs((current) => current.includes(tab) ? current : [...current, tab]);
+      } catch (error) {
+        if (!isCurrentAluno()) return;
+        console.error('Erro ao carregar secao do aluno:', error);
+        setTabErrors((current) => ({
+          ...current,
+          [tab]: 'Não foi possível carregar esta seção. Tente novamente.',
+        }));
+      } finally {
+        if (isCurrentAluno()) {
+          loadingTabsRef.current.delete(tab);
+        }
+      }
+    };
+
+    void loadTab();
+  }, [
+    id,
+    aluno?.id,
+    loading,
+    activeTab,
+    loadedTabs,
+    tabErrors,
+    visibleTabs,
+    canViewAssessmentsTab,
+    canViewAssessmentPlanTab,
+    canUseAssessmentPlanForMutations,
+    canViewFinancialData,
+    canViewSummaryTab,
+    canViewProfileTab,
+    canViewHealthTab,
+    canViewFinancialContractTab,
+    canViewIntegrationsTab,
+    canViewTrainingPlansTab,
+  ]);
+
   useEffect(() => {
     if (!id || !canViewAuditTab || activeTab !== 'auditoria') return;
 
@@ -1209,6 +1418,8 @@ export function AlunoDetails() {
 
   const handleSaveHistoryEdit = async () => {
     if (!id || !historyEditAssessmentId || !historyEditSectionTitle) return;
+    const studentId = id;
+    const studentRequest = alunoLoadRequestRef.current;
     const targetAssessment = assessments.find((item) => item.id === historyEditAssessmentId);
     if (targetAssessment?.extractedData?.parseOk === false) {
       showToast(alunoDetailsCopy.corruptedPdf, 'error');
@@ -1225,19 +1436,16 @@ export function AlunoDetails() {
       }
     });
     try {
-      await assessmentService.updateAssessment(id, historyEditAssessmentId, {
+      await assessmentService.updateAssessment(studentId, historyEditAssessmentId, {
         variables: payload,
       });
-      const [assessmentsData, summaryData] = await Promise.all([
-        assessmentService.listByAluno(id),
-        assessmentService.getSummary(id),
-      ]);
-      setAssessments(assessmentsData);
-      setAssessmentSummary(summaryData);
+      if (!isCurrentAlunoRequest(studentId, studentRequest) ||
+          !await refreshAssessmentData(studentId, studentRequest, false)) return;
       setHistoryEditOpen(false);
       showToast(alunoDetailsCopy.updateHistorySuccess, 'success');
     } catch (error: any) {
-      showToast(error.response?.data?.error || alunoDetailsCopy.updateHistoryError, 'error');
+      if (isCurrentAlunoRequest(studentId, studentRequest))
+        showToast(error.response?.data?.error || alunoDetailsCopy.updateHistoryError, 'error');
     }
   };
 
@@ -1477,8 +1685,55 @@ export function AlunoDetails() {
 
       <AlunoDetailsTabs activeTab={activeTab} onChange={setActiveTab} visibleTabs={visibleTabs} />
 
-      {visibleTabs.includes('resumo') && activeTab === 'resumo' && (
-        <AlunoResumoHubTab
+      {visibleTabs.includes('avaliacoes-fisicas') &&
+        (activeTab === 'avaliacoes-fisicas' || retainedDirectTabs.includes('avaliacoes-fisicas')) && (
+          <div hidden={activeTab !== 'avaliacoes-fisicas'} className="mt-6">
+            <AlunoAdipometryEvolutionTabSection
+              key={id}
+              aluno={aluno}
+              assessments={loadedTabs.includes('avaliacoes-fisicas') ? assessments : null}
+              assessmentHistoryState={
+                loadedTabs.includes('avaliacoes-fisicas')
+                  ? 'ready'
+                  : tabErrors['avaliacoes-fisicas']
+                    ? 'error'
+                    : 'loading'
+              }
+            />
+          </div>
+        )}
+
+      {STUDENT_DETAIL_DEFERRED_TABS.includes(activeTab) && !loadedTabs.includes(activeTab) && (
+        <Card>
+          <CardContent className="py-8">
+            {tabErrors[activeTab] ? (
+              <div role="alert" className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">{tabErrors[activeTab]}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setTabErrors((current) => {
+                    const next = { ...current };
+                    delete next[activeTab];
+                    return next;
+                  })}
+                >
+                  Tentar novamente
+                </Button>
+              </div>
+            ) : (
+              <div role="status" className="flex items-center gap-3 text-sm text-muted-foreground">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                Carregando dados desta seção...
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {visibleTabs.includes('resumo') && loadedTabs.includes('resumo') && (
+        <div hidden={activeTab !== 'resumo'}>
+          <AlunoResumoHubTab
           aluno={aluno}
           segmentedSummary={segmentedSummary}
           assessments={assessments}
@@ -1486,10 +1741,11 @@ export function AlunoDetails() {
           plans={plans}
           activeStudentContract={activeStudentContract}
           canViewTraining={canViewTrainingPlansTab}
-        />
+          />
+        </div>
       )}
 
-      {visibleTabs.includes('cadastro') && activeTab === 'cadastro' && (
+      {visibleTabs.includes('cadastro') && activeTab === 'cadastro' && loadedTabs.includes('cadastro') && (
         <AlunoCadastroTab
           aluno={aluno}
           segmentedProfile={segmentedProfile}
@@ -1501,7 +1757,7 @@ export function AlunoDetails() {
         />
       )}
 
-      {visibleTabs.includes('saude-anamnese') && activeTab === 'saude-anamnese' && (
+      {visibleTabs.includes('saude-anamnese') && activeTab === 'saude-anamnese' && loadedTabs.includes('saude-anamnese') && (
         <AlunoSaudeAnamneseTab
           aluno={aluno}
           parqPositiveCount={parqPositiveCount}
@@ -1509,8 +1765,9 @@ export function AlunoDetails() {
         />
       )}
 
-      {visibleTabs.includes('financeiro') && activeTab === 'financeiro' && (
-        <AlunoFinanceiroTab
+      {visibleTabs.includes('financeiro') && loadedTabs.includes('financeiro') && (
+        <div hidden={activeTab !== 'financeiro'}>
+          <AlunoFinanceiroTab key={id}
           aluno={aluno}
           alunoId={id ?? ''}
           financialInfo={financialInfo}
@@ -1519,18 +1776,21 @@ export function AlunoDetails() {
           canCancelContracts={canCancelFinancialContracts && canManageFinancialContractAction}
           canRenewContracts={canRenewFinancialContracts && canManageFinancialContractAction}
           segmentedFinancialProfile={segmentedFinancialProfile}
-        />
+          />
+        </div>
       )}
 
-      {visibleTabs.includes('plano-avaliacoes') && activeTab === 'plano-avaliacoes' && (
-        <AlunoPlanoAvaliacoesTab
+      {visibleTabs.includes('plano-avaliacoes') && loadedTabs.includes('plano-avaliacoes') && (
+        <div hidden={activeTab !== 'plano-avaliacoes'}>
+          <AlunoPlanoAvaliacoesTab key={id}
           alunoId={id ?? ''}
           assessmentTypes={assessmentTypes}
           canManageActions={canManageAssessmentPlanAction}
-        />
+          />
+        </div>
       )}
 
-      {visibleTabs.includes('avaliacoes-fisicas') && activeTab === 'avaliacoes-fisicas' && (
+      {visibleTabs.includes('avaliacoes-fisicas') && activeTab === 'avaliacoes-fisicas' && loadedTabs.includes('avaliacoes-fisicas') && (
         <>
           <Card>
             <CardHeader>
@@ -2296,24 +2556,31 @@ export function AlunoDetails() {
         </>
       )}
 
-      {visibleTabs.includes('revisoes-cadastrais') && activeTab === 'revisoes-cadastrais' && id && (
-        <AlunoRevisoesCadastraisTab
-          alunoId={id}
-          onToast={showToast}
-          canManageActions={canManageProfileReviewsAction}
-        />
-      )}
+      {visibleTabs.includes('revisoes-cadastrais') && id &&
+        (activeTab === 'revisoes-cadastrais' || retainedDirectTabs.includes('revisoes-cadastrais')) && (
+          <div hidden={activeTab !== 'revisoes-cadastrais'}>
+            <AlunoRevisoesCadastraisTab
+              key={id}
+              alunoId={id}
+              onToast={showToast}
+              canManageActions={canManageProfileReviewsAction}
+            />
+          </div>
+        )}
 
-      {visibleTabs.includes('integracoes') && activeTab === 'integracoes' && (
+      {visibleTabs.includes('integracoes') && activeTab === 'integracoes' && loadedTabs.includes('integracoes') && (
         <AlunoIntegracoesTab
           integrations={segmentedIntegrations}
           activities={segmentedActivities}
         />
       )}
 
-      {visibleTabs.includes('treinos') && activeTab === 'treinos' && id && (
-        <AlunoTrainingTab key={id} alunoId={id} />
-      )}
+      {visibleTabs.includes('treinos') && id &&
+        (activeTab === 'treinos' || retainedDirectTabs.includes('treinos')) && (
+          <div data-testid="aluno-training-tab-panel" hidden={activeTab !== 'treinos'}>
+            <AlunoTrainingTab key={id} alunoId={id} />
+          </div>
+        )}
 
       {visibleTabs.includes('auditoria') && activeTab === 'auditoria' && (
         <div className="space-y-3">

@@ -11,7 +11,7 @@ import {
 } from '../modules/workout/resistance-structure.domain.js';
 import { parseResistanceGroupBaseUpdatedAt } from '../modules/workout/resistance-groups.domain.js';
 import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
-import { parseRequiredDate, sendSafeWorkoutError, workoutContractScopeMiddleware } from './workout-route-guards.js';
+import { parseRequiredDate, sendSafeWorkoutError, sendSafeWorkoutWeekSaveError, workoutContractScopeMiddleware } from './workout-route-guards.js';
 
 const router: Router = Router();
 
@@ -84,7 +84,7 @@ router.put('/templates/:id/save-week', async (req, res) => {
     res.json(template);
   } catch (error: any) {
     console.error('Error saving workout week:', error);
-    return sendSafeWorkoutError(res, error);
+    return sendSafeWorkoutWeekSaveError(res, error);
   }
 });
 

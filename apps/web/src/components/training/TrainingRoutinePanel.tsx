@@ -22,6 +22,7 @@ import { Button } from '../ui/Button';
 import { PreWorkoutCheckInCard } from './PreWorkoutCheckInCard';
 import { PostWorkoutFeedbackCard } from './PostWorkoutFeedbackCard';
 import { WorkoutExecutionComparisonCard } from './WorkoutExecutionComparisonCard';
+import { TrainingEvolutionMetricsCard } from './TrainingEvolutionMetricsCard';
 import { TrainingSubstitutionCard } from './TrainingSubstitutionCard';
 import { canAccessBlock } from '../../access/access-control';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -1109,6 +1110,7 @@ export function TrainingRoutinePanel({
       {isCurrentWeek
         ? <TrainingContinuityCards routine={routine} audience={audience} />
         : <section aria-label="Aderência da semana selecionada"><WeeklyAdherenceCard routine={routine} audience={audience} /></section>}
+      <TrainingEvolutionMetricsCard routine={routine} audience={audience} />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="space-y-4">
           {routine.today.state === 'released' ? (

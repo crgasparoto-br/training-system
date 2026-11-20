@@ -51,10 +51,12 @@ CREATE TEMP TABLE "WorkoutTemplate" ("id" text, "planId" text, "released" boolea
 CREATE TEMP TABLE "TrainingPlan" ("id" text, "alunoId" text);
 CREATE TEMP TABLE "Aluno" ("id" text, "contractId" text);
 CREATE TEMP TABLE "ConsolidatedPrescriptionOperationalRelease" (
-  "workoutTemplateId" text, "alunoId" text, "contractId" text
+  "id" text, "workoutTemplateId" text, "alunoId" text, "contractId" text
 );
 CREATE TEMP TABLE "WorkoutSessionExecution" (
-  "workoutDayId" text, "alunoId" text, "contractId" text, "status" text
+  "workoutDayId" text, "alunoId" text, "contractId" text,
+  "originReleaseId" text, "originWorkoutTemplateId" text,
+  "originTrainingPlanId" text, "status" text
 );
 INSERT INTO "Aluno" VALUES ('student-a','contract-a'),('student-b','contract-b');
 INSERT INTO "TrainingPlan" VALUES ('plan-a','student-a'),('plan-b','student-b');
@@ -73,16 +75,20 @@ INSERT INTO "WorkoutDay" VALUES
   ('foreign-student','tpl-other-student','2026-10-13'),
   ('next-approved','tpl-approved','2026-11-03');
 INSERT INTO "ConsolidatedPrescriptionOperationalRelease" VALUES
-  ('tpl-approved','student-a','contract-a'),
-  ('tpl-not-released','student-a','contract-a'),
-  ('tpl-wrong-contract','student-a','contract-b'),
-  ('tpl-other-student','student-b','contract-b');
+  ('release-good','tpl-approved','student-a','contract-a'),
+  ('release-not-released','tpl-not-released','student-a','contract-a'),
+  ('release-wrong-contract','tpl-wrong-contract','student-a','contract-b'),
+  ('release-other-student','tpl-other-student','student-b','contract-b');
 INSERT INTO "WorkoutSessionExecution" VALUES
-  ('terminal','student-a','contract-a','completed');
+  ('terminal','student-a','contract-a','release-good','tpl-approved','plan-a','completed'),
+  -- A stale completion must not hide a session under a new consolidated release.
+  ('next-approved','student-a','contract-a','release-previous','tpl-approved','plan-a','completed');
 `);
 process.stdout.write(expectSelectedId('next-approved', 'approved cross-week future session'));
 process.stdout.write(String.raw`
-INSERT INTO "WorkoutSessionExecution" VALUES ('next-approved','student-a','contract-a','completed');
+DELETE FROM "WorkoutSessionExecution" WHERE "workoutDayId"='next-approved';
+INSERT INTO "WorkoutSessionExecution" VALUES
+  ('next-approved','student-a','contract-a','release-good','tpl-approved','plan-a','completed');
 `);
 process.stdout.write(expectSelectedId(null, 'no next when every future approved session is terminal'));
 process.stdout.write(String.raw`
@@ -143,7 +149,9 @@ CREATE TEMP TABLE "ConsolidatedPrescriptionOperationalRelease" (
 );
 CREATE TEMP TABLE "WorkoutSessionExecution" (
   "id" text, "workoutDayId" text, "alunoId" text, "contractId" text,
-  "originReleaseId" text, "status" text, "finishedAt" timestamp, "updatedAt" timestamp
+  "originReleaseId" text, "originWorkoutTemplateId" text,
+  "originTrainingPlanId" text, "status" text,
+  "finishedAt" timestamp, "updatedAt" timestamp
 );
 INSERT INTO "Aluno" VALUES ('student-a','contract-a'),('student-b','contract-b');
 INSERT INTO "TrainingPlan" VALUES ('plan-a','student-a'),('plan-b','student-b');
@@ -168,14 +176,17 @@ INSERT INTO "ConsolidatedPrescriptionOperationalRelease" VALUES
   ('release-other-contract','tpl-wrong-contract','student-a','contract-b'),
   ('release-foreign','tpl-foreign','student-b','contract-b');
 INSERT INTO "WorkoutSessionExecution" VALUES
-  ('exec-old','old-valid','student-a','contract-a','release-good','completed','2026-09-01 12:00','2026-09-01 12:00'),
-  ('exec-new','new-valid','student-a','contract-a','release-good','partial','2026-10-11 12:00','2026-10-11 12:00'),
-  ('exec-unreleased','unreleased','student-a','contract-a','release-unreleased','completed','2026-10-12 14:00','2026-10-12 14:00'),
-  ('exec-orphan','orphan','student-a','contract-a','release-deleted','completed','2026-10-12 14:00','2026-10-12 14:00'),
-  ('exec-wrong-contract','wrong-contract','student-a','contract-a','release-other-contract','completed','2026-10-12 14:00','2026-10-12 14:00'),
-  ('exec-foreign','foreign','student-b','contract-b','release-foreign','completed','2026-10-12 14:00','2026-10-12 14:00'),
-  ('exec-in-progress','in-progress','student-a','contract-a','release-good','in_progress',NULL,'2026-10-13 14:00'),
-  ('exec-wrong-template','wrong-template','student-a','contract-a','release-good','completed','2026-10-14 14:00','2026-10-14 14:00');
+  ('exec-old','old-valid','student-a','contract-a','release-good','tpl-approved','plan-a','completed','2026-09-01 12:00','2026-09-01 12:00'),
+  ('exec-new','new-valid','student-a','contract-a','release-good','tpl-approved','plan-a','partial','2026-10-11 12:00','2026-10-11 12:00'),
+  ('exec-unreleased','unreleased','student-a','contract-a','release-unreleased','tpl-not-released','plan-a','completed','2026-10-12 14:00','2026-10-12 14:00'),
+  ('exec-orphan','orphan','student-a','contract-a','release-deleted','tpl-no-release','plan-a','completed','2026-10-12 14:00','2026-10-12 14:00'),
+  ('exec-wrong-contract','wrong-contract','student-a','contract-a','release-other-contract','tpl-wrong-contract','plan-a','completed','2026-10-12 14:00','2026-10-12 14:00'),
+  ('exec-foreign','foreign','student-b','contract-b','release-foreign','tpl-foreign','plan-b','completed','2026-10-12 14:00','2026-10-12 14:00'),
+  ('exec-in-progress','in-progress','student-a','contract-a','release-good','tpl-approved','plan-a','in_progress',NULL,'2026-10-13 14:00'),
+  ('exec-wrong-template','wrong-template','student-a','contract-a','release-good','tpl-no-release','plan-a','completed','2026-10-14 14:00','2026-10-14 14:00'),
+  -- Even a matching release id cannot override an invalid historical template/plan link.
+  ('exec-wrong-origin-template','old-valid','student-a','contract-a','release-good','tpl-mismatched','plan-a','completed','2026-10-15 14:00','2026-10-15 14:00'),
+  ('exec-wrong-origin-plan','old-valid','student-a','contract-a','release-good','tpl-approved','plan-mismatched','completed','2026-10-16 14:00','2026-10-16 14:00');
 `);
 process.stdout.write(expectLastExecutionId('new-valid', 'most recent released terminal execution'));
 process.stdout.write(String.raw`

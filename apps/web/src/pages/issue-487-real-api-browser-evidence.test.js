@@ -9,10 +9,15 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const apiRequire = createRequire(path.resolve(process.cwd(), '../api/package.json'));
-const { PrismaClient } = apiRequire('@prisma/client');
+// FAST may collect this suite without generating Prisma Client. Import the
+// database client only when the authenticated CRITICAL journey will execute.
+const realBrowserEvidenceEnabled = process.env.ISSUE_487_REAL_API_BROWSER_EVIDENCE === '1';
+const PrismaClient = realBrowserEvidenceEnabled
+  ? apiRequire('@prisma/client').PrismaClient
+  : null;
 const puppeteer = apiRequire('puppeteer');
 const jwt = apiRequire('jsonwebtoken');
-const suite = process.env.ISSUE_487_REAL_API_BROWSER_EVIDENCE === '1' ? describe : describe.skip;
+const suite = realBrowserEvidenceEnabled ? describe : describe.skip;
 const repoRoot = path.resolve(process.cwd(), '../..');
 const outputDir = path.join(repoRoot, 'artifacts/issue-487');
 
@@ -228,14 +233,15 @@ async function startVite(apiOrigin, token) {
   return { vite, origin: 'http://127.0.0.1:' + vite.httpServer.address().port };
 }
 async function clickButton(page, label) {
-  await page.waitForFunction((wanted) => [...document.querySelectorAll('button')].some((button) =>
-    button.textContent?.includes(wanted) && !button.disabled), { timeout: 20000 }, label);
-  await page.evaluate((wanted) => {
+  // CI-487: React can re-render between a separate wait and click. Select and
+  // click the enabled button in one browser evaluation; keep the real 20s gate.
+  await page.waitForFunction((wanted) => {
     const button = [...document.querySelectorAll('button')].find((item) =>
       item.textContent?.includes(wanted) && !item.disabled);
-    if (!button) throw new Error('Button not actionable: ' + wanted);
+    if (!button) return false;
     button.click();
-  }, label);
+    return true;
+  }, { timeout: 20000 }, label);
 }
 async function waitText(page, value) {
   await page.waitForFunction((wanted) =>
@@ -796,15 +802,55 @@ suite('Issue #487: authenticated student Chrome against real API and PostgreSQL'
         await centralPage.waitForSelector('#aluno-details-tab-treinos', { visible: true });
         await centralPage.click('#aluno-details-tab-treinos');
         await waitText(centralPage, 'Rotina da semana');
-        await centralPage.waitForSelector('section[aria-label="Planejado e executado"]',
-          { visible: true, timeout: 25000 });
+        // O Resumo retido possui uma segunda instancia do mesmo card, mas oculta.
+        // Exigir o resultado visivel da aba Treinos, nunca o DOM do Resumo.
+        const activeComparisonSelector =
+          '[data-testid="aluno-training-tab-panel"] section[aria-label="Planejado e executado"]';
+        try {
+          await centralPage.waitForSelector(activeComparisonSelector,
+            { visible: true, timeout: 25000 });
+        } catch (error) {
+          // Never weaken the real-browser oracle. Capture the actual tab,
+          // authenticated request, server projection and DOM on a timeout.
+          const browserState = await centralPage.evaluate(() => ({
+            route: location.pathname,
+            activeTrainingPanelHidden:
+              document.querySelector('[data-testid="aluno-training-tab-panel"]')?.hasAttribute('hidden'),
+            selectedTab: document.querySelector('#aluno-details-tab-treinos')?.getAttribute('aria-current'),
+            sections: [...document.querySelectorAll('section[aria-label]')]
+              .map((section) => ({
+                label: section.getAttribute('aria-label'),
+                visible: Boolean(section.getClientRects().length),
+              })).slice(-30),
+            visibleText: document.body?.innerText?.slice(-5000) || '',
+          }));
+          const actualRoutine = await apiRequest(
+            apiOrigin, professorToken, fixture.contractId, 'GET',
+            '/alunos/' + encodeURIComponent(fixture.alunoId) + '/training-routine?date=' + today
+          );
+          const session = actualRoutine.body?.data?.today?.sessions?.find(
+            (item) => item.sessionId === fixture.dayId
+          );
+          console.error('ISSUE_487_CENTRAL_COMPARISON_DIAGNOSTICS', JSON.stringify({
+            viewport: viewport.name,
+            browserState,
+            actualRoutineStatus: actualRoutine.status,
+            serverDate: actualRoutine.body?.data?.today?.date,
+            serverState: actualRoutine.body?.data?.today?.state,
+            serverSession: session
+              ? { status: session.status, hasComparison: Boolean(session.comparison) }
+              : null,
+            browserErrors,
+          }));
+          throw error;
+        }
         const actualDetailsCount = await centralPage.$$eval(
-          'section[aria-label="Planejado e executado"] details', (items) => {
+          `${activeComparisonSelector} details`, (items) => {
             items.forEach((element) => { element.open = true; });
             return items.length;
           });
         expect(actualDetailsCount).toBeGreaterThan(0);
-        const centralText = await centralPage.$eval('section[aria-label="Planejado e executado"]',
+        const centralText = await centralPage.$eval(activeComparisonSelector,
           (element) => element.innerText);
         expect(centralText).toContain('Planejado × executado');
         expect(centralText).toContain('Série 1');

@@ -64,6 +64,25 @@ test('security-like frontend entrypoints fail critical even in FAST-friendly roo
   }
 });
 
+test('backend tenant-authorization route guards always require CRITICAL CI', () => {
+  for (const path of [
+    'apps/api/src/routes/workout-route-guards.ts',
+    'apps/api/src/routes/workout-route-guard.ts',
+    'apps/api/src/routes/workout_route_guards.ts',
+    'apps/api/src/routes/workout-routeguard.ts',
+    'apps/web/src/components/RouteGuard.tsx'
+  ]) {
+    const result = classifyRepositoryCi({ changedPaths: [path] });
+    assert.equal(result.riskProfile, 'critical', `${path} must be CRITICAL`);
+    assert.ok(result.reasons.some((reason) => reason.startsWith('core-sensitive-boundary:')),
+      `${path} must use the sensitive entrypoint rule`);
+    const forced = classifyRepositoryCi({ requested: 'fast', changedPaths: [path] });
+    assert.equal(forced.riskProfile, 'critical');
+    assert.equal(forced.promoted, true);
+  }
+  assert.equal(classifyRepositoryCi({ changedPaths: ['apps/api/src/routes/workout.routes.ts'] }).riskProfile, 'standard');
+});
+
 test('Prisma migration is CRITICAL and marks database validation', () => {
   const result = classifyRepositoryCi({ changedPaths: ['apps/api/prisma/migrations/202609110001_example/migration.sql'] });
   assert.equal(result.riskProfile, 'critical');

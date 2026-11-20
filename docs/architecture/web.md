@@ -20,6 +20,66 @@ O frontend web fica em `apps/web`.
 
 O frontend pode usar permissoes para experiencia de usuario, mas a API continua sendo a fonte de seguranca. Nunca exponha dados sensiveis assumindo que ocultar componente e suficiente.
 
+## Central do Aluno: carregamento progressivo da ficha (#555)
+
+A rota `/central-do-aluno/:id` (tambem utilizada por `/alunos/:id`) primeiro confirma
+a identidade do aluno via `GET /api/v1/alunos/:id` e libera o cabecalho. Essa
+requisicao e a unica dependencia inicial do carregamento global da ficha;
+o carregamento do Resumo e o de cada aba possuem estados independentes.
+
+- A aba Resumo solicita apenas os dados necessarios aos seus cartoes, conforme permissoes:
+  indicadores segmentados, avaliacoes, planos e contrato ativo. Enquanto o conjunto
+  ainda nao terminou, exibe carregamento, nunca ausencia definitiva de dados.
+- Cadastro, Saude, Financeiro, Plano de avaliacoes, Avaliacoes fisicas e Integracoes
+  solicitam seus dados na primeira abertura autorizada. Resumo, Financeiro, Plano
+  de avaliacoes e Avaliacoes fisicas permanecem montados, mas ocultos durante
+  a alternancia, para conservar filtros, selecoes e rascunhos e evitar novos GETs.
+  Revisoes cadastrais e Treinos tambem sao montados somente na primeira visita
+  autorizada e retidos durante a alternancia. Todos esses contextos sao desmontados
+  quando a identidade do aluno ou a permissao pertinente muda.
+  Na Avaliacao fisica, o painel de evolucao reutiliza identidade e historico
+  geral fornecidos pela pagina quando confirmados: nao inicia outro GET dessas
+  fontes. A leitura estruturada ADPT e independente e permanece utilizavel
+  mesmo se o historico geral estiver pendente ou falhar; o historico incompleto
+  nao e apresentado como vazio, e o retry da secao nao remonta o painel ADPT.
+  Filtros e comparacoes locais sao preservados durante a alternancia.
+  No Financeiro, o componente da aba e o unico responsavel por listar contratos,
+  evita falso `Sem contrato ativo` apos falha dessa leitura, e oferece retry
+  independente para historico/contrato ativo e contratos disponiveis.
+  No Plano de avaliacoes, a propria aba consulta seu planejamento. As consultas
+  independentes do Resumo nao ficam bloqueadas pelas abas nao visitadas.
+- O Resumo e a aba Treinos possuem instancias distintas do
+  `TrainingRoutinePanel`. Como o Resumo permanece montado, mas oculto,
+  o DOM pode conter dois cartoes de comparacao ao navegar para Treinos.
+  Testes de navegador devem selecionar a comparacao visivel dentro do painel
+  ativo (`data-testid="aluno-training-tab-panel"`), sem aceitar como prova um
+  cartao oculto do Resumo; conteudo e resultado autenticado continuam obrigatorios.
+- A aba Auditoria mantem sua propria leitura sob demanda, revalidacao por foco
+  e ao retornar a aba, paginacao e controle de geracoes. Ela nao participa da
+  consulta inicial e nao usa o cache de montagem das outras abas.
+- Leituras apos gravacao de avaliacoes (envio, edicao, exclusao, reprocessamento e
+  historico) so atualizam a ficha se o aluno e a geracao de carregamento
+  ainda corresponderem a quem iniciou a operacao; respostas concorrentes antigas
+  perdem para o refresh mais recente. Ao trocar aluno, rascunhos, modais e
+  mensagens transitorias do contexto anterior sao invalidados, incluindo
+  previsualizacao e senha temporaria. Respostas tardias de arquivo, logs e
+  redefinicao de senha nao podem repovoar o novo contexto. A edicao de dados
+  historicos revalida somente avaliacoes e resumo, sem requisitar o plano
+  avaliativo quando esse dominio nao foi alterado.
+- Falhas das leituras complementares mantem o cabecalho disponivel e exibem
+  retry local; respostas tardias de aluno anterior sao descartadas por identidade
+  e geracao. O Plano de avaliacoes nao confunde erro de leitura com ausencia
+  de itens e oferece nova tentativa. O resumo de desconfortos do PRNT exibe
+  estados pendente/indisponivel ate uma resposta confirmada, com retry local,
+  sem afirmar ausencia de registros. A falha da leitura principal continua
+  usando o tratamento e retry ja existentes.
+- O frontend respeita as mesmas `blockKey` e `screenKey` de cada area; a API
+  continua responsavel pela verificacao real de permissao, contrato e escopo.
+
+O beneficio estrutural verificavel e retirar da espera inicial as chamadas das
+abas que ainda nao foram abertas; tempos absolutos de producao exigem medicao
+autenticada de rede e backend antes de qualquer afirmacao quantitativa.
+
 ## Fluxo web do aluno: revisao cadastral
 
 A implementacao web responsiva e a experiencia canonica atual para a revisao cadastral do aluno; um futuro app mobile deve reutilizar o mesmo contrato `/api/v1/student/me`, sem criar regras paralelas.
@@ -40,6 +100,10 @@ A matriz de regressao do fluxo esta em `docs/profile-review-e2e-validation.md`. 
 - `pnpm lint`
 - `pnpm test`
 - `pnpm access:check`
+
+## Autosave do construtor de treinos (#551)
+
+O Workout Builder mantem um rascunho local por plano/mesociclo/semana e serializa os envios pendentes, inclusive entre semanas da mesma aba. Um flush duplicado nao reenvia um snapshot ja confirmado. Quando o servidor confirma uma revisao e a pessoa editou novamente durante o envio, o rascunho mais recente conserva suas alteracoes e passa a usar essa revisao como `baseUpdatedAt` da proxima tentativa. Erros 503 preservam o rascunho para nova tentativa. Em conflito real HTTP 409, a interface deve preservar o rascunho e exigir conciliacao explicita, nunca substituir silenciosamente a versao do servidor. Para a validacao em homologacao, salvar uma semana com varios dias e exercicios; editar durante o envio e alternar semanas; conferir o GET posterior, a revisao confirmada, a ausencia de duplicacoes e o rascunho recuperavel apos 503. Simular falha de conexao tanto na checagem do contrato quanto na transacao; negar outros contratos sem chamar o servico; provocar um 409 com uma segunda sessao sem sobrescrever o estado autoritativo.
 
 ## Treino de hoje e rotina semanal
 

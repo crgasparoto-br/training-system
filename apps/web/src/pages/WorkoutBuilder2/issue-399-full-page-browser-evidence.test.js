@@ -115,6 +115,10 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
       });
       res.end(JSON.stringify(body));
     };
+    const containsResistanceBlocks = (body) => Object.values(body?.resistedExercises || {})
+      .some((sections) => Object.values(sections || {}).some((exercises) =>
+        Array.isArray(exercises) && exercises.some((exercise) =>
+          Array.isArray(exercise.resistanceBlocks) && exercise.resistanceBlocks.length > 0)));
     const findTemplate = (id) => [...templates.values()].find((template) => template.id === id);
     const findDay = (id) => [...templates.values()].flatMap((template) => template.workoutDays).find((day) => day.id === id);
     const readBody = async (req) => {
@@ -157,9 +161,7 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
         if (req.method === 'PUT' && /^\/api\/v1\/workout\/templates\/[^/]+\/save-week$/.test(pathname)) {
           const template = findTemplate(pathname.split('/')[5]);
           if (!template) return json(res, 404, { error: 'template not found' }, origin);
-          const hasStructuredEdit = Object.values(body.resistedExercises || {})
-            .some((sections) => Object.values(sections || {}).some((exercises) =>
-              Array.isArray(exercises) && exercises.some((exercise) => (exercise.resistanceBlocks || []).length > 0)));
+          const hasStructuredEdit = containsResistanceBlocks(body);
           if (!saveConflictTriggered && hasStructuredEdit && body.baseUpdatedAt) {
             saveConflictTriggered = true;
             template.workoutDays[0].detailNotes = 'alteração remota preservada #399';
@@ -281,18 +283,10 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
         }, text);
         expect(clicked).toBe(true);
       };
-      const clickTextAt = async (text, targetIndex) => {
-        const clicked = await page.evaluate(({ wanted, index }) => {
-          const matches = [...document.querySelectorAll('button')]
-            .filter((candidate) => candidate.textContent?.trim().includes(wanted));
-          if (!matches[index]) return false;
-          matches[index].click();
-          return true;
-        }, { wanted: text, index: targetIndex });
-        expect(clicked).toBe(true);
-      };
       const viewports = [
         { width: 1440, height: 900 },
+        { width: 1920, height: 1080 },
+        { width: 1366, height: 768 },
         { width: 768, height: 1024 },
         { width: 390, height: 844, isMobile: true, hasTouch: true },
       ];
@@ -332,8 +326,12 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
           await new Promise((resolve, reject) => {
             const deadline = Date.now() + 20000;
             const check = () => {
-              if (requests.some((request) => request.path.endsWith('/save-week'))) return resolve();
-              if (Date.now() >= deadline) return reject(new Error('pagehide save-week request was not observed'));
+              // The tab-wide queue may first flush other weeks or older
+              // snapshots. Observe the specific edit, not any save-week request.
+              if (requests.some((request) =>
+                request.path === '/api/v1/workout/templates/template-browser-399-1/save-week'
+                && containsResistanceBlocks(request.body))) return resolve();
+              if (Date.now() >= deadline) return reject(new Error('pagehide edited resistance-block save-week request was not observed'));
               setTimeout(check, 50);
             };
             check();
@@ -353,8 +351,20 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
           // page. The negative alert disappearing is the deterministic DOM
           // observation that the retry completed without another copy error.
           await page.waitForFunction(() => !document.querySelector('[role="alert"]')?.innerText.includes('Erro ao copiar semana'), { timeout: 20000 });
-          await clickTextAt('Liberar', 1);
-          await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Treino liberado com sucesso') || document.querySelector('main')?.innerText.includes('Erro ao liberar treino'), { timeout: 20000 }).catch(() => {});
+          await page.waitForFunction(() => {
+            const release = document.querySelector('[data-workout-week="2"] button[title="Liberar treino para o aluno"]');
+            return Boolean(release && !release.disabled);
+          }, { timeout: 20000 });
+          await page.click('[data-workout-week="2"] button[title="Liberar treino para o aluno"]');
+          // Um clique em botao desabilitado nao comprova release; o backend e a autoridade.
+          await page.waitForFunction(async () => {
+            const response = await fetch('/api/v1/workout/templates/template-browser-399-2');
+            return response.ok && (await response.json()).released === true;
+          }, { timeout: 20000, polling: 200 });
+          await page.waitForFunction(
+            () => document.querySelector('[data-workout-week="2"]')?.textContent?.includes('Liberado'),
+            { timeout: 20000 }
+          );
           await page.goto(`${webOrigin}/plans/plan-browser-399/workout-builder/1/2`, { waitUntil: 'domcontentloaded' });
           await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Parâmetros do Treino'), { timeout: 20000 });
         }
@@ -364,6 +374,55 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
         expect(cyclicMissingLabels).toBe(0);
         await clickText('Treinamento Resistido');
         await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('Agachamento browser #399'), { timeout: 15000 });
+        // A-003: os sete dias nunca podem quebrar em linhas; a rolagem e local ao card.
+        const dayTabLayout = await page.evaluate(() =>
+          [...document.querySelectorAll('[role="tablist"][data-tabs="resistance-days"]')].map((tablist) => {
+            const tabs = [...tablist.querySelectorAll(':scope > [role="tab"]')];
+            const wrapper = tablist.parentElement;
+            const firstTop = tabs[0]?.getBoundingClientRect().top ?? 0;
+            return {
+              tabCount: tabs.length,
+              display: getComputedStyle(tablist).display,
+              flexWrap: getComputedStyle(tablist).flexWrap,
+              tabsSameRow: tabs.every((tab) => Math.abs(tab.getBoundingClientRect().top - firstTop) < 2),
+              tabsNoShrink: tabs.every((tab) => getComputedStyle(tab).flexShrink === '0'),
+              noTextWrap: tabs.every((tab) => getComputedStyle(tab).whiteSpace === 'nowrap'),
+              wrapperOverflowX: getComputedStyle(wrapper).overflowX,
+              wrapperScrollWidth: wrapper.scrollWidth,
+              wrapperClientWidth: wrapper.clientWidth,
+            };
+          }));
+        expect(dayTabLayout.length).toBeGreaterThan(0);
+        for (const layout of dayTabLayout) {
+          expect(layout.tabCount).toBe(7);
+          expect(layout.display).toBe('flex');
+          expect(layout.flexWrap).toBe('nowrap');
+          expect(layout.tabsSameRow).toBe(true);
+          expect(layout.tabsNoShrink).toBe(true);
+          expect(layout.noTextWrap).toBe(true);
+          expect(layout.wrapperOverflowX).toBe('auto');
+        }
+        if (viewport.width === 390) {
+          expect(dayTabLayout.some(({ wrapperScrollWidth, wrapperClientWidth }) => wrapperScrollWidth > wrapperClientWidth)).toBe(true);
+        }
+        // A rolagem nativa ao receber foco deve preservar setas, End e Home.
+        const firstDayTab = '[role="tablist"][data-tabs="resistance-days"] > [role="tab"]';
+        await page.focus(firstDayTab);
+        await page.keyboard.press('ArrowRight');
+        await page.waitForFunction((selector) => {
+          const tabs = [...document.querySelectorAll(selector)];
+          return tabs[1]?.getAttribute('aria-selected') === 'true' && document.activeElement === tabs[1];
+        }, {}, firstDayTab);
+        await page.keyboard.press('End');
+        await page.waitForFunction((selector) => {
+          const tabs = [...document.querySelectorAll(selector)];
+          return tabs[6]?.getAttribute('aria-selected') === 'true' && document.activeElement === tabs[6];
+        }, {}, firstDayTab);
+        await page.keyboard.press('Home');
+        await page.waitForFunction((selector) => {
+          const tabs = [...document.querySelectorAll(selector)];
+          return tabs[0]?.getAttribute('aria-selected') === 'true' && document.activeElement === tabs[0];
+        }, {}, firstDayTab);
         const observed = await page.evaluate(() => ({
           text: document.querySelector('main')?.innerText || '',
           width: innerWidth,
@@ -381,14 +440,15 @@ suite('Issue #399 - fluxo full-page em navegador real', () => {
         expect(observed.releasedReadOnlyFieldset).toBe(true);
         expect(observed.releasedEditableFields).toBe(0);
         const screenshot = await page.screenshot({ path: path.join(outputDir, `${viewport.width}-full-page.png`), fullPage: true });
-        observations.push({ viewport, observed, screenshot: { sha256: createHash('sha256').update(screenshot).digest('hex') }, passed: true });
+        observations.push({ viewport, observed, dayTabLayout, dayTabKeyboard: ['ArrowRight', 'End', 'Home'],
+          screenshot: { sha256: createHash('sha256').update(screenshot).digest('hex') }, passed: true });
       }
       expect(requests.some((request) => request.path.endsWith('/save-week'))).toBe(true);
       expect(requests.filter((request) => request.path.endsWith('/save-week')).length).toBeGreaterThanOrEqual(2);
       expect(requests.filter((request) => request.path.endsWith('/save-week'))
         .some((request) => typeof request.body?.baseUpdatedAt === 'string')).toBe(true);
       expect(requests.filter((request) => request.path.endsWith('/copy')).length).toBeGreaterThanOrEqual(2);
-      expect(requests.some((request) => request.path.endsWith('/release'))).toBe(true);
+      expect(requests.some((request) => request.path.endsWith('/template-browser-399-2/release'))).toBe(true);
       expect(browserErrors).toEqual([]);
     } finally {
       const evidence = {

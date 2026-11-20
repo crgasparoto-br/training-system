@@ -440,12 +440,112 @@ describe('training routine HTTP boundaries (#387)', () => {
         adherence: { status: 'available', value: 50, unit: '%' },
       });
       expect(Object.keys(indicator).sort()).toEqual([
-        'adherence', 'counts', 'lastSourceUpdateAt', 'period', 'sourceLabel',
+        'adherence', 'counts', 'lastSourceUpdateAt', 'metrics', 'period', 'series', 'sourceLabel',
       ]);
       expect(indicator.adherence).not.toHaveProperty('formula');
       expect(JSON.stringify(response.body)).not.toMatch(
         /private-day|weekly-adherence-v1|consolidated_release_and_session_execution|completedSessions \/ prescribedSessions/
       );
+      expect(mockGetRoutine).toHaveBeenCalledWith(expect.objectContaining({
+        alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student',
+      }));
+    });
+
+    it('A-018: resposta HTTP preserva atualização individual da execução após revisão de PSE', async () => {
+      const { calculateWeeklyTrainingEvolution } = require('../src/modules/workout/training-evolution.domain');
+      const executionAt = '2026-10-01T12:00:00.000Z';
+      const feedbackAt = '2026-10-03T15:00:00.000Z';
+      mockGetRoutine.mockImplementation(async ({ audience }: { audience: 'student' | 'professor' }) => ({
+        ...routine, audience,
+        weeklyEvolution: calculateWeeklyTrainingEvolution({
+          period: { startDate: '2026-09-28', endDate: '2026-10-04' }, audience,
+          sessions: [{
+            sessionId: 'hidden-session', status: 'completed', date: '2026-10-01',
+            modality: 'resistance', releaseId: 'hidden-release', sourceUpdatedAt: executionAt,
+            execution: { plannedExercises: [], items: [], sessionValues: { durationSec: 1800 } },
+            feedback: [{ id: 'hidden-feedback', scopeKey: 'session',
+              createdAt: feedbackAt, pse: 8, psr: 7 }],
+          }],
+        }),
+      }));
+      const response = await request(app).get('/student/me/training-routine').set('x-contract-id', 'contract-1');
+      expect(response.status).toBe(200);
+      const weekly = response.body.data.weeklyEvolution;
+      expect(weekly.lastSourceUpdateAt).toBe(feedbackAt);
+      expect(weekly.metrics.find((metric: any) => metric.key === 'duration'))
+        .toMatchObject({ value: 30, lastSourceUpdateAt: executionAt });
+      expect(weekly.metrics.find((metric: any) => metric.key === 'pse'))
+        .toMatchObject({ value: 8, lastSourceUpdateAt: feedbackAt });
+      expect(weekly.metrics.find((metric: any) => metric.key === 'psr'))
+        .toMatchObject({ value: 7, lastSourceUpdateAt: feedbackAt });
+      expect(weekly.technical).toBeUndefined();
+      expect(JSON.stringify(response.body)).not.toMatch(/hidden-session|hidden-feedback|hidden-release/);
+    });
+
+    it('A-019: rota do aluno só publica tonelagem resistida certificada no treino combinado', async () => {
+      const { calculateWeeklyTrainingEvolution } = require('../src/modules/workout/training-evolution.domain');
+      mockGetRoutine.mockImplementation(async ({ audience }: { audience: 'student' | 'professor' }) => ({
+        ...routine, audience,
+        weeklyEvolution: calculateWeeklyTrainingEvolution({
+          period: { startDate: '2026-09-28', endDate: '2026-10-04' }, audience,
+          sessions: [{
+            sessionId: 'hidden-session', status: 'completed', date: '2026-10-01',
+            modality: 'cyclic+resistance', method: 'Ciclismo contínuo', cyclicStructure: '[]',
+            releaseId: 'hidden-release', sourceUpdatedAt: '2026-10-01T12:00:00.000Z',
+            execution: { sessionValues: {}, plannedExercises: [
+              { plannedUnitId: 'hidden-res-unit', catalogExerciseId: 'squat', name: 'Agachamento',
+                section: 'principal', exerciseOrder: 1, system: null,
+                blockSignature: '[]', groupSignature: null, capturedCapacity: 'resisted' },
+              { plannedUnitId: 'hidden-bike-unit', catalogExerciseId: 'bike', name: 'Bicicleta',
+                section: 'principal', exerciseOrder: 2, system: null,
+                blockSignature: '[]', groupSignature: null, capturedCapacity: 'cyclic' },
+            ], items: [
+              { plannedUnitId: 'hidden-res-unit', plannedSetId: 'hidden-res-set', setNumber: 1,
+                outcome: 'full', loadKg: 40, repetitions: 10 },
+              { plannedUnitId: 'hidden-bike-unit', plannedSetId: 'hidden-bike-set', setNumber: 1,
+                outcome: 'full', loadKg: 50, repetitions: 10 },
+            ] },
+          }],
+        }),
+      }));
+      const response = await request(app).get('/student/me/training-routine').set('x-contract-id', 'contract-1');
+      expect(response.status).toBe(200);
+      const evolution = response.body.data.weeklyEvolution;
+      expect(evolution.metrics.find((m: any) => m.key === 'tonnage'))
+        .toMatchObject({ status: 'available', value: 400, sampleCount: 1 });
+      expect(evolution.metrics.find((m: any) => m.key === 'load'))
+        .toMatchObject({ status: 'available', value: 40, sampleCount: 1 });
+      expect(evolution.technical).toBeUndefined();
+      expect(JSON.stringify(response.body)).not.toMatch(
+        /hidden-session|hidden-release|hidden-res-unit|hidden-bike-unit|hidden-res-set|hidden-bike-set|training-evolution-v1/
+      );
+      expect(mockGetRoutine).toHaveBeenCalledWith(expect.objectContaining({
+        alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student',
+      }));
+    });
+
+    it('A-013: HTTP student emits comparable stage pace without stage IDs or technical metadata', async () => {
+      const { calculateWeeklyTrainingEvolution } = require('../src/modules/workout/training-evolution.domain');
+      mockGetRoutine.mockImplementation(async ({ audience }: { audience: 'student' | 'professor' }) => ({
+        ...routine, audience,
+        weeklyEvolution: calculateWeeklyTrainingEvolution({
+          audience, period: { startDate: '2026-09-28', endDate: '2026-10-04' },
+          sessions: [{
+            sessionId: 'hidden-session', status: 'completed', date: '2026-10-01',
+            modality: 'cyclic', method: 'Corrida contínua', cyclicStructure: 'same-topology',
+            releaseId: 'hidden-release', sourceUpdatedAt: '2026-10-01T12:00:00.000Z',
+            execution: { plannedExercises: [], plannedCyclicStages: [
+              { id: 'hidden-stage', kind: 'work', parentStageId: null, position: 1 },
+            ], items: [], sessionValues: { cyclicStages: [{ plannedStageId: 'hidden-stage',
+              outcome: 'full', paceMinPerKm: 5.5 }] } },
+          }],
+        }),
+      }));
+      const response = await request(app).get('/student/me/training-routine').set('x-contract-id', 'contract-1');
+      expect(response.status).toBe(200);
+      expect(response.body.data.weeklyEvolution.metrics.find((m: any) => m.key === 'pace'))
+        .toMatchObject({ status: 'available', value: 5.5, sampleCount: 1 });
+      expect(JSON.stringify(response.body)).not.toMatch(/hidden-session|hidden-release|hidden-stage|training-evolution-v1/);
       expect(mockGetRoutine).toHaveBeenCalledWith(expect.objectContaining({
         alunoId: 'aluno-1', contractId: 'contract-1', audience: 'student',
       }));

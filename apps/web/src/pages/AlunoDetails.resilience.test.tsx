@@ -1,16 +1,22 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { AxiosError } from 'axios';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
+import { canAccessBlock, canAccessScreen } from '../access/access-control';
 
 const navigateMock = vi.fn();
+let routeAlunoId = 'aluno-1';
 const getByIdMock = vi.fn();
+const resetPasswordMock = vi.fn();
+const reprocessAssessmentMock = vi.fn();
+const getAssessmentLogsMock = vi.fn();
 const listByAlunoMock = vi.fn();
 const getSummaryMock = vi.fn();
 const assessmentTypeListMock = vi.fn();
 const planListByAlunoMock = vi.fn();
 const getAssessmentPlanMock = vi.fn();
 const listStudentContractsMock = vi.fn();
+const availableContractsMock = vi.fn();
 const getSegmentedSummaryMock = vi.fn();
 const getSegmentedProfileMock = vi.fn();
 const getSegmentedIntakeMock = vi.fn();
@@ -18,12 +24,18 @@ const getSegmentedFinancialProfileMock = vi.fn();
 const getSegmentedIntegrationsMock = vi.fn();
 const listSegmentedActivitiesMock = vi.fn();
 const getSegmentedTimelineMock = vi.fn();
+const getProfileReviewSettingsMock = vi.fn();
+const listProfileReviewsMock = vi.fn();
+const listAdipometryAssessmentsMock = vi.fn();
+const listResponsibleProfessorsMock = vi.fn();
+const getTrainingRoutineMock = vi.fn();
+const overviewMock = vi.fn();
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   return {
     ...actual,
-    useParams: () => ({ id: 'aluno-1' }),
+    useParams: () => ({ id: routeAlunoId }),
     useNavigate: () => navigateMock,
     useLocation: () => ({ state: null }),
   };
@@ -61,6 +73,7 @@ vi.mock('../access/access-control', () => ({
 vi.mock('../services/aluno.service', () => ({
   alunoService: {
     getById: (...args: unknown[]) => getByIdMock(...args),
+    resetPassword: (...args: unknown[]) => resetPasswordMock(...args),
     getAssessmentPlan: (...args: unknown[]) => getAssessmentPlanMock(...args),
     listStudentContracts: (...args: unknown[]) => listStudentContractsMock(...args),
     getSegmentedSummary: (...args: unknown[]) => getSegmentedSummaryMock(...args),
@@ -70,12 +83,16 @@ vi.mock('../services/aluno.service', () => ({
     getSegmentedIntegrations: (...args: unknown[]) => getSegmentedIntegrationsMock(...args),
     listSegmentedActivities: (...args: unknown[]) => listSegmentedActivitiesMock(...args),
     getSegmentedTimeline: (...args: unknown[]) => getSegmentedTimelineMock(...args),
+    getProfileReviewSettings: (...args: unknown[]) => getProfileReviewSettingsMock(...args),
+    listProfileReviews: (...args: unknown[]) => listProfileReviewsMock(...args),
   },
 }));
 
 vi.mock('../services/assessment.service', () => ({
   assessmentService: {
     listByAluno: (...args: unknown[]) => listByAlunoMock(...args),
+    reprocessAssessment: (...args: unknown[]) => reprocessAssessmentMock(...args),
+    getLogs: (...args: unknown[]) => getAssessmentLogsMock(...args),
     getSummary: (...args: unknown[]) => getSummaryMock(...args),
   },
 }));
@@ -92,26 +109,95 @@ vi.mock('../services/plan.service', () => ({
   },
 }));
 
+vi.mock('../services/contract.service', () => ({
+  contractService: {
+    listAvailableForStudent: (...args: unknown[]) => availableContractsMock(...args),
+  },
+}));
+
+vi.mock('../services/adipometry.service', () => ({
+  adipometryService: {
+    listAssessments: (...args: unknown[]) => listAdipometryAssessmentsMock(...args),
+    listResponsibleProfessors: (...args: unknown[]) => listResponsibleProfessorsMock(...args),
+  },
+}));
+vi.mock('../services/training-routine.service', () => ({
+  trainingRoutineService: {
+    getForAluno: (...args: unknown[]) => getTrainingRoutineMock(...args),
+  },
+}));
+vi.mock('../services/prontuario.service', () => ({
+  prontuarioService: {
+    overview: (...args: unknown[]) => overviewMock(...args),
+  },
+}));
+
 vi.mock('../components/ProfessorManualContextPanel', () => ({
   ProfessorManualContextPanel: () => null,
 }));
 
 vi.mock('../components/alunos/AlunoDetailsTabs', () => ({
-  AlunoDetailsTabs: () => null,
-  getTabBlockKey: () => undefined,
+  AlunoDetailsTabs: ({
+    onChange,
+    visibleTabs,
+  }: {
+    onChange: (tab: 'cadastro' | 'resumo' | 'financeiro' | 'plano-avaliacoes' | 'avaliacoes-fisicas' | 'revisoes-cadastrais' | 'treinos') => void;
+    visibleTabs: string[];
+  }) => (
+    <div>
+      {visibleTabs.includes('cadastro') && (
+        <button type="button" onClick={() => onChange('cadastro')}>Mostrar aba Cadastro</button>
+      )}
+      {visibleTabs.includes('resumo') && (
+        <button type="button" onClick={() => onChange('resumo')}>Mostrar aba Resumo</button>
+      )}
+      {visibleTabs.includes('financeiro') && (
+        <button type="button" onClick={() => onChange('financeiro')}>Mostrar aba Financeiro</button>
+      )}
+      {visibleTabs.includes('plano-avaliacoes') && (
+        <button type="button" onClick={() => onChange('plano-avaliacoes')}>Mostrar aba Plano</button>
+      )}
+      {visibleTabs.includes('avaliacoes-fisicas') && (
+        <button type="button" onClick={() => onChange('avaliacoes-fisicas')}>Mostrar aba Avaliações</button>
+      )}
+      {visibleTabs.includes('revisoes-cadastrais') && (
+        <button type="button" onClick={() => onChange('revisoes-cadastrais')}>Mostrar aba Revisões</button>
+      )}
+      {visibleTabs.includes('treinos') && (
+        <button type="button" onClick={() => onChange('treinos')}>Mostrar aba Treinos</button>
+      )}
+    </div>
+  ),
+  getTabBlockKey: (tab: string) =>
+    tab === 'cadastro'
+      ? 'students.details.profile'
+      : tab === 'financeiro'
+        ? 'students.details.financialContract'
+        : tab === 'plano-avaliacoes'
+          ? 'students.details.assessmentPlan'
+          : tab === 'avaliacoes-fisicas'
+            ? 'students.details.assessments'
+            : tab === 'revisoes-cadastrais'
+              ? 'students.details.profileReviews'
+              : tab === 'treinos'
+                ? 'students.details.trainingPlans'
+                : undefined,
 }));
 
-vi.mock('../components/alunos/AlunoResumoHubTab', () => ({
+// O Hub e o cartao PRNT permanecem reais; apenas o layout base, nao afetado,
+// e isolado para nao acionar outras leituras nesta regressao.
+vi.mock('../components/alunos/AlunoResumoHubTabBase', () => ({
   AlunoResumoHubTab: () => null,
 }));
 vi.mock('../components/alunos/AlunoCadastroTab', () => ({
-  AlunoCadastroTab: () => null,
+  AlunoCadastroTab: ({
+    segmentedProfile,
+  }: {
+    segmentedProfile: { alunoId?: string } | null;
+  }) => <div data-testid="perfil-carregado">{segmentedProfile?.alunoId ?? 'sem perfil'}</div>,
 }));
 vi.mock('../components/alunos/AlunoSaudeAnamneseTab', () => ({
   AlunoSaudeAnamneseTab: () => null,
-}));
-vi.mock('../components/alunos/AlunoFinanceiroTab', () => ({
-  AlunoFinanceiroTab: () => null,
 }));
 vi.mock('../components/alunos/AlunoHistoricoTab', () => ({
   AlunoHistoricoTab: () => null,
@@ -119,14 +205,28 @@ vi.mock('../components/alunos/AlunoHistoricoTab', () => ({
 vi.mock('../components/alunos/AlunoIntegracoesTab', () => ({
   AlunoIntegracoesTab: () => null,
 }));
-vi.mock('../components/alunos/AlunoPlanoAvaliacoesTab', () => ({
-  AlunoPlanoAvaliacoesTab: () => null,
-}));
-vi.mock('../components/alunos/AlunoRevisoesCadastraisTab', () => ({
-  AlunoRevisoesCadastraisTab: () => null,
-}));
-
 import { AlunoDetails } from './AlunoDetails';
+
+const assessmentFor = (studentId: string, name: string) => ({
+  id: 'assessment-' + studentId,
+  alunoId: studentId,
+  typeId: 'type-1',
+  assessmentDate: '2026-11-01T12:00:00.000Z',
+  originalFileName: studentId + '.pdf',
+  type: { id: 'type-1', name },
+  extractedData: { metrics: {} },
+});
+
+const nextAluno = {
+  id: 'aluno-2',
+  userId: 'user-2',
+  professorId: 'prof-1',
+  age: 26,
+  schedulePlan: 'free',
+  user: { email: 'novo@test.com', profile: { name: 'Outro Aluno' } },
+  createdAt: '2026-11-19T12:00:00.000Z',
+  updatedAt: '2026-11-19T12:00:00.000Z',
+};
 
 describe('AlunoDetails resiliencia de carregamento', () => {
   afterEach(() => {
@@ -135,6 +235,12 @@ describe('AlunoDetails resiliencia de carregamento', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    routeAlunoId = 'aluno-1';
+    resetPasswordMock.mockReset().mockResolvedValue({ tempPassword: 'TEMP-A' });
+    reprocessAssessmentMock.mockReset().mockResolvedValue(undefined);
+    getAssessmentLogsMock.mockReset().mockResolvedValue([]);
+    vi.mocked(canAccessScreen).mockImplementation(() => true);
+    vi.mocked(canAccessBlock).mockImplementation(() => true);
     vi.spyOn(console, 'error').mockImplementation(() => {});
 
     getByIdMock.mockResolvedValue({
@@ -163,6 +269,7 @@ describe('AlunoDetails resiliencia de carregamento', () => {
       activeContract: null,
       contracts: [],
     });
+    availableContractsMock.mockResolvedValue([]);
     getSegmentedSummaryMock.mockResolvedValue(null);
     getSegmentedProfileMock.mockResolvedValue(null);
     getSegmentedIntakeMock.mockResolvedValue(null);
@@ -170,6 +277,22 @@ describe('AlunoDetails resiliencia de carregamento', () => {
     getSegmentedIntegrationsMock.mockResolvedValue(null);
     listSegmentedActivitiesMock.mockResolvedValue(null);
     getSegmentedTimelineMock.mockResolvedValue(null);
+    getProfileReviewSettingsMock.mockResolvedValue({
+      settings: null,
+      effective: { isReviewRequired: true, reviewPeriodMonths: 12, nextReviewAt: null },
+    });
+    listProfileReviewsMock.mockResolvedValue([]);
+    listAdipometryAssessmentsMock.mockResolvedValue([]);
+    listResponsibleProfessorsMock.mockResolvedValue([]);
+    getTrainingRoutineMock.mockImplementation(() => new Promise(() => {}));
+    overviewMock.mockResolvedValue({
+      records: [],
+      currentRecord: null,
+      latestParqSubmission: null,
+      parqSubmissions: [],
+      parqState: 'NOT_STARTED',
+      parqLegacy: { preserved: false, needsRepeat: false },
+    });
   });
 
   it('nao redireciona quando endpoint secundario falha para usuario master', async () => {
@@ -239,4 +362,516 @@ describe('AlunoDetails resiliencia de carregamento', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('ALUNO_READ_INTERNAL_ERROR');
     expect(screen.queryByRole('button', { name: 'Tentar novamente' })).not.toBeInTheDocument();
   });
+  it('renderiza a identidade sem aguardar o Resumo e nao consulta abas fechadas', async () => {
+    let resolveSummary: ((value: null) => void) | undefined;
+    getSegmentedSummaryMock.mockImplementationOnce(
+      () => new Promise<null>((resolve) => { resolveSummary = resolve; })
+    );
+
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Aluno Teste')).toBeInTheDocument();
+    await waitFor(() => expect(getSegmentedSummaryMock).toHaveBeenCalledWith('aluno-1'));
+    expect(screen.getByRole('status')).toHaveTextContent('Carregando dados desta seção');
+    expect(getSegmentedProfileMock).not.toHaveBeenCalled();
+    expect(getSegmentedIntakeMock).not.toHaveBeenCalled();
+    expect(getSegmentedFinancialProfileMock).not.toHaveBeenCalled();
+    expect(getSegmentedIntegrationsMock).not.toHaveBeenCalled();
+    expect(listSegmentedActivitiesMock).not.toHaveBeenCalled();
+    expect(getSegmentedTimelineMock).not.toHaveBeenCalled();
+    expect(assessmentTypeListMock).not.toHaveBeenCalled();
+
+    resolveSummary?.(null);
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
+  });
+
+  it('busca Cadastro so ao entrar na aba e reutiliza os dados ao retornar', async () => {
+    getSegmentedProfileMock.mockResolvedValue({ alunoId: 'aluno-1' });
+
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+
+    expect(getSegmentedProfileMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Cadastro' }));
+    await waitFor(() => expect(getSegmentedProfileMock).toHaveBeenCalledTimes(1));
+    expect(await screen.findByTestId('perfil-carregado')).toHaveTextContent('aluno-1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Resumo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Cadastro' }));
+    expect(getSegmentedProfileMock).toHaveBeenCalledTimes(1);
+    expect(getSegmentedTimelineMock).not.toHaveBeenCalled();
+  });
+
+  it('mantem a ficha acessivel e permite retry da aba sem refazer o aluno', async () => {
+    getSegmentedProfileMock
+      .mockRejectedValueOnce(new Error('Erro de rede na aba'))
+      .mockResolvedValueOnce({ alunoId: 'aluno-1' });
+
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Cadastro' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Não foi possível carregar esta seção.'
+    );
+    expect(screen.getByText('Aluno Teste')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+
+    await waitFor(() => expect(getSegmentedProfileMock).toHaveBeenCalledTimes(2));
+    expect(await screen.findByTestId('perfil-carregado')).toHaveTextContent('aluno-1');
+    expect(getByIdMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('nao consulta Cadastro quando o bloco esta negado', async () => {
+    vi.mocked(canAccessBlock).mockImplementation(
+      (_user, blockKey) => blockKey !== 'students.details.profile'
+    );
+
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+
+    expect(screen.queryByRole('button', { name: 'Mostrar aba Cadastro' })).not.toBeInTheDocument();
+    expect(getSegmentedProfileMock).not.toHaveBeenCalled();
+    expect(getSegmentedTimelineMock).not.toHaveBeenCalled();
+  });
+
+  it('descarta a resposta tardia da aba do aluno anterior', async () => {
+    let resolveOldProfile: ((value: { alunoId: string }) => void) | undefined;
+    getSegmentedProfileMock
+      .mockImplementationOnce(
+        () => new Promise((resolve) => { resolveOldProfile = resolve; })
+      )
+      .mockResolvedValueOnce({ alunoId: 'aluno-2' });
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Cadastro' }));
+    await waitFor(() => expect(getSegmentedProfileMock).toHaveBeenCalledTimes(1));
+
+    routeAlunoId = 'aluno-2';
+    getByIdMock.mockResolvedValueOnce({
+      id: 'aluno-2',
+      userId: 'user-2',
+      professorId: 'prof-1',
+      age: 26,
+      schedulePlan: 'free',
+      user: { email: 'novo@test.com', profile: { name: 'Outro Aluno' } },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    rerender(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Outro Aluno')).toBeInTheDocument();
+    resolveOldProfile?.({ alunoId: 'aluno-1' });
+    await waitFor(() => expect(getSegmentedProfileMock).toHaveBeenCalledTimes(2));
+    expect(await screen.findByTestId('perfil-carregado')).toHaveTextContent('aluno-2');
+    expect(screen.queryByText('Aluno Teste')).not.toBeInTheDocument();
+  });
+
+
+  it('carrega Financeiro uma vez por abertura e preserva o estado ao alternar', async () => {
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+    await waitFor(() => expect(listStudentContractsMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Financeiro' }));
+    await waitFor(() => expect(getSegmentedFinancialProfileMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(listStudentContractsMock).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('Contrato ativo')).toBeInTheDocument();
+    expect(availableContractsMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Resumo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Financeiro' }));
+    expect(listStudentContractsMock).toHaveBeenCalledTimes(2);
+    expect(getSegmentedFinancialProfileMock).toHaveBeenCalledTimes(1);
+    expect(availableContractsMock).toHaveBeenCalledTimes(1);
+  });
+
+
+  it('na falha do Financeiro não afirma ausência de contrato e permite retry local', async () => {
+    listStudentContractsMock
+      .mockResolvedValueOnce({ alunoId: 'aluno-1', activeContract: null, contracts: [] })
+      .mockRejectedValueOnce(new Error('falha transitória'))
+      .mockResolvedValueOnce({ alunoId: 'aluno-1', activeContract: null, contracts: [] });
+
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+    await waitFor(() => expect(listStudentContractsMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Financeiro' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Os dados contratuais ainda não foram confirmados.');
+    expect(screen.queryByText('Sem contrato ativo')).not.toBeInTheDocument();
+    expect(screen.queryByText('Contrato ativo')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    await waitFor(() => expect(listStudentContractsMock).toHaveBeenCalledTimes(3));
+    expect(await screen.findByText('Contrato ativo')).toBeInTheDocument();
+    expect(screen.getByText('Sem contrato ativo')).toBeInTheDocument();
+    expect(getByIdMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('recupera separadamente a consulta de contratos disponíveis', async () => {
+    availableContractsMock
+      .mockRejectedValueOnce(new Error('Serviço de contratos temporariamente indisponível'))
+      .mockResolvedValueOnce([]);
+
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Financeiro' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Não foi possível consultar os contratos disponíveis.'
+    );
+    expect(availableContractsMock).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar consultar contratos disponíveis' }));
+    await waitFor(() => expect(availableContractsMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+    expect(listStudentContractsMock).toHaveBeenCalledTimes(2);
+    expect(getByIdMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserva o rascunho do Plano de avaliações sem fazer novo GET ao retornar', async () => {
+    getAssessmentPlanMock.mockResolvedValue({
+      items: [{
+        assessmentTypeId: 'type-1',
+        assessmentType: { id: 'type-1', name: 'Avaliação de teste', code: 'TEST', isActive: true },
+        isActive: true,
+        isRequired: true,
+        cadenceMonths: 2,
+        startDate: null,
+        nextDueDate: null,
+        notes: 'Original',
+        summary: { lastAssessmentDate: null },
+      }],
+    });
+
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+    expect(getAssessmentPlanMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Plano' }));
+    await screen.findByText('Avaliação de teste');
+    expect(getAssessmentPlanMock).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Observações' }), {
+      target: { value: 'Rascunho preservado' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Resumo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Plano' }));
+    expect(screen.getByRole('textbox', { name: 'Observações' })).toHaveValue('Rascunho preservado');
+    expect(getAssessmentPlanMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('na falha do Plano não afirma ausência e oferece retry local', async () => {
+    getAssessmentPlanMock
+      .mockRejectedValueOnce(new Error('Serviço indisponível'))
+      .mockResolvedValueOnce({ items: [] });
+
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Plano' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar o plano');
+    expect(screen.queryByText(/Não há tipos de avaliação ativos/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    await waitFor(() => expect(getAssessmentPlanMock).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText(/Não há tipos de avaliação ativos/)).toBeInTheDocument();
+  });
+
+  it('mantem o Resumo e o PRNT montados ao alternar sem refazer leitura', async () => {
+    render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    expect(await screen.findByText('Sem desconforto ativo')).toBeInTheDocument();
+    expect(overviewMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Cadastro' }));
+    await screen.findByTestId('perfil-carregado');
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Resumo' }));
+
+    expect(screen.getByText('Sem desconforto ativo')).toBeInTheDocument();
+    expect(overviewMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('mantem filtro de Avaliacoes Fisicas e nao repete leituras ao retornar', async () => {
+    render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Aluno Teste');
+    await waitFor(() => expect(listByAlunoMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Avaliações' }));
+    const filter = await screen.findByLabelText('Filtrar por tipo');
+    await waitFor(() => expect(listAdipometryAssessmentsMock).toHaveBeenCalledTimes(1));
+    expect(getByIdMock).toHaveBeenCalledTimes(1);
+    expect(listByAlunoMock).toHaveBeenCalledTimes(2);
+    fireEvent.change(filter, { target: { value: 'other' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Cadastro' }));
+    await screen.findByTestId('perfil-carregado');
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Avaliações' }));
+
+    expect(screen.getByLabelText('Filtrar por tipo')).toHaveValue('other');
+    expect(listAdipometryAssessmentsMock).toHaveBeenCalledTimes(1);
+    expect(listByAlunoMock).toHaveBeenCalledTimes(2);
+    expect(getByIdMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('mantem ADPT disponivel quando o historico geral falha e recupera sem remontar', async () => {
+    listByAlunoMock
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('Falha no historico geral'))
+      .mockResolvedValueOnce([]);
+
+    render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Aluno Teste');
+    await waitFor(() => expect(listByAlunoMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Avaliações' }));
+    expect(await screen.findByText('Adipometria e evolução ADPT')).toBeInTheDocument();
+    await waitFor(() => expect(listAdipometryAssessmentsMock).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('Nenhum item corresponde ao filtro selecionado.')).not.toBeInTheDocument();
+    expect(await screen.findByText('Não foi possível carregar esta seção. Tente novamente.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    await waitFor(() => expect(listByAlunoMock).toHaveBeenCalledTimes(3));
+    expect(await screen.findByRole('link', { name: 'Iniciar antropometria' })).toBeInTheDocument();
+    expect(listAdipometryAssessmentsMock).toHaveBeenCalledTimes(1);
+    expect(getByIdMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserva o rascunho e as leituras de Revisoes Cadastrais ao alternar', async () => {
+    render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Aluno Teste');
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Revisões' }));
+
+    const monthsInput = await screen.findByLabelText('Período em meses');
+    expect(getProfileReviewSettingsMock).toHaveBeenCalledTimes(1);
+    expect(listProfileReviewsMock).toHaveBeenCalledTimes(1);
+    fireEvent.change(monthsInput, { target: { value: '6' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Cadastro' }));
+    await screen.findByTestId('perfil-carregado');
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Revisões' }));
+
+    expect(screen.getByLabelText('Período em meses')).toHaveValue(6);
+    expect(getProfileReviewSettingsMock).toHaveBeenCalledTimes(1);
+    expect(listProfileReviewsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('nao consulta Treinos novamente ao retornar para aba ja montada', async () => {
+    render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Aluno Teste');
+    expect(getTrainingRoutineMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Treinos' }));
+    await waitFor(() => expect(getTrainingRoutineMock).toHaveBeenCalledTimes(1));
+    const trainingPanel = screen.getByTestId('aluno-training-tab-panel');
+    expect(trainingPanel).not.toHaveAttribute('hidden');
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Cadastro' }));
+    await screen.findByTestId('perfil-carregado');
+    expect(trainingPanel).toHaveAttribute('hidden');
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Treinos' }));
+    expect(screen.getByTestId('aluno-training-tab-panel')).not.toHaveAttribute('hidden');
+
+    expect(getTrainingRoutineMock).toHaveBeenCalledTimes(1);
+    expect(getByIdMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('nega Avaliacoes, Treinos e Revisoes antes de montar seus componentes', async () => {
+    vi.mocked(canAccessBlock).mockImplementation(
+      (_user, blockKey) => ![
+        'students.details.assessments',
+        'students.details.trainingPlans',
+        'students.details.profileReviews',
+      ].includes(blockKey)
+    );
+    render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Aluno Teste');
+
+    expect(screen.queryByRole('button', { name: 'Mostrar aba Avaliações' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mostrar aba Revisões' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mostrar aba Treinos' })).not.toBeInTheDocument();
+    expect(listAdipometryAssessmentsMock).not.toHaveBeenCalled();
+    expect(getProfileReviewSettingsMock).not.toHaveBeenCalled();
+    expect(getTrainingRoutineMock).not.toHaveBeenCalled();
+  });
+
+
+  it('nao aplica refresh de avaliacao atrasado do aluno anterior na ficha atual', async () => {
+    const first = assessmentFor('aluno-1', 'Avaliação A');
+    const second = assessmentFor('aluno-2', 'Avaliação B');
+    let resolveOldRefresh: ((value: typeof first[]) => void) | undefined;
+    let firstReads = 0;
+    listByAlunoMock.mockImplementation((studentId: string) => {
+      if (studentId === 'aluno-2') return Promise.resolve([second]);
+      firstReads += 1;
+      if (firstReads === 3) {
+        return new Promise((resolve) => { resolveOldRefresh = resolve; });
+      }
+      return Promise.resolve([first]);
+    });
+
+    const { rerender } = render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Aluno Teste');
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Avaliações' }));
+    await screen.findAllByText('Avaliação A');
+    fireEvent.click(screen.getByRole('button', { name: 'Reprocessar' }));
+    await waitFor(() => expect(resolveOldRefresh).toBeDefined());
+
+    routeAlunoId = 'aluno-2';
+    getByIdMock.mockResolvedValueOnce(nextAluno);
+    rerender(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Outro Aluno');
+    await screen.findAllByText('Avaliação B');
+
+    await act(async () => { resolveOldRefresh?.([first]); });
+    expect(screen.getAllByText('Avaliação B').length).toBeGreaterThan(0);
+    expect(screen.queryAllByText('Avaliação A')).toHaveLength(0);
+  });
+
+  it('nao inicia refresh ou sucesso no aluno novo quando mutacao antiga conclui tarde', async () => {
+    const first = assessmentFor('aluno-1', 'Avaliação A');
+    const second = assessmentFor('aluno-2', 'Avaliação B');
+    let finishMutation: (() => void) | undefined;
+    reprocessAssessmentMock.mockImplementationOnce(() =>
+      new Promise<void>((resolve) => { finishMutation = resolve; })
+    );
+    listByAlunoMock.mockImplementation((studentId: string) =>
+      Promise.resolve(studentId === 'aluno-1' ? [first] : [second])
+    );
+    const { rerender } = render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Aluno Teste');
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Avaliações' }));
+    await screen.findAllByText('Avaliação A');
+    fireEvent.click(screen.getByRole('button', { name: 'Reprocessar' }));
+    await waitFor(() => expect(finishMutation).toBeDefined());
+
+    routeAlunoId = 'aluno-2';
+    getByIdMock.mockResolvedValueOnce(nextAluno);
+    rerender(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Outro Aluno');
+    await screen.findAllByText('Avaliação B');
+    await act(async () => { finishMutation?.(); });
+    expect(listByAlunoMock.mock.calls.filter(([id]) => id === 'aluno-1')).toHaveLength(2);
+    expect(screen.queryAllByText('Avaliação A')).toHaveLength(0);
+    expect(screen.getAllByText('Avaliação B').length).toBeGreaterThan(0);
+  });
+
+  it('nao permite que um refresh mais antigo sobrescreva outro do mesmo aluno', async () => {
+    const original = assessmentFor('aluno-1', 'Avaliação original');
+    const updated = assessmentFor('aluno-1', 'Avaliação atualizada');
+    let resolveStale: ((value: typeof original[]) => void) | undefined;
+    let reads = 0;
+    listByAlunoMock.mockImplementation(() => {
+      reads += 1;
+      if (reads === 3) return new Promise((resolve) => { resolveStale = resolve; });
+      return Promise.resolve(reads >= 4 ? [updated] : [original]);
+    });
+    render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Aluno Teste');
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar aba Avaliações' }));
+    await screen.findAllByText('Avaliação original');
+    fireEvent.click(screen.getByRole('button', { name: 'Reprocessar' }));
+    await waitFor(() => expect(resolveStale).toBeDefined());
+    fireEvent.click(screen.getByRole('button', { name: 'Reprocessar' }));
+    expect((await screen.findAllByText('Avaliação atualizada')).length).toBeGreaterThan(0);
+    await act(async () => { resolveStale?.([original]); });
+    expect(screen.getAllByText('Avaliação atualizada').length).toBeGreaterThan(0);
+    expect(screen.queryAllByText('Avaliação original')).toHaveLength(0);
+  });
+
+  it('nao publica senha temporaria de outro aluno apos resposta atrasada', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    let resolvePassword: ((value: {tempPassword: string}) => void) | undefined;
+    resetPasswordMock.mockImplementationOnce(() =>
+      new Promise((resolve) => { resolvePassword = resolve; })
+    );
+    const { rerender } = render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Aluno Teste');
+    fireEvent.click(screen.getByRole('button', { name: /redefinir senha|resetar senha/i }));
+    await waitFor(() => expect(resolvePassword).toBeDefined());
+
+    routeAlunoId = 'aluno-2';
+    getByIdMock.mockResolvedValueOnce(nextAluno);
+    rerender(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Outro Aluno');
+    await act(async () => { resolvePassword?.({ tempPassword: 'SENHA-ANTIGA-EXCLUSIVA' }); });
+    expect(screen.queryByText('SENHA-ANTIGA-EXCLUSIVA')).not.toBeInTheDocument();
+    expect(screen.getByText('Outro Aluno')).toBeInTheDocument();
+  });
+
+  it('nao solicita contratos quando a tela financeira e as permissoes de contrato estao negadas', async () => {
+    vi.mocked(canAccessScreen).mockImplementation((_user, key) =>
+      !['students.contracts.view', 'students.contracts.manage', 'students.contracts.cancel', 'students.contracts.renew'].includes(key ?? '')
+    );
+    vi.mocked(canAccessBlock).mockImplementation((_user, key) =>
+      key !== 'students.details.financialContract'
+    );
+    render(<MemoryRouter><AlunoDetails /></MemoryRouter>);
+    await screen.findByText('Aluno Teste');
+    await waitFor(() => expect(getSegmentedSummaryMock).toHaveBeenCalledWith('aluno-1'));
+    expect(listStudentContractsMock).not.toHaveBeenCalled();
+    expect(getSegmentedFinancialProfileMock).not.toHaveBeenCalled();
+  });
+
+  it('não abre abas sensíveis nem faz suas leituras sem permissão', async () => {
+    vi.mocked(canAccessBlock).mockImplementation(
+      (_user, blockKey) =>
+        blockKey !== 'students.details.financialContract' &&
+        blockKey !== 'students.details.assessmentPlan'
+    );
+    render(
+      <MemoryRouter>
+        <AlunoDetails />
+      </MemoryRouter>
+    );
+    await screen.findByText('Aluno Teste');
+    expect(screen.queryByRole('button', { name: 'Mostrar aba Financeiro' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mostrar aba Plano' })).not.toBeInTheDocument();
+    expect(getSegmentedFinancialProfileMock).not.toHaveBeenCalled();
+    expect(getAssessmentPlanMock).not.toHaveBeenCalled();
+    expect(availableContractsMock).not.toHaveBeenCalled();
+  });
+
 });
