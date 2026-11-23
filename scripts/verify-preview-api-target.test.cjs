@@ -37,11 +37,12 @@ test("preview nao aceita destino desconhecido, URL insegura, credenciais ou cami
 test("H406: apenas a API dedicada e permitida para a branch da PR #548", () => {
   const branch = { VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "feat/406-post-workout-decision-workflow" };
   assert.deepEqual(validatePreviewApiTarget({
-    ...branch, VITE_API_URL: "https://training-system-issue406-homolog-api.onrender.com"
-  }), { checked: true, host: "training-system-issue406-homolog-api.onrender.com" });
+    ...branch, VITE_API_URL: "https://training-system-issue406-homolog-api-7sg7.onrender.com"
+  }), { checked: true, host: "training-system-issue406-homolog-api-7sg7.onrender.com" });
   for (const target of [
     undefined,
     "https://training-system-issue385-homolog-api.onrender.com",
+    "https://training-system-issue406-homolog-api.onrender.com",
     "https://sistema-acesso-api.onrender.com",
     "https://other-homolog-api.onrender.com"
   ]) assert.throws(() => validatePreviewApiTarget({ ...branch, VITE_API_URL: target }));

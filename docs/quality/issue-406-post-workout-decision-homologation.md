@@ -33,8 +33,11 @@ Sequência obrigatória, sem atingir produção:
    roteamento e da separação de ambientes. Preferir projeto exclusivo de
    homologação, sem domínio, credenciais ou variáveis produtivas.
 4. Configurar `VITE_API_URL` da branch da PR **somente** para
-   `https://training-system-issue406-homolog-api.onrender.com`, validar a
+   `https://training-system-issue406-homolog-api-7sg7.onrender.com`, validar a
    origem real no Render e publicar preview do **SHA material exato**.
+   O sufixo `-7sg7` é o nome efetivo retornado pelo primeiro plano Render
+   (Blueprint `exs-dc1p6s4s728c73d2a5a0`); se um novo plano criar outro nome,
+   atualizar a origem permitida e os testes antes de ativar o preview.
    O build executa `scripts/verify-preview-api-target.cjs` e recusa API de
    produção, URL ausente e, nesta branch, API de outra homologação.
 5. Confirmar por evidência independente: origem HTTPS da Web, saída do build,

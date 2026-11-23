@@ -68,8 +68,8 @@ A issue #549 dispõe de Blueprint isolado para a API e o PostgreSQL em
 [`infra/issue-406/render.yaml`](../../infra/issue-406/render.yaml). A criação de
 recursos **não** é automática; exige confirmação do workspace, deploys e
 checagem de origem. A branch `feat/406-post-workout-decision-workflow` só pode
-usar `VITE_API_URL` da API `training-system-issue406-homolog-api.onrender.com`,
-conforme preflight no build web. Nenhuma configuração de produção, base real ou
+usar `VITE_API_URL` da API `training-system-issue406-homolog-api-7sg7.onrender.com`,
+conforme preflight no build web (nome efetivo previsto no plano Render H406). Nenhuma configuração de produção, base real ou
 segredo deve ser reutilizada. Para a ordem de preparação, testes negativos e
 aceite físico, consultar o [roteiro H406](../quality/issue-406-post-workout-decision-homologation.md).
 
