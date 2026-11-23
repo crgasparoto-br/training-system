@@ -148,3 +148,49 @@ test('clinical timeline projections require database-backed CRITICAL CI', () => 
   assert.equal(result.riskProfile, 'critical');
   assert.equal(result.apiChanged, true);
 });
+
+function validateCriticalWorkflowContract(workflow) {
+  const triggers = workflow.split('\njobs:\n')[0];
+  assert.match(triggers, /  pull_request:\n    branches: \[main, develop\]/);
+  assert.match(triggers, /  push:\n    branches:\n      - main\n      - develop\n/);
+  assert.doesNotMatch(triggers, /^      - ['"]?(?:chore|feat|fix)\//m);
+  const start = workflow.indexOf('\n  critical_validation:\n');
+  const end = workflow.indexOf('\n  validate:\n', start);
+  assert.ok(start >= 0 && end > start, 'CRITICAL validation job is required');
+  const critical = workflow.slice(start, end);
+  assert.equal((critical.match(/^\s*pnpm validate(?:\s|$)/gm) ?? []).length, 1,
+    'CRITICAL must execute pnpm validate exactly once');
+  assert.match(critical, /pnpm validate 2>&1 \| tee artifacts\/ci\/full-tests\.log/);
+  for (const command of ['pnpm prisma:source-check', 'pnpm type-check', 'pnpm lint',
+    'pnpm test', 'pnpm arch:check', 'pnpm access:check', 'pnpm docs:check']) {
+    assert.ok(!critical.split('\n').some((line) =>
+      line.trim() === 'run: ' + command || line.trim() === command),
+    command + ' must not repeat outside pnpm validate');
+  }
+  const db = critical.indexOf('name: Verify critical database and migration regressions');
+  const validation = critical.indexOf('name: Complete mandatory validation (pnpm validate)');
+  const browser = critical.indexOf('name: Verify issue-487 exact-head browser captures');
+  assert.ok(db >= 0 && db < validation && validation < browser,
+    'DB regressions precede the single aggregate gate and exact-head browser evidence');
+  for (const required of ['name: Build', 'name: Validate settings parameters in real browser',
+    'name: Retain exact Git bundle for independent audit',
+    'name: Upload exact Git bundle for independent audit',
+    'name: validate-pr-critical-']) {
+    assert.ok(critical.includes(required), required + ' must remain in CRITICAL');
+  }
+  assert.match(workflow, /name: Validate repository/);
+}
+
+test('CRITICAL CI executes full validation once without duplicate push and preserves audit gates', () => {
+  const workflow = readFileSync(new URL('../.github/workflows/validate-pr.yml', import.meta.url), 'utf8');
+  assert.doesNotThrow(() => validateCriticalWorkflowContract(workflow));
+});
+
+test('CRITICAL workflow contract rejects redundant push and duplicate tests (negative controls)', () => {
+  const workflow = readFileSync(new URL('../.github/workflows/validate-pr.yml', import.meta.url), 'utf8');
+  const redundantPush = workflow.replace("      - develop\n", "      - develop\n      - 'feat/**'\n");
+  assert.throws(() => validateCriticalWorkflowContract(redundantPush));
+  const duplicateTests = workflow.replace('      - name: Verify issue-487 exact-head browser captures',
+    '      - name: Duplicate tests\n        run: pnpm test\n      - name: Verify issue-487 exact-head browser captures');
+  assert.throws(() => validateCriticalWorkflowContract(duplicateTests));
+});

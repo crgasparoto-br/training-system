@@ -20,7 +20,7 @@ The `Validate PR` workflow uses deterministic risk classification to keep small 
 - Backend route guards (including hyphenated or underscored `route-guard`/`route-guards` names) enforce tenant authorization and must also be `CRITICAL`, even if generic API modules would otherwise be `STANDARD`.
 - `CI_RISK_PROFILE` may promote a PR to a higher level but never downgrades observed risk.
 - Pull requests validate merge-preview compatibility separately from the exact PR head.
-- Push events covered by the workflow always execute `CRITICAL` validation.
+- Pushes to protected integration branches `main` and `develop` always execute `CRITICAL` validation; pushes to feature/fix/chore branches are validated through their pull requests (FAST, STANDARD or CRITICAL according to the deterministic policy).
 - The final required status remains exactly `Validate repository` because the active `main` ruleset depends on that context.
 - The executed path emits repository-owned exact-head evidence in `ci-validation-evidence.json`.
 - CI does not merge pull requests automatically.
@@ -33,7 +33,7 @@ For `FAST` web changes, changed test files are executed directly and Vitest `rel
 
 The complete database/browser/migration suite is not deleted. It remains mandatory for `CRITICAL` pull requests and for pushes covered by the workflow, so interactions that are not justified on every small PR are still exercised before promotion through the main development flow.
 
-After the CRITICAL database, browser and dedicated build gates, the job executes the literal `pnpm validate` command at the exact checkout SHA (including `audit:source-proofs`). This repeats some checks intentionally: a green `STANDARD` job or separate successful steps cannot be treated as evidence that the required aggregate command ran. Preserve the `Validate repository` check name.
+After database/migration regressions, CRITICAL executes the literal `pnpm validate` command **once** on the exact checkout SHA. This includes Prisma source-of-truth, type-check, lint, full Jest/Vitest tests (with database integrations), architecture, access, docs and `audit:source-proofs`. Its entire output is retained in `artifacts/ci/full-tests.log` so the issue-487 browser-evidence verifier still finds the exact-head `PASS` record. Dedicated browser/real-API evidence, `pnpm build`, the real-browser settings gate and audit Git bundles still run separately. Avoid running the same aggregate checks again in individual steps or at the end of the workflow; a single successful `pnpm validate` is the repository contract. Preserve the `Validate repository` check name.
 
 ## Repository ownership and rollback
 
