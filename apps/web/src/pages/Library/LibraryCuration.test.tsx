@@ -55,6 +55,7 @@ describe('library administrative curation (#394)', () => {
     render(<Library />);
     expect(await screen.findByText('Agachamento')).toBeInTheDocument();
     expect(libraryService.listExercises).toHaveBeenCalledWith(expect.objectContaining({ scope: 'official' }));
+    expect(screen.queryByRole('region', { name: 'Disponibilidade para novos treinos' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /novo exercício/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /aprovar agachamento|revisar agachamento|desativar agachamento/i })).not.toBeInTheDocument();
   });
@@ -66,6 +67,27 @@ describe('library administrative curation (#394)', () => {
     await actor.click(screen.getByRole('button', { name: /revisar agachamento/i }));
     await waitFor(() => expect(libraryService.reviewExercise).toHaveBeenCalledWith('exercise-1', 'submit', 1));
     expect(libraryService.reviewExercise).not.toHaveBeenCalledWith('exercise-1', 'approve', expect.anything());
+  });
+
+  it('distingue aprovações históricas do catálogo disponível e permite filtrar legados', async () => {
+    const actor = userEvent.setup();
+    const historical = { ...draft, id: 'historical-1', curationStatus: 'approved' as const, legacyGrandfathered: true };
+    const operational = { ...draft, id: 'operational-1', name: 'Remada liberada', curationStatus: 'approved' as const, legacyGrandfathered: false, version: 3 };
+    vi.mocked(libraryService.listExercises).mockResolvedValue([historical, operational]);
+
+    render(<Library />);
+    expect(await screen.findByText('Agachamento')).toBeInTheDocument();
+    expect(screen.getByText('Aprovado (legado)')).toBeInTheDocument();
+    expect(screen.getByText('Não liberado para novos treinos')).toBeInTheDocument();
+    expect(screen.getByText('Liberado para novos treinos')).toBeInTheDocument();
+    expect(screen.getByText(/1 exercício liberado para novos treinos/)).toBeInTheDocument();
+    expect(libraryService.listExercises).toHaveBeenCalledWith(expect.objectContaining({ scope: 'all' }));
+
+    await actor.click(screen.getByRole('button', { name: 'Mostrar apenas legados (1)' }));
+    expect(screen.getByText('Agachamento')).toBeInTheDocument();
+    expect(screen.queryByText('Remada liberada')).not.toBeInTheDocument();
+    await actor.click(screen.getByRole('button', { name: 'Mostrar todos' }));
+    expect(screen.getByText('Remada liberada')).toBeInTheDocument();
   });
 
   it('offers a new draft for a grandfathered exercise without rewriting its historical record', async () => {

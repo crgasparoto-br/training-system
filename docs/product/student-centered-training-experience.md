@@ -995,6 +995,13 @@ sem impor categoria ou grupo muscular; nome, categoria e grupo são filtros
 explícitos do professor. Falha de consulta é apresentada com opção de retry,
 sem simular lista vazia; lista realmente vazia orienta o professor a conferir a
 curadoria na Biblioteca. Respostas antigas de filtros anteriores são ignoradas.
+Na Biblioteca administrativa, a listagem `scope=all` distingue explicitamente
+`approved/legacyGrandfathered=true` ("Aprovado (legado)", somente histórico)
+de `approved/legacyGrandfathered=false` (liberado para novos treinos), com
+contagens e filtro local de legados. O administrador pode usar "Criar ficha"
+para preparar uma nova versão em rascunho; deve conferir os metadados, enviar
+para revisão e aprovar explicitamente a nova ficha. Esse fluxo nunca transforma
+o registro histórico em elegível nem altera suas prescrições anteriores.
 O modal nunca solicita `scope=all` nem permite selecionar exercícios legados
 não liberados, rascunhos, em revisão ou inativos para novos treinos.
 
