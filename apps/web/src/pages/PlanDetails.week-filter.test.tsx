@@ -106,7 +106,7 @@ describe('PlanDetails: localizar e abrir semana sem rolar a lista inteira', () =
     render(<PlanDetails />);
     await screen.findByText('Semana 2');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Periodização' }));
+    fireEvent.click(screen.getByRole('button', { name: /Periodização Macrociclo/ }));
     expect(screen.getByText('Periodização do plano')).toBeInTheDocument();
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Semana do plano' }), {
