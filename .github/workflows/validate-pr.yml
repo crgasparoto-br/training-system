@@ -7,9 +7,6 @@ on:
     branches:
       - main
       - develop
-      - 'chore/**'
-      - 'feat/**'
-      - 'fix/**'
 
 permissions:
   contents: read
@@ -292,8 +289,6 @@ jobs:
         run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
       - name: Generate Prisma Client
         run: pnpm --filter @corrida/api exec prisma generate
-      - name: Prisma source-of-truth check
-        run: pnpm prisma:source-check
       - name: Verify critical database and migration regressions
         shell: bash
         run: |
@@ -335,17 +330,13 @@ jobs:
             postgres:16-alpine \
             psql -h localhost -U postgres -d training_system_test -v ON_ERROR_STOP=1 \
             -f /workspace/artifacts/ci/training-next-session.sql
-      - name: Type check
-        run: pnpm type-check
-      - name: Lint
-        run: pnpm lint
-      - name: Full tests
+      - name: Complete mandatory validation (pnpm validate)
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts/ci
-          # Keep diagnostic output even on failure; pipefail preserves the test gate.
-          pnpm test 2>&1 | tee artifacts/ci/full-tests.log
+          # Retain all test and exact-head browser markers in the existing evidence artifact.
+          pnpm validate 2>&1 | tee artifacts/ci/full-tests.log
       - name: Verify issue-487 exact-head browser captures
         if: ${{ success() && hashFiles('apps/web/src/pages/issue-487-browser-evidence.test.js') != '' }}
         env:
@@ -412,15 +403,6 @@ jobs:
         env:
           SETTINGS_PARAMETERS_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: pnpm --filter @corrida/api exec node scripts/visual-audit-settings-parameters.mjs
-      - name: Architecture checks
-        run: pnpm arch:check
-      - name: Access catalog checks
-        run: pnpm access:check
-      - name: Documentation checks
-        run: pnpm docs:check
-      # Run the exact repository contract after database/browser-specific critical gates.
-      - name: Complete mandatory validation (pnpm validate)
-        run: pnpm validate
       - name: Retain issue-399 exact-head evidence
         if: always()
         env:
