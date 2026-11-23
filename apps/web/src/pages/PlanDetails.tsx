@@ -14,7 +14,8 @@ import { PeriodizationMatrixComponent } from '../components/PeriodizationMatrix'
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { planDetailsCopy } from '../i18n/ptBR';
-import { formatDateBR, parseDateOnly } from '../utils/date';
+import { formatDateBR } from '../utils/date';
+import { buildPlanWeeks, findPlanWeekForDate, getLocalDateOnly } from '../utils/plan-weeks';
 import { resolveWorkoutBuilderPosition } from '../utils/workout-plan-position';
 import {
   Activity,
@@ -28,14 +29,6 @@ import {
 
 type PlanDetailsTab = 'assembly' | 'periodization';
 
-type PlanWeek = {
-  globalWeekNumber: number;
-  startDate: Date;
-  endDate: Date;
-};
-
-const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
-
 export function PlanDetails() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -43,6 +36,9 @@ export function PlanDetails() {
   const [matrix, setMatrix] = useState<PeriodizationMatrix | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<PlanDetailsTab>('assembly');
+  const [weekFilter, setWeekFilter] = useState<'auto' | 'all' | 'no-matches' | number>('auto');
+  const [dateQuery, setDateQuery] = useState('');
+  const [weekFilterNotice, setWeekFilterNotice] = useState('');
 
   const refreshPeriodizationMatrix = useCallback(async (planId: string) => {
     try {
@@ -79,6 +75,9 @@ export function PlanDetails() {
 
   const loadPlan = async (planId: string) => {
     setLoading(true);
+    setWeekFilter('auto');
+    setDateQuery('');
+    setWeekFilterNotice('');
     try {
       const data = await planService.getById(planId);
       setPlan(data);
@@ -114,34 +113,69 @@ export function PlanDetails() {
     }
   };
 
-  const planWeeks = useMemo<PlanWeek[]>(() => {
-    if (!plan) return [];
+  const planWeeks = useMemo(() =>
+    plan ? buildPlanWeeks(plan.startDate, plan.endDate) : [], [plan]);
 
-    const planStart = parseDateOnly(plan.startDate);
-    const planEnd = parseDateOnly(plan.endDate);
-    if (!planStart || !planEnd) return [];
-
-    const durationMs = Math.max(0, planEnd.getTime() - planStart.getTime());
-    const totalWeeks = Math.max(1, Math.ceil(durationMs / MS_PER_WEEK));
-
-    return Array.from({ length: totalWeeks }, (_, index) => {
-      const startDate = new Date(planStart);
-      startDate.setDate(planStart.getDate() + index * 7);
-
-      const naturalEndDate = new Date(startDate);
-      naturalEndDate.setDate(startDate.getDate() + 6);
-
-      return {
-        globalWeekNumber: index + 1,
-        startDate,
-        endDate: naturalEndDate > planEnd ? new Date(planEnd) : naturalEndDate,
-      };
-    });
-  }, [plan]);
+  const todayWeek = useMemo(() =>
+    findPlanWeekForDate(planWeeks, getLocalDateOnly()), [planWeeks]);
+  const selectedWeekNumber = weekFilter === 'auto'
+    ? todayWeek?.globalWeekNumber ?? 'all'
+    : weekFilter;
+  const filteredWeeks = useMemo(() =>
+    selectedWeekNumber === 'all'
+      ? planWeeks
+      : planWeeks.filter((week) => week.globalWeekNumber === selectedWeekNumber),
+    [planWeeks, selectedWeekNumber]
+  );
+  const quickOpenWeekNumber = selectedWeekNumber === 'no-matches'
+    ? undefined
+    : typeof selectedWeekNumber === 'number'
+      ? selectedWeekNumber
+      : todayWeek?.globalWeekNumber ?? planWeeks[0]?.globalWeekNumber;
 
   const weeksPerMesocycle = matrix?.weeksPerMesocycle ?? 4;
   const totalMesocycles =
     matrix?.totalMesocycles ?? Math.max(1, Math.ceil(planWeeks.length / weeksPerMesocycle));
+
+  const showAllWeeks = () => {
+    setWeekFilter('all');
+    setDateQuery('');
+    setWeekFilterNotice('');
+    setActiveTab('assembly');
+  };
+
+  const selectTodayWeek = () => {
+    const today = getLocalDateOnly();
+    const week = findPlanWeekForDate(planWeeks, today);
+    setWeekFilter(week?.globalWeekNumber ?? 'no-matches');
+    setDateQuery(week ? '' : today);
+    setWeekFilterNotice(week ? '' : 'A data de hoje está fora do período deste plano.');
+    setActiveTab('assembly');
+  };
+
+  const selectWeekByDate = (date: string) => {
+    setDateQuery(date);
+    if (!date) {
+      setWeekFilter('auto');
+      setWeekFilterNotice('');
+      return;
+    }
+    const week = findPlanWeekForDate(planWeeks, date);
+    setWeekFilter(week?.globalWeekNumber ?? 'no-matches');
+    setWeekFilterNotice(week ? '' : 'Não há semana do plano para a data informada.');
+    setActiveTab('assembly');
+  };
+
+  const selectWeekByNumber = (value: string) => {
+    const weekNumber = Number(value);
+    if (value !== 'all' && !planWeeks.some((week) => week.globalWeekNumber === weekNumber)) {
+      return;
+    }
+    setWeekFilter(value === 'all' ? 'all' : weekNumber);
+    setDateQuery('');
+    setWeekFilterNotice('');
+    setActiveTab('assembly');
+  };
 
   const openWeekAssembly = (globalWeekNumber: number) => {
     if (!id) return;
@@ -153,7 +187,7 @@ export function PlanDetails() {
   };
 
   const formatDate = (date: string | Date) =>
-    formatDateBR(typeof date === 'string' ? date : date.toISOString());
+    formatDateBR(typeof date === 'string' ? date : getLocalDateOnly(date));
 
   if (loading) {
     return (
@@ -190,7 +224,7 @@ export function PlanDetails() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => openWeekAssembly(1)}>
+          <Button disabled={!quickOpenWeekNumber} onClick={() => quickOpenWeekNumber && openWeekAssembly(quickOpenWeekNumber)}>
             <Activity size={20} />
             Abrir Montagem
           </Button>
@@ -205,6 +239,57 @@ export function PlanDetails() {
         </div>
       </div>
 
+      {planWeeks.length > 0 && (
+        <Card>
+          <CardContent className="space-y-3 py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+              <div className="min-w-0 flex-1 space-y-1 sm:min-w-[260px]">
+                <label htmlFor="plan-week-filter" className="block text-sm font-medium">Semana do plano</label>
+                <select
+                  id="plan-week-filter"
+                  value={String(selectedWeekNumber)}
+                  onChange={(event) => selectWeekByNumber(event.target.value)}
+                  className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <option value="all">Todas as semanas</option>
+                  {planWeeks.map((week) => (
+                    <option key={week.globalWeekNumber} value={week.globalWeekNumber}>
+                      {`Semana ${week.globalWeekNumber} · ${formatDate(week.startDate)} a ${formatDate(week.endDate)}`}
+                    </option>
+                  ))}
+                  {selectedWeekNumber === 'no-matches' && (
+                    <option value="no-matches" disabled>Sem semana nesta data</option>
+                  )}
+                </select>
+              </div>
+              <div className="space-y-1 sm:w-[190px]">
+                <label htmlFor="plan-date-filter" className="block text-sm font-medium">Localizar por data</label>
+                <input
+                  id="plan-date-filter"
+                  type="date"
+                  min={getLocalDateOnly(planWeeks[0].startDate)}
+                  max={getLocalDateOnly(planWeeks[planWeeks.length - 1].endDate)}
+                  value={dateQuery}
+                  onChange={(event) => selectWeekByDate(event.target.value)}
+                  className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={selectTodayWeek}>
+                  <Calendar size={16} />
+                  Hoje
+                </Button>
+                <Button variant="outline" onClick={showAllWeeks}>Todas as semanas</Button>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
+              {weekFilterNotice || (typeof selectedWeekNumber === 'number'
+                ? `Exibindo semana ${selectedWeekNumber} de ${planWeeks.length}.`
+                : `Exibindo todas as ${planWeeks.length} semanas.`)}
+            </p>
+          </CardContent>
+        </Card>
+      )}
       {plan.description && (
         <Card>
           <CardContent className="pt-6">
@@ -295,13 +380,21 @@ export function PlanDetails() {
           <div>
             <h2 className="text-2xl font-bold">Semanas do Plano</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Escolha uma semana para montar conjuntamente os blocos cíclicos e resistidos.
+              Use o filtro acima para localizar uma semana e montar os blocos cíclicos e resistidos.
             </p>
           </div>
 
-          {planWeeks.length > 0 ? (
+          {planWeeks.length > 0 && filteredWeeks.length === 0 ? (
+            <Card>
+              <CardContent className="space-y-3 py-8 text-center">
+                <Calendar className="mx-auto h-9 w-9 text-muted-foreground" />
+                <p className="font-medium">Nenhuma semana encontrada para esta data.</p>
+                <Button variant="outline" onClick={showAllWeeks}>Ver todas as semanas</Button>
+              </CardContent>
+            </Card>
+          ) : planWeeks.length > 0 ? (
             <div className="grid gap-4 lg:grid-cols-2">
-              {planWeeks.map((week) => {
+              {filteredWeeks.map((week) => {
                 const { mesocycleNumber, weekNumber } = resolveWorkoutBuilderPosition(
                   week.globalWeekNumber,
                   weeksPerMesocycle
