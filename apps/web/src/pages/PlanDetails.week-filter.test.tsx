@@ -102,6 +102,36 @@ describe('PlanDetails: localizar e abrir semana sem rolar a lista inteira', () =
     expect(screen.getByText('Semana 2')).toBeInTheDocument();
   });
 
+  it('comunica quando Hoje está fora do período em vez de abrir outra semana', async () => {
+    mocks.getPlan.mockResolvedValue({
+      id: 'plan-1', name: 'Plano futuro', startDate: '2026-12-01', endDate: '2026-12-07',
+      aluno: { user: { profile: { name: 'Aluno teste' } } },
+    });
+    render(<PlanDetails />);
+    expect(await screen.findByText('Semana 1')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Hoje' }));
+    expect(screen.getByRole('status')).toHaveTextContent('A data de hoje está fora do período deste plano.');
+    expect(screen.getByText('Nenhuma semana encontrada para esta data.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Abrir Montagem/i })).toBeDisabled();
+  });
+
+  it('transforma a semana global 5 em mesociclo 2, microciclo 1', async () => {
+    mocks.getPlan.mockResolvedValue({
+      id: 'plan-1', name: 'Plano longo', startDate: '2026-11-16', endDate: '2026-12-27',
+      aluno: { user: { profile: { name: 'Aluno teste' } } },
+    });
+    mocks.getMatrix.mockResolvedValue({
+      id: 'matrix-2', totalMesocycles: 2, weeksPerMesocycle: 4,
+      resistedStimulus: [], cyclicStimulus: [],
+    });
+    render(<PlanDetails />);
+    await screen.findByText('Semana 2');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Semana do plano' }), {
+      target: { value: '5' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Abrir Montagem/i }));
+    expect(mocks.navigate).toHaveBeenCalledWith('/plans/plan-1/workout-builder/2/1');
+  });
   it('mantém navegação canônica e a periodização ao trocar de semana', async () => {
     render(<PlanDetails />);
     await screen.findByText('Semana 2');
