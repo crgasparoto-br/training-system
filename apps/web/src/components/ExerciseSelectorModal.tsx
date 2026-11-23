@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useId, useState, useEffect } from 'react';
 import { X, Search, Play } from 'lucide-react';
 import { Button } from './ui/Button';
 import { libraryService, type Exercise, type ExerciseFilters } from '../services/library.service';
@@ -54,49 +54,49 @@ export function ExerciseSelectorModal({
   const [selectedMuscleGroup, setSelectedMuscleGroup] = useState('Todos');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedExercisesMap, setSelectedExercisesMap] = useState<Record<string, Exercise>>({});
+  const [loadError, setLoadError] = useState('');
+  const [reloadCounter, setReloadCounter] = useState(0);
+  const formId = useId();
 
+  // The placement section is not the exercise's catalog category.
+  // Only explicitly selected filters should narrow the approved catalog.
   useEffect(() => {
-    if (!isOpen) return;
-
-    if (section.toUpperCase().includes('MOBILIDADE')) {
-      setSelectedCategory((prev) => prev || 'MOBILIDADE');
-      setSelectedMuscleGroup((prev) => prev || 'Mobilidade');
-    } else if (section.toUpperCase().includes('SESSAO')) {
-      setSelectedCategory((prev) => prev || 'RESISTIDO');
+    if (!isOpen) {
+      setSearch('');
+      setSelectedCategory('');
+      setSelectedMuscleGroup('Todos');
+      setSelectedIds(new Set());
+      setSelectedExercisesMap({});
+      setExercises([]);
+      setLoadError('');
+      return;
     }
-  }, [isOpen, section]);
 
-  useEffect(() => {
-    if (isOpen) {
-      loadExercises();
-    }
-  }, [isOpen, search, selectedCategory, selectedMuscleGroup]);
+    let active = true;
+    const filters: ExerciseFilters = { scope: 'official' };
+    if (search.trim()) filters.search = search.trim();
+    if (selectedCategory) filters.category = selectedCategory;
+    if (selectedMuscleGroup !== 'Todos') filters.muscleGroup = selectedMuscleGroup;
 
-  const loadExercises = async () => {
     setLoading(true);
-    try {
-      const filters: ExerciseFilters = { scope: 'official' };
-      
-      if (search) {
-        filters.search = search;
-      }
-      
-      if (selectedCategory) {
-        filters.category = selectedCategory;
-      }
-      
-      if (selectedMuscleGroup && selectedMuscleGroup !== 'Todos') {
-        filters.muscleGroup = selectedMuscleGroup;
-      }
+    setLoadError('');
+    setExercises([]);
 
-      const data = await libraryService.listExercises(filters);
-      setExercises(data);
-    } catch (error) {
-      console.error('Erro ao carregar exercícios:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    void libraryService.listExercises(filters)
+      .then((data) => {
+        if (active) setExercises(data);
+      })
+      .catch((error) => {
+        if (!active) return;
+        console.error('Erro ao carregar exercícios:', error);
+        setLoadError('Não foi possível carregar a biblioteca. Verifique sua conexão ou acesso e tente novamente.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [isOpen, search, selectedCategory, selectedMuscleGroup, reloadCounter]);
 
   const handleToggleSelect = (exercise: Exercise) => {
     setSelectedIds((prev) => {
@@ -141,6 +141,8 @@ export function ExerciseSelectorModal({
     setSelectedMuscleGroup('Todos');
   };
 
+  const hasActiveFilters = Boolean(search.trim() || selectedCategory || selectedMuscleGroup !== 'Todos');
+
   if (!isOpen) return null;
 
   return (
@@ -152,17 +154,24 @@ export function ExerciseSelectorModal({
       />
 
       {/* Modal */}
-      <div className="relative bg-background rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`${formId}-title`}
+        aria-describedby={`${formId}-section`}
+        className="relative bg-background rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col"
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <div>
-            <h2 className="text-2xl font-bold">Selecionar Exercício</h2>
-            <p className="text-sm text-muted-foreground mt-1">
+            <h2 id={`${formId}-title`} className="text-2xl font-bold">Selecionar Exercício</h2>
+            <p id={`${formId}-section`} className="text-sm text-muted-foreground mt-1">
               Seção: <span className="font-medium">{section}</span>
             </p>
           </div>
           <button
             onClick={onClose}
+            aria-label="Fechar seletor de exercícios"
             className="p-2 hover:bg-secondary rounded-lg transition-colors"
           >
             <X size={20} />
@@ -186,8 +195,9 @@ export function ExerciseSelectorModal({
           {/* Filtros Avançados */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
             <div>
-              <label className="text-sm font-medium mb-2 block">Categoria</label>
+              <label htmlFor={`${formId}-category`} className="text-sm font-medium mb-2 block">Categoria</label>
               <select
+                id={`${formId}-category`}
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg"
@@ -201,8 +211,9 @@ export function ExerciseSelectorModal({
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">Grupo Muscular</label>
+              <label htmlFor={`${formId}-muscle`} className="text-sm font-medium mb-2 block">Grupo Muscular</label>
               <select
+                id={`${formId}-muscle`}
                 value={selectedMuscleGroup}
                 onChange={(e) => setSelectedMuscleGroup(e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg"
@@ -216,7 +227,7 @@ export function ExerciseSelectorModal({
             </div>
           </div>
 
-          {(selectedCategory || selectedMuscleGroup !== 'Todos') && (
+          {hasActiveFilters && (
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
@@ -235,12 +246,31 @@ export function ExerciseSelectorModal({
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
-          ) : exercises.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">Nenhum exercício encontrado</p>
-              <Button onClick={handleClearFilters} className="mt-4" size="sm">
-                Limpar Filtros
+          ) : loadError ? (
+            <div role="alert" className="text-center py-12">
+              <p className="text-destructive">{loadError}</p>
+              <Button onClick={() => setReloadCounter((value) => value + 1)} className="mt-4" size="sm">
+                Tentar novamente
               </Button>
+            </div>
+          ) : exercises.length === 0 ? (
+            <div role="status" className="text-center py-12">
+              {hasActiveFilters ? (
+                <>
+                  <p className="text-muted-foreground">Nenhum exercício corresponde aos filtros selecionados.</p>
+                  <Button onClick={handleClearFilters} className="mt-4" size="sm">
+                    Limpar filtros
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-muted-foreground">Nenhum exercício disponível para adicionar ao treino.</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Apenas exercícios aprovados e liberados para novos treinos aparecem aqui.
+                    Consulte a Biblioteca do contrato para revisar os cadastros.
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -297,14 +327,16 @@ export function ExerciseSelectorModal({
         {/* Footer */}
         <div className="p-6 border-t flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            {exercises.length} exercício{exercises.length !== 1 ? 's' : ''} encontrado{exercises.length !== 1 ? 's' : ''} •
-            {' '}Selecionados: {selectedIds.size}
+            {loading ? 'Carregando exercícios...' : loadError ? 'Biblioteca indisponível' : (
+              `${exercises.length} exercício${exercises.length !== 1 ? 's' : ''} encontrado${exercises.length !== 1 ? 's' : ''}`
+            )}
+            {' • '}Selecionados: {selectedIds.size}
           </p>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onClose}>
               Cancelar
             </Button>
-            <Button onClick={handleConfirmSelection} disabled={selectedIds.size === 0}>
+            <Button onClick={handleConfirmSelection} disabled={loading || Boolean(loadError) || selectedIds.size === 0}>
               Adicionar selecionados
             </Button>
           </div>
