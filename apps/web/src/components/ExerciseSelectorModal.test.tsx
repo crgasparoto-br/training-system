@@ -66,7 +66,8 @@ describe('ExerciseSelectorModal - catálogo operacional (#562)', () => {
     await screen.findByText('Agachamento aprovado');
     await user.click(screen.getByRole('button', { name: /Agachamento aprovado/i }));
     await user.click(screen.getByRole('button', { name: 'Adicionar selecionados' }));
-    expect(onSelectMany).toHaveBeenCalledExactlyOnceWith([approved]);
+    expect(onSelectMany).toHaveBeenCalledTimes(1);
+    expect(onSelectMany).toHaveBeenCalledWith([approved]);
   });
 
   it('distingue erro de rede e permite tentar novamente sem mudar o escopo', async () => {
