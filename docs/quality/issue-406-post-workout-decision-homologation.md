@@ -6,6 +6,48 @@ Este roteiro prepara o aceite operacional de **decisões pós-treino** em dispos
 
 As superfícies auditadas são a Montagem Consolidada (`/central-do-aluno/:alunoId/montagem-consolidada`, acordeão **4. Alertas e conflitos**, painel **Decisões pós-treino**) e a visão do aluno (`/student/training`, **Orientações do professor**). A aplicação persiste orientação futura versionada, **não** altera treino já liberado nem substitui nova edição/liberação operacional de prescrição.
 
+## Preparação segura de infraestrutura (issue #549)
+
+O Blueprint versionado [`infra/issue-406/render.yaml`](../../infra/issue-406/render.yaml)
+**prepara** API e PostgreSQL exclusivos para a #406, sem provisionar recursos por
+si só: branch da PR, `autoDeployTrigger: off`, `previews.generation: off`, duas
+URLs de banco vinculadas a um PostgreSQL exclusivo e segredo JWT gerado pelo
+Render. `FRONTEND_URL` e `CORS_ORIGINS` ficam deliberadamente sem valor até a
+URL do preview isolado ser verificada. O plano `free` deve ser conferido quanto à
+elegibilidade/expiração antes de selecionar o Blueprint.
+
+Sequência obrigatória, sem atingir produção:
+
+1. Confirmar o workspace Render com seu responsável. Escolher **explicitamente**
+   `infra/issue-406/render.yaml` ao criar um novo Blueprint, com Auto Sync
+   desabilitado. Conferir previamente recursos, plano e ausência de vínculos
+   com `sistema-acesso-api`, `controle-calorias-api` ou banco compartilhado.
+2. Validar a configuração Render e provisionar API/banco não produtivos; manter
+   deploy automático desligado. Configurar `FRONTEND_URL` e `CORS_ORIGINS` apenas
+   após identificar a URL do preview Web isolado. Executar migrations somente
+   com o banco da #406 e verificar logs sem segredos.
+3. Antes de criar o preview Web, conferir o root efetivo do projeto Vercel e
+   os rewrites. O `vercel.json` da raiz atualmente possui rewrite de `/api/*`
+   destinado a **outro sistema** e bloqueio de deploy das branches diferentes
+   de `main`. Não habilitar a branch no projeto produtivo sem prova do
+   roteamento e da separação de ambientes. Preferir projeto exclusivo de
+   homologação, sem domínio, credenciais ou variáveis produtivas.
+4. Configurar `VITE_API_URL` da branch da PR **somente** para
+   `https://training-system-issue406-homolog-api.onrender.com`, validar a
+   origem real no Render e publicar preview do **SHA material exato**.
+   O build executa `scripts/verify-preview-api-target.cjs` e recusa API de
+   produção, URL ausente e, nesta branch, API de outra homologação.
+5. Confirmar por evidência independente: origem HTTPS da Web, saída do build,
+   deploy da API no mesmo SHA, banco e `CORS_ORIGINS` isolados, teste negativo
+   de chamadas para API/credenciais reais e somente dados fictícios. Um nome
+   de host com `homolog` **não prova** isolamento por si só.
+6. Somente então habilitar as observações manuais H406-01..14 em desktop e
+   telefone físicos, com 28 `PASS` reais e aprovação responsável. Nunca
+   transformar validações estruturais em homologação clínica ou de dispositivos.
+
+**Situação:** Blueprint e testes de preflight são preparação técnica; enquanto
+não houver deploys e observações autenticadas, A-005 e #549 continuam abertas.
+
 ## Precondições de execução
 
 1. Usar exclusivamente homologação isolada: frontend, API, banco PostgreSQL e login não produtivos. Conferir na plataforma de deploy o mesmo SHA material da PR #548 para frontend e API; registrar URL do deploy e identificador verificável. **Não utilizar produção, dados clínicos reais nem contas de clientes reais.**

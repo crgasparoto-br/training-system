@@ -1,0 +1,50 @@
+# Issue #406 / #549: explicitly selected, isolated operational homologation only.
+# Configure the Blueprint to use this path and disable Auto Sync.
+# Never attach production services, credentials, databases or real student records.
+# No resource is created by committing this file. Physical testing is separate.
+previews:
+  generation: "off"
+
+services:
+  - type: web
+    name: training-system-issue406-homolog-api
+    runtime: node
+    plan: free
+    region: oregon
+    repo: https://github.com/crgasparoto-br/training-system
+    branch: feat/406-post-workout-decision-workflow
+    rootDir: .
+    autoDeployTrigger: "off"
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @corrida/api exec prisma generate && pnpm --filter @corrida/api build
+    # The isolated free web service cannot use pre-deploy; migrations are limited
+    # to this Blueprint's dedicated PostgreSQL via both URL bindings below.
+    startCommand: pnpm --filter @corrida/api start:with-migrations
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: training-system-issue406-homolog-pg
+          property: connectionString
+      - key: MIGRATION_DATABASE_URL
+        fromDatabase:
+          name: training-system-issue406-homolog-pg
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
+      # Set only after the exact-SHA private Vercel preview URL is known.
+      # These are deliberately unset: never reuse production CORS or links.
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+
+databases:
+  - name: training-system-issue406-homolog-pg
+    plan: free
+    region: oregon
+    postgresMajorVersion: '16'
+    databaseName: training_system_issue406_homolog_pg
+    user: training_system_issue406_homolog_pg_user
+    connectionPool: none
+    ipAllowList: []

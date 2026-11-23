@@ -62,6 +62,17 @@ O aceite sincrono de um provider nao equivale a entrega final. O backend so cons
 
 Em CI e testes deterministas, nao configure credenciais reais: os adapters exercitam SendGrid/Twilio com transporte HTTP simulado somente na fronteira externa. Para contratos de payload, idempotencia, callbacks, estados e troubleshooting, consulte [`../profile-review-notification-delivery.md`](../profile-review-notification-delivery.md). A matriz integrada da revisao esta em [`../profile-review-e2e-validation.md`](../profile-review-e2e-validation.md).
 
+## Homologação H406 (sem acesso à produção)
+
+A issue #549 dispõe de Blueprint isolado para a API e o PostgreSQL em
+[`infra/issue-406/render.yaml`](../../infra/issue-406/render.yaml). A criação de
+recursos **não** é automática; exige confirmação do workspace, deploys e
+checagem de origem. A branch `feat/406-post-workout-decision-workflow` só pode
+usar `VITE_API_URL` da API `training-system-issue406-homolog-api.onrender.com`,
+conforme preflight no build web. Nenhuma configuração de produção, base real ou
+segredo deve ser reutilizada. Para a ordem de preparação, testes negativos e
+aceite físico, consultar o [roteiro H406](../quality/issue-406-post-workout-decision-homologation.md).
+
 ## Banco no Render
 
 Configuracao recomendada para evitar que a API consuma o limite da conta de migration:

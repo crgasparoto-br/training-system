@@ -27,6 +27,11 @@ function validatePreviewApiTarget(env) {
     "Preview bloqueado: API deve estar em dominio administrado e isolado");
   assert.match(host, /(^|[.-])(homolog|staging|preview)([.-]|$)/,
     "Preview bloqueado: hostname da API deve indicar homolog, staging ou preview");
+  // H406 may never point to the prior #385 API or another staging deployment.
+  if (env.VERCEL_GIT_COMMIT_REF === "feat/406-post-workout-decision-workflow") {
+    assert.equal(host, "training-system-issue406-homolog-api.onrender.com",
+      "Preview #406 bloqueado: exige exclusivamente a API isolada da propria issue");
+  }
   return { checked: true, host };
 }
 

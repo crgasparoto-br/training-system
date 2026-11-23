@@ -64,3 +64,21 @@ Preservar a PR em Draft, não realizar merge e não fechar #406 antes dos gates 
 - A-005 permanece **BLOQUEADA EXTERNAMENTE**: executar 28 cenários reais em desktop/telefone físicos e confirmar autenticidade dos dispositivos, deploys e aprovação do responsável. O gerador não transforma ausência de observação em PASS.
 - A-006 permanece **BLOQUEADA POR ACEITE DAS DEPENDÊNCIAS**: #403/#404/#405 abertas. #534 exige sete decisões clínicas assinadas por profissional habilitado. Não alterar regras clínicas nem fechar issues apenas por CI ou merge anterior.
 - A entrega permanece Draft e a issue #406 aberta. Exigir CI exato verde no novo HEAD e reauditoria independente após a coleta final de evidências.
+
+## Infraestrutura de homologação — implementação de suporte à #549
+
+- Blueprint não produtivo em `infra/issue-406/render.yaml`, preparado para
+  instalação manual com banco exclusivo, branch da PR, JWT gerado, sem Auto
+  Sync/deploy automático e sem configuração de CORS/URL produtivos.
+- Build Vercel nesta branch recusa API de homologação de outras issues; testes
+  positivos/negativos em `scripts/verify-preview-api-target.test.cjs`.
+- Testes de invariantes do Blueprint em
+  `scripts/verify-issue-406-staging-blueprint.test.mjs` são executados por
+  `pnpm test`. Esses testes verificam **configuração**, não serviços ativos.
+- Dependências externas permanecem: workspace Render confirmado pelo titular,
+  criação dos recursos, isolamento real do banco, preview Web configurado com
+  origem da API #406, deploys do HEAD exato, 28 PASS físicos e sign-off.
+- A-006 segue dependente dos aceites externos #403/#404/#405 e #534 (sete
+  decisões clínicas). Não executar qualquer ativação automática de regras.
+- Este patch material exigirá CI do HEAD resultante e auditoria independente
+  posterior. Não remover Draft, não fazer merge e não encerrar #406.
