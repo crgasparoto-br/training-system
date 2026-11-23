@@ -49,6 +49,15 @@ A quantidade de semanas por mesociclo vem de `PeriodizationMatrix.weeksPerMesocy
 
 Toda ação `Montar semana` abre diretamente o `WorkoutBuilder2`. Não deve existir popup paralelo de sessão no detalhe do plano.
 
+### Localização de semanas no detalhe do plano (#560)
+
+- O seletor de semana é exibido junto ao cabeçalho, antes dos cards extensos. As opções indicam número global e início/fim da semana para facilitar a localização por datas.
+- As semanas são janelas consecutivas de sete dias a partir de `TrainingPlan.startDate` e são limitadas por `endDate` inclusive; a semana final pode ser parcial. A contagem usa dias civis para não perder a última semana nem sofrer alterações por horário de verão.
+- Na abertura, se a data civil local de hoje estiver no período do plano, somente a semana correspondente fica visível; caso contrário, a lista integral permanece disponível. A ação `Hoje` permite retornar à semana corrente; quando não há correspondência, comunica a ausência de resultado.
+- O campo `Localizar por data` seleciona a semana que contém o dia informado, incluindo os extremos. Datas fora do período mostram estado vazio sem abrir outra semana. O controle `Todas as semanas` restaura todos os cards.
+- `Abrir Montagem` respeita a semana selecionada. Ao exibir todas, prioriza a semana atual, caso exista, e de outro modo a primeira semana. `Montar semana` no card continua utilizando `resolveWorkoutBuilderPosition`.
+- O filtro é local à página, não muda a matriz da periodização nem o estado persistido do plano e é reinicializado quando se navega para outro plano.
+
 ## Invariantes
 
 - `PeriodizationMatrix` planeja; não publica treino diretamente.
