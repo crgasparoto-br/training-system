@@ -988,6 +988,16 @@ desativação mantém referência. Edição de aprovado fora do treino retorna a
 `GET /api/v1/library/exercises` retorna apenas aprovados por padrão; `scope=all`
 e histórico de revisões exigem acesso administrativo.
 
+No seletor de exercícios do Workout Builder, Mobilidade, Sessão e Resfriamento
+identificam o local do treino, não um filtro obrigatório de categoria do catálogo.
+O modal inicia com todos os exercícios **operacionalmente elegíveis** do contrato,
+sem impor categoria ou grupo muscular; nome, categoria e grupo são filtros
+explícitos do professor. Falha de consulta é apresentada com opção de retry,
+sem simular lista vazia; lista realmente vazia orienta o professor a conferir a
+curadoria na Biblioteca. Respostas antigas de filtros anteriores são ignoradas.
+O modal nunca solicita `scope=all` nem permite selecionar exercícios legados
+não liberados, rascunhos, em revisão ou inativos para novos treinos.
+
 A migração mantém catálogo existente como `approved` e anota snapshot `legacy_baseline`,
 sem fabricar revisor ou assinatura. Apenas os registros anteriores à migração
 recebem esse estado: novas inserções sem `curationStatus` explícito passam a
