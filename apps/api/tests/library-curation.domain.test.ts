@@ -49,6 +49,12 @@ describe('issue #394: curation domain', () => {
     })).not.toThrow();
   });
 
+  it('#576 identifies all missing approval fields in one actionable message', () => {
+    expect(() => assertExerciseCanBeApproved({
+      ...exercise, capacity: null, instructions: [], videoUrl: 'https://example.com/demo',
+    })).toThrow('Preencha ou regularize os seguintes campos antes de aprovar: Capacidade física; Instruções em etapas; Origem da mídia; Licença ou autorização de uso da mídia.');
+  });
+
   it('does not invent media provenance when an exercise has no media', () => {
     expect(() => assertExerciseCanBeApproved(exercise)).not.toThrow();
   });

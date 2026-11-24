@@ -47,18 +47,21 @@ export function assertExerciseCanBeApproved(exercise: {
   mediaOrigin: string | null;
   mediaLicense: string | null;
 }) {
-  if (!exercise.name.trim() || !exercise.category?.trim() ||
-      !PHYSICAL_CAPACITY_TYPES.some((capacity) => capacity === exercise.capacity) || exercise.instructions.length === 0) {
-    throw new LibraryCurationError(
-      'invalid',
-      'Informe nome, categoria, capacidade canônica e instruções antes de aprovar.',
-    );
+  const missing: string[] = [];
+  if (!exercise.name.trim()) missing.push('Nome do exercício');
+  if (!exercise.category?.trim()) missing.push('Categoria');
+  if (!PHYSICAL_CAPACITY_TYPES.some((capacity) => capacity === exercise.capacity)) {
+    missing.push('Capacidade física');
   }
-  if (exercise.videoUrl?.trim() &&
-      (!exercise.mediaOrigin?.trim() || !exercise.mediaLicense?.trim())) {
+  if (exercise.instructions.length === 0) missing.push('Instruções em etapas');
+  if (exercise.videoUrl?.trim()) {
+    if (!exercise.mediaOrigin?.trim()) missing.push('Origem da mídia');
+    if (!exercise.mediaLicense?.trim()) missing.push('Licença ou autorização de uso da mídia');
+  }
+  if (missing.length) {
     throw new LibraryCurationError(
       'invalid',
-      'A mídia exige origem e licença verificáveis antes da aprovação.',
+      `Preencha ou regularize os seguintes campos antes de aprovar: ${missing.join('; ')}.`,
     );
   }
 }

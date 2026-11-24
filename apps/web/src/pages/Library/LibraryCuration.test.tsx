@@ -70,6 +70,34 @@ describe('library administrative curation (#394)', () => {
     expect(screen.queryByRole('button', { name: /aprovar agachamento|revisar agachamento|desativar agachamento/i })).not.toBeInTheDocument();
   });
 
+  it('#576 displays the approval rejection and permits editing the same exercise', async () => {
+    const actor = userEvent.setup();
+    const pending = { ...draft, curationStatus: 'in_review' as const, version: 2 };
+    vi.mocked(libraryService.listExercises).mockResolvedValue([pending]);
+    vi.mocked(libraryService.reviewExercise).mockRejectedValueOnce({
+      isAxiosError: true, response: { status: 422, data: { message: 'Preencha: Capacidade física; Instruções em etapas.' } },
+    });
+    render(<Library />);
+    await actor.click(await screen.findByRole('button', { name: 'Aprovar Agachamento' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Capacidade física; Instruções em etapas.');
+    expect(screen.getByText('Em revisão')).toBeInTheDocument();
+    await actor.click(screen.getByRole('button', { name: 'Editar exercício' }));
+    expect(screen.getByRole('heading', { name: 'Editar Exercício' })).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Agachamento')).toBeInTheDocument();
+  });
+
+  it('#576 never exposes internal server details after an unexpected approval error', async () => {
+    const actor = userEvent.setup();
+    vi.mocked(libraryService.listExercises).mockResolvedValue([{ ...draft, curationStatus: 'in_review', version: 2 }]);
+    vi.mocked(libraryService.reviewExercise).mockRejectedValueOnce({
+      isAxiosError: true, response: { status: 500, data: { message: 'internal SQL details' } },
+    });
+    render(<Library />);
+    await actor.click(await screen.findByRole('button', { name: 'Aprovar Agachamento' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Recarregue a biblioteca');
+    expect(screen.queryByText(/internal SQL details/)).not.toBeInTheDocument();
+  });
+
   it('submits a draft for review with an explicit version without auto-approving it', async () => {
     const actor = userEvent.setup();
     render(<Library />);

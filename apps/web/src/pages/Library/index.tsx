@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { isAxiosError } from 'axios';
 import { Plus, Search, Filter, Edit, Archive, Eye, X, Check, Send, RotateCcw, Copy, Video as VideoIcon, BookOpen } from 'lucide-react';
 import { libraryService, type Exercise, type ExerciseFilters, type ExerciseCurationAction } from '../../services/library.service';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -54,6 +55,7 @@ export default function Library() {
   const { user } = useAuthStore();
   const canManage = user?.type === 'professor' && user.professor?.role === 'master';
   const [loadError, setLoadError] = useState('');
+  const [curationError, setCurationError] = useState<{ exercise: Exercise; message: string; status?: number } | null>(null);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<ExerciseFilters>({});
@@ -122,12 +124,21 @@ export default function Library() {
   const handleCuration = async (exercise: Exercise, action: ExerciseCurationAction) => {
     if (!canManage) return;
     if (!confirm(`Confirma a ação "${action}" no exercício "${exercise.name}"?`)) return;
+    setCurationError(null);
     try {
       await libraryService.reviewExercise(exercise.id, action, exercise.version);
       await loadExercises();
     } catch (error) {
       console.error('Erro na curadoria:', error);
-      alert('Não foi possível concluir a revisão. Verifique os dados ou recarregue a biblioteca.');
+      const status = isAxiosError(error) ? error.response?.status : undefined;
+      const payload = isAxiosError(error) ? error.response?.data as { message?: unknown } | undefined : undefined;
+      const message = status === 422 && typeof payload?.message === 'string' && payload.message.trim()
+        ? payload.message
+        : status === 409 ? 'O exercício foi alterado ou a ação não é mais válida. Recarregue a biblioteca.'
+          : status === 403 ? 'Você não possui permissão para concluir esta revisão.'
+            : status === 404 ? 'Exercício não encontrado. Recarregue a biblioteca.'
+              : 'Não foi possível confirmar a revisão. Recarregue a biblioteca antes de tentar novamente.';
+      setCurationError({ exercise, message, status });
     }
   };
 
@@ -347,6 +358,16 @@ export default function Library() {
           )}
         </div>
 
+        {curationError && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+          <p className="font-medium">Não foi possível concluir a revisão de {curationError.exercise.name}.</p>
+          <p className="mt-1 text-sm">{curationError.message}</p>
+          <div className="mt-2 flex flex-wrap gap-4 text-sm">
+            {curationError.status === 422 && canManage && <button type="button" className="underline"
+              onClick={() => { handleEdit(curationError.exercise); setCurationError(null); }}>Editar exercício</button>}
+            <button type="button" className="underline" onClick={() => { setCurationError(null); void loadExercises(); }}>Recarregar biblioteca</button>
+            <button type="button" className="underline" onClick={() => setCurationError(null)}>Dispensar</button>
+          </div>
+        </div>}
         {loadError && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
           {loadError} <button className="ml-2 underline" onClick={loadExercises}>Tentar novamente</button>
         </div>}

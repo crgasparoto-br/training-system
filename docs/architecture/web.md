@@ -160,3 +160,7 @@ A conciliacao apos POST tambem aplica o limite monotônico da maior versão já 
 ### Evidência visual do executor cíclico (#489)
 
 `apps/web/src/pages/issue-489-browser-evidence.test.js` testa a **tela real do aluno** em Chrome autenticado, desktop 1440×900 e mobile 390×844, com HTTP de teste isolado: foco/Enter, botões tocáveis, status/timer acessíveis, ausência de overflow, pausa/retomada, rodadas, metas de velocidade e alternância visual entre trabalho/recuperação. A CI exige que `scripts/verify-issue-489-browser-evidence.mjs` valide SHA exact-head, controles e hashes de todas as capturas PNG antes de liberar o job CRITICAL. Essa simulação UI não substitui os testes com API real/PostgreSQL, executados separadamente.
+
+## Rejeição de curadoria na biblioteca (#576)
+
+A aprovação manual mantém os requisitos técnicos e de mídia. A API informa todos os campos pendentes em uma resposta 422. A biblioteca apresenta a mensagem no contexto do exercício e oferece edição da ficha; salvar retorna a rascunho e exige novo envio para revisão. Conflitos exigem atualização da lista, erros de permissão são diferenciados e falhas inesperadas não exibem detalhes internos. Nenhuma falha altera localmente o estado de aprovação.
