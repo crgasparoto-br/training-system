@@ -7,13 +7,14 @@ jest.mock('../src/common/prisma-runtime-client', () => {
     findFirstOrThrow: jest.fn(), updateMany: jest.fn(), count: jest.fn(),
   };
   const exerciseLibraryRevision = { findMany: jest.fn() };
+  const professor = { findMany: jest.fn() };
   const workoutExercise = { count: jest.fn() };
   const aluno = { findFirst: jest.fn() };
   const alunoExerciseProgress = { findUnique: jest.fn(), findMany: jest.fn() };
   const $queryRaw = jest.fn();
   return {
     prismaRuntimeClient: {
-      exerciseLibrary, exerciseLibraryRevision, workoutExercise,
+      exerciseLibrary, exerciseLibraryRevision, workoutExercise, professor,
       aluno, alunoExerciseProgress, $queryRaw,
       $transaction: jest.fn(async (callback) => callback({ exerciseLibrary, exerciseLibraryRevision, workoutExercise, $queryRaw })),
     },
@@ -23,6 +24,7 @@ jest.mock('../src/common/prisma-runtime-client', () => {
 const db = prismaRuntimeClient as unknown as {
   exerciseLibrary: Record<string, jest.Mock>;
   exerciseLibraryRevision: Record<string, jest.Mock>;
+  professor: Record<string, jest.Mock>;
   workoutExercise: Record<string, jest.Mock>;
   aluno: Record<string, jest.Mock>;
   alunoExerciseProgress: Record<string, jest.Mock>;
@@ -38,6 +40,7 @@ const sample = {
 describe('issue #394: persistence and tenant-aware curation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    db.professor.findMany.mockResolvedValue([]);
     db.workoutExercise.count.mockResolvedValue(0);
     db.$queryRaw.mockResolvedValue([{
       role: 'master', isActive: true, currentStatus: 'active', dismissalDate: null,
@@ -181,7 +184,7 @@ describe('issue #394: persistence and tenant-aware curation', () => {
       where: { id: sample.id, contractId: 'contract-1', version: 2 },
       data: expect.objectContaining({
         curationStatus: 'approved', reviewedByUserId: 'actor-1',
-        lastCurationAction: 'approve', legacyGrandfathered: false,
+        lastCurationAction: 'approve', legacyGrandfathered: false, systemDefault: false,
         version: { increment: 1 },
       }),
     });
@@ -269,9 +272,71 @@ describe('issue #394: persistence and tenant-aware curation', () => {
     )).rejects.toMatchObject({ kind: 'conflict', message: expect.stringContaining('Já existe') });
   });
 
+
+  it('#570 resolves curator names only through professors of the same contract', async () => {
+    db.exerciseLibrary.findMany.mockResolvedValue([{
+      ...sample, createdByUserId: 'creator-1', reviewedByUserId: 'reviewer-1',
+    }]);
+    db.professor.findMany.mockResolvedValue([
+      { userId: 'creator-1', user: { profile: { name: 'Ana Souza' } } },
+      { userId: 'reviewer-1', user: { profile: { name: 'Carlos Pereira' } } },
+    ]);
+    const items = await libraryService.listExercises('contract-1', { scope: 'all' });
+    expect(items[0]).toMatchObject({
+      createdByName: 'Ana Souza', reviewedByName: 'Carlos Pereira',
+    });
+    expect(db.professor.findMany).toHaveBeenCalledWith({
+      where: { contractId: 'contract-1', userId: { in: ['creator-1', 'reviewer-1'] } },
+      select: { userId: true, user: { select: { profile: { select: { name: true } } } } },
+    });
+    db.professor.findMany.mockResolvedValue([]);
+    const hidden = await libraryService.listExercises('contract-1', { scope: 'all' });
+    expect(hidden[0]).toMatchObject({
+      createdByName: 'Usuário não disponível', reviewedByName: 'Usuário não disponível',
+    });
+    expect(JSON.stringify(hidden[0].createdByName)).not.toContain('creator-1');
+  });
+
+  it('#570 redacts unverified system videos from operational readers while retaining admin source links', async () => {
+    const item = {
+      ...sample, curationStatus: 'approved', legacyGrandfathered: false,
+      systemDefault: true, videoUrl: 'https://www.youtube.com/watch?v=source-video',
+      mediaOrigin: null, mediaLicense: null, createdByUserId: null,
+    };
+    db.exerciseLibrary.findMany.mockResolvedValue([item]);
+    const official = await libraryService.listExercises('contract-1');
+    expect(official[0].videoUrl).toBeNull();
+    const admin = await libraryService.listExercises('contract-1', { scope: 'all' });
+    expect(admin[0]).toMatchObject({
+      videoUrl: item.videoUrl, createdByName: 'Catálogo do sistema',
+      reviewedByName: 'Aprovação do sistema',
+    });
+  });
+
+  it('#570 maps editorial versions from immutable snapshots and names from tenant-bound user profiles', async () => {
+    db.exerciseLibrary.findFirst.mockResolvedValue({ id: sample.id });
+    db.exerciseLibraryRevision.findMany.mockResolvedValue([
+      { id: 'e3', version: 3, action: 'submit', actorUserId: 'actor-1', snapshot: { name: 'Movimento novo' } },
+      { id: 'e2', version: 2, action: 'edit', actorUserId: 'actor-1', snapshot: { name: 'Movimento novo' } },
+      { id: 'e1', version: 1, action: 'create', actorUserId: 'actor-1', snapshot: { name: 'Movimento inicial' } },
+    ]);
+    db.professor.findMany.mockResolvedValue([
+      { userId: 'actor-1', user: { profile: { name: 'Fernanda Lima' } } },
+    ]);
+    const revisions = await libraryService.listExerciseRevisions('contract-1', sample.id);
+    expect(revisions.map((item) => item.contentVersion)).toEqual([2, 2, 1]);
+    expect(revisions.every((item) => item.actorName === 'Fernanda Lima')).toBe(true);
+    expect(db.professor.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { contractId: 'contract-1', userId: { in: ['actor-1'] } },
+    }));
+  });
+
   it('resolves revision history only after validating the exercise tenant', async () => {
     db.exerciseLibrary.findFirst.mockResolvedValue({ id: sample.id });
-    db.exerciseLibraryRevision.findMany.mockResolvedValue([{ version: 1 }, { version: 2 }]);
+    db.exerciseLibraryRevision.findMany.mockResolvedValue([
+      { version: 2, action: 'submit', actorUserId: null, snapshot: { name: 'Agachamento' } },
+      { version: 1, action: 'create', actorUserId: null, snapshot: { name: 'Agachamento' } },
+    ]);
     await libraryService.listExerciseRevisions('contract-1', sample.id);
     expect(db.exerciseLibraryRevision.findMany).toHaveBeenCalledWith({
       where: { contractId: 'contract-1', exerciseId: sample.id },

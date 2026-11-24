@@ -53,6 +53,40 @@ const TEXT_FIELDS = [
   { key: 'mediaAuthor', label: 'Autor da mídia' },
 ] as const;
 
+const CURATION_LABELS: Record<string, string> = {
+  create: 'Exercício cadastrado',
+  edit: 'Conteúdo atualizado',
+  submit: 'Enviado para revisão',
+  approve: 'Aprovação profissional',
+  request_changes: 'Ajustes solicitados',
+  deactivate: 'Desativado',
+  reopen: 'Reaberto como rascunho',
+  import: 'Importado',
+  bootstrap: 'Registro inicial',
+  legacy_baseline: 'Registro histórico',
+  tenant_copy: 'Copiado de outra empresa',
+  system_defaults_install: 'Instalado pelo sistema',
+  system_defaults_approval: 'Aprovado pelo sistema',
+  system_defaults_repair: 'Dados padrão atualizados',
+  system_update: 'Atualização do sistema',
+};
+const CURATION_STATUS_LABELS: Record<string, string> = {
+  draft: 'Rascunho',
+  in_review: 'Em revisão',
+  approved: 'Aprovado',
+  inactive: 'Desativado',
+};
+
+function verifiedHttpsLink(raw: string | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 interface ExerciseModalProps {
   mode: 'create' | 'edit' | 'view';
   exercise: Exercise | null;
@@ -80,6 +114,14 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
 
   const isViewMode = mode === 'view';
   const isEditMode = mode === 'edit';
+  const sourceLink = verifiedHttpsLink(formData.videoUrl);
+  const seenEditorialVersions = new Set<number>();
+  const editorialVersions = revisions.slice().reverse().filter((event) => {
+    const number = event.contentVersion ?? 1;
+    if (seenEditorialVersions.has(number)) return false;
+    seenEditorialVersions.add(number);
+    return true;
+  }).reverse();
 
   useEffect(() => {
     // Never trim controlled textarea values while the user is typing.
@@ -264,6 +306,18 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
               onChange={(e) => setFormData({ ...formData, videoUrl: e.target.value })}
             />
             
+            {sourceLink && (
+              <a href={sourceLink} target="_blank" rel="noopener noreferrer"
+                className="mt-2 inline-block text-sm text-blue-700 underline">
+                Abrir link do vídeo
+              </a>
+            )}
+            {formData.videoUrl && !exercise?.legacyGrandfathered &&
+              !(formData.mediaOrigin?.trim() && formData.mediaLicense?.trim()) && (
+              <p role="status" className="mt-2 text-sm text-amber-800">
+                Link disponível para curadoria. A exibição nos treinos exige comprovação de origem e autorização da mídia.
+              </p>
+            )}
             {/* Preview do Vídeo */}
             {formData.videoUrl && !exercise?.legacyGrandfathered &&
               Boolean(formData.mediaOrigin?.trim() && formData.mediaLicense?.trim()) && (
@@ -444,23 +498,44 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
           </section>
 
           {exercise && mode !== 'create' && <section className="rounded-lg border border-gray-200 p-4" aria-label="Estado da curadoria">
-            <h3 className="font-semibold">Curadoria e versão</h3>
-            <p className="text-sm text-gray-600">Situação: {exercise.curationStatus} · Versão: {exercise.version}</p>
-            <p className="text-xs text-gray-500">Autor: {exercise.createdByUserId || 'Legado'} ·
-              Revisor: {exercise.reviewedByUserId || 'Não registrado'} ·
-              Revisão: {exercise.reviewedAt ? new Date(exercise.reviewedAt).toLocaleString('pt-BR') : 'Pendente'}
+            <h3 className="font-semibold">Curadoria e versionamento</h3>
+            <p className="text-sm text-gray-600">
+              Situação: {CURATION_STATUS_LABELS[exercise.curationStatus] ?? 'Não informada'} ·
+              Versão do conteúdo: {exercise.contentVersion ?? 1}
             </p>
+            <p className="text-xs text-gray-600">
+              Autor: {exercise.createdByName || (exercise.systemDefault ? 'Catálogo do sistema' : 'Cadastro anterior')} ·
+              Revisor: {exercise.reviewedByName || (exercise.systemDefault && exercise.curationStatus === 'approved'
+                ? 'Aprovação do sistema' : 'Não registrado')} ·
+              Revisão profissional: {exercise.reviewedAt
+                ? new Date(exercise.reviewedAt).toLocaleString('pt-BR') : 'Não realizada'}
+            </p>
+            {exercise.systemDefault && <p className="mt-1 text-xs text-gray-500">
+              Item do catálogo padrão aprovado automaticamente pelo sistema, sem atribuição de revisão profissional.
+            </p>}
             {historyError && <p role="alert" className="mt-2 text-sm text-red-700">{historyError}</p>}
             {showHistory && <details className="mt-2">
-              <summary className="cursor-pointer text-sm font-medium text-blue-700">Ver histórico de versões</summary>
+              <summary className="cursor-pointer text-sm font-medium text-blue-700">
+                Ver versões do conteúdo e atividades
+              </summary>
               {revisions.length === 0
-                ? <p className="mt-2 text-sm text-gray-500">Nenhuma revisão encontrada.</p>
-                : <ol className="mt-2 space-y-2 text-sm">
-                  {revisions.map(revision => <li key={revision.id} className="border-b py-2">
-                    Versão {revision.version} · {revision.action} · {new Date(revision.createdAt).toLocaleString('pt-BR')}
-                    <div className="text-xs text-gray-600">Responsável: {revision.actorUserId || 'Importação legada'}</div>
-                  </li>)}
-                </ol>}
+                ? <p className="mt-2 text-sm text-gray-500">Nenhum evento registrado.</p>
+                : <>
+                  <h4 className="mt-3 text-sm font-semibold">Versões do conteúdo</h4>
+                  <ol className="mt-1 space-y-1 text-sm">
+                    {editorialVersions.map(revision => <li key={revision.id} className="border-b py-2">
+                      Versão {revision.contentVersion ?? 1} · {new Date(revision.createdAt).toLocaleString('pt-BR')}
+                      <div className="text-xs text-gray-600">Responsável: {revision.actorName || 'Não identificado'}</div>
+                    </li>)}
+                  </ol>
+                  <h4 className="mt-4 text-sm font-semibold">Atividades da curadoria</h4>
+                  <ol className="mt-1 space-y-1 text-sm">
+                    {revisions.map(revision => <li key={revision.id} className="border-b py-2">
+                      {CURATION_LABELS[revision.action] || 'Atividade registrada'} · {new Date(revision.createdAt).toLocaleString('pt-BR')}
+                      <div className="text-xs text-gray-600">Responsável: {revision.actorName || 'Não identificado'}</div>
+                    </li>)}
+                  </ol>
+                </>}
             </details>}
           </section>}
 

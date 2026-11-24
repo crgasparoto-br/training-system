@@ -71,9 +71,13 @@ describeDatabase('installContractDefaults database integration', () => {
       loadProductExerciseDefaults().length
     );
     expect(await prisma.exerciseLibrary.count({
-      where: { contractId: target.id, curationStatus: 'draft', legacyGrandfathered: false },
+      where: { contractId: target.id, curationStatus: 'approved', systemDefault: true, legacyGrandfathered: false },
     })).toBe(loadProductExerciseDefaults().length);
-    expect(await libraryService.listExercises(target.id)).toEqual([]);
+    const official = await libraryService.listExercises(target.id);
+    expect(official).toHaveLength(loadProductExerciseDefaults().length);
+    expect(official.find((entry) => entry.videoUrl)).toBeUndefined(); // unlicensed source URL is admin-only
+    const adminCatalog = await libraryService.listExercises(target.id, { scope: 'all' });
+    expect(adminCatalog.some((entry) => Boolean(entry.videoUrl))).toBe(true);
     const first = await prisma.exerciseLibrary.findFirstOrThrow({ where: { contractId: target.id } });
     const revision = await prisma.exerciseLibraryRevision.findFirstOrThrow({
       where: { exerciseId: first.id, version: 1, action: 'system_defaults_install' },
@@ -94,6 +98,67 @@ describeDatabase('installContractDefaults database integration', () => {
       .map((entry) => entry.id)).toContain(first.id);
     expect(await libraryService.listExercises('unknown-foreign-contract', { search: 'xyZZy' }))
       .toEqual([]);
+  });
+
+
+  it('#570: editorial version is unchanged by curation, and advances only when content changes', async () => {
+    const target = await prisma.companyContract.create({
+      data: { type: 'academy', document: `issue570-version-${randomUUID()}`, name: 'Version semantics' },
+    });
+    targetContractId = target.id;
+    const initial = await prisma.exerciseLibrary.create({
+      data: { contractId: target.id, name: 'Movimento demonstrativo #570', curationStatus: 'draft' },
+    });
+    expect(initial).toMatchObject({ version: 1, contentVersion: 1 });
+    const submitted = await prisma.exerciseLibrary.update({
+      where: { id: initial.id }, data: { curationStatus: 'in_review', lastCurationAction: 'submit' },
+    });
+    expect(submitted).toMatchObject({ version: 2, contentVersion: 1 });
+    const edited = await prisma.exerciseLibrary.update({
+      where: { id: initial.id }, data: {
+        curationStatus: 'draft', notes: 'Orientação diferente', lastCurationAction: 'edit',
+      },
+    });
+    expect(edited).toMatchObject({ version: 3, contentVersion: 2 });
+    const identical = await prisma.exerciseLibrary.update({
+      where: { id: initial.id }, data: { curationStatus: 'in_review', lastCurationAction: 'submit' },
+    });
+    expect(identical).toMatchObject({ version: 4, contentVersion: 2 });
+    const revisionRows = await prisma.exerciseLibraryRevision.findMany({
+      where: { exerciseId: initial.id }, orderBy: { version: 'desc' },
+    });
+    expect(revisionRows).toHaveLength(4);
+    const decorated = await libraryService.listExerciseRevisions(target.id, initial.id);
+    expect(decorated.map((event) => event.contentVersion)).toEqual([2, 2, 1, 1]);
+  });
+
+  it('#570: only proven system defaults receive repaired video links, without touching a professionally approved exercise', async () => {
+    const target = await prisma.companyContract.create({
+      data: { type: 'academy', document: `issue570-video-${randomUUID()}`, name: 'Source video repair' },
+    });
+    targetContractId = target.id;
+    const canonical = loadProductExerciseDefaults().find((row) => row.name === 'Abdominal Bicicleta');
+    expect(canonical?.videoUrl).toBeTruthy();
+    const managed = await prisma.exerciseLibrary.create({ data: {
+      contractId: target.id, name: canonical!.name, curationStatus: 'approved',
+      systemDefault: true, lastCurationAction: 'system_defaults_install', videoUrl: null,
+    } });
+    const initialEditorialVersion = managed.contentVersion;
+    const other = await prisma.exerciseLibrary.create({ data: {
+      contractId: target.id, name: 'Exercício próprio do professor', curationStatus: 'draft',
+      videoUrl: null, systemDefault: false,
+    } });
+    await installContractDefaults(target.id, prisma);
+    const repaired = await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: managed.id } });
+    expect(repaired).toMatchObject({
+      videoUrl: canonical!.videoUrl, curationStatus: 'approved', systemDefault: true,
+      contentVersion: initialEditorialVersion + 1,
+    });
+    expect(await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: other.id } }))
+      .toMatchObject({ curationStatus: 'draft', videoUrl: null, systemDefault: false });
+    await installContractDefaults(target.id, prisma);
+    expect(await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: managed.id } }))
+      .toMatchObject({ contentVersion: repaired.contentVersion, videoUrl: repaired.videoUrl });
   });
 
   it('#394 A-394-006: reuses a case/whitespace variant in PostgreSQL without a duplicate or media backfill', async () => {

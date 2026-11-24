@@ -157,7 +157,8 @@ describe('contract defaults audit remediation', () => {
     expect(query.strings.join('')).toContain('"WorkoutExercise"');
     expect(query.strings.join('')).toContain('NOT EXISTS');
     expect(query.strings.join('')).toContain("'system_defaults_repair'");
-    expect(query.strings.join('')).not.toContain('"videoUrl"');
+    expect(query.strings.join('')).toContain('"videoUrl"');
+    expect(query.strings.join('')).toContain('exercise."systemDefault" = TRUE');
   });
   it('#394 A-394-013: guards Prisma fallback against overwriting curated approvals', async () => {
     const defaults = loadProductExerciseDefaults();
@@ -192,7 +193,10 @@ describe('contract defaults audit remediation', () => {
       where: expect.objectContaining({
         contractId: 'contract-394',
         name: draft!.name,
-        NOT: { curationStatus: 'approved', legacyGrandfathered: false },
+        OR: [
+          { systemDefault: true },
+          { NOT: { curationStatus: 'approved', legacyGrandfathered: false } },
+        ],
       }),
       data: expect.objectContaining({ lastCurationAction: 'system_defaults_repair' }),
     }));
