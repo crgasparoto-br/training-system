@@ -24,9 +24,9 @@ Requer professor master autenticado. O contrato alvo é sempre o contrato da ses
 
 A resposta informa, por categoria, quantos padrões foram instalados e quantos já existiam. A operação:
 
-- cria somente padrões ausentes;
-- em exercícios padrão já existentes, preenche apenas campos vazios disponíveis no catálogo canônico (`videoUrl`, `loadType`, `movementType`, `countingType`, categoria, grupo muscular e observações);
-- preserva valores existentes e customizações, sem substituir um campo não vazio durante o reparo;
+- cria somente padrões ausentes e os identifica como **aprovados automaticamente pelo catálogo do produto** (`systemDefault=true`), sem atribuir revisor humano;
+- em exercícios padrão já existentes, completa apenas metadados vazios e a URL canônica somente quando a **origem pelo próprio sistema** está comprovada (`systemDefault=true`); registros históricos sem procedência e exercícios personalizados não recebem mídia automaticamente;
+- preserva valores existentes e customizações, sem substituir um campo não vazio durante o reparo e sem editar exercícios aplicados a treinos;
 - combina ocorrências duplicadas do catálogo de forma não destrutiva: a primeira ocorrência mantém os valores já preenchidos e ocorrências posteriores podem somente completar lacunas;
 - aceita `A = Alternado` como valor canônico de `movementType`, preservando `U`, `I` e `O`;
 - ignora códigos não suportados, incluindo `B` e `-`, em vez de reinterpretá-los silenciosamente;
@@ -46,6 +46,14 @@ Nomes, grupos musculares e observações dos exercícios passam pela recuperaç�
 Registros históricos persistidos antes dessa regra são saneados pela migration `20260831121000_repair_exercise_library_ptbr_encoding`. A atualização preserva IDs e relações e não renomeia um registro quando o mesmo contrato já possui o nome corrigido.
 
 `POST /api/v1/contracts/clone-data` permanece apenas como compatibilidade temporária: com `sourceContractId`, executa a cópia manual; sem origem, instala os defaults do produto e nunca seleciona outro tenant automaticamente.
+
+## Aprovação e direitos de mídia (#570)
+
+Os exercícios padrão são itens publicados do catálogo do próprio produto; sua aprovação automática **não é** uma revisão profissional do exercício ou autorização de uso da mídia. O banco registra `systemDefault` e o evento `system_defaults_install` (ou `system_defaults_approval` na promoção de registros antigos elegíveis). Registros manuais, importações externas e cópias entre contratos continuam entrando como rascunho.
+
+A migration `20261124120000_issue_570_library_content_versions` promove somente exercícios cuja primeira revisão demonstra instalação padrão e cujas revisões posteriores são exclusivamente reparos automáticos; restaura links canônicos ausentes de registros elegíveis, sem alterar mídias personalizadas ou conteúdo já aplicado em treinos. Novas execuções de **Instalar padrões** mantêm essa recuperação idempotente.
+
+A URL de origem do YouTube aparece para curadoria administrativa; a prévia pública e a divulgação do vídeo no contexto de treinos exigem `mediaOrigin` e `mediaLicense` verificáveis. A URL por si só nunca é tratada como prova de direitos.
 
 ## Interface
 
