@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import ExerciseModal from './ExerciseModal';
@@ -83,7 +83,7 @@ describe('#394 capacity taxonomy and historical media in the exercise editor', (
   });
 
 
-  it('#570 displays human names and groups content versions independently from submit events', async () => {
+  it('#570/#574 displays human names and sorts grouped curation events from unordered revisions', async () => {
     const user = userEvent.setup();
     const curated: Exercise = {
       ...legacy, legacyGrandfathered: false, videoUrl: undefined,
@@ -91,14 +91,14 @@ describe('#394 capacity taxonomy and historical media in the exercise editor', (
       createdByName: 'Mariana Silva', reviewedByName: 'Roberto Costa',
     };
     vi.mocked(libraryService.listExerciseRevisions).mockResolvedValue([
-      { id: 'r4', exerciseId: curated.id, contractId: 't', version: 4, contentVersion: 2,
-        action: 'submit', actorName: 'Mariana Silva', snapshot: curated, createdAt: '2026-11-24T09:00:00.000Z' },
+      { id: 'r1', exerciseId: curated.id, contractId: 't', version: 1, contentVersion: 1,
+        action: 'create', actorName: 'Mariana Silva', snapshot: curated, createdAt: '2026-11-24T08:30:00.000Z' },
       { id: 'r3', exerciseId: curated.id, contractId: 't', version: 3, contentVersion: 2,
         action: 'edit', actorName: 'Mariana Silva', snapshot: curated, createdAt: '2026-11-24T08:50:00.000Z' },
       { id: 'r2', exerciseId: curated.id, contractId: 't', version: 2, contentVersion: 1,
         action: 'submit', actorName: 'Mariana Silva', snapshot: curated, createdAt: '2026-11-24T08:40:00.000Z' },
-      { id: 'r1', exerciseId: curated.id, contractId: 't', version: 1, contentVersion: 1,
-        action: 'create', actorName: 'Mariana Silva', snapshot: curated, createdAt: '2026-11-24T08:30:00.000Z' },
+      { id: 'r4', exerciseId: curated.id, contractId: 't', version: 4, contentVersion: 2,
+        action: 'submit', actorName: 'Mariana Silva', snapshot: curated, createdAt: '2026-11-24T09:00:00.000Z' },
     ]);
     render(<ExerciseModal mode="view" exercise={curated} onClose={vi.fn()} showHistory />);
     expect(screen.getByText(/Versão do conteúdo: 2/)).toBeInTheDocument();
@@ -106,7 +106,31 @@ describe('#394 capacity taxonomy and historical media in the exercise editor', (
     expect(screen.getByText(/Revisor: Roberto Costa/)).toBeInTheDocument();
     await user.click(screen.getByText('Ver versões do conteúdo e atividades'));
     expect(await screen.findByText('Versões do conteúdo')).toBeInTheDocument();
-    expect(screen.getByText('Atividades da curadoria')).toBeInTheDocument();
+    expect(screen.getAllByText(/^Versão \d+ ·/).map(title => title.textContent?.split(' · ')[0]))
+      .toEqual(['Versão 2', 'Versão 1']);
+    const toggle2 = screen.getByText('Atividades da curadoria — versão 2 (2)');
+    const toggle1 = screen.getByText('Atividades da curadoria — versão 1 (2)');
+    const group2 = toggle2.closest('details')!;
+    const group1 = toggle1.closest('details')!;
+    expect(group2).not.toHaveAttribute('open');
+    expect(group1).not.toHaveAttribute('open');
+    await user.click(toggle2);
+    expect(group2).toHaveAttribute('open');
+    expect(group1).not.toHaveAttribute('open');
+    const events2 = within(group2).getAllByRole('listitem');
+    expect(events2[0]).toHaveTextContent('Enviado para revisão');
+    expect(events2[1]).toHaveTextContent('Conteúdo atualizado');
+    expect(within(group2).queryByText(/Exercício cadastrado/)).not.toBeInTheDocument();
+    await user.click(toggle1);
+    expect(group1).toHaveAttribute('open');
+    expect(group2).toHaveAttribute('open');
+    const events1 = within(group1).getAllByRole('listitem');
+    expect(events1[0]).toHaveTextContent('Enviado para revisão');
+    expect(events1[1]).toHaveTextContent('Exercício cadastrado');
+    expect(within(group1).queryByText(/Conteúdo atualizado/)).not.toBeInTheDocument();
+    await user.click(toggle2);
+    expect(group2).not.toHaveAttribute('open');
+    expect(group1).toHaveAttribute('open');
     expect(screen.getAllByText(/Enviado para revisão/)).toHaveLength(2);
     expect(screen.getAllByText(/^Versão 2 ·/)).toHaveLength(1);
     expect(screen.getAllByText(/^Versão 1 ·/)).toHaveLength(1);
