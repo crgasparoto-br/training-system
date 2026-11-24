@@ -49,6 +49,16 @@ describe('library administrative curation (#394)', () => {
     expect(libraryService.listExercises).toHaveBeenCalledWith(expect.objectContaining({ scope: 'all' }));
   });
 
+  it('#570 labels system-approved defaults and shows an editorial version, not a technical action counter', async () => {
+    vi.mocked(libraryService.listExercises).mockResolvedValue([{
+      ...draft, systemDefault: true, curationStatus: 'approved', contentVersion: 1, version: 4,
+    }]);
+    render(<Library />);
+    expect(await screen.findByText('Aprovado pelo sistema')).toBeInTheDocument();
+    expect(screen.getByText('Versão do conteúdo 1')).toBeInTheDocument();
+    expect(screen.queryByText('Versão 4')).not.toBeInTheDocument();
+  });
+
   it('only requests approved exercises for a regular professor and hides mutation buttons', async () => {
     vi.mocked(useAuthStore).mockReturnValue({ user: professor } as never);
     vi.mocked(libraryService.listExercises).mockResolvedValue([{ ...draft, curationStatus: 'approved' }]);

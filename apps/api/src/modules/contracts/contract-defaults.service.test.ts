@@ -41,6 +41,7 @@ type ExerciseRow = {
   workoutExercises?: Array<{ id: string }>;
   curationStatus?: string;
   legacyGrandfathered?: boolean;
+  systemDefault?: boolean;
   lastCurationAction?: string;
 };
 
@@ -84,6 +85,7 @@ function createFakeDb(initial?: {
     where: {
       contractId: string; name: string;
       workoutExercises?: { none: Record<string, never> };
+      OR?: Array<{ systemDefault?: boolean; NOT?: { curationStatus: string; legacyGrandfathered: boolean } }>;
       NOT?: { curationStatus: string; legacyGrandfathered: boolean };
     };
     data: Partial<Omit<ExerciseRow, 'contractId'>>;
@@ -95,7 +97,11 @@ function createFakeDb(initial?: {
         exercise.name === args.where.name &&
         (!args.where.workoutExercises || !exercise.workoutExercises?.length) &&
         (!args.where.NOT || !(exercise.curationStatus === args.where.NOT.curationStatus &&
-          exercise.legacyGrandfathered === args.where.NOT.legacyGrandfathered))
+          exercise.legacyGrandfathered === args.where.NOT.legacyGrandfathered)) &&
+        (!args.where.OR || args.where.OR.some((option) =>
+          (option.systemDefault === true && exercise.systemDefault === true) ||
+          (option.NOT !== undefined && !(exercise.curationStatus === option.NOT.curationStatus &&
+            exercise.legacyGrandfathered === option.NOT.legacyGrandfathered))))
       ) {
         Object.assign(exercise, args.data);
         count++;
@@ -169,6 +175,7 @@ describe('installContractDefaults', () => {
         name: true,
         curationStatus: true,
         legacyGrandfathered: true,
+        systemDefault: true,
         videoUrl: true,
         loadType: true,
         movementType: true,
@@ -181,13 +188,16 @@ describe('installContractDefaults', () => {
     });
   });
 
-  it('installs brand-new defaults as drafts without a presumed review', async () => {
+  it('installs verified product defaults as approved system catalog entries without claiming a professional review', async () => {
     const fake = createFakeDb();
     await installContractDefaults(contractId, fake.db);
     const created = fake.state.exercises.filter((row) => row.contractId === contractId);
     expect(created).toHaveLength(exerciseDefaults.length);
-    expect(created.every((row) => row.curationStatus === 'draft' &&
-      row.legacyGrandfathered === false && row.lastCurationAction === 'system_defaults_install')).toBe(true);
+    expect(created.every((row) => row.curationStatus === 'approved' &&
+      row.legacyGrandfathered === false && row.systemDefault === true &&
+      row.lastCurationAction === 'system_defaults_install')).toBe(true);
+    const sourceVideo = exerciseDefaults.find((row) => row.videoUrl);
+    expect(created.find((row) => row.name === sourceVideo?.name)?.videoUrl).toBe(sourceVideo?.videoUrl);
   });
 
   it('reuses an existing case/whitespace variant without a second row or lost historical link', async () => {
@@ -399,7 +409,10 @@ describe('installContractDefaults', () => {
     expect(fake.writes.exerciseUpdateMany).toHaveBeenCalledWith({
       where: {
         contractId, name: canonical!.name, workoutExercises: { none: {} },
-        NOT: { curationStatus: 'approved', legacyGrandfathered: false },
+        OR: [
+          { systemDefault: true },
+          { NOT: { curationStatus: 'approved', legacyGrandfathered: false } },
+        ],
       },
       data: expect.objectContaining({
         lastModifiedByUserId: null,
@@ -412,6 +425,34 @@ describe('installContractDefaults', () => {
     });
     expect(fake.writes.exerciseUpdateMany.mock.calls.at(-1)?.[0].data).not.toHaveProperty('videoUrl');
     expect(fake.writes.exerciseUpdateMany.mock.calls.at(-1)?.[0].data).not.toHaveProperty('muscleGroup');
+  });
+
+
+  it('restores a missing canonical URL only for a proven system default, keeping manual entries and existing custom URLs', async () => {
+    const canonical = exerciseDefaults.find((row) => row.name === 'Abdominal Bicicleta');
+    const second = exerciseDefaults.find((row) => row.name === 'Abdominal Canoa');
+    expect(canonical?.videoUrl).toBeTruthy();
+    expect(second?.videoUrl).toBeTruthy();
+    const customLink = 'https://www.youtube.com/watch?v=customer-owned';
+    const fake = createFakeDb({ exercises: [
+      { contractId, name: canonical!.name, curationStatus: 'approved', systemDefault: true,
+        legacyGrandfathered: false, videoUrl: null },
+      { contractId, name: second!.name, curationStatus: 'approved', systemDefault: true,
+        legacyGrandfathered: false, videoUrl: customLink },
+      { contractId, name: 'Abdominal Remador', curationStatus: 'draft',
+        systemDefault: false, legacyGrandfathered: false, videoUrl: null },
+    ] });
+
+    await installContractDefaults(contractId, fake.db);
+    await installContractDefaults(contractId, fake.db);
+    expect(fake.state.exercises.find((row) => row.name === canonical!.name)?.videoUrl)
+      .toBe(canonical!.videoUrl);
+    expect(fake.state.exercises.find((row) => row.name === second!.name)?.videoUrl)
+      .toBe(customLink);
+    expect(fake.state.exercises.find((row) => row.name === 'Abdominal Remador')).toMatchObject({
+      curationStatus: 'draft', videoUrl: null, systemDefault: false,
+    });
+    expect(fake.state.exercises.find((row) => row.name === canonical!.name)?.curationStatus).toBe('approved');
   });
 
   it('never adds unlicensed default media to an approved legacy exercise', async () => {
@@ -478,7 +519,10 @@ describe('installContractDefaults', () => {
     expect(fake.writes.exerciseUpdateMany).toHaveBeenCalledWith({
       where: {
         contractId, name: corruptedName, workoutExercises: { none: {} },
-        NOT: { curationStatus: 'approved', legacyGrandfathered: false },
+        OR: [
+          { systemDefault: true },
+          { NOT: { curationStatus: 'approved', legacyGrandfathered: false } },
+        ],
       },
       data: {
         name: correctName,

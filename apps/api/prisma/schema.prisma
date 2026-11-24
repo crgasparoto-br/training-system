@@ -1850,6 +1850,8 @@ model ExerciseLibrary {
   mediaAuthor      String?
   curationStatus   ExerciseCurationStatus  @default(draft)
   version          Int                     @default(1)
+  contentVersion   Int                     @default(1)
+  systemDefault    Boolean                 @default(false)
   createdByUserId  String?
   reviewedByUserId String?
   reviewedAt       DateTime?

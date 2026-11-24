@@ -5,7 +5,7 @@ import ExerciseModal from './ExerciseModal';
 import { libraryService, type Exercise } from '../../services/library.service';
 
 vi.mock('../../services/library.service', () => ({
-  libraryService: { createExercise: vi.fn(), updateExercise: vi.fn() },
+  libraryService: { createExercise: vi.fn(), updateExercise: vi.fn(), listExerciseRevisions: vi.fn() },
 }));
 vi.mock('./YouTubeEmbed', () => ({ default: ({ url }: { url: string }) => <div data-testid="video-preview">{url}</div> }));
 
@@ -80,6 +80,52 @@ describe('#394 capacity taxonomy and historical media in the exercise editor', (
     await waitFor(() => expect(libraryService.createExercise).toHaveBeenCalledWith(
       expect.objectContaining({ [field]: ['Primeira etapa com detalhe', 'Segunda etapa'] }),
     ));
+  });
+
+
+  it('#570 displays human names and groups content versions independently from submit events', async () => {
+    const user = userEvent.setup();
+    const curated: Exercise = {
+      ...legacy, legacyGrandfathered: false, videoUrl: undefined,
+      curationStatus: 'in_review', contentVersion: 2,
+      createdByName: 'Mariana Silva', reviewedByName: 'Roberto Costa',
+    };
+    vi.mocked(libraryService.listExerciseRevisions).mockResolvedValue([
+      { id: 'r4', exerciseId: curated.id, contractId: 't', version: 4, contentVersion: 2,
+        action: 'submit', actorName: 'Mariana Silva', snapshot: curated, createdAt: '2026-11-24T09:00:00.000Z' },
+      { id: 'r3', exerciseId: curated.id, contractId: 't', version: 3, contentVersion: 2,
+        action: 'edit', actorName: 'Mariana Silva', snapshot: curated, createdAt: '2026-11-24T08:50:00.000Z' },
+      { id: 'r2', exerciseId: curated.id, contractId: 't', version: 2, contentVersion: 1,
+        action: 'submit', actorName: 'Mariana Silva', snapshot: curated, createdAt: '2026-11-24T08:40:00.000Z' },
+      { id: 'r1', exerciseId: curated.id, contractId: 't', version: 1, contentVersion: 1,
+        action: 'create', actorName: 'Mariana Silva', snapshot: curated, createdAt: '2026-11-24T08:30:00.000Z' },
+    ]);
+    render(<ExerciseModal mode="view" exercise={curated} onClose={vi.fn()} showHistory />);
+    expect(screen.getByText(/Versão do conteúdo: 2/)).toBeInTheDocument();
+    expect(screen.getByText(/Autor: Mariana Silva/)).toBeInTheDocument();
+    expect(screen.getByText(/Revisor: Roberto Costa/)).toBeInTheDocument();
+    await user.click(screen.getByText('Ver versões do conteúdo e atividades'));
+    expect(await screen.findByText('Versões do conteúdo')).toBeInTheDocument();
+    expect(screen.getByText('Atividades da curadoria')).toBeInTheDocument();
+    expect(screen.getAllByText(/Enviado para revisão/)).toHaveLength(2);
+    expect(screen.getAllByText(/^Versão 2 ·/)).toHaveLength(1);
+    expect(screen.getAllByText(/^Versão 1 ·/)).toHaveLength(1);
+    expect(screen.queryByText(/cmo[a-z0-9]{15}/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/· submit/)).not.toBeInTheDocument();
+  });
+
+  it('#570 offers the canonical source URL for curation without embedding unlicensed video', () => {
+    const standard: Exercise = {
+      ...legacy, legacyGrandfathered: false, curationStatus: 'approved', systemDefault: true,
+      contentVersion: 1, videoUrl: 'https://www.youtube.com/watch?v=canonical',
+      mediaOrigin: null, mediaLicense: null,
+    };
+    render(<ExerciseModal mode="view" exercise={standard} onClose={vi.fn()} />);
+    expect(screen.getByRole('link', { name: 'Abrir link do vídeo' }))
+      .toHaveAttribute('href', 'https://www.youtube.com/watch?v=canonical');
+    expect(screen.getByText(/Link disponível para curadoria/)).toBeInTheDocument();
+    expect(screen.getByText(/aprovado automaticamente pelo sistema/)).toBeInTheDocument();
+    expect(screen.queryByTestId('video-preview')).not.toBeInTheDocument();
   });
 
   it('clones historical technical metadata into a new draft without inherited media or review', async () => {
