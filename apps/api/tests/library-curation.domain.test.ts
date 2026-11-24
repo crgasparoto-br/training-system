@@ -49,6 +49,23 @@ describe('issue #394: curation domain', () => {
     })).not.toThrow();
   });
 
+  it('#579 approves declared own videos without license but not third-party or unknown-origin videos', () => {
+    const withVideo = { ...exercise, videoUrl: 'https://example.com/own-video' };
+    for (const mediaLicense of [null, '', '   ']) {
+      expect(() => assertExerciseCanBeApproved({
+        ...withVideo, mediaOrigin: 'Própria', mediaLicense,
+      })).not.toThrow();
+    }
+    for (const mediaOrigin of ['Licenciada', 'Equipe própria', '']) {
+      expect(() => assertExerciseCanBeApproved({
+        ...withVideo, mediaOrigin, mediaLicense: null,
+      })).toThrow(LibraryCurationError);
+    }
+    expect(() => assertExerciseCanBeApproved({
+      ...withVideo, mediaOrigin: 'Licenciada', mediaLicense: 'Autorização registrada',
+    })).not.toThrow();
+  });
+
   it('#576 identifies all missing approval fields in one actionable message', () => {
     expect(() => assertExerciseCanBeApproved({
       ...exercise, capacity: null, instructions: [], videoUrl: 'https://example.com/demo',

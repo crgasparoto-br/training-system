@@ -24,6 +24,26 @@ describe('#394 A-007: exercise media provenance at historical response boundarie
     expect(week.exercises[0].exercise.videoUrl).toBe('https://example.org/third-party');
   });
 
+  it('#579 allows explicitly owned video without a license, but not legacy or later-inferred rights', () => {
+    const owned = { ...approved, mediaOrigin: 'Própria', mediaLicense: null };
+    expect(projectWorkoutExerciseMedia({ exercise: owned }).exercise.videoUrl)
+      .toBe('https://example.org/third-party');
+    expect(projectWorkoutExerciseMedia({ exercise: { ...owned, legacyGrandfathered: true } }).exercise.videoUrl)
+      .toBeNull();
+    expect(projectReleasedExerciseCatalog(approved, {
+      catalog: { name: 'Vídeo próprio', videoUrl: 'https://example.org/owned',
+        mediaOrigin: 'Própria', mediaLicense: null, legacyGrandfathered: false },
+    }).videoUrl).toBe('https://example.org/owned');
+    expect(projectReleasedExerciseCatalog(owned, {
+      catalog: { name: 'Vídeo antigo', videoUrl: 'https://example.org/unlicensed',
+        mediaOrigin: 'Licenciada', mediaLicense: null, legacyGrandfathered: false },
+    }).videoUrl).toBeNull();
+    expect(projectReleasedExerciseCatalog(owned, {
+      catalog: { name: 'Origem desconhecida', videoUrl: 'https://example.org/unlicensed',
+        mediaLicense: null, legacyGrandfathered: false },
+    }).videoUrl).toBeNull();
+  });
+
   it('does not assign newly licensed live provenance to an old unlicensed snapshot video', () => {
     expect(projectReleasedExerciseCatalog(approved, {
       catalog: { name: 'Histórico', videoUrl: 'https://example.org/old-unlicensed' },

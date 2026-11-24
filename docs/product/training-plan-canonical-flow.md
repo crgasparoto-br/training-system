@@ -156,10 +156,11 @@ Ao liberar um `WorkoutTemplate` (`released: false → true`), seja pelo fluxo le
 
 Desde a migração incremental da #394, **novas liberações** congelam no mesmo
 snapshot `mediaOrigin`, `mediaLicense` e `legacyGrandfathered` junto à URL,
-para que uma mídia licenciada continue acessível na execução e no histórico
-sem herdar direitos de uma revisão posterior. Um snapshot anterior sem origem
-ou licença própria mantém o nome e os demais dados históricos, mas sua URL
-é omitida nas respostas. Não se reescrevem snapshots já publicados nem se
+para que uma mídia autorizada continue acessível na execução e no histórico
+sem herdar direitos de uma revisão posterior. A origem canônica `Própria`
+dispensa a licença adicional; origem de terceiros exige autorização registrada.
+Um snapshot sem origem declarada ou de terceiros sem licença mantém o nome e
+os demais dados históricos, mas sua URL é omitida nas respostas (#579). Não se reescrevem snapshots já publicados nem se
 inferem direitos a partir do catálogo mutável.
 
 A migração preenche snapshots de treinos **já liberados** somente com o catálogo disponível na data da migração. Nomes anteriores não podem ser reconstruídos e não são inventados; registros historicamente sem snapshot têm fallback explícito para nome e metadados não sensíveis do catálogo atual; nenhuma URL de vídeo é autorizada sem prova capturada na liberação. Novas liberações capturam o valor real da liberação e não dependem desse fallback.

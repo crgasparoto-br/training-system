@@ -281,13 +281,14 @@ e edição aceita apenas `resisted`, `flexibility`, `cyclic` ou `balance` (HTTP 
 para valores arbitrários); a aprovação também confere o enum canônico.
 Registros legados continuam consultáveis na visão administrativa e no histórico
 dos treinos, mas são excluídos da seleção, cópia, substituição e liberação
-operacional até a aprovação profissional explícita. Vídeos sem origem/licença
-comprovadas não são reproduzidos pelas projeções históricas nem retornados nos
-campos de mídia dos endpoints de progresso do aluno. A projeção dos registros
+operacional até a aprovação profissional explícita. Vídeos sem origem declarada ou, quando licenciados/de terceiros, sem
+autorização registrada não são reproduzidos pelas projeções históricas nem retornados nos
+campos de mídia dos endpoints de progresso do aluno. A origem canônica `Própria`
+dispensa licença adicional somente após curadoria explícita (#579). A projeção dos registros
 de progresso remove apenas o link operacional não verificado e preserva os
 valores e o catálogo originais no banco; a listagem restringe também a relação
 do exercício ao mesmo contrato. Os links originais continuam persistidos.
-Novas instalações do catálogo canônico são aprovadas automaticamente **pelo sistema**, com `systemDefault=true`, sem inventar um profissional revisor. Registros anteriormente instalados pelo sistema e sem alteração humana são promovidos com procedência auditável; exercícios manuais e copiados entre contratos continuam como rascunhos. URLs canônicas dos padrões podem ser consultadas pelo master, mas são omitidas em respostas operacionais enquanto não houver origem e licença verificadas. Cópias entre contratos não transferem automaticamente URLs/licenças de mídia.
+Novas instalações do catálogo canônico são aprovadas automaticamente **pelo sistema**, com `systemDefault=true`, sem inventar um profissional revisor. Registros anteriormente instalados pelo sistema e sem alteração humana são promovidos com procedência auditável; exercícios manuais e copiados entre contratos continuam como rascunhos. URLs canônicas dos padrões podem ser consultadas pelo master, mas são omitidas em respostas operacionais enquanto não houver origem declarada e, quando a mídia não for `Própria`, licença verificada. Cópias entre contratos não transferem automaticamente URLs/licenças de mídia.
 
 A-021: GET /executions/aluno usa o catálogo imutável de liberação e omite
 releasedCatalog interno da resposta; URLs de mídia sem direitos documentados

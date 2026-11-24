@@ -278,7 +278,7 @@ linha legada: `approved/legacyGrandfathered=true` conserva status, vídeo e
 referências para leitura histórica, mas não é selecionável para novas aplicações.
 A transição de volta ao catálogo exige curadoria profissional explícita, que
 valida capacidade da taxonomia `PHYSICAL_CAPACITY_TYPES`, categoria, instruções,
-e origem/licença da mídia e marca `legacyGrandfathered=false`. A constraint
+e origem da mídia; a licença é obrigatória somente para mídia licenciada ou de terceiros, dispensada quando a origem declarada é `Própria` (#579). A aprovação marca `legacyGrandfathered=false`. A constraint
 `ExerciseLibrary_approved_curated_guard` é `NOT VALID` para não reprovar dados
 existentes; protege inserções/atualizações futuras de registros `approved`
 não legados, inclusive caminhos SQL, sem backfill fabricado de licença ou revisor.
@@ -296,8 +296,7 @@ trigger de liberação de treinos. Novos `WorkoutReleasedExerciseSnapshot.catalo
 congelam, além da URL, os campos `mediaOrigin`, `mediaLicense` e
 `legacyGrandfathered` da liberação. O projetor da API usa a procedência e o
 estado legado registrados no snapshot, não os valores mutáveis do catálogo.
-Não há backfill dos snapshots históricos: vídeos sem prova própria de origem e
-licença ficam ocultos nas respostas, mas a linha histórica permanece íntegra.
+Não há backfill dos snapshots históricos: vídeos sem origem declarada ou, se forem de terceiros, sem licença ficam ocultos nas respostas, mas a linha histórica permanece íntegra. A migration incremental `20261124193000_issue_579_owned_media_approval` conserva as exigências clínicas e de revisão da constraint `ExerciseLibrary_approved_curated_guard`, dispensando apenas a licença na origem canônica `Própria` sem alterar migrations aplicadas.
 A migração #400 já aplicada e seus checksums não são alterados.
 
 O trigger `issue394_exercise_canonical_name_guard` protege novos nomes e

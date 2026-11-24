@@ -76,6 +76,30 @@ describeDatabase('#394 A-394-011: PostgreSQL approval guard is NULL-safe', () =>
     },
   );
 
+  it('#579 accepts own media without license but rejects unlicensed third-party media and SQL bypasses', async () => {
+    const owned = await prisma.exerciseLibrary.create({
+      data: {
+        ...approvedData(contractId!, 'Vídeo próprio aprovado'),
+        videoUrl: 'https://example.org/owned',
+        mediaOrigin: 'Própria', mediaLicense: null,
+      },
+    });
+    expect(owned).toMatchObject({ curationStatus: 'approved', mediaOrigin: 'Própria', mediaLicense: null });
+
+    await expect(prisma.exerciseLibrary.create({
+      data: {
+        ...approvedData(contractId!, 'Terceiro sem autorização'),
+        videoUrl: 'https://example.org/third-party',
+        mediaOrigin: 'Licenciada', mediaLicense: null,
+      },
+    })).rejects.toThrow();
+
+    await expect(prisma.$executeRaw`UPDATE "ExerciseLibrary"
+      SET "mediaOrigin" = 'Licenciada' WHERE "id" = ${owned.id}`).rejects.toThrow();
+    await expect(prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: owned.id } }))
+      .resolves.toMatchObject({ mediaOrigin: 'Própria', mediaLicense: null });
+  });
+
   it('allows a fully reviewed approval, a draft, and a grandfathered historical row', async () => {
     const approved = await prisma.exerciseLibrary.create({
       data: approvedData(contractId!, 'Valido e revisado'),

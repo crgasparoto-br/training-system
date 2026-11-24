@@ -71,11 +71,27 @@ describe('#394 capacity taxonomy and historical media in the exercise editor', (
     expect(screen.getByDisplayValue('https://example.org/unknown-rights')).toBeInTheDocument();
   });
 
-  it('shows a video only when the live exercise has verified origin and license', () => {
+  it('shows licensed video when the exercise records authorization', () => {
     const verified = { ...legacy, legacyGrandfathered: false, capacity: 'resisted',
-      mediaOrigin: 'Própria', mediaLicense: 'Contrato válido' };
+      mediaOrigin: 'Licenciada', mediaLicense: 'Contrato válido' };
     render(<ExerciseModal mode="view" exercise={verified} onClose={vi.fn()} />);
     expect(screen.getByTestId('video-preview')).toHaveTextContent('https://example.org/unknown-rights');
+  });
+
+  it('#579 previews own video without license and explains the optional field', () => {
+    const owned = { ...legacy, legacyGrandfathered: false, capacity: 'resisted',
+      mediaOrigin: 'Própria', mediaLicense: null };
+    render(<ExerciseModal mode="view" exercise={owned} onClose={vi.fn()} />);
+    expect(screen.getByText('Opcional para mídia própria.')).toBeInTheDocument();
+    expect(screen.getByTestId('video-preview')).toHaveTextContent('https://example.org/unknown-rights');
+  });
+
+  it('#579 blocks unlicensed third-party previews and explains license requirement', () => {
+    const thirdParty = { ...legacy, legacyGrandfathered: false, capacity: 'resisted',
+      mediaOrigin: 'Licenciada', mediaLicense: null };
+    render(<ExerciseModal mode="view" exercise={thirdParty} onClose={vi.fn()} />);
+    expect(screen.getByText(/Obrigatória para mídia licenciada ou de terceiros/)).toBeInTheDocument();
+    expect(screen.queryByTestId('video-preview')).not.toBeInTheDocument();
   });
 
   it.each([

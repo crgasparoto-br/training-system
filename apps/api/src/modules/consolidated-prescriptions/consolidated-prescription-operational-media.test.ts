@@ -47,6 +47,24 @@ describe('#394 A-394-018: historical operational video redaction at the API boun
     expect(result.originalExerciseSnapshot.videoUrl).toBeNull();
   });
 
+  it('#579 exposes own media recorded in that snapshot without third-party license', () => {
+    const owned = {
+      name: 'Vídeo próprio', videoUrl: licensedUrl,
+      mediaOrigin: 'Própria', mediaLicense: null, legacyGrandfathered: false,
+    };
+    const stored = {
+      operationalExerciseSnapshot: owned,
+      originalExerciseSnapshot: {
+        name: 'Origem de terceiros', videoUrl: unsafeUrl,
+        mediaOrigin: 'Licenciada', mediaLicense: null, legacyGrandfathered: false,
+      },
+    };
+    const result = sanitizeConsolidatedOperationalMedia(stored);
+    expect(result.operationalExerciseSnapshot.videoUrl).toBe(licensedUrl);
+    expect(result.originalExerciseSnapshot.videoUrl).toBeNull();
+    expect(stored.originalExerciseSnapshot.videoUrl).toBe(unsafeUrl);
+  });
+
   it('sanitizes all nested substitution history without changing stored data or unrelated payloads', () => {
     const time = new Date('2026-08-11T10:00:00.000Z');
     const stored = {

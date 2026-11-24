@@ -1,3 +1,5 @@
+import { hasAuthorizedExerciseMedia } from '../library/library-curation.domain.js';
+
 /**
  * Apply only catalog properties already selected for this audience. A published
  * prescription reads its release-time catalog snapshot, never mutable library
@@ -16,8 +18,7 @@ export function hideUnverifiedExerciseVideo<T extends { name: string }>(exercise
   const row = exercise as Record<string, unknown>;
   if (typeof row.videoUrl !== 'string' || !row.videoUrl.trim()) return exercise;
   if (row.legacyGrandfathered === true ||
-      typeof row.mediaOrigin !== 'string' || !row.mediaOrigin.trim() ||
-      typeof row.mediaLicense !== 'string' || !row.mediaLicense.trim()) {
+      !hasAuthorizedExerciseMedia(row.mediaOrigin, row.mediaLicense)) {
     return { ...exercise, videoUrl: null } as T;
   }
   return exercise;
@@ -81,13 +82,12 @@ export function projectReleasedExerciseCatalog<T extends { name: string }>(
   if (typeof snapshot.legacyGrandfathered === 'boolean') {
     projected.legacyGrandfathered = snapshot.legacyGrandfathered;
   }
-  // Media must carry both verified provenance and non-legacy release status
-  // in the same immutable snapshot, not in a later library revision.
-  const licensedAtRelease = typeof snapshot.videoUrl === 'string' && !!snapshot.videoUrl.trim()
-    && typeof snapshot.mediaOrigin === 'string' && !!snapshot.mediaOrigin.trim()
-    && typeof snapshot.mediaLicense === 'string' && !!snapshot.mediaLicense.trim()
+  // The immutable snapshot must declare origin and, for third-party media,
+  // license at release time. Later catalog edits cannot authorize old links.
+  const authorizedAtRelease = typeof snapshot.videoUrl === 'string' && !!snapshot.videoUrl.trim()
+    && hasAuthorizedExerciseMedia(snapshot.mediaOrigin, snapshot.mediaLicense)
     && snapshot.legacyGrandfathered === false;
-  if (!licensedAtRelease && Object.prototype.hasOwnProperty.call(projected, 'videoUrl')) {
+  if (!authorizedAtRelease && Object.prototype.hasOwnProperty.call(projected, 'videoUrl')) {
     projected.videoUrl = null;
   }
   return hideUnverifiedExerciseVideo(projected as T);

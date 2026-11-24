@@ -384,11 +384,14 @@ describe('#394 A-394-017: operational progress never publishes unverified media'
     db.alunoExerciseProgress.findMany.mockResolvedValue([
       { id: 'p-unsafe', exercise: { ...licensedExercise, mediaLicense: null } },
       { id: 'p-licensed', exercise: licensedExercise },
+      { id: 'p-owned', exercise: { ...licensedExercise, id: 'owned-394',
+        mediaOrigin: 'Própria', mediaLicense: null } },
       { id: 'p-legacy', exercise: { ...licensedExercise, legacyGrandfathered: true } },
     ]);
     const result = await libraryService.listAlunoProgress('tenant-394', 'student-394');
     expect(result.map(row => row.exercise.videoUrl)).toEqual([
-      null, 'https://own.invalid/licensed-video', null,
+      null, 'https://own.invalid/licensed-video',
+      'https://own.invalid/licensed-video', null,
     ]);
     expect(db.alunoExerciseProgress.findMany).toHaveBeenCalledWith({
       where: { alunoId: 'student-394', exercise: { contractId: 'tenant-394' } },
