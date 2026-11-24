@@ -164,3 +164,5 @@ A conciliacao apos POST tambem aplica o limite monotônico da maior versão já 
 ## Rejeição de curadoria na biblioteca (#576)
 
 A aprovação manual mantém os requisitos técnicos e de mídia. A API informa todos os campos pendentes em uma resposta 422. A biblioteca apresenta a mensagem no contexto do exercício e oferece edição da ficha; salvar retorna a rascunho e exige novo envio para revisão. Conflitos exigem atualização da lista, erros de permissão são diferenciados e falhas inesperadas não exibem detalhes internos. Nenhuma falha altera localmente o estado de aprovação.
+
+No editor da biblioteca, a origem da mídia utiliza lista suspensa com Própria e Licenciada, sem seleção automática. Valores históricos diferentes permanecem visíveis e preservados até substituição explícita. A seleção não dispensa a comprovação de autorização exigida pela curadoria.
