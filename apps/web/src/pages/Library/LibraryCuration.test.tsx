@@ -12,6 +12,7 @@ vi.mock('../../services/library.service', () => ({
     deleteExercise: vi.fn(),
     createExercise: vi.fn(),
     updateExercise: vi.fn(),
+    listExerciseRevisions: vi.fn(),
   },
 }));
 vi.mock('../../stores/useAuthStore', () => ({ useAuthStore: vi.fn() }));
@@ -33,6 +34,7 @@ describe('library administrative curation (#394)', () => {
     vi.mocked(useAuthStore).mockReturnValue({ user: master } as never);
     vi.mocked(libraryService.listExercises).mockResolvedValue([draft]);
     vi.mocked(libraryService.reviewExercise).mockResolvedValue({ ...draft, curationStatus: 'in_review', version: 2 });
+    vi.mocked(libraryService.listExerciseRevisions).mockResolvedValue([]);
     vi.stubGlobal('confirm', vi.fn(() => true));
   });
   afterEach(() => {
@@ -68,6 +70,70 @@ describe('library administrative curation (#394)', () => {
     expect(screen.queryByRole('region', { name: 'Disponibilidade para novos treinos' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /novo exercício/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /aprovar agachamento|revisar agachamento|desativar agachamento/i })).not.toBeInTheDocument();
+  });
+
+  it('#576 displays the approval rejection and permits editing the same exercise', async () => {
+    const actor = userEvent.setup();
+    const pending = { ...draft, instructions: [], curationStatus: 'in_review' as const, version: 2 };
+    const corrected = { ...draft, capacity: 'resisted' as const, curationStatus: 'draft' as const, version: 3 };
+    const resubmitted = { ...corrected, curationStatus: 'in_review' as const, version: 4 };
+    vi.mocked(libraryService.updateExercise).mockResolvedValue(corrected);
+    vi.mocked(libraryService.listExercises).mockResolvedValue([pending]);
+    vi.mocked(libraryService.reviewExercise).mockRejectedValueOnce({
+      isAxiosError: true, response: { status: 422, data: { message: 'Preencha: Capacidade física; Instruções em etapas.' } },
+    });
+    render(<Library />);
+    await actor.click(await screen.findByRole('button', { name: 'Aprovar Agachamento' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Capacidade física; Instruções em etapas.');
+    expect(screen.getByText('Em revisão')).toBeInTheDocument();
+    await actor.click(screen.getByRole('button', { name: 'Editar exercício' }));
+    expect(screen.getByRole('heading', { name: 'Editar Exercício' })).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Agachamento')).toBeInTheDocument();
+    await actor.selectOptions(screen.getByRole('combobox', { name: /capacidade física/i }), 'resisted');
+    await actor.type(screen.getByRole('textbox', { name: /instruções em etapas/i }), 'Posicionar os pés');
+    vi.mocked(libraryService.listExercises).mockResolvedValue([corrected]);
+    await actor.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(libraryService.updateExercise).toHaveBeenCalledWith('exercise-1', expect.objectContaining({ capacity: 'resisted', instructions: ['Posicionar os pés'] }), 2));
+    const submit = await screen.findByRole('button', { name: 'Revisar Agachamento' });
+    vi.mocked(libraryService.reviewExercise).mockResolvedValueOnce(resubmitted);
+    vi.mocked(libraryService.listExercises).mockResolvedValue([resubmitted]);
+    await actor.click(submit);
+    await waitFor(() => expect(libraryService.reviewExercise).toHaveBeenCalledWith('exercise-1', 'submit', 3));
+    expect(await screen.findByRole('button', { name: 'Aprovar Agachamento' })).toBeInTheDocument();
+    expect(libraryService.reviewExercise).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [403, 'Você não possui permissão'],
+    [409, 'O exercício foi alterado'],
+  ])('#576 distinguishes HTTP %i without changing review state', async (status, message) => {
+    const actor = userEvent.setup();
+    vi.mocked(libraryService.listExercises).mockResolvedValue([{ ...draft, curationStatus: 'in_review', version: 2 }]);
+    vi.mocked(libraryService.reviewExercise).mockRejectedValueOnce({
+      isAxiosError: true, response: { status, data: { message: 'internal details' } },
+    });
+    render(<Library />);
+    await actor.click(await screen.findByRole('button', { name: 'Aprovar Agachamento' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(screen.getByText('Em revisão')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Editar exercício' })).not.toBeInTheDocument();
+    expect(screen.queryByText('internal details')).not.toBeInTheDocument();
+    expect(libraryService.updateExercise).not.toHaveBeenCalled();
+    await actor.click(screen.getByRole('button', { name: 'Recarregar biblioteca' }));
+    await waitFor(() => expect(libraryService.listExercises).toHaveBeenCalledTimes(2));
+  });
+
+  it('#576 never exposes internal server details after an unexpected approval error', async () => {
+    const actor = userEvent.setup();
+    vi.mocked(libraryService.listExercises).mockResolvedValue([{ ...draft, curationStatus: 'in_review', version: 2 }]);
+    vi.mocked(libraryService.reviewExercise).mockRejectedValueOnce({
+      isAxiosError: true, response: { status: 500, data: { message: 'internal SQL details' } },
+    });
+    render(<Library />);
+    await actor.click(await screen.findByRole('button', { name: 'Aprovar Agachamento' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Recarregue a biblioteca');
+    expect(screen.queryByText(/internal SQL details/)).not.toBeInTheDocument();
   });
 
   it('submits a draft for review with an explicit version without auto-approving it', async () => {
