@@ -31,7 +31,11 @@ export interface Exercise {
   mediaLicense?: string | null;
   mediaAuthor?: string | null;
   curationStatus: ExerciseCurationStatus;
-  version: number;
+  version: number; // technical optimistic-lock token (expectedVersion)
+  contentVersion?: number; // meaningful editorial changes only
+  systemDefault?: boolean;
+  createdByName?: string | null;
+  reviewedByName?: string | null;
   createdByUserId?: string | null;
   reviewedByUserId?: string | null;
   reviewedAt?: string | null;
@@ -48,6 +52,8 @@ export interface ExerciseRevision {
   contractId: string;
   version: number;
   actorUserId?: string | null;
+  actorName?: string;
+  contentVersion?: number;
   action: string;
   snapshot: Exercise;
   createdAt: string;
