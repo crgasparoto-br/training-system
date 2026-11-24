@@ -27,6 +27,7 @@ type ExistingExerciseDefault = {
   name: string;
   curationStatus: ExerciseCurationStatus;
   legacyGrandfathered: boolean;
+  systemDefault: boolean;
   videoUrl: string | null;
   loadType: LoadType | null;
   movementType: MovementType | null;
@@ -39,12 +40,15 @@ type ExistingExerciseDefault = {
 
 // A professionally approved record is immutable to automatic defaults repair.
 function isProfessionallyApprovedExercise(exercise: ExistingExerciseDefault) {
-  return exercise.curationStatus === 'approved' && !exercise.legacyGrandfathered;
+  return exercise.curationStatus === 'approved' && !exercise.legacyGrandfathered && !exercise.systemDefault;
 }
 
 // Recheck at the definitive Prisma UPDATE to survive a concurrent approval.
 const defaultsWritableWhere: Prisma.ExerciseLibraryWhereInput = {
-  NOT: { curationStatus: 'approved', legacyGrandfathered: false },
+  OR: [
+    { systemDefault: true },
+    { NOT: { curationStatus: 'approved', legacyGrandfathered: false } },
+  ],
 };
 
 type ExerciseNameRepair = {
@@ -399,7 +403,7 @@ async function applyExerciseNameRepairs(
       FROM (VALUES ${Prisma.join(rows)}) AS repair("currentName", "repairedName")
       WHERE exercise."contractId" = ${contractId}
         AND exercise."name" = repair."currentName"
-        AND (exercise."curationStatus" <> 'approved' OR exercise."legacyGrandfathered" = TRUE)
+        AND (exercise."curationStatus" <> 'approved' OR exercise."legacyGrandfathered" = TRUE OR exercise."systemDefault" = TRUE)
         AND NOT EXISTS (
           SELECT 1 FROM "WorkoutExercise" AS workout
           WHERE workout."exerciseId" = exercise."id"
@@ -438,8 +442,11 @@ function missingExerciseFields(
 ) {
   const data: Partial<Omit<ExistingExerciseDefault, 'name'>> = {};
 
-  // A catalog URL alone does not prove media rights for an existing exercise.
-  // Preserve existing media; any new URL must be reviewed by the curator.
+  // Only a provenance-marked system default may regain its canonical URL.
+  // This is a catalog reference, NOT evidence of a media license for workouts.
+  if (existing.systemDefault && !existing.videoUrl?.trim() && canonical.videoUrl) {
+    data.videoUrl = canonical.videoUrl;
+  }
   if (!existing.loadType && canonical.loadType) data.loadType = canonical.loadType;
   if (!existing.movementType && canonical.movementType) data.movementType = canonical.movementType;
   if (!existing.countingType && canonical.countingType) data.countingType = canonical.countingType;
@@ -463,6 +470,7 @@ async function applyExerciseBackfills(
     const rows = backfills.map(({ canonical }) =>
       Prisma.sql`(
         ${canonical.name},
+        ${canonical.videoUrl ?? null},
         ${canonical.loadType ?? null},
         ${canonical.movementType ?? null},
         ${canonical.countingType ?? null},
@@ -477,6 +485,13 @@ async function applyExerciseBackfills(
       SET
         "lastModifiedByUserId" = NULL,
         "lastCurationAction" = 'system_defaults_repair',
+        "videoUrl" = CASE
+          WHEN exercise."systemDefault" = TRUE
+            AND NULLIF(BTRIM(exercise."videoUrl"), '') IS NULL
+            AND defaults."videoUrl" IS NOT NULL
+            THEN defaults."videoUrl"
+          ELSE exercise."videoUrl"
+        END,
         "loadType" = CASE
           WHEN exercise."loadType" IS NULL AND defaults."loadType" IS NOT NULL
             THEN defaults."loadType"::"LoadType"
@@ -509,6 +524,7 @@ async function applyExerciseBackfills(
         END
       FROM (VALUES ${Prisma.join(rows)}) AS defaults(
         "name",
+        "videoUrl",
         "loadType",
         "movementType",
         "countingType",
@@ -525,6 +541,9 @@ async function applyExerciseBackfills(
           WHERE workout."exerciseId" = exercise."id"
         )
         AND (
+          (exercise."systemDefault" = TRUE
+            AND NULLIF(BTRIM(exercise."videoUrl"), '') IS NULL
+            AND defaults."videoUrl" IS NOT NULL) OR
           (exercise."loadType" IS NULL AND defaults."loadType" IS NOT NULL) OR
           (exercise."movementType" IS NULL AND defaults."movementType" IS NOT NULL) OR
           (exercise."countingType" IS NULL AND defaults."countingType" IS NOT NULL) OR
@@ -558,6 +577,7 @@ async function installExercises(contractId: string, db: DefaultsDb) {
       name: true,
       curationStatus: true,
       legacyGrandfathered: true,
+      systemDefault: true,
       videoUrl: true,
       loadType: true,
       movementType: true,
@@ -606,7 +626,8 @@ async function installExercises(contractId: string, db: DefaultsDb) {
         data: missing.map((item) => ({
           contractId,
           name: item.name,
-          curationStatus: 'draft',
+          curationStatus: 'approved',
+          systemDefault: true,
           legacyGrandfathered: false,
           lastCurationAction: 'system_defaults_install',
           videoUrl: item.videoUrl,
