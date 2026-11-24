@@ -74,12 +74,44 @@ const exerciseCatalogDetailSelect = {
   instructions: true, commonErrors: true, regressions: true,
   progressions: true, alternatives: true, restrictions: true, alerts: true,
   mediaOrigin: true, mediaLicense: true, mediaAuthor: true,
-  curationStatus: true, version: true, createdByUserId: true,
+  curationStatus: true, version: true, contentVersion: true, systemDefault: true,
+  createdByUserId: true,
   reviewedByUserId: true, reviewedAt: true, lastModifiedByUserId: true,
   lastCurationAction: true, legacyGrandfathered: true,
   createdAt: true, updatedAt: true,
 } satisfies Prisma.ExerciseLibrarySelect;
 
+
+
+/** Resolve only collaborators belonging to the current tenant; never disclose raw user IDs. */
+async function catalogActorNames(contractId: string, ids: Array<string | null | undefined>) {
+  const userIds = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+  if (!userIds.length) return new Map<string, string>();
+  const professors = await prisma.professor.findMany({
+    where: { contractId, userId: { in: userIds } },
+    select: { userId: true, user: { select: { profile: { select: { name: true } } } } },
+  });
+  return new Map(professors.filter((person) => Boolean(person.user.profile?.name?.trim()))
+    .map((person) => [person.userId, person.user.profile!.name.trim()]));
+}
+
+function actorName(names: Map<string, string>, userId: string | null | undefined) {
+  return userId ? names.get(userId) ?? 'Usuário não disponível' : null;
+}
+
+const EDITORIAL_FIELDS = [
+  'name', 'videoUrl', 'loadType', 'movementType', 'countingType',
+  'category', 'muscleGroup', 'notes', 'aliases', 'capacity', 'equipment',
+  'primaryMuscleGroups', 'secondaryMuscleGroups', 'movementPattern',
+  'joints', 'laterality', 'difficulty', 'instructions', 'commonErrors',
+  'regressions', 'progressions', 'alternatives', 'restrictions', 'alerts',
+  'mediaOrigin', 'mediaLicense', 'mediaAuthor',
+] as const;
+
+function isSystemRevision(action: string) {
+  return action.startsWith('system_defaults_') || action === 'bootstrap' ||
+    action === 'import' || action === 'system_update';
+}
 
 type LockedCatalogManager = {
   role: 'master' | 'professor';
@@ -203,17 +235,38 @@ export const libraryService = {
     if (filters.equipment) where.equipment = { has: filters.equipment };
     if (filters.movementPattern) where.movementPattern = filters.movementPattern;
     if (filters.difficulty) where.difficulty = filters.difficulty;
-    return prisma.exerciseLibrary.findMany({ where, orderBy: { name: 'asc' } });
+    const exercises = await prisma.exerciseLibrary.findMany({ where, orderBy: { name: 'asc' } });
+    const names = await catalogActorNames(contractId, exercises.flatMap((exercise) =>
+      [exercise.createdByUserId, exercise.reviewedByUserId]));
+    return exercises.map((exercise) => ({
+      ...(filters.scope === 'all' ? exercise : hideUnverifiedExerciseVideo(exercise)),
+      createdByName: actorName(names, exercise.createdByUserId) ??
+        (exercise.systemDefault ? 'Catálogo do sistema' : null),
+      reviewedByName: actorName(names, exercise.reviewedByUserId) ??
+        (exercise.systemDefault && exercise.curationStatus === 'approved'
+          ? 'Aprovação do sistema' : null),
+    }));
   },
 
   async getExerciseById(contractId: string, id: string, officialOnly = false) {
-    return prisma.exerciseLibrary.findFirst({
+    const exercise = await prisma.exerciseLibrary.findFirst({
       where: {
         id, contractId,
         ...(officialOnly ? approvedOperationalExerciseWhere : {}),
       },
       select: exerciseCatalogDetailSelect,
     });
+    if (!exercise) return null;
+    const names = await catalogActorNames(contractId,
+      [exercise.createdByUserId, exercise.reviewedByUserId]);
+    return {
+      ...(officialOnly ? hideUnverifiedExerciseVideo(exercise) : exercise),
+      createdByName: actorName(names, exercise.createdByUserId) ??
+        (exercise.systemDefault ? 'Catálogo do sistema' : null),
+      reviewedByName: actorName(names, exercise.reviewedByUserId) ??
+        (exercise.systemDefault && exercise.curationStatus === 'approved'
+          ? 'Aprovação do sistema' : null),
+    };
   },
 
   /** Optimistic-lock updates prevent silently replacing a review or a concurrent draft. */
@@ -239,7 +292,7 @@ export const libraryService = {
           where: { id, contractId, version: expectedVersion, workoutExercises: { none: {} } },
           data: {
             ...data, version: { increment: 1 },
-            curationStatus: ExerciseCurationStatus.draft,
+            curationStatus: ExerciseCurationStatus.draft, systemDefault: false,
             reviewedByUserId: null, reviewedAt: null,
             lastModifiedByUserId: actorUserId, lastCurationAction: 'edit',
           },
@@ -293,10 +346,35 @@ export const libraryService = {
       where: { id, contractId }, select: { id: true },
     });
     if (!existing) notFound();
-    return prisma.exerciseLibraryRevision.findMany({
+    const revisions = await prisma.exerciseLibraryRevision.findMany({
       where: { contractId, exerciseId: id },
       orderBy: { version: 'desc' },
     });
+    const names = await catalogActorNames(contractId, revisions.map((event) => event.actorUserId));
+    let contentVersion = 1;
+    let previousContent: string | null = null;
+    return revisions.slice().reverse().map((event) => {
+      const raw = event.snapshot;
+      const snapshot = raw && typeof raw === 'object' && !Array.isArray(raw)
+        ? raw as Record<string, unknown> : null;
+      const content = snapshot
+        ? JSON.stringify(EDITORIAL_FIELDS.map((field) => snapshot[field] ?? null))
+        : null;
+      if (previousContent !== null && content !== null && content !== previousContent) {
+        contentVersion += 1;
+      } else if (previousContent === null && content === null &&
+          event.action === 'edit' && event.version > 1) {
+        contentVersion += 1;
+      }
+      previousContent = content;
+      return {
+        ...event,
+        contentVersion: snapshot && typeof snapshot.contentVersion === 'number'
+          ? snapshot.contentVersion : contentVersion,
+        actorName: actorName(names, event.actorUserId) ??
+          (isSystemRevision(event.action) ? 'Sistema' : 'Cadastro anterior'),
+      };
+    }).reverse();
   },
 
   /**
