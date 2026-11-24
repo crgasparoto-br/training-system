@@ -333,7 +333,10 @@ describe('issue #394: persistence and tenant-aware curation', () => {
 
   it('resolves revision history only after validating the exercise tenant', async () => {
     db.exerciseLibrary.findFirst.mockResolvedValue({ id: sample.id });
-    db.exerciseLibraryRevision.findMany.mockResolvedValue([{ version: 1 }, { version: 2 }]);
+    db.exerciseLibraryRevision.findMany.mockResolvedValue([
+      { version: 2, action: 'submit', actorUserId: null, snapshot: { name: 'Agachamento' } },
+      { version: 1, action: 'create', actorUserId: null, snapshot: { name: 'Agachamento' } },
+    ]);
     await libraryService.listExerciseRevisions('contract-1', sample.id);
     expect(db.exerciseLibraryRevision.findMany).toHaveBeenCalledWith({
       where: { contractId: 'contract-1', exerciseId: sample.id },

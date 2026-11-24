@@ -535,7 +535,7 @@ async function applyExerciseBackfills(
       WHERE exercise."contractId" = ${contractId}
         AND issue394_exercise_canonical_name(exercise."name")
           = issue394_exercise_canonical_name(defaults."name")
-        AND (exercise."curationStatus" <> 'approved' OR exercise."legacyGrandfathered" = TRUE)
+        AND (exercise."curationStatus" <> 'approved' OR exercise."legacyGrandfathered" = TRUE OR exercise."systemDefault" = TRUE)
         AND NOT EXISTS (
           SELECT 1 FROM "WorkoutExercise" AS workout
           WHERE workout."exerciseId" = exercise."id"

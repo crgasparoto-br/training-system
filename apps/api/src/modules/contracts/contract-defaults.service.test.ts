@@ -519,7 +519,10 @@ describe('installContractDefaults', () => {
     expect(fake.writes.exerciseUpdateMany).toHaveBeenCalledWith({
       where: {
         contractId, name: corruptedName, workoutExercises: { none: {} },
-        NOT: { curationStatus: 'approved', legacyGrandfathered: false },
+        OR: [
+          { systemDefault: true },
+          { NOT: { curationStatus: 'approved', legacyGrandfathered: false } },
+        ],
       },
       data: {
         name: correctName,
