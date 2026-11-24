@@ -266,9 +266,12 @@ export function ExerciseSelectorModal({
                 <>
                   <p className="text-muted-foreground">Nenhum exercício disponível para adicionar ao treino.</p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Apenas exercícios aprovados e liberados para novos treinos aparecem aqui.
-                    Consulte a Biblioteca do contrato para revisar os cadastros.
+                    A Biblioteca pode mostrar exercícios "Aprovado (legado)" que servem apenas ao histórico.
+                    Para adicioná-los a novos treinos, um administrador deve criar uma nova ficha e aprová-la após revisão.
                   </p>
+                  <a href="/library" className="mt-4 inline-block text-sm font-medium text-primary underline">
+                    Revisar exercícios na Biblioteca
+                  </a>
                 </>
               )}
             </div>

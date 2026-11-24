@@ -89,7 +89,9 @@ describe('ExerciseSelectorModal - catálogo operacional (#562)', () => {
     vi.mocked(libraryService.listExercises).mockResolvedValue([]);
     render(selector());
     expect(await screen.findByText('Nenhum exercício disponível para adicionar ao treino.')).toBeInTheDocument();
-    expect(screen.getByText(/Apenas exercícios aprovados e liberados para novos treinos/)).toBeInTheDocument();
+    expect(screen.getByText(/A Biblioteca pode mostrar exercícios "Aprovado \(legado\)"/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Revisar exercícios na Biblioteca' }))
+      .toHaveAttribute('href', '/library');
     expect(libraryService.listExercises).toHaveBeenCalledWith({ scope: 'official' });
   });
 
