@@ -184,7 +184,7 @@ describe('issue #394: persistence and tenant-aware curation', () => {
       where: { id: sample.id, contractId: 'contract-1', version: 2 },
       data: expect.objectContaining({
         curationStatus: 'approved', reviewedByUserId: 'actor-1',
-        lastCurationAction: 'approve', legacyGrandfathered: false,
+        lastCurationAction: 'approve', legacyGrandfathered: false, systemDefault: false,
         version: { increment: 1 },
       }),
     });
