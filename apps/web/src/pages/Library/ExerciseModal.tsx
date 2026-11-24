@@ -115,13 +115,14 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
   const isViewMode = mode === 'view';
   const isEditMode = mode === 'edit';
   const sourceLink = verifiedHttpsLink(formData.videoUrl);
-  const seenEditorialVersions = new Set<number>();
-  const editorialVersions = revisions.slice().reverse().filter((event) => {
+  const eventsByVersion = new Map<number, ExerciseRevision[]>();
+  for (const event of [...revisions].sort((a, b) => b.version - a.version)) {
     const number = event.contentVersion ?? 1;
-    if (seenEditorialVersions.has(number)) return false;
-    seenEditorialVersions.add(number);
-    return true;
-  }).reverse();
+    const events = eventsByVersion.get(number) ?? [];
+    events.push(event);
+    eventsByVersion.set(number, events);
+  }
+  const editorialVersions = [...eventsByVersion.entries()].sort(([a], [b]) => b - a);
 
   useEffect(() => {
     // Never trim controlled textarea values while the user is typing.
@@ -538,17 +539,24 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
                 : <>
                   <h4 className="mt-3 text-sm font-semibold">Versões do conteúdo</h4>
                   <ol className="mt-1 space-y-1 text-sm">
-                    {editorialVersions.map(revision => <li key={revision.id} className="border-b py-2">
-                      Versão {revision.contentVersion ?? 1} · {new Date(revision.createdAt).toLocaleString('pt-BR')}
-                      <div className="text-xs text-gray-600">Responsável: {revision.actorName || 'Não identificado'}</div>
-                    </li>)}
-                  </ol>
-                  <h4 className="mt-4 text-sm font-semibold">Atividades da curadoria</h4>
-                  <ol className="mt-1 space-y-1 text-sm">
-                    {revisions.map(revision => <li key={revision.id} className="border-b py-2">
-                      {CURATION_LABELS[revision.action] || 'Atividade registrada'} · {new Date(revision.createdAt).toLocaleString('pt-BR')}
-                      <div className="text-xs text-gray-600">Responsável: {revision.actorName || 'Não identificado'}</div>
-                    </li>)}
+                    {editorialVersions.map(([number, events]) => {
+                      const revision = events[events.length - 1];
+                      return <li key={number} className="border-b py-2">
+                        <div className="font-medium">Versão {number} · {new Date(revision.createdAt).toLocaleString('pt-BR')}</div>
+                        <div className="text-xs text-gray-600">Responsável: {revision.actorName || 'Não identificado'}</div>
+                        <details className="mt-2 ml-3 border-l border-gray-200 pl-3">
+                          <summary className="cursor-pointer text-sm font-medium text-blue-700 rounded focus-visible:ring-2 focus-visible:ring-ring">
+                            Atividades da curadoria — versão {number} ({events.length})
+                          </summary>
+                          <ol className="mt-1 space-y-1 text-sm" aria-label={`Atividades da versão ${number}`}>
+                            {events.map(event => <li key={event.id} className="py-2">
+                              {CURATION_LABELS[event.action] || 'Atividade registrada'} · {new Date(event.createdAt).toLocaleString('pt-BR')}
+                              <div className="text-xs text-gray-600">Responsável: {event.actorName || 'Não identificado'}</div>
+                            </li>)}
+                          </ol>
+                        </details>
+                      </li>;
+                    })}
                   </ol>
                 </>}
             </details>}
