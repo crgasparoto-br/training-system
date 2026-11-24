@@ -482,8 +482,10 @@ export default function Library() {
                                 : 'bg-amber-100 text-amber-800'
                         }`}>{exercise.curationStatus === 'approved' && exercise.legacyGrandfathered
                           ? 'Aprovado (legado)'
-                          : STATUS_LABELS[exercise.curationStatus] ?? 'Não informado'}</span>
-                        <p className="text-xs text-gray-500">Versão {exercise.version}</p>
+                          : exercise.curationStatus === 'approved' && exercise.systemDefault
+                            ? 'Aprovado pelo sistema'
+                            : STATUS_LABELS[exercise.curationStatus] ?? 'Não informado'}</span>
+                        <p className="text-xs text-gray-500">Versão do conteúdo {exercise.contentVersion ?? 1}</p>
                         {exercise.curationStatus === 'approved' && (
                           <p className="mt-1 text-xs text-gray-600">
                             {exercise.legacyGrandfathered
