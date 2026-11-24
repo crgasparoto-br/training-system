@@ -320,6 +320,7 @@ export const libraryService = {
           where: { id, contractId, version: expectedVersion },
           data: {
             curationStatus: status, version: { increment: 1 },
+            systemDefault: false, // A human curatorial decision ends automatic catalog repair eligibility.
             lastModifiedByUserId: actorUserId, lastCurationAction: action,
             ...(action === 'approve'
               ? { reviewedByUserId: actorUserId, reviewedAt: new Date(), legacyGrandfathered: false }
