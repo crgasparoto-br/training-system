@@ -264,7 +264,7 @@ no contrato retorna HTTP 409, inclusive sob concorrência.
 retorna a rascunho e responde 409 para concorrência ou item já usado em treino.
 `POST /exercises/:id/curation` recebe `{action,expectedVersion}` com `submit`,
 `approve`, `request_changes`, `deactivate` ou `reopen`.
-`GET /exercises/:id/revisions` devolve versões ao administrador do contrato.
+`GET /exercises/:id/revisions` devolve eventos imutáveis ao administrador do contrato, com `contentVersion` editorial e `actorName` resolvido somente entre colaboradores do mesmo contrato. `version` permanece o contador técnico de `expectedVersion`; ações de curadoria não geram nova versão editorial. A listagem/detalhe administrativo também fornece `createdByName` e `reviewedByName`, com fallback sem IDs internos.
 No Workout Builder, `save-week`, `PUT /days/:id/resistance-exercises` e
 `POST /exercises` verificam exercícios novos `approved` e curados (não legados) na transação, no mesmo
 contrato do aluno. Linhas já vinculadas não são removidas nem exigem nova
@@ -287,9 +287,7 @@ campos de mídia dos endpoints de progresso do aluno. A projeção dos registros
 de progresso remove apenas o link operacional não verificado e preserva os
 valores e o catálogo originais no banco; a listagem restringe também a relação
 do exercício ao mesmo contrato. Os links originais continuam persistidos.
-Novas instalações de padrões geram rascunhos;
- novas instalações de padrões geram rascunhos. Cópias entre
-contratos não transferem automaticamente URLs/licenças de mídia.
+Novas instalações do catálogo canônico são aprovadas automaticamente **pelo sistema**, com `systemDefault=true`, sem inventar um profissional revisor. Registros anteriormente instalados pelo sistema e sem alteração humana são promovidos com procedência auditável; exercícios manuais e copiados entre contratos continuam como rascunhos. URLs canônicas dos padrões podem ser consultadas pelo master, mas são omitidas em respostas operacionais enquanto não houver origem e licença verificadas. Cópias entre contratos não transferem automaticamente URLs/licenças de mídia.
 
 A-021: GET /executions/aluno usa o catálogo imutável de liberação e omite
 releasedCatalog interno da resposta; URLs de mídia sem direitos documentados
