@@ -58,6 +58,7 @@ export default function Library() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<ExerciseFilters>({});
   const [showFilters, setShowFilters] = useState(false);
+  const [showLegacyOnly, setShowLegacyOnly] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
@@ -149,6 +150,18 @@ export default function Library() {
   const activeFiltersCount = () => {
     return Object.keys(filters).filter(key => filters[key as keyof ExerciseFilters]).length;
   };
+
+  // The administrative library includes historical approvals that are not
+  // authorized for new workouts. Count these separately from the official catalog.
+  const eligibleCount = exercises.filter(
+    (exercise) => exercise.curationStatus === 'approved' && !exercise.legacyGrandfathered,
+  ).length;
+  const historicalApprovalCount = exercises.filter(
+    (exercise) => exercise.curationStatus === 'approved' && exercise.legacyGrandfathered,
+  ).length;
+  const visibleExercises = canManage && showLegacyOnly
+    ? exercises.filter((exercise) => exercise.curationStatus === 'approved' && exercise.legacyGrandfathered)
+    : exercises;
 
   const getLoadTypeLabel = (type?: string) => {
     return LOAD_TYPES.find((t) => t.value === type)?.label || '-';
@@ -337,6 +350,35 @@ export default function Library() {
         {loadError && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
           {loadError} <button className="ml-2 underline" onClick={loadExercises}>Tentar novamente</button>
         </div>}
+        {canManage && !loading && !loadError && (
+          <section
+            aria-label="Disponibilidade para novos treinos"
+            className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3"
+          >
+            <div>
+              <p className="text-sm font-semibold text-gray-900">
+                {eligibleCount} {eligibleCount === 1 ? 'exercício liberado' : 'exercícios liberados'} para novos treinos
+                {' · '}{historicalApprovalCount} {historicalApprovalCount === 1 ? 'aprovado legado' : 'aprovados legados'} (somente histórico)
+              </p>
+              {historicalApprovalCount > 0 && (
+                <p className="mt-1 text-sm text-gray-700">
+                  "Aprovado (legado)" não significa liberado para novos treinos.
+                  Use "Criar ficha" no exercício, revise os dados, envie para revisão e aprove a nova ficha.
+                </p>
+              )}
+            </div>
+            {(historicalApprovalCount > 0 || showLegacyOnly) && (
+              <button
+                type="button"
+                onClick={() => setShowLegacyOnly((value) => !value)}
+                aria-pressed={showLegacyOnly}
+                className="rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100"
+              >
+                {showLegacyOnly ? 'Mostrar todos' : `Mostrar apenas legados (${historicalApprovalCount})`}
+              </button>
+            )}
+          </section>
+        )}
         {/* Table */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           {loading ? (
@@ -349,20 +391,22 @@ export default function Library() {
                 <div className="h-4 bg-gray-200 rounded w-4/5"></div>
               </div>
             </div>
-          ) : exercises.length === 0 ? (
+          ) : visibleExercises.length === 0 ? (
             <div className="p-12 text-center">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
                 <BookOpen className="w-8 h-8 text-gray-400" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {hasActiveFilters() ? 'Nenhum exercício encontrado' : 'Biblioteca vazia'}
+                {showLegacyOnly ? 'Nenhum exercício legado encontrado' : hasActiveFilters() ? 'Nenhum exercício encontrado' : 'Biblioteca vazia'}
               </h3>
               <p className="text-gray-500 mb-6">
-                {hasActiveFilters()
-                  ? 'Tente ajustar os filtros para encontrar exercícios.'
-                  : 'Comece adicionando exercícios à sua biblioteca.'}
+                {showLegacyOnly
+                  ? 'Mostre todos os exercícios ou ajuste os filtros para continuar.'
+                  : hasActiveFilters()
+                    ? 'Tente ajustar os filtros para encontrar exercícios.'
+                    : 'Comece adicionando exercícios à sua biblioteca.'}
               </p>
-              {!hasActiveFilters() && canManage && (
+              {!hasActiveFilters() && !showLegacyOnly && canManage && (
                 <button
                   onClick={handleCreate}
                   className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -402,7 +446,7 @@ export default function Library() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {exercises.map((exercise) => (
+                  {visibleExercises.map((exercise) => (
                     <tr key={exercise.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
@@ -431,12 +475,22 @@ export default function Library() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
-                          exercise.curationStatus === 'approved' ? 'bg-green-100 text-green-800'
+                          exercise.curationStatus === 'approved' && exercise.legacyGrandfathered ? 'bg-amber-100 text-amber-900'
+                            : exercise.curationStatus === 'approved' ? 'bg-green-100 text-green-800'
                             : exercise.curationStatus === 'in_review' ? 'bg-blue-100 text-blue-800'
                               : exercise.curationStatus === 'inactive' ? 'bg-gray-200 text-gray-700'
                                 : 'bg-amber-100 text-amber-800'
-                        }`}>{STATUS_LABELS[exercise.curationStatus] ?? 'Não informado'}</span>
+                        }`}>{exercise.curationStatus === 'approved' && exercise.legacyGrandfathered
+                          ? 'Aprovado (legado)'
+                          : STATUS_LABELS[exercise.curationStatus] ?? 'Não informado'}</span>
                         <p className="text-xs text-gray-500">Versão {exercise.version}</p>
+                        {exercise.curationStatus === 'approved' && (
+                          <p className="mt-1 text-xs text-gray-600">
+                            {exercise.legacyGrandfathered
+                              ? 'Não liberado para novos treinos'
+                              : 'Liberado para novos treinos'}
+                          </p>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end gap-2">
@@ -458,9 +512,10 @@ export default function Library() {
                             onClick={() => handleCloneForCuration(exercise)}
                             title="Criar nova versão para curadoria sem alterar o histórico"
                             aria-label={`Criar nova versão para curadoria de ${exercise.name}`}
-                            className="text-indigo-700 hover:text-indigo-900"
+                            className="inline-flex items-center gap-1 text-indigo-700 hover:text-indigo-900"
                           >
                             <Copy className="w-5 h-5" />
+                            <span className="text-xs">Criar ficha</span>
                           </button>}
                           {canManage && exercise.curationStatus === 'draft' && <button
                             onClick={() => handleCuration(exercise, 'submit')} title="Enviar para revisão"
@@ -494,7 +549,7 @@ export default function Library() {
 
         {/* Stats */}
         <div className="mt-4 text-sm text-gray-600">
-          Total: {exercises.length} exercício{exercises.length !== 1 ? 's' : ''}
+          Exibindo: {visibleExercises.length} de {exercises.length} exercício{exercises.length !== 1 ? 's' : ''}
         </div>
       </div>
 
