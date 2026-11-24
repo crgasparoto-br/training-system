@@ -479,9 +479,24 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
               {TEXT_FIELDS.map(({ key, label }) => (
                 <label key={key} className="block text-sm font-medium text-gray-700">
                   {label}
-                  <input type="text" disabled={isViewMode} value={formData[key] || ''}
-                    onChange={e => setFormData(previous => ({ ...previous, [key]: e.target.value }))}
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 disabled:bg-gray-100" />
+                  {key === 'mediaOrigin' ? (
+                    <>
+                      <select disabled={isViewMode} value={['Própria', 'Licenciada'].includes(formData.mediaOrigin || '') ? formData.mediaOrigin : ''}
+                        onChange={e => setFormData(previous => ({ ...previous, mediaOrigin: e.target.value }))}
+                        className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 disabled:bg-gray-100">
+                        <option value="">Selecione...</option>
+                        <option value="Própria">Própria</option>
+                        <option value="Licenciada">Licenciada</option>
+                      </select>
+                      {formData.mediaOrigin && !['Própria', 'Licenciada'].includes(formData.mediaOrigin) && (
+                        <span className="mt-1 block text-xs text-gray-600">Origem anterior: {formData.mediaOrigin}. {!isViewMode && 'Selecione uma das opções para atualizar.'}</span>
+                      )}
+                    </>
+                  ) : (
+                    <input type="text" disabled={isViewMode} value={formData[key] || ''}
+                      onChange={e => setFormData(previous => ({ ...previous, [key]: e.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 disabled:bg-gray-100" />
+                  )}
                 </label>
               ))}
             </div>

@@ -164,3 +164,9 @@ A conciliacao apos POST tambem aplica o limite monotônico da maior versão já 
 ## Histórico de curadoria da biblioteca (#574)
 
 O modal de exercícios apresenta versões editoriais em ordem decrescente. Cada versão agrupa exclusivamente as atividades com o mesmo `contentVersion`, em ordem decrescente do contador técnico, em uma seção nativa `details` inicialmente recolhida e independente das demais. O histórico geral continua recolhível. A apresentação preserva nomes, datas, rótulos de ações e permissões existentes; não altera o contrato da API ou o ledger de revisões.
+
+## Rejeição de curadoria na biblioteca (#576)
+
+A aprovação manual mantém os requisitos técnicos e de mídia. A API informa todos os campos pendentes em uma resposta 422. A biblioteca apresenta a mensagem no contexto do exercício e oferece edição da ficha; salvar retorna a rascunho e exige novo envio para revisão. Conflitos exigem atualização da lista, erros de permissão são diferenciados e falhas inesperadas não exibem detalhes internos. Nenhuma falha altera localmente o estado de aprovação.
+
+No editor da biblioteca, a origem da mídia utiliza lista suspensa com Própria e Licenciada, sem seleção automática. Valores históricos diferentes permanecem visíveis e preservados até substituição explícita. A seleção não dispensa a comprovação de autorização exigida pela curadoria.

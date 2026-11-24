@@ -39,6 +39,31 @@ describe('#394 capacity taxonomy and historical media in the exercise editor', (
     ));
   });
 
+  it.each(['Própria', 'Licenciada'])('saves the selected media origin %s', async (origin) => {
+    const user = userEvent.setup();
+    vi.mocked(libraryService.updateExercise).mockResolvedValue(legacy);
+    render(<ExerciseModal mode="edit" exercise={{ ...legacy, capacity: 'resisted' }} onClose={vi.fn()} />);
+    const select = screen.getByRole('combobox', { name: /origem da mídia/i });
+    expect([...select.querySelectorAll('option')].map(option => option.value)).toEqual(['', 'Própria', 'Licenciada']);
+    expect(select).toHaveValue('');
+    await user.selectOptions(select, origin);
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(libraryService.updateExercise).toHaveBeenCalledWith(
+      'legacy-id', expect.objectContaining({ mediaOrigin: origin }), 3,
+    ));
+  });
+
+  it('preserves an existing legacy media origin until explicitly replaced', async () => {
+    const user = userEvent.setup();
+    vi.mocked(libraryService.updateExercise).mockResolvedValue(legacy);
+    render(<ExerciseModal mode="edit" exercise={{ ...legacy, capacity: 'resisted', mediaOrigin: 'Equipe própria' }} onClose={vi.fn()} />);
+    expect(screen.getByText(/Origem anterior: Equipe própria/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(libraryService.updateExercise).toHaveBeenCalledWith(
+      'legacy-id', expect.objectContaining({ mediaOrigin: 'Equipe própria' }), 3,
+    ));
+  });
+
   it('never previews a legacy video with no evidence of use rights while preserving its URL in the record', () => {
     render(<ExerciseModal mode="view" exercise={legacy} onClose={vi.fn()} />);
     expect(screen.getByText(/mídia legada preservada para o histórico/i)).toBeInTheDocument();
