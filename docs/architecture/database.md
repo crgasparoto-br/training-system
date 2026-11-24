@@ -311,21 +311,24 @@ identidades já presentes como ignoradas em vez de falhar a clonagem.
 
 Uma comparação de `version` dentro da transação evita concorrência silenciosa.
 Legado recebe `legacy_baseline`, sem presumir homologação profissional.
-Importações, novas instalações de padrões e cópias entram como rascunho.
+Importações manuais e cópias entram como rascunho. Somente novas instalações do catálogo canônico do produto entram como aprovadas pelo sistema (`systemDefault=true`), sem revisor profissional.
 O saneamento automático ignora exercícios relacionados a `WorkoutExercise`
 e também exercícios já aprovados por curadoria profissional
-(`approved` com `legacyGrandfathered=false`), mesmo que ainda não tenham
+(`approved`, `legacyGrandfathered=false` e `systemDefault=false`), mesmo que ainda não tenham
 vínculo a treinos. As rotinas de reparo de nomes e preenchimento de metadados
 verificam essa elegibilidade tanto na seleção quanto no UPDATE definitivo (SQL
 ou Prisma), preservando `lastCurationAction='approve'`, revisor e versão.
 Rascunhos e registros legados continuam elegíveis ao saneamento seguro, que
-marca revisões com `system_defaults_repair` e ator nulo. Repares set-based ou Prisma não
-preenchem `videoUrl` em registros já existentes: URLs do catálogo
-não atestam licença para a empresa. A inclusão de mídia requer
-curadoria com origem e autorização; links legados permanecem intactos. UPDATE/DELETE
+marca revisões com `system_defaults_repair` e ator nulo. Repares set-based ou Prisma recuperam `videoUrl` somente em padrões comprovadamente instalados pelo sistema (`systemDefault=true`), sem substituir vídeo existente nem alterar exercícios aplicados. O link de referência não atesta direitos de uso: treinos e projeções operacionais continuam a exigir origem e autorização; links legados permanecem intactos. UPDATE/DELETE
 explícitos de `ExerciseLibraryRevision` são bloqueados enquanto o exercício
 existir; exclusões em cascata de todo o contrato permanecem permitidas.
 
+
+## Versões de conteúdo e proveniência de padrões (#570)
+
+A migration `20261124120000_issue_570_library_content_versions` acrescenta `contentVersion` e `systemDefault` a `ExerciseLibrary`. O gatilho `issue570_exercise_content_version` aumenta a edição editorial somente quando o snapshot dos campos de exercício muda; submit, aprovação, solicitação de ajustes e desativação aumentam exclusivamente `version` para controle otimista, preservando o ledger append-only. O backfill inicial deriva o número editorial dos snapshots já existentes sem criar revisões artificiais. O endpoint de revisões publica as duas dimensões separadas.
+
+A mesma migration ajusta o `CHECK` de aprovação profissional para incluir uma exceção **exclusiva do catálogo padrão do sistema**, identificada por `systemDefault=true` e ação de instalação/aprovação/reparo por sistema. Não atribui revisor, instruções clínicas ou licenças fictícias. A promoção de padrões antigos exige uma revisão inicial `system_defaults_install` e ausência de quaisquer alterações humanas posteriores; cópias, drafts manuais e legados não são promovidos. Os URLs de origem são restaurados apenas quando estavam ausentes e não há vínculo a `WorkoutExercise`, mantendo a sanitização operacional de vídeos sem procedência/licença.
 
 ## Substituições rastreáveis — #404
 
