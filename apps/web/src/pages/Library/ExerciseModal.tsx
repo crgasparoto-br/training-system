@@ -115,7 +115,7 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
   const isViewMode = mode === 'view';
   const isEditMode = mode === 'edit';
   const sourceLink = verifiedHttpsLink(formData.videoUrl);
-  const hasAuthorizedMedia = formData.mediaOrigin?.trim() === 'Própria' ||
+  const hasAuthorizedMedia = formData.mediaOrigin === 'Própria' ||
     Boolean(formData.mediaOrigin?.trim() && formData.mediaLicense?.trim());
   const eventsByVersion = new Map<number, ExerciseRevision[]>();
   for (const event of [...revisions].sort((a, b) => b.version - a.version)) {
@@ -483,7 +483,7 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
                   {label}
                   {key === 'mediaLicense' && (
                     <span className="block mt-1 text-xs font-normal text-gray-600">
-                      {formData.mediaOrigin?.trim() === 'Própria'
+                      {formData.mediaOrigin === 'Própria'
                         ? 'Opcional para mídia própria.'
                         : 'Obrigatória para mídia licenciada ou de terceiros quando houver vídeo.'}
                     </span>

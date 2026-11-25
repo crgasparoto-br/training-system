@@ -9,7 +9,7 @@ describe('#394 A-007: exercise media provenance at historical response boundarie
     mediaOrigin: null, mediaLicense: null, legacyGrandfathered: true,
   };
   const approved = {
-    ...historical, legacyGrandfathered: false,
+    ...historical, legacyGrandfathered: false, curationStatus: 'approved',
     mediaOrigin: 'Produção própria', mediaLicense: 'Autorização arquivada',
   };
 
@@ -42,6 +42,30 @@ describe('#394 A-007: exercise media provenance at historical response boundarie
       catalog: { name: 'Origem desconhecida', videoUrl: 'https://example.org/unlicensed',
         mediaLicense: null, legacyGrandfathered: false },
     }).videoUrl).toBeNull();
+  });
+
+  it.each(['draft', 'in_review', 'inactive', undefined])(
+    '#579 A-002 hides live owned media with status %s but preserves the released snapshot',
+    (curationStatus) => {
+      const owned = { ...approved, curationStatus, mediaOrigin: 'Própria', mediaLicense: null };
+      expect(projectWorkoutExerciseMedia({ exercise: owned }).exercise.videoUrl).toBeNull();
+      expect(projectWorkoutDayExerciseCatalog({ exercises: [{ exercise: owned }] }, false)
+        .exercises[0].exercise.videoUrl).toBeNull();
+      expect(projectReleasedExerciseCatalog(owned, {
+        catalog: { name: 'Capturado', videoUrl: 'https://example.org/captured',
+          mediaOrigin: 'Própria', mediaLicense: null, legacyGrandfathered: false },
+      }).videoUrl).toBe('https://example.org/captured');
+      expect(owned.videoUrl).toBe('https://example.org/third-party');
+    },
+  );
+
+  it.each([' Própria ', 'Própria\u00a0'])('#579 A-001 rejects noncanonical origin %j in live and released media', (mediaOrigin) => {
+    const owned = { ...approved, mediaOrigin, mediaLicense: null };
+    expect(projectWorkoutExerciseMedia({ exercise: owned }).exercise.videoUrl).toBeNull();
+    expect(projectReleasedExerciseCatalog(approved, { catalog: owned }).videoUrl).toBeNull();
+    const licensed = { ...owned, mediaLicense: 'Autorização' };
+    expect(projectWorkoutExerciseMedia({ exercise: licensed }).exercise.videoUrl).toBe(licensed.videoUrl);
+    expect(projectReleasedExerciseCatalog(approved, { catalog: licensed }).videoUrl).toBe(licensed.videoUrl);
   });
 
   it('does not assign newly licensed live provenance to an old unlicensed snapshot video', () => {

@@ -29,13 +29,22 @@ function hideUncapturedReleaseVideo<T extends { name: string }>(exercise: T): T 
   return { ...exercise, videoUrl: null } as T;
 }
 
+/** Live catalog relations require current professional approval; snapshots use their own provenance. */
+export function hideUnapprovedLiveExerciseVideo<T extends { name: string }>(exercise: T): T {
+  const row = exercise as Record<string, unknown>;
+  if (row.curationStatus !== 'approved' || row.legacyGrandfathered !== false) {
+    return hideUncapturedReleaseVideo(exercise);
+  }
+  return hideUnverifiedExerciseVideo(exercise);
+}
+
 /** Filter media from library relations before returning HTTP responses. */
 export function projectWorkoutExerciseMedia<T extends { exercise: { name: string } }>(row: T): T {
   // Historic scalar-only responses have no nested video URL to disclose.
   // Keep their public shape rather than throwing while sanitizing rich records.
   if (!row?.exercise || typeof row.exercise !== 'object' ||
       typeof row.exercise.name !== 'string') return row;
-  return { ...row, exercise: hideUnverifiedExerciseVideo(row.exercise) };
+  return { ...row, exercise: hideUnapprovedLiveExerciseVideo(row.exercise) };
 }
 
 export function projectWorkoutExecutionMedia<T extends { workoutExercise: { exercise: { name: string } } }>(row: T): T {
@@ -57,7 +66,7 @@ export function projectWorkoutExecutionHistory<T extends {
       ...workoutExercise,
       exercise: workoutExercise.workoutDay.template.released
         ? projectReleasedExerciseCatalog(workoutExercise.exercise, releasedCatalog)
-        : hideUnverifiedExerciseVideo(workoutExercise.exercise),
+        : hideUnapprovedLiveExerciseVideo(workoutExercise.exercise),
     },
   };
 }
@@ -101,7 +110,7 @@ export function projectWorkoutDayExerciseCatalog<T>(day: T, released: boolean): 
     const { releasedCatalog, ...rest } = item as Record<string, unknown>;
     if (!rest.exercise || typeof rest.exercise !== 'object' ||
       !('name' in rest.exercise) || typeof rest.exercise.name !== 'string') return rest;
-    if (!released) return { ...rest, exercise: hideUnverifiedExerciseVideo(rest.exercise as { name: string }) };
+    if (!released) return { ...rest, exercise: hideUnapprovedLiveExerciseVideo(rest.exercise as { name: string }) };
     return { ...rest, exercise: projectReleasedExerciseCatalog(
       rest.exercise as { name: string }, releasedCatalog as ReleasedCatalogRecord,
     ) };

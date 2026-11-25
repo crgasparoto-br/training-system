@@ -18,6 +18,9 @@ const mockListExerciseRevisions = jest.fn();
 const mockUpdateExercise = jest.fn();
 const mockDeleteExercise = jest.fn();
 const mockExerciseFindFirst = jest.fn();
+const mockProgressFindUnique = jest.fn();
+const mockProgressFindMany = jest.fn();
+const mockProgressUpsert = jest.fn();
 
 // Preserve the real middleware and access-control service: only the DB and
 // endpoint domain service are mocked. The HTTP tests exercise the real grant
@@ -28,6 +31,9 @@ jest.mock('@prisma/client', () => ({
     professor: { findUnique: mockProfessorFindUnique, findFirst: mockProfessorFindFirst },
     aluno: { findFirst: mockAlunoFindFirst },
     exerciseLibrary: { findFirst: mockExerciseFindFirst },
+    alunoExerciseProgress: {
+      findUnique: mockProgressFindUnique, findMany: mockProgressFindMany, upsert: mockProgressUpsert,
+    },
     accessPermission: {
       findMany: mockAccessPermissionFindMany,
       createMany: mockAccessPermissionCreateMany,
@@ -245,6 +251,42 @@ describe('#394 A-394-012: operational exercise access preserves plans-only roles
     expect((await request(app).put('/library/progress/aluno-2/approved-1')
       .send({ lastLoad: 30 })).status).toBe(200);
     expect(mockUpdateAlunoProgress).toHaveBeenCalledTimes(1);
+  });
+
+  it('#579 A-002 applies the real progress service at the HTTP boundary before and after approval', async () => {
+    const actual = jest.requireActual('../src/modules/library/library.service').libraryService;
+    mockGetAlunoProgress.mockImplementationOnce(actual.getAlunoProgress).mockImplementationOnce(actual.getAlunoProgress);
+    mockListAlunoProgress.mockImplementationOnce(actual.listAlunoProgress).mockImplementationOnce(actual.listAlunoProgress);
+    mockUpdateAlunoProgress.mockImplementationOnce(actual.updateAlunoProgress);
+    mockProfessorFindUnique.mockResolvedValue({ ...actor, role: 'master' });
+    mockProfessorFindFirst.mockResolvedValue({ ...actor, role: 'master' });
+    grantScreens('library');
+    mockAlunoFindFirst.mockResolvedValue({ id: 'aluno-1' });
+    const exercise = {
+      id: 'owned-1', name: 'Vídeo próprio', contractId: 'contract-394',
+      videoUrl: 'https://example.org/owned', mediaOrigin: 'Própria', mediaLicense: null,
+      legacyGrandfathered: false, curationStatus: 'draft',
+    };
+    const progress = { alunoId: 'aluno-1', exerciseId: exercise.id, lastLoad: 30 };
+    mockExerciseFindFirst.mockResolvedValue(exercise);
+    mockProgressUpsert.mockResolvedValue(progress);
+    mockProgressFindUnique.mockResolvedValue({ ...progress, exercise });
+    mockProgressFindMany.mockResolvedValue([{ ...progress, exercise }]);
+
+    const base = '/library/progress/aluno-1';
+    const put = await request(app).put(base + '/owned-1').send({ lastLoad: 30 });
+    expect(put.status).toBe(200);
+    expect(put.body).toEqual(progress);
+    for (const status of ['draft', 'approved']) {
+      exercise.curationStatus = status;
+      const detail = await request(app).get(base + '/owned-1');
+      const list = await request(app).get(base);
+      const videoUrl = status === 'approved' ? exercise.videoUrl : null;
+      expect(detail.status).toBe(200);
+      expect(detail.body).toMatchObject({ lastLoad: 30, exercise: { videoUrl } });
+      expect(list.status).toBe(200);
+      expect(list.body).toMatchObject([{ lastLoad: 30, exercise: { videoUrl } }]);
+    }
   });
 
   it('#394 A-394-020: library-only GET details cannot serialize student progress or workout templates', async () => {

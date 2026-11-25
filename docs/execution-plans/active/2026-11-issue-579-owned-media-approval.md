@@ -14,6 +14,8 @@ Permitir aprovação profissional de exercícios com vídeo cujo `mediaOrigin` d
 - Negativo: `Licenciada`, ausência de origem e valor legado não canônico sem licença continuam bloqueados.
 - Banco: alteração SQL direta não converte mídia própria aprovada em terceiro sem licença.
 - Histórico: mídia legada continua omitida; snapshot sem direitos não herda propriedade de revisão posterior.
+- A-001: origem bruta exata na API, SQL, UI e snapshots; variantes com espaços ASCII/Unicode exigem licença não vazia. SQL direto cobre criação e atualização.
+- A-002: progresso e treinos vivos ocultam vídeo de rascunho, revisão ou inativo, mantendo os registros e os snapshots liberados. Verificar transição de aprovação, respostas GET/PUT e regressão de histórico.
 - Isolamento: filtros por `contractId`, guardas de versão e permissões existentes não são alterados.
 
 ## Validações e conclusão

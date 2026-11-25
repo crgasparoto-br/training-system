@@ -86,9 +86,10 @@ describe('#394 capacity taxonomy and historical media in the exercise editor', (
     expect(screen.getByTestId('video-preview')).toHaveTextContent('https://example.org/unknown-rights');
   });
 
-  it('#579 blocks unlicensed third-party previews and explains license requirement', () => {
+  it.each(['Licenciada', ' Própria', 'Própria ', ' Própria ', 'Própria\u00a0', 'Própria\u2003'])(
+    '#579 blocks unlicensed noncanonical origin %j and explains license requirement', (mediaOrigin) => {
     const thirdParty = { ...legacy, legacyGrandfathered: false, capacity: 'resisted',
-      mediaOrigin: 'Licenciada', mediaLicense: null };
+      mediaOrigin, mediaLicense: null };
     render(<ExerciseModal mode="view" exercise={thirdParty} onClose={vi.fn()} />);
     expect(screen.getByText(/Obrigatória para mídia licenciada ou de terceiros/)).toBeInTheDocument();
     expect(screen.queryByTestId('video-preview')).not.toBeInTheDocument();

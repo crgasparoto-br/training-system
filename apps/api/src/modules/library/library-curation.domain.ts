@@ -41,7 +41,7 @@ export function nextExerciseStatus(
 /** Declared own media requires no additional license. */
 export function hasAuthorizedExerciseMedia(origin: unknown, license: unknown): boolean {
   if (typeof origin !== 'string' || !origin.trim()) return false;
-  return origin.trim() === 'Própria' ||
+  return origin === 'Própria' ||
     (typeof license === 'string' && Boolean(license.trim()));
 }
 
@@ -63,7 +63,7 @@ export function assertExerciseCanBeApproved(exercise: {
   if (exercise.instructions.length === 0) missing.push('Instruções em etapas');
   if (exercise.videoUrl?.trim()) {
     if (!exercise.mediaOrigin?.trim()) missing.push('Origem da mídia');
-    if (exercise.mediaOrigin?.trim() !== 'Própria' && !exercise.mediaLicense?.trim()) {
+    if (exercise.mediaOrigin !== 'Própria' && !exercise.mediaLicense?.trim()) {
       missing.push('Licença ou autorização de uso da mídia');
     }
   }

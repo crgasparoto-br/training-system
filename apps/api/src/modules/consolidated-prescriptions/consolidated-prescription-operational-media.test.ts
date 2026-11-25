@@ -23,6 +23,8 @@ describe('#394 A-394-018: historical operational video redaction at the API boun
   it.each([
     ['no origin', { mediaLicense: 'owned' }],
     ['no license', { mediaOrigin: 'company_production' }],
+    ['noncanonical owned origin', { mediaOrigin: ' Própria ', legacyGrandfathered: false }],
+    ['noncanonical Unicode origin', { mediaOrigin: 'Própria\u00a0', legacyGrandfathered: false }],
     ['empty origin', { mediaOrigin: '  ', mediaLicense: 'owned' }],
     ['legacy grandfathered', { mediaOrigin: 'company_production', mediaLicense: 'owned', legacyGrandfathered: true }],
   ])('hides %s even if an outdated URL exists', (_, fields) => {

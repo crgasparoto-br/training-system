@@ -278,7 +278,7 @@ linha legada: `approved/legacyGrandfathered=true` conserva status, vídeo e
 referências para leitura histórica, mas não é selecionável para novas aplicações.
 A transição de volta ao catálogo exige curadoria profissional explícita, que
 valida capacidade da taxonomia `PHYSICAL_CAPACITY_TYPES`, categoria, instruções,
-e origem da mídia; a licença é obrigatória somente para mídia licenciada ou de terceiros, dispensada quando a origem declarada é `Própria` (#579). A aprovação marca `legacyGrandfathered=false`. A constraint
+e origem da mídia; a licença é obrigatória somente para mídia licenciada ou de terceiros, dispensada somente quando o valor bruto da origem é exatamente `Própria` (#579), sem normalizar espaços. Campos de mídia vazios usam a mesma definição de whitespace do `trim()` da API. A aprovação marca `legacyGrandfathered=false`. A constraint
 `ExerciseLibrary_approved_curated_guard` é `NOT VALID` para não reprovar dados
 existentes; protege inserções/atualizações futuras de registros `approved`
 não legados, inclusive caminhos SQL, sem backfill fabricado de licença ou revisor.

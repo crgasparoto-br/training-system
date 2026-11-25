@@ -284,7 +284,7 @@ dos treinos, mas são excluídos da seleção, cópia, substituição e liberaç
 operacional até a aprovação profissional explícita. Vídeos sem origem declarada ou, quando licenciados/de terceiros, sem
 autorização registrada não são reproduzidos pelas projeções históricas nem retornados nos
 campos de mídia dos endpoints de progresso do aluno. A origem canônica `Própria`
-dispensa licença adicional somente após curadoria explícita (#579). A projeção dos registros
+dispensa licença adicional somente quando o valor bruto é exatamente `Própria`, após curadoria explícita (#579). Origens com espaços adicionais não são convertidas; exigem autorização registrada. As relações vivas (inclusive progresso) só divulgam vídeo quando `curationStatus=approved` e `legacyGrandfathered=false`; snapshots de liberação usam exclusivamente a procedência capturada. A projeção dos registros
 de progresso remove apenas o link operacional não verificado e preserva os
 valores e o catálogo originais no banco; a listagem restringe também a relação
 do exercício ao mesmo contrato. Os links originais continuam persistidos.

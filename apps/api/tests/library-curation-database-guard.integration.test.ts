@@ -100,6 +100,31 @@ describeDatabase('#394 A-394-011: PostgreSQL approval guard is NULL-safe', () =>
       .resolves.toMatchObject({ mediaOrigin: 'Própria', mediaLicense: null });
   });
 
+  it.each([' Própria', 'Própria ', ' Própria ', '\tPrópria', 'Própria\u00a0', 'Própria\u2003', 'própria'])(
+    '#579 A-001 rejects noncanonical origin %j on insert and direct SQL update',
+    async (mediaOrigin) => {
+      const data = {
+        ...approvedData(contractId!, 'Vídeo em revisão'),
+        videoUrl: 'https://example.org/video',
+        mediaOrigin: 'Própria', mediaLicense: null,
+      };
+      await expect(prisma.exerciseLibrary.create({
+        data: { ...data, mediaOrigin },
+      })).rejects.toThrow();
+      const owned = await prisma.exerciseLibrary.create({ data });
+      await expect(prisma.$executeRaw`UPDATE "ExerciseLibrary"
+        SET "mediaOrigin" = ${mediaOrigin} WHERE "id" = ${owned.id}`).rejects.toThrow();
+      await expect(prisma.$executeRaw`UPDATE "ExerciseLibrary"
+        SET "mediaOrigin" = ${mediaOrigin}, "mediaLicense" = ${' \t\u00a0'}
+        WHERE "id" = ${owned.id}`).rejects.toThrow();
+      await expect(prisma.$executeRaw`UPDATE "ExerciseLibrary"
+        SET "mediaOrigin" = ${mediaOrigin}, "mediaLicense" = 'Autorização'
+        WHERE "id" = ${owned.id}`).resolves.toBe(1);
+      await expect(prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: owned.id } }))
+        .resolves.toMatchObject({ mediaOrigin, mediaLicense: 'Autorização' });
+    },
+  );
+
   it('allows a fully reviewed approval, a draft, and a grandfathered historical row', async () => {
     const approved = await prisma.exerciseLibrary.create({
       data: approvedData(contractId!, 'Valido e revisado'),

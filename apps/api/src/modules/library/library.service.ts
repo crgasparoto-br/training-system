@@ -8,7 +8,7 @@ import {
 } from './library-curation.domain.js';
 import { findExerciseIdsByAlias, findExerciseIdsByMuscleGroup } from './exercise-alias-search.js';
 import { approvedOperationalExerciseWhere } from './library-curation.domain.js';
-import { hideUnverifiedExerciseVideo } from '../workout/workout-release-catalog.js';
+import { hideUnapprovedLiveExerciseVideo } from '../workout/workout-release-catalog.js';
 import type { PhysicalCapacityType } from '@corrida/types';
 import { canProfessorAccessScreen } from '../access-control/access-control.service.js';
 
@@ -239,7 +239,7 @@ export const libraryService = {
     const names = await catalogActorNames(contractId, exercises.flatMap((exercise) =>
       [exercise.createdByUserId, exercise.reviewedByUserId]));
     return exercises.map((exercise) => ({
-      ...(filters.scope === 'all' ? exercise : hideUnverifiedExerciseVideo(exercise)),
+      ...(filters.scope === 'all' ? exercise : hideUnapprovedLiveExerciseVideo(exercise)),
       createdByName: actorName(names, exercise.createdByUserId) ??
         (exercise.systemDefault ? 'Catálogo do sistema' : null),
       reviewedByName: actorName(names, exercise.reviewedByUserId) ??
@@ -260,7 +260,7 @@ export const libraryService = {
     const names = await catalogActorNames(contractId,
       [exercise.createdByUserId, exercise.reviewedByUserId]);
     return {
-      ...(officialOnly ? hideUnverifiedExerciseVideo(exercise) : exercise),
+      ...(officialOnly ? hideUnapprovedLiveExerciseVideo(exercise) : exercise),
       createdByName: actorName(names, exercise.createdByUserId) ??
         (exercise.systemDefault ? 'Catálogo do sistema' : null),
       reviewedByName: actorName(names, exercise.reviewedByUserId) ??
@@ -408,7 +408,7 @@ export const libraryService = {
     });
     return progress ? {
       ...progress,
-      exercise: hideUnverifiedExerciseVideo(progress.exercise),
+      exercise: hideUnapprovedLiveExerciseVideo(progress.exercise),
     } : null;
   },
 
@@ -474,7 +474,7 @@ export const libraryService = {
     });
     return progress.map((row) => ({
       ...row,
-      exercise: hideUnverifiedExerciseVideo(row.exercise),
+      exercise: hideUnapprovedLiveExerciseVideo(row.exercise),
     }));
   },
 };

@@ -845,13 +845,15 @@ describe('#394 A-021: exercise write responses sanitize historical media', () =>
   const input = { workoutDayId: 'day-1', exerciseId: 'exercise-1', section: 'sessao', exerciseOrder: 1 };
 
   it.each([
-    { name: 'legacy URL', legacyGrandfathered: true, mediaOrigin: 'Old', mediaLicense: 'Old', result: null },
-    { name: 'missing license', legacyGrandfathered: false, mediaOrigin: 'Third party', mediaLicense: null, result: null },
-    { name: 'licensed media', legacyGrandfathered: false, mediaOrigin: 'Original', mediaLicense: 'License', result: 'https://example.org/video' },
-  ])('filters $name on both PUT endpoints without modifying the service object', async ({ legacyGrandfathered, mediaOrigin, mediaLicense, result }) => {
+    { name: 'legacy URL', curationStatus: 'approved', legacyGrandfathered: true, mediaOrigin: 'Old', mediaLicense: 'Old', result: null },
+    { name: 'missing license', curationStatus: 'approved', legacyGrandfathered: false, mediaOrigin: 'Third party', mediaLicense: null, result: null },
+    { name: 'licensed media', curationStatus: 'approved', legacyGrandfathered: false, mediaOrigin: 'Original', mediaLicense: 'License', result: 'https://example.org/video' },
+    { name: 'draft owned media', curationStatus: 'draft', legacyGrandfathered: false, mediaOrigin: 'Própria', mediaLicense: null, result: null },
+    { name: 'approved owned media', curationStatus: 'approved', legacyGrandfathered: false, mediaOrigin: 'Própria', mediaLicense: null, result: 'https://example.org/video' },
+  ])('filters $name on both PUT endpoints without modifying the service object', async ({ curationStatus, legacyGrandfathered, mediaOrigin, mediaLicense, result }) => {
     const row = { id: 'row-1', sets: 3, exercise: {
       name: 'Exercise', videoUrl: 'https://example.org/video',
-      legacyGrandfathered, mediaOrigin, mediaLicense,
+      curationStatus, legacyGrandfathered, mediaOrigin, mediaLicense,
     } };
     (workoutService.replaceDayResistanceExercises as jest.Mock).mockResolvedValueOnce([row]);
     const replaceResponse = await request(app).put('/workout/days/day-1/resistance-exercises')
