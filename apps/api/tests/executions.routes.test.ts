@@ -100,13 +100,13 @@ describe('#394 A-021: student execution HTTP response media redaction', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it.each([
-    { label: 'legacy reference', legacyGrandfathered: true, mediaOrigin: null, mediaLicense: null, result: null },
-    { label: 'missing rights', legacyGrandfathered: false, mediaOrigin: 'Third party', mediaLicense: null, result: null },
-    { label: 'licensed author', legacyGrandfathered: false, mediaOrigin: 'Original', mediaLicense: 'License', result: 'https://example.org/live' },
-  ])('protects $label without changing the service record', async ({ legacyGrandfathered, mediaOrigin, mediaLicense, result }) => {
+    { label: 'legacy reference', legacyGrandfathered: true, curationStatus: 'approved', mediaOrigin: null, mediaLicense: null, result: null },
+    { label: 'missing rights', legacyGrandfathered: false, curationStatus: 'approved', mediaOrigin: 'Third party', mediaLicense: null, result: null },
+    { label: 'licensed author', legacyGrandfathered: false, curationStatus: 'approved', mediaOrigin: 'Original', mediaLicense: 'License', result: 'https://example.org/live' },
+  ])('protects $label without changing the service record', async ({ legacyGrandfathered, curationStatus, mediaOrigin, mediaLicense, result }) => {
     const originals = [{ id: 'execution-1', setsCompleted: 4, workoutExercise: {
       id: 'row-1', exercise: { name: 'Exercise', videoUrl: 'https://example.org/live',
-        legacyGrandfathered, mediaOrigin, mediaLicense },
+        legacyGrandfathered, curationStatus, mediaOrigin, mediaLicense },
     } }];
     workoutService.getExecutionsByAluno.mockResolvedValueOnce(originals);
     const response = await request(app).get('/executions/aluno?startDate=2026-10-06&endDate=2026-10-07');
