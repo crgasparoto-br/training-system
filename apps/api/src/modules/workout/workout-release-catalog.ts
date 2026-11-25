@@ -47,10 +47,6 @@ export function projectWorkoutExerciseMedia<T extends { exercise: { name: string
   return { ...row, exercise: hideUnapprovedLiveExerciseVideo(row.exercise) };
 }
 
-export function projectWorkoutExecutionMedia<T extends { workoutExercise: { exercise: { name: string } } }>(row: T): T {
-  return { ...row, workoutExercise: projectWorkoutExerciseMedia(row.workoutExercise) };
-}
-
 /** Present immutable release-time catalog data for historical executions. */
 export function projectWorkoutExecutionHistory<T extends {
   workoutExercise: {

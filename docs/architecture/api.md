@@ -293,5 +293,11 @@ Novas instalações do catálogo canônico são aprovadas automaticamente **pelo
 A-021: GET /executions/aluno usa o catálogo imutável de liberação e omite
 releasedCatalog interno da resposta; URLs de mídia sem direitos documentados
 na liberação são ocultas mesmo que o catálogo seja licenciado mais tarde.
+A projeção é feita uma única vez no serviço de histórico; a rota não reaplica
+status vivo a snapshots de liberação. Vídeos autorizados na liberação continuam
+visíveis após edição, revisão ou inativação do exercício (#579, A-003).
+GET /consolidated-prescriptions/alunos/:alunoId/operational-exercises aplica a
+mesma proteção de mídia viva antes de responder, inclusive para padrões do sistema
+sem procedência; os campos internos de curadoria não ampliam o contrato da resposta (#579, A-004).
 PUT /workout/days/:id/resistance-exercises e PUT /workout/exercises/:id
 sanitizam vídeo de registros legados antes de responder, sem alterar o banco.

@@ -16,6 +16,8 @@ Permitir aprovação profissional de exercícios com vídeo cujo `mediaOrigin` d
 - Histórico: mídia legada continua omitida; snapshot sem direitos não herda propriedade de revisão posterior.
 - A-001: origem bruta exata na API, SQL, UI e snapshots; variantes com espaços ASCII/Unicode exigem licença não vazia. SQL direto cobre criação e atualização.
 - A-002: progresso e treinos vivos ocultam vídeo de rascunho, revisão ou inativo, mantendo os registros e os snapshots liberados. Verificar transição de aprovação, respostas GET/PUT e regressão de histórico.
+- A-003: testar a rota GET de execuções usando o serviço real, com alterações posteriores do status vivo, mídia própria/licenciada capturada e snapshots sem direitos. Projetar uma única vez, sem expor `releasedCatalog`.
+- A-004: testar a listagem operacional no serviço e via HTTP autenticado com dados PostgreSQL, incluindo padrões sem origem/licença, origem não canônica, mídia própria/licenciada, legado, rascunho e outro contrato. Não ampliar o contrato de resposta nem regravar URLs.
 - Isolamento: filtros por `contractId`, guardas de versão e permissões existentes não são alterados.
 
 ## Validações e conclusão

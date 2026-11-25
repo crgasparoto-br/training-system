@@ -436,7 +436,7 @@ describe('issue #394: operational catalog search and exact muscle filters', () =
   function searchClient() {
     return {
       aluno: { findFirst: jest.fn().mockResolvedValue({ id: context.alunoId }) },
-      exerciseLibrary: { findMany: jest.fn().mockResolvedValue([{ id: 'secondary-match' }]) },
+      exerciseLibrary: { findMany: jest.fn().mockResolvedValue([{ id: 'secondary-match', videoUrl: null }]) },
       $queryRaw: jest.fn(),
     };
   }
@@ -455,7 +455,7 @@ describe('issue #394: operational catalog search and exact muscle filters', () =
       category: 'resisted',
     });
 
-    expect(results).toEqual([{ id: 'secondary-match' }]);
+    expect(results).toEqual([{ id: 'secondary-match', videoUrl: null }]);
     expect(client.aluno.findFirst).toHaveBeenCalledWith({
       where: { id: 'aluno-1', contractId: 'contract-a' },
       select: { id: true },
@@ -493,6 +493,41 @@ describe('issue #394: operational catalog search and exact muscle filters', () =
         ]),
       }),
       take: 50,
+    }));
+  });
+
+  it('#579 A-004 sanitizes catalog media with selected provenance without widening its response', async () => {
+    const client = searchClient();
+    const videoUrl = 'https://example.org/catalog';
+    const cases = [
+      { id: 'owned', mediaOrigin: 'Própria', mediaLicense: null, expected: videoUrl },
+      { id: 'licensed', mediaOrigin: 'Licenciada', mediaLicense: 'Autorização', expected: videoUrl },
+      { id: 'unlicensed', mediaOrigin: 'Licenciada', mediaLicense: null, expected: null },
+      { id: 'unknown', mediaOrigin: null, mediaLicense: null, expected: null },
+      { id: 'noncanonical', mediaOrigin: 'Própria ', mediaLicense: null, expected: null },
+      { id: 'blank-license', mediaOrigin: 'Licenciada', mediaLicense: ' \t\u00a0', expected: null },
+    ];
+    const persisted = cases.map(({ expected, ...row }) => ({
+      ...row, name: row.id, videoUrl, curationStatus: 'approved', legacyGrandfathered: false,
+    }));
+    client.exerciseLibrary.findMany.mockImplementation(async ({ select }) =>
+      persisted.map(row => Object.fromEntries(Object.keys(select).map(key => [
+        key, row[key as keyof typeof row],
+      ])))
+    );
+    const service = createConsolidatedPrescriptionOperationalService(client as never);
+    const result = await service.listOperationalExercises(context, {});
+    expect(result.map(row => [row.id, row.videoUrl])).toEqual(cases.map(row => [row.id, row.expected]));
+    for (const row of result) {
+      expect(row).not.toHaveProperty('mediaOrigin');
+      expect(row).not.toHaveProperty('mediaLicense');
+      expect(row).not.toHaveProperty('curationStatus');
+      expect(row).not.toHaveProperty('legacyGrandfathered');
+    }
+    expect(persisted.every(row => row.videoUrl === videoUrl)).toBe(true);
+    expect(client.exerciseLibrary.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ contractId: context.contractId, curationStatus: 'approved', legacyGrandfathered: false }),
+      select: expect.objectContaining({ mediaOrigin: true, mediaLicense: true, curationStatus: true, legacyGrandfathered: true }),
     }));
   });
 

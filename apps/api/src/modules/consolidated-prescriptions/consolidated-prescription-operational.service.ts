@@ -1,5 +1,5 @@
 import { approvedOperationalExerciseWhere } from '../library/library-curation.domain.js';
-import { hideUnverifiedExerciseVideo } from '../workout/workout-release-catalog.js';
+import { hideUnapprovedLiveExerciseVideo, hideUnverifiedExerciseVideo } from '../workout/workout-release-catalog.js';
 import { PrismaClient } from '@prisma/client';
 import type {
   CapacityPrescriptionParameters,
@@ -595,7 +595,7 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
       const muscleFilterIds = muscleGroup
         ? await findExerciseIdsByMuscleGroup(client, context.contractId, muscleGroup, true)
         : [];
-      return client.exerciseLibrary.findMany({
+      const rows = await client.exerciseLibrary.findMany({
         where: {
           contractId: context.contractId,
           ...approvedOperationalExerciseWhere,
@@ -624,6 +624,10 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
           id: true,
           name: true,
           videoUrl: true,
+          mediaOrigin: true,
+          mediaLicense: true,
+          curationStatus: true,
+          legacyGrandfathered: true,
           loadType: true,
           movementType: true,
           countingType: true,
@@ -635,6 +639,12 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
         orderBy: { name: 'asc' },
         take: 50,
       });
+      return rows.map(({ mediaOrigin, mediaLicense, curationStatus, legacyGrandfathered, ...exercise }) => ({
+        ...exercise,
+        videoUrl: hideUnapprovedLiveExerciseVideo({
+          ...exercise, mediaOrigin, mediaLicense, curationStatus, legacyGrandfathered,
+        }).videoUrl,
+      }));
     },
 
     async setExerciseMapping(

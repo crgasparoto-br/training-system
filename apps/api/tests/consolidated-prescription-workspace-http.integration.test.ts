@@ -158,6 +158,53 @@ describeDatabase('consolidated prescription workspace HTTP integration', () => {
     await prisma.$disconnect();
   });
 
+  it('#579 A-004 protects operational catalog videos at the authenticated HTTP boundary', async () => {
+    await createContract(contractA, '57365610000801');
+    await createContract(contractB, '57365610000802');
+    const manager = await createProfessor({ contractId: contractA, suffix: 'media-manager', dataScope: 'contract' });
+    const outsider = await createProfessor({ contractId: contractB, suffix: 'media-outsider', dataScope: 'contract' });
+    await prisma.aluno.create({ data: {
+      id: alunoA, contractId: contractA, professorId: manager.professor.id,
+      status: StudentLifecycleStatus.ACTIVE_STUDENT,
+    } });
+    const url = 'https://example.org/579/catalog';
+    const approved = {
+      contractId: contractA, category: 'resisted', capacity: 'resisted',
+      instructions: ['Preparar a posição'], videoUrl: url,
+      curationStatus: 'approved' as const, legacyGrandfathered: false,
+      reviewedByUserId: manager.user.id, reviewedAt: new Date(), lastCurationAction: 'approve',
+    };
+    const system = { ...approved, systemDefault: true, reviewedByUserId: null,
+      reviewedAt: null, lastCurationAction: 'system_defaults_install' };
+    await prisma.exerciseLibrary.createMany({ data: [
+      { ...approved, name: '579 própria', mediaOrigin: 'Própria', mediaLicense: null },
+      { ...approved, name: '579 licenciada', mediaOrigin: 'Licenciada', mediaLicense: 'Autorização' },
+      { ...system, name: '579 padrão sem origem', mediaOrigin: null, mediaLicense: null },
+      { ...system, name: '579 padrão sem licença', mediaOrigin: 'Licenciada', mediaLicense: null },
+      { ...system, name: '579 origem não canônica', mediaOrigin: 'Própria ', mediaLicense: null },
+      { ...approved, name: '579 rascunho', curationStatus: 'draft', mediaOrigin: 'Própria', mediaLicense: null },
+      { ...approved, name: '579 legado', legacyGrandfathered: true, mediaOrigin: 'Própria', mediaLicense: null },
+      { ...approved, contractId: contractB, name: '579 outro contrato', mediaOrigin: 'Própria', mediaLicense: null },
+    ] });
+    const endpoint = `/consolidated-prescriptions/alunos/${alunoA}/operational-exercises`;
+    const response = await request(app).get(endpoint).set('Authorization', `Bearer ${manager.token}`);
+    expect(response.status).toBe(200);
+    const media = Object.fromEntries(response.body.data.map((row: { name: string; videoUrl: string | null }) => [row.name, row.videoUrl]));
+    expect(media).toEqual({
+      '579 própria': url, '579 licenciada': url, '579 padrão sem origem': null,
+      '579 padrão sem licença': null, '579 origem não canônica': null,
+    });
+    for (const row of response.body.data) {
+      expect(row).not.toHaveProperty('mediaOrigin');
+      expect(row).not.toHaveProperty('mediaLicense');
+      expect(row).not.toHaveProperty('curationStatus');
+      expect(row).not.toHaveProperty('legacyGrandfathered');
+    }
+    expect(await prisma.exerciseLibrary.count({ where: { contractId: contractA, videoUrl: url } })).toBe(7);
+    const denied = await request(app).get(endpoint).set('Authorization', `Bearer ${outsider.token}`);
+    expect(denied.status).toBe(404);
+  });
+
   it('usa o dataScope de plans e devolve elegibilidade e motivo autoritativos', async () => {
     await createContract(contractA, '57365610000801');
     await createContract(contractB, '57365610000802');
