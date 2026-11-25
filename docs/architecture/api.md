@@ -299,5 +299,8 @@ visíveis após edição, revisão ou inativação do exercício (#579, A-003).
 GET /consolidated-prescriptions/alunos/:alunoId/operational-exercises aplica a
 mesma proteção de mídia viva antes de responder, inclusive para padrões do sistema
 sem procedência; os campos internos de curadoria não ampliam o contrato da resposta (#579, A-004).
-PUT /workout/days/:id/resistance-exercises e PUT /workout/exercises/:id
-sanitizam vídeo de registros legados antes de responder, sem alterar o banco.
+POST /workout/exercises, PUT /workout/days/:id/resistance-exercises e
+PUT /workout/exercises/:id aplicam o mesmo filtro de mídia viva antes de responder,
+sem alterar o banco. Em leituras liberadas, origem, licença e autoria não capturadas
+são retornadas como `null` quando selecionadas; estado legado ausente é tratado
+conservadoramente como legado apenas na projeção (#579, A-005/A-006).

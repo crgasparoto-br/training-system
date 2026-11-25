@@ -108,6 +108,32 @@ describe('#394 A-007: exercise media provenance at historical response boundarie
     } }).videoUrl).toBeNull();
   });
 
+  it.each([
+    { label: 'absent', captured: null, origin: null, license: null, legacy: true },
+    { label: 'pre-provenance', captured: { catalog: { name: 'Old', videoUrl: 'https://example.org/old' } }, origin: null, license: null, legacy: true },
+    { label: 'missing origin', captured: { catalog: { name: 'Old', mediaLicense: 'Archive', legacyGrandfathered: false } }, origin: null, license: 'Archive', legacy: false },
+    { label: 'missing license', captured: { catalog: { name: 'Old', mediaOrigin: 'Licenciada', legacyGrandfathered: false } }, origin: 'Licenciada', license: null, legacy: false },
+    { label: 'malformed', captured: { catalog: { mediaOrigin: 'Própria', mediaLicense: 'Later', legacyGrandfathered: false } }, origin: null, license: null, legacy: true },
+  ])('#579 A-006 does not inherit media provenance from the live catalog: $label', ({ captured, origin, license, legacy }) => {
+    const live = { ...approved, mediaAuthor: 'Later author' };
+    const before = JSON.stringify({ live, captured });
+    expect(projectReleasedExerciseCatalog(live, captured)).toMatchObject({
+      videoUrl: null, mediaOrigin: origin, mediaLicense: license,
+      mediaAuthor: null, legacyGrandfathered: legacy,
+    });
+    expect(JSON.stringify({ live, captured })).toBe(before);
+  });
+
+  it('#579 A-006 uses captured own-media rights even if later rights differ, without adding unselected fields', () => {
+    const captured = { catalog: { name: 'Released', videoUrl: 'https://example.org/released',
+      mediaOrigin: 'Própria', legacyGrandfathered: false } };
+    expect(projectReleasedExerciseCatalog({ ...approved, mediaAuthor: 'Later author' }, captured))
+      .toMatchObject({ videoUrl: captured.catalog.videoUrl, mediaOrigin: 'Própria', mediaLicense: null, mediaAuthor: null });
+    expect(projectReleasedExerciseCatalog({ name: 'Later' }, captured)).toEqual({ name: 'Released' });
+    expect(projectReleasedExerciseCatalog({ name: 'Later', videoUrl: approved.videoUrl }, captured))
+      .toEqual({ name: 'Released', videoUrl: captured.catalog.videoUrl });
+  });
+
   it('resolves historical executions without changing the original record or exposing internals', () => {
     const execution = { id: 'execution-1', setsCompleted: 3, workoutExercise: {
       id: 'row-1', exercise: approved,
@@ -115,7 +141,7 @@ describe('#394 A-007: exercise media provenance at historical response boundarie
       workoutDay: { template: { released: true } },
     } };
     const actual = projectWorkoutExecutionHistory(execution);
-    expect(actual.workoutExercise.exercise).toMatchObject({ name: 'Captured name', videoUrl: null });
+    expect(actual.workoutExercise.exercise).toMatchObject({ name: 'Captured name', videoUrl: null, mediaOrigin: null, mediaLicense: null });
     expect(actual.setsCompleted).toBe(3);
     expect(JSON.stringify(actual)).not.toContain('releasedCatalog');
     expect(execution.workoutExercise.exercise.videoUrl).toBe('https://example.org/third-party');

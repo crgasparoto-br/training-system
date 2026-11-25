@@ -3345,7 +3345,7 @@ describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
     const template = await workoutService.getTemplateById(exercise.workoutDay.templateId);
     const released = template!.workoutDays.flatMap((day) => day.exercises)
       .find((item) => item.id === fixture.exerciseIds[0]);
-    expect(released?.exercise).toMatchObject({ name: original.name, videoUrl: null });
+    expect(released?.exercise).toMatchObject({ name: original.name, videoUrl: null, mediaOrigin: null, mediaLicense: null });
   });
 
 
@@ -3368,14 +3368,14 @@ describeDatabase('Issue #400 - canonical resistance exercise groups', () => {
     } });
     await prisma.exerciseLibrary.update({ where: { id: exercise.exerciseId }, data: {
       name: 'Changed live name', videoUrl: 'https://example.org/new-licensed',
-      mediaOrigin: 'Later creator', mediaLicense: 'License acquired later',
+      mediaOrigin: 'Later creator', mediaLicense: 'License acquired later', mediaAuthor: 'Later author',
     } });
     const rows = await workoutService.getExecutionsByAluno(
       fixture.alunoId, new Date('2026-10-06T00:00:00.000Z'), new Date('2026-10-08T00:00:00.000Z'),
     );
     const row = rows.find((item) => item.workoutExercise.id === fixture.exerciseIds[0]);
     expect(row?.setsCompleted).toBe(3);
-    expect(row?.workoutExercise.exercise).toMatchObject({ name: original.name, videoUrl: null });
+    expect(row?.workoutExercise.exercise).toMatchObject({ name: original.name, videoUrl: null, mediaOrigin: null, mediaLicense: null, mediaAuthor: null });
     expect(JSON.stringify(row)).not.toContain('releasedCatalog');
     expect((await prisma.workoutReleasedExerciseSnapshot.findUniqueOrThrow({
       where: { workoutExerciseId: fixture.exerciseIds[0] },

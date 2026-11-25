@@ -310,7 +310,7 @@ router.get('/exercises', async (req, res) => {
 router.post('/exercises', async (req, res) => {
   try {
     const exercise = await workoutService.addExercise(sanitizeWorkoutMutation(req.body, 'exercise', 'create'), req.user!.contractId);
-    res.status(201).json(exercise);
+    res.status(201).json(projectWorkoutExerciseMedia(exercise));
   } catch (error: any) {
     console.error('Error adding exercise:', error);
     return sendSafeWorkoutError(res, error);

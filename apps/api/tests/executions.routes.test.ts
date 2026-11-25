@@ -130,6 +130,27 @@ describe('#394 A-021: student execution HTTP response media redaction', () => {
   });
 
   it.each([
+    { label: 'absent', releasedCatalog: null, name: 'Later edit' },
+    { label: 'pre-provenance', releasedCatalog: { catalog: { name: 'Released', videoUrl: 'https://example.org/old' } }, name: 'Released' },
+  ])('#579 A-006 never returns later media provenance for $label snapshots', async ({ releasedCatalog, name }) => {
+    const original = { id: 'execution-579', repsCompleted: 8, workoutExercise: {
+      id: 'exercise-579',
+      exercise: { name: 'Later edit', videoUrl: 'https://example.org/later', curationStatus: 'approved',
+        mediaOrigin: 'Própria', mediaLicense: 'Later license', mediaAuthor: 'Later author', legacyGrandfathered: false },
+      releasedCatalog, workoutDay: { template: { released: true } },
+    } };
+    const before = JSON.stringify(original);
+    mockExecutionFindMany.mockResolvedValueOnce([original]);
+    const response = await request(app).get('/executions/aluno?startDate=2026-10-06&endDate=2026-10-07');
+    expect(response.status).toBe(200);
+    expect(response.body[0]).toMatchObject({ repsCompleted: 8, workoutExercise: {
+      exercise: { name, videoUrl: null, mediaOrigin: null, mediaLicense: null, mediaAuthor: null, legacyGrandfathered: true },
+    } });
+    expect(response.body[0].workoutExercise).not.toHaveProperty('releasedCatalog');
+    expect(JSON.stringify(original)).toBe(before);
+  });
+
+  it.each([
     ['draft', 'Própria', null, true],
     ['in_review', 'Própria', null, true],
     ['inactive', 'Própria', null, true],

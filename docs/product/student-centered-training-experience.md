@@ -960,7 +960,7 @@ revisões e ações administrativas; acesso a `plans` não permite curadoria.
 Cada exercício possui aliases, capacidade, equipamento, grupos musculares principais e
 secundários, padrão de movimento, articulações, lateralidade, dificuldade, etapas de
 instrução, erros comuns, regressões, progressões, alternativas, restrições e alertas.
-Vídeo referenciado exige origem e licença explícitas antes da aprovação.
+Vídeo referenciado exige origem explícita antes da aprovação. Somente a origem canônica `Própria` dispensa licença adicional; `Licenciada` e qualquer outra origem exigem licença ou autorização registrada (#579).
 A aprovação exige nome, categoria, capacidade e instruções; não é homologação clínica.
 O guard PostgreSQL impede que valores `NULL` de capacidade ou de ação da última
 revisão permitam aprovação direta sem os metadados obrigatórios; o histórico
@@ -1021,7 +1021,7 @@ entre contratos entram em rascunho até revisão. O saneamento automático ignor
 exercícios vinculados a treinos e registra `system_defaults_repair` com ator
 nulo. O saneamento não injeta URL de vídeo em exercícios existentes:
 o catálogo padrão não comprova direito de uso e uma nova mídia depende de
-curadoria explícita com origem e licença; mídias legadas já presentes não são removidas. A busca por aliases é parcial, sem distinção de caixa e isolada por
+curadoria explícita com origem e, exceto para a opção canônica `Própria`, licença ou autorização registrada; mídias legadas já presentes não são removidas. A busca por aliases é parcial, sem distinção de caixa e isolada por
 contrato na biblioteca e na montagem consolidada. Cópias entre contratos
 preservam metadados técnicos, mas não transferem direitos de mídia.
 

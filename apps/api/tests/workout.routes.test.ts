@@ -288,6 +288,7 @@ describe('Issue #399 - route protection and contract isolation', () => {
       workoutDayId: 'day-1', exerciseId: 'other-contract-exercise',
     });
     expect(response.status).toBe(404);
+    expect(workoutService.addExercise).not.toHaveBeenCalled();
   });
 
   it('routes a complete weekly snapshot through the atomic save command', async () => {
@@ -845,16 +846,28 @@ describe('#394 A-021: exercise write responses sanitize historical media', () =>
   const input = { workoutDayId: 'day-1', exerciseId: 'exercise-1', section: 'sessao', exerciseOrder: 1 };
 
   it.each([
+    { name: 'system default without rights', curationStatus: 'approved', legacyGrandfathered: false, mediaOrigin: null, mediaLicense: null, result: null },
+    { name: 'noncanonical own origin', curationStatus: 'approved', legacyGrandfathered: false, mediaOrigin: 'Própria ', mediaLicense: null, result: null },
     { name: 'legacy URL', curationStatus: 'approved', legacyGrandfathered: true, mediaOrigin: 'Old', mediaLicense: 'Old', result: null },
     { name: 'missing license', curationStatus: 'approved', legacyGrandfathered: false, mediaOrigin: 'Third party', mediaLicense: null, result: null },
     { name: 'licensed media', curationStatus: 'approved', legacyGrandfathered: false, mediaOrigin: 'Original', mediaLicense: 'License', result: 'https://example.org/video' },
     { name: 'draft owned media', curationStatus: 'draft', legacyGrandfathered: false, mediaOrigin: 'Própria', mediaLicense: null, result: null },
     { name: 'approved owned media', curationStatus: 'approved', legacyGrandfathered: false, mediaOrigin: 'Própria', mediaLicense: null, result: 'https://example.org/video' },
-  ])('filters $name on both PUT endpoints without modifying the service object', async ({ curationStatus, legacyGrandfathered, mediaOrigin, mediaLicense, result }) => {
+  ])('filters $name on POST and both PUT endpoints without modifying the service object', async ({ curationStatus, legacyGrandfathered, mediaOrigin, mediaLicense, result }) => {
     const row = { id: 'row-1', sets: 3, exercise: {
       name: 'Exercise', videoUrl: 'https://example.org/video',
       curationStatus, legacyGrandfathered, mediaOrigin, mediaLicense,
     } };
+    (workoutService.addExercise as jest.Mock).mockResolvedValueOnce(row);
+    const createResponse = await request(app).post('/workout/exercises').send(input);
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.body).toEqual({ ...row, exercise: { ...row.exercise, videoUrl: result } });
+    expect(workoutService.addExercise).toHaveBeenCalledWith(input, 'contract-test');
+    expect(prismaRuntimeClient.exerciseLibrary.findFirst).toHaveBeenCalledWith({
+      where: { id: input.exerciseId, contractId: 'contract-test',
+        curationStatus: 'approved', legacyGrandfathered: false }, select: { id: true },
+    });
+
     (workoutService.replaceDayResistanceExercises as jest.Mock).mockResolvedValueOnce([row]);
     const replaceResponse = await request(app).put('/workout/days/day-1/resistance-exercises')
       .send({ exercises: [input] });

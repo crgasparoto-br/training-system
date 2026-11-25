@@ -8,9 +8,8 @@ import { hasAuthorizedExerciseMedia } from '../library/library-curation.domain.j
 export type ReleasedCatalogRecord = { catalog: unknown } | null | undefined;
 
 const CATALOG_FIELDS = [
-  'name', 'videoUrl', 'category', 'muscleGroup',
+  'name', 'category', 'muscleGroup',
   'loadType', 'movementType', 'countingType', 'notes',
-  'mediaOrigin', 'mediaLicense',
 ] as const;
 
 /** Historical exercise links remain intact; never expose unverifiable third-party videos. */
@@ -71,11 +70,11 @@ export function projectReleasedExerciseCatalog<T extends { name: string }>(
   live: T, captured: ReleasedCatalogRecord,
 ): T {
   const raw = captured?.catalog;
-  // Live catalog labels can be a historical fallback, but later licensing
-  // must never retroactively grant rights to an uncaptured release video.
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return hideUncapturedReleaseVideo(live);
-  const snapshot = raw as Record<string, unknown>;
-  if (typeof snapshot.name !== 'string') return hideUncapturedReleaseVideo(live);
+  // Live labels may be a fallback; media provenance never is. Treat absent
+  // or malformed captures as having no historical evidence of media rights.
+  const snapshot = raw && typeof raw === 'object' && !Array.isArray(raw) &&
+    typeof (raw as Record<string, unknown>).name === 'string'
+    ? raw as Record<string, unknown> : {};
 
   const projected: Record<string, unknown> = { ...live };
   for (const field of CATALOG_FIELDS) {
@@ -83,19 +82,27 @@ export function projectReleasedExerciseCatalog<T extends { name: string }>(
     const value = snapshot[field];
     if (typeof value === 'string' || value === null) projected[field] = value;
   }
-  // Preserve the approval/legacy state from release, not a later live catalog edit.
-  if (typeof snapshot.legacyGrandfathered === 'boolean') {
-    projected.legacyGrandfathered = snapshot.legacyGrandfathered;
+  // Keep the selected response shape. Missing provenance is unknown, not the
+  // current catalog's origin, license, or author. Missing legacy status is
+  // treated conservatively as legacy for this projection only.
+  for (const field of ['mediaOrigin', 'mediaLicense', 'mediaAuthor'] as const) {
+    if (Object.prototype.hasOwnProperty.call(live, field)) {
+      projected[field] = typeof snapshot[field] === 'string' ? snapshot[field] : null;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(live, 'legacyGrandfathered')) {
+    projected.legacyGrandfathered = typeof snapshot.legacyGrandfathered === 'boolean'
+      ? snapshot.legacyGrandfathered : true;
   }
   // The immutable snapshot must declare origin and, for third-party media,
   // license at release time. Later catalog edits cannot authorize old links.
   const authorizedAtRelease = typeof snapshot.videoUrl === 'string' && !!snapshot.videoUrl.trim()
     && hasAuthorizedExerciseMedia(snapshot.mediaOrigin, snapshot.mediaLicense)
     && snapshot.legacyGrandfathered === false;
-  if (!authorizedAtRelease && Object.prototype.hasOwnProperty.call(projected, 'videoUrl')) {
-    projected.videoUrl = null;
+  if (Object.prototype.hasOwnProperty.call(live, 'videoUrl')) {
+    projected.videoUrl = authorizedAtRelease ? snapshot.videoUrl : null;
   }
-  return hideUnverifiedExerciseVideo(projected as T);
+  return projected as T;
 }
 
 export function projectWorkoutDayExerciseCatalog<T>(day: T, released: boolean): T {

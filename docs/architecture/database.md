@@ -295,7 +295,7 @@ apenas a função SQL `issue400_capture_released_exercise_catalog`, usada pelo
 trigger de liberação de treinos. Novos `WorkoutReleasedExerciseSnapshot.catalog`
 congelam, além da URL, os campos `mediaOrigin`, `mediaLicense` e
 `legacyGrandfathered` da liberação. O projetor da API usa a procedência e o
-estado legado registrados no snapshot, não os valores mutáveis do catálogo.
+estado legado registrados no snapshot, não os valores mutáveis do catálogo. Campos de procedência não capturados (inclusive autoria) são nulos quando selecionados; estado legado ausente é tratado conservadoramente como legado na resposta, sem modificar o banco (#579, A-006).
 Não há backfill dos snapshots históricos: vídeos sem origem declarada ou, se forem de terceiros, sem licença ficam ocultos nas respostas, mas a linha histórica permanece íntegra. A migration incremental `20261124193000_issue_579_owned_media_approval` conserva as exigências clínicas e de revisão da constraint `ExerciseLibrary_approved_curated_guard`, dispensando apenas a licença na origem canônica `Própria` sem alterar migrations aplicadas.
 A migração #400 já aplicada e seus checksums não são alterados.
 
