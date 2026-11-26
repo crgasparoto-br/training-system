@@ -5,9 +5,12 @@ import { resolveRiskProfile } from './ci-risk-profile.mjs';
 export const CI_RISK_PROFILES = Object.freeze(['fast', 'standard', 'critical']);
 export const CI_REQUESTED_RISKS = Object.freeze(['auto', ...CI_RISK_PROFILES]);
 
-const POLICY = JSON.parse(
+const CONFIG = JSON.parse(
   readFileSync(new URL('../config/ci-risk-policy.json', import.meta.url), 'utf8')
-).riskPolicy;
+);
+const YOUTUBE_PRIVACY_PATHS = new Set(CONFIG.youtubePrivacyPaths.map(normalizePath));
+const POLICY = { ...CONFIG.riskPolicy,
+  criticalPaths: [...CONFIG.riskPolicy.criticalPaths, ...YOUTUBE_PRIVACY_PATHS] };
 
 function normalizePath(value) {
   return String(value || '').trim().replaceAll('\\', '/').replace(/^\.\//, '').toLowerCase();
@@ -41,7 +44,8 @@ export function classifyRepositoryCi({ requested = 'auto', changedPaths = [] } =
     codeChanged: paths.some(isCodePath),
     webChanged: paths.some((path) => path.startsWith('apps/web/')),
     apiChanged: paths.some((path) => path.startsWith('apps/api/')),
-    databaseRequired: paths.some(isDatabasePath)
+    databaseRequired: paths.some(isDatabasePath),
+    youtubeLiveRequired: paths.some((path) => YOUTUBE_PRIVACY_PATHS.has(path))
   };
 }
 
@@ -68,6 +72,7 @@ function writeGithubOutput(plan) {
     web_changed: plan.webChanged,
     api_changed: plan.apiChanged,
     database_required: plan.databaseRequired,
+    youtube_live_required: plan.youtubeLiveRequired,
     changed_paths_json: JSON.stringify(plan.changedPaths),
     reasons_json: JSON.stringify(plan.reasons)
   };

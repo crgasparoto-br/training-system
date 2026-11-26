@@ -29,6 +29,7 @@ jobs:
       web_changed: ${{ steps.risk.outputs.web_changed }}
       api_changed: ${{ steps.risk.outputs.api_changed }}
       database_required: ${{ steps.risk.outputs.database_required }}
+      youtube_live_required: ${{ steps.risk.outputs.youtube_live_required }}
       reasons_json: ${{ steps.risk.outputs.reasons_json }}
     steps:
       - uses: actions/checkout@v4
@@ -403,6 +404,12 @@ jobs:
         env:
           SETTINGS_PARAMETERS_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: pnpm --filter @corrida/api exec node scripts/visual-audit-settings-parameters.mjs
+      - name: Issue #583 external YouTube playback
+        if: ${{ github.event_name == 'pull_request' && needs.classify.outputs.youtube_live_required == 'true' }}
+        env:
+          ISSUE_583_YOUTUBE_LIVE: '1'
+          VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: pnpm --filter @corrida/web exec vitest run --no-file-parallelism src/pages/Library/youtube-live-browser-evidence.test.js
       - name: Retain issue-399 exact-head evidence
         if: always()
         env:
@@ -448,6 +455,7 @@ jobs:
             artifacts/issue-388/**
             artifacts/issue-391/**
             artifacts/issue-394/**
+            artifacts/issue-583/**
             artifacts/issue-399/**
             artifacts/issue-553/**
             artifacts/issue-400/**

@@ -186,7 +186,20 @@ de reprodução são apresentados pelo player nativo e o link de recuperação
 permanece disponível sem afirmar que um evento de carregamento confirma
 reprodução. Não contornar bloqueio de incorporação nem expor mídia sem direitos.
 
-A evidência Chromium #394 intercepta apenas a resposta externa do player e
-verifica o Referer realmente enviado pelo navegador e o controle negativo sem
-a exceção. Isso comprova a política de requisição, não a disponibilidade
-externa ou a reprodução do vídeo em produção.
+A evidência Chromium #394 usa o HTML de produção, os componentes reais de
+Biblioteca e TLS loopback com certificado efêmero e pin SPKI restrito ao
+certificado do teste. A API é controlada; o navegador emite a requisição HTTPS
+real, e somente a resposta externa do player é interceptada. O teste exige
+origem HTTPS sem caminho, query, cookie ou autorização, além de um controle
+negativo sem a exceção e fallback visível. O certificado do YouTube não é
+dispensado. Essa evidência não comprova reprodução externa.
+
+O gate separado #583 executa o componente real sobre HTTPS, sem interceptação
+de YouTube, com o vídeo público de exemplo da documentação IFrame API.
+Exige resposta HTTP válida, Referer de origem, gesto de reprodução no player
+nativo e avanço efetivo do tempo de vídeo fora de anúncios. Retém
+`artifacts/issue-583/live.json` e captura com o SHA exato. Falha de rede,
+restrição externa ou ausência de prova não é homologação: o teste não passa
+e a PR permanece pendente. O ambiente é representativo em TLS, sem credenciais
+de produção; os cabeçalhos efetivos do deploy devem ser verificados após
+promoção autorizada.

@@ -52,5 +52,16 @@
       "apps/api/tests"
     ]
   },
-  "schemaVersion": 1
+  "schemaVersion": 1,
+  "youtubePrivacyPaths": [
+    "apps/web/src/pages/library/youtubeembed.tsx",
+    "apps/web/src/pages/library/youtubeembed.test.tsx",
+    "apps/web/src/pages/library/exercisemodal.tsx",
+    "apps/web/src/pages/library/issue-394-browser-evidence.test.js",
+    "apps/web/src/pages/library/youtube-browser-tls.mjs",
+    "apps/web/src/pages/library/youtube-live-browser-evidence.test.js",
+    "apps/web/index.html",
+    "apps/web/vercel.json",
+    "vercel.json"
+  ]
 }
