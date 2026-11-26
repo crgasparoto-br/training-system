@@ -74,3 +74,28 @@ export function assertExerciseCanBeApproved(exercise: {
     );
   }
 }
+
+/** Collapse explicitly linked versions only; never infer lineage from names. */
+export function selectCatalogIdentityRows<T extends {
+  id?: string;
+  versionRootId?: string | null;
+  supersededAt?: Date | null;
+  curationStatus?: ExerciseCurationStatus;
+  legacyGrandfathered?: boolean;
+  contentVersion?: number;
+}>(rows: T[], preferCandidate: boolean): T[] {
+  const rank = (row: T) => {
+    if (row.curationStatus === 'draft' || row.curationStatus === 'in_review') return preferCandidate ? 4 : 3;
+    if (row.curationStatus === 'approved' && !row.legacyGrandfathered) return preferCandidate ? 3 : 4;
+    return row.curationStatus === 'approved' ? 2 : 1;
+  };
+  const selected = new Map<string | symbol, T>();
+  for (const row of rows) {
+    if (row.supersededAt) continue;
+    const key = row.versionRootId ?? row.id ?? Symbol();
+    const previous = selected.get(key);
+    if (!previous || rank(row) > rank(previous) ||
+      (rank(row) === rank(previous) && (row.contentVersion ?? 1) > (previous.contentVersion ?? 1))) selected.set(key, row);
+  }
+  return [...selected.values()];
+}

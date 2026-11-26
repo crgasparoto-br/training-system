@@ -1851,6 +1851,10 @@ model ExerciseLibrary {
   curationStatus   ExerciseCurationStatus  @default(draft)
   version          Int                     @default(1)
   contentVersion   Int                     @default(1)
+  versionRootId    String?
+  supersededAt     DateTime?
+  versionRoot      ExerciseLibrary?        @relation("ExerciseVersionFamily", fields: [versionRootId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  versionChildren  ExerciseLibrary[]       @relation("ExerciseVersionFamily")
   systemDefault    Boolean                 @default(false)
   createdByUserId  String?
   reviewedByUserId String?
@@ -1870,6 +1874,8 @@ model ExerciseLibrary {
   @@index([contractId, name])
   @@index([contractId, category])
   @@index([contractId, curationStatus])
+  @@index([contractId, versionRootId])
+  @@index([versionRootId])
 }
 
 model ExerciseLibraryRevision {

@@ -355,6 +355,22 @@ router.post('/exercises', catalogAdministrationAccess, async (req, res) => {
   }
 });
 
+/** Create a candidate under the same explicit identity. */
+router.post('/exercises/:id/versions', catalogAdministrationAccess, async (req, res) => {
+  try {
+    assertLibraryProfessorRequest(req);
+    if (!requireCatalogManager(req, res)) return;
+    const params = parseExerciseIdParams(req);
+    const body = parseUpdateExerciseBody(req);
+    if (!params.success || !body.success) return res.status(400).json({ message: 'Payload ou versão inválida.' });
+    const { expectedVersion, ...data } = body.data;
+    const exercise = await libraryService.createExerciseVersion(req.user.contractId, params.data.id, data, expectedVersion, req.user.userId);
+    return res.status(201).json(exercise);
+  } catch (error) {
+    return sendLibraryError(res, error, 'Erro ao criar versão do exercício.');
+  }
+});
+
 /**
  * PUT /api/library/exercises/:id
  * Atualizar exercício
