@@ -4,7 +4,7 @@
 // competing browsers. The API/authorization invariants are tested separately.
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { accessSync, constants, mkdirSync, writeFileSync } from 'node:fs';
+import { accessSync, constants, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -37,12 +37,14 @@ function exercise(id, name, status, overrides = {}) {
 }
 
 const seed = () => [
-  exercise('approved-394', 'Agachamento Curado', 'approved', { reviewedByUserId: 'master-394' }),
+  exercise('approved-394', 'Agachamento Curado', 'approved', { reviewedByUserId: 'master-394', videoUrl: 'https://youtu.be/M7lc1UVf-VE', mediaOrigin: 'Própria' }),
   exercise('draft-394', 'Remada Rascunho', 'draft'),
   exercise('inactive-394', 'Exercício Histórico Desativado', 'inactive'),
 ];
 
-const harness = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+const referrerMeta = readFileSync(path.join(process.cwd(), 'index.html'), 'utf8')
+  .match(/<meta\s+name="referrer"[^>]*>/)?.[0] ?? '';
+const harness = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">${referrerMeta}<meta name="viewport" content="width=device-width, initial-scale=1"></head>
 <body><main id="root"></main><script type="module">
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -174,6 +176,17 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
         const page = await browser.newPage();
         page.on('pageerror', error => browserErrors.push(`${viewport.width}: ${error.message}`));
         page.on('dialog', dialog => dialog.accept());
+        // Control external responses, not Chromium's request construction.
+        const embedRequests = [];
+        await page.setRequestInterception(true);
+        page.on('request', request => {
+          if (request.url().startsWith('https://www.youtube.com/embed/M7lc1UVf-VE')) {
+            embedRequests.push({ url: request.url(), referer: request.headers().referer ?? null });
+            void request.respond({ status: 200, contentType: 'text/html', body: '<p>Player indisponível (controle)</p>' });
+          } else {
+            void request.continue();
+          }
+        });
         await page.setViewport(viewport);
         const shot = async (phase) => {
           const prefix = `${viewport.width}-${phase}`;
@@ -215,7 +228,24 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
         await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 3);
         expect(await rows()).toEqual(expect.arrayContaining([expect.stringContaining('Remada Rascunho')]));
         const captures = [await shot('master-list')];
+        expect(await page.$eval('meta[name="referrer"]', node => node.content)).toBe('no-referrer');
         await page.click('button[title="Editar"]'); // first row: edit an approved exercise, then Escape cancels
+        await page.waitForSelector('iframe[title="YouTube video player"]');
+        await page.waitForNetworkIdle({ idleTime: 250 });
+        const actual = embedRequests.find(entry => entry.url === 'https://www.youtube.com/embed/M7lc1UVf-VE');
+        expect(actual?.referer).toBe(webOrigin + '/');
+        expect(await page.$eval('a[href="https://www.youtube.com/watch?v=M7lc1UVf-VE"]', link => link.textContent)).toContain('abra no YouTube');
+        // A sibling iframe without the exception must still suppress Referer.
+        const negativeRequest = page.waitForRequest(request => request.url().endsWith('?referrer-control=1'));
+        await page.evaluate(() => {
+          const frame = document.createElement('iframe');
+          frame.hidden = true;
+          frame.src = 'https://www.youtube.com/embed/M7lc1UVf-VE?referrer-control=1';
+          document.body.appendChild(frame);
+        });
+        const negative = await negativeRequest;
+        expect(negative.headers().referer ?? null).toBeNull();
+        captures.push(await shot('master-youtube-fallback'));
         await page.waitForSelector('#library-exercise-name');
         await page.keyboard.press('Escape');
         await page.waitForFunction(() => !document.querySelector('#library-exercise-name'));
@@ -270,7 +300,7 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
           .find(button => button.textContent?.includes('Adicionar selecionados'))?.click());
         await page.waitForFunction(() => document.querySelector('#selected-exercises')?.textContent === 'Agachamento Curado');
         captures.push(await shot('professor-selected'));
-        observations.push({ viewport, captures, passed: true });
+        observations.push({ viewport, captures, embedRequests, passed: true });
         await page.close();
       }
       expect(requests.filter(entry => entry.role === 'professor'
