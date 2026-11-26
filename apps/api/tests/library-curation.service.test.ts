@@ -10,7 +10,7 @@ jest.mock('../src/common/prisma-runtime-client', () => {
   const professor = { findMany: jest.fn() };
   const workoutExercise = { count: jest.fn() };
   const aluno = { findFirst: jest.fn() };
-  const alunoExerciseProgress = { findUnique: jest.fn(), findMany: jest.fn() };
+  const alunoExerciseProgress = { findUnique: jest.fn(), findMany: jest.fn(), upsert: jest.fn() };
   const $queryRaw = jest.fn();
   return {
     prismaRuntimeClient: {
@@ -349,7 +349,7 @@ describe('#394 A-394-017: operational progress never publishes unverified media'
   const historicalExercise = {
     id: 'legacy-394', name: 'Movimento histórico', contractId: 'tenant-394',
     videoUrl: 'https://third-party.invalid/legacy-video', mediaOrigin: null,
-    mediaLicense: null, legacyGrandfathered: true,
+    mediaLicense: null, legacyGrandfathered: true, curationStatus: 'approved',
   };
   const licensedExercise = {
     ...historicalExercise, id: 'licensed-394', name: 'Movimento curado',
@@ -384,17 +384,43 @@ describe('#394 A-394-017: operational progress never publishes unverified media'
     db.alunoExerciseProgress.findMany.mockResolvedValue([
       { id: 'p-unsafe', exercise: { ...licensedExercise, mediaLicense: null } },
       { id: 'p-licensed', exercise: licensedExercise },
+      { id: 'p-owned', exercise: { ...licensedExercise, id: 'owned-394',
+        mediaOrigin: 'Própria', mediaLicense: null } },
       { id: 'p-legacy', exercise: { ...licensedExercise, legacyGrandfathered: true } },
     ]);
     const result = await libraryService.listAlunoProgress('tenant-394', 'student-394');
     expect(result.map(row => row.exercise.videoUrl)).toEqual([
-      null, 'https://own.invalid/licensed-video', null,
+      null, 'https://own.invalid/licensed-video',
+      'https://own.invalid/licensed-video', null,
     ]);
     expect(db.alunoExerciseProgress.findMany).toHaveBeenCalledWith({
       where: { alunoId: 'student-394', exercise: { contractId: 'tenant-394' } },
       include: { exercise: true },
       orderBy: { lastUpdated: 'desc' },
     });
+  });
+
+  it('#579 A-002 preserves progress while hiding live owned media until approval', async () => {
+    const exercise = {
+      ...licensedExercise, mediaOrigin: 'Própria', mediaLicense: null, curationStatus: 'draft',
+    };
+    const progress = { alunoId: 'student-394', exerciseId: exercise.id, lastLoad: 30 };
+    db.exerciseLibrary.findFirst.mockResolvedValue(exercise);
+    db.alunoExerciseProgress.upsert.mockResolvedValue(progress);
+    db.alunoExerciseProgress.findUnique.mockResolvedValue({ ...progress, exercise });
+    db.alunoExerciseProgress.findMany.mockResolvedValue([{ ...progress, exercise }]);
+
+    expect(await libraryService.updateAlunoProgress('tenant-394', progress.alunoId, exercise.id, { lastLoad: 30 }))
+      .toEqual(progress);
+    for (const status of ['draft', 'in_review', 'inactive', 'approved']) {
+      exercise.curationStatus = status;
+      const expectedVideo = status === 'approved' ? exercise.videoUrl : null;
+      expect(await libraryService.getAlunoProgress('tenant-394', progress.alunoId, exercise.id))
+        .toMatchObject({ lastLoad: 30, exercise: { videoUrl: expectedVideo } });
+      expect(await libraryService.listAlunoProgress('tenant-394', progress.alunoId))
+        .toMatchObject([{ lastLoad: 30, exercise: { videoUrl: expectedVideo } }]);
+    }
+    expect(exercise.videoUrl).toBe('https://own.invalid/licensed-video');
   });
 
   it('does not load progress for an absent or foreign student', async () => {

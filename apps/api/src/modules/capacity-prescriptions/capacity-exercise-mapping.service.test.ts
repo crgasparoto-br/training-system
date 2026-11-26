@@ -127,6 +127,32 @@ describe('capacity exercise operational mapping metadata', () => {
     expect(readPersistedExerciseMapping({ operationalExerciseMapping: legacy })?.exerciseSnapshot.videoUrl).toBe(legacyUrl);
   });
 
+  it.each([
+    { label: 'absent', marker: {}, license: null, allowed: false },
+    { label: 'null', marker: { legacyGrandfathered: null }, license: null, allowed: false },
+    { label: 'invalid', marker: { legacyGrandfathered: 'true' }, license: null, allowed: false },
+    { label: 'legacy', marker: { legacyGrandfathered: true }, license: 'Archive', allowed: false },
+    { label: 'non-legacy', marker: { legacyGrandfathered: false }, license: null, allowed: true },
+    { label: 'licensed old snapshot', marker: {}, license: 'Archive', allowed: true },
+  ])('#579 A-008 resolves historical mapping media without borrowing live rights: $label', async ({ marker, license, allowed }) => {
+    const url = 'https://example.org/historical-mapping';
+    const snapshot = { ...persisted.exerciseSnapshot, videoUrl: url, mediaOrigin: 'Própria', mediaLicense: license, ...marker };
+    const metadata = { operationalExerciseMapping: { ...persisted, exerciseSnapshot: snapshot } };
+    const before = JSON.stringify(metadata);
+    const service = createCapacityExerciseMappingService({
+      capacityTechnicalCatalogItem: { findFirst: jest.fn().mockResolvedValue({
+        id: 'technical-1', code: 'SQUAT', name: 'Agachamento técnico', version: 4, metadata,
+      }) },
+      exerciseLibrary: { findFirst: jest.fn().mockResolvedValue({
+        curationStatus: 'approved', legacyGrandfathered: false, mediaOrigin: 'Própria', mediaLicense: 'Later',
+        videoUrl: 'https://example.org/later', updatedAt: new Date('2026-08-11T15:30:00.000Z'),
+      }) },
+    } as never);
+    const result = await service.resolveMapping('contract-a', 'technical-1');
+    expect(result?.operationalExerciseSnapshot).toEqual({ ...snapshot, videoUrl: allowed ? url : null });
+    expect(JSON.stringify(metadata)).toBe(before);
+  });
+
   it('#394 A-394-018: writes media provenance into new mapping snapshots', async () => {
     const update = jest.fn().mockResolvedValue({});
     const transactionClient = {

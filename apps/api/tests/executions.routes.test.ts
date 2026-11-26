@@ -1,6 +1,12 @@
 import express from 'express';
 
 const request = require('supertest');
+const mockExecutionFindMany = jest.fn();
+
+jest.mock('@prisma/client', () => ({
+  ...jest.requireActual('@prisma/client'),
+  PrismaClient: jest.fn(() => ({ workoutExecution: { findMany: mockExecutionFindMany } })),
+}));
 
 jest.mock('../src/modules/auth/auth.middleware', () => ({
   authMiddleware: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
@@ -97,22 +103,86 @@ describe('#394 A-021: student execution HTTP response media redaction', () => {
   const app = express();
   app.use(express.json());
   app.use('/executions', router);
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    const actual = jest.requireActual('../src/modules/workout/workout.service').workoutService;
+    workoutService.getExecutionsByAluno.mockImplementation(actual.getExecutionsByAluno);
+  });
 
   it.each([
-    { label: 'legacy reference', legacyGrandfathered: true, mediaOrigin: null, mediaLicense: null, result: null },
-    { label: 'missing rights', legacyGrandfathered: false, mediaOrigin: 'Third party', mediaLicense: null, result: null },
-    { label: 'licensed author', legacyGrandfathered: false, mediaOrigin: 'Original', mediaLicense: 'License', result: 'https://example.org/live' },
-  ])('protects $label without changing the service record', async ({ legacyGrandfathered, mediaOrigin, mediaLicense, result }) => {
+    { label: 'legacy reference', legacyGrandfathered: true, curationStatus: 'approved', mediaOrigin: null, mediaLicense: null, result: null },
+    { label: 'missing rights', legacyGrandfathered: false, curationStatus: 'approved', mediaOrigin: 'Third party', mediaLicense: null, result: null },
+    { label: 'licensed author', legacyGrandfathered: false, curationStatus: 'approved', mediaOrigin: 'Original', mediaLicense: 'License', result: 'https://example.org/live' },
+  ])('protects $label without changing the service record', async ({ legacyGrandfathered, curationStatus, mediaOrigin, mediaLicense, result }) => {
     const originals = [{ id: 'execution-1', setsCompleted: 4, workoutExercise: {
       id: 'row-1', exercise: { name: 'Exercise', videoUrl: 'https://example.org/live',
-        legacyGrandfathered, mediaOrigin, mediaLicense },
+        legacyGrandfathered, curationStatus, mediaOrigin, mediaLicense },
+      releasedCatalog: null,
+      workoutDay: { template: { released: false } },
     } }];
-    workoutService.getExecutionsByAluno.mockResolvedValueOnce(originals);
+    mockExecutionFindMany.mockResolvedValueOnce(originals);
     const response = await request(app).get('/executions/aluno?startDate=2026-10-06&endDate=2026-10-07');
     expect(response.status).toBe(200);
     expect(response.body[0].workoutExercise.exercise.videoUrl).toBe(result);
     expect(response.body[0].setsCompleted).toBe(4);
     expect(originals[0].workoutExercise.exercise.videoUrl).toBe('https://example.org/live');
+    expect(response.body[0].workoutExercise).not.toHaveProperty('releasedCatalog');
+  });
+
+  it.each([
+    { label: 'absent', releasedCatalog: null, name: 'Later edit' },
+    { label: 'pre-provenance', releasedCatalog: { catalog: { name: 'Released', videoUrl: 'https://example.org/old' } }, name: 'Released' },
+  ])('#579 A-006 never returns later media provenance for $label snapshots', async ({ releasedCatalog, name }) => {
+    const original = { id: 'execution-579', repsCompleted: 8, workoutExercise: {
+      id: 'exercise-579',
+      exercise: { name: 'Later edit', videoUrl: 'https://example.org/later', curationStatus: 'approved',
+        mediaOrigin: 'Própria', mediaLicense: 'Later license', mediaAuthor: 'Later author', legacyGrandfathered: false },
+      releasedCatalog, workoutDay: { template: { released: true } },
+    } };
+    const before = JSON.stringify(original);
+    mockExecutionFindMany.mockResolvedValueOnce([original]);
+    const response = await request(app).get('/executions/aluno?startDate=2026-10-06&endDate=2026-10-07');
+    expect(response.status).toBe(200);
+    expect(response.body[0]).toMatchObject({ repsCompleted: 8, workoutExercise: {
+      exercise: { name, videoUrl: null, mediaOrigin: null, mediaLicense: null, mediaAuthor: null, legacyGrandfathered: true },
+    } });
+    expect(response.body[0].workoutExercise).not.toHaveProperty('releasedCatalog');
+    expect(JSON.stringify(original)).toBe(before);
+  });
+
+  it.each([
+    ['draft', 'Própria', null, true],
+    ['in_review', 'Própria', null, true],
+    ['inactive', 'Própria', null, true],
+    ['approved', 'Própria', null, true],
+    ['inactive', 'Licenciada', 'Autorização', true],
+    ['approved', 'Licenciada', null, false],
+    ['approved', null, null, false],
+    ['approved', 'Própria ', null, false],
+  ])('#579 A-003 keeps release-time rights independent of live status %s and origin %s', async (
+    curationStatus, mediaOrigin, mediaLicense, authorized,
+  ) => {
+    const liveUrl = 'https://example.org/later-video';
+    const releasedUrl = 'https://example.org/released-video';
+    const original = { id: 'execution-579', repsCompleted: 8, workoutExercise: {
+      id: 'exercise-579',
+      exercise: { name: 'Later edit', videoUrl: liveUrl, curationStatus,
+        mediaOrigin: 'Própria', mediaLicense: null, legacyGrandfathered: false },
+      releasedCatalog: { catalog: { name: 'Released exercise', videoUrl: releasedUrl,
+        mediaOrigin, mediaLicense, legacyGrandfathered: false } },
+      workoutDay: { template: { released: true } },
+    } };
+    mockExecutionFindMany.mockResolvedValueOnce([original]);
+    const response = await request(app).get('/executions/aluno?startDate=2026-10-06&endDate=2026-10-07');
+    expect(response.status).toBe(200);
+    expect(response.body[0]).toMatchObject({ repsCompleted: 8, workoutExercise: {
+      exercise: { name: 'Released exercise', videoUrl: authorized ? releasedUrl : null },
+    } });
+    expect(response.body[0].workoutExercise).not.toHaveProperty('releasedCatalog');
+    expect(original.workoutExercise.exercise.videoUrl).toBe(liveUrl);
+    expect(original.workoutExercise.releasedCatalog.catalog.videoUrl).toBe(releasedUrl);
+    expect(mockExecutionFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ alunoId: 'student-1' }),
+    }));
   });
 });

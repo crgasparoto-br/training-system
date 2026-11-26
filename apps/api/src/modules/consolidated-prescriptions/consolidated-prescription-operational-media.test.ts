@@ -23,6 +23,8 @@ describe('#394 A-394-018: historical operational video redaction at the API boun
   it.each([
     ['no origin', { mediaLicense: 'owned' }],
     ['no license', { mediaOrigin: 'company_production' }],
+    ['noncanonical owned origin', { mediaOrigin: ' Própria ', legacyGrandfathered: false }],
+    ['noncanonical Unicode origin', { mediaOrigin: 'Própria\u00a0', legacyGrandfathered: false }],
     ['empty origin', { mediaOrigin: '  ', mediaLicense: 'owned' }],
     ['legacy grandfathered', { mediaOrigin: 'company_production', mediaLicense: 'owned', legacyGrandfathered: true }],
   ])('hides %s even if an outdated URL exists', (_, fields) => {
@@ -45,6 +47,47 @@ describe('#394 A-394-018: historical operational video redaction at the API boun
     });
     expect(result.operationalExerciseSnapshot.videoUrl).toBe(licensedUrl);
     expect(result.originalExerciseSnapshot.videoUrl).toBeNull();
+  });
+
+  it('#579 exposes own media recorded in that snapshot without third-party license', () => {
+    const owned = {
+      name: 'Vídeo próprio', videoUrl: licensedUrl,
+      mediaOrigin: 'Própria', mediaLicense: null, legacyGrandfathered: false,
+    };
+    const stored = {
+      operationalExerciseSnapshot: owned,
+      originalExerciseSnapshot: {
+        name: 'Origem de terceiros', videoUrl: unsafeUrl,
+        mediaOrigin: 'Licenciada', mediaLicense: null, legacyGrandfathered: false,
+      },
+    };
+    const result = sanitizeConsolidatedOperationalMedia(stored);
+    expect(result.operationalExerciseSnapshot.videoUrl).toBe(licensedUrl);
+    expect(result.originalExerciseSnapshot.videoUrl).toBeNull();
+    expect(stored.originalExerciseSnapshot.videoUrl).toBe(unsafeUrl);
+  });
+
+  it.each([
+    { label: 'absent', marker: {}, allowed: false },
+    { label: 'null', marker: { legacyGrandfathered: null }, allowed: false },
+    { label: 'string', marker: { legacyGrandfathered: 'false' }, allowed: false },
+    { label: 'numeric', marker: { legacyGrandfathered: 0 }, allowed: false },
+    { label: 'legacy', marker: { legacyGrandfathered: true }, allowed: false },
+    { label: 'non-legacy', marker: { legacyGrandfathered: false }, allowed: true },
+  ])('#579 A-008 applies the own-media waiver only with a boolean false marker: $label', ({ marker, allowed }) => {
+    const snapshot = { name: 'Histórico', videoUrl: unsafeUrl, mediaOrigin: 'Própria', mediaLicense: null, ...marker };
+    const stored = { versions: [{ context: {
+      exerciseSnapshot: snapshot,
+      operationalExerciseSnapshot: snapshot,
+      originalExerciseSnapshot: snapshot,
+      substituteExerciseSnapshot: snapshot,
+    } }] };
+    const before = JSON.stringify(stored);
+    const result = sanitizeConsolidatedOperationalMedia(stored);
+    for (const projected of Object.values(result.versions[0].context)) {
+      expect(projected).toEqual({ ...snapshot, videoUrl: allowed ? unsafeUrl : null });
+    }
+    expect(JSON.stringify(stored)).toBe(before);
   });
 
   it('sanitizes all nested substitution history without changing stored data or unrelated payloads', () => {

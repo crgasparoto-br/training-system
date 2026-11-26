@@ -281,16 +281,31 @@ e edição aceita apenas `resisted`, `flexibility`, `cyclic` ou `balance` (HTTP 
 para valores arbitrários); a aprovação também confere o enum canônico.
 Registros legados continuam consultáveis na visão administrativa e no histórico
 dos treinos, mas são excluídos da seleção, cópia, substituição e liberação
-operacional até a aprovação profissional explícita. Vídeos sem origem/licença
-comprovadas não são reproduzidos pelas projeções históricas nem retornados nos
-campos de mídia dos endpoints de progresso do aluno. A projeção dos registros
+operacional até a aprovação profissional explícita. Vídeos sem origem declarada ou, quando licenciados/de terceiros, sem
+autorização registrada não são reproduzidos pelas projeções históricas nem retornados nos
+campos de mídia dos endpoints de progresso do aluno. A origem canônica `Própria`
+dispensa licença adicional somente quando o valor bruto é exatamente `Própria`, após curadoria explícita (#579). Origens com espaços adicionais não são convertidas; exigem autorização registrada. As relações vivas (inclusive progresso) só divulgam vídeo quando `curationStatus=approved` e `legacyGrandfathered=false`; snapshots de liberação usam exclusivamente a procedência capturada. A projeção dos registros
 de progresso remove apenas o link operacional não verificado e preserva os
 valores e o catálogo originais no banco; a listagem restringe também a relação
 do exercício ao mesmo contrato. Os links originais continuam persistidos.
-Novas instalações do catálogo canônico são aprovadas automaticamente **pelo sistema**, com `systemDefault=true`, sem inventar um profissional revisor. Registros anteriormente instalados pelo sistema e sem alteração humana são promovidos com procedência auditável; exercícios manuais e copiados entre contratos continuam como rascunhos. URLs canônicas dos padrões podem ser consultadas pelo master, mas são omitidas em respostas operacionais enquanto não houver origem e licença verificadas. Cópias entre contratos não transferem automaticamente URLs/licenças de mídia.
+Novas instalações do catálogo canônico são aprovadas automaticamente **pelo sistema**, com `systemDefault=true`, sem inventar um profissional revisor. Registros anteriormente instalados pelo sistema e sem alteração humana são promovidos com procedência auditável; exercícios manuais e copiados entre contratos continuam como rascunhos. URLs canônicas dos padrões podem ser consultadas pelo master, mas são omitidas em respostas operacionais enquanto não houver origem declarada e, quando a mídia não for `Própria`, licença verificada. Cópias entre contratos não transferem automaticamente URLs/licenças de mídia.
 
 A-021: GET /executions/aluno usa o catálogo imutável de liberação e omite
 releasedCatalog interno da resposta; URLs de mídia sem direitos documentados
 na liberação são ocultas mesmo que o catálogo seja licenciado mais tarde.
-PUT /workout/days/:id/resistance-exercises e PUT /workout/exercises/:id
-sanitizam vídeo de registros legados antes de responder, sem alterar o banco.
+A projeção é feita uma única vez no serviço de histórico; a rota não reaplica
+status vivo a snapshots de liberação. Vídeos autorizados na liberação continuam
+visíveis após edição, revisão ou inativação do exercício (#579, A-003).
+GET /consolidated-prescriptions/alunos/:alunoId/operational-exercises aplica a
+mesma proteção de mídia viva antes de responder, inclusive para padrões do sistema
+sem procedência; os campos internos de curadoria não ampliam o contrato da resposta (#579, A-004).
+POST /workout/exercises, PUT /workout/days/:id/resistance-exercises e
+PUT /workout/exercises/:id aplicam o mesmo filtro de mídia viva antes de responder,
+sem alterar o banco. Em leituras liberadas, origem, licença e autoria não capturadas
+são retornadas como `null` quando selecionadas; estado legado ausente é tratado
+conservadoramente como legado apenas na projeção (#579, A-005/A-006).
+Nos snapshots operacionais de mapeamento, preparação e substituição, a dispensa
+de licença exige `legacyGrandfathered=false` booleano no próprio registro.
+A ausência ou invalidade do marcador não concede direitos novos; a origem e
+a licença já registradas em snapshots antigos permanecem válidas quando não
+houver marcador explicitamente legado (`true`). Não se regrava o histórico (#579, A-008).

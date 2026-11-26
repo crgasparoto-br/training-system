@@ -23,6 +23,24 @@ const RESERVED_ORIGINS = [
   'consolidated_operational_projection_v1',
 ] as const;
 const capacities = ['resisted', 'flexibility', 'cyclic', 'balance'] as const;
+const historicalMediaCases = [
+  { label: 'absent', fields: {}, allowed: false },
+  { label: 'null', fields: { legacyGrandfathered: null }, allowed: false },
+  { label: 'invalid', fields: { legacyGrandfathered: 'false' }, allowed: false },
+  { label: 'legacy', fields: { legacyGrandfathered: true }, allowed: false },
+  { label: 'non-legacy', fields: { legacyGrandfathered: false }, allowed: true },
+  { label: 'licensed-history', fields: { mediaOrigin: 'Licenciada', mediaLicense: 'Archive' }, allowed: true },
+] as const;
+
+function historicalMediaSnapshot(testCase: typeof historicalMediaCases[number]) {
+  return {
+    id: `library-${testCase.label}`, name: `Histórico ${testCase.label}`,
+    videoUrl: `https://example.org/579/${testCase.label}/video`,
+    mediaOrigin: 'Própria', mediaLicense: null, ...testCase.fields,
+    loadType: null, movementType: null, countingType: null, category: 'resisted',
+    muscleGroup: null, notes: null, updatedAt: '2026-08-01T10:00:00.000Z',
+  };
+}
 
 function tokenFor(user: { id: string; email: string; type: UserType }) {
   return jwt.sign(
@@ -305,6 +323,53 @@ describeDatabase('consolidated operational reserved-origin normalization HTTP co
     }
     const stored = await prisma.consolidatedPrescriptionDataRef.findUniqueOrThrow({ where: { id: ref.id } });
     expect((stored.context as Record<string, any>).originalExerciseSnapshot.videoUrl).toBe(legacyUrl);
+  });
+
+  it('#579 A-008: HTTP current, assemblies, history and preview enforce captured non-legacy proof without rewriting JSON', async () => {
+    const fixture = await createContext();
+    const professor = await prisma.professor.findFirstOrThrow({ where: { contractId } });
+    const technicalIds = historicalMediaCases.map(testCase => `technical-579-${testCase.label}`);
+    const snapshots = historicalMediaCases.map(historicalMediaSnapshot);
+    await prisma.capacityTechnicalCatalogItem.createMany({ data: snapshots.map((snapshot, index) => ({
+      id: technicalIds[index], contractId, category: 'exercise' as const, code: `MEDIA579-${index}`,
+      name: snapshot.name, createdByProfessorId: professor.id,
+      metadata: { operationalExerciseMapping: {
+        exerciseLibraryId: snapshot.id, exerciseSnapshot: snapshot, mappingRevision: 1,
+        mappedAt: snapshot.updatedAt, mappedByProfessorId: professor.id, origin: 'capacity_technical_catalog',
+      } },
+    })) });
+    await prisma.capacityPrescriptionVersion.update({
+      where: { id: fixture.capacityBlocks[0].capacityPrescriptionVersionId },
+      data: { parameters: { type: 'resisted', resisted: { exerciseTechnicalCatalogItemIds: technicalIds } } },
+    });
+    const endpoint = '/consolidated-prescriptions/alunos/' + alunoId;
+    await request(app).post(endpoint).set('Authorization', 'Bearer ' + fixture.token)
+      .send({ capacityBlocks: fixture.capacityBlocks, professorJustification: 'Histórico de mídia própria.' }).expect(201);
+    const version = await prisma.consolidatedPrescriptionVersion.findFirstOrThrow({
+      where: { contractId, alunoId }, select: { id: true },
+    });
+    await prisma.consolidatedPrescriptionDataRef.createMany({ data: snapshots.map((snapshot, index) => ({
+      assemblyVersionId: version.id, role: 'manual_observation' as const, sourceType: 'manual_observation' as const,
+      sourceId: technicalIds[index], origin: 'consolidated_exercise_substitution_v1',
+      context: { kind: 'exercise_substitution_v1', originalExerciseSnapshot: snapshot, substituteExerciseSnapshot: snapshot },
+    })) });
+    for (const path of [endpoint, endpoint + '/assemblies', endpoint + '/history', endpoint + '/operational-preview']) {
+      const response = await request(app).get(path).set('Authorization', 'Bearer ' + fixture.token).expect(200);
+      const json = JSON.stringify(response.body);
+      for (const [index, snapshot] of snapshots.entries()) {
+        expect(json).toContain(snapshot.name);
+        if (historicalMediaCases[index].allowed) expect(json).toContain(snapshot.videoUrl);
+        else expect(json).not.toContain(snapshot.videoUrl);
+      }
+    }
+    for (const [index, snapshot] of snapshots.entries()) {
+      const technical = await prisma.capacityTechnicalCatalogItem.findUniqueOrThrow({ where: { id: technicalIds[index] } });
+      expect((technical.metadata as Record<string, any>).operationalExerciseMapping.exerciseSnapshot).toEqual(snapshot);
+      const ref = await prisma.consolidatedPrescriptionDataRef.findFirstOrThrow({
+        where: { assemblyVersionId: version.id, sourceId: technicalIds[index] },
+      });
+      expect(ref.context).toMatchObject({ originalExerciseSnapshot: snapshot, substituteExerciseSnapshot: snapshot });
+    }
   });
 
   it('#394 A-394-018: GET operational-preview keeps historic identity without exposing an unlicensed mapping URL', async () => {
