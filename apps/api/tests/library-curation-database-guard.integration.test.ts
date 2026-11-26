@@ -40,6 +40,42 @@ describeDatabase('#394 A-394-011: PostgreSQL approval guard is NULL-safe', () =>
     lastCurationAction: 'approve',
   });
 
+  it('#582 preserves the active publication, rejects unrelated duplicates and atomically switches versions', async () => {
+    const root = await prisma.exerciseLibrary.create({ data: approvedData(contractId!, 'Mobilidade de Quadril - Iliopsoas') });
+    const candidateData = {
+      ...approvedData(contractId!, root.name), versionRootId: root.id,
+      curationStatus: 'draft' as const, reviewedAt: null, reviewedByUserId: null,
+      createdByUserId: 'reviewer-394', lastCurationAction: 'create_version',
+    };
+    const draft = await prisma.exerciseLibrary.create({ data: candidateData });
+    expect(draft.contentVersion).toBe(root.contentVersion);
+    expect(await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: root.id } })).toMatchObject({ curationStatus: 'approved' });
+    await expect(prisma.exerciseLibrary.create({ data: candidateData })).rejects.toThrow();
+    await expect(prisma.exerciseLibrary.create({ data: { contractId: contractId!, name: root.name } })).rejects.toThrow();
+    await expect(prisma.exerciseLibrary.update({ where: { id: draft.id }, data: { name: 'Outra identidade' } })).rejects.toThrow();
+    const edited = await prisma.exerciseLibrary.update({ where: { id: draft.id }, data: { notes: 'Revisão editorial' } });
+    expect(edited.contentVersion).toBe(root.contentVersion + 1);
+    const submitted = await prisma.exerciseLibrary.update({ where: { id: draft.id }, data: { curationStatus: 'in_review', lastCurationAction: 'submit' } });
+    expect(submitted.contentVersion).toBe(edited.contentVersion);
+    await expect(prisma.exerciseLibrary.update({ where: { id: draft.id }, data: {
+      curationStatus: 'approved', lastCurationAction: 'approve', reviewedByUserId: 'reviewer-394', reviewedAt: new Date(),
+    } })).rejects.toThrow();
+    await prisma.$transaction(async tx => {
+      await tx.exerciseLibrary.update({ where: { id: root.id }, data: {
+        curationStatus: 'inactive', supersededAt: new Date(), lastCurationAction: 'supersede',
+      } });
+      await tx.exerciseLibrary.update({ where: { id: draft.id }, data: {
+        curationStatus: 'approved', lastCurationAction: 'approve', reviewedByUserId: 'reviewer-394', reviewedAt: new Date(),
+      } });
+    });
+    const previous = await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: root.id } });
+    expect(previous).toMatchObject({ curationStatus: 'inactive', notes: root.notes, contentVersion: root.contentVersion });
+    expect(previous.supersededAt).not.toBeNull();
+    expect(await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: draft.id } }))
+      .toMatchObject({ curationStatus: 'approved', contentVersion: edited.contentVersion, versionRootId: root.id });
+    await expect(prisma.exerciseLibrary.update({ where: { id: root.id }, data: { notes: 'Não pode' } })).rejects.toThrow();
+  });
+
   it.each(['capacity', 'lastCurationAction'] as const)(
     'rejects direct SQL removal of mandatory %s from a previously approved exercise',
     async (column) => {

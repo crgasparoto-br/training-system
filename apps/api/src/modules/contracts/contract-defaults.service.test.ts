@@ -176,6 +176,8 @@ describe('installContractDefaults', () => {
         curationStatus: true,
         legacyGrandfathered: true,
         systemDefault: true,
+        versionRootId: true, supersededAt: true,
+        versionChildren: { select: { id: true }, take: 1 },
         videoUrl: true,
         loadType: true,
         movementType: true,
@@ -409,6 +411,7 @@ describe('installContractDefaults', () => {
     expect(fake.writes.exerciseUpdateMany).toHaveBeenCalledWith({
       where: {
         contractId, name: canonical!.name, workoutExercises: { none: {} },
+        versionRootId: null, supersededAt: null, versionChildren: { none: {} },
         OR: [
           { systemDefault: true },
           { NOT: { curationStatus: 'approved', legacyGrandfathered: false } },
@@ -519,6 +522,7 @@ describe('installContractDefaults', () => {
     expect(fake.writes.exerciseUpdateMany).toHaveBeenCalledWith({
       where: {
         contractId, name: corruptedName, workoutExercises: { none: {} },
+        versionRootId: null, supersededAt: null, versionChildren: { none: {} },
         OR: [
           { systemDefault: true },
           { NOT: { curationStatus: 'approved', legacyGrandfathered: false } },

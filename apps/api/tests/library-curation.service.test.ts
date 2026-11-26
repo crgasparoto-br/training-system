@@ -339,8 +339,8 @@ describe('issue #394: persistence and tenant-aware curation', () => {
     ]);
     await libraryService.listExerciseRevisions('contract-1', sample.id);
     expect(db.exerciseLibraryRevision.findMany).toHaveBeenCalledWith({
-      where: { contractId: 'contract-1', exerciseId: sample.id },
-      orderBy: { version: 'desc' },
+      where: { contractId: 'contract-1', exercise: { OR: [{ id: sample.id }, { versionRootId: sample.id }] } },
+      orderBy: [{ createdAt: 'desc' }, { version: 'desc' }],
     });
   });
 });
