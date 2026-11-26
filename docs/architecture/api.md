@@ -304,3 +304,8 @@ PUT /workout/exercises/:id aplicam o mesmo filtro de mídia viva antes de respon
 sem alterar o banco. Em leituras liberadas, origem, licença e autoria não capturadas
 são retornadas como `null` quando selecionadas; estado legado ausente é tratado
 conservadoramente como legado apenas na projeção (#579, A-005/A-006).
+Nos snapshots operacionais de mapeamento, preparação e substituição, a dispensa
+de licença exige `legacyGrandfathered=false` booleano no próprio registro.
+A ausência ou invalidade do marcador não concede direitos novos; a origem e
+a licença já registradas em snapshots antigos permanecem válidas quando não
+houver marcador explicitamente legado (`true`). Não se regrava o histórico (#579, A-008).

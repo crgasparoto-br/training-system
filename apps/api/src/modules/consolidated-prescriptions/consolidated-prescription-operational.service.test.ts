@@ -167,6 +167,35 @@ describe('buildOperationalProjectionItems', () => {
     expect(recorded.substituteExerciseSnapshot.videoUrl).toBe(oldUrl);
   });
 
+  it.each([
+    { label: 'absent', marker: {}, license: null, allowed: false },
+    { label: 'null', marker: { legacyGrandfathered: null }, license: null, allowed: false },
+    { label: 'invalid', marker: { legacyGrandfathered: 'false' }, license: null, allowed: false },
+    { label: 'legacy', marker: { legacyGrandfathered: true }, license: 'Archive', allowed: false },
+    { label: 'non-legacy', marker: { legacyGrandfathered: false }, license: null, allowed: true },
+    { label: 'licensed old snapshot', marker: {}, license: 'Archive', allowed: true },
+  ])('#579 A-008 applies the captured media policy to mappings and substitutions: $label', ({ marker, license, allowed }) => {
+    const url = 'https://example.org/captured-operational-video';
+    const media = { videoUrl: url, mediaOrigin: 'Própria', mediaLicense: license, ...marker };
+    const versions = [{ id: 'capacity-resisted-v1', capacity: 'resisted' as const,
+      parameters: { type: 'resisted' as const, resisted: { exerciseTechnicalCatalogItemIds: ['technical-squat'] } } }];
+    const mappedSnapshot = { ...mapping().operationalExerciseSnapshot!, ...media };
+    const mapped = mapping({ operationalExerciseSnapshot: mappedSnapshot as never });
+    const recorded = substitution(true);
+    const substituteSnapshot = { ...recorded.substituteExerciseSnapshot, ...media };
+    const substituted = { ...recorded, substituteExerciseSnapshot: substituteSnapshot };
+    const before = JSON.stringify({ mapped, substituted });
+    const mappings = new Map([['technical-squat', mapped]]);
+    const [mappedItem] = buildOperationalProjectionItems(versions, mappings);
+    const [substitutedItem] = buildOperationalProjectionItems(versions, mappings,
+      new Map([['technical-squat', substituted]]) as never);
+    expect(mappedItem.operationalExerciseSnapshot).toEqual({ ...mappedSnapshot, videoUrl: allowed ? url : null });
+    expect(substitutedItem).toMatchObject({ substituted: true, operationalExerciseSnapshot: {
+      ...substituteSnapshot, videoUrl: allowed ? url : null,
+    } });
+    expect(JSON.stringify({ mapped, substituted })).toBe(before);
+  });
+
   it('does not associate same-name exercises without an id mapping', () => {
     const items = buildOperationalProjectionItems(
       [

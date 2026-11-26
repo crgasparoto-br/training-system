@@ -16,8 +16,12 @@ const CATALOG_FIELDS = [
 export function hideUnverifiedExerciseVideo<T extends { name: string }>(exercise: T): T {
   const row = exercise as Record<string, unknown>;
   if (typeof row.videoUrl !== 'string' || !row.videoUrl.trim()) return exercise;
+  // Older operational snapshots with recorded authorization remain readable.
+  // The new license waiver requires an explicit non-legacy marker in that snapshot.
+  const recordedLicense = typeof row.mediaLicense === 'string' && Boolean(row.mediaLicense.trim());
   if (row.legacyGrandfathered === true ||
-      !hasAuthorizedExerciseMedia(row.mediaOrigin, row.mediaLicense)) {
+      !hasAuthorizedExerciseMedia(row.mediaOrigin, row.mediaLicense) ||
+      (row.legacyGrandfathered !== false && !recordedLicense)) {
     return { ...exercise, videoUrl: null } as T;
   }
   return exercise;

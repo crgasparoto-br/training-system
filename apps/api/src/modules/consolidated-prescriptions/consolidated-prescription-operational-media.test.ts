@@ -67,6 +67,29 @@ describe('#394 A-394-018: historical operational video redaction at the API boun
     expect(stored.originalExerciseSnapshot.videoUrl).toBe(unsafeUrl);
   });
 
+  it.each([
+    { label: 'absent', marker: {}, allowed: false },
+    { label: 'null', marker: { legacyGrandfathered: null }, allowed: false },
+    { label: 'string', marker: { legacyGrandfathered: 'false' }, allowed: false },
+    { label: 'numeric', marker: { legacyGrandfathered: 0 }, allowed: false },
+    { label: 'legacy', marker: { legacyGrandfathered: true }, allowed: false },
+    { label: 'non-legacy', marker: { legacyGrandfathered: false }, allowed: true },
+  ])('#579 A-008 applies the own-media waiver only with a boolean false marker: $label', ({ marker, allowed }) => {
+    const snapshot = { name: 'Histórico', videoUrl: unsafeUrl, mediaOrigin: 'Própria', mediaLicense: null, ...marker };
+    const stored = { versions: [{ context: {
+      exerciseSnapshot: snapshot,
+      operationalExerciseSnapshot: snapshot,
+      originalExerciseSnapshot: snapshot,
+      substituteExerciseSnapshot: snapshot,
+    } }] };
+    const before = JSON.stringify(stored);
+    const result = sanitizeConsolidatedOperationalMedia(stored);
+    for (const projected of Object.values(result.versions[0].context)) {
+      expect(projected).toEqual({ ...snapshot, videoUrl: allowed ? unsafeUrl : null });
+    }
+    expect(JSON.stringify(stored)).toBe(before);
+  });
+
   it('sanitizes all nested substitution history without changing stored data or unrelated payloads', () => {
     const time = new Date('2026-08-11T10:00:00.000Z');
     const stored = {
