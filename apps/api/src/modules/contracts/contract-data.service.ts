@@ -1,3 +1,4 @@
+import { selectCatalogIdentityRows } from '../library/library-curation.domain.js';
 ﻿import { PrismaClient } from '@prisma/client';
 import { repairPtBrMojibake } from '../../common/pt-br-text.js';
 
@@ -99,9 +100,10 @@ export async function cloneContractData(
   }
 
   if (copyExercises) {
-    const exercises = await db.exerciseLibrary.findMany({
+    const versionRows = await db.exerciseLibrary.findMany({
       where: { contractId: sourceContractId },
       select: {
+        id: true, versionRootId: true, supersededAt: true, curationStatus: true, legacyGrandfathered: true, contentVersion: true,
         name: true,
         videoUrl: true,
         loadType: true,
@@ -118,6 +120,7 @@ export async function cloneContractData(
       },
     });
 
+    const exercises = selectCatalogIdentityRows(versionRows, false);
     if (exercises.length > 0) {
       const existingNames = new Set(
         (

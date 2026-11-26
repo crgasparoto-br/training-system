@@ -55,6 +55,8 @@ const TEXT_FIELDS = [
 
 const CURATION_LABELS: Record<string, string> = {
   create: 'Exercício cadastrado',
+  create_version: 'Versão criada',
+  supersede: 'Versão substituída',
   edit: 'Conteúdo atualizado',
   submit: 'Enviado para revisão',
   approve: 'Aprovação profissional',
@@ -118,7 +120,7 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
   const hasAuthorizedMedia = formData.mediaOrigin === 'Própria' ||
     Boolean(formData.mediaOrigin?.trim() && formData.mediaLicense?.trim());
   const eventsByVersion = new Map<number, ExerciseRevision[]>();
-  for (const event of [...revisions].sort((a, b) => b.version - a.version)) {
+  for (const event of [...revisions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() || b.version - a.version)) {
     const number = event.contentVersion ?? 1;
     const events = eventsByVersion.get(number) ?? [];
     events.push(event);
@@ -133,8 +135,8 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
     ) as Record<ListFieldKey, string>);
     if (exercise) {
       setFormData({
-        name: isCloneForCuration ? `${exercise.name} (nova versão)` : exercise.name,
-        videoUrl: isCloneForCuration ? '' : exercise.videoUrl || '',
+        name: exercise.name,
+        videoUrl: exercise.videoUrl || '',
         loadType: exercise.loadType,
         movementType: exercise.movementType,
         countingType: exercise.countingType,
@@ -157,9 +159,9 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
         alternatives: exercise.alternatives,
         restrictions: exercise.restrictions,
         alerts: exercise.alerts,
-        mediaOrigin: isCloneForCuration ? '' : exercise.mediaOrigin || '',
-        mediaLicense: isCloneForCuration ? '' : exercise.mediaLicense || '',
-        mediaAuthor: isCloneForCuration ? '' : exercise.mediaAuthor || '',
+        mediaOrigin: isCloneForCuration && exercise.legacyGrandfathered ? '' : exercise.mediaOrigin || '',
+        mediaLicense: isCloneForCuration && exercise.legacyGrandfathered ? '' : exercise.mediaLicense || '',
+        mediaAuthor: isCloneForCuration && exercise.legacyGrandfathered ? '' : exercise.mediaAuthor || '',
       });
     }
   }, [exercise, mode]);
@@ -216,7 +218,9 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
       setSaving(true);
       setError('');
 
-      if (isEditMode && exercise) {
+      if (isCloneForCuration && exercise) {
+        await libraryService.createExerciseVersion(exercise.id, submittedData, exercise.version);
+      } else if (isEditMode && exercise) {
         await libraryService.updateExercise(exercise.id, submittedData, exercise.version);
       } else {
         await libraryService.createExercise(submittedData);
@@ -267,7 +271,7 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {isCloneForCuration && <p className="text-sm text-amber-800">
-            Será criada uma ficha em rascunho, com outro identificador. O exercício original e seus treinos permanecem intactos. Direitos de mídia precisam ser informados novamente.
+            A nova versão mantém o nome e a identidade do exercício. Os treinos antigos permanecem intactos e a versão vigente, se houver, continua disponível até a aprovação. Confirme os direitos da mídia.
           </p>}
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -284,7 +288,7 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
               id="library-exercise-name"
               type="text"
               required
-              disabled={isViewMode}
+              disabled={isViewMode || isCloneForCuration || Boolean(exercise?.versionRootId)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -306,7 +310,7 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               placeholder="https://www.youtube.com/watch?v=..."
               value={formData.videoUrl}
-              onChange={(e) => setFormData({ ...formData, videoUrl: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, videoUrl: e.target.value, mediaOrigin: '', mediaLicense: '', mediaAuthor: '' })}
             />
             
             {sourceLink && (
@@ -315,21 +319,21 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
                 Abrir link do vídeo
               </a>
             )}
-            {formData.videoUrl && !exercise?.legacyGrandfathered &&
+            {formData.videoUrl && (!exercise?.legacyGrandfathered || isCloneForCuration) &&
               !hasAuthorizedMedia && (
               <p role="status" className="mt-2 text-sm text-amber-800">
                 Link disponível para curadoria. Informe a origem da mídia e, se for licenciada ou de terceiros, a autorização de uso.
               </p>
             )}
             {/* Preview do Vídeo */}
-            {formData.videoUrl && !exercise?.legacyGrandfathered &&
+            {formData.videoUrl && (!exercise?.legacyGrandfathered || isCloneForCuration) &&
               hasAuthorizedMedia && (
               <div className="mt-4">
                 <YouTubeEmbed url={formData.videoUrl} />
               </div>
             )}
             
-            {formData.videoUrl && exercise?.legacyGrandfathered && (
+            {formData.videoUrl && exercise?.legacyGrandfathered && !isCloneForCuration && (
               <p role="status" className="mt-2 text-sm text-amber-800">
                 Mídia legada preservada para o histórico. A prévia será habilitada após curadoria com origem declarada e, quando aplicável, licença verificada.
               </p>
