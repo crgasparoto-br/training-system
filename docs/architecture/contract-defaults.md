@@ -64,3 +64,6 @@ Em **Configurações > Empresa / prestador**, a ação principal é **Instalar p
 ## Configuração
 
 `DEFAULT_CONTRACT_ID` não é necessário para bootstrap, primeiro uso ou reparo de contratos legados e foi removido do `.env.example`.
+
+
+A partir da #582, reparos/reinstalações de catálogo não modificam raízes com versões, candidatos ou registros substituídos. A cópia entre contratos prefere a versão vigente da identidade e mantém o destino como novo rascunho sem herdar autorização de mídia. Cópias legadas com sufixo não são associadas automaticamente.

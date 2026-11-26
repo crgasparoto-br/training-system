@@ -159,3 +159,8 @@ Checklist aberto até verificação de CI exact-SHA e auditoria independente.
 - O checklist de aceite só pode ser marcado após a CI exact-SHA executar esses
   controles e os artefatos serem inspecionados. A aprovação independente segue
   sendo uma etapa posterior, sem merge automático.
+
+
+### Evolução #582 — identidade editorial
+
+A decisão anterior de criar ficha com outro nome foi substituída: o novo rascunho tem outro ID técnico, mas a raiz explícita e o nome são os mesmos. Preservar a publicação até aprovar o candidato, sem alterar vínculos históricos. Migração incremental, unicidade por identidade, autorização de mídia, testes discriminantes de concorrência/isolamento e validação integral obrigatórios. Cópias antigas ambíguas permanecem independentes; qualquer reconciliação histórica exige identificação explícita.
