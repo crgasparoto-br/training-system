@@ -33,6 +33,9 @@ export interface Exercise {
   curationStatus: ExerciseCurationStatus;
   version: number; // technical optimistic-lock token (expectedVersion)
   contentVersion?: number; // meaningful editorial changes only
+  versionRootId?: string | null;
+  supersededAt?: string | null;
+  activeVersion?: { id: string; contentVersion: number } | null;
   systemDefault?: boolean;
   createdByName?: string | null;
   reviewedByName?: string | null;
@@ -141,6 +144,11 @@ export const libraryService = {
 
   async createExercise(data: CreateExerciseDTO): Promise<Exercise> {
     const response = await api.post('/library/exercises', data);
+    return response.data;
+  },
+
+  async createExerciseVersion(id: string, data: Partial<CreateExerciseDTO>, expectedVersion: number): Promise<Exercise> {
+    const response = await api.post(`/library/exercises/${id}/versions`, { ...data, expectedVersion });
     return response.data;
   },
 

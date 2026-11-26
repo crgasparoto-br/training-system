@@ -63,8 +63,8 @@ function App() {
       React.createElement('button', { type: 'button', onClick: () => setOpen(true) }, 'Abrir seletor operacional'),
       React.createElement('output', { id: 'selected-exercises' }, selected.join(', '))),
     React.createElement(ExerciseSelectorModal, { isOpen: open, section: 'SESSAO',
-      onClose: () => setOpen(false), onSelect: value => setSelected([value.name]),
-      onSelectMany: values => setSelected(values.map(value => value.name)) }));
+      onClose: () => setOpen(false), onSelect: value => setSelected([value.name + '|' + value.id]),
+      onSelectMany: values => setSelected(values.map(value => value.name + '|' + value.id)) }));
 }
 createRoot(document.getElementById('root')).render(React.createElement(App));
 </script></body></html>`;
@@ -109,6 +109,13 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
           if (url.searchParams.get('scope') === 'all' && role !== 'master') return json(res, 403, { message: 'Acesso negado' });
           let result = exercises.filter(item => url.searchParams.get('scope') === 'all'
             || (item.curationStatus === 'approved' && !item.legacyGrandfathered));
+          if (url.searchParams.get('scope') === 'all') {
+            result = result.filter(item => !item.supersededAt && !exercises.some(child =>
+              child.versionRootId === item.id && ['draft', 'in_review'].includes(child.curationStatus)));
+            result = result.map(item => ({ ...item, activeVersion: item.versionRootId
+              ? exercises.find(row => (row.id === item.versionRootId || row.versionRootId === item.versionRootId)
+                && row.curationStatus === 'approved' && !row.legacyGrandfathered) ?? null : null }));
+          }
           const search = url.searchParams.get('search')?.toLocaleLowerCase('pt-BR');
           if (search) result = result.filter(item => [item.name, ...item.aliases, item.muscleGroup]
             .some(value => value.toLocaleLowerCase('pt-BR').includes(search)));
@@ -121,6 +128,19 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
           const created = exercise(`created-${exercises.length}`, body.name, 'draft', body);
           exercises.push(created);
           return json(res, 201, created);
+        }
+        const version = url.pathname.match(/^\/api\/v1\/library\/exercises\/([^/]+)\/versions$/);
+        if (version && req.method === 'POST') {
+          if (role !== 'master') return json(res, 403, { message: 'Acesso negado' });
+          const old = exercises.find(item => item.id === version[1]);
+          if (!old || old.version !== body.expectedVersion || old.name !== body.name) return json(res, 409, { message: 'Conflito de versao' });
+          const candidate = exercise(`candidate-${old.id}`, old.name, 'draft', {
+            ...old, ...body, id: `candidate-${old.id}`, curationStatus: 'draft', version: 1,
+            versionRootId: old.versionRootId ?? old.id, contentVersion: (old.contentVersion ?? 1) + 1,
+            reviewedByUserId: null, legacyGrandfathered: false,
+          });
+          exercises.push(candidate);
+          return json(res, 201, candidate);
         }
         const edit = url.pathname.match(/^\/api\/v1\/library\/exercises\/([^/]+)$/);
         if (edit && req.method === 'PUT') {
@@ -137,7 +157,13 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
           if (!old || old.version !== body.expectedVersion) return json(res, 409, { message: 'Conflito de versao' });
           if (body.action === 'submit' && old.curationStatus === 'draft') old.curationStatus = 'in_review';
           else if (body.action === 'approve' && old.curationStatus === 'in_review'
-            && old.capacity && old.instructions?.length) old.curationStatus = 'approved';
+            && old.capacity && old.instructions?.length) {
+            if (old.versionRootId) for (const row of exercises) {
+              if (row.id !== old.id && (row.id === old.versionRootId || row.versionRootId === old.versionRootId)
+                && row.curationStatus === 'approved') Object.assign(row, { curationStatus: 'inactive', supersededAt: new Date().toISOString() });
+            }
+            old.curationStatus = 'approved';
+          }
           else return json(res, 422, { message: 'Transicao de curadoria invalida' });
           old.version += 1;
           return json(res, 200, old);
@@ -231,6 +257,30 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
           row.textContent?.includes('Remada Revisada') && row.textContent?.includes('Aprovado')));
         expect(exercises.find(item => item.id === 'draft-394')).toMatchObject({ curationStatus: 'approved', version: 4 });
         captures.push(await shot('master-approved'));
+        // #582: the new candidate keeps the name; the official picker still
+        // receives the prior published ID until approval switches it.
+        await pressInRow('Agachamento Curado', 'button[title="Editar"]');
+        await page.waitForSelector('#library-exercise-name');
+        expect(await page.$eval('#library-exercise-name', input => ({ value: input.value, disabled: input.disabled })))
+          .toEqual({ value: 'Agachamento Curado', disabled: true });
+        await page.click('form button[type="submit"]');
+        await page.waitForFunction(() => [...document.querySelectorAll('tbody tr')].some(row =>
+          row.textContent?.includes('Agachamento Curado') && row.textContent?.includes('vigente para novos treinos')));
+        expect(exercises.find(item => item.id === 'approved-394')?.curationStatus).toBe('approved');
+        expect(exercises.find(item => item.id === 'candidate-approved-394')).toMatchObject({
+          name: 'Agachamento Curado', versionRootId: 'approved-394', curationStatus: 'draft',
+        });
+        expect((await rows()).filter(row => row.includes('Agachamento Curado'))).toHaveLength(1);
+        captures.push(await shot('master-version-pending'));
+        await pressInRow('Agachamento Curado', 'button[aria-label="Revisar Agachamento Curado"]');
+        await page.waitForFunction(() => [...document.querySelectorAll('tbody tr')].some(row =>
+          row.textContent?.includes('Agachamento Curado') && row.textContent?.includes('Em revisão')));
+        await pressInRow('Agachamento Curado', 'button[aria-label="Aprovar Agachamento Curado"]');
+        await page.waitForFunction(() => [...document.querySelectorAll('tbody tr')].some(row =>
+          row.textContent?.includes('Agachamento Curado') && row.textContent?.includes('Aprovado')));
+        expect(exercises.find(item => item.id === 'approved-394')?.curationStatus).toBe('inactive');
+        expect(exercises.find(item => item.id === 'candidate-approved-394')?.curationStatus).toBe('approved');
+        captures.push(await shot('master-version-published'));
         await page.evaluate(() => [...document.querySelectorAll('button')]
           .find(button => button.textContent?.includes('Novo Exercício'))?.click());
         await page.waitForSelector('#library-exercise-name');
@@ -268,7 +318,7 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
         expect(selected).toBe(true);
         await page.evaluate(() => [...document.querySelectorAll('button')]
           .find(button => button.textContent?.includes('Adicionar selecionados'))?.click());
-        await page.waitForFunction(() => document.querySelector('#selected-exercises')?.textContent === 'Agachamento Curado');
+        await page.waitForFunction(() => document.querySelector('#selected-exercises')?.textContent === 'Agachamento Curado|candidate-approved-394');
         captures.push(await shot('professor-selected'));
         observations.push({ viewport, captures, passed: true });
         await page.close();

@@ -91,7 +91,7 @@ export default function Library() {
 
   const handleEdit = (exercise: Exercise) => {
     setSelectedExercise(exercise);
-    setModalMode('edit');
+    setModalMode(exercise.curationStatus === 'approved' || exercise.curationStatus === 'inactive' ? 'create' : 'edit');
     setModalOpen(true);
   };
 
@@ -165,7 +165,7 @@ export default function Library() {
   // The administrative library includes historical approvals that are not
   // authorized for new workouts. Count these separately from the official catalog.
   const eligibleCount = exercises.filter(
-    (exercise) => exercise.curationStatus === 'approved' && !exercise.legacyGrandfathered,
+    (exercise) => (exercise.curationStatus === 'approved' && !exercise.legacyGrandfathered) || Boolean(exercise.activeVersion),
   ).length;
   const historicalApprovalCount = exercises.filter(
     (exercise) => exercise.curationStatus === 'approved' && exercise.legacyGrandfathered,
@@ -472,6 +472,9 @@ export default function Library() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <div className="text-sm font-medium text-gray-900">{exercise.name}</div>
+                          {canManage && !exercise.versionRootId && /\(nova versão\)\s*$/i.test(exercise.name) && (
+                            <p className="text-xs text-amber-700">Possível cópia antiga — vínculo não confirmado</p>
+                          )}
                           {exercise.videoUrl && (
                             <VideoIcon className="w-4 h-4 text-green-600" title="Com vídeo" />
                           )}
@@ -507,6 +510,9 @@ export default function Library() {
                             ? 'Aprovado pelo sistema'
                             : STATUS_LABELS[exercise.curationStatus] ?? 'Não informado'}</span>
                         <p className="text-xs text-gray-500">Versão do conteúdo {exercise.contentVersion ?? 1}</p>
+                        {exercise.activeVersion && exercise.activeVersion.id !== exercise.id && (
+                          <p className="mt-1 text-xs text-green-700">Versão {exercise.activeVersion.contentVersion} vigente para novos treinos</p>
+                        )}
                         {exercise.curationStatus === 'approved' && (
                           <p className="mt-1 text-xs text-gray-600">
                             {exercise.legacyGrandfathered
@@ -531,14 +537,14 @@ export default function Library() {
                           >
                             <Edit className="w-5 h-5" />
                           </button>}
-                          {canManage && exercise.legacyGrandfathered && <button
+                          {canManage && exercise.curationStatus === 'approved' && <button
                             onClick={() => handleCloneForCuration(exercise)}
                             title="Criar nova versão para curadoria sem alterar o histórico"
                             aria-label={`Criar nova versão para curadoria de ${exercise.name}`}
                             className="inline-flex items-center gap-1 text-indigo-700 hover:text-indigo-900"
                           >
                             <Copy className="w-5 h-5" />
-                            <span className="text-xs">Criar ficha</span>
+                            <span className="text-xs">{exercise.legacyGrandfathered ? 'Regularizar' : 'Nova versão'}</span>
                           </button>}
                           {canManage && exercise.curationStatus === 'draft' && <button
                             onClick={() => handleCuration(exercise, 'submit')} title="Enviar para revisão"
@@ -549,7 +555,7 @@ export default function Library() {
                             <button onClick={() => handleCuration(exercise, 'request_changes')} title="Solicitar ajustes"
                               className="text-amber-700" aria-label={`Solicitar ajustes em ${exercise.name}`}><RotateCcw className="w-5 h-5" /></button>
                           </>}
-                          {canManage && exercise.curationStatus === 'inactive' && <button
+                          {canManage && exercise.curationStatus === 'inactive' && !exercise.versionRootId && !exercise.reviewedAt && <button
                             onClick={() => handleCuration(exercise, 'reopen')} title="Reabrir como rascunho"
                             className="text-blue-700" aria-label={`Reabrir ${exercise.name}`}><RotateCcw className="w-5 h-5" /></button>}
                           {canManage && exercise.curationStatus !== 'inactive' && <button

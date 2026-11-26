@@ -1163,3 +1163,6 @@ não são substituições de exercícios da biblioteca por esse caminho.
 mostrar `historico:versao_indisponivel`. Isso informa que a revisão exata do
 catálogo não foi guardada à época; não é correto substituir a origem por uma
 revisão atual e apresentá-la como evidência histórica.
+
+
+**Versionamento da biblioteca (#582):** revisar um exercício publicado ou legado cria um candidato da mesma identidade e nome. A publicação elegível continua disponível para novos treinos até a aprovação da substituta, e as referências históricas continuam apontando para a versão aplicada. O administrador acompanha a versão em revisão e a vigente; registros legados sem aprovação operacional precisam de curadoria explícita. A instalação de padrões comprovados segue a política de catálogo do sistema (#570). Não associar cópias antigas por nome nem promover mídia sem autorização.

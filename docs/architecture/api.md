@@ -309,3 +309,8 @@ de licença exige `legacyGrandfathered=false` booleano no próprio registro.
 A ausência ou invalidade do marcador não concede direitos novos; a origem e
 a licença já registradas em snapshots antigos permanecem válidas quando não
 houver marcador explicitamente legado (`true`). Não se regrava o histórico (#579, A-008).
+
+
+### Versionamento da biblioteca (#582)
+
+`POST /library/exercises/:id/versions` (administrador do contrato) recebe os campos editoriais opcionais e `expectedVersion` da origem aprovada/inativa. Cria um rascunho da mesma identidade sem alterar a publicação ou treinos. `PUT` edita o candidato; envio e aprovação usam o endpoint de curadoria existente. A publicação anterior é substituída atomicamente somente após aprovação. A listagem administrativa reúne versões da mesma identidade e informa `activeVersion` quando existe publicação paralela; a operacional seleciona apenas aprovações elegíveis. O histórico de revisões é da família, com ID do registro de cada evento. A criação independente conserva a restrição de nomes, e mídia sem origem/licença não se torna elegível por uma cópia.

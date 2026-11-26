@@ -36,7 +36,14 @@ type ExistingExerciseDefault = {
   muscleGroup: string | null;
   notes: string | null;
   workoutExercises?: Array<{ id: string }>;
+  versionRootId?: string | null;
+  supersededAt?: Date | null;
+  versionChildren?: Array<{ id: string }>;
 };
+
+function isVersionManaged(exercise: ExistingExerciseDefault) {
+  return Boolean(exercise.versionRootId || exercise.supersededAt || exercise.versionChildren?.length);
+}
 
 // A professionally approved record is immutable to automatic defaults repair.
 function isProfessionallyApprovedExercise(exercise: ExistingExerciseDefault) {
@@ -45,6 +52,7 @@ function isProfessionallyApprovedExercise(exercise: ExistingExerciseDefault) {
 
 // Recheck at the definitive Prisma UPDATE to survive a concurrent approval.
 const defaultsWritableWhere: Prisma.ExerciseLibraryWhereInput = {
+  versionRootId: null, supersededAt: null, versionChildren: { none: {} },
   OR: [
     { systemDefault: true },
     { NOT: { curationStatus: 'approved', legacyGrandfathered: false } },
@@ -362,7 +370,7 @@ function collectExerciseNameRepairs(
   const repairs: ExerciseNameRepair[] = [];
 
   for (const item of existingExercises) {
-    if (item.workoutExercises?.length || isProfessionallyApprovedExercise(item)) continue;
+    if (item.workoutExercises?.length || isProfessionallyApprovedExercise(item) || isVersionManaged(item)) continue;
     const repairedName = normalizeExerciseName(item.name);
     const key = canonicalExerciseName(repairedName);
     if (
@@ -403,6 +411,8 @@ async function applyExerciseNameRepairs(
       FROM (VALUES ${Prisma.join(rows)}) AS repair("currentName", "repairedName")
       WHERE exercise."contractId" = ${contractId}
         AND exercise."name" = repair."currentName"
+        AND exercise."versionRootId" IS NULL AND exercise."supersededAt" IS NULL
+        AND NOT EXISTS (SELECT 1 FROM "ExerciseLibrary" child WHERE child."versionRootId" = exercise."id")
         AND (exercise."curationStatus" <> 'approved' OR exercise."legacyGrandfathered" = TRUE OR exercise."systemDefault" = TRUE)
         AND NOT EXISTS (
           SELECT 1 FROM "WorkoutExercise" AS workout
@@ -535,6 +545,8 @@ async function applyExerciseBackfills(
       WHERE exercise."contractId" = ${contractId}
         AND issue394_exercise_canonical_name(exercise."name")
           = issue394_exercise_canonical_name(defaults."name")
+        AND exercise."versionRootId" IS NULL AND exercise."supersededAt" IS NULL
+        AND NOT EXISTS (SELECT 1 FROM "ExerciseLibrary" child WHERE child."versionRootId" = exercise."id")
         AND (exercise."curationStatus" <> 'approved' OR exercise."legacyGrandfathered" = TRUE OR exercise."systemDefault" = TRUE)
         AND NOT EXISTS (
           SELECT 1 FROM "WorkoutExercise" AS workout
@@ -578,6 +590,8 @@ async function installExercises(contractId: string, db: DefaultsDb) {
       curationStatus: true,
       legacyGrandfathered: true,
       systemDefault: true,
+      versionRootId: true, supersededAt: true,
+      versionChildren: { select: { id: true }, take: 1 },
       videoUrl: true,
       loadType: true,
       movementType: true,
@@ -613,7 +627,7 @@ async function installExercises(contractId: string, db: DefaultsDb) {
     }
 
     const data = missingExerciseFields(current, canonical);
-    if (!current.workoutExercises?.length && !isProfessionallyApprovedExercise(current)
+    if (!current.workoutExercises?.length && !isProfessionallyApprovedExercise(current) && !isVersionManaged(current)
         && Object.keys(data).length > 0) {
       backfills.push({ current, canonical, data });
     }

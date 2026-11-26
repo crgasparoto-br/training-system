@@ -388,3 +388,8 @@ Snapshots imutáveis anteriores à migration podem não conter a versão do
 catálogo. Nestes casos a substituição registra
 `historico:versao_indisponivel` para a origem, **não** a revisão atual da
 biblioteca. Nenhum backfill ou reescrita de snapshot histórico é permitido.
+
+
+### Identidade e versões de exercícios (#582)
+
+Cada exercício existente mantém seu ID e torna-se raiz da própria identidade; novas versões têm `versionRootId` explícito e o mesmo nome/contrato da raiz. Não há associação automática por nomes nem migração de referências de treinos. A migração incremental `20261126150000_issue_582_exercise_version_identity` limita a família a um rascunho/em revisão e a uma publicação elegível, preserva a unicidade canônica para novas identidades independentes e impede alteração do conteúdo ou identidade de versões substituídas. A aprovação retira a publicação anterior e ativa a candidata na mesma transação, registrando `supersededAt` e mantendo os IDs históricos. `contentVersion` conta mudanças editoriais; `version` continua sendo o token de concorrência por registro. Reinstalações padrão não reescrevem famílias versionadas.

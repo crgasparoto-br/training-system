@@ -5,7 +5,7 @@ import ExerciseModal from './ExerciseModal';
 import { libraryService, type Exercise } from '../../services/library.service';
 
 vi.mock('../../services/library.service', () => ({
-  libraryService: { createExercise: vi.fn(), updateExercise: vi.fn(), listExerciseRevisions: vi.fn() },
+  libraryService: { createExercise: vi.fn(), createExerciseVersion: vi.fn(), updateExercise: vi.fn(), listExerciseRevisions: vi.fn() },
 }));
 vi.mock('./YouTubeEmbed', () => ({ default: ({ url }: { url: string }) => <div data-testid="video-preview">{url}</div> }));
 
@@ -196,19 +196,20 @@ describe('#394 capacity taxonomy and historical media in the exercise editor', (
 
   it('clones historical technical metadata into a new draft without inherited media or review', async () => {
     const user = userEvent.setup();
-    vi.mocked(libraryService.createExercise).mockResolvedValue({ ...legacy, id: 'new-draft', curationStatus: 'draft' });
+    vi.mocked(libraryService.createExerciseVersion).mockResolvedValue({ ...legacy, id: 'new-draft', curationStatus: 'draft' });
     render(<ExerciseModal mode="create" exercise={legacy} onClose={vi.fn()} showHistory />);
-    expect(screen.getByDisplayValue('Exercício antigo (nova versão)')).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: /link vídeo youtube/i })).toHaveValue('');
-    expect(screen.getByText(/exercício original e seus treinos permanecem intactos/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Exercício antigo')).toBeDisabled();
+    expect(screen.getByRole('textbox', { name: /link vídeo youtube/i })).toHaveValue('https://example.org/unknown-rights');
+    expect(screen.queryByTestId('video-preview')).not.toBeInTheDocument();
+    expect(screen.getByText(/Os treinos antigos permanecem intactos/i)).toBeInTheDocument();
     expect(screen.queryByText(/Estado da curadoria/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Salvar' }));
-    await waitFor(() => expect(libraryService.createExercise).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'Exercício antigo (nova versão)', videoUrl: '',
+    await waitFor(() => expect(libraryService.createExerciseVersion).toHaveBeenCalledWith(
+      'legacy-id', expect.objectContaining({
+        name: 'Exercício antigo', videoUrl: 'https://example.org/unknown-rights',
         mediaOrigin: '', mediaLicense: '', mediaAuthor: '',
         instructions: ['Posicionar-se'],
-      }),
+      }), 3,
     ));
     expect(libraryService.updateExercise).not.toHaveBeenCalled();
   });

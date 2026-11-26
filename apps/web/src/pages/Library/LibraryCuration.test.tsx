@@ -11,6 +11,7 @@ vi.mock('../../services/library.service', () => ({
     reviewExercise: vi.fn(),
     deleteExercise: vi.fn(),
     createExercise: vi.fn(),
+    createExerciseVersion: vi.fn(),
     updateExercise: vi.fn(),
     listExerciseRevisions: vi.fn(),
   },
@@ -170,16 +171,16 @@ describe('library administrative curation (#394)', () => {
     const actor = userEvent.setup();
     const historical = { ...draft, id: 'historical-1', legacyGrandfathered: true, curationStatus: 'approved' as const };
     vi.mocked(libraryService.listExercises).mockResolvedValue([historical]);
-    vi.mocked(libraryService.createExercise).mockResolvedValue({ ...historical, id: 'new-1', curationStatus: 'draft' });
+    vi.mocked(libraryService.createExerciseVersion).mockResolvedValue({ ...historical, id: 'new-1', curationStatus: 'draft' });
     render(<Library />);
     const clone = await screen.findByRole('button', { name: /criar nova versão para curadoria de agachamento/i });
     await actor.click(clone);
     expect(screen.getByRole('heading', { name: /nova versão para curadoria/i })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /nome do exercício/i }))
-      .toHaveValue('Agachamento (nova versão)');
+      .toHaveValue('Agachamento');
     await actor.click(screen.getByRole('button', { name: 'Salvar' }));
-    await waitFor(() => expect(libraryService.createExercise).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Agachamento (nova versão)' }),
+    await waitFor(() => expect(libraryService.createExerciseVersion).toHaveBeenCalledWith(
+      'historical-1', expect.objectContaining({ name: 'Agachamento' }), historical.version,
     ));
     expect(libraryService.updateExercise).not.toHaveBeenCalled();
     expect(libraryService.reviewExercise).not.toHaveBeenCalledWith(

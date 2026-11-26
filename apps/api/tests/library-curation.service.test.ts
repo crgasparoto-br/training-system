@@ -197,6 +197,20 @@ describe('issue #394: persistence and tenant-aware curation', () => {
       .rejects.toMatchObject({ kind: 'conflict' });
   });
 
+  it('#582 publishes a candidate without modifying the source', async () => {
+    const source = { ...sample, curationStatus: 'approved', versionRootId: null, legacyGrandfathered: true,
+      videoUrl: 'https://example.org/unverified', mediaOrigin: 'Própria', mediaLicense: 'old' };
+    db.exerciseLibrary.findFirst.mockResolvedValue(source);
+    db.exerciseLibrary.findMany.mockResolvedValue([source]);
+    db.exerciseLibrary.create.mockResolvedValue({ id: 'candidate', versionRootId: source.id, curationStatus: 'draft' });
+    await libraryService.createExerciseVersion('contract-1', source.id, { notes: 'Atualizado' }, source.version, 'actor-1');
+    expect(db.exerciseLibrary.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      name: source.name, versionRootId: source.id, contractId: 'contract-1',
+      curationStatus: 'draft', mediaOrigin: null, mediaLicense: null, videoUrl: source.videoUrl,
+    }) });
+    expect(db.exerciseLibrary.updateMany).not.toHaveBeenCalled();
+  });
+
   it('never mutates an exercise linked to historical sessions', async () => {
     db.exerciseLibrary.findFirst.mockResolvedValue({ ...sample, curationStatus: 'approved' });
     db.workoutExercise.count.mockResolvedValue(1);
@@ -339,8 +353,8 @@ describe('issue #394: persistence and tenant-aware curation', () => {
     ]);
     await libraryService.listExerciseRevisions('contract-1', sample.id);
     expect(db.exerciseLibraryRevision.findMany).toHaveBeenCalledWith({
-      where: { contractId: 'contract-1', exerciseId: sample.id },
-      orderBy: { version: 'desc' },
+      where: { contractId: 'contract-1', exercise: { OR: [{ id: sample.id }, { versionRootId: sample.id }] } },
+      orderBy: [{ createdAt: 'desc' }, { version: 'desc' }],
     });
   });
 });

@@ -101,6 +101,60 @@ describeDatabase('installContractDefaults database integration', () => {
   });
 
 
+  it('#582: regularizes the same identity and keeps publication eligible during concurrent review', async () => {
+    const target = await prisma.companyContract.create({
+      data: { type: 'academy', document: `issue582-${randomUUID()}`, name: 'Exercise versions' },
+    });
+    targetContractId = target.id;
+    const option = await prisma.collaboratorFunctionOption.create({
+      data: { contractId: target.id, name: 'Administrativo', code: `admin-${randomUUID()}` },
+    });
+    const user = await prisma.user.create({
+      data: { email: `issue582-${randomUUID()}@example.com`, type: 'professor', passwordHash: 'test-only' },
+    });
+    actorUserId = user.id;
+    await prisma.professor.create({
+      data: { contractId: target.id, userId: user.id, collaboratorFunctionId: option.id, role: 'master' },
+    });
+    const root = await prisma.exerciseLibrary.create({ data: {
+      contractId: target.id, name: 'Mobilidade de Quadril - Iliopsoas', category: 'MOBILIDADE',
+      capacity: 'flexibility', instructions: ['Preparar o movimento'],
+      curationStatus: 'approved', systemDefault: true, lastCurationAction: 'system_defaults_install',
+    } });
+    const results = await Promise.allSettled([
+      libraryService.createExerciseVersion(target.id, root.id, { notes: 'Nova orientação' }, root.version, user.id),
+      libraryService.createExerciseVersion(target.id, root.id, { notes: 'Candidato concorrente' }, root.version, user.id),
+    ]);
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+    const candidate = await prisma.exerciseLibrary.findFirstOrThrow({ where: { contractId: target.id, versionRootId: root.id } });
+    expect(candidate).toMatchObject({ name: root.name, curationStatus: 'draft', contentVersion: root.contentVersion + 1 });
+    expect((await libraryService.listExercises(target.id)).map(row => row.id)).toEqual([root.id]);
+    expect(await libraryService.listExercises(target.id, { scope: 'all' })).toEqual([
+      expect.objectContaining({ id: candidate.id, activeVersion: expect.objectContaining({ id: root.id }) }),
+    ]);
+    await expect(libraryService.createExerciseVersion('foreign-contract', root.id, {}, root.version, user.id))
+      .rejects.toMatchObject({ kind: 'forbidden' });
+    const review = await libraryService.reviewExercise(target.id, candidate.id, candidate.version, 'submit', user.id);
+    const returned = await libraryService.reviewExercise(target.id, candidate.id, review.version, 'request_changes', user.id);
+    expect(returned.contentVersion).toBe(candidate.contentVersion);
+    expect((await libraryService.listExercises(target.id)).map(row => row.id)).toEqual([root.id]);
+    const pending = await libraryService.reviewExercise(target.id, candidate.id, returned.version, 'submit', user.id);
+    const published = await libraryService.reviewExercise(target.id, candidate.id, pending.version, 'approve', user.id);
+    expect(published.contentVersion).toBe(candidate.contentVersion);
+    expect((await libraryService.listExercises(target.id)).map(row => row.id)).toEqual([candidate.id]);
+    const previous = await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: root.id } });
+    expect(previous).toMatchObject({ name: root.name, notes: root.notes, curationStatus: 'inactive' });
+    expect(previous.supersededAt).not.toBeNull();
+    const history = await libraryService.listExerciseRevisions(target.id, candidate.id);
+    expect(history.some(event => event.exerciseId === root.id && event.action === 'supersede')).toBe(true);
+    expect(history.some(event => event.exerciseId === candidate.id && event.action === 'approve')).toBe(true);
+    await installContractDefaults(target.id);
+    await installContractDefaults(target.id);
+    expect(await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: candidate.id } })).toEqual(published);
+    expect(await prisma.exerciseLibrary.findUniqueOrThrow({ where: { id: root.id } })).toEqual(previous);
+  });
+
   it('#570: editorial version is unchanged by curation, and advances only when content changes', async () => {
     const target = await prisma.companyContract.create({
       data: { type: 'academy', document: `issue570-version-${randomUUID()}`, name: 'Version semantics' },
