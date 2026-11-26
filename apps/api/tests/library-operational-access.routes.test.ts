@@ -13,6 +13,7 @@ const mockGetAlunoProgress = jest.fn();
 const mockListAlunoProgress = jest.fn();
 const mockUpdateAlunoProgress = jest.fn();
 const mockCreateExercise = jest.fn();
+const mockCreateExerciseVersion = jest.fn();
 const mockReviewExercise = jest.fn();
 const mockListExerciseRevisions = jest.fn();
 const mockUpdateExercise = jest.fn();
@@ -59,6 +60,7 @@ jest.mock('../src/modules/library/library.service', () => ({
     listAlunoProgress: mockListAlunoProgress,
     updateAlunoProgress: mockUpdateAlunoProgress,
     createExercise: mockCreateExercise,
+    createExerciseVersion: mockCreateExerciseVersion,
     reviewExercise: mockReviewExercise,
     listExerciseRevisions: mockListExerciseRevisions,
     updateExercise: mockUpdateExercise,
@@ -160,6 +162,7 @@ describe('#394 A-394-012: operational exercise access preserves plans-only roles
       request(app).get('/library/exercises?curationStatus=draft'),
       request(app).get('/library/exercises/approved-1/revisions'),
       request(app).post('/library/exercises').send({ name: 'Rascunho' }),
+      request(app).post('/library/exercises/approved-1/versions').send({ expectedVersion: 1 }),
       request(app).put('/library/exercises/approved-1').send({ name: 'Editar', expectedVersion: 1 }),
       request(app).delete('/library/exercises/approved-1?expectedVersion=1'),
       request(app).post('/library/exercises/approved-1/curation').send({ action: 'approve', expectedVersion: 1 }),
@@ -367,6 +370,22 @@ describe('#394 A-394-012: operational exercise access preserves plans-only roles
     expect(mockListExercises).toHaveBeenCalledWith(
       'other-contract', expect.objectContaining({ scope: undefined }),
     );
+  });
+
+  it('#582 creates a candidate only for an active master and validates the optimistic token', async () => {
+    grantScreens('library');
+    const denied = await request(app).post('/library/exercises/approved-1/versions').send({ expectedVersion: 1 });
+    expect(denied.status).toBe(403);
+    expect(mockCreateExerciseVersion).not.toHaveBeenCalled();
+    mockProfessorFindUnique.mockResolvedValue({ ...actor, role: 'master' });
+    mockCreateExerciseVersion.mockResolvedValue({ id: 'candidate-1', versionRootId: 'approved-1', curationStatus: 'draft' });
+    const invalid = await request(app).post('/library/exercises/approved-1/versions').send({ name: 'Agachamento' });
+    expect(invalid.status).toBe(400);
+    const created = await request(app).post('/library/exercises/approved-1/versions')
+      .send({ name: 'Agachamento', expectedVersion: 1 });
+    expect(created.status).toBe(201);
+    expect(created.body).toMatchObject({ versionRootId: 'approved-1', curationStatus: 'draft' });
+    expect(mockCreateExerciseVersion).toHaveBeenCalledWith('contract-394', 'approved-1', { name: 'Agachamento' }, 1, 'professor-user-394');
   });
 
   it('preserves administrative reads and curation for an active master', async () => {

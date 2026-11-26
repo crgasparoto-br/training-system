@@ -345,9 +345,10 @@ export const libraryService = {
       if (existing.supersededAt || existing.curationStatus === ExerciseCurationStatus.approved) {
         throw new LibraryCurationError('conflict', 'Crie uma nova versão para preservar a publicação.');
       }
-      if (existing.versionRootId && data.name !== undefined && data.name !== existing.name) {
+      if (existing.versionRootId && data.name !== undefined && data.name.trim() !== existing.name.trim()) {
         throw new LibraryCurationError('invalid', 'Uma versão mantém o nome do exercício.');
       }
+      if (existing.versionRootId && data.name !== undefined) data = { ...data, name: existing.name };
       if (data.videoUrl !== undefined && data.videoUrl !== existing.videoUrl) {
         data = { mediaOrigin: null, mediaLicense: null, mediaAuthor: null, ...data };
       }

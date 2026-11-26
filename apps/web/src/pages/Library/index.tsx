@@ -472,6 +472,9 @@ export default function Library() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <div className="text-sm font-medium text-gray-900">{exercise.name}</div>
+                          {canManage && !exercise.versionRootId && /\(nova versão\)\s*$/i.test(exercise.name) && (
+                            <p className="text-xs text-amber-700">Possível cópia antiga — vínculo não confirmado</p>
+                          )}
                           {exercise.videoUrl && (
                             <VideoIcon className="w-4 h-4 text-green-600" title="Com vídeo" />
                           )}
@@ -541,7 +544,7 @@ export default function Library() {
                             className="inline-flex items-center gap-1 text-indigo-700 hover:text-indigo-900"
                           >
                             <Copy className="w-5 h-5" />
-                            <span className="text-xs">Criar ficha</span>
+                            <span className="text-xs">{exercise.legacyGrandfathered ? 'Regularizar' : 'Nova versão'}</span>
                           </button>}
                           {canManage && exercise.curationStatus === 'draft' && <button
                             onClick={() => handleCuration(exercise, 'submit')} title="Enviar para revisão"
