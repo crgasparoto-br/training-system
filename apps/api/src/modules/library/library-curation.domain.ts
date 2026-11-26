@@ -38,6 +38,13 @@ export function nextExerciseStatus(
   return next;
 }
 
+/** Declared own media requires no additional license. */
+export function hasAuthorizedExerciseMedia(origin: unknown, license: unknown): boolean {
+  if (typeof origin !== 'string' || !origin.trim()) return false;
+  return origin === 'Própria' ||
+    (typeof license === 'string' && Boolean(license.trim()));
+}
+
 export function assertExerciseCanBeApproved(exercise: {
   name: string;
   category: string | null;
@@ -56,7 +63,9 @@ export function assertExerciseCanBeApproved(exercise: {
   if (exercise.instructions.length === 0) missing.push('Instruções em etapas');
   if (exercise.videoUrl?.trim()) {
     if (!exercise.mediaOrigin?.trim()) missing.push('Origem da mídia');
-    if (!exercise.mediaLicense?.trim()) missing.push('Licença ou autorização de uso da mídia');
+    if (exercise.mediaOrigin !== 'Própria' && !exercise.mediaLicense?.trim()) {
+      missing.push('Licença ou autorização de uso da mídia');
+    }
   }
   if (missing.length) {
     throw new LibraryCurationError(

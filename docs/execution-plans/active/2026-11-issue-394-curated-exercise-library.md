@@ -11,7 +11,7 @@ estados de revisão, histórico por versão e testes de regressão.
 
 ## Regras
 - Novas criações por API são rascunhos, sem aplicação automática.
-- Administrador `master` publica após `in_review`; mídia exige licença/origem.
+- Administrador `master` publica após `in_review`; mídia exige origem declarada e licença/autorização, exceto para a origem canônica `Própria` conforme a regra posterior da #579.
 - `expectedVersion` evita concorrência e revisões append-only preservam a trilha.
 - Desativação é lógica; histórico de treino permanece.
 - Seleção nova exige exercício aprovado e `contractId` correto, inclusive em
@@ -84,8 +84,9 @@ estados de revisão, histórico por versão e testes de regressão.
   commit; referência desativada, legada ou não aprovada impede a liberação
   integral, sem modificar snapshots. Liberações antigas continuam idempotentes.
 - A-394-017: progresso individual e agregado projetam mídia histórica pelo
-  mesmo guard de procedência usado nos treinos. Links sem licença/origem ou
-  registros legados não são expostos nas respostas, permanecendo no banco para
+  mesmo guard de procedência usado nos treinos. Links sem origem, de terceiros
+  sem licença/autorização (regra atual #579) ou de registros legados não são
+  expostos nas respostas, permanecendo no banco para
   auditoria. A listagem também exige exercício do contrato consultado.
 - Evidências requeridas: testes HTTP de vínculo por contrato, unitários de
   consultas de progresso e elegibilidade, integração PostgreSQL de liberação
@@ -100,7 +101,7 @@ estados de revisão, histórico por versão e testes de regressão.
 - [ ] Auditoria independente em contexto separado.
 
 ## Fora de escopo
-Não aplicar prescrição, integrar mídia sem licença, criar substituição
+Não aplicar prescrição, integrar mídia de terceiros sem licença/autorização, criar substituição
 automática (#404) ou presumir aprovação clínica.
 
 ## Situação

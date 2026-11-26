@@ -167,6 +167,35 @@ describe('buildOperationalProjectionItems', () => {
     expect(recorded.substituteExerciseSnapshot.videoUrl).toBe(oldUrl);
   });
 
+  it.each([
+    { label: 'absent', marker: {}, license: null, allowed: false },
+    { label: 'null', marker: { legacyGrandfathered: null }, license: null, allowed: false },
+    { label: 'invalid', marker: { legacyGrandfathered: 'false' }, license: null, allowed: false },
+    { label: 'legacy', marker: { legacyGrandfathered: true }, license: 'Archive', allowed: false },
+    { label: 'non-legacy', marker: { legacyGrandfathered: false }, license: null, allowed: true },
+    { label: 'licensed old snapshot', marker: {}, license: 'Archive', allowed: true },
+  ])('#579 A-008 applies the captured media policy to mappings and substitutions: $label', ({ marker, license, allowed }) => {
+    const url = 'https://example.org/captured-operational-video';
+    const media = { videoUrl: url, mediaOrigin: 'Própria', mediaLicense: license, ...marker };
+    const versions = [{ id: 'capacity-resisted-v1', capacity: 'resisted' as const,
+      parameters: { type: 'resisted' as const, resisted: { exerciseTechnicalCatalogItemIds: ['technical-squat'] } } }];
+    const mappedSnapshot = { ...mapping().operationalExerciseSnapshot!, ...media };
+    const mapped = mapping({ operationalExerciseSnapshot: mappedSnapshot as never });
+    const recorded = substitution(true);
+    const substituteSnapshot = { ...recorded.substituteExerciseSnapshot, ...media };
+    const substituted = { ...recorded, substituteExerciseSnapshot: substituteSnapshot };
+    const before = JSON.stringify({ mapped, substituted });
+    const mappings = new Map([['technical-squat', mapped]]);
+    const [mappedItem] = buildOperationalProjectionItems(versions, mappings);
+    const [substitutedItem] = buildOperationalProjectionItems(versions, mappings,
+      new Map([['technical-squat', substituted]]) as never);
+    expect(mappedItem.operationalExerciseSnapshot).toEqual({ ...mappedSnapshot, videoUrl: allowed ? url : null });
+    expect(substitutedItem).toMatchObject({ substituted: true, operationalExerciseSnapshot: {
+      ...substituteSnapshot, videoUrl: allowed ? url : null,
+    } });
+    expect(JSON.stringify({ mapped, substituted })).toBe(before);
+  });
+
   it('does not associate same-name exercises without an id mapping', () => {
     const items = buildOperationalProjectionItems(
       [
@@ -436,7 +465,7 @@ describe('issue #394: operational catalog search and exact muscle filters', () =
   function searchClient() {
     return {
       aluno: { findFirst: jest.fn().mockResolvedValue({ id: context.alunoId }) },
-      exerciseLibrary: { findMany: jest.fn().mockResolvedValue([{ id: 'secondary-match' }]) },
+      exerciseLibrary: { findMany: jest.fn().mockResolvedValue([{ id: 'secondary-match', videoUrl: null }]) },
       $queryRaw: jest.fn(),
     };
   }
@@ -455,7 +484,7 @@ describe('issue #394: operational catalog search and exact muscle filters', () =
       category: 'resisted',
     });
 
-    expect(results).toEqual([{ id: 'secondary-match' }]);
+    expect(results).toEqual([{ id: 'secondary-match', videoUrl: null }]);
     expect(client.aluno.findFirst).toHaveBeenCalledWith({
       where: { id: 'aluno-1', contractId: 'contract-a' },
       select: { id: true },
@@ -493,6 +522,41 @@ describe('issue #394: operational catalog search and exact muscle filters', () =
         ]),
       }),
       take: 50,
+    }));
+  });
+
+  it('#579 A-004 sanitizes catalog media with selected provenance without widening its response', async () => {
+    const client = searchClient();
+    const videoUrl = 'https://example.org/catalog';
+    const cases = [
+      { id: 'owned', mediaOrigin: 'Própria', mediaLicense: null, expected: videoUrl },
+      { id: 'licensed', mediaOrigin: 'Licenciada', mediaLicense: 'Autorização', expected: videoUrl },
+      { id: 'unlicensed', mediaOrigin: 'Licenciada', mediaLicense: null, expected: null },
+      { id: 'unknown', mediaOrigin: null, mediaLicense: null, expected: null },
+      { id: 'noncanonical', mediaOrigin: 'Própria ', mediaLicense: null, expected: null },
+      { id: 'blank-license', mediaOrigin: 'Licenciada', mediaLicense: ' \t\u00a0', expected: null },
+    ];
+    const persisted = cases.map(({ expected, ...row }) => ({
+      ...row, name: row.id, videoUrl, curationStatus: 'approved', legacyGrandfathered: false,
+    }));
+    client.exerciseLibrary.findMany.mockImplementation(async ({ select }) =>
+      persisted.map(row => Object.fromEntries(Object.keys(select).map(key => [
+        key, row[key as keyof typeof row],
+      ])))
+    );
+    const service = createConsolidatedPrescriptionOperationalService(client as never);
+    const result = await service.listOperationalExercises(context, {});
+    expect(result.map(row => [row.id, row.videoUrl])).toEqual(cases.map(row => [row.id, row.expected]));
+    for (const row of result) {
+      expect(row).not.toHaveProperty('mediaOrigin');
+      expect(row).not.toHaveProperty('mediaLicense');
+      expect(row).not.toHaveProperty('curationStatus');
+      expect(row).not.toHaveProperty('legacyGrandfathered');
+    }
+    expect(persisted.every(row => row.videoUrl === videoUrl)).toBe(true);
+    expect(client.exerciseLibrary.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ contractId: context.contractId, curationStatus: 'approved', legacyGrandfathered: false }),
+      select: expect.objectContaining({ mediaOrigin: true, mediaLicense: true, curationStatus: true, legacyGrandfathered: true }),
     }));
   });
 

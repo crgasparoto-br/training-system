@@ -115,6 +115,8 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
   const isViewMode = mode === 'view';
   const isEditMode = mode === 'edit';
   const sourceLink = verifiedHttpsLink(formData.videoUrl);
+  const hasAuthorizedMedia = formData.mediaOrigin === 'Própria' ||
+    Boolean(formData.mediaOrigin?.trim() && formData.mediaLicense?.trim());
   const eventsByVersion = new Map<number, ExerciseRevision[]>();
   for (const event of [...revisions].sort((a, b) => b.version - a.version)) {
     const number = event.contentVersion ?? 1;
@@ -314,14 +316,14 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
               </a>
             )}
             {formData.videoUrl && !exercise?.legacyGrandfathered &&
-              !(formData.mediaOrigin?.trim() && formData.mediaLicense?.trim()) && (
+              !hasAuthorizedMedia && (
               <p role="status" className="mt-2 text-sm text-amber-800">
-                Link disponível para curadoria. A exibição nos treinos exige comprovação de origem e autorização da mídia.
+                Link disponível para curadoria. Informe a origem da mídia e, se for licenciada ou de terceiros, a autorização de uso.
               </p>
             )}
             {/* Preview do Vídeo */}
             {formData.videoUrl && !exercise?.legacyGrandfathered &&
-              Boolean(formData.mediaOrigin?.trim() && formData.mediaLicense?.trim()) && (
+              hasAuthorizedMedia && (
               <div className="mt-4">
                 <YouTubeEmbed url={formData.videoUrl} />
               </div>
@@ -329,7 +331,7 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
             
             {formData.videoUrl && exercise?.legacyGrandfathered && (
               <p role="status" className="mt-2 text-sm text-amber-800">
-                Mídia legada preservada para o histórico. A prévia será habilitada após curadoria com origem e licença verificadas.
+                Mídia legada preservada para o histórico. A prévia será habilitada após curadoria com origem declarada e, quando aplicável, licença verificada.
               </p>
             )}
             {!formData.videoUrl && (
@@ -479,6 +481,13 @@ export default function ExerciseModal({ mode, exercise, onClose, showHistory = f
               {TEXT_FIELDS.map(({ key, label }) => (
                 <label key={key} className="block text-sm font-medium text-gray-700">
                   {label}
+                  {key === 'mediaLicense' && (
+                    <span className="block mt-1 text-xs font-normal text-gray-600">
+                      {formData.mediaOrigin === 'Própria'
+                        ? 'Opcional para mídia própria.'
+                        : 'Obrigatória para mídia licenciada ou de terceiros quando houver vídeo.'}
+                    </span>
+                  )}
                   {key === 'mediaOrigin' ? (
                     <>
                       <select disabled={isViewMode} value={['Própria', 'Licenciada'].includes(formData.mediaOrigin || '') ? formData.mediaOrigin : ''}

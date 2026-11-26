@@ -55,7 +55,7 @@ A migration `20261124120000_issue_570_library_content_versions` promove somente 
 
 Uma edição ou decisão explícita de curadoria humana retira a elegibilidade do registro para reparos automáticos posteriores. A aprovação profissional continua sujeita às validações técnicas e de mídia usuais.
 
-A URL de origem do YouTube aparece para curadoria administrativa; a prévia pública e a divulgação do vídeo no contexto de treinos exigem `mediaOrigin` e `mediaLicense` verificáveis. A URL por si só nunca é tratada como prova de direitos.
+A URL de origem do YouTube aparece para curadoria administrativa; a prévia pública e a divulgação do vídeo no contexto de treinos exigem origem declarada e, para mídia licenciada ou de terceiros, licença/autorização registrada. A opção canônica `Própria` dispensa licença adicional após curadoria explícita (#579). A URL por si só nunca é tratada como prova de direitos.
 
 ## Interface
 
