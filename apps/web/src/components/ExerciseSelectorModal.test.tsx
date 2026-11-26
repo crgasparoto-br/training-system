@@ -50,6 +50,18 @@ describe('ExerciseSelectorModal - catálogo operacional (#562)', () => {
     },
   );
 
+  it('#582 aplica a versão vigente retornada pelo catálogo oficial, preservando o ID exato', async () => {
+    const user = userEvent.setup();
+    const onSelectMany = vi.fn();
+    const current = { ...approved, id: 'current-version', versionRootId: approved.id, contentVersion: 2 };
+    vi.mocked(libraryService.listExercises).mockResolvedValue([current]);
+    render(selector(undefined, onSelectMany));
+    await user.click(await screen.findByText('Agachamento aprovado'));
+    await user.click(screen.getByRole('button', { name: /Adicionar selecionados/i }));
+    expect(onSelectMany).toHaveBeenCalledWith([current]);
+    expect(libraryService.listExercises).toHaveBeenCalledWith({ scope: 'official' });
+  });
+
   it('aplica apenas os filtros escolhidos pelo professor e mantém a seleção em lote', async () => {
     const user = userEvent.setup();
     const onSelectMany = vi.fn();
