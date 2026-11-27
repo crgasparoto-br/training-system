@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { accessSync, constants, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import https from 'node:https';
 import { createLoopbackTls } from './youtube-browser-tls.mjs';
+import { clickNativePlayer } from './youtube-browser-gesture.mjs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -185,7 +186,10 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
           if (request.url().startsWith('https://www.youtube.com/embed/M7lc1UVf-VE')) {
             embedRequests.push({ url: request.url(), referer: request.headers().referer ?? null,
               authorization: Boolean(request.headers().authorization), cookie: Boolean(request.headers().cookie) });
-            void request.respond({ status: 200, contentType: 'text/html', body: '<p>Player indisponível (controle)</p>' });
+            const body = request.url().endsWith('?gesture-control=1')
+              ? '<button aria-label="Play" style="position:fixed;inset:0" onclick="this.dataset.clicked=String(event.isTrusted)">Play</button>'
+              : '<p>Player indisponível (controle)</p>';
+            void request.respond({ status: 200, contentType: 'text/html', body });
           } else {
             void request.continue();
           }
@@ -259,6 +263,35 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
         await page.waitForSelector('#library-exercise-name');
         await page.keyboard.press('Escape');
         await page.waitForFunction(() => !document.querySelector('#library-exercise-name'));
+        let gestureControl = null;
+        if (viewport.width === 1440) {
+          // Separate synthetic control: proves actual cross-origin pointer delivery
+          // with a different play-button class and rejection of an obstructed target.
+          await page.evaluate(() => {
+            const frame = document.createElement('iframe');
+            frame.id = 'gesture-control';
+            frame.style.cssText = 'position:fixed;left:10px;top:10px;width:320px;height:200px;z-index:2147483647';
+            frame.src = 'https://www.youtube.com/embed/M7lc1UVf-VE?gesture-control=1';
+            document.body.appendChild(frame);
+          });
+          const gestureFrame = await page.waitForSelector('#gesture-control');
+          const child = await gestureFrame.contentFrame();
+          await child.waitForSelector('button[aria-label="Play"]');
+          expect(await child.$('.ytp-large-play-button')).toBeNull();
+          await page.evaluate(() => {
+            const cover = document.createElement('div');
+            cover.id = 'gesture-cover';
+            cover.style.cssText = 'position:fixed;inset:0;z-index:2147483647';
+            document.body.appendChild(cover);
+          });
+          await expect(clickNativePlayer(page, gestureFrame)).rejects.toThrow('obstructed');
+          expect(await child.$eval('button', node => node.dataset.clicked ?? null)).toBeNull();
+          await page.evaluate(() => document.querySelector('#gesture-cover').remove());
+          const gesture = await clickNativePlayer(page, gestureFrame);
+          await child.waitForFunction(() => document.querySelector('button').dataset.clicked === 'true');
+          gestureControl = { ...gesture, trustedClick: true, obstructedTargetRejected: true, simulated: true };
+          await page.evaluate(() => document.querySelector('#gesture-control').remove());
+        }
         await pressInRow('Remada Rascunho', 'button[title="Editar"]');
         await page.waitForSelector('#library-exercise-name');
         await rename('Remada Revisada');
@@ -310,7 +343,7 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
           .find(button => button.textContent?.includes('Adicionar selecionados'))?.click());
         await page.waitForFunction(() => document.querySelector('#selected-exercises')?.textContent === 'Agachamento Curado');
         captures.push(await shot('professor-selected'));
-        observations.push({ viewport, captures, embedRequests, webOrigin, passed: true });
+        observations.push({ viewport, captures, embedRequests, webOrigin, gestureControl, passed: true });
         await page.close();
       }
       expect(requests.filter(entry => entry.role === 'professor'

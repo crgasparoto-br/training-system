@@ -59,6 +59,7 @@
     "apps/web/src/pages/library/exercisemodal.tsx",
     "apps/web/src/pages/library/issue-394-browser-evidence.test.js",
     "apps/web/src/pages/library/youtube-browser-tls.mjs",
+    "apps/web/src/pages/library/youtube-browser-gesture.mjs",
     "apps/web/src/pages/library/youtube-live-browser-evidence.test.js",
     "apps/web/index.html",
     "apps/web/vercel.json",

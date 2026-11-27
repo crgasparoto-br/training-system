@@ -5,6 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createLoopbackTls } from './youtube-browser-tls.mjs';
+import { clickNativePlayer } from './youtube-browser-gesture.mjs';
 
 const apiRequire = createRequire(path.resolve(process.cwd(), '../api/package.json'));
 const puppeteer = apiRequire('puppeteer');
@@ -81,22 +82,31 @@ suite('Issue #583 - real YouTube over HTTPS', () => {
       expect(evidence.requests).toContainEqual({ url: embedUrl, referer: origin + '/', authorization: false, cookie: false });
       const frame = await element.contentFrame();
       expect(frame).toBeTruthy();
-      await frame.waitForSelector('#movie_player', { timeout: 25000 });
-      const play = await frame.waitForSelector('.ytp-large-play-button', { visible: true, timeout: 15000 });
-      await play.click();
+      await frame.waitForFunction(() => {
+        const player = document.querySelector('#movie_player');
+        return player?.getBoundingClientRect().width > 0 && Boolean(player.querySelector('button, video, [role=button]'));
+      }, { timeout: 25000 });
+      const readSample = () => frame.evaluate(() => {
+        const player = document.querySelector('#movie_player');
+        const video = player?.querySelector('video');
+        const error = document.querySelector('.ytp-error-content-wrap');
+        return {
+          time: video?.currentTime ?? null, readyState: video?.readyState ?? 0,
+          paused: video?.paused ?? true, ad: player?.classList.contains('ad-showing') ?? false,
+          error: error?.getClientRects().length ? error.textContent?.trim().slice(0, 500) : null,
+          mediaError: video?.error?.code ?? null,
+        };
+      });
+      evidence.beforeGesture = await readSample();
+      if (evidence.beforeGesture.error || evidence.beforeGesture.mediaError) {
+        throw new Error('Native player error before gesture: ' + (evidence.beforeGesture.error || evidence.beforeGesture.mediaError));
+      }
+      expect(evidence.beforeGesture.paused, 'Playback must not start before the user gesture').toBe(true);
+      await page.screenshot({ path: path.join(outputDir, 'before-gesture.png') });
+      evidence.gesture = await clickNativePlayer(page, element);
       let firstPlaying;
       for (let attempt = 0; attempt < 40; attempt++) {
-        const sample = await frame.evaluate(() => {
-          const player = document.querySelector('#movie_player');
-          const video = player?.querySelector('video');
-          const error = document.querySelector('.ytp-error-content-wrap');
-          return {
-            time: video?.currentTime ?? null, readyState: video?.readyState ?? 0,
-            paused: video?.paused ?? true, ad: player?.classList.contains('ad-showing') ?? false,
-            error: error?.getClientRects().length ? error.textContent?.trim().slice(0, 500) : null,
-            mediaError: video?.error?.code ?? null,
-          };
-        });
+        const sample = await readSample();
         evidence.samples.push(sample);
         if (sample.error || sample.mediaError) throw new Error('Native player error: ' + (sample.error || sample.mediaError));
         if (!sample.ad && !sample.paused && sample.readyState >= 2 && sample.time !== null) {

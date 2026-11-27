@@ -148,6 +148,7 @@ test('YouTube privacy and real-browser evidence cannot use FAST or STANDARD', ()
     'apps/web/src/pages/Library/ExerciseModal.tsx',
     'apps/web/src/pages/Library/issue-394-browser-evidence.test.js',
     'apps/web/src/pages/Library/youtube-browser-tls.mjs',
+    'apps/web/src/pages/Library/youtube-browser-gesture.mjs',
     'apps/web/src/pages/Library/youtube-live-browser-evidence.test.js',
     'apps/web/index.html', 'apps/web/vercel.json', 'vercel.json',
   ];

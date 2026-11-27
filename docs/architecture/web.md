@@ -197,8 +197,12 @@ dispensado. Essa evidência não comprova reprodução externa.
 O gate separado #583 executa o componente real sobre HTTPS, sem interceptação
 de YouTube, com o vídeo público de exemplo da documentação IFrame API.
 Exige resposta HTTP válida, Referer de origem, gesto de reprodução no player
-nativo e avanço efetivo do tempo de vídeo fora de anúncios. Retém
-`artifacts/issue-583/live.json` e captura com o SHA exato. Falha de rede,
+nativo e avanço efetivo do tempo de vídeo fora de anúncios. O gesto usa o centro visível e desobstruído do iframe via ponteiro real,
+sem depender de classes CSS privadas do YouTube; o teste #394 comprova o
+clique confiável em uma resposta controlada sem a classe antiga e a recusa
+de um alvo sobreposto. Isso não substitui a prova de reprodução externa. Retém
+`artifacts/issue-583/live.json`, estado anterior ao gesto, coordenadas e capturas
+antes/depois com o SHA exato. Falha de rede,
 restrição externa ou ausência de prova não é homologação: o teste não passa
 e a PR permanece pendente. O ambiente é representativo em TLS, sem credenciais
 de produção; os cabeçalhos efetivos do deploy devem ser verificados após
