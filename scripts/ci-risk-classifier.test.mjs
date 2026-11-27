@@ -141,6 +141,30 @@ test('canonical audit contract changes always use CRITICAL validation', () => {
 });
 
 
+test('YouTube privacy and real-browser evidence cannot use FAST or STANDARD', () => {
+  const paths = [
+    'apps/web/src/pages/Library/YouTubeEmbed.tsx',
+    'apps/web/src/pages/Library/YouTubeEmbed.test.tsx',
+    'apps/web/src/pages/Library/ExerciseModal.tsx',
+    'apps/web/src/pages/Library/issue-394-browser-evidence.test.js',
+    'apps/web/src/pages/Library/youtube-browser-tls.mjs',
+    'apps/web/src/pages/Library/youtube-browser-gesture.mjs',
+    'apps/web/src/pages/Library/youtube-live-browser-evidence.test.js',
+    'apps/web/index.html', 'apps/web/vercel.json', 'vercel.json',
+  ];
+  for (const path of paths) {
+    const result = classifyRepositoryCi({ changedPaths: [path], requested: 'fast' });
+    assert.equal(result.riskProfile, 'critical', path);
+    assert.equal(result.youtubeLiveRequired, true, path);
+    assert.equal(result.promoted, true, path);
+    assert.equal(classifyRepositoryCi({ changedPaths: [path], requested: 'standard' }).riskProfile, 'critical', path);
+  }
+  const unrelated = classifyRepositoryCi({ changedPaths: ['apps/web/src/components/Button.tsx'] });
+  assert.equal(unrelated.riskProfile, 'fast');
+  assert.equal(unrelated.youtubeLiveRequired, false);
+  assert.equal(classifyRepositoryCi({ changedPaths: ['apps/api/prisma/schema.prisma'] }).youtubeLiveRequired, false);
+});
+
 test('clinical timeline projections require database-backed CRITICAL CI', () => {
   const result = classifyRepositoryCi({
     changedPaths: ['apps/api/src/modules/alunos/student-clinical-timeline.service.ts'],
@@ -179,6 +203,10 @@ function validateCriticalWorkflowContract(workflow) {
     assert.ok(critical.includes(required), required + ' must remain in CRITICAL');
   }
   assert.match(workflow, /name: Validate repository/);
+  assert.match(workflow, /youtube_live_required: \$\{\{ steps\.risk\.outputs\.youtube_live_required \}\}/);
+  assert.match(critical, /name: Issue #583 external YouTube playback[\s\S]*?if: \$\{\{ github\.event_name == 'pull_request' && needs\.classify\.outputs\.youtube_live_required == 'true' \}\}[\s\S]*?ISSUE_583_YOUTUBE_LIVE: '1'[\s\S]*?youtube-live-browser-evidence\.test\.js/);
+  assert.match(critical, /artifacts\/issue-583\/\*\*/);
+  assert.match(critical, /ISSUE_394_BROWSER_EVIDENCE: '1'/);
 }
 
 test('CRITICAL CI executes full validation once without duplicate push and preserves audit gates', () => {
@@ -193,4 +221,6 @@ test('CRITICAL workflow contract rejects redundant push and duplicate tests (neg
   const duplicateTests = workflow.replace('      - name: Verify issue-487 exact-head browser captures',
     '      - name: Duplicate tests\n        run: pnpm test\n      - name: Verify issue-487 exact-head browser captures');
   assert.throws(() => validateCriticalWorkflowContract(duplicateTests));
+  assert.throws(() => validateCriticalWorkflowContract(workflow.replace("ISSUE_583_YOUTUBE_LIVE: '1'", "ISSUE_583_YOUTUBE_LIVE: '0'")));
+  assert.throws(() => validateCriticalWorkflowContract(workflow.replace('artifacts/issue-583/**', 'artifacts/unused/**')));
 });

@@ -1,11 +1,13 @@
 // @vitest-environment node
-// Real Chromium + production Library and ExerciseSelectorModal + controlled HTTP boundary.
+// Real Chromium + production Library and ExerciseSelectorModal + controlled HTTPS boundary.
 // Run explicitly in the CRITICAL CI step so the full test suite does not launch
 // competing browsers. The API/authorization invariants are tested separately.
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { accessSync, constants, mkdirSync, writeFileSync } from 'node:fs';
-import http from 'node:http';
+import { accessSync, constants, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import https from 'node:https';
+import { createLoopbackTls } from './youtube-browser-tls.mjs';
+import { clickNativePlayer } from './youtube-browser-gesture.mjs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -37,13 +39,15 @@ function exercise(id, name, status, overrides = {}) {
 }
 
 const seed = () => [
-  exercise('approved-394', 'Agachamento Curado', 'approved', { reviewedByUserId: 'master-394' }),
+  exercise('approved-394', 'Agachamento Curado', 'approved', { reviewedByUserId: 'master-394', videoUrl: 'https://youtu.be/M7lc1UVf-VE', mediaOrigin: 'Própria' }),
   exercise('draft-394', 'Remada Rascunho', 'draft'),
   exercise('inactive-394', 'Exercício Histórico Desativado', 'inactive'),
 ];
 
-const harness = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
-<body><main id="root"></main><script type="module">
+const productionShell = readFileSync(path.join(process.cwd(), 'index.html'), 'utf8');
+const entrypoint = '<script type="module" src="/src/main.tsx"></script>';
+if (!productionShell.includes(entrypoint)) throw new Error('Production HTML entrypoint changed');
+const harness = productionShell.replace(entrypoint, `<script type="module">
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import '/src/index.css';
@@ -67,7 +71,7 @@ function App() {
       onSelectMany: values => setSelected(values.map(value => value.name)) }));
 }
 createRoot(document.getElementById('root')).render(React.createElement(App));
-</script></body></html>`;
+</script>`);
 
 suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
   it('evidencia criacao, edicao, revisao, filtros e selecao por perfil em tres viewports', async () => {
@@ -97,9 +101,10 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
     };
     try {
       mkdirSync(outputDir, { recursive: true });
-      api = http.createServer(async (req, res) => {
+      const tls = createLoopbackTls();
+      api = https.createServer(tls.options, async (req, res) => {
         if (req.method === 'OPTIONS') return json(res, 204, {});
-        const url = new URL(req.url, 'http://127.0.0.1');
+        const url = new URL(req.url, 'https://127.0.0.1');
         const role = String(req.headers.authorization || '').startsWith('Bearer master-token-394')
           ? 'master' : 'professor';
         const body = req.method === 'POST' || req.method === 'PUT' ? await readBody(req) : {};
@@ -146,15 +151,15 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
         return json(res, 404, { message: `Request inesperada: ${req.method} ${url.pathname}` });
       });
       await new Promise((resolve, reject) => { api.once('error', reject); api.listen(0, '127.0.0.1', resolve); });
-      process.env.VITE_API_URL = `http://127.0.0.1:${api.address().port}`;
+      process.env.VITE_API_URL = `https://127.0.0.1:${api.address().port}`;
       const { createServer } = await import('vite');
       vite = await createServer({
-        root: process.cwd(), logLevel: 'error', server: { host: '127.0.0.1', port: 0 },
+        root: process.cwd(), logLevel: 'error', server: { host: '127.0.0.1', port: 0, https: tls.options },
         plugins: [{ name: 'issue-394-real-library-browser-harness', configureServer(server) {
           server.middlewares.use(async (req, res, next) => {
-            if (req.url?.split('?')[0] !== '/__issue-394.html') return next();
+            if (req.url?.split('?')[0] !== '/library') return next();
             try {
-              const html = await server.transformIndexHtml('/__issue-394.html', harness);
+              const html = await server.transformIndexHtml('/library', harness);
               res.setHeader('Content-Type', 'text/html');
               res.end(html);
             } catch (error) { next(error); }
@@ -162,9 +167,9 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
         } }],
       });
       await vite.listen();
-      webOrigin = `http://127.0.0.1:${vite.httpServer.address().port}`;
+      webOrigin = `https://127.0.0.1:${vite.httpServer.address().port}`;
       browser = await puppeteer.launch({ executablePath: executablePath(), headless: true,
-        args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+        args: ['--no-sandbox', '--disable-dev-shm-usage', tls.chromeArg] });
       for (const viewport of [
         { width: 1440, height: 900 },
         { width: 768, height: 1024 },
@@ -174,6 +179,21 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
         const page = await browser.newPage();
         page.on('pageerror', error => browserErrors.push(`${viewport.width}: ${error.message}`));
         page.on('dialog', dialog => dialog.accept());
+        // Control external responses, not Chromium's request construction.
+        const embedRequests = [];
+        await page.setRequestInterception(true);
+        page.on('request', request => {
+          if (request.url().startsWith('https://www.youtube.com/embed/M7lc1UVf-VE')) {
+            embedRequests.push({ url: request.url(), referer: request.headers().referer ?? null,
+              authorization: Boolean(request.headers().authorization), cookie: Boolean(request.headers().cookie) });
+            const body = request.url().endsWith('?gesture-control=1')
+              ? '<button aria-label="Play" style="position:fixed;inset:0" onclick="this.dataset.clicked=String(event.isTrusted)">Play</button>'
+              : '<p>Player indisponível (controle)</p>';
+            void request.respond({ status: 200, contentType: 'text/html', body });
+          } else {
+            void request.continue();
+          }
+        });
         await page.setViewport(viewport);
         const shot = async (phase) => {
           const prefix = `${viewport.width}-${phase}`;
@@ -211,14 +231,67 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
           await page.waitForFunction(expected => [...document.querySelectorAll('tbody tr')]
             .some(row => row.textContent?.includes(expected)), {}, name);
         };
-        await page.goto(`${webOrigin}/__issue-394.html?role=master`, { waitUntil: 'domcontentloaded' });
+        await page.goto(`${webOrigin}/library?role=master&privacyProbe=synthetic-only`, { waitUntil: 'domcontentloaded' });
         await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 3);
         expect(await rows()).toEqual(expect.arrayContaining([expect.stringContaining('Remada Rascunho')]));
         const captures = [await shot('master-list')];
-        await page.click('button[title="Editar"]'); // first row: edit an approved exercise, then Escape cancels
+        expect(await page.$eval('meta[name="referrer"]', node => node.content)).toBe('no-referrer');
+        expect(await page.evaluate(() => ({ protocol: location.protocol, secure: isSecureContext })))
+          .toEqual({ protocol: 'https:', secure: true });
+        const actualRequest = page.waitForRequest(request =>
+          request.url() === 'https://www.youtube.com/embed/M7lc1UVf-VE' && request.isNavigationRequest());
+        await pressInRow('Agachamento Curado', 'button[title="Editar"]');
+        await page.waitForSelector('iframe[title="YouTube video player"]');
+        const actual = await actualRequest;
+        expect(actual.headers().referer).toBe(webOrigin + '/');
+        expect(actual.headers().authorization).toBeUndefined();
+        expect(actual.headers().cookie).toBeUndefined();
+        expect(await page.$eval('a[href="https://www.youtube.com/watch?v=M7lc1UVf-VE"]', link => link.textContent)).toContain('abra no YouTube');
+        // A sibling iframe without the exception must still suppress Referer.
+        const negativeRequest = page.waitForRequest(request => request.url().endsWith('?referrer-control=1'));
+        await page.evaluate(() => {
+          const frame = document.createElement('iframe');
+          frame.hidden = true;
+          frame.src = 'https://www.youtube.com/embed/M7lc1UVf-VE?referrer-control=1';
+          document.body.appendChild(frame);
+        });
+        const negative = await negativeRequest;
+        expect(negative.headers().referer ?? null).toBeNull();
+        expect(negative.headers().authorization).toBeUndefined();
+        await page.evaluate(() => document.querySelector('iframe[src$="?referrer-control=1"]')?.remove());
+        captures.push(await shot('master-youtube-fallback'));
         await page.waitForSelector('#library-exercise-name');
         await page.keyboard.press('Escape');
         await page.waitForFunction(() => !document.querySelector('#library-exercise-name'));
+        let gestureControl = null;
+        if (viewport.width === 1440) {
+          // Separate synthetic control: proves actual cross-origin pointer delivery
+          // with a different play-button class and rejection of an obstructed target.
+          await page.evaluate(() => {
+            const frame = document.createElement('iframe');
+            frame.id = 'gesture-control';
+            frame.style.cssText = 'position:fixed;left:10px;top:10px;width:320px;height:200px;z-index:2147483647';
+            frame.src = 'https://www.youtube.com/embed/M7lc1UVf-VE?gesture-control=1';
+            document.body.appendChild(frame);
+          });
+          const gestureFrame = await page.waitForSelector('#gesture-control');
+          const child = await gestureFrame.contentFrame();
+          await child.waitForSelector('button[aria-label="Play"]');
+          expect(await child.$('.ytp-large-play-button')).toBeNull();
+          await page.evaluate(() => {
+            const cover = document.createElement('div');
+            cover.id = 'gesture-cover';
+            cover.style.cssText = 'position:fixed;inset:0;z-index:2147483647';
+            document.body.appendChild(cover);
+          });
+          await expect(clickNativePlayer(page, gestureFrame)).rejects.toThrow('obstructed');
+          expect(await child.$eval('button', node => node.dataset.clicked ?? null)).toBeNull();
+          await page.evaluate(() => document.querySelector('#gesture-cover').remove());
+          const gesture = await clickNativePlayer(page, gestureFrame);
+          await child.waitForFunction(() => document.querySelector('button').dataset.clicked === 'true');
+          gestureControl = { ...gesture, trustedClick: true, obstructedTargetRejected: true, simulated: true };
+          await page.evaluate(() => document.querySelector('#gesture-control').remove());
+        }
         await pressInRow('Remada Rascunho', 'button[title="Editar"]');
         await page.waitForSelector('#library-exercise-name');
         await rename('Remada Revisada');
@@ -243,7 +316,7 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
         expect((await rows()).join(' ')).not.toContain('Ponte Rascunho');
         captures.push(await shot('master-filtered'));
 
-        await page.goto(`${webOrigin}/__issue-394.html?role=professor`, { waitUntil: 'domcontentloaded' });
+        await page.goto(`${webOrigin}/library?role=professor`, { waitUntil: 'domcontentloaded' });
         await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 2);
         expect((await rows()).join(' ')).not.toContain('Ponte Rascunho');
         expect((await rows()).join(' ')).not.toContain('Exercício Histórico Desativado');
@@ -270,7 +343,7 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
           .find(button => button.textContent?.includes('Adicionar selecionados'))?.click());
         await page.waitForFunction(() => document.querySelector('#selected-exercises')?.textContent === 'Agachamento Curado');
         captures.push(await shot('professor-selected'));
-        observations.push({ viewport, captures, passed: true });
+        observations.push({ viewport, captures, embedRequests, webOrigin, gestureControl, passed: true });
         await page.close();
       }
       expect(requests.filter(entry => entry.role === 'professor'
@@ -290,7 +363,7 @@ suite('Issue #394 - Biblioteca e seletor em Chrome real', () => {
         schemaVersion: 1, kind: 'issue-394-library-browser-evidence',
         repository: 'crgasparoto-br/training-system', subjectSha,
         result: completed ? 'PASS' : 'FAIL',
-        scope: 'production Library + ExerciseSelectorModal in Chromium, synthetic authenticated profiles, controlled HTTP API; backend authorization proved separately',
+        scope: 'production Library + ExerciseSelectorModal in Chromium, synthetic authenticated profiles, controlled HTTPS API; backend authorization proved separately',
         observations, requests, browserErrors,
       }, null, 2));
       await browser?.close();

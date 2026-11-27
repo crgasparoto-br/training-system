@@ -170,3 +170,40 @@ O modal de exercícios apresenta versões editoriais em ordem decrescente. Cada 
 A aprovação manual mantém os requisitos técnicos e de mídia. A API informa todos os campos pendentes em uma resposta 422. A biblioteca apresenta a mensagem no contexto do exercício e oferece edição da ficha; salvar retorna a rascunho e exige novo envio para revisão. Conflitos exigem atualização da lista, erros de permissão são diferenciados e falhas inesperadas não exibem detalhes internos. Nenhuma falha altera localmente o estado de aprovação.
 
 No editor da biblioteca, a origem da mídia utiliza lista suspensa com Própria e Licenciada, sem seleção automática. Valores históricos diferentes permanecem visíveis e preservados até substituição explícita. Somente a opção exata `Própria` dispensa o campo licença/autorização adicional; valores históricos com espaços não recebem a isenção; a opção `Licenciada` e demais origens de terceiros ainda exigem esse registro quando houver vídeo. A prévia acompanha a mesma regra e continua bloqueada para mídia legada sem curadoria (#579).
+
+## Biblioteca: reprodução incorporada do YouTube (#583)
+
+A política global do documento continua `no-referrer`. Somente o iframe
+YouTube da Biblioteca usa `strict-origin-when-cross-origin`, para enviar a
+origem do aplicativo (sem caminho ou query) exigida pelo player; ausência de
+identificação pode produzir o erro 153. Não altere a política global para
+corrigir o player. Verifique a política efetiva no navegador após deploy.
+
+A prévia continua condicionada à autorização de mídia da curadoria. O player
+aceita somente links HTTPS de hosts YouTube conhecidos e IDs de 11 caracteres;
+o link de recuperação aponta para o mesmo ID validado, fora do iframe. Erros
+de reprodução são apresentados pelo player nativo e o link de recuperação
+permanece disponível sem afirmar que um evento de carregamento confirma
+reprodução. Não contornar bloqueio de incorporação nem expor mídia sem direitos.
+
+A evidência Chromium #394 usa o HTML de produção, os componentes reais de
+Biblioteca e TLS loopback com certificado efêmero e pin SPKI restrito ao
+certificado do teste. A API é controlada; o navegador emite a requisição HTTPS
+real, e somente a resposta externa do player é interceptada. O teste exige
+origem HTTPS sem caminho, query, cookie ou autorização, além de um controle
+negativo sem a exceção e fallback visível. O certificado do YouTube não é
+dispensado. Essa evidência não comprova reprodução externa.
+
+O gate separado #583 executa o componente real sobre HTTPS, sem interceptação
+de YouTube, com o vídeo público de exemplo da documentação IFrame API.
+Exige resposta HTTP válida, Referer de origem, gesto de reprodução no player
+nativo e avanço efetivo do tempo de vídeo fora de anúncios. O gesto usa o centro visível e desobstruído do iframe via ponteiro real,
+sem depender de classes CSS privadas do YouTube; o teste #394 comprova o
+clique confiável em uma resposta controlada sem a classe antiga e a recusa
+de um alvo sobreposto. Isso não substitui a prova de reprodução externa. Retém
+`artifacts/issue-583/live.json`, estado anterior ao gesto, coordenadas e capturas
+antes/depois com o SHA exato. Falha de rede,
+restrição externa ou ausência de prova não é homologação: o teste não passa
+e a PR permanece pendente. O ambiente é representativo em TLS, sem credenciais
+de produção; os cabeçalhos efetivos do deploy devem ser verificados após
+promoção autorizada.
